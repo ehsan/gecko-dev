@@ -19,7 +19,6 @@
 #include "nsIAuthPrompt.h"
 #include "nsIBrowserDOMWindow.h"
 #include "nsIWebProgress.h"
-#include "nsIWidget.h"
 #include "nsIWindowMediator.h"
 #include "nsIDOMChromeWindow.h"
 #include "nsIDOMNode.h"
@@ -30,6 +29,9 @@
 #include "mozilla/dom/Element.h"
 
 using namespace mozilla;
+
+// CIDs
+static NS_DEFINE_CID(kWindowMediatorCID, NS_WINDOWMEDIATOR_CID);
 
 //*****************************************************************************
 // nsChromeTreeOwner string literals
@@ -143,8 +145,6 @@ NS_IMETHODIMP nsChromeTreeOwner::FindItemWithName(const PRUnichar* aName,
    nsIDocShellTreeItem* aRequestor, nsIDocShellTreeItem* aOriginalRequestor,
    nsIDocShellTreeItem** aFoundItem)
 {
-   NS_DEFINE_CID(kWindowMediatorCID, NS_WINDOWMEDIATOR_CID);
-
    NS_ENSURE_ARG_POINTER(aFoundItem);
 
    *aFoundItem = nullptr;

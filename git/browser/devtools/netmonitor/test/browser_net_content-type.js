@@ -9,7 +9,7 @@ function test() {
   initNetMonitor(CONTENT_TYPE_URL).then(([aTab, aDebuggee, aMonitor]) => {
     info("Starting test... ");
 
-    let { document, L10N, Editor, NetMonitorView } = aMonitor.panelWin;
+    let { document, L10N, SourceEditor, NetMonitorView } = aMonitor.panelWin;
     let { RequestsMenu } = NetMonitorView;
 
     RequestsMenu.lazyUpdate = false;
@@ -75,27 +75,31 @@ function test() {
       EventUtils.sendMouseEvent({ type: "mousedown" },
         document.querySelectorAll("#details-pane tab")[3]);
 
-      Task.spawn(function*() {
-        yield waitForResponseBodyDisplayed();
-        yield testResponseTab("xml");
-        RequestsMenu.selectedIndex = 1;
-        yield waitForTabUpdated();
-        yield testResponseTab("css");
-        RequestsMenu.selectedIndex = 2;
-        yield waitForTabUpdated();
-        yield testResponseTab("js");
-        RequestsMenu.selectedIndex = 3;
-        yield waitForTabUpdated();
-        yield testResponseTab("json");
-        RequestsMenu.selectedIndex = 4;
-        yield waitForTabUpdated();
-        yield testResponseTab("html");
-        RequestsMenu.selectedIndex = 5;
-        yield waitForTabUpdated();
-        yield testResponseTab("png");
-        yield teardown(aMonitor);
-        finish();
-      });
+      testResponseTab("xml")
+        .then(() => {
+          RequestsMenu.selectedIndex = 1;
+          return testResponseTab("css");
+        })
+        .then(() => {
+          RequestsMenu.selectedIndex = 2;
+          return testResponseTab("js");
+        })
+        .then(() => {
+          RequestsMenu.selectedIndex = 3;
+          return testResponseTab("json");
+        })
+        .then(() => {
+          RequestsMenu.selectedIndex = 4;
+          return testResponseTab("html");
+        })
+        .then(() => {
+          RequestsMenu.selectedIndex = 5;
+          return testResponseTab("png");
+        })
+        .then(() => {
+          return teardown(aMonitor);
+        })
+        .then(finish);
 
       function testResponseTab(aType) {
         let tab = document.querySelectorAll("#details-pane tab")[3];
@@ -126,7 +130,7 @@ function test() {
             return NetMonitorView.editor("#response-content-textarea").then((aEditor) => {
               is(aEditor.getText(), "<label value='greeting'>Hello XML!</label>",
                 "The text shown in the source editor is incorrect for the xml request.");
-              is(aEditor.getMode(), Editor.modes.html,
+              is(aEditor.getMode(), SourceEditor.MODES.HTML,
                 "The mode active in the source editor is incorrect for the xml request.");
             });
           }
@@ -136,7 +140,7 @@ function test() {
             return NetMonitorView.editor("#response-content-textarea").then((aEditor) => {
               is(aEditor.getText(), "body:pre { content: 'Hello CSS!' }",
                 "The text shown in the source editor is incorrect for the xml request.");
-              is(aEditor.getMode(), Editor.modes.css,
+              is(aEditor.getMode(), SourceEditor.MODES.CSS,
                 "The mode active in the source editor is incorrect for the xml request.");
             });
           }
@@ -146,7 +150,7 @@ function test() {
             return NetMonitorView.editor("#response-content-textarea").then((aEditor) => {
               is(aEditor.getText(), "function() { return 'Hello JS!'; }",
                 "The text shown in the source editor is incorrect for the xml request.");
-              is(aEditor.getMode(), Editor.modes.js,
+              is(aEditor.getMode(), SourceEditor.MODES.JAVASCRIPT,
                 "The mode active in the source editor is incorrect for the xml request.");
             });
           }
@@ -184,7 +188,7 @@ function test() {
             return NetMonitorView.editor("#response-content-textarea").then((aEditor) => {
               is(aEditor.getText(), "<blink>Not Found</blink>",
                 "The text shown in the source editor is incorrect for the xml request.");
-              is(aEditor.getMode(), Editor.modes.html,
+              is(aEditor.getMode(), SourceEditor.MODES.HTML,
                 "The mode active in the source editor is incorrect for the xml request.");
             });
           }
@@ -216,14 +220,6 @@ function test() {
             return deferred.promise;
           }
         }
-      }
-
-      function waitForTabUpdated () {
-        return waitFor(aMonitor.panelWin, aMonitor.panelWin.EVENTS.TAB_UPDATED);
-      }
-
-      function waitForResponseBodyDisplayed () {
-        return waitFor(aMonitor.panelWin, aMonitor.panelWin.EVENTS.RESPONSE_BODY_DISPLAYED);
       }
     });
 

@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const {Cc, Ci, Cu, CC} = require("chrome");
+const {Cc, Ci, Cu} = require("chrome");
 const protocol = require("devtools/server/protocol");
 const {method, RetVal} = protocol;
 const promise = require("sdk/core/promise");
@@ -57,10 +57,8 @@ let DeviceActor = protocol.ActorClass({
 
   _getSetting: function(name) {
     let deferred = promise.defer();
-
-    if ("@mozilla.org/settingsService;1" in Cc) {
-      let settingsService = Cc["@mozilla.org/settingsService;1"].getService(Ci.nsISettingsService);
-      let req = settingsService.createLock().get(name, {
+    if (Services.settings) {
+      let req = Services.settings.createLock().get(name, {
         handle: (name, value) => deferred.resolve(value),
         handleError: (error) => deferred.reject(error),
       });
@@ -146,24 +144,6 @@ let DeviceActor = protocol.ActorClass({
     return desc;
 
   }, {request: {},response: { value: RetVal("json")}}),
-
-  getWallpaper: method(function() {
-    let deferred = promise.defer();
-    this._getSetting("wallpaper.image").then((blob) => {
-      let FileReader = CC("@mozilla.org/files/filereader;1");
-      let reader = new FileReader();
-      let conn = this.conn;
-      reader.addEventListener("load", function() {
-        let str = new LongStringActor(conn, reader.result);
-        deferred.resolve(str);
-      });
-      reader.addEventListener("error", function() {
-        deferred.reject(reader.error);
-      });
-      reader.readAsDataURL(blob);
-    });
-    return deferred.promise;
-  }, {request: {},response: { value: RetVal("longstring")}}),
 
   screenshotToDataURL: method(function() {
     let window = Services.wm.getMostRecentWindow(DebuggerServer.chromeWindowType);

@@ -51,6 +51,18 @@ function waitPrefChange(cb) {
   }, false);
 }
 
+function setWorkerMode(multiple, cb) {
+  waitPrefChange(function() {
+    if (multiple)
+      Services.prefs.setBoolPref("social.allowMultipleWorkers", true);
+    else
+      Services.prefs.clearUserPref("social.allowMultipleWorkers");
+    waitPrefChange(cb);
+    Social.enabled = true;
+  });
+  Social.enabled = false;
+}
+
 function test() {
   requestLongerTimeout(2); // only debug builds seem to need more time...
   waitForExplicitFinish();
@@ -64,10 +76,6 @@ function test() {
     cb();
   };
   runSocialTestWithProvider(manifests, function (finishcb) {
-    ok(Social.enabled, "Social is enabled");
-    ok(Social.providers[0].getWorkerPort(), "provider 0 has port");
-    ok(Social.providers[1].getWorkerPort(), "provider 1 has port");
-    ok(Social.providers[2].getWorkerPort(), "provider 2 has port");
     runSocialTests(tests, undefined, postSubTest, function() {
       window.moveTo(oldleft, window.screenY)
       window.resizeTo(oldwidth, window.outerHeight);
@@ -471,69 +479,38 @@ var tests = {
           openChat(Social.provider, function() {
             ok(!window.SocialChatBar.hasChats, "first window has no chats");
             ok(secondWindow.SocialChatBar.hasChats, "second window has a chat");
-
-            // focus the first window, and open yet another chat - it
-            // should open in the first window.
-            waitForFocus(function() {
-              openChat(Social.provider, function() {
-                ok(window.SocialChatBar.hasChats, "first window has chats");
-                window.SocialChatBar.chatbar.removeAll();
-                ok(!window.SocialChatBar.hasChats, "first window has no chats");
-
-                let privateWindow = OpenBrowserWindow({private: true});
-                privateWindow.addEventListener("load", function loadListener() {
-                  privateWindow.removeEventListener("load", loadListener);
-
-                  // open a last chat - the focused window can't accept
-                  // chats (it's a private window), so the chat should open
-                  // in the window that was selected before. This is known
-                  // to be broken on Linux.
-                  openChat(Social.provider, function() {
-                    let os = Services.appinfo.OS;
-                    const BROKEN_WM_Z_ORDER = os != "WINNT" && os != "Darwin";
-                    let fn = BROKEN_WM_Z_ORDER ? todo : ok;
-                    fn(window.SocialChatBar.hasChats, "first window has a chat");
-                    window.SocialChatBar.chatbar.removeAll();
-
-                    privateWindow.close();
-                    secondWindow.close();
-                    next();
-                  });
-                });
-              });
-            });
-            window.focus();
+            secondWindow.close();
+            next();
           });
         });
       })
     });
   },
   testMultipleProviderChat: function(next) {
-    // test incomming chats from all providers
-    openChat(Social.providers[0], function() {
-      openChat(Social.providers[1], function() {
-        openChat(Social.providers[2], function() {
-          let chats = document.getElementById("pinnedchats");
-          waitForCondition(function() chats.children.length == Social.providers.length,
-            function() {
-              ok(true, "one chat window per provider opened");
-              // test logout of a single provider
-              let provider = Social.providers[2];
-              let port = provider.getWorkerPort();
-              port.postMessage({topic: "test-logout"});
-              waitForCondition(function() chats.children.length == Social.providers.length - 1,
-                function() {
-                  chats.removeAll();
-                  waitForCondition(function() chats.children.length == 0,
-                                   function() {
-                                    ok(!chats.selectedChat, "multiprovider chats are all closed");
-                                    port.close();
-                                    next();
-                                   },
-                                   "chat windows didn't close");
-                },
-                "chat window didn't close");
-            }, "chat windows did not open");
+    // while pref'd off, we need to set the worker mode to multiple providers
+    setWorkerMode(true, function() {
+      // test incomming chats from all providers
+      openChat(Social.providers[0], function() {
+        openChat(Social.providers[1], function() {
+          openChat(Social.providers[2], function() {
+            let chats = document.getElementById("pinnedchats");
+            waitForCondition(function() chats.children.length == Social.providers.length,
+              function() {
+                ok(true, "one chat window per provider opened");
+                // test logout of a single provider
+                let provider = Social.providers[0];
+                let port = provider.getWorkerPort();
+                port.postMessage({topic: "test-logout"});
+                waitForCondition(function() chats.children.length == Social.providers.length - 1,
+                  function() {
+                    port.close();
+                    chats.removeAll();
+                    ok(!chats.selectedChat, "chats are all closed");
+                    setWorkerMode(false, next);
+                  },
+                  "chat window didn't close");
+              }, "chat windows did not open");
+          });
         });
       });
     });
@@ -571,10 +548,6 @@ var tests = {
           break;
       }
     }
-    // make sure a user profile is set for this provider as chat windows are
-    // only closed on *change* of the profile data rather than merely setting
-    // profile data.
-    port.postMessage({topic: "test-set-profile"});
     port.postMessage({topic: "test-init"});
   }
 }

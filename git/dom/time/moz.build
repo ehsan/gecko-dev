@@ -10,6 +10,8 @@ XPIDL_SOURCES += [
 
 XPIDL_MODULE = 'dom_time'
 
+MODULE = 'dom'
+
 EXPORTS.mozilla.dom.time += [
     'DateCacheCleaner.h',
     'TimeChangeObserver.h',
@@ -17,7 +19,7 @@ EXPORTS.mozilla.dom.time += [
     'TimeService.h',
 ]
 
-UNIFIED_SOURCES += [
+CPP_SOURCES += [
     'DateCacheCleaner.cpp',
     'TimeChangeObserver.cpp',
     'TimeManager.cpp',
@@ -26,6 +28,5 @@ UNIFIED_SOURCES += [
 
 FAIL_ON_WARNINGS = True
 
-include('/ipc/chromium/chromium-config.mozbuild')
+LIBXUL_LIBRARY = True
 
-FINAL_LIBRARY = 'gklayout'

@@ -8,7 +8,7 @@
 #define jit_x86_LIR_x86_h
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class LBox : public LInstructionHelper<2, 1, 0>
 {
@@ -26,31 +26,16 @@ class LBox : public LInstructionHelper<2, 1, 0>
     MIRType type() const {
         return type_;
     }
-    const char *extraName() const {
-        return StringFromMIRType(type_);
-    }
 };
 
-class LBoxFloatingPoint : public LInstructionHelper<2, 1, 1>
+class LBoxDouble : public LInstructionHelper<2, 1, 1>
 {
-    MIRType type_;
-
   public:
-    LIR_HEADER(BoxFloatingPoint);
+    LIR_HEADER(BoxDouble);
 
-    LBoxFloatingPoint(const LAllocation &in, const LDefinition &temp, MIRType type)
-      : type_(type)
-    {
-        JS_ASSERT(IsFloatingPointType(type));
+    LBoxDouble(const LAllocation &in, const LDefinition &temp) {
         setOperand(0, in);
         setTemp(0, temp);
-    }
-
-    MIRType type() const {
-        return type_;
-    }
-    const char *extraName() const {
-        return StringFromMIRType(type_);
     }
 };
 
@@ -68,58 +53,27 @@ class LUnbox : public LInstructionHelper<1, 2, 0>
     const LAllocation *type() {
         return getOperand(1);
     }
-    const char *extraName() const {
-        return StringFromMIRType(mir()->type());
-    }
 };
 
-class LUnboxFloatingPoint : public LInstructionHelper<1, 2, 0>
+class LUnboxDouble : public LInstructionHelper<1, 2, 0>
 {
-    MIRType type_;
-
   public:
-    LIR_HEADER(UnboxFloatingPoint);
+    LIR_HEADER(UnboxDouble);
 
     static const size_t Input = 0;
-
-    LUnboxFloatingPoint(MIRType type)
-      : type_(type)
-    { }
 
     MUnbox *mir() const {
         return mir_->toUnbox();
     }
-
-    MIRType type() const {
-        return type_;
-    }
-    const char *extraName() const {
-        return StringFromMIRType(type_);
-    }
 };
 
 // Convert a 32-bit unsigned integer to a double.
-class LAsmJSUInt32ToDouble : public LInstructionHelper<1, 1, 1>
+class LUInt32ToDouble : public LInstructionHelper<1, 1, 1>
 {
   public:
-    LIR_HEADER(AsmJSUInt32ToDouble)
+    LIR_HEADER(UInt32ToDouble)
 
-    LAsmJSUInt32ToDouble(const LAllocation &input, const LDefinition &temp) {
-        setOperand(0, input);
-        setTemp(0, temp);
-    }
-    const LDefinition *temp() {
-        return getTemp(0);
-    }
-};
-
-// Convert a 32-bit unsigned integer to a float32.
-class LAsmJSUInt32ToFloat32: public LInstructionHelper<1, 1, 1>
-{
-  public:
-    LIR_HEADER(AsmJSUInt32ToFloat32)
-
-    LAsmJSUInt32ToFloat32(const LAllocation &input, const LDefinition &temp) {
+    LUInt32ToDouble(const LAllocation &input, const LDefinition &temp) {
         setOperand(0, input);
         setTemp(0, temp);
     }
@@ -143,7 +97,7 @@ class LAsmJSLoadFuncPtr : public LInstructionHelper<1, 1, 0>
     }
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_x86_LIR_x86_h */

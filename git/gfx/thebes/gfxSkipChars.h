@@ -8,6 +8,7 @@
 
 #include "nsAutoPtr.h"
 #include "nsTArray.h"
+#include "gfxTypes.h"
 
 /*
  * gfxSkipChars is a data structure representing a list of characters that

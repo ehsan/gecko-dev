@@ -11,6 +11,8 @@
 #include "jsapi-tests/tests.h"
 #include "vm/Shape.h"
 
+#include "vm/Shape-inl.h"
+
 BEGIN_TEST(testRegExpInstanceProperties)
 {
     jsval regexpProtoVal;
@@ -23,7 +25,7 @@ BEGIN_TEST(testRegExpInstanceProperties)
 
     JS_GC(cx);
 
-    CHECK_EQUAL(regexpProto->compartment()->initialRegExpShape, nullptr);
+    CHECK_EQUAL(regexpProto->compartment()->initialRegExpShape, NULL);
 
     jsval regexp;
     EVAL("/foopy/", &regexp);

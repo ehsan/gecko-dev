@@ -6,7 +6,7 @@
 
 #include "builtin/Object.h"
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #include "jscntxt.h"
 
@@ -14,8 +14,6 @@
 #include "vm/StringBuffer.h"
 
 #include "jsobjinlines.h"
-
-#include "vm/ObjectImpl-inl.h"
 
 using namespace js;
 using namespace js::types;
@@ -29,13 +27,15 @@ js::obj_construct(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    RootedObject obj(cx, nullptr);
-    if (args.length() > 0 && !args[0].isNullOrUndefined()) {
-        obj = ToObject(cx, args[0]);
-        if (!obj)
+    RootedObject obj(cx, NULL);
+    if (args.length() > 0) {
+        /* If argv[0] is null or undefined, obj comes back null. */
+        if (!js_ValueToObjectOrNull(cx, args[0], &obj))
             return false;
-    } else {
+    }
+    if (!obj) {
         /* Make an object whether this was called with 'new' or not. */
+        JS_ASSERT(!args.length() || args[0].isNullOrUndefined());
         if (!NewObjectScriptedCall(cx, &obj))
             return false;
     }
@@ -87,8 +87,8 @@ obj_propertyIsEnumerable(JSContext *cx, unsigned argc, Value *vp)
 }
 
 #if JS_HAS_TOSOURCE
-static bool
-obj_toSource(JSContext *cx, unsigned argc, Value *vp)
+bool
+js::obj_toSource(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     JS_CHECK_RECURSION(cx, return false);
@@ -97,31 +97,25 @@ obj_toSource(JSContext *cx, unsigned argc, Value *vp)
     if (!obj)
         return false;
 
-    JSString *str = ObjectToSource(cx, obj);
-    if (!str)
-        return false;
-
-    args.rval().setString(str);
-    return true;
-}
-
-JSString *
-js::ObjectToSource(JSContext *cx, HandleObject obj)
-{
     /* If outermost, we need parentheses to be an expression, not a block. */
     bool outermost = (cx->cycleDetectorSet.count() == 0);
 
     AutoCycleDetector detector(cx, obj);
     if (!detector.init())
-        return nullptr;
-    if (detector.foundCycle())
-        return js_NewStringCopyZ<CanGC>(cx, "{}");
+        return false;
+    if (detector.foundCycle()) {
+        JSString *str = js_NewStringCopyZ<CanGC>(cx, "{}");
+        if (!str)
+            return false;
+        args.rval().setString(str);
+        return true;
+    }
 
     StringBuffer buf(cx);
     if (outermost && !buf.append('('))
-        return nullptr;
+        return false;
     if (!buf.append('{'))
-        return nullptr;
+        return false;
 
     RootedValue v0(cx), v1(cx);
     MutableHandleValue val[2] = {&v0, &v1};
@@ -131,7 +125,7 @@ js::ObjectToSource(JSContext *cx, HandleObject obj)
 
     AutoIdVector idv(cx);
     if (!GetPropertyNames(cx, obj, JSITER_OWNONLY, &idv))
-        return nullptr;
+        return false;
 
     bool comma = false;
     for (size_t i = 0; i < idv.length(); ++i) {
@@ -139,7 +133,7 @@ js::ObjectToSource(JSContext *cx, HandleObject obj)
         RootedObject obj2(cx);
         RootedShape shape(cx);
         if (!JSObject::lookupGeneric(cx, obj, id, &obj2, &shape))
-            return nullptr;
+            return false;
 
         /*  Decide early whether we prefer get/set or old getter/setter syntax. */
         int valcnt = 0;
@@ -162,9 +156,9 @@ js::ObjectToSource(JSContext *cx, HandleObject obj)
             }
             if (doGet) {
                 valcnt = 1;
-                gsop[0].set(nullptr);
+                gsop[0].set(NULL);
                 if (!JSObject::getGeneric(cx, obj, obj, id, val[0]))
-                    return nullptr;
+                    return false;
             }
         }
 
@@ -172,10 +166,10 @@ js::ObjectToSource(JSContext *cx, HandleObject obj)
         RootedValue idv(cx, IdToValue(id));
         JSString *s = ToString<CanGC>(cx, idv);
         if (!s)
-            return nullptr;
+            return false;
         Rooted<JSLinearString*> idstr(cx, s->ensureLinear(cx));
         if (!idstr)
-            return nullptr;
+            return false;
 
         /*
          * If id is a string that's not an identifier, or if it's a negative
@@ -187,7 +181,7 @@ js::ObjectToSource(JSContext *cx, HandleObject obj)
         {
             s = js_QuoteString(cx, idstr, jschar('\''));
             if (!s || !(idstr = s->ensureLinear(cx)))
-                return nullptr;
+                return false;
         }
 
         for (int j = 0; j < valcnt; j++) {
@@ -201,10 +195,10 @@ js::ObjectToSource(JSContext *cx, HandleObject obj)
             /* Convert val[j] to its canonical source form. */
             RootedString valstr(cx, ValueToSource(cx, val[j]));
             if (!valstr)
-                return nullptr;
+                return false;
             const jschar *vchars = valstr->getChars(cx);
             if (!vchars)
-                return nullptr;
+                return false;
             size_t vlength = valstr->length();
 
             /*
@@ -237,35 +231,39 @@ js::ObjectToSource(JSContext *cx, HandleObject obj)
                         vchars++;
                     vlength = end - vchars - parenChomp;
                 } else {
-                    gsop[j].set(nullptr);
+                    gsop[j].set(NULL);
                     vchars = start;
                 }
             }
 
             if (comma && !buf.append(", "))
-                return nullptr;
+                return false;
             comma = true;
 
             if (gsop[j])
                 if (!buf.append(gsop[j]) || !buf.append(' '))
-                    return nullptr;
+                    return false;
 
             if (!buf.append(idstr))
-                return nullptr;
+                return false;
             if (!buf.append(gsop[j] ? ' ' : ':'))
-                return nullptr;
+                return false;
 
             if (!buf.append(vchars, vlength))
-                return nullptr;
+                return false;
         }
     }
 
     if (!buf.append('}'))
-        return nullptr;
+        return false;
     if (outermost && !buf.append(')'))
-        return nullptr;
+        return false;
 
-    return buf.finishString();
+    JSString *str = buf.finishString();
+    if (!str)
+        return false;
+    args.rval().setString(str);
+    return true;
 }
 #endif /* JS_HAS_TOSOURCE */
 
@@ -278,7 +276,7 @@ JS_BasicObjectToString(JSContext *cx, HandleObject obj)
     if (!sb.append("[object ") || !sb.appendInflated(className, strlen(className)) ||
         !sb.append("]"))
     {
-        return nullptr;
+        return NULL;
     }
     return sb.finishString();
 }
@@ -329,7 +327,7 @@ obj_toLocaleString(JSContext *cx, unsigned argc, Value *vp)
 
     /* Steps 2-4. */
     RootedId id(cx, NameToId(cx->names().toString));
-    return obj->callMethod(cx, id, 0, nullptr, args.rval());
+    return obj->callMethod(cx, id, 0, NULL, args.rval());
 }
 
 static bool
@@ -343,9 +341,9 @@ obj_valueOf(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-#if JS_OLD_GETTER_SETTER_METHODS
+#if OLD_GETTER_SETTER_METHODS
 
-enum DefineType { GetterAccessor, SetterAccessor };
+enum DefineType { Getter, Setter };
 
 template<DefineType Type>
 static bool
@@ -356,9 +354,9 @@ DefineAccessor(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     if (args.length() < 2 || !js_IsCallable(args[1])) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                              JSMSG_BAD_GETTER_OR_SETTER,
-                             Type == GetterAccessor ? js_getter_str : js_setter_str);
+                             Type == Getter ? js_getter_str : js_setter_str);
         return false;
     }
 
@@ -382,7 +380,7 @@ DefineAccessor(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     /* enumerable: true */
-    PropertyName *acc = (Type == GetterAccessor) ? names.get : names.set;
+    PropertyName *acc = (Type == Getter) ? names.get : names.set;
     RootedValue accessorVal(cx, args[1]);
     if (!JSObject::defineProperty(cx, descObj, acc, accessorVal))
         return false;
@@ -401,13 +399,13 @@ DefineAccessor(JSContext *cx, unsigned argc, Value *vp)
 JS_FRIEND_API(bool)
 js::obj_defineGetter(JSContext *cx, unsigned argc, Value *vp)
 {
-    return DefineAccessor<GetterAccessor>(cx, argc, vp);
+    return DefineAccessor<Getter>(cx, argc, vp);
 }
 
 JS_FRIEND_API(bool)
 js::obj_defineSetter(JSContext *cx, unsigned argc, Value *vp)
 {
-    return DefineAccessor<SetterAccessor>(cx, argc, vp);
+    return DefineAccessor<Setter>(cx, argc, vp);
 }
 
 static bool
@@ -481,10 +479,10 @@ obj_lookupSetter(JSContext *cx, unsigned argc, Value *vp)
     }
     return true;
 }
-#endif /* JS_OLD_GETTER_SETTER_METHODS */
+#endif /* OLD_GETTER_SETTER_METHODS */
 
 /* ES5 15.2.3.2. */
-static bool
+bool
 obj_getPrototypeOf(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -500,7 +498,7 @@ obj_getPrototypeOf(JSContext *cx, unsigned argc, Value *vp)
         char *bytes = DecompileValueGenerator(cx, JSDVG_SEARCH_STACK, val, NullPtr());
         if (!bytes)
             return false;
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                              JSMSG_UNEXPECTED_TYPE, bytes, "not an object");
         js_free(bytes);
         return false;
@@ -525,9 +523,9 @@ obj_getPrototypeOf(JSContext *cx, unsigned argc, Value *vp)
 
 #if JS_HAS_OBJ_WATCHPOINT
 
-bool
-js::WatchHandler(JSContext *cx, JSObject *obj_, jsid id_, JS::Value old,
-                 JS::Value *nvp, void *closure)
+static bool
+obj_watch_handler(JSContext *cx, JSObject *obj_, jsid id_, jsval old,
+                  jsval *nvp, void *closure)
 {
     RootedObject obj(cx, obj_);
     RootedId id(cx, id_);
@@ -552,15 +550,6 @@ obj_watch(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    RootedObject obj(cx, ToObject(cx, args.thisv()));
-    if (!obj)
-        return false;
-
-#if 0 /* pending addressing Firebug's use of this method */
-    if (!GlobalObject::warnOnceAboutWatch(cx, obj))
-        return false;
-#endif
-
     if (args.length() <= 1) {
         js_ReportMissingArg(cx, args.calleev(), 1);
         return false;
@@ -574,16 +563,18 @@ obj_watch(JSContext *cx, unsigned argc, Value *vp)
     if (!ValueToId<CanGC>(cx, args[0], &propid))
         return false;
 
+    RootedObject obj(cx, ToObject(cx, args.thisv()));
+    if (!obj)
+        return false;
+
     RootedValue tmp(cx);
     unsigned attrs;
     if (!CheckAccess(cx, obj, propid, JSACC_WATCH, &tmp, &attrs))
         return false;
 
-    if (!JSObject::watch(cx, obj, propid, callable))
-        return false;
-
     args.rval().setUndefined();
-    return true;
+
+    return JS_SetWatchPoint(cx, obj, propid, obj_watch_handler, callable);
 }
 
 static bool
@@ -594,25 +585,15 @@ obj_unwatch(JSContext *cx, unsigned argc, Value *vp)
     RootedObject obj(cx, ToObject(cx, args.thisv()));
     if (!obj)
         return false;
-
-#if 0 /* pending addressing Firebug's use of this method */
-    if (!GlobalObject::warnOnceAboutWatch(cx, obj))
-        return false;
-#endif
-
+    args.rval().setUndefined();
     RootedId id(cx);
-    if (args.length() != 0) {
+    if (argc != 0) {
         if (!ValueToId<CanGC>(cx, args[0], &id))
             return false;
     } else {
         id = JSID_VOID;
     }
-
-    if (!JSObject::unwatch(cx, obj, id))
-        return false;
-
-    args.rval().setUndefined();
-    return true;
+    return JS_ClearWatchPoint(cx, obj, id, NULL, NULL);
 }
 
 #endif /* JS_HAS_OBJ_WATCHPOINT */
@@ -697,7 +678,7 @@ static bool
 obj_create(JSContext *cx, unsigned argc, Value *vp)
 {
     if (argc == 0) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_MORE_ARGS_NEEDED,
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_MORE_ARGS_NEEDED,
                              "Object.create", "0", "s");
         return false;
     }
@@ -708,7 +689,7 @@ obj_create(JSContext *cx, unsigned argc, Value *vp)
         char *bytes = DecompileValueGenerator(cx, JSDVG_SEARCH_STACK, v, NullPtr());
         if (!bytes)
             return false;
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_UNEXPECTED_TYPE,
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_UNEXPECTED_TYPE,
                              bytes, "not an object or null");
         js_free(bytes);
         return false;
@@ -727,7 +708,7 @@ obj_create(JSContext *cx, unsigned argc, Value *vp)
     /* 15.2.3.5 step 4. */
     if (args.hasDefined(1)) {
         if (args[1].isPrimitive()) {
-            JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_NOT_NONNULL_OBJECT);
+            JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_NOT_NONNULL_OBJECT);
             return false;
         }
 
@@ -879,7 +860,7 @@ obj_defineProperties(JSContext *cx, unsigned argc, Value *vp)
 
     /* Step 2. */
     if (args.length() < 2) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_MORE_ARGS_NEEDED,
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_MORE_ARGS_NEEDED,
                              "Object.defineProperties", "0", "s");
         return false;
     }
@@ -996,7 +977,7 @@ const JSFunctionSpec js::object_methods[] = {
     JS_FN(js_hasOwnProperty_str,       obj_hasOwnProperty,          1,0),
     JS_FN(js_isPrototypeOf_str,        obj_isPrototypeOf,           1,0),
     JS_FN(js_propertyIsEnumerable_str, obj_propertyIsEnumerable,    1,0),
-#if JS_OLD_GETTER_SETTER_METHODS
+#if OLD_GETTER_SETTER_METHODS
     JS_FN(js_defineGetter_str,         js::obj_defineGetter,        2,0),
     JS_FN(js_defineSetter_str,         js::obj_defineSetter,        2,0),
     JS_FN(js_lookupGetter_str,         obj_lookupGetter,            1,0),

@@ -8,7 +8,6 @@
 
 #include "mozilla/Attributes.h"
 #include "gfxMatrix.h"
-#include "mozilla/gfx/2D.h"
 #include "nsSVGPaintServerFrame.h"
 
 class gfxASurface;
@@ -31,8 +30,6 @@ typedef nsSVGPaintServerFrame  nsSVGPatternFrameBase;
  */
 class nsSVGPatternFrame : public nsSVGPatternFrameBase
 {
-  typedef mozilla::gfx::Matrix Matrix;
-
 public:
   NS_DECL_FRAMEARENA_HELPERS
 
@@ -53,8 +50,7 @@ public:
   typedef mozilla::SVGAnimatedPreserveAspectRatio SVGAnimatedPreserveAspectRatio;
 
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM(uint32_t aFor,
-                                nsIFrame* aTransformRoot = nullptr) MOZ_OVERRIDE;
+  virtual gfxMatrix GetCanvasTM(uint32_t aFor) MOZ_OVERRIDE;
 
   // nsIFrame interface:
   NS_IMETHOD AttributeChanged(int32_t         aNameSpaceID,
@@ -120,13 +116,13 @@ protected:
   nsIFrame*  GetPatternFirstChild();
   gfxRect    GetPatternRect(uint16_t aPatternUnits,
                             const gfxRect &bbox,
-                            const Matrix &callerCTM,
+                            const gfxMatrix &callerCTM,
                             nsIFrame *aTarget);
   gfxMatrix  ConstructCTM(const nsSVGViewBox& aViewBox,
                           uint16_t aPatternContentUnits,
                           uint16_t aPatternUnits,
                           const gfxRect &callerBBox,
-                          const Matrix &callerCTM,
+                          const gfxMatrix &callerCTM,
                           nsIFrame *aTarget);
 
 private:

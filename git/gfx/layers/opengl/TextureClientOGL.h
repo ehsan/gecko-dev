@@ -6,8 +6,8 @@
 #ifndef MOZILLA_GFX_TEXTURECLIENTOGL_H
 #define MOZILLA_GFX_TEXTURECLIENTOGL_H
 
-#include "GLContextTypes.h"             // for SharedTextureHandle, etc
-#include "gfxTypes.h"
+#include "GLContext.h"                  // for SharedTextureHandle, etc
+#include "gfxASurface.h"                // for gfxASurface, etc
 #include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
 #include "mozilla/gfx/Point.h"          // for IntSize
 #include "mozilla/layers/CompositorTypes.h"
@@ -26,7 +26,7 @@ class CompositableForwarder;
 class SharedTextureClientOGL : public TextureClient
 {
 public:
-  SharedTextureClientOGL(TextureFlags aFlags);
+  SharedTextureClientOGL();
 
   ~SharedTextureClientOGL();
 
@@ -36,26 +36,18 @@ public:
 
   void InitWith(gl::SharedTextureHandle aHandle,
                 gfx::IntSize aSize,
-                gl::SharedTextureShareType aShareType,
+                bool aIsCrossProcess = false,
                 bool aInverted = false);
 
   virtual gfx::IntSize GetSize() const { return mSize; }
 
-  virtual TextureClientData* DropTextureData() MOZ_OVERRIDE
-  {
-    // XXX - right now the code paths using this are managing the shared texture
-    // data, although they should use a TextureClientData for this to ensure that
-    // the destruction sequence is race-free.
-    MarkInvalid();
-    return nullptr;
-  }
-
 protected:
-  gl::SharedTextureHandle mHandle;
   gfx::IntSize mSize;
-  gl::SharedTextureShareType mShareType;
+  gl::SharedTextureHandle mHandle;
+  bool mIsCrossProcess;
   bool mInverted;
 };
+
 
 class DeprecatedTextureClientSharedOGL : public DeprecatedTextureClient
 {
@@ -64,9 +56,9 @@ public:
   ~DeprecatedTextureClientSharedOGL() { ReleaseResources(); }
 
   virtual bool SupportsType(DeprecatedTextureClientType aType) MOZ_OVERRIDE { return aType == TEXTURE_SHARED_GL; }
-  virtual bool EnsureAllocated(gfx::IntSize aSize, gfxContentType aType);
+  virtual bool EnsureAllocated(gfx::IntSize aSize, gfxASurface::gfxContentType aType);
   virtual void ReleaseResources();
-  virtual gfxContentType GetContentType() MOZ_OVERRIDE { return GFX_CONTENT_COLOR_ALPHA; }
+  virtual gfxASurface::gfxContentType GetContentType() MOZ_OVERRIDE { return gfxASurface::CONTENT_COLOR_ALPHA; }
 
 protected:
   gl::GLContext* mGL;
@@ -96,9 +88,9 @@ public:
   ~DeprecatedTextureClientStreamOGL() { ReleaseResources(); }
 
   virtual bool SupportsType(DeprecatedTextureClientType aType) MOZ_OVERRIDE { return aType == TEXTURE_STREAM_GL; }
-  virtual bool EnsureAllocated(gfx::IntSize aSize, gfxContentType aType) { return true; }
+  virtual bool EnsureAllocated(gfx::IntSize aSize, gfxASurface::gfxContentType aType) { return true; }
   virtual void ReleaseResources() { mDescriptor = SurfaceDescriptor(); }
-  virtual gfxContentType GetContentType() MOZ_OVERRIDE { return GFX_CONTENT_COLOR_ALPHA; }
+  virtual gfxASurface::gfxContentType GetContentType() MOZ_OVERRIDE { return gfxASurface::CONTENT_COLOR_ALPHA; }
 };
 
 } // namespace

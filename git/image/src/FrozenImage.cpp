@@ -40,11 +40,12 @@ FrozenImage::GetAnimated(bool* aAnimated)
   return rv;
 }
 
-NS_IMETHODIMP_(already_AddRefed<gfxASurface>)
+NS_IMETHODIMP
 FrozenImage::GetFrame(uint32_t aWhichFrame,
-                      uint32_t aFlags)
+                      uint32_t aFlags,
+                      gfxASurface** _retval)
 {
-  return InnerImage()->GetFrame(FRAME_FIRST, aFlags);
+  return InnerImage()->GetFrame(FRAME_FIRST, aFlags, _retval);
 }
 
 NS_IMETHODIMP_(bool)
@@ -69,7 +70,7 @@ FrozenImage::GetImageContainer(layers::LayerManager* aManager,
 
 NS_IMETHODIMP
 FrozenImage::Draw(gfxContext* aContext,
-                  GraphicsFilter aFilter,
+                  gfxPattern::GraphicsFilter aFilter,
                   const gfxMatrix& aUserSpaceToImageSpace,
                   const gfxRect& aFill,
                   const nsIntRect& aSubimage,

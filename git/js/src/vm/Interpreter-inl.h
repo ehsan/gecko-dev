@@ -9,12 +9,14 @@
 
 #include "vm/Interpreter.h"
 
+#include "jsapi.h"
 #include "jscompartment.h"
 #include "jsinfer.h"
 #include "jsnum.h"
 #include "jsstr.h"
 
 #include "jit/Ion.h"
+#include "jit/IonCompartment.h"
 #include "vm/ArgumentsObject.h"
 #include "vm/ForkJoin.h"
 
@@ -22,8 +24,8 @@
 #include "jsinferinlines.h"
 #include "jsobjinlines.h"
 
+#include "vm/GlobalObject-inl.h"
 #include "vm/Stack-inl.h"
-#include "vm/String-inl.h"
 
 namespace js {
 
@@ -48,12 +50,11 @@ ComputeThis(JSContext *cx, AbstractFramePtr frame)
          */
         JS_ASSERT_IF(frame.isEvalFrame(), thisv.isUndefined() || thisv.isNull());
     }
-
-    JSObject *thisObj = BoxNonStrictThis(cx, thisv);
-    if (!thisObj)
+    bool modified;
+    if (!BoxNonStrictThis(cx, &thisv, &modified))
         return false;
 
-    frame.thisValue().setObject(*thisObj);
+    frame.thisValue() = thisv;
     return true;
 }
 
@@ -104,7 +105,7 @@ GuardFunApplyArgumentsOptimization(JSContext *cx, AbstractFramePtr frame, Handle
  *
  * For objects, return the object itself. For string, boolean, and number
  * primitive values, return the appropriate constructor's prototype. For
- * undefined and null, throw an error and return nullptr, attributing the
+ * undefined and null, throw an error and return NULL, attributing the
  * problem to the value at |spindex| on the stack.
  */
 JS_ALWAYS_INLINE JSObject *
@@ -124,7 +125,25 @@ ValuePropertyBearer(JSContext *cx, StackFrame *fp, HandleValue v, int spindex)
 
     JS_ASSERT(v.isNull() || v.isUndefined());
     js_ReportIsNullOrUndefined(cx, spindex, v, NullPtr());
-    return nullptr;
+    return NULL;
+}
+
+inline bool
+NativeGet(JSContext *cx, JSObject *objArg, JSObject *pobjArg, Shape *shapeArg,
+          unsigned getHow, MutableHandleValue vp)
+{
+    if (shapeArg->isDataDescriptor() && shapeArg->hasDefaultGetter()) {
+        /* Fast path for Object instance properties. */
+        JS_ASSERT(shapeArg->hasSlot());
+        vp.set(pobjArg->nativeGetSlot(shapeArg->slot()));
+    } else {
+        RootedObject obj(cx, objArg);
+        RootedObject pobj(cx, pobjArg);
+        RootedShape shape(cx, shapeArg);
+        if (!js_NativeGet(cx, obj, pobj, shape, getHow, vp))
+            return false;
+    }
+    return true;
 }
 
 inline bool
@@ -185,13 +204,8 @@ FetchName(JSContext *cx, HandleObject obj, HandleObject obj2, HandlePropertyName
         Rooted<JSObject*> normalized(cx, obj);
         if (normalized->getClass() == &WithObject::class_ && !shape->hasDefaultGetter())
             normalized = &normalized->as<WithObject>().object();
-        if (shape->isDataDescriptor() && shape->hasDefaultGetter()) {
-            /* Fast path for Object instance properties. */
-            JS_ASSERT(shape->hasSlot());
-            vp.set(obj2->nativeGetSlot(shape->slot()));
-        } else if (!NativeGet(cx, normalized, obj2, shape, vp)) {
+        if (!NativeGet(cx, normalized, obj2, shape, 0, vp))
             return false;
-        }
     }
     return true;
 }
@@ -210,7 +224,7 @@ inline bool
 GetIntrinsicOperation(JSContext *cx, jsbytecode *pc, MutableHandleValue vp)
 {
     RootedPropertyName name(cx, cx->currentScript()->getName(pc));
-    return GlobalObject::getIntrinsicValue(cx, cx->global(), name, vp);
+    return cx->global()->getIntrinsicValue(cx, name, vp);
 }
 
 inline bool
@@ -227,7 +241,7 @@ SetNameOperation(JSContext *cx, JSScript *script, jsbytecode *pc, HandleObject s
     JS_ASSERT(*pc == JSOP_SETNAME || *pc == JSOP_SETGNAME);
     JS_ASSERT_IF(*pc == JSOP_SETGNAME, scope == cx->global());
 
-    bool strict = script->strict();
+    bool strict = script->strict;
     RootedPropertyName name(cx, script->getName(pc));
     RootedValue valCopy(cx, val);
 
@@ -239,8 +253,7 @@ SetNameOperation(JSContext *cx, JSScript *script, jsbytecode *pc, HandleObject s
     if (scope->is<GlobalObject>()) {
         JS_ASSERT(!scope->getOps()->setProperty);
         RootedId id(cx, NameToId(name));
-        return baseops::SetPropertyHelper<SequentialExecution>(cx, scope, scope, id,
-                                                               DNP_UNQUALIFIED, &valCopy, strict);
+        return baseops::SetPropertyHelper(cx, scope, scope, id, DNP_UNQUALIFIED, &valCopy, strict);
     }
 
     return JSObject::setProperty(cx, scope, scope, name, &valCopy, strict);
@@ -263,27 +276,27 @@ DefVarOrConstOperation(JSContext *cx, HandleObject varobj, HandlePropertyName dn
                                       JS_StrictPropertyStub, attrs)) {
             return false;
         }
-    } else if (attrs & JSPROP_READONLY) {
+    } else {
         /*
          * Extension: ordinarily we'd be done here -- but for |const|.  If we
          * see a redeclaration that's |const|, we consider it a conflict.
          */
         unsigned oldAttrs;
-        RootedId id(cx, NameToId(dn));
-        if (!JSObject::getGenericAttributes(cx, varobj, id, &oldAttrs))
+        if (!JSObject::getPropertyAttributes(cx, varobj, dn, &oldAttrs))
             return false;
-
-        JSAutoByteString bytes;
-        if (AtomToPrintableString(cx, dn, &bytes)) {
-            JS_ALWAYS_FALSE(JS_ReportErrorFlagsAndNumber(cx, JSREPORT_ERROR,
-                                                         js_GetErrorMessage,
-                                                         nullptr, JSMSG_REDECLARED_VAR,
-                                                         (oldAttrs & JSPROP_READONLY)
-                                                         ? "const"
-                                                         : "var",
-                                                         bytes.ptr()));
+        if (attrs & JSPROP_READONLY) {
+            JSAutoByteString bytes;
+            if (AtomToPrintableString(cx, dn, &bytes)) {
+                JS_ALWAYS_FALSE(JS_ReportErrorFlagsAndNumber(cx, JSREPORT_ERROR,
+                                                             js_GetErrorMessage,
+                                                             NULL, JSMSG_REDECLARED_VAR,
+                                                             (oldAttrs & JSPROP_READONLY)
+                                                             ? "const"
+                                                             : "var",
+                                                             bytes.ptr()));
+            }
+            return false;
         }
-        return false;
     }
 
     return true;
@@ -300,12 +313,15 @@ NegOperation(JSContext *cx, HandleScript script, jsbytecode *pc, HandleValue val
      */
     int32_t i;
     if (val.isInt32() && (i = val.toInt32()) != 0 && i != INT32_MIN) {
-        res.setInt32(-i);
+        i = -i;
+        res.setInt32(i);
     } else {
         double d;
         if (!ToNumber(cx, val, &d))
             return false;
-        res.setNumber(-d);
+        d = -d;
+        if (!res.setNumber(d) && !val.isDouble())
+            types::TypeScript::MonitorOverflow(cx, script, pc);
     }
 
     return true;
@@ -329,6 +345,8 @@ ToIdOperation(JSContext *cx, HandleScript script, jsbytecode *pc, HandleValue ob
         return false;
 
     res.set(IdToValue(id));
+    if (!res.isInt32())
+        types::TypeScript::MonitorUnknown(cx, script, pc);
     return true;
 }
 
@@ -336,8 +354,6 @@ static JS_ALWAYS_INLINE bool
 GetObjectElementOperation(JSContext *cx, JSOp op, JSObject *objArg, bool wasObject,
                           HandleValue rref, MutableHandleValue res)
 {
-    JS_ASSERT(op == JSOP_GETELEM || op == JSOP_CALLELEM);
-
     do {
         uint32_t index;
         if (IsDefinitelyIndex(rref, &index)) {
@@ -393,7 +409,7 @@ GetObjectElementOperation(JSContext *cx, JSOp op, JSObject *objArg, bool wasObje
     } while (0);
 
 #if JS_HAS_NO_SUCH_METHOD
-    if (op == JSOP_CALLELEM && JS_UNLIKELY(res.isUndefined()) && wasObject) {
+    if (op == JSOP_CALLELEM && JS_UNLIKELY(res.isPrimitive()) && wasObject) {
         RootedObject obj(cx, objArg);
         if (!OnUnknownMethod(cx, obj, rref, res))
             return false;
@@ -456,17 +472,10 @@ GetElementOperation(JSContext *cx, JSOp op, MutableHandleValue lref, HandleValue
 }
 
 static JS_ALWAYS_INLINE JSString *
-TypeOfOperation(const Value &v, JSRuntime *rt)
+TypeOfOperation(JSContext *cx, HandleValue v)
 {
-    JSType type = js::TypeOfValue(v);
-    return TypeName(type, rt->atomState);
-}
-
-static inline JSString *
-TypeOfObjectOperation(JSObject *obj, JSRuntime *rt)
-{
-    JSType type = js::TypeOfObject(obj);
-    return TypeName(type, rt->atomState);
+    JSType type = JS_TypeOfValue(cx, v);
+    return TypeName(type, cx);
 }
 
 static JS_ALWAYS_INLINE bool
@@ -478,7 +487,7 @@ InitElemOperation(JSContext *cx, HandleObject obj, HandleValue idval, HandleValu
     if (!ValueToId<CanGC>(cx, idval, &id))
         return false;
 
-    return JSObject::defineGeneric(cx, obj, id, val, nullptr, nullptr, JSPROP_ENUMERATE);
+    return JSObject::defineGeneric(cx, obj, id, val, NULL, NULL, JSPROP_ENUMERATE);
 }
 
 static JS_ALWAYS_INLINE bool
@@ -504,12 +513,12 @@ InitArrayElemOperation(JSContext *cx, jsbytecode *pc, HandleObject obj, uint32_t
                 return false;
         }
     } else {
-        if (!JSObject::defineElement(cx, obj, index, val, nullptr, nullptr, JSPROP_ENUMERATE))
+        if (!JSObject::defineElement(cx, obj, index, val, NULL, NULL, JSPROP_ENUMERATE))
             return false;
     }
 
     if (op == JSOP_INITELEM_INC && index == INT32_MAX) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_SPREAD_TOO_LARGE);
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_SPREAD_TOO_LARGE);
         return false;
     }
 
@@ -608,7 +617,7 @@ BitLsh(JSContext *cx, HandleValue lhs, HandleValue rhs, int *out)
     int32_t left, right;
     if (!ToInt32(cx, lhs, &left) || !ToInt32(cx, rhs, &right))
         return false;
-    *out = uint32_t(left) << (right & 31);
+    *out = left << (right & 31);
     return true;
 }
 
@@ -623,14 +632,16 @@ BitRsh(JSContext *cx, HandleValue lhs, HandleValue rhs, int *out)
 }
 
 static JS_ALWAYS_INLINE bool
-UrshOperation(JSContext *cx, HandleValue lhs, HandleValue rhs, Value *out)
+UrshOperation(JSContext *cx, HandleScript script, jsbytecode *pc,
+              HandleValue lhs, HandleValue rhs, Value *out)
 {
     uint32_t left;
     int32_t  right;
     if (!ToUint32(cx, lhs, &left) || !ToInt32(cx, rhs, &right))
         return false;
     left >>= right & 31;
-    out->setNumber(uint32_t(left));
+    if (!out->setNumber(uint32_t(left)))
+        types::TypeScript::MonitorOverflow(cx, script, pc);
     return true;
 }
 
@@ -643,7 +654,7 @@ ReportIfNotFunction(JSContext *cx, const Value &v, MaybeConstruct construct = NO
         return &v.toObject().as<JSFunction>();
 
     ReportIsNotFunction(cx, v, -1, construct);
-    return nullptr;
+    return NULL;
 }
 
 /*
@@ -660,7 +671,7 @@ class FastInvokeGuard
 #ifdef JS_ION
     // Constructing an IonContext is pretty expensive due to the TLS access,
     // so only do this if we have to.
-    mozilla::Maybe<jit::IonContext> ictx_;
+    mozilla::Maybe<ion::IonContext> ictx_;
     bool useIon_;
 #endif
 
@@ -670,7 +681,7 @@ class FastInvokeGuard
       , fun_(cx)
       , script_(cx)
 #ifdef JS_ION
-      , useIon_(jit::IsIonEnabled(cx))
+      , useIon_(ion::IsEnabled(cx))
 #endif
     {
         JS_ASSERT(!InParallelSection());
@@ -698,22 +709,22 @@ class FastInvokeGuard
                     return false;
             }
             if (ictx_.empty())
-                ictx_.construct(cx, (js::jit::TempAllocator *)nullptr);
+                ictx_.construct(cx, (js::ion::TempAllocator *)NULL);
             JS_ASSERT(fun_->nonLazyScript() == script_);
 
-            jit::MethodStatus status = jit::CanEnterUsingFastInvoke(cx, script_, args_.length());
-            if (status == jit::Method_Error)
+            ion::MethodStatus status = ion::CanEnterUsingFastInvoke(cx, script_, args_.length());
+            if (status == ion::Method_Error)
                 return false;
-            if (status == jit::Method_Compiled) {
-                jit::IonExecStatus result = jit::FastInvoke(cx, fun_, args_);
+            if (status == ion::Method_Compiled) {
+                ion::IonExecStatus result = ion::FastInvoke(cx, fun_, args_);
                 if (IsErrorStatus(result))
                     return false;
 
-                JS_ASSERT(result == jit::IonExec_Ok);
+                JS_ASSERT(result == ion::IonExec_Ok);
                 return true;
             }
 
-            JS_ASSERT(status == jit::Method_Skipped);
+            JS_ASSERT(status == ion::Method_Skipped);
 
             if (script_->canIonCompile()) {
                 // This script is not yet hot. Since calling into Ion is much

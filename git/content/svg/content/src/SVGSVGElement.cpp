@@ -4,8 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <stdint.h>
-#include "mozilla/ArrayUtils.h"
-#include "mozilla/BasicEvents.h"
+#include "mozilla/Util.h"
 #include "mozilla/Likely.h"
 
 #include "nsGkAtoms.h"
@@ -25,6 +24,7 @@
 #include "mozilla/dom/SVGRect.h"
 #include "nsError.h"
 #include "nsISVGChildFrame.h"
+#include "nsGUIEvent.h"
 #include "mozilla/dom/SVGSVGElement.h"
 #include "mozilla/dom/SVGSVGElementBinding.h"
 #include "nsSVGUtils.h"
@@ -435,6 +435,18 @@ SVGSVGElement::CreateSVGTransformFromMatrix(SVGMatrix& matrix)
   return transform.forget();
 }
 
+Element*
+SVGSVGElement::GetElementById(const nsAString& elementId, ErrorResult& rv)
+{
+  nsAutoString selector(NS_LITERAL_STRING("#"));
+  nsStyleUtil::AppendEscapedCSSIdent(PromiseFlatString(elementId), selector);
+  nsIContent* element = QuerySelector(selector, rv);
+  if (!rv.Failed() && element) {
+    return element->AsElement();
+  }
+  return nullptr;
+}
+
 //----------------------------------------------------------------------
 
 already_AddRefed<SVGAnimatedRect>
@@ -513,7 +525,7 @@ SVGSVGElement::SetCurrentScaleTranslate(float s, float x, float y)
     if (presShell && IsRoot()) {
       bool scaling = (mPreviousScale != mCurrentScale);
       nsEventStatus status = nsEventStatus_eIgnore;
-      WidgetGUIEvent event(true, scaling ? NS_SVG_ZOOM : NS_SVG_SCROLL, 0);
+      nsGUIEvent event(true, scaling ? NS_SVG_ZOOM : NS_SVG_SCROLL, 0);
       event.eventStructType = scaling ? NS_SVGZOOM_EVENT : NS_EVENT;
       presShell->HandleDOMEventWithTarget(this, &event, &status);
       InvalidateTransformNotifyFrame();

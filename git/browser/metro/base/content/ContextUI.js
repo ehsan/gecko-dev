@@ -19,23 +19,19 @@ var ContextUI = {
    */
 
   init: function init() {
+    Elements.browsers.addEventListener("mousedown", this, true);
+    Elements.browsers.addEventListener("touchstart", this, true);
+
     Elements.browsers.addEventListener('URLChanged', this, true);
-    Elements.browsers.addEventListener("AlertActive", this, true);
-    Elements.browsers.addEventListener("AlertClose", this, true);
+    Elements.tabList.addEventListener('TabSelect', this, true);
     Elements.panelUI.addEventListener('ToolPanelShown', this, false);
     Elements.panelUI.addEventListener('ToolPanelHidden', this, false);
 
-    Elements.tray.addEventListener("mousemove", this, false);
-    Elements.tray.addEventListener("mouseleave", this, false);
-
-    window.addEventListener("touchstart", this, true);
-    window.addEventListener("mousedown", this, true);
     window.addEventListener("MozEdgeUIStarted", this, true);
     window.addEventListener("MozEdgeUICanceled", this, true);
     window.addEventListener("MozEdgeUICompleted", this, true);
     window.addEventListener("keypress", this, true);
     window.addEventListener("KeyboardChanged", this, false);
-    window.addEventListener("MozFlyoutPanelShowing", this, false);
 
     Elements.tray.addEventListener("transitionend", this, true);
 
@@ -130,7 +126,6 @@ var ContextUI = {
     // No assurances this will hide the nav bar. It may have the
     // 'startpage' property set. This removes the 'visible' property.
     if (this.navbarVisible) {
-      BrowserUI.blurNavBar();
       this.dismissNavbar();
       dismissed = true;
     }
@@ -164,9 +159,8 @@ var ContextUI = {
    * Dismiss tab bar after a delay. Fires context ui events.
    */
   dismissTabsWithDelay: function (aDelay) {
-    aDelay = aDelay || kForegroundTabAnimationDelay;
+    aDelay = aDelay || kNewTabAnimationDelayMsec;
     this._clearDelayedTimeout();
-    this._lastTimeoutDelay = aDelay;
     this._hidingId = setTimeout(function () {
         ContextUI.dismissTabs();
       }, aDelay);
@@ -187,7 +181,6 @@ var ContextUI = {
   // Dismiss the navbar if visible.
   dismissNavbar: function dismissNavbar() {
     if (!BrowserUI.isStartTabVisible) {
-      Elements.autocomplete.closePopup();
       Elements.navbar.dismiss();
       ContentAreaObserver.updateContentArea();
     }
@@ -227,14 +220,7 @@ var ContextUI = {
     if (this._hidingId) {
       clearTimeout(this._hidingId);
       this._hidingId = 0;
-      this._delayedHide = false;
     }
-  },
-
-  _resetDelayedTimeout: function () {
-    this._hidingId = setTimeout(function () {
-        ContextUI.dismissTabs();
-      }, this._lastTimeoutDelay);
   },
 
   /*******************************************
@@ -262,64 +248,8 @@ var ContextUI = {
     this.toggleNavUI();
   },
 
-  onDownInput: function onDownInput(aEvent) {
-    if (!this.isVisible) {
-      return;
-    }
-
-    // Various ui element containers we do not update context ui for.
-    let whitelist = [
-      // Clicks on tab bar elements should not close the tab bar. the tabbar
-      // handles this.
-      Elements.tabs,
-      // Don't let a click on an infobar button dismiss the appbar or navbar.
-      // Note the notification box should always hover above these other two
-      // bars.
-      Browser.getNotificationBox()
-    ];
-
-    if (whitelist.some(elem => elem.contains(aEvent.target))) {
-      return;
-    }
-
-    // If a start tab is visible only dismiss the tab bar.
-    if (BrowserUI.isStartTabVisible) {
-      ContextUI.dismissTabs();
-      return;
-    }
-
-    // content, dismiss anything visible
-    if (aEvent.target.ownerDocument.defaultView.top == getBrowser().contentWindow) {
-      this.dismiss();
-      return;
-    }
-
-    // dismiss tabs and context app bar if visible
-    this.dismissTabs();
-    this.dismissContextAppbar();
-  },
-
-  onMouseMove: function (aEvent) {
-    if (this._hidingId) {
-      this._clearDelayedTimeout();
-      this._delayedHide = true;
-    }
-  },
-
-  onMouseLeave: function (aEvent) {
-    if (this._delayedHide) {
-      this._delayedHide = false;
-      this._resetDelayedTimeout();
-    }
-  },
-
   handleEvent: function handleEvent(aEvent) {
     switch (aEvent.type) {
-      case "URLChanged":
-        if (aEvent.target == Browser.selectedBrowser) {
-          this.displayNavbar();
-        }
-        break;
       case "MozEdgeUIStarted":
         this._onEdgeUIStarted(aEvent);
         break;
@@ -343,33 +273,20 @@ var ContextUI = {
         this.dismissTabs();
         break;
       case "mousedown":
-        if (aEvent.button != 0) {
+        if (BrowserUI.isStartTabVisible)
           break;
+        let box = Browser.getNotificationBox();
+        if (!box.contains(aEvent.target) &&
+            aEvent.button == 0 && this.isVisible) {
+          this.dismiss();
         }
-        this.onDownInput(aEvent);
-        break;
-      case "mousemove":
-        this.onMouseMove(aEvent);
-        break;
-      case "mouseleave":
-        this.onMouseLeave(aEvent);
-        break;
-      case "touchstart":
-        this.onDownInput(aEvent);
         break;
       case "ToolPanelShown":
       case "ToolPanelHidden":
         this.dismiss();
         break;
-      case "AlertActive":
-      case "AlertClose":
-        ContentAreaObserver.updateContentArea();
-        break;
-      case "MozFlyoutPanelShowing":
-        if (BrowserUI.isStartTabVisible) {
-          this.dismissTabs();
-          this.dismissContextAppbar();
-        } else {
+      case "touchstart":
+        if (!BrowserUI.isStartTabVisible) {
           this.dismiss();
         }
         break;

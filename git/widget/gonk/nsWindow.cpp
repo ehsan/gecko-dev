@@ -29,7 +29,7 @@
 #include "gfxPlatform.h"
 #include "gfxUtils.h"
 #include "GLContextProvider.h"
-#include "GLContext.h"
+#include "LayerManagerOGL.h"
 #include "nsAutoPtr.h"
 #include "nsAppShell.h"
 #include "nsIdleService.h"
@@ -42,11 +42,10 @@
 #include "BasicLayers.h"
 #include "libdisplay/GonkDisplay.h"
 #include "pixelflinger/format.h"
-#include "mozilla/BasicEvents.h"
-#include "mozilla/layers/CompositorParent.h"
-#include "ParentProcessController.h"
-#include "nsThreadUtils.h"
+
+#if ANDROID_VERSION == 15
 #include "HwcComposer2D.h"
+#endif
 
 #define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "Gonk" , ## args)
 #define LOGW(args...) __android_log_print(ANDROID_LOG_WARN, "Gonk", ## args)
@@ -105,7 +104,7 @@ public:
         if (observerService) {
           observerService->NotifyObservers(
             nullptr, "screen-state-changed",
-            mIsOn ? MOZ_UTF16("on") : MOZ_UTF16("off")
+            mIsOn ? NS_LITERAL_STRING("on").get() : NS_LITERAL_STRING("off").get()
           );
         }
 
@@ -181,7 +180,7 @@ nsWindow::nsWindow()
 
         if (sUsingOMTC) {
           sOMTCSurface = new gfxImageSurface(gfxIntSize(1, 1),
-                                             gfxImageFormatRGB24);
+                                             gfxASurface::ImageFormatRGB24);
         }
     }
 }
@@ -212,7 +211,16 @@ nsWindow::DoDraw(void)
     }
 
     LayerManager* lm = gWindowToRedraw->GetLayerManager();
-    if (mozilla::layers::LAYERS_CLIENT == lm->GetBackendType()) {
+    if (mozilla::layers::LAYERS_OPENGL == lm->GetBackendType()) {
+        LayerManagerOGL* oglm = static_cast<LayerManagerOGL*>(lm);
+        oglm->SetClippingRegion(region);
+        oglm->SetWorldTransform(sRotationMatrix);
+
+        listener = gWindowToRedraw->GetWidgetListener();
+        if (listener) {
+            listener->PaintWindow(gWindowToRedraw, region);
+        }
+    } else if (mozilla::layers::LAYERS_CLIENT == lm->GetBackendType()) {
       // No need to do anything, the compositor will handle drawing
     } else if (mozilla::layers::LAYERS_BASIC == lm->GetBackendType()) {
         MOZ_ASSERT(sFramebufferOpen || sUsingOMTC);
@@ -254,7 +262,7 @@ nsWindow::DoDraw(void)
 }
 
 nsEventStatus
-nsWindow::DispatchInputEvent(WidgetGUIEvent& aEvent, bool* aWasCaptured)
+nsWindow::DispatchInputEvent(nsGUIEvent &aEvent, bool* aWasCaptured)
 {
     if (aWasCaptured) {
         *aWasCaptured = false;
@@ -471,7 +479,7 @@ nsWindow::GetNativeData(uint32_t aDataType)
 }
 
 NS_IMETHODIMP
-nsWindow::DispatchEvent(WidgetGUIEvent* aEvent, nsEventStatus& aStatus)
+nsWindow::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus &aStatus)
 {
     if (mWidgetListener)
       aStatus = mWidgetListener->HandleEvent(aEvent, mUseAttachedEvents);
@@ -537,11 +545,10 @@ nsWindow::GetDefaultScaleInternal()
     if (dpi < 200.0) {
         return 1.0; // mdpi devices.
     }
-    if (dpi < 300.0) {
+    if (dpi < 280.0) {
         return 1.5; // hdpi devices.
     }
-    // xhdpi devices and beyond.
-    return floor(dpi / 150.0);
+    return 2.0; // xhdpi devices.
 }
 
 LayerManager *
@@ -581,10 +588,6 @@ nsWindow::GetLayerManager(PLayerTransactionChild* aShadowManager,
 
     if (sUsingOMTC) {
         CreateCompositor();
-        if (mCompositorParent) {
-            uint64_t rootLayerTreeId = mCompositorParent->RootLayerTreeId();
-            CompositorParent::SetControllerForLayerTree(rootLayerTreeId, new ParentProcessController());
-        }
         if (mLayerManager)
             return mLayerManager;
     }
@@ -596,6 +599,18 @@ nsWindow::GetLayerManager(PLayerTransactionChild* aShadowManager,
         }
 
         MOZ_ASSERT(fbBounds.value == gScreenBounds);
+        if (sGLContext) {
+            nsRefPtr<LayerManagerOGL> layerManager = new LayerManagerOGL(this);
+
+            if (layerManager->Initialize(sGLContext)) {
+                mLayerManager = layerManager;
+                return mLayerManager;
+            } else {
+                LOGW("Could not create OGL LayerManager");
+            }
+        } else {
+            LOGW("GL context was not created");
+        }
     }
 
     // Fall back to software rendering.
@@ -622,7 +637,7 @@ nsWindow::GetThebesSurface()
 
     // XXX this really wants to return already_AddRefed, but this only really gets used
     // on direct assignment to a gfxASurface
-    return new gfxImageSurface(gfxIntSize(5,5), gfxImageFormatRGB24);
+    return new gfxImageSurface(gfxIntSize(5,5), gfxImageSurface::ImageFormatRGB24);
 }
 
 void
@@ -687,9 +702,11 @@ nsWindow::GetComposer2D()
         return nullptr;
     }
 
+#if ANDROID_VERSION == 15
     if (HwcComposer2D* hwc = HwcComposer2D::GetInstance()) {
         return hwc->Initialized() ? hwc : nullptr;
     }
+#endif
 
     return nullptr;
 }

@@ -6,28 +6,21 @@
 
 TEST_DIRS += ['test']
 
+MODULE = 'dom'
+
 EXPORTS.mozilla.dom += [
     'EncodingUtils.h',
-    'FallbackEncoding.h',
     'TextDecoder.h',
     'TextEncoder.h',
 ]
 
-UNIFIED_SOURCES += [
+CPP_SOURCES += [
     'EncodingUtils.cpp',
-    'FallbackEncoding.cpp',
     'TextDecoder.cpp',
     'TextEncoder.cpp',
 ]
 
 FAIL_ON_WARNINGS = True
 
-FINAL_LIBRARY = 'gklayout'
-LOCAL_INCLUDES += [
-    '/intl/locale/src',
-]
+LIBXUL_LIBRARY = True
 
-GENERATED_FILES += [
-    'labelsencodings.properties.h',
-    'localesfallbacks.properties.h',
-]

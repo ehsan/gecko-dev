@@ -10,7 +10,6 @@
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 #include "nsNetUtil.h"
-#include "SerializedLoadContext.h"
 
 using namespace mozilla::ipc;
 
@@ -20,7 +19,7 @@ namespace net {
 // Behavior pref constants
 static const int32_t BEHAVIOR_ACCEPT = 0;
 static const int32_t BEHAVIOR_REJECTFOREIGN = 1;
-// static const int32_t BEHAVIOR_REJECT = 2;
+static const int32_t BEHAVIOR_REJECT = 2;
 static const int32_t BEHAVIOR_LIMITFOREIGN = 3;
 
 // Pref string constants
@@ -107,7 +106,7 @@ CookieServiceChild::GetCookieStringInternal(nsIURI *aHostURI,
   NS_ENSURE_ARG(aHostURI);
   NS_ENSURE_ARG_POINTER(aCookieString);
 
-  *aCookieString = nullptr;
+  *aCookieString = NULL;
 
   // Determine whether the request is foreign. Failure is acceptable.
   bool isForeign = true;

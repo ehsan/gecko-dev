@@ -6,3 +6,5 @@
 
 DIRS += ['include', 'lib']
 
+MODULE = 'theora'
+

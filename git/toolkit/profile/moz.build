@@ -14,19 +14,14 @@ XPIDL_SOURCES += [
 
 XPIDL_MODULE = 'toolkitprofile'
 
-UNIFIED_SOURCES += [ TOPSRCDIR + '/profile/dirserviceprovider/src/nsProfileLock.cpp' ]
+MODULE = 'xulapp'
 
-UNIFIED_SOURCES += [
-    'nsToolkitProfileService.cpp'
+CPP_SOURCES += [
+    'nsProfileLock.cpp',
+    'nsToolkitProfileService.cpp',
 ]
 
-LOCAL_INCLUDES += [
-    '../xre',
-    '/profile/dirserviceprovider/src',
-]
+LIBRARY_NAME = 'profile_s'
 
-FAIL_ON_WARNINGS = True
+LIBXUL_LIBRARY = True
 
-FINAL_LIBRARY = 'xulapp_s'
-
-JAR_MANIFESTS += ['jar.mn']

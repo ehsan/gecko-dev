@@ -1453,18 +1453,6 @@ loser:
     }
 }
 
-static void
-printStringWithoutCRLF(FILE *out, const char *str)
-{
-    const char *c = str;
-    while (*c) {
-	if (*c != '\r' && *c != '\n') {
-	    fputc(*c, out);
-	}
-	++c;
-    }
-}
-
 int
 SECU_PrintDumpDerIssuerAndSerial(FILE *out, SECItem *der, char *m,
                                  int level)
@@ -1491,32 +1479,15 @@ SECU_PrintDumpDerIssuerAndSerial(FILE *out, SECItem *der, char *m,
     }
 
     SECU_PrintName(out, &c->subject, "Subject", 0);
-    if (!SECU_GetWrapEnabled()) /*SECU_PrintName didn't add newline*/
-	SECU_Newline(out);
+    fprintf(out, "\n");
     SECU_PrintName(out, &c->issuer, "Issuer", 0);
-    if (!SECU_GetWrapEnabled()) /*SECU_PrintName didn't add newline*/
-	SECU_Newline(out);
+    fprintf(out, "\n");
     SECU_PrintInteger(out, &c->serialNumber, "Serial Number", 0);
     
     derIssuerB64 = BTOA_ConvertItemToAscii(&c->derIssuer);
     derSerialB64 = BTOA_ConvertItemToAscii(&c->serialNumber);
-
-    fprintf(out, "Issuer DER Base64:\n");
-    if (SECU_GetWrapEnabled()) {
-	fprintf(out, "%s\n", derIssuerB64);
-    } else {
-	printStringWithoutCRLF(out, derIssuerB64);
-	fputs("\n", out);
-    }
-
-    fprintf(out, "Serial DER Base64:\n");
-    if (SECU_GetWrapEnabled()) {
-	fprintf(out, "%s\n", derSerialB64);
-    } else {
-	printStringWithoutCRLF(out, derSerialB64);
-	fputs("\n", out);
-    }
-
+    fprintf(out, "Issuer DER Base64:\n%s\n", derIssuerB64);
+    fprintf(out, "Serial DER Base64:\n%s\n", derSerialB64);
     PORT_Free(derIssuerB64);
     PORT_Free(derSerialB64);
     
@@ -2322,8 +2293,6 @@ SECU_PrintCertificateRequest(FILE *out, SECItem *der, char *m, int level)
     SECU_Indent(out, level); fprintf(out, "%s:\n", m);
     SECU_PrintInteger(out, &cr->version, "Version", level+1);
     SECU_PrintName(out, &cr->subject, "Subject", level+1);
-    if (!SECU_GetWrapEnabled()) /*SECU_PrintName didn't add newline*/
-	SECU_Newline(out);
     secu_PrintSubjectPublicKeyInfo(out, arena, &cr->subjectPublicKeyInfo,
 			      "Subject Public Key Info", level+1);
     if (cr->attributes)
@@ -2366,12 +2335,8 @@ SECU_PrintCertificate(FILE *out, const SECItem *der, const char *m, int level)
     SECU_PrintInteger(out, &c->serialNumber, "Serial Number", level+1);
     SECU_PrintAlgorithmID(out, &c->signature, "Signature Algorithm", level+1);
     SECU_PrintName(out, &c->issuer, "Issuer", level+1);
-    if (!SECU_GetWrapEnabled()) /*SECU_PrintName didn't add newline*/
-	SECU_Newline(out);
     secu_PrintValidity(out, &c->validity, "Validity", level+1);
     SECU_PrintName(out, &c->subject, "Subject", level+1);
-    if (!SECU_GetWrapEnabled()) /*SECU_PrintName didn't add newline*/
-	SECU_Newline(out);
     secu_PrintSubjectPublicKeyInfo(out, arena, &c->subjectPublicKeyInfo,
 			      "Subject Public Key Info", level+1);
     if (c->issuerID.data) 
@@ -3045,8 +3010,6 @@ int SECU_PrintDERName(FILE *out, SECItem *der, const char *m, int level)
 	goto loser;
 
     SECU_PrintName(out, name, m, level);
-    if (!SECU_GetWrapEnabled()) /*SECU_PrintName didn't add newline*/
-	SECU_Newline(out);
 loser:
     PORT_FreeArena(arena, PR_FALSE);
     return rv;

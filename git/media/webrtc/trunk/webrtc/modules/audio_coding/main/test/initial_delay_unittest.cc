@@ -10,12 +10,13 @@
 
 #include "webrtc/modules/audio_coding/main/interface/audio_coding_module.h"
 
-#include <assert.h>
 #include <math.h>
 
+#include <cassert>
 #include <iostream>
 
 #include "gtest/gtest.h"
+#include "testsupport/fileutils.h"
 #include "webrtc/common_types.h"
 #include "webrtc/engine_configurations.h"
 #include "webrtc/modules/audio_coding/main/interface/audio_coding_module_typedefs.h"
@@ -24,8 +25,6 @@
 #include "webrtc/modules/audio_coding/main/test/utility.h"
 #include "webrtc/system_wrappers/interface/event_wrapper.h"
 #include "webrtc/system_wrappers/interface/scoped_ptr.h"
-#include "webrtc/test/testsupport/fileutils.h"
-#include "webrtc/test/testsupport/gtest_disable.h"
 
 namespace webrtc {
 
@@ -42,33 +41,43 @@ double FrameRms(AudioFrame& frame) {
 
 }
 
-class InitialPlayoutDelayTest : public ::testing::Test {
+class InitialPlayoutDelayTest  : public ::testing::Test {
  protected:
 
   InitialPlayoutDelayTest()
-      : acm_a_(AudioCodingModule::Create(0)),
-        acm_b_(AudioCodingModule::Create(1)),
-        channel_a2b_(NULL) {
+     : acm_a_(NULL),
+       acm_b_(NULL),
+       channel_a2b_(NULL) {
   }
 
-  ~InitialPlayoutDelayTest() {
-  }
+  ~InitialPlayoutDelayTest() {}
 
   void TearDown() {
-    if (channel_a2b_ != NULL) {
+    if(acm_a_ != NULL) {
+      AudioCodingModule::Destroy(acm_a_);
+      acm_a_ = NULL;
+    }
+    if(acm_b_ != NULL) {
+      AudioCodingModule::Destroy(acm_b_);
+      acm_b_ = NULL;
+    }
+    if(channel_a2b_ != NULL) {
       delete channel_a2b_;
       channel_a2b_ = NULL;
     }
   }
 
   void SetUp() {
+    acm_a_ = AudioCodingModule::Create(0);
+    acm_b_ = AudioCodingModule::Create(1);
+
     acm_b_->InitializeReceiver();
     acm_a_->InitializeReceiver();
 
     // Register all L16 codecs in receiver.
     CodecInst codec;
-    const int kFsHz[3] = { 8000, 16000, 32000 };
-    const int kChannels[2] = { 1, 2 };
+    const int kFsHz[3] = {8000, 16000, 32000};
+    const int kChannels[2] = {1, 2};
     for (int n = 0; n < 3; ++n) {
       for (int k = 0; k < 2; ++k) {
         AudioCodingModule::Codec("L16", &codec, kFsHz[n], kChannels[k]);
@@ -79,7 +88,7 @@ class InitialPlayoutDelayTest : public ::testing::Test {
     // Create and connect the channel
     channel_a2b_ = new Channel;
     acm_a_->RegisterTransportCallback(channel_a2b_);
-    channel_a2b_->RegisterReceiverACM(acm_b_.get());
+    channel_a2b_->RegisterReceiverACM(acm_b_);
   }
 
   void Run(CodecInst codec, int initial_delay_ms) {
@@ -100,7 +109,7 @@ class InitialPlayoutDelayTest : public ::testing::Test {
     double rms = 0;
     acm_a_->RegisterSendCodec(codec);
     acm_b_->SetInitialPlayoutDelay(initial_delay_ms);
-    while (rms < kAmp / 2) {
+    while(rms < kAmp / 2) {
       in_audio_frame.timestamp_ = timestamp;
       timestamp += in_audio_frame.samples_per_channel_;
       ASSERT_EQ(0, acm_a_->Add10MsData(in_audio_frame));
@@ -114,10 +123,11 @@ class InitialPlayoutDelayTest : public ::testing::Test {
     ASSERT_LE(num_frames * 10, initial_delay_ms + 100);
   }
 
-  scoped_ptr<AudioCodingModule> acm_a_;
-  scoped_ptr<AudioCodingModule> acm_b_;
+  AudioCodingModule* acm_a_;
+  AudioCodingModule* acm_b_;
   Channel* channel_a2b_;
 };
+
 
 TEST_F( InitialPlayoutDelayTest, NbMono) {
   CodecInst codec;
@@ -157,5 +167,4 @@ TEST_F( InitialPlayoutDelayTest, SwbStereo) {
                      // PCM16 super-wideband.
 }
 
-}
-  // namespace webrtc
+} // namespace webrtc

@@ -73,8 +73,6 @@
 
 #ifndef WEBRTC_ARCH_ARM_V7
 // For ARMv7 platforms, these are inline functions in spl_inl_armv7.h
-#ifndef MIPS32_LE
-// For MIPS platforms, these are inline functions in spl_inl_mips.h
 #define WEBRTC_SPL_MUL_16_16(a, b) \
     ((int32_t) (((int16_t)(a)) * ((int16_t)(b))))
 #define WEBRTC_SPL_MUL_16_32_RSFT16(a, b) \
@@ -88,7 +86,6 @@
     (int16_t)(a32 >> 16)), b32) + \
     (WEBRTC_SPL_MUL_16_32_RSFT16(( \
     (int16_t)((a32 & 0x0000FFFF) >> 1)), b32) >> 15)))
-#endif
 #endif
 
 #define WEBRTC_SPL_MUL_16_32_RSFT11(a, b) \
@@ -459,15 +456,6 @@ int WebRtcSpl_ScaleAndAddVectorsWithRoundNeon(const int16_t* in_vector1,
                                               int16_t* out_vector,
                                               int length);
 #endif
-#if defined(MIPS_DSP_R1_LE)
-int WebRtcSpl_ScaleAndAddVectorsWithRound_mips(const int16_t* in_vector1,
-                                               int16_t in_vector1_scale,
-                                               const int16_t* in_vector2,
-                                               int16_t in_vector2_scale,
-                                               int right_shifts,
-                                               int16_t* out_vector,
-                                               int length);
-#endif
 // End: Vector scaling operations.
 
 // iLBC specific functions. Implementations in ilbc_specific_functions.c.
@@ -639,15 +627,6 @@ void WebRtcSpl_CrossCorrelationNeon(int32_t* cross_correlation,
                                     int16_t right_shifts,
                                     int16_t step_seq2);
 #endif
-#if defined(MIPS32_LE)
-void WebRtcSpl_CrossCorrelation_mips(int32_t* cross_correlation,
-                                     const int16_t* seq1,
-                                     const int16_t* seq2,
-                                     int16_t dim_seq,
-                                     int16_t dim_cross_correlation,
-                                     int16_t right_shifts,
-                                     int16_t step_seq2);
-#endif
 
 // Creates (the first half of) a Hanning window. Size must be at least 1 and
 // at most 512.
@@ -792,16 +771,6 @@ int WebRtcSpl_DownsampleFastNeon(const int16_t* data_in,
                                  int factor,
                                  int delay);
 #endif
-#if defined(MIPS32_LE)
-int WebRtcSpl_DownsampleFast_mips(const int16_t* data_in,
-                                  int data_in_length,
-                                  int16_t* data_out,
-                                  int data_out_length,
-                                  const int16_t* __restrict coefficients,
-                                  int coefficients_length,
-                                  int factor,
-                                  int delay);
-#endif
 
 // End: Filter operations.
 
@@ -910,13 +879,13 @@ void WebRtcSpl_ResetResample8khzTo22khz(WebRtcSpl_State8khzTo22khz* state);
  ******************************************************************/
 
 void WebRtcSpl_Resample48khzTo32khz(const int32_t* In, int32_t* Out,
-                                    int32_t K);
+                                    const int32_t K);
 
 void WebRtcSpl_Resample32khzTo24khz(const int32_t* In, int32_t* Out,
-                                    int32_t K);
+                                    const int32_t K);
 
 void WebRtcSpl_Resample44khzTo32khz(const int32_t* In, int32_t* Out,
-                                    int32_t K);
+                                    const int32_t K);
 
 /*******************************************************************
  * resample_48khz.c
@@ -986,7 +955,7 @@ void WebRtcSpl_ResetResample8khzTo48khz(WebRtcSpl_State8khzTo48khz* state);
  *
  ******************************************************************/
 
-void WebRtcSpl_DownsampleBy2(const int16_t* in, int16_t len,
+void WebRtcSpl_DownsampleBy2(const int16_t* in, const int16_t len,
                              int16_t* out, int32_t* filtState);
 
 void WebRtcSpl_UpsampleBy2(const int16_t* in, int16_t len,

@@ -7,11 +7,7 @@
 #define MOZILLA_MEDIASEGMENT_H_
 
 #include "nsTArray.h"
-#ifdef MOZILLA_INTERNAL_API
-#include "mozilla/TimeStamp.h"
-#endif
 #include <algorithm>
-#include "Latency.h"
 
 namespace mozilla {
 
@@ -38,11 +34,6 @@ inline MediaTime SecondsToMediaTime(double aS)
 inline double MediaTimeToSeconds(MediaTime aTime)
 {
   return aTime*(1.0/(1 << MEDIA_TIME_FRAC_BITS));
-}
-
-inline int64_t MediaTimeToMicroseconds(MediaTime aTime)
-{
-  return aTime*(1000000.0/(1 << MEDIA_TIME_FRAC_BITS));
 }
 
 /**
@@ -189,9 +180,6 @@ public:
     } else {
       mChunks.InsertElementAt(0)->SetNull(aDuration);
     }
-#ifdef MOZILLA_INTERNAL_API
-    mChunks[0].mTimeStamp = mozilla::TimeStamp::Now();
-#endif
     mDuration += aDuration;
   }
   virtual void AppendNullData(TrackTicks aDuration)
@@ -238,13 +226,6 @@ public:
   {
     RemoveLeading(aDuration, 0);
   }
-
-#ifdef MOZILLA_INTERNAL_API
-  void GetStartTime(TimeStamp &aTime) {
-    aTime = mChunks[0].mTimeStamp;
-  }
-#endif
-
 protected:
   MediaSegmentBase(Type aType) : MediaSegment(aType) {}
 
@@ -341,9 +322,6 @@ protected:
   }
 
   nsTArray<Chunk> mChunks;
-#ifdef MOZILLA_INTERNAL_API
-  mozilla::TimeStamp mTimeStamp;
-#endif
 };
 
 }

@@ -11,12 +11,10 @@
 #ifndef WEBRTC_MODULES_VIDEO_CODING_MAIN_SOURCE_RECEIVER_H_
 #define WEBRTC_MODULES_VIDEO_CODING_MAIN_SOURCE_RECEIVER_H_
 
+#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
 #include "webrtc/modules/video_coding/main/source/jitter_buffer.h"
 #include "webrtc/modules/video_coding/main/source/packet.h"
 #include "webrtc/modules/video_coding/main/source/timing.h"
-#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
-#include "webrtc/modules/video_coding/main/interface/video_coding.h"
-#include "webrtc/modules/video_coding/main/interface/video_coding_defines.h"
 
 namespace webrtc {
 
@@ -65,8 +63,7 @@ class VCMReceiver {
                    int low_rtt_nack_threshold_ms,
                    int high_rtt_nack_threshold_ms);
   void SetNackSettings(size_t max_nack_list_size,
-                       int max_packet_age_to_nack,
-                       int max_incomplete_time_ms);
+                       int max_packet_age_to_nack);
   VCMNackMode NackMode() const;
   VCMNackStatus NackList(uint16_t* nackList, uint16_t size,
                          uint16_t* nack_list_length);
@@ -80,15 +77,20 @@ class VCMReceiver {
   int SetMinReceiverDelay(int desired_delay_ms);
 
   // Decoding with errors.
-  void SetDecodeErrorMode(VCMDecodeErrorMode decode_error_mode);
-  VCMDecodeErrorMode DecodeErrorMode() const;
+  void SetDecodeWithErrors(bool enable);
+  bool DecodeWithErrors() const;
 
   // Returns size in time (milliseconds) of complete continuous frames in the
-  // jitter buffer. The render time is estimated based on the render delay at
-  // the time this function is called.
+  // jitter buffer.
   int RenderBufferSizeMs();
 
  private:
+  VCMEncodedFrame* FrameForDecoding(uint16_t max_wait_time_ms,
+                                    int64_t nextrender_time_ms,
+                                    VCMReceiver* dual_receiver);
+  VCMEncodedFrame* FrameForRendering(uint16_t max_wait_time_ms,
+                                     int64_t nextrender_time_ms,
+                                     VCMReceiver* dual_receiver);
   void CopyJitterBufferStateFromReceiver(const VCMReceiver& receiver);
   void UpdateState(VCMReceiverState new_state);
   void UpdateState(const VCMEncodedFrame& frame);

@@ -35,10 +35,6 @@
 
 #define WM_UPLOADCOMPLETE WM_APP
 
-// Thanks, Windows.h :(
-#undef min
-#undef max
-
 using std::string;
 using std::wstring;
 using std::map;
@@ -125,9 +121,8 @@ static bool GetBoolValue(HKEY hRegKey, LPCTSTR valueName, DWORD* value)
 {
   DWORD type, dataSize;
   dataSize = sizeof(DWORD);
-  if (RegQueryValueEx(hRegKey, valueName, nullptr,
-                      &type, (LPBYTE)value, &dataSize) == ERROR_SUCCESS &&
-      type == REG_DWORD)
+  if (RegQueryValueEx(hRegKey, valueName, NULL, &type, (LPBYTE)value, &dataSize) == ERROR_SUCCESS
+    && type == REG_DWORD)
     return true;
 
   return false;
@@ -207,9 +202,8 @@ static bool GetStringValue(HKEY hRegKey, LPCTSTR valueName, wstring& value)
   DWORD type, dataSize;
   wchar_t buf[2048];
   dataSize = sizeof(buf);
-  if (RegQueryValueEx(hRegKey, valueName, nullptr,
-                     &type, (LPBYTE)buf, &dataSize) == ERROR_SUCCESS &&
-      type == REG_SZ) {
+  if (RegQueryValueEx(hRegKey, valueName, NULL, &type, (LPBYTE)buf, &dataSize) == ERROR_SUCCESS
+      && type == REG_SZ) {
     value = buf;
     return true;
   }
@@ -271,8 +265,8 @@ static string FormatLastError()
                    0,
                    (LPWSTR)&s,
                    0,
-                   nullptr) != 0) {
-    message += WideToUTF8(s, nullptr);
+                   NULL) != 0) {
+    message += WideToUTF8(s, NULL);
     LocalFree(s);
     // strip off any trailing newlines
     string::size_type n = message.find_last_not_of("\r\n");
@@ -327,7 +321,7 @@ static void GetThemeSizes(HWND hwnd)
   }
   HDC hdc = GetDC(hwnd);
   SIZE s;
-  getThemePartSize(buttonTheme, hdc, BP_CHECKBOX, 0, nullptr, TS_DRAW, &s);
+  getThemePartSize(buttonTheme, hdc, BP_CHECKBOX, 0, NULL, TS_DRAW, &s);
   gCheckboxPadding = s.cx;
   closeTheme(buttonTheme);
   FreeLibrary(themeDLL);
@@ -337,7 +331,7 @@ static void GetThemeSizes(HWND hwnd)
 static void GetRelativeRect(HWND hwnd, HWND hwndParent, RECT* r)
 {
   GetWindowRect(hwnd, r);
-  MapWindowPoints(nullptr, hwndParent, (POINT*)r, 2);
+  MapWindowPoints(NULL, hwndParent, (POINT*)r, 2);
 }
 
 static void SetDlgItemVisible(HWND hwndDlg, UINT item, bool visible)
@@ -503,12 +497,11 @@ static void MaybeSendReport(HWND hwndDlg)
   // play entire AVI, and loop
   Animate_Play(GetDlgItem(hwndDlg, IDC_THROBBER), 0, -1, -1);
   SetDlgItemVisible(hwndDlg, IDC_THROBBER, true);
-  gThreadHandle = nullptr;
+  gThreadHandle = NULL;
   gSendData.hDlg = hwndDlg;
   gSendData.queryParameters = gQueryParameters;
 
-  gThreadHandle = CreateThread(nullptr, 0, SendThreadProc, &gSendData, 0,
-                               nullptr);
+  gThreadHandle = CreateThread(NULL, 0, SendThreadProc, &gSendData, 0, NULL);
 }
 
 static void RestartApplication()
@@ -528,8 +521,8 @@ static void RestartApplication()
   si.wShowWindow = SW_SHOWNORMAL;
   ZeroMemory(&pi, sizeof(pi));
 
-  if (CreateProcess(nullptr, (LPWSTR)cmdLine.c_str(), nullptr, nullptr, FALSE,
-                    0, nullptr, nullptr, &si, &pi)) {
+  if (CreateProcess(NULL, (LPWSTR)cmdLine.c_str(), NULL, NULL, FALSE, 0,
+                    NULL, NULL, &si, &pi)) {
     CloseHandle(pi.hProcess);
     CloseHandle(pi.hThread);
   }
@@ -600,7 +593,7 @@ static BOOL CALLBACK ViewReportDialogProc(HWND hwndDlg, UINT message,
     SetWindowText(hwndDlg, Str(ST_VIEWREPORTTITLE).c_str());    
     SetDlgItemText(hwndDlg, IDOK, Str(ST_OK).c_str());
     SendDlgItemMessage(hwndDlg, IDC_VIEWREPORTTEXT,
-                       EM_SETTARGETDEVICE, (WPARAM)nullptr, 0);
+                       EM_SETTARGETDEVICE, (WPARAM)NULL, 0);
     ShowReportInfo(hwndDlg);
     SetFocus(GetDlgItem(hwndDlg, IDOK));
     return FALSE;
@@ -621,8 +614,7 @@ static inline int BytesInUTF8(wchar_t* str)
 {
   // Just count size of buffer for UTF-8, minus one
   // (we don't need to count the null terminator)
-  return WideCharToMultiByte(CP_UTF8, 0, str, -1,
-                             nullptr, 0, nullptr, nullptr) - 1;
+  return WideCharToMultiByte(CP_UTF8, 0, str, -1, NULL, 0, NULL, NULL) - 1;
 }
 
 // Calculate the length of the text in this edit control (in bytes,
@@ -656,9 +648,9 @@ static int NewTextLength(HWND hwndEdit, wchar_t* insert)
 static LRESULT CALLBACK EditSubclassProc(HWND hwnd, UINT uMsg, WPARAM wParam,
                                          LPARAM lParam)
 {
-  static WNDPROC super = nullptr;
+  static WNDPROC super = NULL;
 
-  if (super == nullptr)
+  if (super == NULL)
     super = (WNDPROC)GetWindowLongPtr(hwnd, GWLP_USERDATA);
 
   switch (uMsg) {
@@ -848,11 +840,11 @@ static INT_PTR DialogBoxParamMaybeRTL(UINT idd, HWND hwndParent,
   if (gRTLlayout) {
     // We need to toggle the WS_EX_LAYOUTRTL style flag on the dialog
     // template.
-    HRSRC hDialogRC = FindResource(nullptr, MAKEINTRESOURCE(idd),
+    HRSRC hDialogRC = FindResource(NULL, MAKEINTRESOURCE(idd),
                                    RT_DIALOG);
-    HGLOBAL  hDlgTemplate = LoadResource(nullptr, hDialogRC);
+    HGLOBAL  hDlgTemplate = LoadResource(NULL, hDialogRC);
     DLGTEMPLATEEX* pDlgTemplate = (DLGTEMPLATEEX*)LockResource(hDlgTemplate);
-    unsigned long sizeDlg = SizeofResource(nullptr, hDialogRC);
+    unsigned long sizeDlg = SizeofResource(NULL, hDialogRC);
     HGLOBAL hMyDlgTemplate = GlobalAlloc(GPTR, sizeDlg);
      DLGTEMPLATEEX* pMyDlgTemplate =
       (DLGTEMPLATEEX*)GlobalLock(hMyDlgTemplate);
@@ -860,13 +852,13 @@ static INT_PTR DialogBoxParamMaybeRTL(UINT idd, HWND hwndParent,
 
     pMyDlgTemplate->exStyle |= WS_EX_LAYOUTRTL;
 
-    rv = DialogBoxIndirectParam(nullptr, (LPCDLGTEMPLATE)pMyDlgTemplate,
+    rv = DialogBoxIndirectParam(NULL, (LPCDLGTEMPLATE)pMyDlgTemplate,
                                 hwndParent, dlgProc, param);
     GlobalUnlock(hMyDlgTemplate);
     GlobalFree(hMyDlgTemplate);
   }
   else {
-    rv = DialogBoxParam(nullptr, MAKEINTRESOURCE(idd), hwndParent,
+    rv = DialogBoxParam(NULL, MAKEINTRESOURCE(idd), hwndParent,
                         dlgProc, param);
   }
 
@@ -890,7 +882,7 @@ static BOOL CALLBACK CrashReporterDialogProc(HWND hwndDlg, UINT message,
     sHeight = r.bottom - r.top;
 
     SetWindowText(hwndDlg, Str(ST_CRASHREPORTERTITLE).c_str());
-    HICON hIcon = LoadIcon(GetModuleHandle(nullptr),
+    HICON hIcon = LoadIcon(GetModuleHandle(NULL),
                            MAKEINTRESOURCE(IDI_MAINICON));
     SendMessage(hwndDlg, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
     SendMessage(hwndDlg, WM_SETICON, ICON_BIG, (LPARAM)hIcon);
@@ -1036,7 +1028,7 @@ static BOOL CALLBACK CrashReporterDialogProc(HWND hwndDlg, UINT message,
     // Resize the description text last, in case the window was resized
     // before this.
     SendDlgItemMessage(hwndDlg, IDC_DESCRIPTIONTEXT,
-                       EM_SETEVENTMASK, (WPARAM)nullptr,
+                       EM_SETEVENTMASK, (WPARAM)NULL,
                        ENM_REQUESTRESIZE);
     
     wstring description = Str(ST_CRASHREPORTERHEADER);
@@ -1057,7 +1049,7 @@ static BOOL CALLBACK CrashReporterDialogProc(HWND hwndDlg, UINT message,
     SendDlgItemMessage(hwndDlg, IDC_DESCRIPTIONTEXT, EM_SETSEL, 0, 0);
     // Force redraw.
     SendDlgItemMessage(hwndDlg, IDC_DESCRIPTIONTEXT,
-                       EM_SETTARGETDEVICE, (WPARAM)nullptr, 0);
+                       EM_SETTARGETDEVICE, (WPARAM)NULL, 0);
     // Force resize.
     SendDlgItemMessage(hwndDlg, IDC_DESCRIPTIONTEXT,
                        EM_REQUESTRESIZE, 0, 0);
@@ -1096,7 +1088,7 @@ static BOOL CALLBACK CrashReporterDialogProc(HWND hwndDlg, UINT message,
   case WM_SIZE: {
     ReflowDialog(hwndDlg, HIWORD(lParam) - sHeight);
     sHeight = HIWORD(lParam);
-    InvalidateRect(hwndDlg, nullptr, TRUE);
+    InvalidateRect(hwndDlg, NULL, TRUE);
     return FALSE;
   }
   case WM_NOTIFY: {
@@ -1168,7 +1160,7 @@ static BOOL CALLBACK CrashReporterDialogProc(HWND hwndDlg, UINT message,
                    Str(ST_SUBMITFAILED).c_str());
     MaybeResizeProgressText(hwndDlg);
     // close dialog after 5 seconds
-    SetTimer(hwndDlg, 0, 5000, nullptr);
+    SetTimer(hwndDlg, 0, 5000, NULL);
     //
     return TRUE;
   }
@@ -1206,9 +1198,9 @@ static BOOL CALLBACK CrashReporterDialogProc(HWND hwndDlg, UINT message,
 
 static wstring UTF8ToWide(const string& utf8, bool *success)
 {
-  wchar_t* buffer = nullptr;
+  wchar_t* buffer = NULL;
   int buffer_size = MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(),
-                                        -1, nullptr, 0);
+                                        -1, NULL, 0);
   if(buffer_size == 0) {
     if (success)
       *success = false;
@@ -1216,7 +1208,7 @@ static wstring UTF8ToWide(const string& utf8, bool *success)
   }
 
   buffer = new wchar_t[buffer_size];
-  if(buffer == nullptr) {
+  if(buffer == NULL) {
     if (success)
       *success = false;
     return L"";
@@ -1233,13 +1225,11 @@ static wstring UTF8ToWide(const string& utf8, bool *success)
   return str;
 }
 
-static string WideToMBCP(const wstring& wide,
-                         unsigned int cp,
-                         bool* success = nullptr)
+static string WideToMBCP(const wstring& wide, unsigned int cp, bool* success = nullptr)
 {
-  char* buffer = nullptr;
+  char* buffer = NULL;
   int buffer_size = WideCharToMultiByte(cp, 0, wide.c_str(),
-                                        -1, nullptr, 0, nullptr, nullptr);
+                                        -1, NULL, 0, NULL, NULL);
   if(buffer_size == 0) {
     if (success)
       *success = false;
@@ -1247,14 +1237,14 @@ static string WideToMBCP(const wstring& wide,
   }
 
   buffer = new char[buffer_size];
-  if(buffer == nullptr) {
+  if(buffer == NULL) {
     if (success)
       *success = false;
     return "";
   }
 
   WideCharToMultiByte(cp, 0, wide.c_str(),
-                      -1, buffer, buffer_size, nullptr, nullptr);
+                      -1, buffer, buffer_size, NULL, NULL);
   string mb = buffer;
   delete [] buffer;
 
@@ -1288,7 +1278,7 @@ void UIShutdown()
 
 void UIShowDefaultUI()
 {
-  MessageBox(nullptr, Str(ST_CRASHREPORTERDEFAULT).c_str(),
+  MessageBox(NULL, Str(ST_CRASHREPORTERDEFAULT).c_str(),
              L"Crash Reporter",
              MB_OK | MB_ICONSTOP);
 }
@@ -1298,7 +1288,7 @@ bool UIShowCrashUI(const string& dumpFile,
                    const string& sendURL,
                    const vector<string>& restartArgs)
 {
-  gSendData.hDlg = nullptr;
+  gSendData.hDlg = NULL;
   gSendData.dumpFile = UTF8ToWide(dumpFile);
   gSendData.sendURL = UTF8ToWide(sendURL);
 
@@ -1325,7 +1315,7 @@ bool UIShowCrashUI(const string& dumpFile,
       gStrings["isRTL"] == "yes")
     gRTLlayout = true;
 
-  return 1 == DialogBoxParamMaybeRTL(IDD_SENDDIALOG, nullptr,
+  return 1 == DialogBoxParamMaybeRTL(IDD_SENDDIALOG, NULL,
                                      (DLGPROC)CrashReporterDialogProc, 0);
 }
 
@@ -1335,14 +1325,14 @@ void UIError_impl(const string& message)
   if (title.empty())
     title = L"Crash Reporter Error";
 
-  MessageBox(nullptr, UTF8ToWide(message).c_str(), title.c_str(),
+  MessageBox(NULL, UTF8ToWide(message).c_str(), title.c_str(),
              MB_OK | MB_ICONSTOP);
 }
 
 bool UIGetIniPath(string& path)
 {
   wchar_t fileName[MAX_PATH];
-  if (GetModuleFileName(nullptr, fileName, MAX_PATH)) {
+  if (GetModuleFileName(NULL, fileName, MAX_PATH)) {
     // get crashreporter ini
     wchar_t* s = wcsrchr(fileName, '.');
     if (s) {
@@ -1360,9 +1350,9 @@ bool UIGetSettingsPath(const string& vendor,
                        string& settings_path)
 {
   wchar_t path[MAX_PATH];
-  HRESULT hRes = SHGetFolderPath(nullptr,
+  HRESULT hRes = SHGetFolderPath(NULL,
                                  CSIDL_APPDATA,
-                                 nullptr,
+                                 NULL,
                                  0,
                                  path);
   if (FAILED(hRes)) {
@@ -1381,7 +1371,7 @@ bool UIGetSettingsPath(const string& vendor,
 
     dwRes = RegQueryValueExW(key,
                              L"AppData",
-                             nullptr,
+                             NULL,
                              &type,
                              (LPBYTE)&path,
                              &size);
@@ -1403,7 +1393,7 @@ bool UIGetSettingsPath(const string& vendor,
 
 bool UIEnsurePathExists(const string& path)
 {
-  if (CreateDirectory(UTF8ToWide(path).c_str(), nullptr) == 0) {
+  if (CreateDirectory(UTF8ToWide(path).c_str(), NULL) == 0) {
     if (GetLastError() != ERROR_ALREADY_EXISTS)
       return false;
   }

@@ -7,7 +7,7 @@
 interface nsIURI;
 interface nsIInputStream;
 
-[scriptable, uuid(5799251f-5b55-4df7-a9e7-0c27812c469a)]
+[scriptable, uuid(82ec6ee8-68b5-49ef-87b7-0d5240f8a183)]
 interface nsISearchSubmission : nsISupports
 {
   /**
@@ -17,12 +17,18 @@ interface nsISearchSubmission : nsISupports
   readonly attribute nsIInputStream postData;
 
   /**
+   * The POST data associated with a search submission as an
+   * application/x-www-form-urlencoded string. May be null.
+   */
+  readonly attribute AString postDataString;
+
+  /**
    * The URI to submit a search to.
    */
   readonly attribute nsIURI uri;
 };
 
-[scriptable, uuid(7914c4b8-f05b-40c9-a982-38a058cd1769)]
+[scriptable, uuid(ccf6aa20-10a9-4a0c-a81d-31b10ea846de)]
 interface nsISearchEngine : nsISupports
 {
   /**
@@ -82,25 +88,6 @@ interface nsISearchEngine : nsISupports
    *        The MIME type to check for
    */
   boolean supportsResponseType(in AString responseType);
-
-  /**
-   * Returns a string with the URL to an engine's icon matching both width and
-   * height. Returns null if icon with specified dimensions is not found.
-   *
-   * @param width
-   *        Width of the requested icon.
-   * @param height
-   *        Height of the requested icon.
-   */
-  AString getIconURLBySize(in long width, in long height);
-
-  /**
-   * Gets an array of all available icons. Each entry is an object with
-   * width, height and url properties. width and height are numeric and
-   * represent the icon's dimensions. url is a string with the URL for
-   * the icon.
-   */
-  jsval getIcons();
 
   /**
    * Supported search engine types.

@@ -4,12 +4,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/Attributes.h"
+#include "mozilla/Util.h"
 
 #include "nsProtocolProxyService.h"
 #include "nsProxyInfo.h"
 #include "nsIClassInfoImpl.h"
+#include "nsIServiceManager.h"
+#include "nsXPIDLString.h"
 #include "nsIIOService.h"
 #include "nsIObserverService.h"
 #include "nsIProtocolHandler.h"
@@ -19,16 +21,17 @@
 #include "nsPIDNSService.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
+#include "nsReadableUtils.h"
 #include "nsThreadUtils.h"
 #include "nsString.h"
 #include "nsNetUtil.h"
 #include "nsNetCID.h"
+#include "nsCRT.h"
 #include "prnetdb.h"
 #include "nsPACMan.h"
 #include "nsProxyRelease.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/CondVar.h"
-#include "nsISystemProxySettings.h"
 
 //----------------------------------------------------------------------------
 
@@ -36,9 +39,16 @@ using namespace mozilla;
 
 #include "prlog.h"
 #if defined(PR_LOGGING)
+static PRLogModuleInfo *
+GetProxyLog()
+{
+    static PRLogModuleInfo *sLog;
+    if (!sLog)
+        sLog = PR_NewLogModule("proxy");
+    return sLog;
+}
 #endif
-#undef LOG
-#define LOG(args) PR_LOG(net::GetProxyLog(), PR_LOG_DEBUG, args)
+#define LOG(args) PR_LOG(GetProxyLog(), PR_LOG_DEBUG, args)
 
 //----------------------------------------------------------------------------
 
@@ -354,7 +364,7 @@ static const int32_t PROXYCONFIG_COUNT = 6;
 
 NS_IMPL_ADDREF(nsProtocolProxyService)
 NS_IMPL_RELEASE(nsProtocolProxyService)
-NS_IMPL_CLASSINFO(nsProtocolProxyService, nullptr, nsIClassInfo::SINGLETON,
+NS_IMPL_CLASSINFO(nsProtocolProxyService, NULL, nsIClassInfo::SINGLETON,
                   NS_PROTOCOLPROXYSERVICE_CID)
 NS_IMPL_QUERY_INTERFACE3_CI(nsProtocolProxyService,
                             nsIProtocolProxyService,
@@ -391,6 +401,8 @@ nsProtocolProxyService::~nsProtocolProxyService()
 nsresult
 nsProtocolProxyService::Init()
 {
+    mFailedProxies.Init();
+
     // failure to access prefs is non-fatal
     nsCOMPtr<nsIPrefBranch> prefBranch =
             do_GetService(NS_PREFSERVICE_CONTRACTID);

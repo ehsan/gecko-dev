@@ -10,8 +10,6 @@
 
 #include "mozilla/a11y/Accessible.h"
 
-class nsISelection;
-
 namespace mozilla {
 namespace a11y {
 
@@ -61,9 +59,6 @@ public:
     // eCoalesceStateChange: coalesce state change events.
     eCoalesceStateChange,
 
-    // eCoalesceTextSelChange: coalescence of text selection change events.
-    eCoalesceTextSelChange,
-
      // eRemoveDupes : For repeat events, only the newest event in queue
      //    will be emitted.
     eRemoveDupes,
@@ -82,8 +77,6 @@ public:
   uint32_t GetEventType() const { return mEventType; }
   EEventRule GetEventRule() const { return mEventRule; }
   bool IsFromUserInput() const { return mIsFromUserInput; }
-  EIsFromUserInput FromUserInput() const
-    { return static_cast<EIsFromUserInput>(mIsFromUserInput); }
 
   Accessible* GetAccessible() const { return mAccessible; }
   DocAccessible* GetDocAccessible() const { return mAccessible->Document(); }
@@ -100,7 +93,6 @@ public:
     eHideEvent,
     eShowEvent,
     eCaretMoveEvent,
-    eTextSelChangeEvent,
     eSelectionChangeEvent,
     eTableChangeEvent,
     eVirtualCursorChangeEvent
@@ -338,11 +330,9 @@ protected:
 class AccCaretMoveEvent: public AccEvent
 {
 public:
-  AccCaretMoveEvent(Accessible* aAccessible, int32_t aCaretOffset,
-                    EIsFromUserInput aIsFromUserInput = eAutoDetect) :
-    AccEvent(::nsIAccessibleEvent::EVENT_TEXT_CARET_MOVED, aAccessible,
-             aIsFromUserInput),
-    mCaretOffset(aCaretOffset) { }
+  AccCaretMoveEvent(Accessible* aAccessible) :
+    AccEvent(::nsIAccessibleEvent::EVENT_TEXT_CARET_MOVED, aAccessible),
+    mCaretOffset(-1) { }
   virtual ~AccCaretMoveEvent() { }
 
   // AccEvent
@@ -357,30 +347,8 @@ public:
 
 private:
   int32_t mCaretOffset;
-};
-
-
-/**
- * Accessible text selection change event.
- */
-class AccTextSelChangeEvent : public AccEvent
-{
-public:
-  AccTextSelChangeEvent(HyperTextAccessible* aTarget, nsISelection* aSelection);
-  virtual ~AccTextSelChangeEvent();
-
-  // AccEvent
-  static const EventGroup kEventGroup = eTextSelChangeEvent;
-  virtual unsigned int GetEventGroups() const
-  {
-    return AccEvent::GetEventGroups() | (1U << eTextSelChangeEvent);
-  }
-
-private:
-  nsCOMPtr<nsISelection> mSel;
 
   friend class EventQueue;
-  friend class SelectionManager;
 };
 
 

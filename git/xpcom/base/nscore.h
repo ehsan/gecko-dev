@@ -17,6 +17,7 @@
 /* Definitions of functions and operators that allocate memory. */
 #if !defined(XPCOM_GLUE) && !defined(NS_NO_XPCOM) && !defined(MOZ_NO_MOZALLOC)
 #  include "mozilla/mozalloc.h"
+#  include "mozilla/mozalloc_macro_wrappers.h"
 #endif
 
 /**
@@ -322,6 +323,27 @@
 typedef unsigned long nsrefcnt;
 #else
 typedef uint32_t nsrefcnt;
+#endif
+
+/* ------------------------------------------------------------------------ */
+/* Casting macros for hiding C++ features from older compilers */
+
+  /* under VC++ (Windows), we don't have autoconf yet */
+#if defined(_MSC_VER)
+  #define HAVE_CPP_2BYTE_WCHAR_T
+#endif
+
+#ifndef __PRUNICHAR__
+#define __PRUNICHAR__
+  /* For now, don't use wchar_t on Unix because it breaks the Netscape
+   * commercial build.  When this is fixed there will be no need for the
+   * |reinterpret_cast| in nsLiteralString.h either.
+   */
+  #if defined(HAVE_CPP_2BYTE_WCHAR_T) && defined(XP_WIN)
+    typedef wchar_t PRUnichar;
+  #else
+    typedef uint16_t PRUnichar;
+  #endif
 #endif
 
 /*

@@ -7,17 +7,13 @@
 #ifndef gc_GCInternals_h
 #define gc_GCInternals_h
 
-#include "jscntxt.h"
+#include "jsapi.h"
 #include "jsworkers.h"
 
-#include "gc/Zone.h"
 #include "vm/Runtime.h"
 
 namespace js {
 namespace gc {
-
-void
-MarkPersistentRootedChains(JSTracer *trc);
 
 void
 MarkRuntime(JSTracer *trc, bool useSavedRoots = false);
@@ -25,13 +21,11 @@ MarkRuntime(JSTracer *trc, bool useSavedRoots = false);
 void
 BufferGrayRoots(GCMarker *gcmarker);
 
-class AutoCopyFreeListToArenas
-{
+class AutoCopyFreeListToArenas {
     JSRuntime *runtime;
-    ZoneSelector selector;
 
   public:
-    AutoCopyFreeListToArenas(JSRuntime *rt, ZoneSelector selector);
+    AutoCopyFreeListToArenas(JSRuntime *rt);
     ~AutoCopyFreeListToArenas();
 };
 
@@ -44,21 +38,20 @@ struct AutoFinishGC
  * This class should be used by any code that needs to exclusive access to the
  * heap in order to trace through it...
  */
-class AutoTraceSession
-{
+class AutoTraceSession {
   public:
     AutoTraceSession(JSRuntime *rt, HeapState state = Tracing);
     ~AutoTraceSession();
 
   protected:
-    AutoLockForExclusiveAccess lock;
     JSRuntime *runtime;
 
   private:
     AutoTraceSession(const AutoTraceSession&) MOZ_DELETE;
     void operator=(const AutoTraceSession&) MOZ_DELETE;
 
-    HeapState prevState;
+    js::HeapState prevState;
+    AutoPauseWorkersForGC pause;
 };
 
 struct AutoPrepareForTracing
@@ -67,7 +60,7 @@ struct AutoPrepareForTracing
     AutoTraceSession session;
     AutoCopyFreeListToArenas copy;
 
-    AutoPrepareForTracing(JSRuntime *rt, ZoneSelector selector);
+    AutoPrepareForTracing(JSRuntime *rt);
 };
 
 class IncrementalSafety
@@ -77,14 +70,14 @@ class IncrementalSafety
     IncrementalSafety(const char *reason) : reason_(reason) {}
 
   public:
-    static IncrementalSafety Safe() { return IncrementalSafety(nullptr); }
+    static IncrementalSafety Safe() { return IncrementalSafety(NULL); }
     static IncrementalSafety Unsafe(const char *reason) { return IncrementalSafety(reason); }
 
     typedef void (IncrementalSafety::* ConvertibleToBool)();
     void nonNull() {}
 
     operator ConvertibleToBool() const {
-        return reason_ == nullptr ? &IncrementalSafety::nonNull : 0;
+        return reason_ == NULL ? &IncrementalSafety::nonNull : 0;
     }
 
     const char *reason() {
@@ -117,9 +110,6 @@ EndVerifyPostBarriers(JSRuntime *rt);
 void
 FinishVerifier(JSRuntime *rt);
 
-void
-CrashAtUnhandlableOOM(const char *reason);
-
 class AutoStopVerifyingBarriers
 {
     JSRuntime *runtime;
@@ -133,7 +123,7 @@ class AutoStopVerifyingBarriers
       : runtime(rt)
     {
         restartPreVerifier = !isShutdown && rt->gcVerifyPreData;
-        restartPostVerifier = !isShutdown && rt->gcVerifyPostData && JS::IsGenerationalGCEnabled(rt);
+        restartPostVerifier = !isShutdown && rt->gcVerifyPostData;
         if (rt->gcVerifyPreData)
             EndVerifyPreBarriers(rt);
         if (rt->gcVerifyPostData)

@@ -103,7 +103,7 @@ public:
     float mYScale;
   };
 
-  nsContentView(nsFrameLoader* aFrameLoader, ViewID aScrollId, bool aIsRoot,
+  nsContentView(nsFrameLoader* aFrameLoader, ViewID aScrollId,
                 ViewConfig aConfig = ViewConfig())
     : mViewportSize(0, 0)
     , mContentSize(0, 0)
@@ -111,14 +111,10 @@ public:
     , mParentScaleY(1.0)
     , mFrameLoader(aFrameLoader)
     , mScrollId(aScrollId)
-    , mIsRoot(aIsRoot)
     , mConfig(aConfig)
   {}
 
-  bool IsRoot() const
-  {
-    return mIsRoot;
-  }
+  bool IsRoot() const;
 
   ViewID GetId() const
   {
@@ -141,7 +137,6 @@ private:
   nsresult Update(const ViewConfig& aConfig);
 
   ViewID mScrollId;
-  bool mIsRoot;
   ViewConfig mConfig;
 };
 
@@ -185,13 +180,11 @@ public:
   /**
    * MessageManagerCallback methods that we override.
    */
-  virtual bool DoLoadFrameScript(const nsAString& aURL,
-                                 bool aRunInGlobalScope) MOZ_OVERRIDE;
+  virtual bool DoLoadFrameScript(const nsAString& aURL) MOZ_OVERRIDE;
   virtual bool DoSendAsyncMessage(JSContext* aCx,
                                   const nsAString& aMessage,
                                   const mozilla::dom::StructuredCloneData& aData,
-                                  JS::Handle<JSObject *> aCpows,
-                                  nsIPrincipal* aPrincipal) MOZ_OVERRIDE;
+                                  JS::Handle<JSObject *> aCpows);
   virtual bool CheckPermission(const nsAString& aPermission) MOZ_OVERRIDE;
   virtual bool CheckManifestURL(const nsAString& aManifestURL) MOZ_OVERRIDE;
   virtual bool CheckAppHasPermission(const nsAString& aPermission) MOZ_OVERRIDE;
@@ -317,8 +310,6 @@ public:
    */
   void ApplySandboxFlags(uint32_t sandboxFlags);
 
-  void GetURL(nsString& aURL);
-
 private:
 
   void SetOwnerContent(mozilla::dom::Element* aContent);
@@ -367,6 +358,7 @@ private:
    */
   nsresult MaybeCreateDocShell();
   nsresult EnsureMessageManager();
+  NS_HIDDEN_(void) GetURL(nsString& aURL);
 
   // Properly retrieves documentSize of any subdocument type.
   nsresult GetWindowDimensions(nsRect& aRect);
@@ -450,7 +442,6 @@ private:
   nsRefPtr<mozilla::dom::ContentParent> mContentParent;
   RenderFrameParent* mCurrentRemoteFrame;
   TabParent* mRemoteBrowser;
-  uint64_t mChildID;
 
   // See nsIFrameLoader.idl.  Short story, if !(mRenderMode &
   // RENDER_MODE_ASYNC_SCROLL), all the fields below are ignored in

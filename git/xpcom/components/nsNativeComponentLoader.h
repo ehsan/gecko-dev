@@ -31,8 +31,8 @@ class nsNativeModuleLoader : public mozilla::ModuleLoader
     struct NativeLoadData
     {
         NativeLoadData()
-            : module(nullptr)
-            , library(nullptr)
+            : module(NULL)
+            , library(NULL)
         { }
 
         const mozilla::Module* module;

@@ -57,37 +57,12 @@ html|applet:not([height]), html|applet[height=""] {
   position: relative;
 }
 
-/* Initialize the overlay with visibility:hidden to prevent flickering if
-* the plugin is too small to show the overlay */
-.mainBox > .hoverBox,
-.mainBox > .closeIcon {
-  visibility: hidden;
-}
-
-.visible > .hoverBox,
-.visible > .closeIcon {
-  visibility: visible;
-}
-
 .mainBox[chromedir="rtl"] {
   direction: rtl;
 }
 
 :-moz-handler-playpreview .mainBox {
   display: none;
-}
-
-:-moz-handler-clicktoplay .hoverBox,
-:-moz-handler-vulnerable-updatable .hoverBox,
-:-moz-handler-vulnerable-no-update .hoverBox {
-  cursor: pointer;
-}
-
-.hoverBox > label {
-  cursor: inherit;
-}
-.icon {
-  cursor: inherit;
 }
 
 .previewPluginContent {

@@ -10,7 +10,6 @@
 #include "mozilla/dom/indexedDB/IndexedDatabase.h"
 
 #include "mozilla/Attributes.h"
-#include "mozilla/EventForwards.h"
 #include "mozilla/dom/DOMError.h"
 #include "mozilla/dom/IDBRequestBinding.h"
 #include "mozilla/ErrorResult.h"
@@ -24,7 +23,7 @@ class nsPIDOMWindow;
 
 namespace mozilla {
 namespace dom {
-class OwningIDBObjectStoreOrIDBIndexOrIDBCursor;
+class IDBObjectStoreOrIDBIndexOrIDBCursorReturnValue;
 }
 }
 
@@ -46,23 +45,27 @@ public:
                                                          IDBWrapperCache)
 
   static
-  already_AddRefed<IDBRequest> Create(IDBDatabase* aDatabase,
+  already_AddRefed<IDBRequest> Create(IDBWrapperCache* aOwnerCache,
                                       IDBTransaction* aTransaction);
 
   static
   already_AddRefed<IDBRequest> Create(IDBObjectStore* aSource,
-                                      IDBDatabase* aDatabase,
+                                      IDBWrapperCache* aOwnerCache,
                                       IDBTransaction* aTransaction);
 
   static
   already_AddRefed<IDBRequest> Create(IDBIndex* aSource,
-                                      IDBDatabase* aDatabase,
+                                      IDBWrapperCache* aOwnerCache,
+                                      IDBTransaction* aTransaction);
+  static
+  already_AddRefed<IDBRequest> Create(IDBCursor* aSource,
+                                      IDBWrapperCache* aOwnerCache,
                                       IDBTransaction* aTransaction);
 
   // nsIDOMEventTarget
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
 
-  void GetSource(Nullable<OwningIDBObjectStoreOrIDBIndexOrIDBCursor>& aSource) const;
+  void GetSource(Nullable<IDBObjectStoreOrIDBIndexOrIDBCursorReturnValue>& aSource) const;
 
   void Reset();
 
@@ -101,7 +104,7 @@ public:
 
   void CaptureCaller();
 
-  void FillScriptErrorEvent(mozilla::InternalScriptErrorEvent* aEvent) const;
+  void FillScriptErrorEvent(nsScriptErrorEvent* aEvent) const;
 
   bool
   IsPending() const

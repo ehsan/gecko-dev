@@ -8,27 +8,25 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/video_engine/vie_encoder.h"
+#include "video_engine/vie_encoder.h"
 
-#include <assert.h>
+#include <cassert>
 
-#include <algorithm>
-
-#include "webrtc/common_video/libyuv/include/webrtc_libyuv.h"
-#include "webrtc/modules/pacing/include/paced_sender.h"
-#include "webrtc/modules/rtp_rtcp/interface/rtp_rtcp.h"
-#include "webrtc/modules/utility/interface/process_thread.h"
-#include "webrtc/modules/video_coding/codecs/interface/video_codec_interface.h"
-#include "webrtc/modules/video_coding/main/interface/video_coding.h"
-#include "webrtc/modules/video_coding/main/interface/video_coding_defines.h"
-#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
-#include "webrtc/system_wrappers/interface/logging.h"
-#include "webrtc/system_wrappers/interface/tick_util.h"
-#include "webrtc/system_wrappers/interface/trace.h"
-#include "webrtc/system_wrappers/interface/trace_event.h"
-#include "webrtc/video_engine/include/vie_codec.h"
-#include "webrtc/video_engine/include/vie_image_process.h"
-#include "webrtc/video_engine/vie_defines.h"
+#include "common_video/libyuv/include/webrtc_libyuv.h"
+#include "modules/pacing/include/paced_sender.h"
+#include "modules/rtp_rtcp/interface/rtp_rtcp.h"
+#include "modules/utility/interface/process_thread.h"
+#include "modules/video_coding/codecs/interface/video_codec_interface.h"
+#include "modules/video_coding/main/interface/video_coding.h"
+#include "modules/video_coding/main/interface/video_coding_defines.h"
+#include "system_wrappers/interface/critical_section_wrapper.h"
+#include "system_wrappers/interface/logging.h"
+#include "system_wrappers/interface/tick_util.h"
+#include "system_wrappers/interface/trace.h"
+#include "system_wrappers/interface/trace_event.h"
+#include "video_engine/include/vie_codec.h"
+#include "video_engine/include/vie_image_process.h"
+#include "video_engine/vie_defines.h"
 
 namespace webrtc {
 
@@ -55,32 +53,9 @@ static const int kMinPacingDelayMs = 200;
 // VideoEngine API and remove the kTransmissionMaxBitrateMultiplier.
 static const int kTransmissionMaxBitrateMultiplier = 2;
 
-std::vector<uint32_t> AllocateStreamBitrates(
-    uint32_t total_bitrate,
-    const SimulcastStream* stream_configs,
-    size_t number_of_streams) {
-  if (number_of_streams == 0) {
-    std::vector<uint32_t> stream_bitrates(1, 0);
-    stream_bitrates[0] = total_bitrate;
-    return stream_bitrates;
-  }
-  std::vector<uint32_t> stream_bitrates(number_of_streams, 0);
-  uint32_t bitrate_remainder = total_bitrate;
-  for (size_t i = 0; i < stream_bitrates.size() && bitrate_remainder > 0; ++i) {
-    if (stream_configs[i].maxBitrate * 1000 > bitrate_remainder) {
-      stream_bitrates[i] = bitrate_remainder;
-    } else {
-      stream_bitrates[i] = stream_configs[i].maxBitrate * 1000;
-    }
-    bitrate_remainder -= stream_bitrates[i];
-  }
-  return stream_bitrates;
-}
-
 class QMVideoSettingsCallback : public VCMQMSettingsCallback {
  public:
   explicit QMVideoSettingsCallback(VideoProcessingModule* vpm);
-
   ~QMVideoSettingsCallback();
 
   // Update VPM with QM (quality modes: frame size & frame rate) settings.
@@ -97,7 +72,6 @@ class ViEBitrateObserver : public BitrateObserver {
   explicit ViEBitrateObserver(ViEEncoder* owner)
       : owner_(owner) {
   }
-  virtual ~ViEBitrateObserver() {}
   // Implements BitrateObserver.
   virtual void OnNetworkChanged(const uint32_t bitrate_bps,
                                 const uint8_t fraction_lost,
@@ -113,13 +87,12 @@ class ViEPacedSenderCallback : public PacedSender::Callback {
   explicit ViEPacedSenderCallback(ViEEncoder* owner)
       : owner_(owner) {
   }
-  virtual ~ViEPacedSenderCallback() {}
-  virtual bool TimeToSendPacket(uint32_t ssrc, uint16_t sequence_number,
+  virtual void TimeToSendPacket(uint32_t ssrc, uint16_t sequence_number,
                                 int64_t capture_time_ms) {
-    return owner_->TimeToSendPacket(ssrc, sequence_number, capture_time_ms);
+    owner_->TimeToSendPacket(ssrc, sequence_number, capture_time_ms);
   }
-  virtual int TimeToSendPadding(int bytes) {
-    return owner_->TimeToSendPadding(bytes);
+  virtual void TimeToSendPadding(int /*bytes*/) {
+    // TODO(pwestin): Hook up this.
   }
  private:
   ViEEncoder* owner_;
@@ -128,7 +101,6 @@ class ViEPacedSenderCallback : public PacedSender::Callback {
 ViEEncoder::ViEEncoder(int32_t engine_id,
                        int32_t channel_id,
                        uint32_t number_of_cores,
-                       const Config& config,
                        ProcessThread& module_process_thread,
                        BitrateController* bitrate_controller)
   : engine_id_(engine_id),
@@ -142,7 +114,6 @@ ViEEncoder::ViEEncoder(int32_t engine_id,
     callback_cs_(CriticalSectionWrapper::CreateCriticalSection()),
     data_cs_(CriticalSectionWrapper::CreateCriticalSection()),
     bitrate_controller_(bitrate_controller),
-    send_padding_(false),
     target_delay_ms_(0),
     network_is_transmitting_(true),
     encoder_paused_(false),
@@ -158,6 +129,7 @@ ViEEncoder::ViEEncoder(int32_t engine_id,
     picture_id_sli_(0),
     has_received_rpsi_(false),
     picture_id_rpsi_(0),
+    file_recorder_(channel_id),
     qm_callback_(NULL) {
   WEBRTC_TRACE(webrtc::kTraceMemory, webrtc::kTraceVideo,
                ViEId(engine_id, channel_id),
@@ -208,7 +180,6 @@ bool ViEEncoder::Init() {
                  "%s Codec failure", __FUNCTION__);
     return false;
   }
-  send_padding_ = video_codec.numberOfSimulcastStreams > 1;
   if (vcm_.RegisterSendCodec(&video_codec, number_of_cores_,
                              default_rtp_rtcp_->MaxDataPayloadLength()) != 0) {
     WEBRTC_TRACE(webrtc::kTraceError, webrtc::kTraceVideo,
@@ -222,10 +193,16 @@ bool ViEEncoder::Init() {
                  "%s RegisterSendPayload failure", __FUNCTION__);
     return false;
   }
+  if (default_rtp_rtcp_->RegisterSendRtpHeaderExtension(
+      kRtpExtensionTransmissionTimeOffset, 1) != 0) {
+    WEBRTC_TRACE(webrtc::kTraceError, webrtc::kTraceVideo,
+                 ViEId(engine_id_, channel_id_),
+                 "%s RegisterSendRtpHeaderExtension failure", __FUNCTION__);
+    return false;
+  }
 #else
   VideoCodec video_codec;
   if (vcm_.Codec(webrtc::kVideoCodecI420, &video_codec) == VCM_OK) {
-    send_padding_ = video_codec.numberOfSimulcastStreams > 1;
     vcm_.RegisterSendCodec(&video_codec, number_of_cores_,
                            default_rtp_rtcp_->MaxDataPayloadLength());
     default_rtp_rtcp_->RegisterSendPayload(video_codec);
@@ -385,12 +362,11 @@ int32_t ViEEncoder::DeRegisterExternalEncoder(uint8_t pl_type) {
     return -1;
   }
 
-  // If the external encoder is the current send codec, use vcm internal
+  // If the external encoder is the current send codeci, use vcm internal
   // encoder.
   if (current_send_codec.plType == pl_type) {
     uint16_t max_data_payload_length =
         default_rtp_rtcp_->MaxDataPayloadLength();
-    send_padding_ = current_send_codec.numberOfSimulcastStreams > 1;
     if (vcm_.RegisterSendCodec(&current_send_codec, number_of_cores_,
                                max_data_payload_length) != VCM_OK) {
       WEBRTC_TRACE(webrtc::kTraceError, webrtc::kTraceVideo,
@@ -407,6 +383,7 @@ int32_t ViEEncoder::SetEncoder(const webrtc::VideoCodec& video_codec) {
                ViEId(engine_id_, channel_id_),
                "%s: CodecType: %d, width: %u, height: %u", __FUNCTION__,
                video_codec.codecType, video_codec.width, video_codec.height);
+
   // Setting target width and height for VPM.
   if (vpm_.SetTargetResolution(video_codec.width, video_codec.height,
                                video_codec.maxFramerate) != VPM_OK) {
@@ -423,16 +400,11 @@ int32_t ViEEncoder::SetEncoder(const webrtc::VideoCodec& video_codec) {
     return -1;
   }
   // Convert from kbps to bps.
-  std::vector<uint32_t> stream_bitrates = AllocateStreamBitrates(
-      video_codec.startBitrate * 1000,
-      video_codec.simulcastStream,
-      video_codec.numberOfSimulcastStreams);
-  default_rtp_rtcp_->SetTargetSendBitrate(stream_bitrates);
+  default_rtp_rtcp_->SetTargetSendBitrate(video_codec.startBitrate * 1000);
 
   uint16_t max_data_payload_length =
       default_rtp_rtcp_->MaxDataPayloadLength();
 
-  send_padding_ = video_codec.numberOfSimulcastStreams > 1;
   if (vcm_.RegisterSendCodec(&video_codec, number_of_cores_,
                              max_data_payload_length) != VCM_OK) {
     WEBRTC_TRACE(webrtc::kTraceError, webrtc::kTraceVideo,
@@ -510,17 +482,9 @@ int32_t ViEEncoder::ScaleInputImage(bool enable) {
   return 0;
 }
 
-bool ViEEncoder::TimeToSendPacket(uint32_t ssrc, uint16_t sequence_number,
+void ViEEncoder::TimeToSendPacket(uint32_t ssrc, uint16_t sequence_number,
                                   int64_t capture_time_ms) {
-  return default_rtp_rtcp_->TimeToSendPacket(ssrc, sequence_number,
-                                             capture_time_ms);
-}
-
-int ViEEncoder::TimeToSendPadding(int bytes) {
-  if (send_padding_) {
-    return default_rtp_rtcp_->TimeToSendPadding(bytes);
-  }
-  return 0;
+  default_rtp_rtcp_->TimeToSendPacket(ssrc, sequence_number, capture_time_ms);
 }
 
 bool ViEEncoder::EncoderPaused() const {
@@ -595,8 +559,10 @@ void ViEEncoder::DeliverFrame(int id,
       kMsToRtpTimestamp *
       static_cast<uint32_t>(video_frame->render_time_ms());
 
-  TRACE_EVENT_ASYNC_STEP0("webrtc", "Video", video_frame->render_time_ms(),
-                          "Encode");
+  TRACE_EVENT2("webrtc", "VE::DeliverFrame",
+               "timestamp", time_stamp,
+               "render_time", video_frame->render_time_ms());
+
   video_frame->set_timestamp(time_stamp);
   {
     CriticalSectionScoped cs(callback_cs_.get());
@@ -613,6 +579,8 @@ void ViEEncoder::DeliverFrame(int id,
                                 video_frame->height());
     }
   }
+  // Record raw frame.
+  file_recorder_.RecordVideoFrame(*video_frame);
 
   // Make sure the CSRC list is correct.
   if (num_csrcs > 0) {
@@ -687,6 +655,7 @@ void ViEEncoder::DelayChanged(int id, int frame_delay) {
                frame_delay);
 
   default_rtp_rtcp_->SetCameraDelay(frame_delay);
+  file_recorder_.SetFrameDelay(frame_delay);
 }
 
 int ViEEncoder::GetPreferedFrameSettings(int* width,
@@ -752,7 +721,7 @@ int ViEEncoder::CodecTargetBitrate(uint32_t* bitrate) const {
   return 0;
 }
 
-int32_t ViEEncoder::UpdateProtectionMethod(bool enable_nack) {
+int32_t ViEEncoder::UpdateProtectionMethod() {
   bool fec_enabled = false;
   uint8_t dummy_ptype_red = 0;
   uint8_t dummy_ptypeFEC = 0;
@@ -765,23 +734,25 @@ int32_t ViEEncoder::UpdateProtectionMethod(bool enable_nack) {
   if (error) {
     return -1;
   }
-  if (fec_enabled_ == fec_enabled && nack_enabled_ == enable_nack) {
+
+  bool nack_enabled = (default_rtp_rtcp_->NACK() == kNackOff) ? false : true;
+  if (fec_enabled_ == fec_enabled && nack_enabled_ == nack_enabled) {
     // No change needed, we're already in correct state.
     return 0;
   }
   fec_enabled_ = fec_enabled;
-  nack_enabled_ = enable_nack;
+  nack_enabled_ = nack_enabled;
 
   // Set Video Protection for VCM.
-  if (fec_enabled && nack_enabled_) {
+  if (fec_enabled && nack_enabled) {
     vcm_.SetVideoProtection(webrtc::kProtectionNackFEC, true);
   } else {
     vcm_.SetVideoProtection(webrtc::kProtectionFEC, fec_enabled_);
-    vcm_.SetVideoProtection(webrtc::kProtectionNackSender, nack_enabled_);
+    vcm_.SetVideoProtection(webrtc::kProtectionNack, nack_enabled_);
     vcm_.SetVideoProtection(webrtc::kProtectionNackFEC, false);
   }
 
-  if (fec_enabled_ || nack_enabled_) {
+  if (fec_enabled || nack_enabled) {
     WEBRTC_TRACE(webrtc::kTraceInfo, webrtc::kTraceVideo,
                  ViEId(engine_id_, channel_id_), "%s: FEC status ",
                  __FUNCTION__, fec_enabled);
@@ -841,6 +812,9 @@ int32_t ViEEncoder::SendData(
     const RTPVideoHeader* rtp_video_hdr) {
   {
     CriticalSectionScoped cs(data_cs_.get());
+    TRACE_EVENT2("webrtc", "VE::SendData",
+                 "timestamp", time_stamp,
+                 "capture_time_ms", capture_time_ms);
     if (channels_dropping_delta_frames_ &&
         frame_type == webrtc::kVideoFrameKey) {
       WEBRTC_TRACE(webrtc::kTraceStream, webrtc::kTraceVideo,
@@ -951,7 +925,6 @@ void ViEEncoder::OnReceivedIntraFrameRequest(uint32_t ssrc) {
   // Key frame request from remote side, signal to VCM.
   WEBRTC_TRACE(webrtc::kTraceStateInfo, webrtc::kTraceVideo,
                ViEId(engine_id_, channel_id_), "%s", __FUNCTION__);
-  TRACE_EVENT0("webrtc", "OnKeyFrameRequest");
 
   int idx = 0;
   {
@@ -1035,40 +1008,8 @@ void ViEEncoder::OnNetworkChanged(const uint32_t bitrate_bps,
 
   vcm_.SetChannelParameters(bitrate_bps, fraction_lost, round_trip_time_ms);
   int bitrate_kbps = bitrate_bps / 1000;
-  VideoCodec send_codec;
-  if (vcm_.SendCodec(&send_codec) != 0) {
-    return;
-  }
-  SimulcastStream* stream_configs = send_codec.simulcastStream;
-  // Allocate the bandwidth between the streams.
-  std::vector<uint32_t> stream_bitrates = AllocateStreamBitrates(
-      bitrate_bps,
-      stream_configs,
-      send_codec.numberOfSimulcastStreams);
-  // Find the max amount of padding we can allow ourselves to send at this
-  // point, based on which streams are currently active and what our current
-  // available bandwidth is.
-  int max_padding_bitrate_kbps = 0;
-  int i = send_codec.numberOfSimulcastStreams - 1;
-  for (std::vector<uint32_t>::reverse_iterator it = stream_bitrates.rbegin();
-       it != stream_bitrates.rend(); ++it) {
-    if (*it > 0) {
-      max_padding_bitrate_kbps = std::min((*it + 500) / 1000,
-                                          stream_configs[i].minBitrate);
-      break;
-    }
-    --i;
-  }
-  int pad_up_to_bitrate_kbps =
-      stream_configs[send_codec.numberOfSimulcastStreams - 1].minBitrate;
-  for (int i = 0; i < send_codec.numberOfSimulcastStreams - 1; ++i) {
-    pad_up_to_bitrate_kbps += stream_configs[i].targetBitrate;
-  }
-  pad_up_to_bitrate_kbps = std::min(bitrate_kbps, pad_up_to_bitrate_kbps);
-  paced_sender_->UpdateBitrate(bitrate_kbps,
-                               max_padding_bitrate_kbps,
-                               pad_up_to_bitrate_kbps);
-  default_rtp_rtcp_->SetTargetSendBitrate(stream_bitrates);
+  paced_sender_->UpdateBitrate(bitrate_kbps);
+  default_rtp_rtcp_->SetTargetSendBitrate(bitrate_bps);
 }
 
 PacedSender* ViEEncoder::GetPacedSender() {
@@ -1100,6 +1041,10 @@ int32_t ViEEncoder::RegisterEffectFilter(ViEEffectFilter* effect_filter) {
   }
   effect_filter_ = effect_filter;
   return 0;
+}
+
+ViEFileRecorder& ViEEncoder::GetOutgoingFileRecorder() {
+  return file_recorder_;
 }
 
 int ViEEncoder::StartDebugRecording(const char* fileNameUTF8) {

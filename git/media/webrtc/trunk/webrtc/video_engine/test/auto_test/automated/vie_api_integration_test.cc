@@ -8,7 +8,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "testing/gtest/include/gtest/gtest.h"
+#include "gtest/gtest.h"
 #include "webrtc/test/testsupport/gtest_disable.h"
 #include "webrtc/video_engine/test/auto_test/automated/legacy_fixture.h"
 #include "webrtc/video_engine/test/auto_test/interface/vie_autotest.h"
@@ -39,6 +39,10 @@ TEST_F(DISABLED_ON_MAC(ViEApiIntegrationTest),
   tests_->ViEEncryptionAPITest();
 }
 
+TEST_F(DISABLED_ON_MAC(ViEApiIntegrationTest), RunsFileTestWithoutErrors) {
+  tests_->ViEFileAPITest();
+}
+
 TEST_F(DISABLED_ON_MAC(ViEApiIntegrationTest),
        RunsImageProcessTestWithoutErrors) {
   tests_->ViEImageProcessAPITest();
@@ -48,10 +52,8 @@ TEST_F(DISABLED_ON_MAC(ViEApiIntegrationTest), RunsRenderTestWithoutErrors) {
   tests_->ViERenderAPITest();
 }
 
-// See: https://code.google.com/p/webrtc/issues/detail?id=2415
-TEST_F(DISABLED_ON_MAC(ViEApiIntegrationTest),
-       DISABLED_RunsRtpRtcpTestWithoutErrors) {
+TEST_F(DISABLED_ON_MAC(ViEApiIntegrationTest), RunsRtpRtcpTestWithoutErrors) {
   tests_->ViERtpRtcpAPITest();
 }
 
-}  // namespace
+} // namespace

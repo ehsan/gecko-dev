@@ -9,6 +9,7 @@
 #include "nsIDNSListener.h"
 #include "nsIDNSRecord.h"
 #include "nsIDNSService.h"
+#include "nsNetUtil.h"
 #include "nsThreadUtils.h"
 #include "nsIConsoleService.h"
 #include "nsJSUtils.h"
@@ -16,8 +17,6 @@
 #include "prnetdb.h"
 #include "nsITimer.h"
 #include "mozilla/net/DNS.h"
-#include "nsServiceManagerUtils.h"
-#include "nsNetCID.h"
 
 namespace mozilla {
 namespace net {
@@ -327,14 +326,6 @@ bool PACResolve(const nsCString &aHostName, NetAddr *aNetAddr,
   return sRunning->ResolveAddress(aHostName, aNetAddr, aTimeout);
 }
 
-ProxyAutoConfig::ProxyAutoConfig()
-  : mJSRuntime(nullptr)
-  , mJSNeedsSetup(false)
-  , mShutdown(false)
-{
-  MOZ_COUNT_CTOR(ProxyAutoConfig);
-}
-
 bool
 ProxyAutoConfig::ResolveAddress(const nsCString &aHostName,
                                 NetAddr *aNetAddr,
@@ -346,9 +337,7 @@ ProxyAutoConfig::ResolveAddress(const nsCString &aHostName,
 
   nsRefPtr<PACResolver> helper = new PACResolver();
 
-  if (NS_FAILED(dns->AsyncResolve(aHostName,
-                                  nsIDNSService::RESOLVE_PRIORITY_MEDIUM,
-                                  helper,
+  if (NS_FAILED(dns->AsyncResolve(aHostName, 0, helper,
                                   NS_GetCurrentThread(),
                                   getter_AddRefs(helper->mRequest))))
     return false;
@@ -524,7 +513,7 @@ private:
   JSObject  *mGlobal;
   bool      mOK;
 
-  static const JSClass sGlobalClass;
+  static JSClass sGlobalClass;
 
   JSRuntimeWrapper()
     : mRuntime(nullptr), mContext(nullptr), mGlobal(nullptr), mOK(false)
@@ -571,7 +560,7 @@ private:
   }
 };
 
-const JSClass JSRuntimeWrapper::sGlobalClass = {
+JSClass JSRuntimeWrapper::sGlobalClass = {
   "PACResolutionThreadGlobal",
   JSCLASS_GLOBAL_FLAGS,
   JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
@@ -618,12 +607,10 @@ ProxyAutoConfig::SetupJS()
   bool isDataURI = nsDependentCSubstring(mPACURI, 0, 5).LowerCaseEqualsASCII("data:", 5);
 
   sRunning = this;
-  JS::Rooted<JSObject *> global(mJSRuntime->Context(), mJSRuntime->Global());
-  JS::CompileOptions options(mJSRuntime->Context());
-  options.setFileAndLine(mPACURI.get(), 1);
-  JSScript *script = JS_CompileScript(mJSRuntime->Context(), global,
+  JSScript *script = JS_CompileScript(mJSRuntime->Context(),
+                                      mJSRuntime->Global(),
                                       mPACScript.get(), mPACScript.Length(),
-                                      options);
+                                      mPACURI.get(), 1);
   if (!script ||
       !JS_ExecuteScript(mJSRuntime->Context(), mJSRuntime->Global(), script, nullptr)) {
     nsString alertMessage(NS_LITERAL_STRING("PAC file failed to install from "));

@@ -4,7 +4,6 @@
 
 from __future__ import print_function, unicode_literals
 
-import itertools
 import logging
 import operator
 import os
@@ -23,7 +22,6 @@ from mozbuild.base import (
     MozbuildObject,
     MozconfigFindException,
     MozconfigLoadException,
-    ObjdirMismatchException,
 )
 
 
@@ -48,23 +46,6 @@ Finder ignore it. Or, add an indexing exclusion through the Spotlight System
 Preferences.
 ===================
 '''.strip()
-
-EXCESSIVE_SWAP_MESSAGE = '''
-===================
-PERFORMANCE WARNING
-
-Your machine experienced a lot of swap activity during the build. This is
-possibly a sign that your machine doesn't have enough physical memory or
-not enough available memory to perform the build. It's also possible some
-other system activity during the build is to blame.
-
-If you feel this message is not appropriate for your machine configuration,
-please file a Core :: Build Config bug at
-https://bugzilla.mozilla.org/enter_bug.cgi?product=Core&component=Build%20Config
-and tell us about your machine and build configuration so we can adjust the
-warning heuristic.
-===================
-'''
 
 
 class TerminalLoggingHandler(logging.Handler):
@@ -179,12 +160,11 @@ class BuildProgressFooter(object):
                     ' ',
                     '(',
                 ])
-                if active_dirs:
-                    commas = [', '] * (len(active_dirs) - 1)
-                    magenta_dirs = [('magenta', d) for d in active_dirs]
-                    parts.extend(i.next() for i in itertools.cycle((iter(magenta_dirs),
-                                                                    iter(commas))))
-                parts.append(')')
+                for d in active_dirs:
+                    parts.extend([
+                        ('magenta', d), ' ,'
+                    ])
+                parts[-1] = ')'
 
             if not have_dirs:
                 parts = parts[0:-2]
@@ -303,15 +283,12 @@ class Build(MachCommandBase):
     @CommandArgument('--jobs', '-j', default='0', metavar='jobs', type=int,
         help='Number of concurrent jobs to run. Default is the number of CPUs.')
     @CommandArgument('what', default=None, nargs='*', help=BUILD_WHAT_HELP)
-    @CommandArgument('-p', '--pymake', action='store_true',
-        help='Force using pymake over GNU make.')
     @CommandArgument('-X', '--disable-extra-make-dependencies',
                      default=False, action='store_true',
                      help='Do not add extra make dependencies.')
     @CommandArgument('-v', '--verbose', action='store_true',
         help='Verbose output for what commands the build is running.')
-    def build(self, what=None, pymake=False,
-        disable_extra_make_dependencies=None, jobs=0, verbose=False):
+    def build(self, what=None, disable_extra_make_dependencies=None, jobs=0, verbose=False):
         import which
         from mozbuild.controller.building import BuildMonitor
         from mozbuild.util import resolve_target_to_make
@@ -372,27 +349,11 @@ class Build(MachCommandBase):
                              'instead of {target_pairs}.')
                     target_pairs = new_pairs
 
-                # Ensure build backend is up to date. The alternative is to
-                # have rules in the invoked Makefile to rebuild the build
-                # backend. But that involves make reinvoking itself and there
-                # are undesired side-effects of this. See bug 877308 for a
-                # comprehensive history lesson.
-                self._run_make(directory=self.topobjdir,
-                    target='backend.RecursiveMakeBackend',
-                    force_pymake=pymake, line_handler=output.on_line,
-                    log=False, print_directory=False)
-
                 # Build target pairs.
                 for make_dir, make_target in target_pairs:
-                    # We don't display build status messages during partial
-                    # tree builds because they aren't reliable there. This
-                    # could potentially be fixed if the build monitor were more
-                    # intelligent about encountering undefined state.
                     status = self._run_make(directory=make_dir, target=make_target,
                         line_handler=output.on_line, log=False, print_directory=False,
-                        ensure_exit_code=False, num_jobs=jobs, silent=not verbose,
-                        append_env={b'NO_BUILDSTATUS_MESSAGES': b'1'},
-                        force_pymake=pymake)
+                        ensure_exit_code=False, num_jobs=jobs, silent=not verbose)
 
                     if status != 0:
                         break
@@ -401,7 +362,7 @@ class Build(MachCommandBase):
                 status = self._run_make(srcdir=True, filename='client.mk',
                     line_handler=output.on_line, log=False, print_directory=False,
                     allow_parallel=False, ensure_exit_code=False, num_jobs=jobs,
-                    silent=not verbose, force_pymake=pymake)
+                    silent=not verbose)
 
                 self.log(logging.WARNING, 'warning_summary',
                     {'count': len(monitor.warnings_database)},
@@ -441,10 +402,6 @@ class Build(MachCommandBase):
             print('Your build was successful!')
 
         if monitor.have_resource_usage:
-            excessive, swap_in, swap_out = monitor.have_excessive_swapping()
-            # if excessive:
-            #    print(EXCESSIVE_SWAP_MESSAGE)
-
             print('To view resource usage of the build, run |mach '
                 'resource-usage|.')
 
@@ -514,32 +471,14 @@ class Build(MachCommandBase):
         try:
             self.remove_objdir()
             return 0
-        except OSError as e:
-            if sys.platform.startswith('win'):
-                if isinstance(e, WindowsError) and e.winerror in (5,32):
-                    self.log(logging.ERROR, 'file_access_error', {'error': e},
-                        "Could not clobber because a file was in use. If the "
-                        "application is running, try closing it. {error}")
-                    return 1
-
-            raise
-
-    @Command('build-backend', category='build',
-        description='Generate a backend used to build the tree.')
-    @CommandArgument('-d', '--diff', action='store_true',
-        help='Show a diff of changes.')
-    def build_backend(self, diff=False):
-        # When we support multiple build backends (Tup, Visual Studio, etc),
-        # this command will be expanded to support choosing what to generate.
-        python = self.virtualenv_manager.python_path
-        config_status = os.path.join(self.topobjdir, 'config.status')
-
-        args = [python, config_status]
-        if diff:
-            args.append('--diff')
-
-        return self._run_command_in_objdir(args=args, pass_thru=True,
-            ensure_exit_code=False)
+        except WindowsError as e:
+            if e.winerror in (5, 32):
+                self.log(logging.ERROR, 'file_access_error', {'error': e},
+                    "Could not clobber because a file was in use. If the "
+                    "application is running, try closing it. {error}")
+                return 1
+            else:
+                raise
 
 
 @CommandProvider
@@ -786,64 +725,40 @@ class DebugProgram(MachCommandBase):
         help='Do not pass the -no-remote argument by default')
     @CommandArgument('+background', '+b', action='store_true',
         help='Do not pass the -foreground argument by default on Mac')
-    @CommandArgument('+debugparams', default=None, metavar='params', type=str,
-        help='Command-line arguments to pass to GDB or LLDB itself; split as the Bourne shell would.')
-    # Bug 933807 introduced JS_DISABLE_SLOW_SCRIPT_SIGNALS to avoid clever
-    # segfaults induced by the slow-script-detecting logic for Ion/Odin JITted
-    # code.  If we don't pass this, the user will need to periodically type
-    # "continue" to (safely) resume execution.  There are ways to implement
-    # automatic resuming; see the bug.
-    @CommandArgument('+slowscript', action='store_true',
-        help='Do not set the JS_DISABLE_SLOW_SCRIPT_SIGNALS env variable; when not set, recoverable but misleading SIGSEGV instances may occur in Ion/Odin JIT code')
-    def debug(self, params, remote, background, debugparams, slowscript):
+    @CommandArgument('+gdbparams', default=None, metavar='params', type=str,
+        help='Command-line arguments to pass to GDB itself; split as the Bourne shell would.')
+    def debug(self, params, remote, background, gdbparams):
         import which
-        use_lldb = False
         try:
             debugger = which.which('gdb')
-        except Exception:
-            try:
-                debugger = which.which('lldb')
-                use_lldb = True
-            except Exception as e:
-                print("You don't have gdb or lldb in your PATH")
-                print(e)
-                return 1
+        except Exception as e:
+            print("You don't have gdb in your PATH")
+            print(e)
+            return 1
         args = [debugger]
-        extra_env = {}
-        if debugparams:
+        if gdbparams:
             import pymake.process
-            argv, badchar = pymake.process.clinetoargv(debugparams, os.getcwd())
+            (argv, badchar) = pymake.process.clinetoargv(gdbparams, os.getcwd())
             if badchar:
-                print("The +debugparams you passed require a real shell to parse them.")
+                print("The +gdbparams you passed require a real shell to parse them.")
                 print("(We can't handle the %r character.)" % (badchar,))
                 return 1
             args.extend(argv)
-
-        binpath = None
-
         try:
-            binpath = self.get_binary_path('app')
+            args.extend(['--args', self.get_binary_path('app')])
         except Exception as e:
             print("It looks like your program isn't built.",
                 "You can run |mach build| to build it.")
             print(e)
             return 1
-
-        if not use_lldb:
-            args.extend(['--args', binpath])
-        else:
-            args.extend(['--', binpath])
-
         if not remote:
             args.append('-no-remote')
         if not background and sys.platform == 'darwin':
             args.append('-foreground')
         if params:
             args.extend(params)
-        if not slowscript:
-            extra_env['JS_DISABLE_SLOW_SCRIPT_SIGNALS'] = '1'
-        return self.run_process(args=args, append_env=extra_env,
-            ensure_exit_code=False, pass_thru=True)
+        return self.run_process(args=args, ensure_exit_code=False,
+            pass_thru=True)
 
 @CommandProvider
 class Buildsymbols(MachCommandBase):
@@ -907,7 +822,10 @@ class Makefiles(MachCommandBase):
                     yield os.path.join(root, f)
 
 @CommandProvider
-class MachDebug(MachCommandBase):
+class MachDebug(object):
+    def __init__(self, context):
+        self.context = context
+
     @Command('environment', category='build-dev',
         description='Show info about the mach and build environment.')
     @CommandArgument('--verbose', '-v', action='store_true',
@@ -917,22 +835,13 @@ class MachDebug(MachCommandBase):
         print('platform:\n\t%s' % platform.platform())
         print('python version:\n\t%s' % sys.version)
         print('python prefix:\n\t%s' % sys.prefix)
-        print('mach cwd:\n\t%s' % self._mach_context.cwd)
+        print('mach cwd:\n\t%s' % self.context.cwd)
         print('os cwd:\n\t%s' % os.getcwd())
-        print('mach directory:\n\t%s' % self._mach_context.topdir)
-        print('state directory:\n\t%s' % self._mach_context.state_dir)
+        print('mach directory:\n\t%s' % self.context.topdir)
+        print('state directory:\n\t%s' % self.context.state_dir)
 
-        try:
-            mb = MozbuildObject.from_environment(cwd=self._mach_context.cwd)
-        except ObjdirMismatchException as e:
-            print('Ambiguous object directory detected. We detected that '
-                'both %s and %s could be object directories. This is '
-                'typically caused by having a mozconfig pointing to a '
-                'different object directory from the current working '
-                'directory. To solve this problem, ensure you do not have a '
-                'default mozconfig in searched paths.' % (e.objdir1,
-                    e.objdir2))
-            return 1
+        mb = MozbuildObject(self.context.topdir, self.context.settings,
+            self.context.log_manager)
 
         mozconfig = None
 

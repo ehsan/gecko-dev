@@ -5,7 +5,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "necko-config.h"
 #include "nsHttp.h"
 #include "mozilla/net/NeckoParent.h"
 #include "mozilla/net/HttpChannelParent.h"
@@ -13,26 +12,19 @@
 #include "mozilla/net/WyciwygChannelParent.h"
 #include "mozilla/net/FTPChannelParent.h"
 #include "mozilla/net/WebSocketChannelParent.h"
-#ifdef NECKO_PROTOCOL_rtsp
-#include "mozilla/net/RtspControllerParent.h"
-#endif
-#include "mozilla/net/DNSRequestParent.h"
 #include "mozilla/net/RemoteOpenFileParent.h"
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/TabParent.h"
 #include "mozilla/dom/network/TCPSocketParent.h"
 #include "mozilla/dom/network/TCPServerSocketParent.h"
-#include "mozilla/dom/network/UDPSocketParent.h"
 #include "mozilla/ipc/URIUtils.h"
 #include "mozilla/LoadContext.h"
 #include "mozilla/AppProcessChecker.h"
 #include "nsPrintfCString.h"
 #include "nsHTMLDNSPrefetch.h"
 #include "nsIAppsService.h"
-#include "nsIUDPSocketFilter.h"
 #include "nsEscape.h"
 #include "RemoteOpenFileParent.h"
-#include "SerializedLoadContext.h"
 
 using mozilla::dom::ContentParent;
 using mozilla::dom::TabParent;
@@ -40,8 +32,6 @@ using mozilla::net::PTCPSocketParent;
 using mozilla::dom::TCPSocketParent;
 using mozilla::net::PTCPServerSocketParent;
 using mozilla::dom::TCPServerSocketParent;
-using mozilla::net::PUDPSocketParent;
-using mozilla::dom::UDPSocketParent;
 using IPC::SerializedLoadContext;
 
 namespace mozilla {
@@ -313,28 +303,6 @@ NeckoParent::DeallocPWebSocketParent(PWebSocketParent* actor)
   return true;
 }
 
-PRtspControllerParent*
-NeckoParent::AllocPRtspControllerParent()
-{
-#ifdef NECKO_PROTOCOL_rtsp
-  RtspControllerParent* p = new RtspControllerParent();
-  p->AddRef();
-  return p;
-#else
-  return nullptr;
-#endif
-}
-
-bool
-NeckoParent::DeallocPRtspControllerParent(PRtspControllerParent* actor)
-{
-#ifdef NECKO_PROTOCOL_rtsp
-  RtspControllerParent* p = static_cast<RtspControllerParent*>(actor);
-  p->Release();
-#endif
-  return true;
-}
-
 PTCPSocketParent*
 NeckoParent::AllocPTCPSocketParent()
 {
@@ -379,85 +347,8 @@ NeckoParent::DeallocPTCPServerSocketParent(PTCPServerSocketParent* actor)
   return true;
 }
 
-PUDPSocketParent*
-NeckoParent::AllocPUDPSocketParent(const nsCString& aHost,
-                                   const uint16_t& aPort,
-                                   const nsCString& aFilter)
-{
-  UDPSocketParent* p = nullptr;
-
-  // Only allow socket if it specifies a valid packet filter.
-  nsAutoCString contractId(NS_NETWORK_UDP_SOCKET_FILTER_HANDLER_PREFIX);
-  contractId.Append(aFilter);
-
-  if (!aFilter.IsEmpty()) {
-    nsCOMPtr<nsIUDPSocketFilterHandler> filterHandler =
-      do_GetService(contractId.get());
-    if (filterHandler) {
-      nsCOMPtr<nsIUDPSocketFilter> filter;
-      nsresult rv = filterHandler->NewFilter(getter_AddRefs(filter));
-      if (NS_SUCCEEDED(rv)) {
-        p = new UDPSocketParent(filter);
-      } else {
-        printf_stderr("Cannot create filter that content specified. "
-                      "filter name: %s, error code: %d.", aFilter.get(), rv);
-      }
-    } else {
-      printf_stderr("Content doesn't have a valid filter. "
-                    "filter name: %s.", aFilter.get());
-    }
-  }
-
-  NS_IF_ADDREF(p);
-  return p;
-}
-
-bool
-NeckoParent::RecvPUDPSocketConstructor(PUDPSocketParent* aActor,
-                                       const nsCString& aHost,
-                                       const uint16_t& aPort,
-                                       const nsCString& aFilter)
-{
-  return static_cast<UDPSocketParent*>(aActor)->Init(aHost, aPort);
-}
-
-bool
-NeckoParent::DeallocPUDPSocketParent(PUDPSocketParent* actor)
-{
-  UDPSocketParent* p = static_cast<UDPSocketParent*>(actor);
-  p->Release();
-  return true;
-}
-
-PDNSRequestParent*
-NeckoParent::AllocPDNSRequestParent(const nsCString& aHost,
-                                    const uint32_t& aFlags)
-{
-  DNSRequestParent *p = new DNSRequestParent();
-  p->AddRef();
-  return p;
-}
-
-bool
-NeckoParent::RecvPDNSRequestConstructor(PDNSRequestParent* aActor,
-                                        const nsCString& aHost,
-                                        const uint32_t& aFlags)
-{
-  static_cast<DNSRequestParent*>(aActor)->DoAsyncResolve(aHost, aFlags);
-  return true;
-}
-
-bool
-NeckoParent::DeallocPDNSRequestParent(PDNSRequestParent* aParent)
-{
-  DNSRequestParent *p = static_cast<DNSRequestParent*>(aParent);
-  p->Release();
-  return true;
-}
-
 PRemoteOpenFileParent*
-NeckoParent::AllocPRemoteOpenFileParent(const URIParams& aURI,
-                                        const OptionalURIParams& aAppURI)
+NeckoParent::AllocPRemoteOpenFileParent(const URIParams& aURI)
 {
   nsCOMPtr<nsIURI> uri = DeserializeURI(aURI);
   nsCOMPtr<nsIFileURL> fileURL = do_QueryInterface(uri);
@@ -479,8 +370,13 @@ NeckoParent::AllocPRemoteOpenFileParent(const URIParams& aURI,
       nsRefPtr<TabParent> tabParent =
         static_cast<TabParent*>(Manager()->ManagedPBrowserParent()[i]);
       uint32_t appId = tabParent->OwnOrContainingAppId();
-      nsresult rv = appsService->GetAppByLocalId(appId, getter_AddRefs(mozApp));
-      if (NS_FAILED(rv) || !mozApp) {
+      nsCOMPtr<mozIDOMApplication> domApp;
+      nsresult rv = appsService->GetAppByLocalId(appId, getter_AddRefs(domApp));
+      if (!domApp) {
+        continue;
+      }
+      mozApp = do_QueryInterface(domApp);
+      if (!mozApp) {
         continue;
       }
       hasManage = false;
@@ -500,21 +396,7 @@ NeckoParent::AllocPRemoteOpenFileParent(const URIParams& aURI,
     fileURL->GetPath(requestedPath);
     NS_UnescapeURL(requestedPath);
 
-    // Check if we load the whitelisted app uri for the neterror page.
-    bool netErrorWhiteList = false;
-
-    nsCOMPtr<nsIURI> appUri = DeserializeURI(aAppURI);
-    if (appUri) {
-      nsAdoptingString netErrorURI;
-      netErrorURI = Preferences::GetString("b2g.neterror.url");
-      if (netErrorURI) {
-        nsAutoCString spec;
-        appUri->GetSpec(spec);
-        netErrorWhiteList = spec.Equals(NS_ConvertUTF16toUTF8(netErrorURI).get());
-      }
-    }
-
-    if (hasManage || netErrorWhiteList) {
+    if (hasManage) {
       // webapps-manage permission means allow reading any application.zip file
       // in either the regular webapps directory, or the core apps directory (if
       // we're using one).
@@ -565,8 +447,8 @@ NeckoParent::AllocPRemoteOpenFileParent(const URIParams& aURI,
         printf_stderr("NeckoParent::AllocPRemoteOpenFile: "
                       "FATAL error: app without webapps-manage permission is "
                       "requesting file '%s' but is only allowed to open its "
-                      "own application.zip at %s: KILLING CHILD PROCESS\n",
-                      requestedPath.get(), mustMatch.get());
+                      "own application.zip: KILLING CHILD PROCESS\n",
+                      requestedPath.get());
         return nullptr;
       }
     }
@@ -578,8 +460,7 @@ NeckoParent::AllocPRemoteOpenFileParent(const URIParams& aURI,
 
 bool
 NeckoParent::RecvPRemoteOpenFileConstructor(PRemoteOpenFileParent* aActor,
-                                            const URIParams& aFileURI,
-                                            const OptionalURIParams& aAppURI)
+                                            const URIParams& aFileURI)
 {
   return static_cast<RemoteOpenFileParent*>(aActor)->OpenSendCloseDelete();
 }
@@ -606,26 +487,6 @@ NeckoParent::RecvCancelHTMLDNSPrefetch(const nsString& hostname,
 {
   nsHTMLDNSPrefetch::CancelPrefetch(hostname, flags, reason);
   return true;
-}
-
-void
-NeckoParent::CloneManagees(ProtocolBase* aSource,
-                         mozilla::ipc::ProtocolCloneContext* aCtx)
-{
-  aCtx->SetNeckoParent(this); // For cloning protocols managed by this.
-  PNeckoParent::CloneManagees(aSource, aCtx);
-}
-
-mozilla::ipc::IProtocol*
-NeckoParent::CloneProtocol(Channel* aChannel,
-                           mozilla::ipc::ProtocolCloneContext* aCtx)
-{
-  ContentParent* contentParent = aCtx->GetContentParent();
-  nsAutoPtr<PNeckoParent> actor(contentParent->AllocPNeckoParent());
-  if (!actor || !contentParent->RecvPNeckoConstructor(actor)) {
-    return nullptr;
-  }
-  return actor.forget();
 }
 
 }} // mozilla::net

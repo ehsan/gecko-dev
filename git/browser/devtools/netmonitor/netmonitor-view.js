@@ -29,22 +29,22 @@ const CONTENT_MIME_TYPE_ABBREVIATIONS = {
   "x-javascript": "js"
 };
 const CONTENT_MIME_TYPE_MAPPINGS = {
-  "/ecmascript": Editor.modes.js,
-  "/javascript": Editor.modes.js,
-  "/x-javascript": Editor.modes.js,
-  "/html": Editor.modes.html,
-  "/xhtml": Editor.modes.html,
-  "/xml": Editor.modes.html,
-  "/atom": Editor.modes.html,
-  "/soap": Editor.modes.html,
-  "/rdf": Editor.modes.css,
-  "/rss": Editor.modes.css,
-  "/css": Editor.modes.css
+  "/ecmascript": SourceEditor.MODES.JAVASCRIPT,
+  "/javascript": SourceEditor.MODES.JAVASCRIPT,
+  "/x-javascript": SourceEditor.MODES.JAVASCRIPT,
+  "/html": SourceEditor.MODES.HTML,
+  "/xhtml": SourceEditor.MODES.HTML,
+  "/xml": SourceEditor.MODES.HTML,
+  "/atom": SourceEditor.MODES.HTML,
+  "/soap": SourceEditor.MODES.HTML,
+  "/rdf": SourceEditor.MODES.HTML,
+  "/rss": SourceEditor.MODES.HTML,
+  "/css": SourceEditor.MODES.CSS
 };
 const DEFAULT_EDITOR_CONFIG = {
-  mode: Editor.modes.text,
+  mode: SourceEditor.MODES.TEXT,
   readOnly: true,
-  lineNumbers: true
+  showLineNumbers: true
 };
 const GENERIC_VARIABLES_VIEW_SETTINGS = {
   lazyEmpty: true,
@@ -52,7 +52,7 @@ const GENERIC_VARIABLES_VIEW_SETTINGS = {
   searchEnabled: true,
   editableValueTooltip: "",
   editableNameTooltip: "",
-  preventDisableOnChange: true,
+  preventDisableOnChage: true,
   preventDescriptorModifiers: true,
   eval: () => {},
   switch: () => {}
@@ -156,7 +156,7 @@ let NetMonitorView = {
   },
 
   /**
-   * Lazily initializes and returns a promise for a Editor instance.
+   * Lazily initializes and returns a promise for a SourceEditor instance.
    *
    * @param string aId
    *        The id of the editor placeholder node.
@@ -175,8 +175,7 @@ let NetMonitorView = {
 
     // Initialize the source editor and store the newly created instance
     // in the ether of a resolved promise's value.
-    let editor = new Editor(DEFAULT_EDITOR_CONFIG);
-    editor.appendTo($(aId)).then(() => deferred.resolve(editor));
+    new SourceEditor().init($(aId), DEFAULT_EDITOR_CONFIG, deferred.resolve);
 
     return deferred.promise;
   },
@@ -261,7 +260,6 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
     dumpn("Initializing the RequestsMenuView");
 
     this.widget = new SideMenuWidget($("#requests-menu-contents"), false);
-    this._splitter = $('#splitter');
     this._summary = $("#request-menu-network-summary");
 
     this.allowFocusOnRightClick = true;
@@ -269,7 +267,6 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
     this.widget.autoscrollWithAppendedItems = true;
 
     this.widget.addEventListener("select", this._onSelect, false);
-    this._splitter.addEventListener("mousemove", this._onResize, false);
     window.addEventListener("resize", this._onResize, false);
   },
 
@@ -280,7 +277,6 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
     dumpn("Destroying the SourcesView");
 
     this.widget.removeEventListener("select", this._onSelect, false);
-    this._splitter.removeEventListener("mousemove", this._onResize, false);
     window.removeEventListener("resize", this._onResize, false);
   },
 
@@ -364,17 +360,6 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
 
     // Immediately switch to new request pane.
     this.selectedItem = newItem;
-  },
-
-  /**
-   * Opens selected item in a new tab.
-   */
-  openRequestInTab: function() {
-    let win = Services.wm.getMostRecentWindow("navigator:browser");
-
-    let selected = this.selectedItem.attachment;
-
-    win.openUILinkIn(selected.url, "tab", { relatedToCurrent: true });
   },
 
   /**
@@ -558,17 +543,6 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
   },
 
   /**
-   * Removes all network requests and closes the sidebar if open.
-   */
-  clear: function() {
-    NetMonitorView.Sidebar.toggle(false);
-    $("#details-pane-toggle").disabled = true;
-
-    this.empty();
-    this.refreshSummary();
-  },
-
-  /**
    * Predicates used when filtering items.
    *
    * @param object aItem
@@ -632,38 +606,22 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
     first.startedMillis > second.startedMillis,
 
   _byStatus: function({ attachment: first }, { attachment: second })
-    first.status == second.status
-      ? first.startedMillis > second.startedMillis
-      : first.status > second.status,
+    first.status > second.status,
 
   _byMethod: function({ attachment: first }, { attachment: second })
-    first.method == second.method
-      ? first.startedMillis > second.startedMillis
-      : first.method > second.method,
+    first.method > second.method,
 
-  _byFile: function({ attachment: first }, { attachment: second }) {
-    let firstUrl = this._getUriNameWithQuery(first.url).toLowerCase();
-    let secondUrl = this._getUriNameWithQuery(second.url).toLowerCase();
-    return firstUrl == secondUrl
-      ? first.startedMillis > second.startedMillis
-      : firstUrl > secondUrl;
-  },
+  _byFile: function({ attachment: first }, { attachment: second })
+    this._getUriNameWithQuery(first.url).toLowerCase() >
+    this._getUriNameWithQuery(second.url).toLowerCase(),
 
-  _byDomain: function({ attachment: first }, { attachment: second }) {
-    let firstDomain = this._getUriHostPort(first.url).toLowerCase();
-    let secondDomain = this._getUriHostPort(second.url).toLowerCase();
-    return firstDomain == secondDomain
-      ? first.startedMillis > second.startedMillis
-      : firstDomain > secondDomain;
-  },
+  _byDomain: function({ attachment: first }, { attachment: second })
+    this._getUriHostPort(first.url).toLowerCase() >
+    this._getUriHostPort(second.url).toLowerCase(),
 
-  _byType: function({ attachment: first }, { attachment: second }) {
-    let firstType = this._getAbbreviatedMimeType(first.mimeType).toLowerCase();
-    let secondType = this._getAbbreviatedMimeType(second.mimeType).toLowerCase();
-    return firstType == secondType
-      ? first.startedMillis > second.startedMillis
-      : firstType > secondType;
-  },
+  _byType: function({ attachment: first }, { attachment: second })
+    this._getAbbreviatedMimeType(first.mimeType).toLowerCase() >
+    this._getAbbreviatedMimeType(second.mimeType).toLowerCase(),
 
   _bySize: function({ attachment: first }, { attachment: second })
     first.contentSize > second.contentSize,
@@ -698,7 +656,7 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
    * Adds odd/even attributes to all the visible items in this container.
    */
   refreshZebra: function() {
-    let visibleItems = this.visibleItems;
+    let visibleItems = this.orderedVisibleItems;
 
     for (let i = 0, len = visibleItems.length; i < len; i++) {
       let requestItem = visibleItems[i];
@@ -735,8 +693,7 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
       return void this._flushRequests();
     }
     // Allow requests to settle down first.
-    setNamedTimeout(
-      "update-requests", REQUESTS_REFRESH_RATE, () => this._flushRequests());
+    drain("update-requests", REQUESTS_REFRESH_RATE, () => this._flushRequests());
   },
 
   /**
@@ -1019,7 +976,7 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
 
     // Apply CSS transforms to each waterfall in this container totalTime
     // accurately translate and resize as needed.
-    for (let { target, attachment } of this) {
+    for (let { target, attachment } in this) {
       let timingsNode = $(".requests-menu-timings", target);
       let startCapNode = $(".requests-menu-timings-cap.start", target);
       let endCapNode = $(".requests-menu-timings-cap.end", target);
@@ -1155,7 +1112,7 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
    * Reapplies the current waterfall background on all request items.
    */
   _flushWaterfallBackgrounds: function() {
-    for (let { target } of this) {
+    for (let { target } in this) {
       let waterfallNode = $(".requests-menu-waterfall", target);
       waterfallNode.style.backgroundImage = this._cachedWaterfallBackground;
     }
@@ -1207,8 +1164,7 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
    */
   _onResize: function(e) {
     // Allow requests to settle down first.
-    setNamedTimeout(
-      "resize-events", RESIZE_REFRESH_RATE, () => this._flushWaterfallViews(true));
+    drain("resize-events", RESIZE_REFRESH_RATE, () => this._flushWaterfallViews(true));
   },
 
   /**
@@ -1345,7 +1301,6 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
     return this._cachedWaterfallWidth;
   },
 
-  _splitter: null,
   _summary: null,
   _canvas: null,
   _ctx: null,
@@ -1382,19 +1337,15 @@ SidebarView.prototype = {
    *
    * @param object aData
    *        The data source (this should be the attachment of a request item).
-   * @return object
-   *        Returns a promise that resolves upon population of the subview.
    */
   populate: function(aData) {
-    let isCustom = aData.isCustom;
-    let view = isCustom ?
-      NetMonitorView.CustomRequest :
-      NetMonitorView.NetworkDetails;
-
-    return view.populate(aData).then(() => {
-      $("#details-pane").selectedIndex = isCustom ? 0 : 1
-      window.emit(EVENTS.SIDEBAR_POPULATED)
-    });
+    if (aData.isCustom) {
+      NetMonitorView.CustomRequest.populate(aData);
+      $("#details-pane").selectedIndex = 0;
+    } else {
+      NetMonitorView.NetworkDetails.populate(aData);
+      $("#details-pane").selectedIndex = 1;
+    }
   },
 
   /**
@@ -1418,8 +1369,6 @@ CustomRequestView.prototype = {
    *
    * @param object aData
    *        The data source (this should be the attachment of a request item).
-   * @return object
-   *        Returns a promise that resolves upon population the view.
    */
   populate: function(aData) {
     $("#custom-url-value").value = aData.url;
@@ -1427,22 +1376,15 @@ CustomRequestView.prototype = {
     $("#custom-headers-value").value =
        writeHeaderText(aData.requestHeaders.headers);
 
-    let view = this;
-    let postDataPromise = null;
-
     if (aData.requestPostData) {
       let body = aData.requestPostData.postData.text;
 
-      postDataPromise = gNetwork.getString(body).then(aString => {
+      gNetwork.getString(body).then(aString => {
         $("#custom-postdata-value").value =  aString;
       });
-    } else {
-      postDataPromise = promise.resolve();
     }
 
-    return postDataPromise
-      .then(() => view.updateCustomQuery(aData.url))
-      .then(() => window.emit(EVENTS.CUSTOMREQUESTVIEW_POPULATED));
+    this.updateCustomQuery(aData.url);
   },
 
   /**
@@ -1562,10 +1504,8 @@ NetworkDetailsView.prototype = {
       }));
     this._json = new VariablesView($("#response-content-json"),
       Heritage.extend(GENERIC_VARIABLES_VIEW_SETTINGS, {
-        onlyEnumVisible: true,
         searchPlaceholder: L10N.getStr("jsonFilterText")
       }));
-    VariablesViewController.attach(this._json);
 
     this._paramsQueryString = L10N.getStr("paramsQueryString");
     this._paramsFormData = L10N.getStr("paramsFormData");
@@ -1597,8 +1537,6 @@ NetworkDetailsView.prototype = {
    *
    * @param object aData
    *        The data source (this should be the attachment of a request item).
-   * @return object
-   *        Returns a promise that resolves upon population the view.
    */
   populate: function(aData) {
     $("#request-params-box").setAttribute("flex", "1");
@@ -1616,9 +1554,6 @@ NetworkDetailsView.prototype = {
 
     this._dataSrc = { src: aData, populated: [] };
     this._onTabSelect();
-    window.emit(EVENTS.NETWORKDETAILSVIEW_POPULATED);
-
-    return promise.resolve();
   },
 
   /**
@@ -1627,38 +1562,35 @@ NetworkDetailsView.prototype = {
   _onTabSelect: function() {
     let { src, populated } = this._dataSrc || {};
     let tab = this.widget.selectedIndex;
-    let view = this;
 
     // Make sure the data source is valid and don't populate the same tab twice.
     if (!src || populated[tab]) {
       return;
     }
 
-    Task.spawn(function*() {
-      switch (tab) {
-        case 0: // "Headers"
-          yield view._setSummary(src);
-          yield view._setResponseHeaders(src.responseHeaders);
-          yield view._setRequestHeaders(src.requestHeaders);
-          break;
-        case 1: // "Cookies"
-          yield view._setResponseCookies(src.responseCookies);
-          yield view._setRequestCookies(src.requestCookies);
-          break;
-        case 2: // "Params"
-          yield view._setRequestGetParams(src.url);
-          yield view._setRequestPostParams(src.requestHeaders, src.requestPostData);
-          break;
-        case 3: // "Response"
-          yield view._setResponseBody(src.url, src.responseContent);
-          break;
-        case 4: // "Timings"
-          yield view._setTimingsInformation(src.eventTimings);
-          break;
-      }
-      populated[tab] = true;
-      window.emit(EVENTS.TAB_UPDATED);
-    });
+    switch (tab) {
+      case 0: // "Headers"
+        this._setSummary(src);
+        this._setResponseHeaders(src.responseHeaders);
+        this._setRequestHeaders(src.requestHeaders);
+        break;
+      case 1: // "Cookies"
+        this._setResponseCookies(src.responseCookies);
+        this._setRequestCookies(src.requestCookies);
+        break;
+      case 2: // "Params"
+        this._setRequestGetParams(src.url);
+        this._setRequestPostParams(src.requestHeaders, src.requestPostData);
+        break;
+      case 3: // "Response"
+        this._setResponseBody(src.url, src.responseContent);
+        break;
+      case 4: // "Timings"
+        this._setTimingsInformation(src.eventTimings);
+        break;
+    }
+
+    populated[tab] = true;
   },
 
   /**
@@ -1705,14 +1637,11 @@ NetworkDetailsView.prototype = {
    *
    * @param object aResponse
    *        The message received from the server.
-   * @return object
-   *        A promise that resolves when request headers are set.
    */
   _setRequestHeaders: function(aResponse) {
     if (aResponse && aResponse.headers.length) {
-      return this._addHeaders(this._requestHeaders, aResponse);
+      this._addHeaders(this._requestHeaders, aResponse);
     }
-    return promise.resolve();
   },
 
   /**
@@ -1720,15 +1649,12 @@ NetworkDetailsView.prototype = {
    *
    * @param object aResponse
    *        The message received from the server.
-   * @return object
-   *        A promise that resolves when response headers are set.
    */
   _setResponseHeaders: function(aResponse) {
     if (aResponse && aResponse.headers.length) {
       aResponse.headers.sort((a, b) => a.name > b.name);
-      return this._addHeaders(this._responseHeaders, aResponse);
+      this._addHeaders(this._responseHeaders, aResponse);
     }
-    return promise.resolve();
   },
 
   /**
@@ -1738,8 +1664,6 @@ NetworkDetailsView.prototype = {
    *        The type of headers to populate (request or response).
    * @param object aResponse
    *        The message received from the server.
-   * @return object
-   *        A promise that resolves when headers are added.
    */
   _addHeaders: function(aName, aResponse) {
     let kb = aResponse.headersSize / 1024;
@@ -1748,10 +1672,10 @@ NetworkDetailsView.prototype = {
     let headersScope = this._headers.addScope(aName + " (" + text + ")");
     headersScope.expanded = true;
 
-    return promise.all(aResponse.headers.map(header => {
+    for (let header of aResponse.headers) {
       let headerVar = headersScope.addItem(header.name, {}, true);
-      return gNetwork.getString(header.value).then(aString => headerVar.setGrip(aString));
-    }));
+      gNetwork.getString(header.value).then(aString => headerVar.setGrip(aString));
+    }
   },
 
   /**
@@ -1759,15 +1683,12 @@ NetworkDetailsView.prototype = {
    *
    * @param object aResponse
    *        The message received from the server.
-   * @return object
-   *        A promise that is resolved when the request cookies are set.
    */
   _setRequestCookies: function(aResponse) {
     if (aResponse && aResponse.cookies.length) {
       aResponse.cookies.sort((a, b) => a.name > b.name);
-      return this._addCookies(this._requestCookies, aResponse);
+      this._addCookies(this._requestCookies, aResponse);
     }
-    return promise.resolve();
   },
 
   /**
@@ -1775,14 +1696,11 @@ NetworkDetailsView.prototype = {
    *
    * @param object aResponse
    *        The message received from the server.
-   * @return object
-   *        A promise that is resolved when the response cookies are set.
    */
   _setResponseCookies: function(aResponse) {
     if (aResponse && aResponse.cookies.length) {
-      return this._addCookies(this._responseCookies, aResponse);
+      this._addCookies(this._responseCookies, aResponse);
     }
-    return promise.resolve();
   },
 
   /**
@@ -1792,37 +1710,33 @@ NetworkDetailsView.prototype = {
    *        The type of cookies to populate (request or response).
    * @param object aResponse
    *        The message received from the server.
-   * @return object
-   *        Returns a promise that resolves upon the adding of cookies.
    */
   _addCookies: function(aName, aResponse) {
     let cookiesScope = this._cookies.addScope(aName);
     cookiesScope.expanded = true;
 
-    return promise.all(aResponse.cookies.map(cookie => {
+    for (let cookie of aResponse.cookies) {
       let cookieVar = cookiesScope.addItem(cookie.name, {}, true);
-      return gNetwork.getString(cookie.value).then(aString => {
-        cookieVar.setGrip(aString);
+      gNetwork.getString(cookie.value).then(aString => cookieVar.setGrip(aString));
 
-        // By default the cookie name and value are shown. If this is the only
-        // information available, then nothing else is to be displayed.
-        let cookieProps = Object.keys(cookie);
-        if (cookieProps.length == 2) {
-          return;
-        }
+      // By default the cookie name and value are shown. If this is the only
+      // information available, then nothing else is to be displayed.
+      let cookieProps = Object.keys(cookie);
+      if (cookieProps.length == 2) {
+        continue;
+      }
 
-        // Display any other information other than the cookie name and value
-        // which may be available.
-        let rawObject = Object.create(null);
-        let otherProps = cookieProps.filter(e => e != "name" && e != "value");
-        for (let prop of otherProps) {
-          rawObject[prop] = cookie[prop];
-        }
-        cookieVar.populate(rawObject);
-        cookieVar.twisty = true;
-        cookieVar.expanded = true;
-      });
-    }));
+      // Display any other information other than the cookie name and value
+      // which may be available.
+      let rawObject = Object.create(null);
+      let otherProps = cookieProps.filter(e => e != "name" && e != "value");
+      for (let prop of otherProps) {
+        rawObject[prop] = cookie[prop];
+      }
+      cookieVar.populate(rawObject);
+      cookieVar.twisty = true;
+      cookieVar.expanded = true;
+    }
   },
 
   /**
@@ -1845,14 +1759,12 @@ NetworkDetailsView.prototype = {
    *        The "requestHeaders" message received from the server.
    * @param object aPostDataResponse
    *        The "requestPostData" message received from the server.
-   * @return object
-   *        A promise that is resolved when the request post params are set.
    */
   _setRequestPostParams: function(aHeadersResponse, aPostDataResponse) {
     if (!aHeadersResponse || !aPostDataResponse) {
-      return promise.resolve();
+      return;
     }
-    return gNetwork.getString(aPostDataResponse.postData.text).then(aString => {
+    gNetwork.getString(aPostDataResponse.postData.text).then(aString => {
       // Handle query strings (poor man's forms, e.g. "?foo=bar&baz=42").
       let cType = aHeadersResponse.headers.filter(({ name }) => name == "Content-Type")[0];
       let cString = cType ? cType.value : "";
@@ -1874,11 +1786,12 @@ NetworkDetailsView.prototype = {
         paramsScope.locked = true;
 
         $("#request-post-data-textarea-box").hidden = false;
-        return NetMonitorView.editor("#request-post-data-textarea").then(aEditor => {
+        NetMonitorView.editor("#request-post-data-textarea").then(aEditor => {
           aEditor.setText(aString);
         });
       }
-    }).then(() => window.emit(EVENTS.REQUEST_POST_PARAMS_DISPLAYED));
+      window.emit(EVENTS.REQUEST_POST_PARAMS_DISPLAYED);
+    });
   },
 
   /**
@@ -1910,26 +1823,21 @@ NetworkDetailsView.prototype = {
    *        The request's url.
    * @param object aResponse
    *        The message received from the server.
-   * @return object
-   *        A promise that is resolved when the response body is set
    */
   _setResponseBody: function(aUrl, aResponse) {
     if (!aResponse) {
-      return promise.resolve();
+      return;
     }
     let { mimeType, text, encoding } = aResponse.content;
 
-    return gNetwork.getString(text).then(aString => {
-      // Handle json, which we tentatively identify by checking the MIME type
-      // for "json" after any word boundary. This works for the standard
-      // "application/json", and also for custom types like "x-bigcorp-json".
-      // This should be marginally more reliable than just looking for "json".
-      if (/\bjson/.test(mimeType)) {
+    gNetwork.getString(text).then(aString => {
+      // Handle json.
+      if (mimeType.contains("/json")) {
         let jsonpRegex = /^[a-zA-Z0-9_$]+\(|\)$/g; // JSONP with callback.
         let sanitizedJSON = aString.replace(jsonpRegex, "");
         let callbackPadding = aString.match(jsonpRegex);
 
-        // Make sure this is a valid JSON object first. If so, nicely display
+        // Make sure this is an valid JSON object first. If so, nicely display
         // the parsing results in a variables view. Otherwise, simply show
         // the contents as plain text.
         try {
@@ -1945,22 +1853,21 @@ NetworkDetailsView.prototype = {
             ? L10N.getFormatStr("jsonpScopeName", callbackPadding[0].slice(0, -1))
             : L10N.getStr("jsonScopeName");
 
-          return this._json.controller.setSingleVariable({
-            label: jsonScopeName,
-            rawObject: jsonObject,
-          }).expanded;
+          let jsonScope = this._json.addScope(jsonScopeName);
+          jsonScope.addItem().populate(jsonObject, { expanded: true });
+          jsonScope.expanded = true;
         }
         // Malformed JSON.
         else {
           $("#response-content-textarea-box").hidden = false;
+          NetMonitorView.editor("#response-content-textarea").then(aEditor => {
+            aEditor.setMode(SourceEditor.MODES.JAVASCRIPT);
+            aEditor.setText(aString);
+          });
           let infoHeader = $("#response-content-info-header");
           infoHeader.setAttribute("value", parsingError);
           infoHeader.setAttribute("tooltiptext", parsingError);
           infoHeader.hidden = false;
-          return NetMonitorView.editor("#response-content-textarea").then(aEditor => {
-            aEditor.setMode(Editor.modes.js);
-            aEditor.setText(aString);
-          });
         }
       }
       // Handle images.
@@ -1990,8 +1897,8 @@ NetworkDetailsView.prototype = {
       // Handle anything else.
       else {
         $("#response-content-textarea-box").hidden = false;
-        return NetMonitorView.editor("#response-content-textarea").then(aEditor => {
-          aEditor.setMode(Editor.modes.text);
+        NetMonitorView.editor("#response-content-textarea").then(aEditor => {
+          aEditor.setMode(SourceEditor.MODES.TEXT);
           aEditor.setText(aString);
 
           // Maybe set a more appropriate mode in the Source Editor if possible,
@@ -2006,7 +1913,8 @@ NetworkDetailsView.prototype = {
           }
         });
       }
-    }).then(() => window.emit(EVENTS.RESPONSE_BODY_DISPLAYED));
+      window.emit(EVENTS.RESPONSE_BODY_DISPLAYED);
+    });
   },
 
   /**
@@ -2096,7 +2004,6 @@ NetworkDetailsView.prototype = {
  * DOM query helper.
  */
 function $(aSelector, aTarget = document) aTarget.querySelector(aSelector);
-function $all(aSelector, aTarget = document) aTarget.querySelectorAll(aSelector);
 
 /**
  * Helper for getting an nsIURL instance out of a string.
@@ -2214,6 +2121,16 @@ function writeQueryText(aParams) {
 function writeQueryString(aParams) {
   return [(name + "=" + value) for ({name, value} of aParams)].join("&");
 }
+
+/**
+ * Helper for draining a rapid succession of events and invoking a callback
+ * once everything settles down.
+ */
+function drain(aId, aWait, aCallback, aStore = drain.store) {
+  window.clearTimeout(aStore.get(aId));
+  aStore.set(aId, window.setTimeout(aCallback, aWait));
+}
+drain.store = new Map();
 
 /**
  * Preliminary setup for the NetMonitorView object.

@@ -27,7 +27,7 @@ const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 #endif
 
 Cu.import("resource://gre/modules/Promise.jsm");
-Cu.import("resource://gre/modules/Log.jsm");
+Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-common/utils.js");
 
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -134,7 +134,7 @@ Object.freeze(NotifyPolicyRequest.prototype);
  * Receivers of instances of this type should not attempt to do anything with
  * the instance except call one of the on* methods.
  */
-this.DataSubmissionRequest = function (promise, expiresDate, isDelete) {
+function DataSubmissionRequest(promise, expiresDate, isDelete) {
   this.promise = promise;
   this.expiresDate = expiresDate;
   this.isDelete = isDelete;
@@ -143,7 +143,7 @@ this.DataSubmissionRequest = function (promise, expiresDate, isDelete) {
   this.reason = null;
 }
 
-this.DataSubmissionRequest.prototype = Object.freeze({
+DataSubmissionRequest.prototype = {
   NO_DATA_AVAILABLE: "no-data-available",
   SUBMISSION_SUCCESS: "success",
   SUBMISSION_FAILURE_SOFT: "failure-soft",
@@ -210,7 +210,9 @@ this.DataSubmissionRequest.prototype = Object.freeze({
     this.promise.resolve(this);
     return this.promise.promise;
   },
-});
+};
+
+Object.freeze(DataSubmissionRequest.prototype);
 
 /**
  * Manages scheduling of Firefox Health Report data submission.
@@ -263,8 +265,8 @@ this.DataSubmissionRequest.prototype = Object.freeze({
  *        events.
  */
 this.DataReportingPolicy = function (prefs, healthReportPrefs, listener) {
-  this._log = Log.repository.getLogger("Services.DataReporting.Policy");
-  this._log.level = Log.Level["Debug"];
+  this._log = Log4Moz.repository.getLogger("Services.DataReporting.Policy");
+  this._log.level = Log4Moz.Level["Debug"];
 
   for (let handler of this.REQUIRED_LISTENERS) {
     if (!listener[handler]) {
@@ -315,7 +317,7 @@ this.DataReportingPolicy = function (prefs, healthReportPrefs, listener) {
   this._inProgressSubmissionRequest = null;
 };
 
-this.DataReportingPolicy.prototype = Object.freeze({
+DataReportingPolicy.prototype = Object.freeze({
   /**
    * How long after first run we should notify about data submission.
    */

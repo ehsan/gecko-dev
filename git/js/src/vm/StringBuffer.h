@@ -33,15 +33,13 @@ class StringBuffer
 
     CharBuffer cb;
 
-    ExclusiveContext *context() const {
-        return cb.allocPolicy().context()->asExclusiveContext();
-    }
+    JSContext *context() const { return cb.allocPolicy().context(); }
 
     StringBuffer(const StringBuffer &other) MOZ_DELETE;
     void operator=(const StringBuffer &other) MOZ_DELETE;
 
   public:
-    explicit StringBuffer(ExclusiveContext *cx) : cb(cx) { }
+    explicit StringBuffer(JSContext *cx) : cb(cx) { }
 
     inline bool reserve(size_t len) { return cb.reserve(len); }
     inline bool resize(size_t len) { return cb.resize(len); }
@@ -122,7 +120,10 @@ StringBuffer::appendInflated(const char *cstr, size_t cstrlen)
     size_t lengthBefore = length();
     if (!cb.growByUninitialized(cstrlen))
         return false;
-    InflateStringToBuffer(cstr, cstrlen, begin() + lengthBefore);
+    mozilla::DebugOnly<size_t> oldcstrlen = cstrlen;
+    mozilla::DebugOnly<bool> ok = InflateStringToBuffer(context(), cstr, cstrlen,
+                                                        begin() + lengthBefore, &cstrlen);
+    JS_ASSERT(ok && oldcstrlen == cstrlen);
     return true;
 }
 

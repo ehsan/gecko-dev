@@ -8,12 +8,12 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/rtp_rtcp/source/tmmbr_help.h"
+#include "tmmbr_help.h"
 
 #include <assert.h>
 #include <limits>
 #include <string.h>
-#include "webrtc/modules/rtp_rtcp/source/rtp_rtcp_config.h"
+#include "rtp_rtcp_config.h"
 
 namespace webrtc {
 TMMBRSet::TMMBRSet() :
@@ -479,4 +479,4 @@ bool TMMBRHelp::CalcMinBitRate( uint32_t* minBitrateKbit) const {
   }
   return true;
 }
-}  // namespace webrtc
+} // namespace webrtc

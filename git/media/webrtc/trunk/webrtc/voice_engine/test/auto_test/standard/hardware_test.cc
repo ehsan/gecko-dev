@@ -8,8 +8,9 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/audio_device/include/audio_device.h"
-#include "webrtc/voice_engine/test/auto_test/fixtures/after_streaming_fixture.h"
+#include "after_streaming_fixture.h"
+#include "modules/audio_device/include/audio_device.h"
+#include "voe_test_defines.h"
 
 class HardwareTest : public AfterStreamingFixture {
 };
@@ -68,9 +69,7 @@ TEST_F(HardwareTest, GetCpuLoadReturnsErrorOnNonWindowsPlatform) {
 }
 #endif
 
-// Flakily hangs on Windows: code.google.com/p/webrtc/issues/detail?id=2179.
-TEST_F(HardwareTest,
-       DISABLED_ON_WIN(BuiltInWasapiAECWorksForAudioWindowsCoreAudioLayer)) {
+TEST_F(HardwareTest, BuiltInWasapiAECWorksForAudioWindowsCoreAudioLayer) {
 #ifdef WEBRTC_IOS
   // Ensure the sound device is reset on iPhone.
   EXPECT_EQ(0, voe_hardware_->ResetAudioDevice());

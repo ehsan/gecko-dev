@@ -19,7 +19,6 @@ import org.mozilla.gecko.db.BrowserContract.Schema;
 import org.mozilla.gecko.db.BrowserContract.SyncColumns;
 import org.mozilla.gecko.db.BrowserContract.Thumbnails;
 import org.mozilla.gecko.db.BrowserContract.URLColumns;
-import org.mozilla.gecko.db.PerProfileDatabases.DatabaseHelperFactory;
 import org.mozilla.gecko.gfx.BitmapUtils;
 import org.mozilla.gecko.sync.Utils;
 import org.mozilla.gecko.util.GeckoJarReader;
@@ -66,8 +65,6 @@ import java.util.regex.Pattern;
 public class BrowserProvider extends ContentProvider {
     private static final String LOGTAG = "GeckoBrowserProvider";
     private Context mContext;
-
-    private PerProfileDatabases<BrowserDatabaseHelper> mDatabases;
 
     static final String DATABASE_NAME = "browser.db";
 
@@ -315,6 +312,8 @@ public class BrowserProvider extends ContentProvider {
         SEARCH_SUGGEST_PROJECTION_MAP = Collections.unmodifiableMap(map);
     }
 
+    private HashMap<String, DatabaseHelper> mDatabasePerProfile;
+
     private interface BookmarkMigrator {
         public void updateForNewTable(ContentValues bookmark);
     }
@@ -364,8 +363,8 @@ public class BrowserProvider extends ContentProvider {
         }
     }
 
-    final class BrowserDatabaseHelper extends SQLiteOpenHelper {
-        public BrowserDatabaseHelper(Context context, String databasePath) {
+    final class DatabaseHelper extends SQLiteOpenHelper {
+        public DatabaseHelper(Context context, String databasePath) {
             super(context, databasePath, null, DATABASE_VERSION);
         }
 
@@ -1953,6 +1952,64 @@ public class BrowserProvider extends ContentProvider {
         }
     }
 
+    private DatabaseHelper getDatabaseHelperForProfile(String profile, boolean isTest) {
+        // Each profile has a separate browser.db database. The target
+        // profile is provided using a URI query argument in each request
+        // to our content provider.
+
+        // Always fallback to default profile if none has been provided.
+        if (TextUtils.isEmpty(profile)) {
+            profile = GeckoProfile.get(mContext).getName();
+        }
+
+        DatabaseHelper dbHelper;
+        synchronized (this) {
+            dbHelper = mDatabasePerProfile.get(profile);
+            if (dbHelper != null) {
+                return dbHelper;
+            }
+
+            String databasePath = getDatabasePath(profile, isTest);
+
+            // Before bug 768532, the database was located outside if the
+            // profile on Android 2.2. Make sure it is moved inside the profile
+            // directory.
+            if (Build.VERSION.SDK_INT == 8) {
+                File oldPath = mContext.getDatabasePath("browser-" + profile + ".db");
+                if (oldPath.exists()) {
+                    oldPath.renameTo(new File(databasePath));
+                }
+            }
+
+            dbHelper = new DatabaseHelper(getContext(), databasePath);
+            mDatabasePerProfile.put(profile, dbHelper);
+
+            DBUtils.ensureDatabaseIsNotLocked(dbHelper, databasePath);
+        }
+
+        debug("Created database helper for profile: " + profile);
+        return dbHelper;
+    }
+
+    public String getDatabasePath(String profile, boolean isTest) {
+        trace("Getting database path for profile: " + profile);
+
+        if (isTest) {
+            return DATABASE_NAME;
+        }
+
+        File profileDir = GeckoProfile.get(mContext, profile).getDir();
+        if (profileDir == null) {
+            debug("Couldn't find directory for profile: " + profile);
+            return null;
+        }
+
+        String databasePath = new File(profileDir, DATABASE_NAME).getAbsolutePath();
+        debug("Successfully created database path for profile: " + databasePath);
+
+        return databasePath;
+    }
+
     private SQLiteDatabase getReadableDatabase(Uri uri) {
         trace("Getting readable database for URI: " + uri);
 
@@ -1961,7 +2018,7 @@ public class BrowserProvider extends ContentProvider {
         if (uri != null)
             profile = uri.getQueryParameter(BrowserContract.PARAM_PROFILE);
 
-        return mDatabases.getDatabaseHelperForProfile(profile, isTest(uri)).getReadableDatabase();
+        return getDatabaseHelperForProfile(profile, isTest(uri)).getReadableDatabase();
     }
 
     private SQLiteDatabase getWritableDatabase(Uri uri) {
@@ -1972,12 +2029,10 @@ public class BrowserProvider extends ContentProvider {
         if (uri != null)
             profile = uri.getQueryParameter(BrowserContract.PARAM_PROFILE);
 
-        return mDatabases.getDatabaseHelperForProfile(profile, isTest(uri)).getWritableDatabase();
+        return getDatabaseHelperForProfile(profile, isTest(uri)).getWritableDatabase();
     }
 
     private void cleanupSomeDeletedRecords(Uri fromUri, Uri targetUri, String tableName) {
-        Log.d(LOGTAG, "Cleaning up deleted records from " + tableName);
-
         // we cleanup records marked as deleted that are older than a
         // predefined max age. It's important not be too greedy here and
         // remove only a few old deleted records at a time.
@@ -2035,7 +2090,6 @@ public class BrowserProvider extends ContentProvider {
      * Call this method within a transaction.
      */
     private void expireHistory(final SQLiteDatabase db, final int retain, final long keepAfter) {
-        Log.d(LOGTAG, "Expiring history.");
         final long rows = DatabaseUtils.queryNumEntries(db, TABLE_HISTORY);
 
         if (retain >= rows) {
@@ -2071,7 +2125,6 @@ public class BrowserProvider extends ContentProvider {
      * Call this method within a transaction.
      */
     private void expireThumbnails(final SQLiteDatabase db) {
-        Log.d(LOGTAG, "Expiring thumbnails.");
         final String sortOrder = BrowserContract.getFrecencySortOrder(true, false);
         final String sql = "DELETE FROM " + TABLE_THUMBNAILS +
                            " WHERE " + Thumbnails.URL + " NOT IN ( " +
@@ -2119,13 +2172,7 @@ public class BrowserProvider extends ContentProvider {
 
         synchronized (this) {
             mContext = getContext();
-            mDatabases = new PerProfileDatabases<BrowserDatabaseHelper>(
-                getContext(), DATABASE_NAME, new DatabaseHelperFactory<BrowserDatabaseHelper>() {
-                    @Override
-                    public BrowserDatabaseHelper makeDatabaseHelper(Context context, String databasePath) {
-                        return new BrowserDatabaseHelper(context, databasePath);
-                    }
-                });
+            mDatabasePerProfile = new HashMap<String, DatabaseHelper>();
         }
 
         return true;
@@ -2800,12 +2847,9 @@ public class BrowserProvider extends ContentProvider {
         if (updated > 0)
             return updated;
 
-        if (0 <= insertBookmark(uri, values)) {
-            // We 'updated' one row.
-            return 1;
-        }
+        insertBookmark(uri, values);
 
-        // If something went wrong, then we updated zero rows.
+        // Return 0 if we added a new row
         return 0;
     }
 
@@ -2882,10 +2926,9 @@ public class BrowserProvider extends ContentProvider {
         if (!values.containsKey(History.TITLE))
             values.put(History.TITLE, values.getAsString(History.URL));
 
-        if (0 <= insertHistory(uri, values)) {
-            return 1;
-        }
+        insertHistory(uri, values);
 
+        // Return 0 if we added a new row
         return 0;
     }
 
@@ -2970,11 +3013,6 @@ public class BrowserProvider extends ContentProvider {
         if (values.containsKey(Favicons.PAGE_URL)) {
             pageUrl = values.getAsString(Favicons.PAGE_URL);
             values.remove(Favicons.PAGE_URL);
-        }
-
-        // If no URL is provided, insert using the default one.
-        if (TextUtils.isEmpty(faviconUrl) && !TextUtils.isEmpty(pageUrl)) {
-            values.put(Favicons.URL, org.mozilla.gecko.favicons.Favicons.guessDefaultFaviconURL(pageUrl));
         }
 
         long now = System.currentTimeMillis();

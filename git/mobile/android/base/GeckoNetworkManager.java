@@ -95,11 +95,6 @@ public class GeckoNetworkManager extends BroadcastReceiver {
         NETWORK_UNKNOWN
     }
 
-    private enum InfoType {
-        MCC,
-        MNC
-    }
-
     private Context mApplicationContext;
     private NetworkType  mNetworkType = NetworkType.NETWORK_NONE;
     private IntentFilter mNetworkFilter = new IntentFilter();
@@ -153,21 +148,14 @@ public class GeckoNetworkManager extends BroadcastReceiver {
         if (mNetworkType != NetworkType.NETWORK_WIFI) {
             return 0;
         }
-        try {
-            WifiManager mgr = (WifiManager)sInstance.mApplicationContext.getSystemService(Context.WIFI_SERVICE);
-            DhcpInfo d = mgr.getDhcpInfo();
-            if (d == null) {
-                return 0;
-            }
-
-            return d.gateway;
-
-        } catch (Exception ex) {
-            // getDhcpInfo() is not documented to require any permissions, but on some devices
-            // requires android.permission.ACCESS_WIFI_STATE. Just catching the generic exeption
-            // here and returning 0. Not logging because this could be noisy
+ 
+        WifiManager mgr = (WifiManager)sInstance.mApplicationContext.getSystemService(Context.WIFI_SERVICE);
+        DhcpInfo d = mgr.getDhcpInfo();
+        if (d == null) {
             return 0;
         }
+
+        return d.gateway;
     }
 
     private void updateNetworkType() {
@@ -220,11 +208,7 @@ public class GeckoNetworkManager extends BroadcastReceiver {
             return NetworkType.NETWORK_NONE;
         }
 
-        NetworkInfo ni = null;
-        try {
-            ni = cm.getActiveNetworkInfo();
-        } catch (SecurityException se) {} // if we don't have the permission, fall through to null check
-
+        NetworkInfo ni = cm.getActiveNetworkInfo();
         if (ni == null) {
             return NetworkType.NETWORK_NONE;
         }
@@ -330,33 +314,5 @@ public class GeckoNetworkManager extends BroadcastReceiver {
             Log.e(LOGTAG, "Got an unexpected network type!");
             return false;
         }
-    }
-
-    private static int getNetworkOperator(InfoType type) {
-        TelephonyManager tel = (TelephonyManager)sInstance.mApplicationContext.getSystemService(Context.TELEPHONY_SERVICE);
-        if (tel == null) {
-            Log.e(LOGTAG, "Telephony service does not exist");
-            return -1;
-        }
-
-        String networkOperator = tel.getNetworkOperator();
-        if (networkOperator == null || networkOperator.length() <= 3) {
-            return -1;
-        }
-        if (type == InfoType.MNC) {
-            return Integer.parseInt(networkOperator.substring(3));
-        } else if (type == InfoType.MCC) {
-            return Integer.parseInt(networkOperator.substring(0, 3));
-        }
-
-        return -1;
-    }
-
-    public static int getMCC() {
-        return getNetworkOperator(InfoType.MCC);
-    }
-
-    public static int getMNC() {
-        return getNetworkOperator(InfoType.MNC);
     }
 }

@@ -6,6 +6,6 @@
 
 DIRS += ['browser']
 
-XPCSHELL_TESTS_MANIFESTS += ['xpcshell/xpcshell.ini']
+MODULE = 'test_toolkit_general'
 
-MOCHITEST_MANIFESTS += ['mochitest/mochitest.ini']
+XPCSHELL_TESTS_MANIFESTS += ['xpcshell/xpcshell.ini']

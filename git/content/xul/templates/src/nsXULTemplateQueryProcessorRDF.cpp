@@ -33,9 +33,11 @@
 #include "nsXULTemplateResultSetRDF.h"
 #include "nsXULTemplateQueryProcessorRDF.h"
 #include "nsXULSortService.h"
-#include "nsIDocument.h"
 
 //----------------------------------------------------------------------
+
+static NS_DEFINE_CID(kRDFContainerUtilsCID,      NS_RDFCONTAINERUTILS_CID);
+static NS_DEFINE_CID(kRDFServiceCID,             NS_RDFSERVICE_CID);
 
 #define PARSE_TYPE_INTEGER  "Integer"
 
@@ -97,11 +99,17 @@ RuleToBindingTraverser(nsISupports* key, RDFBindingSet* binding, void* userArg)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXULTemplateQueryProcessorRDF)
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mDB)
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mLastRef)
-    tmp->mBindingDependencies.EnumerateRead(BindingDependenciesTraverser,
-                                            &cb);
-    tmp->mMemoryElementToResultMap.EnumerateRead(MemoryElementTraverser,
-                                                 &cb);
-    tmp->mRuleToBindingsMap.EnumerateRead(RuleToBindingTraverser, &cb);
+    if (tmp->mBindingDependencies.IsInitialized()) {
+        tmp->mBindingDependencies.EnumerateRead(BindingDependenciesTraverser,
+                                                &cb);
+    }
+    if (tmp->mMemoryElementToResultMap.IsInitialized()) {
+        tmp->mMemoryElementToResultMap.EnumerateRead(MemoryElementTraverser,
+                                                     &cb);
+    }
+    if (tmp->mRuleToBindingsMap.IsInitialized()) {
+        tmp->mRuleToBindingsMap.EnumerateRead(RuleToBindingTraverser, &cb);
+    }
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mQueries)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
@@ -142,14 +150,12 @@ nsXULTemplateQueryProcessorRDF::InitGlobals()
     // Initialize the global shared reference to the service
     // manager and get some shared resource objects.
     if (!gRDFService) {
-        NS_DEFINE_CID(kRDFServiceCID, NS_RDFSERVICE_CID);
         rv = CallGetService(kRDFServiceCID, &gRDFService);
         if (NS_FAILED(rv))
             return rv;
     }
 
     if (!gRDFContainerUtils) {
-        NS_DEFINE_CID(kRDFContainerUtilsCID, NS_RDFCONTAINERUTILS_CID);
         rv = CallGetService(kRDFContainerUtilsCID, &gRDFContainerUtils);
         if (NS_FAILED(rv))
             return rv;
@@ -298,6 +304,13 @@ nsXULTemplateQueryProcessorRDF::InitializeForBuilding(nsISupports* aDatasource,
         nsresult rv = InitGlobals();
         if (NS_FAILED(rv))
             return rv;
+
+        if (!mMemoryElementToResultMap.IsInitialized())
+            mMemoryElementToResultMap.Init();
+        if (!mBindingDependencies.IsInitialized())
+            mBindingDependencies.Init();
+        if (!mRuleToBindingsMap.IsInitialized())
+            mRuleToBindingsMap.Init();
 
         mQueryProcessorRDFInited = true;
     }

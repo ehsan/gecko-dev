@@ -15,19 +15,17 @@
 
 #include "webrtc/system_wrappers/interface/sort.h"
 
-#include <assert.h>
-#include <string.h>  // memcpy
-
+#include <cassert>
+#include <cstring>  // memcpy
 #include <new>      // nothrow new
 
 #ifdef NO_STL
-#include <stdlib.h>      // qsort
+#include <cstdlib>      // qsort
 #else
 #include <algorithm>    // std::sort
 #include <vector>
 
-// TODO(ajm) upgrade to spreadsort v2.
-#include "webrtc/system_wrappers/source/spreadsortlib/spreadsort.hpp"
+#include "spreadsort.hpp"  // TODO(ajm) upgrade to spreadsort v2.
 #endif
 
 #ifdef NO_STL
@@ -484,4 +482,4 @@ int32_t KeySort(void* data, void* key, uint32_t num_of_elements,
 #endif
 }
 
-}  // namespace webrtc
+} // namespace webrtc

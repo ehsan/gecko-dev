@@ -59,24 +59,16 @@ public:
   }
 
   /**
-   * Validates provided label and throws an exception if invalid label.
+   * Validates provided encoding and throws an exception if invalid encoding.
+   * If no encoding is provided then mEncoding is default initialised to "utf-8".
    *
-   * @param aLabel       The encoding label (case insensitive) provided.
-   * @param aFatal       indicates whether to throw an 'EncodingError'
-   *                     exception or not when decoding.
+   * @param aEncoding    Optional encoding (case insensitive) provided.
+   *                     Default value is "utf-8" if no encoding is provided.
+   * @param aFatal       aFatal, indicates whether to throw an 'EncodingError'
+   *                     exception or not.
    * @return aRv         EncodingError exception else null.
    */
-  void Init(const nsAString& aLabel, const bool aFatal, ErrorResult& aRv);
-
-  /**
-   * Performs initialization with a Gecko-canonical encoding name (as opposed
-   * to a label.)
-   *
-   * @param aEncoding    A Gecko-canonical encoding name
-   * @param aFatal       indicates whether to throw an 'EncodingError'
-   *                     exception or not when decoding.
-   */
-  void InitWithEncoding(const nsACString& aEncoding, const bool aFatal);
+  void Init(const nsAString& aEncoding, const bool aFatal, ErrorResult& aRv);
 
   /**
    * Return the encoding name.

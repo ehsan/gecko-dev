@@ -18,6 +18,7 @@
 
 class nsIObjectInputStream;
 class nsIObjectOutputStream;
+class DomainPolicy; 
 
 class nsBasePrincipal : public nsJSPrincipals
 {
@@ -30,6 +31,8 @@ protected:
 public:
   NS_IMETHOD_(nsrefcnt) AddRef(void);
   NS_IMETHOD_(nsrefcnt) Release(void);
+  NS_IMETHOD GetSecurityPolicy(void** aSecurityPolicy);
+  NS_IMETHOD SetSecurityPolicy(void* aSecurityPolicy);
   NS_IMETHOD GetCsp(nsIContentSecurityPolicy** aCsp);
   NS_IMETHOD SetCsp(nsIContentSecurityPolicy* aCsp);
 public:
@@ -41,6 +44,8 @@ protected:
 #ifdef DEBUG
   virtual void dumpImpl() = 0;
 #endif
+
+  DomainPolicy* mSecurityPolicy;
 
   nsCOMPtr<nsIContentSecurityPolicy> mCSP;
 };
@@ -60,7 +65,7 @@ public:
   NS_IMETHOD Subsumes(nsIPrincipal* other, bool* _retval);
   NS_IMETHOD SubsumesIgnoringDomain(nsIPrincipal* other, bool* _retval);
   NS_IMETHOD CheckMayLoad(nsIURI* uri, bool report, bool allowIfInheritsPrincipal);
-  NS_IMETHOD GetJarPrefix(nsACString& aJarPrefix);
+  NS_IMETHOD GetExtendedOrigin(nsACString& aExtendedOrigin);
   NS_IMETHOD GetAppStatus(uint16_t* aAppStatus);
   NS_IMETHOD GetAppId(uint32_t* aAppStatus);
   NS_IMETHOD GetIsInBrowserElement(bool* aIsInBrowserElement);
@@ -143,7 +148,7 @@ public:
   NS_IMETHOD Subsumes(nsIPrincipal* other, bool* _retval);
   NS_IMETHOD SubsumesIgnoringDomain(nsIPrincipal* other, bool* _retval);
   NS_IMETHOD CheckMayLoad(nsIURI* uri, bool report, bool allowIfInheritsPrincipal);
-  NS_IMETHOD GetJarPrefix(nsACString& aJarPrefix);
+  NS_IMETHOD GetExtendedOrigin(nsACString& aExtendedOrigin);
   NS_IMETHOD GetAppStatus(uint16_t* aAppStatus);
   NS_IMETHOD GetAppId(uint32_t* aAppStatus);
   NS_IMETHOD GetIsInBrowserElement(bool* aIsInBrowserElement);

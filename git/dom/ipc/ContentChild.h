@@ -9,8 +9,11 @@
 
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/PContentChild.h"
+#include "mozilla/dom/TabContext.h"
 #include "mozilla/dom/ipc/Blob.h"
-#include "nsWeakPtr.h"
+
+#include "nsTArray.h"
+#include "nsIConsoleListener.h"
 
 struct ChromePackage;
 class nsIDOMBlob;
@@ -75,9 +78,7 @@ public:
     }
 
     void SetProcessName(const nsAString& aName);
-    void GetProcessName(nsAString& aName);
-    void GetProcessName(nsACString& aName);
-    static void AppendProcessId(nsACString& aName);
+    const void GetProcessName(nsAString& aName);
 
     PCompositorChild*
     AllocPCompositorChild(mozilla::ipc::Transport* aTransport,
@@ -111,14 +112,13 @@ public:
     virtual bool DeallocPIndexedDBChild(PIndexedDBChild* aActor);
 
     virtual PMemoryReportRequestChild*
-    AllocPMemoryReportRequestChild(const uint32_t& generation);
+    AllocPMemoryReportRequestChild();
 
     virtual bool
     DeallocPMemoryReportRequestChild(PMemoryReportRequestChild* actor);
 
     virtual bool
-    RecvPMemoryReportRequestConstructor(PMemoryReportRequestChild* child,
-                                        const uint32_t& generation);
+    RecvPMemoryReportRequestConstructor(PMemoryReportRequestChild* child);
 
     virtual bool
     RecvAudioChannelNotify();
@@ -146,31 +146,17 @@ public:
             const nsCString& aContentDisposition,
             const bool& aForceSave,
             const int64_t& aContentLength,
-            const OptionalURIParams& aReferrer,
-            PBrowserChild* aBrowser);
+            const OptionalURIParams& aReferrer);
     virtual bool DeallocPExternalHelperAppChild(PExternalHelperAppChild *aService);
 
     virtual PSmsChild* AllocPSmsChild();
     virtual bool DeallocPSmsChild(PSmsChild*);
-
-    virtual PTelephonyChild* AllocPTelephonyChild();
-    virtual bool DeallocPTelephonyChild(PTelephonyChild*);
 
     virtual PStorageChild* AllocPStorageChild();
     virtual bool DeallocPStorageChild(PStorageChild* aActor);
 
     virtual PBluetoothChild* AllocPBluetoothChild();
     virtual bool DeallocPBluetoothChild(PBluetoothChild* aActor);
-
-    virtual PFMRadioChild* AllocPFMRadioChild();
-    virtual bool DeallocPFMRadioChild(PFMRadioChild* aActor);
-
-    virtual PAsmJSCacheEntryChild* AllocPAsmJSCacheEntryChild(
-                                 const asmjscache::OpenMode& aOpenMode,
-                                 const int64_t& aSizeToWrite,
-                                 const IPC::Principal& aPrincipal) MOZ_OVERRIDE;
-    virtual bool DeallocPAsmJSCacheEntryChild(
-                                    PAsmJSCacheEntryChild* aActor) MOZ_OVERRIDE;
 
     virtual PSpeechSynthesisChild* AllocPSpeechSynthesisChild();
     virtual bool DeallocPSpeechSynthesisChild(PSpeechSynthesisChild* aActor);
@@ -185,8 +171,6 @@ public:
 
     virtual bool RecvSetOffline(const bool& offline);
 
-    virtual bool RecvSpeakerManagerNotify();
-
     virtual bool RecvNotifyVisited(const URIParams& aURI);
     // auto remove when alertfinished is received.
     nsresult AddRemoteAlertObserver(const nsString& aData, nsIObserver* aObserver);
@@ -197,8 +181,7 @@ public:
 
     virtual bool RecvAsyncMessage(const nsString& aMsg,
                                   const ClonedMessageData& aData,
-                                  const InfallibleTArray<CpowEntry>& aCpows,
-                                  const IPC::Principal& aPrincipal);
+                                  const InfallibleTArray<CpowEntry>& aCpows);
 
     virtual bool RecvGeolocationUpdate(const GeoPosition& somewhere);
 
@@ -227,25 +210,12 @@ public:
                                       const int32_t& aState,
                                       const int32_t& aMountGeneration,
                                       const bool& aIsMediaPresent,
-                                      const bool& aIsSharing,
-                                      const bool& aIsFormatting);
-
-    virtual bool RecvNuwaFork() MOZ_OVERRIDE;
+                                      const bool& aIsSharing);
 
     virtual bool RecvNotifyProcessPriorityChanged(const hal::ProcessPriority& aPriority);
     virtual bool RecvMinimizeMemoryUsage();
     virtual bool RecvCancelMinimizeMemoryUsage();
 
-    virtual bool RecvLoadAndRegisterSheet(const URIParams& aURI, const uint32_t& aType);
-    virtual bool RecvUnregisterSheet(const URIParams& aURI, const uint32_t& aType);
-
-    virtual bool RecvNotifyPhoneStateChange(const nsString& state);
-
-    void AddIdleObserver(nsIObserver* aObserver, uint32_t aIdleTimeInS);
-    void RemoveIdleObserver(nsIObserver* aObserver, uint32_t aIdleTimeInS);
-    virtual bool RecvNotifyIdleObserver(const uint64_t& aObserver,
-                                        const nsCString& aTopic,
-                                        const nsString& aData);
 #ifdef ANDROID
     gfxIntSize GetScreenSize() { return mScreenSize; }
 #endif

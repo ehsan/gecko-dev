@@ -3,9 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef gfx_layers_ipc_ImageBridgeParent_h_
-#define gfx_layers_ipc_ImageBridgeParent_h_
-
 #include <stddef.h>                     // for size_t
 #include <stdint.h>                     // for uint32_t, uint64_t
 #include "CompositableTransactionParent.h"
@@ -36,6 +33,8 @@ namespace layers {
 class ImageBridgeParent : public PImageBridgeParent,
                           public CompositableParentManager
 {
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(ImageBridgeParent)
+
 public:
   typedef InfallibleTArray<CompositableOperation> EditArray;
   typedef InfallibleTArray<EditReply> EditReplyArray;
@@ -59,14 +58,9 @@ public:
   virtual bool RecvUpdate(const EditArray& aEdits, EditReplyArray* aReply);
   virtual bool RecvUpdateNoSwap(const EditArray& aEdits);
 
-  virtual bool IsAsync() const MOZ_OVERRIDE { return true; }
-
   PCompositableParent* AllocPCompositableParent(const TextureInfo& aInfo,
                                                 uint64_t*) MOZ_OVERRIDE;
   bool DeallocPCompositableParent(PCompositableParent* aActor) MOZ_OVERRIDE;
-
-  virtual PTextureParent* AllocPTextureParent() MOZ_OVERRIDE;
-  virtual bool DeallocPTextureParent(PTextureParent* actor) MOZ_OVERRIDE;
 
   bool RecvStop() MOZ_OVERRIDE;
 
@@ -94,12 +88,6 @@ public:
     PImageBridgeParent::DeallocShmem(aShmem);
   }
 
-  // Overriden from IToplevelProtocol
-  IToplevelProtocol*
-  CloneToplevel(const InfallibleTArray<ProtocolFdMapping>& aFds,
-                base::ProcessHandle aPeerProcess,
-                mozilla::ipc::ProtocolCloneContext* aCtx) MOZ_OVERRIDE;
-
 private:
   void DeferredDestroy();
 
@@ -113,4 +101,3 @@ private:
 } // layers
 } // mozilla
 
-#endif // gfx_layers_ipc_ImageBridgeParent_h_

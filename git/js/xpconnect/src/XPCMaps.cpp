@@ -85,7 +85,7 @@ void
 JSObject2WrappedJSMap::FindDyingJSObjects(nsTArray<nsXPCWrappedJS*>* dying)
 {
     for (Map::Range r = mTable.all(); !r.empty(); r.popFront()) {
-        nsXPCWrappedJS* wrapper = r.front().value();
+        nsXPCWrappedJS* wrapper = r.front().value;
         MOZ_ASSERT(wrapper, "found a null JS wrapper!");
 
         // walk the wrapper chain and find any whose JSObject is to be finalized
@@ -98,13 +98,13 @@ JSObject2WrappedJSMap::FindDyingJSObjects(nsTArray<nsXPCWrappedJS*>* dying)
 }
 
 void
-JSObject2WrappedJSMap::ShutdownMarker()
+JSObject2WrappedJSMap::ShutdownMarker(JSRuntime* rt)
 {
     for (Map::Range r = mTable.all(); !r.empty(); r.popFront()) {
-        nsXPCWrappedJS* wrapper = r.front().value();
+        nsXPCWrappedJS* wrapper = r.front().value;
         MOZ_ASSERT(wrapper, "found a null JS wrapper!");
         MOZ_ASSERT(wrapper->IsValid(), "found an invalid JS wrapper!");
-        wrapper->SystemIsBeingShutDown();
+        wrapper->SystemIsBeingShutDown(rt);
     }
 }
 
@@ -119,9 +119,9 @@ Native2WrappedNativeMap::newMap(int size)
     if (map && map->mTable)
         return map;
     // Allocation of the map or the creation of its hash table has
-    // failed. This will cause a nullptr deref later when we attempt
-    // to use the map, so we abort immediately to provide a more
-    // useful crash stack.
+    // failed. This will cause a NULL deref later when we attempt to
+    // use the map, so we abort immediately to provide a more useful
+    // crash stack.
     NS_RUNTIMEABORT("Ran out of memory.");
     return nullptr;
 }
@@ -157,7 +157,7 @@ Native2WrappedNativeMap::SizeOfEntryExcludingThis(PLDHashEntryHdr *hdr,
 /***************************************************************************/
 // implement IID2WrappedJSClassMap...
 
-const struct PLDHashTableOps IID2WrappedJSClassMap::Entry::sOps =
+struct PLDHashTableOps IID2WrappedJSClassMap::Entry::sOps =
 {
     PL_DHashAllocTable,
     PL_DHashFreeTable,
@@ -194,7 +194,7 @@ IID2WrappedJSClassMap::~IID2WrappedJSClassMap()
 /***************************************************************************/
 // implement IID2NativeInterfaceMap...
 
-const struct PLDHashTableOps IID2NativeInterfaceMap::Entry::sOps =
+struct PLDHashTableOps IID2NativeInterfaceMap::Entry::sOps =
 {
     PL_DHashAllocTable,
     PL_DHashFreeTable,
@@ -291,9 +291,9 @@ ClassInfo2WrappedNativeProtoMap::newMap(int size)
     if (map && map->mTable)
         return map;
     // Allocation of the map or the creation of its hash table has
-    // failed. This will cause a nullptr deref later when we attempt
-    // to use the map, so we abort immediately to provide a more
-    // useful crash stack.
+    // failed. This will cause a NULL deref later when we attempt to
+    // use the map, so we abort immediately to provide a more useful
+    // crash stack.
     NS_RUNTIMEABORT("Ran out of memory.");
     return nullptr;
 }
@@ -401,7 +401,7 @@ NativeSetMap::Entry::Match(PLDHashTable *table,
     return true;
 }
 
-const struct PLDHashTableOps NativeSetMap::Entry::sOps =
+struct PLDHashTableOps NativeSetMap::Entry::sOps =
 {
     PL_DHashAllocTable,
     PL_DHashFreeTable,
@@ -468,7 +468,7 @@ IID2ThisTranslatorMap::Entry::Clear(PLDHashTable *table, PLDHashEntryHdr *entry)
     memset(entry, 0, table->entrySize);
 }
 
-const struct PLDHashTableOps IID2ThisTranslatorMap::Entry::sOps =
+struct PLDHashTableOps IID2ThisTranslatorMap::Entry::sOps =
 {
     PL_DHashAllocTable,
     PL_DHashFreeTable,
@@ -548,7 +548,7 @@ XPCNativeScriptableSharedMap::Entry::Match(PLDHashTable *table,
     return 0 == strcmp(name1, name2);
 }
 
-const struct PLDHashTableOps XPCNativeScriptableSharedMap::Entry::sOps =
+struct PLDHashTableOps XPCNativeScriptableSharedMap::Entry::sOps =
 {
     PL_DHashAllocTable,
     PL_DHashFreeTable,

@@ -8,7 +8,6 @@ package org.mozilla.gecko.gfx;
 import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.GeckoEvent;
 import org.mozilla.gecko.GeckoThread;
-import org.mozilla.gecko.mozglue.generatorannotations.WrapElementForJNI;
 import org.mozilla.gecko.util.ThreadUtils;
 
 import android.util.Log;
@@ -18,48 +17,6 @@ import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.egl.EGLContext;
 import javax.microedition.khronos.egl.EGLDisplay;
 import javax.microedition.khronos.egl.EGLSurface;
-
-/**
- * EGLPreloadingThread is purely a preloading optimization, not something
- * we rely on for anything else than performance. We will be initializing
- * EGL in GLController::initEGL() when we need it, but having EGL initialization
- * already previously done by EGLPreloadingThread::run() will make it much
- * faster for GLController to do again.
- *
- * For example, here are some timings recorded on two devices:
- *
- * Device                 | EGLPreloadingThread::run() | GLController::initEGL()
- * -----------------------+----------------------------+------------------------
- * Nexus S (Android 2.3)  | ~ 80 ms                    | < 0.1 ms
- * Nexus 10 (Android 4.3) | ~ 35 ms                    | < 0.1 ms
- */
-class EGLPreloadingThread extends Thread
-{
-    private static final String LOGTAG = "EGLPreloadingThread";
-    private EGL10 mEGL;
-    private EGLDisplay mEGLDisplay;
-
-    public EGLPreloadingThread()
-    {
-    }
-
-    @Override
-    public void run()
-    {
-        mEGL = (EGL10)EGLContext.getEGL();
-        mEGLDisplay = mEGL.eglGetDisplay(EGL10.EGL_DEFAULT_DISPLAY);
-        if (mEGLDisplay == EGL10.EGL_NO_DISPLAY) {
-            Log.w(LOGTAG, "Can't get EGL display!");
-            return;
-        }
-
-        int[] returnedVersion = new int[2];
-        if (!mEGL.eglInitialize(mEGLDisplay, returnedVersion)) {
-            Log.w(LOGTAG, "eglInitialize failed");
-            return;
-        }
-    }
-}
 
 /**
  * This class is a singleton that tracks EGL and compositor things over
@@ -78,7 +35,7 @@ public class GLController {
     private static GLController sInstance;
 
     private LayerView mView;
-    private boolean mServerSurfaceValid;
+    private boolean mSurfaceValid;
     private int mWidth, mHeight;
 
     /* This is written by the compositor thread (while the UI thread
@@ -88,8 +45,7 @@ public class GLController {
     private EGL10 mEGL;
     private EGLDisplay mEGLDisplay;
     private EGLConfig mEGLConfig;
-    private EGLPreloadingThread mEGLPreloadingThread;
-    private EGLSurface mEGLSurfaceForCompositor;
+    private EGLSurface mEGLSurface;
 
     private static final int LOCAL_EGL_OPENGL_ES2_BIT = 4;
 
@@ -112,8 +68,11 @@ public class GLController {
     };
 
     private GLController() {
-        mEGLPreloadingThread = new EGLPreloadingThread();
-        mEGLPreloadingThread.start();
+        // Here we start the GfxInfo thread, which will query OpenGL
+        // system information for Gecko. This must be done early enough that the data will be
+        // ready by the time it's needed to initialize the compositor (it takes about 100 ms
+        // to obtain).
+        GfxInfoThread.startThread();
     }
 
     static GLController getInstance(LayerView view) {
@@ -124,66 +83,100 @@ public class GLController {
         return sInstance;
     }
 
-    synchronized void serverSurfaceDestroyed() {
+    synchronized void surfaceDestroyed() {
         ThreadUtils.assertOnUiThread();
-        Log.w(LOGTAG, "GLController::serverSurfaceDestroyed() with mCompositorCreated=" + mCompositorCreated);
 
-        mServerSurfaceValid = false;
-
-        if (mEGLSurfaceForCompositor != null) {
-          mEGL.eglDestroySurface(mEGLDisplay, mEGLSurfaceForCompositor);
-          mEGLSurfaceForCompositor = null;
-        }
+        mSurfaceValid = false;
+        mEGLSurface = null;
 
         // We need to coordinate with Gecko when pausing composition, to ensure
         // that Gecko never executes a draw event while the compositor is paused.
         // This is sent synchronously to make sure that we don't attempt to use
         // any outstanding Surfaces after we call this (such as from a
-        // serverSurfaceDestroyed notification), and to make sure that any in-flight
+        // surfaceDestroyed notification), and to make sure that any in-flight
         // Gecko draw events have been processed.  When this returns, composition is
         // definitely paused -- it'll synchronize with the Gecko event loop, which
         // in turn will synchronize with the compositor thread.
         if (mCompositorCreated) {
             GeckoAppShell.sendEventToGeckoSync(GeckoEvent.createCompositorPauseEvent());
         }
-        Log.w(LOGTAG, "done GLController::serverSurfaceDestroyed()");
     }
 
-    synchronized void serverSurfaceChanged(int newWidth, int newHeight) {
+    synchronized void surfaceChanged(int newWidth, int newHeight) {
         ThreadUtils.assertOnUiThread();
-        Log.w(LOGTAG, "GLController::serverSurfaceChanged(" + newWidth + ", " + newHeight + ")");
 
         mWidth = newWidth;
         mHeight = newHeight;
-        mServerSurfaceValid = true;
 
-        // we defer to a runnable the task of updating the compositor, because this is going to
-        // call back into createEGLSurfaceForCompositor, which will try to create an EGLSurface
-        // against mView, which we suspect might fail if called too early. By posting this to
-        // mView, we hope to ensure that it is deferred until mView is actually "ready" for some
-        // sense of "ready".
+        if (mSurfaceValid) {
+            // We need to make this call even when the compositor isn't currently
+            // paused (e.g. during an orientation change), to make the compositor
+            // aware of the changed surface.
+            resumeCompositor(mWidth, mHeight);
+            return;
+        }
+        mSurfaceValid = true;
+
+        // If we get here, we supposedly have a valid surface where previously we
+        // did not. So we're going to create the window surface and hold on to it
+        // until the compositor comes asking for it. However, we can't call
+        // eglCreateWindowSurface right away because the UI thread isn't *actually*
+        // done setting up - for some reason Android will send us a surfaceChanged
+        // notification before the surface is actually ready. So, we need to do the
+        // call to eglCreateWindowSurface in a runnable posted back to the UI thread
+        // that will run once this call unwinds all the way out and Android finishes
+        // doing its thing.
+
         mView.post(new Runnable() {
             @Override
             public void run() {
-                updateCompositor();
+                // If we haven't yet created the compositor, and the GfxInfoThread
+                // isn't done it's data gathering activities, then postpone creating
+                // the compositor a little bit more. Don't block though, since this is
+                // the UI thread we're running on.
+                if (!mCompositorCreated && !GfxInfoThread.hasData()) {
+                    mView.postDelayed(this, 1);
+                    return;
+                }
+
+                try {
+                    // Re-check mSurfaceValid in case the surface was destroyed between
+                    // where we set it to true above and this runnable getting run.
+                    // If mSurfaceValid is still true, try to create mEGLSurface. If
+                    // mSurfaceValid is false, leave mEGLSurface as null. So at the end
+                    // of this block mEGLSurface will be null (or EGL_NO_SURFACE) if
+                    // eglCreateWindowSurface failed or if mSurfaceValid changed to false.
+                    if (mSurfaceValid) {
+                        if (mEGL == null) {
+                            initEGL();
+                        }
+
+                        mEGLSurface = mEGL.eglCreateWindowSurface(mEGLDisplay, mEGLConfig, mView.getNativeWindow(), null);
+                    }
+                } catch (Exception e) {
+                    Log.e(LOGTAG, "Unable to create window surface", e);
+                }
+                if (mEGLSurface == null || mEGLSurface == EGL10.EGL_NO_SURFACE) {
+                    mSurfaceValid = false;
+                    mEGLSurface = null; // normalize EGL_NO_SURFACE to null to simplify later checks
+                    Log.e(LOGTAG, "EGL window surface could not be created: " + getEGLError());
+                    return;
+                }
+                // At this point mSurfaceValid is true and mEGLSurface is a valid surface. Try
+                // to create the compositor if it hasn't been created already.
+                createCompositor();
             }
         });
     }
 
-    void updateCompositor() {
+    void createCompositor() {
         ThreadUtils.assertOnUiThread();
-        Log.w(LOGTAG, "GLController::updateCompositor with mCompositorCreated=" + mCompositorCreated);
 
         if (mCompositorCreated) {
             // If the compositor has already been created, just resume it instead. We don't need
             // to block here because if the surface is destroyed before the compositor grabs it,
             // we can handle that gracefully (i.e. the compositor will remain paused).
             resumeCompositor(mWidth, mHeight);
-            Log.w(LOGTAG, "done GLController::updateCompositor with compositor resume");
-            return;
-        }
-
-        if (!AttemptPreallocateEGLSurfaceForCompositor()) {
             return;
         }
 
@@ -191,63 +184,27 @@ public class GLController {
         // two conditions are satisfied, we can be relatively sure that the compositor creation will
         // happen without needing to block anyhwere. Do it with a sync gecko event so that the
         // android doesn't have a chance to destroy our surface in between.
-        if (GeckoThread.checkLaunchState(GeckoThread.LaunchState.GeckoRunning)) {
+        if (mEGLSurface != null && GeckoThread.checkLaunchState(GeckoThread.LaunchState.GeckoRunning)) {
             GeckoAppShell.sendEventToGeckoSync(GeckoEvent.createCompositorCreateEvent(mWidth, mHeight));
         }
-        Log.w(LOGTAG, "done GLController::updateCompositor");
     }
 
     void compositorCreated() {
-        Log.w(LOGTAG, "GLController::compositorCreated");
         // This is invoked on the compositor thread, while the java UI thread
-        // is blocked on the gecko sync event in updateCompositor() above
+        // is blocked on the gecko sync event in createCompositor() above
         mCompositorCreated = true;
     }
 
-    public boolean isServerSurfaceValid() {
-        return mServerSurfaceValid;
-    }
-
-    public boolean isCompositorCreated() {
-        return mCompositorCreated;
+    public boolean hasValidSurface() {
+        return mSurfaceValid;
     }
 
     private void initEGL() {
-        if (mEGL != null) {
-            return;
-        }
-
-        // This join() should not be necessary, but makes this code a bit easier to think about.
-        // The EGLPreloadingThread should long be done by now, and even if it's not,
-        // it shouldn't be a problem to be initalizing EGL from two different threads.
-        // Still, having this join() here means that we don't have to wonder about what
-        // kind of caveats might exist with EGL initialization reentrancy on various drivers.
-        try {
-            mEGLPreloadingThread.join();
-        } catch (InterruptedException e) {
-            Log.w(LOGTAG, "EGLPreloadingThread interrupted", e);
-        }
-
         mEGL = (EGL10)EGLContext.getEGL();
 
         mEGLDisplay = mEGL.eglGetDisplay(EGL10.EGL_DEFAULT_DISPLAY);
         if (mEGLDisplay == EGL10.EGL_NO_DISPLAY) {
-            Log.w(LOGTAG, "Can't get EGL display!");
-            return;
-        }
-
-        // while calling eglInitialize here should not be necessary as it was already called
-        // by the EGLPreloadingThread, it really doesn't cost much to call it again here,
-        // and makes this code easier to think about: EGLPreloadingThread is only a
-        // preloading optimization, not something we rely on for anything else.
-        //
-        // Also note that while calling eglInitialize isn't necessary on Android 4.x
-        // (at least Android's HardwareRenderer does it for us already), it is necessary
-        // on Android 2.x.
-        int[] returnedVersion = new int[2];
-        if (!mEGL.eglInitialize(mEGLDisplay, returnedVersion)) {
-            Log.w(LOGTAG, "eglInitialize failed");
-            return;
+            throw new GLControllerException("eglGetDisplay() failed");
         }
 
         mEGLConfig = chooseConfig();
@@ -296,32 +253,9 @@ public class GLController {
         throw new GLControllerException("No suitable EGL configuration found");
     }
 
-    private synchronized boolean AttemptPreallocateEGLSurfaceForCompositor() {
-        if (mEGLSurfaceForCompositor == null) {
-            initEGL();
-            try {
-                mEGLSurfaceForCompositor = mEGL.eglCreateWindowSurface(mEGLDisplay, mEGLConfig, mView.getNativeWindow(), null);
-                // In failure cases, eglCreateWindowSurface should return EGL_NO_SURFACE.
-                // We currently normalize this to null, and compare to null in all our checks.
-                if (mEGLSurfaceForCompositor == EGL10.EGL_NO_SURFACE) {
-                    mEGLSurfaceForCompositor = null;
-                }
-            } catch (Exception e) {
-                Log.e(LOGTAG, "eglCreateWindowSurface threw", e);
-            }
-        }
-        if (mEGLSurfaceForCompositor == null) {
-            Log.w(LOGTAG, "eglCreateWindowSurface returned no surface!");
-        }
-        return mEGLSurfaceForCompositor != null;
-    }
-
-    @WrapElementForJNI(allowMultithread = true, stubName = "CreateEGLSurfaceForCompositorWrapper")
-    private synchronized EGLSurface createEGLSurfaceForCompositor() {
-        AttemptPreallocateEGLSurfaceForCompositor();
-        EGLSurface result = mEGLSurfaceForCompositor;
-        mEGLSurfaceForCompositor = null;
-        return result;
+    /* This function is invoked by JNI on the compositor thread */
+    private EGLSurface provideEGLSurface() {
+        return mEGLSurface;
     }
 
     private String getEGLError() {
@@ -329,7 +263,6 @@ public class GLController {
     }
 
     void resumeCompositor(int width, int height) {
-        Log.w(LOGTAG, "GLController::resumeCompositor(" + width + ", " + height + ") and mCompositorCreated=" + mCompositorCreated);
         // Asking Gecko to resume the compositor takes too long (see
         // https://bugzilla.mozilla.org/show_bug.cgi?id=735230#c23), so we
         // resume the compositor directly. We still need to inform Gecko about
@@ -340,7 +273,6 @@ public class GLController {
             GeckoAppShell.scheduleResumeComposition(width, height);
             GeckoAppShell.sendEventToGecko(GeckoEvent.createCompositorResumeEvent());
         }
-        Log.w(LOGTAG, "done GLController::resumeCompositor");
     }
 
     public static class GLControllerException extends RuntimeException {

@@ -11,8 +11,8 @@
 #ifndef WEBRTC_MODULES_AUDIO_PROCESSING_ECHO_CONTROL_MOBILE_IMPL_H_
 #define WEBRTC_MODULES_AUDIO_PROCESSING_ECHO_CONTROL_MOBILE_IMPL_H_
 
-#include "webrtc/modules/audio_processing/include/audio_processing.h"
-#include "webrtc/modules/audio_processing/processing_component.h"
+#include "audio_processing.h"
+#include "processing_component.h"
 
 namespace webrtc {
 class AudioProcessingImpl;
@@ -28,28 +28,28 @@ class EchoControlMobileImpl : public EchoControlMobile,
   int ProcessCaptureAudio(AudioBuffer* audio);
 
   // EchoControlMobile implementation.
-  virtual bool is_enabled() const OVERRIDE;
+  virtual bool is_enabled() const;
 
   // ProcessingComponent implementation.
-  virtual int Initialize() OVERRIDE;
+  virtual int Initialize();
 
  private:
   // EchoControlMobile implementation.
-  virtual int Enable(bool enable) OVERRIDE;
-  virtual int set_routing_mode(RoutingMode mode) OVERRIDE;
-  virtual RoutingMode routing_mode() const OVERRIDE;
-  virtual int enable_comfort_noise(bool enable) OVERRIDE;
-  virtual bool is_comfort_noise_enabled() const OVERRIDE;
-  virtual int SetEchoPath(const void* echo_path, size_t size_bytes) OVERRIDE;
-  virtual int GetEchoPath(void* echo_path, size_t size_bytes) const OVERRIDE;
+  virtual int Enable(bool enable);
+  virtual int set_routing_mode(RoutingMode mode);
+  virtual RoutingMode routing_mode() const;
+  virtual int enable_comfort_noise(bool enable);
+  virtual bool is_comfort_noise_enabled() const;
+  virtual int SetEchoPath(const void* echo_path, size_t size_bytes);
+  virtual int GetEchoPath(void* echo_path, size_t size_bytes) const;
 
   // ProcessingComponent implementation.
-  virtual void* CreateHandle() const OVERRIDE;
-  virtual int InitializeHandle(void* handle) const OVERRIDE;
-  virtual int ConfigureHandle(void* handle) const OVERRIDE;
-  virtual int DestroyHandle(void* handle) const OVERRIDE;
-  virtual int num_handles_required() const OVERRIDE;
-  virtual int GetHandleError(void* handle) const OVERRIDE;
+  virtual void* CreateHandle() const;
+  virtual int InitializeHandle(void* handle) const;
+  virtual int ConfigureHandle(void* handle) const;
+  virtual int DestroyHandle(void* handle) const;
+  virtual int num_handles_required() const;
+  virtual int GetHandleError(void* handle) const;
 
   const AudioProcessingImpl* apm_;
   RoutingMode routing_mode_;

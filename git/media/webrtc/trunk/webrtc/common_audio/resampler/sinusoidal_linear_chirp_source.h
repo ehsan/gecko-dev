@@ -31,7 +31,7 @@ class SinusoidalLinearChirpSource : public SincResamplerCallback {
 
   virtual ~SinusoidalLinearChirpSource() {}
 
-  virtual void Run(int frames, float* destination) OVERRIDE;
+  virtual void Run(float* destination, int frames);
 
   double Frequency(int position);
 

@@ -9,6 +9,8 @@
 #include "nsITXTToHTMLConv.h"
 #include "nsCOMPtr.h"
 #include "nsTArray.h"
+#include "nsAutoPtr.h"
+#include "nsIFactory.h"
 #include "nsString.h"
 
 #define NS_NSTXTTOHTMLCONVERTER_CID                         \
@@ -25,9 +27,7 @@ typedef struct convToken {
     nsString modText;   // replacement text or href prepend text.
     bool     prepend;   // flag indicating how the modText should be used.
 } convToken;
-
-template<class T> class nsAutoPtr;
-
+    
 /**
  * Convert plain text to HTML.
  *

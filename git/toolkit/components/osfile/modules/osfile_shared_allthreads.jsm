@@ -34,15 +34,12 @@ if (typeof Components != "undefined") {
 
 let EXPORTED_SYMBOLS = [
   "LOG",
-  "clone",
   "Config",
   "Constants",
   "Type",
   "HollowStructure",
   "OSError",
   "declareFFI",
-  "declareLazy",
-  "declareLazyFFI",
   "projectValue",
   "isTypedArray",
   "defineLazyGetter",
@@ -164,46 +161,6 @@ let LOG = function (...args) {
 };
 
 exports.LOG = LOG;
-
-/**
- * Return a shallow clone of the enumerable properties of an object.
- *
- * Utility used whenever normalizing options requires making (shallow)
- * changes to an option object. The copy ensures that we do not modify
- * a client-provided object by accident.
- *
- * Note: to reference and not copy specific fields, provide an optional
- * |refs| argument containing their names.
- *
- * @param {JSON} object Options to be cloned.
- * @param {Array} refs An optional array of field names to be passed by
- * reference instead of copying.
- */
-let clone = function (object, refs = []) {
-  let result = {};
-  // Make a reference between result[key] and object[key].
-  let refer = function refer(result, key, object) {
-    Object.defineProperty(result, key, {
-      enumerable: true,
-      get: function() {
-        return object[key];
-      },
-      set: function(value) {
-        object[key] = value;
-      }
-    });
-  };
-  for (let k in object) {
-    if (refs.indexOf(k) < 0) {
-      result[k] = object[k];
-    } else {
-      refer(result, k, object);
-    }
-  }
-  return result;
-};
-
-exports.clone = clone;
 
 ///////////////////// Abstractions above js-ctypes
 
@@ -892,7 +849,9 @@ exports.HollowStructure = HollowStructure;
  * @return null if the function could not be defined (generally because
  * it does not exist), or a JavaScript wrapper performing the call to C
  * and any type conversion required.
- */
+ */// Note: Future versions will use a different implementation of this
+   // function on the main thread, osfile worker thread and regular worker
+   // thread
 let declareFFI = function declareFFI(lib, symbol, abi,
                                      returnType /*, argTypes ...*/) {
   LOG("Attempting to declare FFI ", symbol);
@@ -926,13 +885,8 @@ let declareFFI = function declareFFI(lib, symbol, abi,
   }
   try {
     let fun = lib.declare.apply(lib, signature);
-    let result = function ffi(...args) {
-      for (let i = 0; i < args.length; i++) {
-        if (typeof args[i] == "undefined") {
-          throw new TypeError("Argument " + i + " of " + symbol + " is undefined");
-        }
-      }
-      let result = fun.apply(fun, args);
+    let result = function ffi(/*arguments*/) {
+      let result = fun.apply(fun, arguments);
       return returnType.importFromC(result, symbol);
     };
     LOG("Function", symbol, "declared");
@@ -945,63 +899,6 @@ let declareFFI = function declareFFI(lib, symbol, abi,
   }
 };
 exports.declareFFI = declareFFI;
-
-/**
- * Define a lazy getter to a js-ctypes function using declareFFI.
- *
- * @param {object} The object containing the function as a field.
- * @param {string} The name of the field containing the function.
- * @param {ctypes.library} lib The ctypes library holding the function.
- * @param {string} symbol The name of the function, as defined in the
- * library.
- * @param {ctypes.abi} abi The abi to use, or |null| for default.
- * @param {Type} returnType The type of values returned by the function.
- * @param {...Type} argTypes The type of arguments to the function.
- */
-function declareLazyFFI(object, field, ...declareFFIArgs) {
-  Object.defineProperty(object, field, {
-    get: function() {
-      delete this[field];
-      let ffi = declareFFI(...declareFFIArgs);
-      if (ffi) {
-        return this[field] = ffi;
-      }
-      return undefined;
-    },
-    configurable: true,
-    enumerable: true
-  });
-}
-exports.declareLazyFFI = declareLazyFFI;
-
-/**
- * Define a lazy getter to a js-ctypes function using ctypes method declare.
- *
- * @param {object} The object containing the function as a field.
- * @param {string} The name of the field containing the function.
- * @param {ctypes.library} lib The ctypes library holding the function.
- * @param {string} symbol The name of the function, as defined in the
- * library.
- * @param {ctypes.abi} abi The abi to use, or |null| for default.
- * @param {ctypes.CType} returnType The type of values returned by the function.
- * @param {...ctypes.CType} argTypes The type of arguments to the function.
- */
-function declareLazy(object, field, lib, ...declareArgs) {
-  Object.defineProperty(object, field, {
-    get: function() {
-      delete this[field];
-      try {
-        let ffi = lib.declare(...declareArgs);
-        return this[field] = ffi;
-      } catch (ex) {
-        // The symbol doesn't exist
-        return undefined;
-      }
-    },
-    configurable: true
-  });
-}
-exports.declareLazy = declareLazy;
 
 // A bogus array type used to perform pointer arithmetics
 let gOffsetByType;
@@ -1077,7 +974,6 @@ exports.OS = {
   Constants: exports.Constants,
   Shared: {
     LOG: LOG,
-    clone: clone,
     Type: Type,
     HollowStructure: HollowStructure,
     Error: OSError,
@@ -1088,6 +984,11 @@ exports.OS = {
     offsetBy: offsetBy
   }
 };
+if (exports.Constants.Win) {
+  exports.OS.Win = {};
+} else {
+  exports.OS.Unix = {};
+}
 
 Object.defineProperty(exports.OS.Shared, "DEBUG", {
   get: function() {
@@ -1114,3 +1015,4 @@ if (typeof Components != "undefined") {
     this[symbol] = exports[symbol];
   }
 }
+

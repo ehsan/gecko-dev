@@ -43,13 +43,13 @@ ToSupports(nsISupports* p)
 inline nsISupports*
 ToCanonicalSupports(nsISupports* p)
 {
-    return nullptr;
+    return NULL;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // Macros to help detect thread-safety:
 
-#if (defined(DEBUG) || (defined(NIGHTLY_BUILD) && !defined(MOZ_PROFILING))) && !defined(XPCOM_GLUE_AVOID_NSPR)
+#if defined(DEBUG) && !defined(XPCOM_GLUE_AVOID_NSPR)
 
 class nsAutoOwningThread {
 public:
@@ -61,18 +61,27 @@ private:
 };
 
 #define NS_DECL_OWNINGTHREAD            nsAutoOwningThread _mOwningThread;
-#define NS_ASSERT_OWNINGTHREAD_AGGREGATE(agg, _class) \
-  NS_CheckThreadSafe(agg->_mOwningThread.GetThread(), #_class " not thread-safe")
-#define NS_ASSERT_OWNINGTHREAD(_class) NS_ASSERT_OWNINGTHREAD_AGGREGATE(this, _class)
-#else // !DEBUG && !(NIGHTLY_BUILD && !MOZ_PROFILING)
+#define NS_ASSERT_OWNINGTHREAD(_class) \
+  NS_CheckThreadSafe(_mOwningThread.GetThread(), #_class " not thread-safe")
+#else // !DEBUG
 
 #define NS_DECL_OWNINGTHREAD            /* nothing */
-#define NS_ASSERT_OWNINGTHREAD_AGGREGATE(agg, _class) ((void)0)
 #define NS_ASSERT_OWNINGTHREAD(_class)  ((void)0)
 
-#endif // DEBUG || (NIGHTLY_BUILD && !MOZ_PROFILING)
+#endif // DEBUG
 
 // Support for ISupports classes which interact with cycle collector.
+
+struct nsPurpleBufferEntry {
+  union {
+    void *mObject;                        // when low bit unset
+    nsPurpleBufferEntry *mNextInFreeList; // when low bit set
+  };
+
+  nsCycleCollectingAutoRefCnt *mRefCnt;
+
+  nsCycleCollectionParticipant *mParticipant; // NULL for nsISupports
+};
 
 #define NS_NUMBER_OF_FLAGS_IN_REFCNT 2
 #define NS_IN_PURPLE_BUFFER (1 << 0)
@@ -92,23 +101,10 @@ public:
   {
   }
 
-  MOZ_ALWAYS_INLINE uintptr_t incr(nsISupports *owner)
-  {
-    return incr(owner, nullptr);
-  }
-
-  MOZ_ALWAYS_INLINE uintptr_t incr(void *owner, nsCycleCollectionParticipant *p)
+  MOZ_ALWAYS_INLINE uintptr_t incr()
   {
     mRefCntAndFlags += NS_REFCOUNT_CHANGE;
     mRefCntAndFlags &= ~NS_IS_PURPLE;
-    // For incremental cycle collection, use the purple buffer to track objects
-    // that have been AddRef'd.
-    if (!IsInPurpleBuffer()) {
-      mRefCntAndFlags |= NS_IN_PURPLE_BUFFER;
-      // Refcount isn't zero, so Suspect won't delete anything.
-      MOZ_ASSERT(get() > 0);
-      NS_CycleCollectorSuspect3(owner, p, this, nullptr);
-    }
     return NS_REFCOUNT_VALUE(mRefCntAndFlags);
   }
 
@@ -278,9 +274,7 @@ public:
 #define NS_IMPL_CC_NATIVE_ADDREF_BODY(_class)                                 \
     MOZ_ASSERT(int32_t(mRefCnt) >= 0, "illegal refcnt");                      \
     NS_ASSERT_OWNINGTHREAD(_class);                                           \
-    nsrefcnt count =                                                          \
-      mRefCnt.incr(static_cast<void*>(this),                                  \
-                   _class::NS_CYCLE_COLLECTION_INNERCLASS::GetParticipant()); \
+    nsrefcnt count = mRefCnt.incr();                                          \
     NS_LOG_ADDREF(this, count, #_class, sizeof(*this));                       \
     return count;
 
@@ -311,8 +305,7 @@ NS_METHOD_(nsrefcnt) _class::Release(void)                                      
                    &shouldDelete);                                               \
     NS_LOG_RELEASE(this, count, #_class);                                        \
     if (count == 0) {                                                            \
-        mRefCnt.incr(static_cast<void*>(this),                                   \
-                     _class::NS_CYCLE_COLLECTION_INNERCLASS::GetParticipant());  \
+        mRefCnt.incr();                                                          \
         _last;                                                                   \
         mRefCnt.decr(static_cast<void*>(this),                                   \
                      _class::NS_CYCLE_COLLECTION_INNERCLASS::GetParticipant());  \
@@ -518,8 +511,7 @@ NS_IMETHODIMP_(nsrefcnt) _class::AddRef(void)                                 \
 {                                                                             \
   MOZ_ASSERT(int32_t(mRefCnt) >= 0, "illegal refcnt");                        \
   NS_ASSERT_OWNINGTHREAD(_class);                                             \
-  nsISupports *base = NS_CYCLE_COLLECTION_CLASSNAME(_class)::Upcast(this);    \
-  nsrefcnt count = mRefCnt.incr(base);                                        \
+  nsrefcnt count = mRefCnt.incr();                                            \
   NS_LOG_ADDREF(this, count, #_class, sizeof(*this));                         \
   return count;                                                               \
 }
@@ -554,7 +546,7 @@ NS_IMETHODIMP_(nsrefcnt) _class::Release(void)                                \
   nsrefcnt count = mRefCnt.decr(base, &shouldDelete);                         \
   NS_LOG_RELEASE(this, count, #_class);                                       \
   if (count == 0) {                                                           \
-      mRefCnt.incr(base);                                                     \
+      mRefCnt.incr();                                                         \
       _last;                                                                  \
       mRefCnt.decr(base);                                                     \
       if (shouldDelete) {                                                     \
@@ -626,15 +618,8 @@ NS_IMETHODIMP _class::QueryInterface(REFNSIID aIID, void** aInstancePtr)      \
                reinterpret_cast<char*>((_class*) 0x1000))                     \
   },
 
-/*
- * XXX: we want to use mozilla::ArrayLength (or equivalent,
- * MOZ_ARRAY_LENGTH) in this condition, but some versions of GCC don't
- * see that the static_assert condition is actually constant in those
- * cases, even with constexpr support (?).
- */
 #define NS_INTERFACE_TABLE_END_WITH_PTR(_ptr)                                 \
   { nullptr, 0 } };                                                           \
-  static_assert((sizeof(table)/sizeof(table[0])) > 1, "need at least 1 interface"); \
   rv = NS_TableDrivenQI(static_cast<void*>(_ptr),                             \
                         table, aIID, aInstancePtr);
 

@@ -21,7 +21,7 @@
 
 */
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 // Note the ALPHABETICAL ORDERING
 #include "XULDocument.h"
@@ -32,13 +32,14 @@
 #include "nsView.h"
 #include "nsViewManager.h"
 #include "nsIContentViewer.h"
+#include "nsGUIEvent.h"
 #include "nsIDOMXULElement.h"
 #include "nsIRDFNode.h"
 #include "nsIRDFRemoteDataSource.h"
 #include "nsIRDFService.h"
 #include "nsIStreamListener.h"
 #include "nsITimer.h"
-#include "nsDocShell.h"
+#include "nsIDocShell.h"
 #include "nsGkAtoms.h"
 #include "nsXMLContentSink.h"
 #include "nsXULContentSink.h"
@@ -83,14 +84,12 @@
 #include "nsXULPopupManager.h"
 #include "nsCCUncollectableMarker.h"
 #include "nsURILoader.h"
-#include "mozilla/BasicEvents.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/ProcessingInstruction.h"
 #include "mozilla/dom/XULDocumentBinding.h"
 #include "mozilla/Preferences.h"
 #include "nsTextNode.h"
 #include "nsJSUtils.h"
-#include "mozilla/dom/URL.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -101,6 +100,14 @@ using namespace mozilla::dom;
 //
 
 static NS_DEFINE_CID(kParserCID,                 NS_PARSER_CID);
+
+static bool IsChromeURI(nsIURI* aURI)
+{
+    bool isChrome = false;
+    if (NS_SUCCEEDED(aURI->SchemeIs("chrome", &isChrome)) && isChrome)
+        return true;
+    return false;
+}
 
 static bool IsOverlayAllowed(nsIURI* aURI)
 {
@@ -217,9 +224,6 @@ XULDocument::~XULDocument()
     // In case we failed somewhere early on and the forward observer
     // decls never got resolved.
     mForwardReferences.Clear();
-    // Likewise for any references we have to IDs where we might
-    // look for persisted data:
-    mPersistenceIds.Clear();
 
     // Destroy our broadcaster map.
     if (mBroadcasterMap) {
@@ -328,12 +332,10 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(XULDocument, XMLDocument)
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPrototypes);
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mLocalStore)
 
-    if (tmp->mOverlayLoadObservers) {
-        tmp->mOverlayLoadObservers->EnumerateRead(TraverseObservers, &cb);
-    }
-    if (tmp->mPendingOverlayLoadNotifications) {
-        tmp->mPendingOverlayLoadNotifications->EnumerateRead(TraverseObservers, &cb);
-    }
+    if (tmp->mOverlayLoadObservers.IsInitialized())
+        tmp->mOverlayLoadObservers.EnumerateRead(TraverseObservers, &cb);
+    if (tmp->mPendingOverlayLoadNotifications.IsInitialized())
+        tmp->mPendingOverlayLoadNotifications.EnumerateRead(TraverseObservers, &cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(XULDocument, XMLDocument)
@@ -776,7 +778,7 @@ XULDocument::AddBroadcastListenerFor(Element& aBroadcaster, Element& aListener,
         return;
     }
 
-    static const PLDHashTableOps gOps = {
+    static PLDHashTableOps gOps = {
         PL_DHashAllocTable,
         PL_DHashFreeTable,
         PL_DHashVoidPtrKeyStub,
@@ -936,7 +938,7 @@ XULDocument::ExecuteOnBroadcastHandlerFor(Element* aBroadcaster,
 
         // This is the right <observes> element. Execute the
         // |onbroadcast| event handler
-        WidgetEvent event(true, NS_XUL_BROADCAST);
+        nsEvent event(true, NS_XUL_BROADCAST);
 
         nsCOMPtr<nsIPresShell> shell = GetShell();
         if (shell) {
@@ -1892,6 +1894,7 @@ XULDocument::SetTemplateBuilderFor(nsIContent* aContent,
             return NS_OK;
         }
         mTemplateBuilderTable = new BuilderTable;
+        mTemplateBuilderTable->Init();
     }
 
     if (aBuilder) {
@@ -1982,6 +1985,8 @@ XULDocument::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 nsresult
 XULDocument::Init()
 {
+    mRefMap.Init();
+
     nsresult rv = XMLDocument::Init();
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -2042,7 +2047,12 @@ XULDocument::StartLayout(void)
         if (! cx)
             return NS_ERROR_UNEXPECTED;
 
-        nsCOMPtr<nsIDocShell> docShell = cx->GetDocShell();
+        nsCOMPtr<nsISupports> container = cx->GetContainer();
+        NS_ASSERTION(container != nullptr, "pres context has no container");
+        if (! container)
+            return NS_ERROR_UNEXPECTED;
+
+        nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(container));
         NS_ASSERTION(docShell != nullptr, "container is not a docshell");
         if (! docShell)
             return NS_ERROR_UNEXPECTED;
@@ -2178,11 +2188,6 @@ XULDocument::ApplyPersistentAttributes()
     ApplyPersistentAttributesInternal();
     mApplyingPersistedAttrs = false;
 
-    // After we've applied persistence once, we should only reapply
-    // it to nodes created by overlays
-    mRestrictPersistence = true;
-    mPersistenceIds.Clear();
-
     return NS_OK;
 }
 
@@ -2225,9 +2230,6 @@ XULDocument::ApplyPersistentAttributesInternal()
         nsXULContentUtils::MakeElementID(this, nsDependentCString(uri), id);
 
         if (id.IsEmpty())
-            continue;
-
-        if (mRestrictPersistence && !mPersistenceIds.Contains(id))
             continue;
 
         // This will clear the array if there are no elements.
@@ -2671,22 +2673,22 @@ XULDocument::LoadOverlay(const nsAString& aURL, nsIObserver* aObserver)
 
     if (aObserver) {
         nsIObserver* obs = nullptr;
-        if (!mOverlayLoadObservers) {
-          mOverlayLoadObservers = new nsInterfaceHashtable<nsURIHashKey,nsIObserver>;
+        if (!mOverlayLoadObservers.IsInitialized()) {
+            mOverlayLoadObservers.Init();
         }
-        obs = mOverlayLoadObservers->GetWeak(uri);
+        obs = mOverlayLoadObservers.GetWeak(uri);
 
         if (obs) {
             // We don't support loading the same overlay twice into the same
             // document - that doesn't make sense anyway.
             return NS_ERROR_FAILURE;
         }
-        mOverlayLoadObservers->Put(uri, aObserver);
+        mOverlayLoadObservers.Put(uri, aObserver);
     }
     bool shouldReturn, failureFromContent;
     rv = LoadOverlayInternal(uri, true, &shouldReturn, &failureFromContent);
-    if (NS_FAILED(rv) && mOverlayLoadObservers)
-        mOverlayLoadObservers->Remove(uri); // remove the observer if LoadOverlayInternal generated an error
+    if (NS_FAILED(rv) && mOverlayLoadObservers.IsInitialized())
+        mOverlayLoadObservers.Remove(uri); // remove the observer if LoadOverlayInternal generated an error
     return rv;
 }
 
@@ -2877,9 +2879,7 @@ FirePendingMergeNotification(nsIURI* aKey, nsCOMPtr<nsIObserver>& aObserver, voi
 
     typedef nsInterfaceHashtable<nsURIHashKey,nsIObserver> table;
     table* observers = static_cast<table*>(aClosure);
-    if (observers) {
-      observers->Remove(aKey);
-    }
+    observers->Remove(aKey);
 
     return PL_DHASH_REMOVE;
 }
@@ -2981,15 +2981,6 @@ XULDocument::ResumeWalk()
                     // ...and append it to the content model.
                     rv = element->AppendChildTo(child, false);
                     if (NS_FAILED(rv)) return rv;
-
-                    // If we're only restoring persisted things on
-                    // some elements, store the ID here to do that.
-                    if (mRestrictPersistence) {
-                        nsIAtom* id = child->GetID();
-                        if (id) {
-                            mPersistenceIds.PutEntry(nsDependentAtomString(id));
-                        }
-                    }
 
                     // do pre-order document-level hookup, but only if
                     // we're in the master document. For an overlay,
@@ -3134,16 +3125,16 @@ XULDocument::ResumeWalk()
             continue;
         if (NS_FAILED(rv))
             return rv;
-        if (mOverlayLoadObservers) {
-            nsIObserver *obs = mOverlayLoadObservers->GetWeak(overlayURI);
+        if (mOverlayLoadObservers.IsInitialized()) {
+            nsIObserver *obs = mOverlayLoadObservers.GetWeak(overlayURI);
             if (obs) {
                 // This overlay has an unloaded overlay, so it will never
                 // notify. The best we can do is to notify for the unloaded
                 // overlay instead, assuming nobody is already notifiable
                 // for it. Note that this will confuse the observer.
-                if (!mOverlayLoadObservers->GetWeak(uri))
-                    mOverlayLoadObservers->Put(uri, obs);
-                mOverlayLoadObservers->Remove(overlayURI);
+                if (!mOverlayLoadObservers.GetWeak(uri))
+                    mOverlayLoadObservers.Put(uri, obs);
+                mOverlayLoadObservers.Remove(overlayURI);
             }
         }
         if (shouldReturn)
@@ -3195,7 +3186,8 @@ XULDocument::DoneWalking()
         // Before starting layout, check whether we're a toplevel chrome
         // window.  If we are, set our chrome flags now, so that we don't have
         // to restyle the whole frame tree after StartLayout.
-        nsCOMPtr<nsIDocShellTreeItem> item = GetDocShell();
+        nsCOMPtr<nsISupports> container = GetContainer();
+        nsCOMPtr<nsIDocShellTreeItem> item = do_QueryInterface(container);
         if (item) {
             nsCOMPtr<nsIDocShellTreeOwner> owner;
             item->GetTreeOwner(getter_AddRefs(owner));
@@ -3203,7 +3195,7 @@ XULDocument::DoneWalking()
             if (xulWin) {
                 nsCOMPtr<nsIDocShell> xulWinShell;
                 xulWin->GetDocShell(getter_AddRefs(xulWinShell));
-                if (SameCOMIdentity(xulWinShell, item)) {
+                if (SameCOMIdentity(xulWinShell, container)) {
                     // We're the chrome document!  Apply our chrome flags now.
                     xulWin->ApplyChromeFlags();
                 }
@@ -3234,20 +3226,19 @@ XULDocument::DoneWalking()
 
         // Walk the set of pending load notifications and notify any observers.
         // See below for detail.
-        if (mPendingOverlayLoadNotifications)
-            mPendingOverlayLoadNotifications->Enumerate(
-                FirePendingMergeNotification, mOverlayLoadObservers.get());
+        if (mPendingOverlayLoadNotifications.IsInitialized())
+            mPendingOverlayLoadNotifications.Enumerate(FirePendingMergeNotification, (void*)&mOverlayLoadObservers);
     }
     else {
-        if (mOverlayLoadObservers) {
+        if (mOverlayLoadObservers.IsInitialized()) {
             nsCOMPtr<nsIURI> overlayURI = mCurrentPrototype->GetURI();
             nsCOMPtr<nsIObserver> obs;
             if (mInitialLayoutComplete) {
                 // We have completed initial layout, so just send the notification.
-                mOverlayLoadObservers->Get(overlayURI, getter_AddRefs(obs));
+                mOverlayLoadObservers.Get(overlayURI, getter_AddRefs(obs));
                 if (obs)
                     obs->Observe(overlayURI, "xul-overlay-merged", EmptyString().get());
-                mOverlayLoadObservers->Remove(overlayURI);
+                mOverlayLoadObservers.Remove(overlayURI);
             }
             else {
                 // If we have not yet displayed the document for the first time 
@@ -3267,16 +3258,15 @@ XULDocument::DoneWalking()
                 // XXXbz really, we shouldn't be firing binding constructors
                 // until after StartLayout returns!
 
-                if (!mPendingOverlayLoadNotifications) {
-                    mPendingOverlayLoadNotifications =
-                        new nsInterfaceHashtable<nsURIHashKey,nsIObserver>;
+                if (!mPendingOverlayLoadNotifications.IsInitialized()) {
+                    mPendingOverlayLoadNotifications.Init();
                 }
                 
-                mPendingOverlayLoadNotifications->Get(overlayURI, getter_AddRefs(obs));
+                mPendingOverlayLoadNotifications.Get(overlayURI, getter_AddRefs(obs));
                 if (!obs) {
-                    mOverlayLoadObservers->Get(overlayURI, getter_AddRefs(obs));
+                    mOverlayLoadObservers.Get(overlayURI, getter_AddRefs(obs));
                     NS_ASSERTION(obs, "null overlay load observer?");
-                    mPendingOverlayLoadNotifications->Put(overlayURI, obs);
+                    mPendingOverlayLoadNotifications.Put(overlayURI, obs);
                 }
             }
         }
@@ -3503,7 +3493,7 @@ XULDocument::OnStreamComplete(nsIStreamLoader* aLoader,
     // transcluded script completes. Compile and execute the script
     // if the load was successful, then continue building content
     // from the prototype.
-    nsresult rv = aStatus;
+    nsresult rv;
 
     NS_ASSERTION(mCurrentScriptProto && mCurrentScriptProto->mSrcLoading,
                  "script source not loading on unichar stream complete?");
@@ -3553,11 +3543,6 @@ XULDocument::OnStreamComplete(nsIStreamLoader* aLoader,
 NS_IMETHODIMP
 XULDocument::OnScriptCompileComplete(JSScript* aScript, nsresult aStatus)
 {
-    // When compiling off thread the script will not have been attached to the
-    // script proto yet.
-    if (aScript && !mCurrentScriptProto->GetScriptObject())
-        mCurrentScriptProto->Set(aScript);
-
     // Allow load events to be fired once off thread compilation finishes.
     if (mOffThreadCompiling) {
         mOffThreadCompiling = false;
@@ -3566,6 +3551,11 @@ XULDocument::OnScriptCompileComplete(JSScript* aScript, nsresult aStatus)
 
     // After compilation finishes the script's characters are no longer needed.
     mOffThreadCompileString.Truncate();
+
+    // When compiling off thread the script will not have been attached to the
+    // script proto yet.
+    if (aScript && !mCurrentScriptProto->GetScriptObject())
+        mCurrentScriptProto->Set(aScript);
 
     // Clear mCurrentScriptProto now, but save it first for use below in
     // the execute code, and in the while loop that resumes walks of other
@@ -3667,14 +3657,15 @@ XULDocument::ExecuteScript(nsIScriptContext * aContext,
 
     NS_ENSURE_TRUE(mScriptGlobalObject, NS_ERROR_NOT_INITIALIZED);
 
+    if (!aContext->GetScriptsEnabled())
+        return NS_OK;
+
     // Execute the precompiled script with the given version
     nsAutoMicroTask mt;
     JSContext *cx = aContext->GetNativeContext();
     AutoCxPusher pusher(cx);
-    JS::Rooted<JSObject*> global(cx, mScriptGlobalObject->GetGlobalJSObject());
-    NS_ENSURE_TRUE(global, NS_ERROR_FAILURE);
-    NS_ENSURE_TRUE(nsContentUtils::GetSecurityManager()->ScriptAllowed(global), NS_OK);
-    JS::ExposeObjectToActiveJS(global);
+    JSObject* global = mScriptGlobalObject->GetGlobalJSObject();
+    xpc_UnmarkGrayObject(global);
     xpc_UnmarkGrayScript(aScriptObject);
     JSAutoCompartment ac(cx, global);
     JS::Rooted<JS::Value> unused(cx);
@@ -3747,11 +3738,14 @@ XULDocument::CreateElementFromPrototype(nsXULPrototypeElement* aPrototype,
                                                     aPrototype->mNodeInfo->NamespaceID(),
                                                     nsIDOMNode::ELEMENT_NODE);
         if (!newNodeInfo) return NS_ERROR_OUT_OF_MEMORY;
+        nsCOMPtr<nsIContent> content;
         nsCOMPtr<nsINodeInfo> xtfNi = newNodeInfo;
-        rv = NS_NewElement(getter_AddRefs(result), newNodeInfo.forget(),
+        rv = NS_NewElement(getter_AddRefs(content), newNodeInfo.forget(),
                            NOT_FROM_PARSER);
         if (NS_FAILED(rv))
             return rv;
+
+        result = content->AsElement();
 
         rv = AddAttributes(aPrototype, result);
         if (NS_FAILED(rv)) return rv;
@@ -4073,8 +4067,7 @@ XULDocument::OverlayForwardReference::Merge(nsIContent* aTargetNode,
         if (attr == nsGkAtoms::removeelement &&
             value.EqualsLiteral("true")) {
 
-            nsCOMPtr<nsINode> parent = aTargetNode->GetParentNode();
-            if (!parent) return NS_ERROR_FAILURE;
+            nsCOMPtr<nsIContent> parent = aTargetNode->GetParent();
             rv = RemoveElement(parent, aTargetNode);
             if (NS_FAILED(rv)) return rv;
 
@@ -4456,7 +4449,7 @@ XULDocument::CheckBroadcasterHookup(Element* aElement,
 }
 
 nsresult
-XULDocument::InsertElement(nsINode* aParent, nsIContent* aChild,
+XULDocument::InsertElement(nsIContent* aParent, nsIContent* aChild,
                            bool aNotify)
 {
     // Insert aChild appropriately into aParent, accounting for a
@@ -4537,7 +4530,7 @@ XULDocument::InsertElement(nsINode* aParent, nsIContent* aChild,
 }
 
 nsresult
-XULDocument::RemoveElement(nsINode* aParent, nsINode* aChild)
+XULDocument::RemoveElement(nsIContent* aParent, nsIContent* aChild)
 {
     int32_t nodeOffset = aParent->IndexOf(aChild);
 
@@ -4671,7 +4664,7 @@ XULDocument::ParserObserver::OnStopRequest(nsIRequest *request,
 already_AddRefed<nsPIWindowRoot>
 XULDocument::GetWindowRoot()
 {
-    nsCOMPtr<nsIInterfaceRequestor> ir(mDocumentContainer);
+    nsCOMPtr<nsIInterfaceRequestor> ir = do_QueryReferent(mDocumentContainer);
     nsCOMPtr<nsIDOMWindow> window(do_GetInterface(ir));
     nsCOMPtr<nsPIDOMWindow> piWin(do_QueryInterface(window));
     return piWin ? piWin->GetTopWindowRoot() : nullptr;
@@ -4735,7 +4728,7 @@ XULDocument::ResetDocumentDirection()
     DocumentStatesChanged(NS_DOCUMENT_STATE_RTL_LOCALE);
 }
 
-void
+int
 XULDocument::DirectionChanged(const char* aPrefName, void* aData)
 {
   // Reset the direction and restyle the document if necessary.
@@ -4743,6 +4736,8 @@ XULDocument::DirectionChanged(const char* aPrefName, void* aData)
   if (doc) {
       doc->ResetDocumentDirection();
   }
+
+  return 0;
 }
 
 int

@@ -3,7 +3,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "AccGroupInfo.h"
-#include "nsAccUtils.h"
 
 #include "Role.h"
 #include "States.h"
@@ -212,6 +211,9 @@ AccGroupInfo::IsConceptualParent(role aRole, role aParentRole)
     return true;
   if ((aParentRole == roles::TABLE || aParentRole == roles::TREE_TABLE) &&
       aRole == roles::ROW)
+    return true;
+  if (aParentRole == roles::ROW &&
+      (aRole == roles::CELL || aRole == roles::GRID_CELL))
     return true;
   if (aParentRole == roles::LIST && aRole == roles::LISTITEM)
     return true;

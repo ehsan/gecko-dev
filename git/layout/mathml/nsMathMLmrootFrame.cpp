@@ -3,9 +3,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsMathMLmrootFrame.h"
+
+#include "nsCOMPtr.h"
+#include "nsFrame.h"
 #include "nsPresContext.h"
+#include "nsStyleContext.h"
+#include "nsStyleConsts.h"
 #include "nsRenderingContext.h"
+
+#include "nsMathMLmrootFrame.h"
 #include <algorithm>
 
 //
@@ -350,16 +356,17 @@ nsMathMLmrootFrame::Reflow(nsPresContext*          aPresContext,
   return NS_OK;
 }
 
-/* virtual */ void
-nsMathMLmrootFrame::GetIntrinsicWidthMetrics(nsRenderingContext* aRenderingContext, nsHTMLReflowMetrics& aDesiredSize)
+/* virtual */ nscoord
+nsMathMLmrootFrame::GetIntrinsicWidth(nsRenderingContext* aRenderingContext)
 {
   nsIFrame* baseFrame = mFrames.FirstChild();
   nsIFrame* indexFrame = nullptr;
   if (baseFrame)
     indexFrame = baseFrame->GetNextSibling();
   if (!indexFrame || indexFrame->GetNextSibling()) {
-    ReflowError(*aRenderingContext, aDesiredSize);
-    return;
+    nsHTMLReflowMetrics desiredSize;
+    ReflowError(*aRenderingContext, desiredSize);
+    return desiredSize.width;
   }
 
   nscoord baseWidth =
@@ -374,12 +381,7 @@ nsMathMLmrootFrame::GetIntrinsicWidthMetrics(nsRenderingContext* aRenderingConte
   GetRadicalXOffsets(indexWidth, sqrWidth, aRenderingContext->FontMetrics(),
                      nullptr, &dxSqr);
 
-  nscoord width = dxSqr + sqrWidth + baseWidth;
-
-  aDesiredSize.width = width;
-  aDesiredSize.mBoundingMetrics.width = width;
-  aDesiredSize.mBoundingMetrics.leftBearing = 0;
-  aDesiredSize.mBoundingMetrics.rightBearing = width;
+  return dxSqr + sqrWidth + baseWidth;
 }
 
 // ----------------------

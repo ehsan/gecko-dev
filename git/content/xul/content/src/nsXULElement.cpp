@@ -73,8 +73,7 @@
 #include "nsIListBoxObject.h"
 #include "nsContentUtils.h"
 #include "nsContentList.h"
-#include "mozilla/MouseEvents.h"
-#include "mozilla/MutationEvent.h"
+#include "nsMutationEvent.h"
 #include "nsAsyncDOMEvent.h"
 #include "nsIDOMMutationEvent.h"
 #include "nsPIDOMWindow.h"
@@ -90,7 +89,6 @@
 #include "nsAttrValueOrString.h"
 #include "nsAttrValueInlines.h"
 #include "mozilla/Attributes.h"
-#include "nsIController.h"
 #include <algorithm>
 
 // The XUL doc interface
@@ -110,6 +108,12 @@
 
 using namespace mozilla;
 using namespace mozilla::dom;
+
+//----------------------------------------------------------------------
+
+static NS_DEFINE_CID(kXULPopupListenerCID,        NS_XULPOPUPLISTENER_CID);
+
+//----------------------------------------------------------------------
 
 #ifdef XUL_PROTOTYPE_ATTRIBUTE_METERING
 uint32_t             nsXULPrototypeAttribute::gNumElements;
@@ -293,7 +297,7 @@ nsXULElement::Create(nsXULPrototypeElement* aPrototype,
 }
 
 nsresult
-NS_NewXULElement(Element** aResult, already_AddRefed<nsINodeInfo> aNodeInfo)
+NS_NewXULElement(nsIContent** aResult, already_AddRefed<nsINodeInfo> aNodeInfo)
 {
     NS_PRECONDITION(aNodeInfo.get(), "need nodeinfo for non-proto Create");
 
@@ -496,7 +500,7 @@ nsXULElement::GetEventListenerManagerForAttr(nsIAtom* aAttrName, bool* aDefer)
         nsCOMPtr<EventTarget> piTarget = do_QueryInterface(window);
 
         *aDefer = false;
-        return piTarget->GetOrCreateListenerManager();
+        return piTarget->GetListenerManager(true);
     }
 
     return nsStyledElement::GetEventListenerManagerForAttr(aAttrName, aDefer);
@@ -511,7 +515,7 @@ static bool IsNonList(nsINodeInfo* aNodeInfo)
 }
 
 bool
-nsXULElement::IsFocusableInternal(int32_t *aTabIndex, bool aWithMouse)
+nsXULElement::IsFocusable(int32_t *aTabIndex, bool aWithMouse)
 {
   /* 
    * Returns true if an element may be focused, and false otherwise. The inout
@@ -1003,10 +1007,6 @@ nsXULElement::AfterSetAttr(int32_t aNamespaceID, nsIAtom* aName,
                     SetDrawsInTitlebar(
                         aValue->Equals(NS_LITERAL_STRING("true"), eCaseMatters));
                 }
-                else if (aName == nsGkAtoms::drawtitle) {
-                    SetDrawsTitle(
-                        aValue->Equals(NS_LITERAL_STRING("true"), eCaseMatters));
-                }
                 else if (aName == nsGkAtoms::localedir) {
                     // if the localedir changed on the root element, reset the document direction
                     nsCOMPtr<nsIXULDocument> xuldoc = do_QueryInterface(document);
@@ -1061,9 +1061,6 @@ nsXULElement::AfterSetAttr(int32_t aNamespaceID, nsIAtom* aName,
                 }
                 else if (aName == nsGkAtoms::drawintitlebar) {
                     SetDrawsInTitlebar(false);
-                }
-                else if (aName == nsGkAtoms::drawtitle) {
-                    SetDrawsTitle(false);
                 }
             }
         }
@@ -1197,7 +1194,8 @@ nsXULElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
                     }
                 }
 
-                WidgetInputEvent* orig = aVisitor.mEvent->AsInputEvent();
+                nsInputEvent* orig =
+                    static_cast<nsInputEvent*>(aVisitor.mEvent);
                 nsContentUtils::DispatchXULCommand(
                   commandContent,
                   aVisitor.mEvent->mFlags.mIsTrusted,
@@ -1606,12 +1604,12 @@ nsXULElement::ClickWithInputSource(uint16_t aInputSource)
 
             bool isCallerChrome = nsContentUtils::IsCallerChrome();
 
-            WidgetMouseEvent eventDown(isCallerChrome, NS_MOUSE_BUTTON_DOWN,
-                                       nullptr, WidgetMouseEvent::eReal);
-            WidgetMouseEvent eventUp(isCallerChrome, NS_MOUSE_BUTTON_UP,
-                                     nullptr, WidgetMouseEvent::eReal);
-            WidgetMouseEvent eventClick(isCallerChrome, NS_MOUSE_CLICK, nullptr,
-                                        WidgetMouseEvent::eReal);
+            nsMouseEvent eventDown(isCallerChrome, NS_MOUSE_BUTTON_DOWN,
+                                   nullptr, nsMouseEvent::eReal);
+            nsMouseEvent eventUp(isCallerChrome, NS_MOUSE_BUTTON_UP,
+                                 nullptr, nsMouseEvent::eReal);
+            nsMouseEvent eventClick(isCallerChrome, NS_MOUSE_CLICK, nullptr,
+                                    nsMouseEvent::eReal);
             eventDown.inputSource = eventUp.inputSource = eventClick.inputSource 
                                   = aInputSource;
 
@@ -1677,7 +1675,7 @@ nsXULElement::AddPopupListener(nsIAtom* aName)
       new nsXULPopupListener(this, isContext);
 
     // Add the popup as a listener on this element.
-    nsEventListenerManager* manager = GetOrCreateListenerManager();
+    nsEventListenerManager* manager = GetListenerManager(true);
     SetFlags(listenerFlag);
 
     if (isContext) {
@@ -1786,7 +1784,7 @@ nsXULElement::GetWindowWidget()
     nsIDocument* doc = GetCurrentDoc();
 
     // only top level chrome documents can set the titlebar color
-    if (doc && doc->IsRootDisplayDocument()) {
+    if (doc->IsRootDisplayDocument()) {
         nsCOMPtr<nsISupports> container = doc->GetContainer();
         nsCOMPtr<nsIBaseWindow> baseWindow = do_QueryInterface(container);
         if (baseWindow) {
@@ -1833,17 +1831,6 @@ nsXULElement::SetDrawsInTitlebar(bool aState)
     nsIWidget* mainWidget = GetWindowWidget();
     if (mainWidget) {
         nsContentUtils::AddScriptRunner(new SetDrawInTitleBarEvent(mainWidget, aState));
-    }
-}
-
-void
-nsXULElement::SetDrawsTitle(bool aState)
-{
-    nsIWidget* mainWidget = GetWindowWidget();
-    if (mainWidget) {
-        // We can do this synchronously because SetDrawsTitle doesn't have any
-        // synchronous effects apart from a harmless invalidation.
-        mainWidget->SetDrawsTitle(aState);
     }
 }
 
@@ -2570,12 +2557,15 @@ nsXULPrototypeScript::DeserializeOutOfLine(nsIObjectInputStream* aInput,
 class NotifyOffThreadScriptCompletedRunnable : public nsRunnable
 {
     nsRefPtr<nsIOffThreadScriptReceiver> mReceiver;
-    void *mToken;
+
+    // Note: there is no need to root the script, it is protected against GC
+    // until FinishOffThreadScript is called on it.
+    JSScript *mScript;
 
 public:
     NotifyOffThreadScriptCompletedRunnable(already_AddRefed<nsIOffThreadScriptReceiver> aReceiver,
-                                           void *aToken)
-      : mReceiver(aReceiver), mToken(aToken)
+                                           JSScript *aScript)
+      : mReceiver(aReceiver), mScript(aScript)
     {}
 
     NS_DECL_NSIRUNNABLE
@@ -2591,25 +2581,23 @@ NotifyOffThreadScriptCompletedRunnable::Run()
     // could GC.
     nsCOMPtr<nsIJSRuntimeService> svc = do_GetService("@mozilla.org/js/xpc/RuntimeService;1");
     NS_ENSURE_TRUE(svc, NS_ERROR_FAILURE);
+    JSRuntime *rt;
+    svc->GetRuntime(&rt);
+    NS_ENSURE_TRUE(svc, NS_ERROR_FAILURE);
+    JS::FinishOffThreadScript(rt, mScript);
 
-    JSScript *script;
-    {
-        AutoSafeJSContext cx;
-        script = JS::FinishOffThreadScript(cx, JS_GetRuntime(cx), mToken);
-    }
-
-    return mReceiver->OnScriptCompileComplete(script, script ? NS_OK : NS_ERROR_FAILURE);
+    return mReceiver->OnScriptCompileComplete(mScript, mScript ? NS_OK : NS_ERROR_FAILURE);
 }
 
 static void
-OffThreadScriptReceiverCallback(void *aToken, void *aCallbackData)
+OffThreadScriptReceiverCallback(JSScript *script, void *ptr)
 {
     // Be careful not to adjust the refcount on the receiver, as this callback
     // may be invoked off the main thread.
-    nsIOffThreadScriptReceiver* aReceiver = static_cast<nsIOffThreadScriptReceiver*>(aCallbackData);
+    nsIOffThreadScriptReceiver* aReceiver = static_cast<nsIOffThreadScriptReceiver*>(ptr);
     nsRefPtr<NotifyOffThreadScriptCompletedRunnable> notify =
         new NotifyOffThreadScriptCompletedRunnable(
-            already_AddRefed<nsIOffThreadScriptReceiver>(aReceiver), aToken);
+            already_AddRefed<nsIOffThreadScriptReceiver>(aReceiver), script);
     NS_DispatchToMainThread(notify);
 }
 
@@ -2651,10 +2639,8 @@ nsXULPrototypeScript::Compile(const PRUnichar* aText,
     // source from the files on demand.
     options.setSourcePolicy(mOutOfLine ? JS::CompileOptions::LAZY_SOURCE
                                        : JS::CompileOptions::SAVE_SOURCE);
-    JS::Rooted<JSObject*> scope(cx, JS::CurrentGlobalOrNull(cx));
-    if (scope) {
-      JS::ExposeObjectToActiveJS(scope);
-    }
+    JS::RootedObject scope(cx, JS::CurrentGlobalOrNull(cx));
+    xpc_UnmarkGrayObject(scope);
 
     if (aOffThreadReceiver && JS::CanCompileOffThread(cx, options)) {
         if (!JS::CompileOffThread(cx, scope, options,
@@ -2680,7 +2666,7 @@ nsXULPrototypeScript::UnlinkJSObjects()
 {
     if (mScriptObject) {
         mScriptObject = nullptr;
-        mozilla::DropJSObjects(this);
+        nsContentUtils::DropJSObjects(this);
     }
 }
 
@@ -2694,7 +2680,8 @@ nsXULPrototypeScript::Set(JSScript* aObject)
     }
 
     mScriptObject = aObject;
-    mozilla::HoldJSObjects(this);
+    nsContentUtils::HoldJSObjects(
+        this, NS_CYCLE_COLLECTION_PARTICIPANT(nsXULPrototypeNode));
 }
 
 //----------------------------------------------------------------------

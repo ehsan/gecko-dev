@@ -308,24 +308,32 @@ nsContextMenu.prototype = {
                   this.onTextInput && top.gBidiUI);
     this.showItem("context-bidi-page-direction-toggle",
                   !this.onTextInput && top.gBidiUI);
-
-    // SocialMarks. Marks does not work with text selections, only links. If
-    // there is more than MENU_LIMIT providers, we show a submenu for them,
-    // otherwise we have a menuitem per provider (added in SocialMarks class).
-    let markProviders = SocialMarks.getProviders();
-    let enablePageMarks = markProviders.length > 0 && !(this.onLink || this.onImage
-                            || this.onVideo || this.onAudio);
-    this.showItem("context-markpageMenu", enablePageMarks && markProviders.length > SocialMarks.MENU_LIMIT);
-    let enablePageMarkItems = enablePageMarks && markProviders.length <= SocialMarks.MENU_LIMIT;
-    let linkmenus = document.getElementsByClassName("context-markpage");
-    [m.hidden = !enablePageMarkItems for (m of linkmenus)];
-
-    let enableLinkMarks = markProviders.length > 0 &&
-                            ((this.onLink && !this.onMailtoLink) || this.onPlainTextLink);
-    this.showItem("context-marklinkMenu", enableLinkMarks && markProviders.length > SocialMarks.MENU_LIMIT);
-    let enableLinkMarkItems = enableLinkMarks && markProviders.length <= SocialMarks.MENU_LIMIT;
-    linkmenus = document.getElementsByClassName("context-marklink");
-    [m.hidden = !enableLinkMarkItems for (m of linkmenus)];
+    
+    // SocialMarks
+    let marksEnabled = SocialUI.enabled && Social.provider.pageMarkInfo;
+    let enablePageMark = marksEnabled && !(this.isContentSelected ||
+                            this.onTextInput || this.onLink || this.onImage ||
+                            this.onVideo || this.onAudio || this.onSocial);
+    let enableLinkMark = marksEnabled && ((this.onLink && !this.onMailtoLink &&
+                                           !this.onSocial) || this.onPlainTextLink);
+    if (enablePageMark) {
+      Social.isURIMarked(gBrowser.currentURI, function(marked) {
+        let label = marked ? "social.unmarkpage.label" : "social.markpage.label";
+        let provider = Social.provider || Social.defaultProvider;
+        let menuLabel = gNavigatorBundle.getFormattedString(label, [provider.name]);
+        this.setItemAttr("context-markpage", "label", menuLabel);
+      }.bind(this));
+    }
+    this.showItem("context-markpage", enablePageMark);
+    if (enableLinkMark) {
+      Social.isURIMarked(this.linkURI, function(marked) {
+        let label = marked ? "social.unmarklink.label" : "social.marklink.label";
+        let provider = Social.provider || Social.defaultProvider;
+        let menuLabel = gNavigatorBundle.getFormattedString(label, [provider.name]);
+        this.setItemAttr("context-marklink", "label", menuLabel);
+      }.bind(this));
+    }
+    this.showItem("context-marklink", enableLinkMark);
 
     // SocialShare
     let shareButton = SocialShare.shareButton;
@@ -842,27 +850,9 @@ nsContextMenu.prototype = {
   openLinkInTab: function() {
     var doc = this.target.ownerDocument;
     urlSecurityCheck(this.linkURL, this._unremotePrincipal(doc.nodePrincipal));
-    var referrerURI = doc.documentURIObject;
-
-    // if the mixedContentChannel is present and the referring URI passes
-    // a same origin check with the target URI, we can preserve the users
-    // decision of disabling MCB on a page for it's child tabs.
-    var persistDisableMCBInChildTab = false;
-
-    if (this.browser.docShell.mixedContentChannel) {
-      const sm = Services.scriptSecurityManager;
-      try {
-        var targetURI = this.linkURI;
-        sm.checkSameOriginURI(referrerURI, targetURI, false);
-        persistDisableMCBInChildTab = true;
-      }
-      catch (e) { }
-    }
-
     openLinkIn(this.linkURL, "tab",
                { charset: doc.characterSet,
-                 referrerURI: referrerURI,
-                 disableMCB:  persistDisableMCBInChildTab});
+                 referrerURI: doc.documentURIObject });
   },
 
   // open URL in current tab
@@ -915,7 +905,7 @@ nsContextMenu.prototype = {
   reload: function(event) {
     if (this.onSocial) {
       // full reload of social provider
-      Social._getProviderFromOrigin(this.browser.getAttribute("origin")).reload();
+      Social.provider.reload();
     } else {
       BrowserReloadOrDuplicate(event);
     }
@@ -1004,15 +994,16 @@ nsContextMenu.prototype = {
   },
 
   saveVideoFrameAsImage: function () {
+    urlSecurityCheck(this.mediaURL,
+                     this._unremotePrincipal(this.browser.contentPrincipal),
+                     Ci.nsIScriptSecurityManager.DISALLOW_SCRIPT);
     let name = "";
-    if (this.mediaURL) {
-      try {
-        let uri = makeURI(this.mediaURL);
-        let url = uri.QueryInterface(Ci.nsIURL);
-        if (url.fileBaseName)
-          name = decodeURI(url.fileBaseName) + ".jpg";
-      } catch (e) { }
-    }
+    try {
+      let uri = makeURI(this.mediaURL);
+      let url = uri.QueryInterface(Ci.nsIURL);
+      if (url.fileBaseName)
+        name = decodeURI(url.fileBaseName) + ".jpg";
+    } catch (e) { }
     if (!name)
       name = "snapshot.jpg";
     var video = this.target;
@@ -1294,7 +1285,7 @@ nsContextMenu.prototype = {
   },
 
   playPlugin: function() {
-    gPluginHandler._showClickToPlayNotification(this.browser, this.target, true);
+    gPluginHandler._showClickToPlayNotification(this.browser, this.target);
   },
 
   hidePlugin: function() {
@@ -1606,10 +1597,12 @@ nsContextMenu.prototype = {
                                        }, window.top);
     }
   },
-  markLink: function CM_markLink(origin) {
-    // send link to social, if it is the page url linkURI will be null
-    SocialMarks.markLink(origin, this.linkURI ? this.linkURI.spec : null);
+
+  markLink: function CM_markLink() {
+    // send link to social
+    SocialMark.toggleURIMark(this.linkURI);
   },
+
   shareLink: function CM_shareLink() {
     SocialShare.sharePage(null, { url: this.linkURI.spec });
   },

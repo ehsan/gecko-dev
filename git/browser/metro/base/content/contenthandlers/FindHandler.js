@@ -2,9 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-let Ci = Components.interfaces;
-let Cc = Components.classes;
-
 dump("### FindHandler.js loaded\n");
 
 var FindHandler = {
@@ -39,7 +36,7 @@ var FindHandler = {
     }
 
     if (findResult == Ci.nsITypeAheadFind.FIND_NOTFOUND) {
-      sendAsyncMessage("FindAssist:Show", { rect: null, result: findResult });
+      sendAsyncMessage("FindAssist:Show", { rect: null , result: findResult });
       return;
     }
 
@@ -60,32 +57,23 @@ var FindHandler = {
       }
     }
 
-    // Return the bounding selection rect in content coordinates
-    // including the scroll offset.
-
-    let offset = ContentScroll.getScrollOffset(content);
+    let scroll = ContentScroll.getScrollOffset(content);
     for (let frame = this._fastFind.currentWindow; frame != content; frame = frame.parent) {
       let rect = frame.frameElement.getBoundingClientRect();
       let left = frame.getComputedStyle(frame.frameElement, "").borderLeftWidth;
       let top = frame.getComputedStyle(frame.frameElement, "").borderTopWidth;
-      offset.add(rect.left + parseInt(left), rect.top + parseInt(top));
+      scroll.add(rect.left + parseInt(left), rect.top + parseInt(top));
     }
 
     let rangeRect = selection.getRangeAt(0).getBoundingClientRect();
-    let rect = new Rect(offset.x + rangeRect.left, offset.y + rangeRect.top, 
-                        rangeRect.width, rangeRect.height);
+    let rect = new Rect(scroll.x + rangeRect.left, scroll.y + rangeRect.top, rangeRect.width, rangeRect.height);
 
     // Ensure the potential "scroll" event fired during a search as already fired
     let timer = new Util.Timeout(function() {
-      sendAsyncMessage("FindAssist:Show", {
-        rect: rect.isEmpty() ? null: rect,
-        contentHeight: content.document.documentElement.scrollHeight,
-        result: findResult
-      });
+      sendAsyncMessage("FindAssist:Show", { rect: rect.isEmpty() ? null: rect , result: findResult });
     });
     timer.once(0);
   }
 };
-this.FindHandler = FindHandler;
 
 FindHandler.init();

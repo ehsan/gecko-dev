@@ -9,6 +9,9 @@ DOMCI_CLASS(Location)
 DOMCI_CLASS(DOMPrototype)
 DOMCI_CLASS(DOMConstructor)
 
+// Core classes
+DOMCI_CLASS(DOMException)
+
 DOMCI_CLASS(DeviceAcceleration)
 DOMCI_CLASS(DeviceRotationRate)
 
@@ -19,8 +22,13 @@ DOMCI_CLASS(CSSImportRule)
 DOMCI_CLASS(CSSMediaRule)
 DOMCI_CLASS(CSSNameSpaceRule)
 DOMCI_CLASS(CSSRuleList)
+DOMCI_CLASS(CSSGroupRuleRuleList)
+DOMCI_CLASS(MediaList)
 DOMCI_CLASS(StyleSheetList)
 DOMCI_CLASS(CSSStyleSheet)
+
+// Range classes
+DOMCI_CLASS(Selection)
 
 // XUL classes
 #ifdef MOZ_XUL
@@ -60,6 +68,9 @@ DOMCI_CLASS(CSSSupportsRule)
 DOMCI_CLASS(SVGLength)
 DOMCI_CLASS(SVGNumber)
 
+// Canvas
+DOMCI_CLASS(MozCanvasPrintState)
+
 // WindowUtils
 DOMCI_CLASS(WindowUtils)
 
@@ -80,6 +91,7 @@ DOMCI_CLASS(File)
 // DOM modal content window class, almost identical to Window
 DOMCI_CLASS(ModalContentWindow)
 
+DOMCI_CLASS(MozPowerManager)
 DOMCI_CLASS(MozWakeLock)
 
 DOMCI_CLASS(MozMobileMessageManager)
@@ -92,6 +104,7 @@ DOMCI_CLASS(MozMobileMessageThread)
 DOMCI_CLASS(MozConnection)
 #ifdef MOZ_B2G_RIL
 DOMCI_CLASS(MozMobileConnection)
+DOMCI_CLASS(MozCellBroadcast)
 #endif
 
 // @font-face in CSS
@@ -105,13 +118,22 @@ DOMCI_CLASS(ContentFrameMessageManager)
 DOMCI_CLASS(ChromeMessageBroadcaster)
 DOMCI_CLASS(ChromeMessageSender)
 
+DOMCI_CLASS(IDBKeyRange)
+
 DOMCI_CLASS(MozCSSKeyframeRule)
 DOMCI_CLASS(MozCSSKeyframesRule)
 
 DOMCI_CLASS(CSSPageRule)
 
+DOMCI_CLASS(MediaQueryList)
+
 #ifdef MOZ_B2G_RIL
+DOMCI_CLASS(MozVoicemail)
 DOMCI_CLASS(MozIccManager)
+#endif
+
+#ifdef MOZ_B2G_FM
+DOMCI_CLASS(FMRadio)
 #endif
 
 #ifdef MOZ_B2G_BT
@@ -125,6 +147,7 @@ DOMCI_CLASS(LockedFile)
 DOMCI_CLASS(CSSFontFeatureValuesRule)
 
 DOMCI_CLASS(UserDataHandler)
+DOMCI_CLASS(LoadStatus)
 DOMCI_CLASS(XPathNamespace)
 DOMCI_CLASS(XULControlElement)
 DOMCI_CLASS(XULLabeledControlElement)

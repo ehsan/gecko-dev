@@ -79,8 +79,7 @@ const COORDTYPE_PARENT_RELATIVE = nsIAccessibleCoordinateType.COORDTYPE_PARENT_R
 
 const kEmbedChar = String.fromCharCode(0xfffc);
 
-const kDiscBulletChar = String.fromCharCode(0x2022);
-const kDiscBulletText = kDiscBulletChar + " ";
+const kDiscBulletText = String.fromCharCode(0x2022) + " ";
 const kCircleBulletText = String.fromCharCode(0x25e6) + " ";
 const kSquareBulletText = String.fromCharCode(0x25aa) + " ";
 
@@ -245,20 +244,27 @@ function getAccessible(aAccOrElmOrID, aInterfaces, aElmObj, aDoNotFailIf)
   if (!aInterfaces)
     return acc;
 
-  if (!(aInterfaces instanceof Array))
-    aInterfaces = [ aInterfaces ];
+  if (aInterfaces instanceof Array) {
+    for (var index = 0; index < aInterfaces.length; index++) {
+      try {
+        acc.QueryInterface(aInterfaces[index]);
+      } catch (e) {
+        if (!(aDoNotFailIf & DONOTFAIL_IF_NO_INTERFACE))
+          ok(false, "Can't query " + aInterfaces[index] + " for " + aAccOrElmOrID);
 
-  for (var index = 0; index < aInterfaces.length; index++) {
-    try {
-      acc.QueryInterface(aInterfaces[index]);
-    } catch (e) {
-      if (!(aDoNotFailIf & DONOTFAIL_IF_NO_INTERFACE))
-        ok(false, "Can't query " + aInterfaces[index] + " for " + aAccOrElmOrID);
-
-      return null;
+        return null;
+      }
     }
+    return acc;
   }
-
+  
+  try {
+    acc.QueryInterface(aInterfaces);
+  } catch (e) {
+    ok(false, "Can't query " + aInterfaces + " for " + aAccOrElmOrID);
+    return null;
+  }
+  
   return acc;
 }
 
@@ -323,14 +329,6 @@ function getApplicationAccessible()
 }
 
 /**
- * A version of accessible tree testing, doesn't fail if tree is not complete.
- */
-function testElm(aID, aTreeObj)
-{
-  testAccessibleTree(aID, aTreeObj, kSkipTreeFullCheck);
-}
-
-/**
  * Flags used for testAccessibleTree
  */
 const kSkipTreeFullCheck = 1;
@@ -372,7 +370,11 @@ function testAccessibleTree(aAccOrElmOrID, aAccTree, aFlags)
 
     switch (prop) {
     case "actions": {
-      testActionNames(acc, accTree.actions);
+      var actions = (typeof accTree.actions == "string") ?
+        [ accTree.actions ] : (accTree.actions || []);
+      is(acc.actionCount, actions.length, "Wong number of actions.");
+      for (var i = 0; i < actions.length; i++ )
+        is(acc.getActionName(i), actions[i], "Wrong action name at " + i + " index.");
       break;
     }
 
@@ -752,21 +754,6 @@ function getMainChromeWindow(aWindow)
                 .getInterface(Components.interfaces.nsIDOMWindow);
 }
 
-/** Sets the test plugin(s) initially expected enabled state.
- * It will automatically be reset to it's previous value after the test
- * ends.
- * @param aNewEnabledState [in] the enabled state, e.g. SpecialPowers.Ci.nsIPluginTag.STATE_ENABLED
- * @param aPluginName [in, optional] The name of the plugin, defaults to "Test Plug-in"
- */
-function setTestPluginEnabledState(aNewEnabledState, aPluginName)
-{
-  var plugin = getTestPluginTag(aPluginName);
-  var oldEnabledState = plugin.enabledState;
-  plugin.enabledState = aNewEnabledState;
-  SimpleTest.registerCleanupFunction(function() {
-    getTestPluginTag(aPluginName).enabledState = oldEnabledState;
-  });
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Private
@@ -801,20 +788,4 @@ function getObjAddress(aObj)
     return match[1];
 
   return aObj.toString();
-}
-
-function getTestPluginTag(aPluginName)
-{
-  var ph = SpecialPowers.Cc["@mozilla.org/plugin/host;1"]
-                        .getService(SpecialPowers.Ci.nsIPluginHost);
-  var tags = ph.getPluginTags();
-  var name = aPluginName || "Test Plug-in";
-  for (var tag of tags) {
-    if (tag.name == name) {
-      return tag;
-    }
-  }
-
-  ok(false, "Could not find plugin tag with plugin name '" + name + "'");
-  return null;
 }

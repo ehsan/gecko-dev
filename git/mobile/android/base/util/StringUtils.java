@@ -5,9 +5,6 @@
 
 package org.mozilla.gecko.util;
 
-import android.net.Uri;
-import android.text.TextUtils;
-
 public class StringUtils {
     /*
      * This method tries to guess if the given string could be a search query or URL,
@@ -50,16 +47,7 @@ public class StringUtils {
         return wasSearchQuery;
     }
 
-    public static class UrlFlags {
-        public static final int NONE = 0;
-        public static final int STRIP_HTTPS = 1;
-    }
-
     public static String stripScheme(String url) {
-        return stripScheme(url, UrlFlags.NONE);
-    }
-
-    public static String stripScheme(String url, int flags) {
         if (url == null) {
             return url;
         }
@@ -69,8 +57,6 @@ public class StringUtils {
 
         if (url.startsWith("http://")) {
             start = 7;
-        } else if (url.startsWith("https://") && flags == UrlFlags.STRIP_HTTPS) {
-            start = 8;
         }
 
         if (url.endsWith("/")) {
@@ -98,41 +84,5 @@ public class StringUtils {
         }
 
         return host.substring(start);
-    }
-
-    /**
-     * Searches the url query string for the first value with the given key.
-     */
-    public static String getQueryParameter(String url, String desiredKey) {
-        if (TextUtils.isEmpty(url) || TextUtils.isEmpty(desiredKey)) {
-            return null;
-        }
-
-        final String[] urlParts = url.split("\\?");
-        if (urlParts.length < 2) {
-            return null;
-        }
-
-        final String query = urlParts[1];
-        for (final String param : query.split("&")) {
-            final String pair[] = param.split("=");
-            final String key = Uri.decode(pair[0]);
-
-            // Key is empty or does not match the key we're looking for, discard
-            if (TextUtils.isEmpty(key) || !key.equals(desiredKey)) {
-                continue;
-            }
-            // No value associated with key, discard
-            if (pair.length < 2) {
-                continue;
-            }
-            final String value = Uri.decode(pair[1]);
-            if (TextUtils.isEmpty(value)) {
-                return null;
-            }
-            return value;
-        }
-
-        return null;
     }
 }

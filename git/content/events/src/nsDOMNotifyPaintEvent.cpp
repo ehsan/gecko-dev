@@ -8,15 +8,13 @@
 #include "mozilla/GfxMessageUtils.h"
 #include "nsDOMNotifyPaintEvent.h"
 #include "nsContentUtils.h"
+#include "nsClientRect.h"
 #include "nsPaintRequest.h"
-#include "mozilla/dom/DOMRect.h"
-
-using namespace mozilla;
-using namespace mozilla::dom;
+#include "nsIFrame.h"
 
 nsDOMNotifyPaintEvent::nsDOMNotifyPaintEvent(mozilla::dom::EventTarget* aOwner,
                                              nsPresContext* aPresContext,
-                                             WidgetEvent* aEvent,
+                                             nsEvent* aEvent,
                                              uint32_t aEventType,
                                              nsInvalidateRequestList* aInvalidateRequests)
 : nsDOMEvent(aOwner, aPresContext, aEvent)
@@ -57,10 +55,10 @@ nsDOMNotifyPaintEvent::GetBoundingClientRect(nsIDOMClientRect** aResult)
   return NS_OK;
 }
 
-already_AddRefed<DOMRect>
+already_AddRefed<nsClientRect>
 nsDOMNotifyPaintEvent::BoundingClientRect()
 {
-  nsRefPtr<DOMRect> rect = new DOMRect(ToSupports(this));
+  nsRefPtr<nsClientRect> rect = new nsClientRect(ToSupports(this));
 
   if (mPresContext) {
     rect->SetLayoutRect(GetRegion().GetBounds());
@@ -76,16 +74,16 @@ nsDOMNotifyPaintEvent::GetClientRects(nsIDOMClientRectList** aResult)
   return NS_OK;
 }
 
-already_AddRefed<DOMRectList>
+already_AddRefed<nsClientRectList>
 nsDOMNotifyPaintEvent::ClientRects()
 {
   nsISupports* parent = ToSupports(this);
-  nsRefPtr<DOMRectList> rectList = new DOMRectList(parent);
+  nsRefPtr<nsClientRectList> rectList = new nsClientRectList(parent);
 
   nsRegion r = GetRegion();
   nsRegionRectIterator iter(r);
   for (const nsRect* rgnRect = iter.Next(); rgnRect; rgnRect = iter.Next()) {
-    nsRefPtr<DOMRect> rect = new DOMRect(parent);
+    nsRefPtr<nsClientRect> rect = new nsClientRect(parent);
     
     rect->SetLayoutRect(*rgnRect);
     rectList->Append(rect);
@@ -158,7 +156,7 @@ nsDOMNotifyPaintEvent::Deserialize(const IPC::Message* aMsg, void** aIter)
 nsresult NS_NewDOMNotifyPaintEvent(nsIDOMEvent** aInstancePtrResult,
                                    mozilla::dom::EventTarget* aOwner,
                                    nsPresContext* aPresContext,
-                                   WidgetEvent* aEvent,
+                                   nsEvent *aEvent,
                                    uint32_t aEventType,
                                    nsInvalidateRequestList* aInvalidateRequests) 
 {

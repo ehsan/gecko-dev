@@ -9,14 +9,13 @@ import sys
 import time
 import traceback
 
-from application_cache import ApplicationCache
 from client import MarionetteClient
-from emulator import Emulator
-from emulator_screen import EmulatorScreen
-from errors import *
+from application_cache import ApplicationCache
 from keys import Keys
-
+from errors import *
+from emulator import Emulator
 import geckoinstance
+
 
 class HTMLElement(object):
     """
@@ -67,10 +66,10 @@ class HTMLElement(object):
 
         :param attribute: The name of the attribute.
         '''
-        return self.marionette._send_message('getElementAttribute', 'value', id=self.id, name=attribute)
+        return self.marionette._send_message('getElementAttribute', 'value', element=self.id, name=attribute)
 
     def click(self):
-        return self.marionette._send_message('clickElement', 'ok', id=self.id)
+        return self.marionette._send_message('clickElement', 'ok', element=self.id)
 
     def tap(self, x=None, y=None):
         '''
@@ -81,14 +80,14 @@ class HTMLElement(object):
         :param x: X-coordinate of tap event. If not given, default to the
          center of the element.
         '''
-        return self.marionette._send_message('singleTap', 'ok', id=self.id, x=x, y=y)
+        return self.marionette._send_message('singleTap', 'ok', element=self.id, x=x, y=y)
 
     @property
     def text(self):
         '''
         Returns the visible text of the element, and its child elements.
         '''
-        return self.marionette._send_message('getElementText', 'value', id=self.id)
+        return self.marionette._send_message('getElementText', 'value', element=self.id)
 
     def send_keys(self, *string):
         '''
@@ -105,52 +104,52 @@ class HTMLElement(object):
             else:
                 for i in range(len(val)):
                     typing.append(val[i])
-        return self.marionette._send_message('sendKeysToElement', 'ok', id=self.id, value=typing)
+        return self.marionette._send_message('sendKeysToElement', 'ok', element=self.id, value=typing)
 
     def clear(self):
         '''
         Clears the input of the element.
         '''
-        return self.marionette._send_message('clearElement', 'ok', id=self.id)
+        return self.marionette._send_message('clearElement', 'ok', element=self.id)
 
     def is_selected(self):
         '''
         Returns True if the element is selected.
         '''
-        return self.marionette._send_message('isElementSelected', 'value', id=self.id)
+        return self.marionette._send_message('isElementSelected', 'value', element=self.id)
 
     def is_enabled(self):
         '''
         Returns True if the element is enabled.
         '''
-        return self.marionette._send_message('isElementEnabled', 'value', id=self.id)
+        return self.marionette._send_message('isElementEnabled', 'value', element=self.id)
 
     def is_displayed(self):
         '''
         Returns True if the element is displayed.
         '''
-        return self.marionette._send_message('isElementDisplayed', 'value', id=self.id)
+        return self.marionette._send_message('isElementDisplayed', 'value', element=self.id)
 
     @property
     def size(self):
         '''
         A dictionary with the size of the element.
         '''
-        return self.marionette._send_message('getElementSize', 'value', id=self.id)
+        return self.marionette._send_message('getElementSize', 'value', element=self.id)
 
     @property
     def tag_name(self):
         '''
         The tag name of the element.
         '''
-        return self.marionette._send_message('getElementTagName', 'value', id=self.id)
+        return self.marionette._send_message('getElementTagName', 'value', element=self.id)
 
     @property
     def location(self):
         '''
         A dictionary with the x and y location of an element
         '''
-        return self.marionette._send_message('getElementPosition', 'value', id=self.id)
+        return self.marionette._send_message('getElementPosition', 'value', element=self.id)
 
     def value_of_css_property(self, property_name):
         '''
@@ -159,13 +158,8 @@ class HTMLElement(object):
         :param property_name: Property name to get the value of.
         '''
         return self.marionette._send_message('getElementValueOfCssProperty', 'value',
-                                             id=self.id,
+                                             element=self.id,
                                              propertyName=property_name)
-    def submit(self):
-        '''
-        Submits if the element is a form or is within a form
-        '''
-        return self.marionette._send_message('submitElement', 'ok', id=self.id)
 
 class Actions(object):
     '''
@@ -326,9 +320,9 @@ class Actions(object):
          corner of the element.
         :param y1: Starting y-coordinate of flick, relative to the top left
          corner of the element.
-        :param x2: Ending x-coordinate of flick, relative to the top left
+        :param x1: Ending x-coordinate of flick, relative to the top left
          corner of the element.
-        :param y2: Ending y-coordinate of flick, relative to the top left
+        :param x1: Ending y-coordinate of flick, relative to the top left
          corner of the element.
         :param duration: Time needed for the flick gesture for complete (in
          milliseconds).
@@ -422,19 +416,12 @@ class Marionette(object):
     TIMEOUT_SEARCH = 'implicit'
     TIMEOUT_SCRIPT = 'script'
     TIMEOUT_PAGE = 'page load'
-    SCREEN_ORIENTATIONS = {"portrait": EmulatorScreen.SO_PORTRAIT_PRIMARY,
-                           "landscape": EmulatorScreen.SO_LANDSCAPE_PRIMARY,
-                           "portrait-primary": EmulatorScreen.SO_PORTRAIT_PRIMARY,
-                           "landscape-primary": EmulatorScreen.SO_LANDSCAPE_PRIMARY,
-                           "portrait-secondary": EmulatorScreen.SO_PORTRAIT_SECONDARY,
-                           "landscape-secondary": EmulatorScreen.SO_LANDSCAPE_SECONDARY}
 
     def __init__(self, host='localhost', port=2828, app=None, app_args=None, bin=None,
                  profile=None, emulator=None, sdcard=None, emulatorBinary=None,
                  emulatorImg=None, emulator_res=None, gecko_path=None,
                  connectToRunningEmulator=False, homedir=None, baseurl=None,
-                 noWindow=False, logcat_dir=None, busybox=None, symbols_path=None,
-                 timeout=None, device_serial=None):
+                 noWindow=False, logcat_dir=None, busybox=None, symbols_path=None, timeout=None):
         self.host = host
         self.port = self.local_port = port
         self.bin = bin
@@ -449,8 +436,8 @@ class Marionette(object):
         self.noWindow = noWindow
         self.logcat_dir = logcat_dir
         self._test_name = None
+        self.symbols_path = symbols_path
         self.timeout = timeout
-        self.device_serial = device_serial
 
         if bin:
             port = int(self.port)
@@ -477,7 +464,6 @@ class Marionette(object):
                                      logcat_dir=self.logcat_dir,
                                      arch=emulator,
                                      sdcard=sdcard,
-                                     symbols_path=symbols_path,
                                      emulatorBinary=emulatorBinary,
                                      userdata=emulatorImg,
                                      res=emulator_res)
@@ -539,7 +525,7 @@ class Marionette(object):
             # flagging the error.
             sys.exit()
 
-    def wait_for_port(self, timeout=60):
+    def wait_for_port(self, timeout=3000):
         starttime = datetime.datetime.now()
         while datetime.datetime.now() - starttime < datetime.timedelta(seconds=timeout):
             try:
@@ -559,11 +545,11 @@ class Marionette(object):
         if not self.session and command not in ('newSession', 'getStatus'):
             raise MarionetteException(message="Please start a session")
 
-        message = { 'name': command }
+        message = { 'type': command }
         if self.session:
-            message['sessionId'] = self.session
+            message['session'] = self.session
         if kwargs:
-            message['parameters'] = kwargs
+            message.update(kwargs)
 
         try:
             response = self.client.send(message)
@@ -590,7 +576,7 @@ class Marionette(object):
                                       "command against.")
         cmd = cmd.encode("ascii")
         result = self.emulator._run_telnet(cmd)
-        return self.client.send({"name": "emulatorCmdResult",
+        return self.client.send({"type": "emulatorCmdResult",
                                  "id": response.get("id"),
                                  "result": result})
 
@@ -599,7 +585,7 @@ class Marionette(object):
             status = response['error'].get('status', 500)
             message = response['error'].get('message')
             stacktrace = response['error'].get('stacktrace')
-            # status numbers come from
+            # status numbers come from 
             # http://code.google.com/p/selenium/wiki/JsonWireProtocol#Response_Status_Codes
             if status == ErrorCodes.NO_SUCH_ELEMENT:
                 raise NoSuchElementException(message=message, status=status, stacktrace=stacktrace)
@@ -655,7 +641,7 @@ class Marionette(object):
                 name = 'emulator'
                 crashed = True
 
-            if self.emulator.check_for_minidumps():
+            if self.symbols_path and self.emulator.check_for_minidumps(self.symbols_path):
                 crashed = True
         elif self.instance:
             # In the future, a check for crashed Firefox processes
@@ -728,7 +714,7 @@ class Marionette(object):
         :param timeout: The maximum number of milliseconds an asynchronous
          script can run without causing an ScriptTimeoutException to be raised
         '''
-        response = self._send_message('setScriptTimeout', 'ok', ms=timeout)
+        response = self._send_message('setScriptTimeout', 'ok', value=timeout)
         return response
 
     def set_search_timeout(self, timeout):
@@ -744,7 +730,7 @@ class Marionette(object):
 
         :param timeout: Timeout in milliseconds.
         '''
-        response = self._send_message('setSearchTimeout', 'ok', ms=timeout)
+        response = self._send_message('setSearchTimeout', 'ok', value=timeout)
         return response
 
     @property
@@ -815,7 +801,7 @@ class Marionette(object):
 
         :param window_id: The id or name of the window to switch to.
         '''
-        response = self._send_message('switchToWindow', 'ok', name=window_id)
+        response = self._send_message('switchToWindow', 'ok', value=window_id)
         self.window = window_id
         return response
 
@@ -828,12 +814,6 @@ class Marionette(object):
             return HTMLElement(self, response)
         return None
 
-    def switch_to_default_content(self):
-        '''
-        Switch the current context to page's default content.
-        '''
-        return self.switch_to_frame()
-
     def switch_to_frame(self, frame=None, focus=True):
         '''
         Switch the current context to the specified frame. Subsequent commands will operate in the context of the specified frame, if applicable.
@@ -844,7 +824,7 @@ class Marionette(object):
         if isinstance(frame, HTMLElement):
             response = self._send_message('switchToFrame', 'ok', element=frame.id, focus=focus)
         else:
-            response = self._send_message('switchToFrame', 'ok', id=frame, focus=focus)
+            response = self._send_message('switchToFrame', 'ok', value=frame, focus=focus)
         return response
 
     def get_url(self):
@@ -870,12 +850,12 @@ class Marionette(object):
 
         :param url: The url to navigate to.
         '''
-        response = self._send_message('goUrl', 'ok', url=url)
+        response = self._send_message('goUrl', 'ok', value=url)
         return response
 
     def timeouts(self, timeout_type, ms):
         assert(timeout_type == self.TIMEOUT_SEARCH or timeout_type == self.TIMEOUT_SCRIPT or timeout_type == self.TIMEOUT_PAGE)
-        response = self._send_message('timeouts', 'ok', type=timeout_type, ms=ms)
+        response = self._send_message('timeouts', 'ok', timeoutType=timeout_type, ms=ms)
         return response
 
     def go_back(self):
@@ -933,28 +913,23 @@ class Marionette(object):
 
         return unwrapped
 
-    def execute_js_script(self, script, script_args=None, async=True,
-                          new_sandbox=True, special_powers=False,
-                          script_timeout=None, inactivity_timeout=None,
-                          filename=None):
+    def execute_js_script(self, script, script_args=None, async=True, new_sandbox=True, special_powers=False, script_timeout=None, filename=None):
         if script_args is None:
             script_args = []
         args = self.wrapArguments(script_args)
         response = self._send_message('executeJSScript',
                                       'value',
-                                      script=script,
+                                      value=script,
                                       args=args,
                                       async=async,
                                       newSandbox=new_sandbox,
                                       specialPowers=special_powers,
                                       scriptTimeout=script_timeout,
-                                      inactivityTimeout=inactivity_timeout,
                                       filename=filename,
                                       line=None)
         return self.unwrapValue(response)
 
-    def execute_script(self, script, script_args=None, new_sandbox=True,
-                       special_powers=False, script_timeout=None):
+    def execute_script(self, script, script_args=None, new_sandbox=True, special_powers=False, script_timeout=None):
         '''
         Executes a synchronous JavaScript script, and returns the result (or None if the script does return a value).
 
@@ -1023,7 +998,7 @@ class Marionette(object):
         frame = stack[-2:-1][0] # grab the second-to-last frame
         response = self._send_message('executeScript',
                                       'value',
-                                      script=script,
+                                      value=script,
                                       args=args,
                                       newSandbox=new_sandbox,
                                       specialPowers=special_powers,
@@ -1071,7 +1046,7 @@ class Marionette(object):
         frame = stack[-2:-1][0] # grab the second-to-last frame
         response = self._send_message('executeAsyncScript',
                                       'value',
-                                      script=script,
+                                      value=script,
                                       args=args,
                                       newSandbox=new_sandbox,
                                       specialPowers=special_powers,
@@ -1105,7 +1080,7 @@ class Marionette(object):
         if id:
             kwargs['element'] = id
         response = self._send_message('findElement', 'value', **kwargs)
-        element = HTMLElement(self, response['ELEMENT'])
+        element = HTMLElement(self, response)
         return element
 
     def find_elements(self, method, target, id=None):
@@ -1198,14 +1173,6 @@ class Marionette(object):
             js = f.read()
         return self._send_message('importScript', 'ok', script=js)
 
-    def clear_imported_scripts(self):
-        '''
-        Clears all imported scripts in this context, ie: calling clear_imported_scripts in chrome
-        context will clear only scripts you imported in chrome, and will leave the scripts
-        you imported in content context.
-        '''
-        return self._send_message('clearImportedScripts', 'ok')
-
     def add_cookie(self, cookie):
         """
         Adds a cookie to your current session.
@@ -1283,37 +1250,4 @@ class Marionette(object):
         '''
         if element is not None:
             element = element.id
-        lights = None
-        if highlights is not None:
-            lights = [highlight.id for highlight in highlights if highlights]
-        return self._send_message("screenShot", 'value', id=element, highlights=lights)
-
-    @property
-    def orientation(self):
-        """Get the current browser orientation.
-
-        Will return one of the valid primary orientation values
-        portrait-primary, landscape-primary, portrait-secondary, or
-        landscape-secondary.
-
-        """
-        return self._send_message("getScreenOrientation", "value")
-
-    def set_orientation(self, orientation):
-        """Set the current browser orientation.
-
-        The supplied orientation should be given as one of the valid
-        orientation values.  If the orientation is unknown, an error
-        will be raised.
-
-        Valid orientations are "portrait" and "landscape", which fall
-        back to "portrait-primary" and "landscape-primary"
-        respectively, and "portrait-secondary" as well as
-        "landscape-secondary".
-
-        :param orientation: The orientation to lock the screen in.
-
-        """
-        self._send_message("setScreenOrientation", "ok", orientation=orientation)
-        if self.emulator:
-            self.emulator.screen.orientation = self.SCREEN_ORIENTATIONS[orientation.lower()]
+        return self._send_message("screenShot", 'value', element=element, highlights=highlights)

@@ -14,8 +14,8 @@
 #ifndef VPM_COLOR_ENHANCEMENT_H
 #define VPM_COLOR_ENHANCEMENT_H
 
-#include "webrtc/modules/video_processing/main/interface/video_processing.h"
-#include "webrtc/typedefs.h"
+#include "typedefs.h"
+#include "video_processing.h"
 
 namespace webrtc {
 
@@ -24,6 +24,6 @@ namespace VideoProcessing
     int32_t ColorEnhancement(I420VideoFrame* frame);
 }
 
-}  // namespace
+} //namespace
 
 #endif // VPM_COLOR_ENHANCEMENT_H

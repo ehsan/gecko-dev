@@ -15,19 +15,19 @@
 
 [NoInterfaceObject]
 interface URLUtils {
-  [SetterThrows]
-  stringifier attribute DOMString href;
-  readonly attribute DOMString origin;
+  // [SetterThrows]
+  // stringifier attribute DOMString href;
+  // readonly attribute DOMString origin;
 
            attribute DOMString protocol;
-           attribute DOMString username;
-           attribute DOMString password;
+           // attribute DOMString username;
+           // attribute DOMString password;
            attribute DOMString host;
            attribute DOMString hostname;
            attribute DOMString port;
            attribute DOMString pathname;
            attribute DOMString search;
-           attribute URLSearchParams? searchParams;
+           // attribute URLQuery? query;
            attribute DOMString hash;
 };
 

@@ -11,16 +11,11 @@ EXPORTS.mozilla.dom.battery += [
     'Types.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'BatteryManager.cpp',
 ]
 
 FAIL_ON_WARNINGS = True
 
-include('/ipc/chromium/chromium-config.mozbuild')
-
-FINAL_LIBRARY = 'gklayout'
-LOCAL_INCLUDES += [
-    '/content/events/src',
-]
+LIBXUL_LIBRARY = True
 

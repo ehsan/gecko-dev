@@ -8,26 +8,26 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/video_engine/vie_input_manager.h"
+#include "video_engine/vie_input_manager.h"
 
-#include <assert.h>
+#include <cassert>
 
-#include "webrtc/common_types.h"
+#include "common_types.h"  // NOLINT
 #include "webrtc/modules/video_capture/include/video_capture_factory.h"
-#include "webrtc/modules/video_coding/main/interface/video_coding.h"
-#include "webrtc/modules/video_coding/main/interface/video_coding_defines.h"
-#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
-#include "webrtc/system_wrappers/interface/rw_lock_wrapper.h"
-#include "webrtc/system_wrappers/interface/trace.h"
-#include "webrtc/video_engine/include/vie_errors.h"
-#include "webrtc/video_engine/vie_capturer.h"
-#include "webrtc/video_engine/vie_defines.h"
+#include "modules/video_coding/main/interface/video_coding.h"
+#include "modules/video_coding/main/interface/video_coding_defines.h"
+#include "system_wrappers/interface/critical_section_wrapper.h"
+#include "system_wrappers/interface/rw_lock_wrapper.h"
+#include "system_wrappers/interface/trace.h"
+#include "video_engine/include/vie_errors.h"
+#include "video_engine/vie_capturer.h"
+#include "video_engine/vie_defines.h"
+#include "video_engine/vie_file_player.h"
 
 namespace webrtc {
 
-ViEInputManager::ViEInputManager(const int engine_id, const Config& config)
-    : config_(config),
-      engine_id_(engine_id),
+ViEInputManager::ViEInputManager(const int engine_id)
+    : engine_id_(engine_id),
       map_cs_(CriticalSectionWrapper::CreateCriticalSection()),
       device_info_cs_(CriticalSectionWrapper::CreateCriticalSection()),
       vie_frame_provider_map_(),
@@ -39,18 +39,28 @@ ViEInputManager::ViEInputManager(const int engine_id, const Config& config)
   for (int idx = 0; idx < kViEMaxCaptureDevices; idx++) {
     free_capture_device_id_[idx] = true;
   }
+
+  for (int idx = 0; idx < kViEMaxFilePlayers; idx++) {
+    free_file_id_[idx] = true;
+  }
 }
 
 ViEInputManager::~ViEInputManager() {
   WEBRTC_TRACE(webrtc::kTraceMemory, webrtc::kTraceVideo, ViEId(engine_id_),
                "%s", __FUNCTION__);
-  for (FrameProviderMap::iterator it = vie_frame_provider_map_.begin();
-       it != vie_frame_provider_map_.end();
-       ++it) {
-    delete it->second;
+  while (vie_frame_provider_map_.Size() != 0) {
+    MapItem* item = vie_frame_provider_map_.First();
+    assert(item);
+    ViEFrameProviderBase* frame_provider =
+        static_cast<ViEFrameProviderBase*>(item->GetItem());
+    vie_frame_provider_map_.Erase(item);
+    delete frame_provider;
   }
 
-  delete capture_device_info_;
+  if (capture_device_info_) {
+    delete capture_device_info_;
+    capture_device_info_ = NULL;
+  }
 }
 void ViEInputManager::SetModuleProcessThread(
     ProcessThread* module_process_thread) {
@@ -185,17 +195,18 @@ int ViEInputManager::CreateCaptureDevice(
   CriticalSectionScoped cs(map_cs_.get());
 
   // Make sure the device is not already allocated.
-  for (FrameProviderMap::iterator it = vie_frame_provider_map_.begin();
-       it != vie_frame_provider_map_.end();
-       ++it) {
+  for (MapItem* item = vie_frame_provider_map_.First(); item != NULL;
+       item = vie_frame_provider_map_.Next(item)) {
     // Make sure this is a capture device.
-    if (it->first >= kViECaptureIdBase && it->first <= kViECaptureIdMax) {
-      ViECapturer* vie_capture = static_cast<ViECapturer*>(it->second);
+    if (item->GetId() >= kViECaptureIdBase &&
+        item->GetId() <= kViECaptureIdMax) {
+      ViECapturer* vie_capture = static_cast<ViECapturer*>(item->GetItem());
       assert(vie_capture);
       // TODO(mflodman) Can we change input to avoid this cast?
       const char* device_name =
           reinterpret_cast<const char*>(vie_capture->CurrentDeviceName());
-      if (strncmp(device_name, device_unique_idUTF8,
+      if (strncmp(device_name,
+                  reinterpret_cast<const char*>(device_unique_idUTF8),
                   strlen(device_name)) == 0) {
         return kViECaptureDeviceAlreadyAllocated;
       }
@@ -249,7 +260,7 @@ int ViEInputManager::CreateCaptureDevice(
     return kViECaptureDeviceMaxNoDevicesAllocated;
   }
   ViECapturer* vie_capture = ViECapturer::CreateViECapture(
-      newcapture_id, engine_id_, config_, device_unique_idUTF8,
+      newcapture_id, engine_id_, device_unique_idUTF8,
       device_unique_idUTF8Length, *module_process_thread_);
   if (!vie_capture) {
   ReturnCaptureId(newcapture_id);
@@ -259,7 +270,13 @@ int ViEInputManager::CreateCaptureDevice(
     return kViECaptureDeviceUnknownError;
   }
 
-  vie_frame_provider_map_[newcapture_id] = vie_capture;
+  if (vie_frame_provider_map_.Insert(newcapture_id, vie_capture) != 0) {
+  ReturnCaptureId(newcapture_id);
+  WEBRTC_TRACE(webrtc::kTraceError, webrtc::kTraceVideo, ViEId(engine_id_),
+               "%s: Could not insert capture module for %s", __FUNCTION__,
+               device_unique_idUTF8);
+    return kViECaptureDeviceUnknownError;
+  }
   capture_id = newcapture_id;
   WEBRTC_TRACE(webrtc::kTraceInfo, webrtc::kTraceVideo, ViEId(engine_id_),
                "%s(device_unique_id: %s, capture_id: %d)", __FUNCTION__,
@@ -282,15 +299,19 @@ int ViEInputManager::CreateCaptureDevice(VideoCaptureModule* capture_module,
   }
 
   ViECapturer* vie_capture = ViECapturer::CreateViECapture(
-      newcapture_id, engine_id_, config_,
-      capture_module, *module_process_thread_);
+      newcapture_id, engine_id_, capture_module, *module_process_thread_);
   if (!vie_capture) {
   ReturnCaptureId(newcapture_id);
     WEBRTC_TRACE(webrtc::kTraceError, webrtc::kTraceVideo, ViEId(engine_id_),
                  "%s: Could attach capture module.", __FUNCTION__);
     return kViECaptureDeviceUnknownError;
   }
-  vie_frame_provider_map_[newcapture_id] = vie_capture;
+  if (vie_frame_provider_map_.Insert(newcapture_id, vie_capture) != 0) {
+    ReturnCaptureId(newcapture_id);
+    WEBRTC_TRACE(webrtc::kTraceError, webrtc::kTraceVideo, ViEId(engine_id_),
+                 "%s: Could not insert capture module", __FUNCTION__);
+    return kViECaptureDeviceUnknownError;
+  }
   capture_id = newcapture_id;
   WEBRTC_TRACE(webrtc::kTraceInfo, webrtc::kTraceVideo, ViEId(engine_id_),
                "%s, capture_id: %d", __FUNCTION__, capture_id);
@@ -322,7 +343,7 @@ int ViEInputManager::DestroyCaptureDevice(const int capture_id) {
                    "callbacks when destroying capture device",
                    __FUNCTION__, capture_id, num_callbacks);
     }
-    vie_frame_provider_map_.erase(capture_id);
+    vie_frame_provider_map_.Erase(capture_id);
     ReturnCaptureId(capture_id);
     // Leave cs before deleting the capture object. This is because deleting the
     // object might cause deletions of renderers so we prefer to not have a lock
@@ -348,7 +369,7 @@ int ViEInputManager::CreateExternalCaptureDevice(
   }
 
   ViECapturer* vie_capture = ViECapturer::CreateViECapture(
-      newcapture_id, engine_id_, config_, NULL, 0, *module_process_thread_);
+      newcapture_id, engine_id_, NULL, 0, *module_process_thread_);
   if (!vie_capture) {
     ReturnCaptureId(newcapture_id);
     WEBRTC_TRACE(webrtc::kTraceError, webrtc::kTraceVideo, ViEId(engine_id_),
@@ -357,11 +378,94 @@ int ViEInputManager::CreateExternalCaptureDevice(
     return kViECaptureDeviceUnknownError;
   }
 
-  vie_frame_provider_map_[newcapture_id] = vie_capture;
+  if (vie_frame_provider_map_.Insert(newcapture_id, vie_capture) != 0) {
+    ReturnCaptureId(newcapture_id);
+    WEBRTC_TRACE(webrtc::kTraceError, webrtc::kTraceVideo, ViEId(engine_id_),
+                 "%s: Could not insert capture module for external capture.",
+                 __FUNCTION__);
+    return kViECaptureDeviceUnknownError;
+  }
   capture_id = newcapture_id;
   external_capture = vie_capture;
   WEBRTC_TRACE(webrtc::kTraceInfo, webrtc::kTraceVideo, ViEId(engine_id_),
                "%s, capture_id: %d)", __FUNCTION__, capture_id);
+  return 0;
+}
+
+int ViEInputManager::CreateFilePlayer(const char* file_nameUTF8,
+                                      const bool loop,
+                                      const webrtc::FileFormats file_format,
+                                      VoiceEngine* voe_ptr, int& file_id) {
+  WEBRTC_TRACE(webrtc::kTraceInfo, webrtc::kTraceVideo, ViEId(engine_id_),
+               "%s(device_unique_id: %s)", __FUNCTION__, file_nameUTF8);
+
+  CriticalSectionScoped cs(map_cs_.get());
+  int new_file_id = 0;
+  if (GetFreeFileId(&new_file_id) == false) {
+    WEBRTC_TRACE(webrtc::kTraceError, webrtc::kTraceVideo, ViEId(engine_id_),
+                 "%s: Maximum supported number of file players already in use",
+                 __FUNCTION__);
+    return kViEFileMaxNoOfFilesOpened;
+  }
+
+  ViEFilePlayer* vie_file_player = ViEFilePlayer::CreateViEFilePlayer(
+      new_file_id, engine_id_, file_nameUTF8, loop, file_format, voe_ptr);
+  if (!vie_file_player) {
+    ReturnFileId(new_file_id);
+    WEBRTC_TRACE(webrtc::kTraceError, webrtc::kTraceVideo, ViEId(engine_id_),
+                 "%s: Could not open file %s for playback", __FUNCTION__,
+                 file_nameUTF8);
+    return kViEFileUnknownError;
+  }
+
+  if (vie_frame_provider_map_.Insert(new_file_id, vie_file_player) != 0) {
+    ReturnCaptureId(new_file_id);
+    WEBRTC_TRACE(webrtc::kTraceError, webrtc::kTraceVideo, ViEId(engine_id_),
+                 "%s: Could not insert file player for %s", __FUNCTION__,
+                 file_nameUTF8);
+    delete vie_file_player;
+    return kViEFileUnknownError;
+  }
+
+  file_id = new_file_id;
+  WEBRTC_TRACE(webrtc::kTraceInfo, webrtc::kTraceVideo, ViEId(engine_id_),
+               "%s(filename: %s, file_id: %d)", __FUNCTION__, file_nameUTF8,
+               new_file_id);
+  return 0;
+}
+
+int ViEInputManager::DestroyFilePlayer(int file_id) {
+  WEBRTC_TRACE(webrtc::kTraceInfo, webrtc::kTraceVideo, ViEId(engine_id_),
+               "%s(file_id: %d)", __FUNCTION__, file_id);
+
+  ViEFilePlayer* vie_file_player = NULL;
+  {
+    // We need exclusive access to the object to delete it.
+    // Take this write lock first since the read lock is taken before map_cs_.
+    ViEManagerWriteScoped wl(this);
+
+    CriticalSectionScoped cs(map_cs_.get());
+    vie_file_player = ViEFilePlayerPtr(file_id);
+    if (!vie_file_player) {
+      WEBRTC_TRACE(webrtc::kTraceError, webrtc::kTraceVideo, ViEId(engine_id_),
+                   "%s(file_id: %d) - No such file player", __FUNCTION__,
+                   file_id);
+      return -1;
+    }
+    int num_callbacks = vie_file_player->NumberOfRegisteredFrameCallbacks();
+    if (num_callbacks > 0) {
+      WEBRTC_TRACE(webrtc::kTraceWarning, webrtc::kTraceVideo,
+                   ViEId(engine_id_), "%s(file_id: %d) - %u registered "
+                   "callbacks when destroying file player", __FUNCTION__,
+                   file_id, num_callbacks);
+    }
+    vie_frame_provider_map_.Erase(file_id);
+    ReturnFileId(file_id);
+    // Leave cs before deleting the file object. This is because deleting the
+    // object might cause deletions of renderers so we prefer to not have a lock
+    // at that time.
+  }
+  delete vie_file_player;
   return 0;
 }
 
@@ -392,30 +496,64 @@ void ViEInputManager::ReturnCaptureId(int capture_id) {
   return;
 }
 
+bool ViEInputManager::GetFreeFileId(int* free_file_id) {
+  WEBRTC_TRACE(webrtc::kTraceInfo, webrtc::kTraceVideo, ViEId(engine_id_), "%s",
+               __FUNCTION__);
+
+  for (int id = 0; id < kViEMaxFilePlayers; id++) {
+    if (free_file_id_[id]) {
+      // We found a free capture device id.
+      free_file_id_[id] = false;
+      *free_file_id = id + kViEFileIdBase;
+      WEBRTC_TRACE(webrtc::kTraceInfo, webrtc::kTraceVideo, ViEId(engine_id_),
+                   "%s: new id: %d", __FUNCTION__, *free_file_id);
+      return true;
+    }
+  }
+  return false;
+}
+
+void ViEInputManager::ReturnFileId(int file_id) {
+  WEBRTC_TRACE(webrtc::kTraceInfo, webrtc::kTraceVideo, ViEId(engine_id_),
+               "%s(%d)", __FUNCTION__, file_id);
+
+  CriticalSectionScoped cs(map_cs_.get());
+  if (file_id >= kViEFileIdBase &&
+      file_id < kViEMaxFilePlayers + kViEFileIdBase) {
+    free_file_id_[file_id - kViEFileIdBase] = true;
+  }
+  return;
+}
+
 ViEFrameProviderBase* ViEInputManager::ViEFrameProvider(
     const ViEFrameCallback* capture_observer) const {
   assert(capture_observer);
   CriticalSectionScoped cs(map_cs_.get());
 
-  for (FrameProviderMap::const_iterator it = vie_frame_provider_map_.begin();
-       it != vie_frame_provider_map_.end();
-       ++it) {
-    if (it->second->IsFrameCallbackRegistered(capture_observer))
-      return it->second;
-  }
+  for (MapItem* provider_item = vie_frame_provider_map_.First(); provider_item
+  != NULL; provider_item = vie_frame_provider_map_.Next(provider_item)) {
+    ViEFrameProviderBase* vie_frame_provider =
+        static_cast<ViEFrameProviderBase*>(provider_item->GetItem());
+    assert(vie_frame_provider != NULL);
 
+    if (vie_frame_provider->IsFrameCallbackRegistered(capture_observer)) {
+      // We found it.
+      return vie_frame_provider;
+    }
+  }
   // No capture device set for this channel.
   return NULL;
 }
 
 ViEFrameProviderBase* ViEInputManager::ViEFrameProvider(int provider_id) const {
   CriticalSectionScoped cs(map_cs_.get());
-
-  FrameProviderMap::const_iterator it =
-      vie_frame_provider_map_.find(provider_id);
-  if (it == vie_frame_provider_map_.end())
+  MapItem* map_item = vie_frame_provider_map_.Find(provider_id);
+  if (!map_item) {
     return NULL;
-  return it->second;
+  }
+  ViEFrameProviderBase* vie_frame_provider =
+      static_cast<ViEFrameProviderBase*>(map_item->GetItem());
+  return vie_frame_provider;
 }
 
 ViECapturer* ViEInputManager::ViECapturePtr(int capture_id) const {
@@ -423,7 +561,27 @@ ViECapturer* ViEInputManager::ViECapturePtr(int capture_id) const {
         capture_id <= kViECaptureIdBase + kViEMaxCaptureDevices))
     return NULL;
 
-  return static_cast<ViECapturer*>(ViEFrameProvider(capture_id));
+  CriticalSectionScoped cs(map_cs_.get());
+  MapItem* map_item = vie_frame_provider_map_.Find(capture_id);
+  if (!map_item) {
+    return NULL;
+  }
+  ViECapturer* vie_capture = static_cast<ViECapturer*>(map_item->GetItem());
+  return vie_capture;
+}
+
+ViEFilePlayer* ViEInputManager::ViEFilePlayerPtr(int file_id) const {
+  if (file_id < kViEFileIdBase || file_id > kViEFileIdMax) {
+    return NULL;
+  }
+  CriticalSectionScoped cs(map_cs_.get());
+  MapItem* map_item = vie_frame_provider_map_.Find(file_id);
+  if (!map_item) {
+    return NULL;
+  }
+  ViEFilePlayer* vie_file_player =
+      static_cast<ViEFilePlayer*>(map_item->GetItem());
+  return vie_file_player;
 }
 
 ViEInputManagerScoped::ViEInputManagerScoped(
@@ -446,6 +604,11 @@ ViEFrameProviderBase* ViEInputManagerScoped::FrameProvider(
     int provider_id) const {
   return static_cast<const ViEInputManager*>(vie_manager_)->ViEFrameProvider(
       provider_id);
+}
+
+ViEFilePlayer* ViEInputManagerScoped::FilePlayer(int file_id) const {
+  return static_cast<const ViEInputManager*>(vie_manager_)->ViEFilePlayerPtr(
+      file_id);
 }
 
 }  // namespace webrtc

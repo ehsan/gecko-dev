@@ -4,17 +4,22 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-UNIFIED_SOURCES += [
+MODULE = 'editor'
+
+CPP_SOURCES += [
+    'nsComposeTxtSrvFilter.cpp',
     'nsComposerCommands.cpp',
     'nsComposerCommandsUpdater.cpp',
     'nsComposerController.cpp',
     'nsComposerDocumentCommands.cpp',
     'nsComposerRegistration.cpp',
-    'nsComposeTxtSrvFilter.cpp',
     'nsEditingSession.cpp',
     'nsEditorSpellCheck.cpp',
 ]
 
+LIBRARY_NAME = 'composer'
+
 FAIL_ON_WARNINGS = True
 
-FINAL_LIBRARY = 'xul'
+LIBXUL_LIBRARY = True
+

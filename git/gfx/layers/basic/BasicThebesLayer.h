@@ -7,7 +7,7 @@
 #define GFX_BASICTHEBESLAYER_H
 
 #include "Layers.h"                     // for ThebesLayer, LayerManager, etc
-#include "RotatedBuffer.h"              // for RotatedContentBuffer, etc
+#include "ThebesLayerBuffer.h"          // for ThebesLayerBuffer, etc
 #include "BasicImplData.h"              // for BasicImplData
 #include "BasicLayers.h"                // for BasicLayerManager
 #include "gfx3DMatrix.h"                // for gfx3DMatrix
@@ -28,8 +28,8 @@ class ReadbackProcessor;
 
 class BasicThebesLayer : public ThebesLayer, public BasicImplData {
 public:
-  typedef RotatedContentBuffer::PaintState PaintState;
-  typedef RotatedContentBuffer::ContentType ContentType;
+  typedef ThebesLayerBuffer::PaintState PaintState;
+  typedef ThebesLayerBuffer::ContentType ContentType;
 
   BasicThebesLayer(BasicLayerManager* aLayerManager) :
     ThebesLayer(aLayerManager,
@@ -63,9 +63,6 @@ public:
                            LayerManager::DrawThebesLayerCallback aCallback,
                            void* aCallbackData,
                            ReadbackProcessor* aReadback);
-
-  virtual void Validate(LayerManager::DrawThebesLayerCallback aCallback,
-                        void* aCallbackData) MOZ_OVERRIDE;
 
   virtual void ClearCachedResources()
   {
@@ -103,7 +100,6 @@ protected:
               const nsIntRegion& aExtendedRegionToDraw,
               const nsIntRegion& aRegionToInvalidate,
               bool aDidSelfCopy,
-              DrawRegionClip aClip,
               LayerManager::DrawThebesLayerCallback aCallback,
               void* aCallbackData)
   {
@@ -111,8 +107,8 @@ protected:
       BasicManager()->SetTransactionIncomplete();
       return;
     }
-    aCallback(this, aContext, aExtendedRegionToDraw, aClip,
-              aRegionToInvalidate, aCallbackData);
+    aCallback(this, aContext, aExtendedRegionToDraw, aRegionToInvalidate,
+              aCallbackData);
     // Everything that's visible has been validated. Do this instead of just
     // OR-ing with aRegionToDraw, since that can lead to a very complex region
     // here (OR doesn't automatically simplify to the simplest possible

@@ -20,6 +20,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=369306
 /** Test for Bug 369306 **/
 
 var originatingWindow = self;
+var gOldPrefValue = null;
 
 function focusShouldNotChange(aAction, nextTest)
 {
@@ -106,7 +107,7 @@ function test5()
       SimpleTest.waitForFocus(function () {
         ok(true, "The last opened window should be able to get focus");
         w.close();
-        SimpleTest.executeSoon(SimpleTest.finish);
+        SimpleTest.executeSoon(finished);
       }, w, true);
 
       w.focus();
@@ -115,21 +116,32 @@ function test5()
     SimpleTest.executeSoon(function() {
       // We have to focus back the originating window but we can't do that with
       // .focus() or .blur() anymore.
-      SpecialPowers.focus(window);
+      var fm = SpecialPowers.Cc["@mozilla.org/focus-manager;1"]
+                            .getService(SpecialPowers.Ci.nsIFocusManager);
+      fm.focusedWindow = window;
     });
   }, w, true);
+}
+
+function finished()
+{
+  SpecialPowers.Cc["@mozilla.org/preferences-service;1"]
+               .getService(SpecialPowers.Ci.nsIPrefBranch)
+               .setBoolPref("dom.disable_window_flip", gOldPrefValue);
+  SimpleTest.finish();
 }
 
 SimpleTest.waitForExplicitFinish();
 
 
-function startTest() {
-  // dom.disable_window_flip has to be set to true for this test.
-  SpecialPowers.pushPrefEnv({"set": [["dom.disable_window_flip", true]]}, test1);
-}
+// dom.disable_window_flip has to be set to true for this test.
+var prefs = SpecialPowers.Cc["@mozilla.org/preferences-service;1"]
+                         .getService(SpecialPowers.Ci.nsIPrefBranch);
+gOldPrefValue = prefs.getBoolPref("dom.disable_window_flip");
+prefs.setBoolPref("dom.disable_window_flip", true);
 
-// startTest is going to call the next tests.
-SimpleTest.waitForFocus(startTest);
+// test1 is going to call the next tests.
+SimpleTest.waitForFocus(test1);
 
 </script>
 </pre>

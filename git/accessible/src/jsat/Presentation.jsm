@@ -20,8 +20,6 @@ XPCOMUtils.defineLazyModuleGetter(this, 'UtteranceGenerator',
   'resource://gre/modules/accessibility/OutputGenerator.jsm');
 XPCOMUtils.defineLazyModuleGetter(this, 'BrailleGenerator',
   'resource://gre/modules/accessibility/OutputGenerator.jsm');
-XPCOMUtils.defineLazyModuleGetter(this, 'Roles',
-  'resource://gre/modules/accessibility/Constants.jsm');
 
 this.EXPORTED_SYMBOLS = ['Presentation'];
 
@@ -165,21 +163,20 @@ VisualPresenter.prototype = {
 
   pivotChanged: function VisualPresenter_pivotChanged(aContext, aReason) {
     this._displayedAccessibles.set(aContext.accessible.document.window,
-                                   { accessible: aContext.accessibleForBounds,
+                                   { accessible: aContext.accessible,
                                      startOffset: aContext.startOffset,
                                      endOffset: aContext.endOffset });
 
-    if (!aContext.accessibleForBounds)
+    if (!aContext.accessible)
       return {type: this.type, details: {method: 'hideBounds'}};
 
     try {
-      aContext.accessibleForBounds.scrollTo(
+      aContext.accessible.scrollTo(
         Ci.nsIAccessibleScrollType.SCROLL_TYPE_ANYWHERE);
 
       let bounds = (aContext.startOffset === -1 && aContext.endOffset === -1) ?
-            aContext.bounds : Utils.getTextBounds(aContext.accessibleForBounds,
-                                                  aContext.startOffset,
-                                                  aContext.endOffset);
+                   aContext.bounds : Utils.getTextBounds(aContext.accessible,
+                                     aContext.startOffset, aContext.endOffset);
 
       return {
         type: this.type,
@@ -306,11 +303,6 @@ AndroidPresenter.prototype = {
 
   actionInvoked: function AndroidPresenter_actionInvoked(aObject, aActionName) {
     let state = Utils.getStates(aObject)[0];
-
-    // Checkable objects will have a state changed event we will use instead.
-    if (state & Ci.nsIAccessibleStates.STATE_CHECKABLE)
-      return null;
-
     return {
       type: this.type,
       details: [{
@@ -458,10 +450,7 @@ SpeechPresenter.prototype = {
       type: this.type,
       details: {
         actions: [
-          {method: 'playEarcon',
-           data: aContext.accessible.role === Roles.KEY ?
-             'virtual_cursor_key' : 'virtual_cursor_move',
-           options: {}},
+          {method: 'playEarcon', data: 'tick', options: {}},
           {method: 'speak',
             data: UtteranceGenerator.genForContext(aContext).output.join(' '),
             options: {enqueue: true}}
@@ -471,17 +460,16 @@ SpeechPresenter.prototype = {
   },
 
   actionInvoked: function SpeechPresenter_actionInvoked(aObject, aActionName) {
-    let actions = [];
-    if (aActionName === 'click') {
-      actions.push({method: 'playEarcon',
-                    data: 'clicked',
-                    options: {}});
-    } else {
-      actions.push({method: 'speak',
-                    data: UtteranceGenerator.genForAction(aObject, aActionName).join(' '),
-                    options: {enqueue: false}});
-    }
-    return { type: this.type, details: { actions: actions } };
+    return {
+      type: this.type,
+      details: {
+        actions: [
+          {method: 'speak',
+           data: UtteranceGenerator.genForAction(aObject, aActionName).join(' '),
+           options: {enqueue: false}}
+        ]
+      }
+    };
   },
 
   liveRegion: function SpeechPresenter_liveRegion(aContext, aIsPolite, aIsHide,

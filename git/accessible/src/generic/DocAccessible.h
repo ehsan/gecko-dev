@@ -71,13 +71,14 @@ public:
   // nsIDocumentObserver
   NS_DECL_NSIDOCUMENTOBSERVER
 
-  // Accessible
+  // nsAccessNode
   virtual void Init();
   virtual void Shutdown();
   virtual nsIFrame* GetFrame() const;
   virtual nsINode* GetNode() const { return mDocumentNode; }
   nsIDocument* DocumentNode() const { return mDocumentNode; }
 
+  // Accessible
   virtual mozilla::a11y::ENameValueFlag Name(nsString& aName);
   virtual void Description(nsString& aDescription);
   virtual Accessible* FocusedChild();
@@ -221,7 +222,7 @@ public:
   /**
    * Return the cached accessible by the given unique ID within this document.
    *
-   * @note   the unique ID matches with the uniqueID() of Accessible
+   * @note   the unique ID matches with the uniqueID() of nsAccessNode
    *
    * @param  aUniqueID  [in] the unique ID used to cache the node.
    */
@@ -273,7 +274,7 @@ public:
    * @param  aRoleMapEntry  [in] the role map entry role the ARIA role or nullptr
    *                          if none
    */
-  void BindToDocument(Accessible* aAccessible, nsRoleMapEntry* aRoleMapEntry);
+  bool BindToDocument(Accessible* aAccessible, nsRoleMapEntry* aRoleMapEntry);
 
   /**
    * Remove from document and shutdown the given accessible.
@@ -533,16 +534,10 @@ protected:
   nsCOMPtr<nsIContent> mAnchorJumpElm;
 
   /**
-   * A generic state (see items below) before the attribute value was changed.
-   * @see AttributeWillChange and AttributeChanged notifications.
+   * Keep the ARIA attribute old value that is initialized by
+   * AttributeWillChange and used by AttributeChanged notifications.
    */
-  union {
-    // ARIA attribute value
-    nsIAtom* mARIAAttrOldValue;
-
-    // True if the accessible state bit was on
-    bool mStateBitWasOn;
-  };
+  nsIAtom* mARIAAttrOldValue;
 
   nsTArray<nsRefPtr<DocAccessible> > mChildDocuments;
 

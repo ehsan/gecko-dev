@@ -14,8 +14,6 @@
 #include "gfxPlatformMac.h"
 #include "gfxContext.h"
 #include "gfxFontUtils.h"
-#include "gfxMacPlatformFontList.h"
-#include "gfxFontConstants.h"
 
 #include "cairo-quartz.h"
 
@@ -419,18 +417,18 @@ gfxMacFont::GetScaledFont(DrawTarget *aTarget)
 }
 
 void
-gfxMacFont::AddSizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
-                                   FontCacheSizes* aSizes) const
+gfxMacFont::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
+                                FontCacheSizes*   aSizes) const
 {
-    gfxFont::AddSizeOfExcludingThis(aMallocSizeOf, aSizes);
+    gfxFont::SizeOfExcludingThis(aMallocSizeOf, aSizes);
     // mCGFont is shared with the font entry, so not counted here;
     // and we don't have APIs to measure the cairo mFontFace object
 }
 
 void
-gfxMacFont::AddSizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
-                                   FontCacheSizes* aSizes) const
+gfxMacFont::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
+                                FontCacheSizes*   aSizes) const
 {
     aSizes->mFontInstances += aMallocSizeOf(this);
-    AddSizeOfExcludingThis(aMallocSizeOf, aSizes);
+    SizeOfExcludingThis(aMallocSizeOf, aSizes);
 }

@@ -8,6 +8,14 @@
 #define gc_Marking_h
 
 #include "gc/Barrier.h"
+#include "jit/IonCode.h"
+
+extern "C" {
+struct JSContext;
+class JSFunction;
+class JSObject;
+class JSScript;
+}
 
 class JSAtom;
 class JSLinearString;
@@ -27,16 +35,6 @@ class Shape;
 class UnownedBaseShape;
 
 template<class, typename> class HeapPtr;
-
-namespace jit {
-class JitCode;
-class IonScript;
-class VMFunction;
-}
-
-namespace types {
-class Type;
-}
 
 namespace gc {
 
@@ -81,19 +79,19 @@ namespace gc {
  *     GC things.  It indicates whether the object is currently marked.
  */
 #define DeclMarker(base, type)                                                                    \
-void Mark##base(JSTracer *trc, BarrieredPtr<type> *thing, const char *name);                   \
+void Mark##base(JSTracer *trc, EncapsulatedPtr<type> *thing, const char *name);                   \
 void Mark##base##Root(JSTracer *trc, type **thingp, const char *name);                            \
 void Mark##base##Unbarriered(JSTracer *trc, type **thingp, const char *name);                     \
 void Mark##base##Range(JSTracer *trc, size_t len, HeapPtr<type> *thing, const char *name);        \
 void Mark##base##RootRange(JSTracer *trc, size_t len, type **thing, const char *name);            \
 bool Is##base##Marked(type **thingp);                                                             \
-bool Is##base##Marked(BarrieredPtr<type> *thingp);                                             \
+bool Is##base##Marked(EncapsulatedPtr<type> *thingp);                                             \
 bool Is##base##AboutToBeFinalized(type **thingp);                                                 \
-bool Is##base##AboutToBeFinalized(BarrieredPtr<type> *thingp);                                 \
+bool Is##base##AboutToBeFinalized(EncapsulatedPtr<type> *thingp);
 
 DeclMarker(BaseShape, BaseShape)
 DeclMarker(BaseShape, UnownedBaseShape)
-DeclMarker(JitCode, jit::JitCode)
+DeclMarker(IonCode, ion::IonCode)
 DeclMarker(Object, ArgumentsObject)
 DeclMarker(Object, ArrayBufferObject)
 DeclMarker(Object, ArrayBufferViewObject)
@@ -114,9 +112,7 @@ DeclMarker(TypeObject, types::TypeObject)
 
 #undef DeclMarker
 
-/* Return true if the pointer is nullptr, or if it is a tagged pointer to
- * nullptr.
- */
+/* Return true if the pointer is NULL, or if it is a tagged pointer to NULL. */
 JS_ALWAYS_INLINE bool
 IsNullTaggedPointer(void *p)
 {
@@ -142,7 +138,7 @@ MarkGCThingUnbarriered(JSTracer *trc, void **thingp, const char *name);
 /*** ID Marking ***/
 
 void
-MarkId(JSTracer *trc, BarrieredId *id, const char *name);
+MarkId(JSTracer *trc, EncapsulatedId *id, const char *name);
 
 void
 MarkIdRoot(JSTracer *trc, jsid *id, const char *name);
@@ -159,10 +155,10 @@ MarkIdRootRange(JSTracer *trc, size_t len, jsid *vec, const char *name);
 /*** Value Marking ***/
 
 void
-MarkValue(JSTracer *trc, BarrieredValue *v, const char *name);
+MarkValue(JSTracer *trc, EncapsulatedValue *v, const char *name);
 
 void
-MarkValueRange(JSTracer *trc, size_t len, BarrieredValue *vec, const char *name);
+MarkValueRange(JSTracer *trc, size_t len, EncapsulatedValue *vec, const char *name);
 
 inline void
 MarkValueRange(JSTracer *trc, HeapValue *begin, HeapValue *end, const char *name)
@@ -233,6 +229,10 @@ MarkCrossCompartmentSlot(JSTracer *trc, JSObject *src, HeapSlot *dst_slot, const
 void
 MarkObject(JSTracer *trc, HeapPtr<GlobalObject, JSScript *> *thingp, const char *name);
 
+/* Direct value access used by the write barriers and the methodjit. */
+void
+MarkValueUnbarriered(JSTracer *trc, Value *v, const char *name);
+
 /*
  * MarkChildren<JSObject> is exposed solely for preWriteBarrier on
  * JSObject::TradeGuts. It should not be considered external interface.
@@ -259,27 +259,27 @@ PushArena(GCMarker *gcmarker, ArenaHeader *aheader);
  */
 
 inline void
-Mark(JSTracer *trc, BarrieredValue *v, const char *name)
+Mark(JSTracer *trc, EncapsulatedValue *v, const char *name)
 {
     MarkValue(trc, v, name);
 }
 
 inline void
-Mark(JSTracer *trc, BarrieredPtrObject *o, const char *name)
+Mark(JSTracer *trc, EncapsulatedPtrObject *o, const char *name)
 {
     MarkObject(trc, o, name);
 }
 
 inline void
-Mark(JSTracer *trc, BarrieredPtrScript *o, const char *name)
+Mark(JSTracer *trc, EncapsulatedPtrScript *o, const char *name)
 {
     MarkScript(trc, o, name);
 }
 
 inline void
-Mark(JSTracer *trc, HeapPtr<jit::JitCode> *code, const char *name)
+Mark(JSTracer *trc, HeapPtr<ion::IonCode> *code, const char *name)
 {
-    MarkJitCode(trc, code, name);
+    MarkIonCode(trc, code, name);
 }
 
 /* For use by WeakMap's HashKeyRef instantiation. */
@@ -303,7 +303,7 @@ bool
 IsCellAboutToBeFinalized(Cell **thing);
 
 inline bool
-IsMarked(BarrieredValue *v)
+IsMarked(EncapsulatedValue *v)
 {
     if (!v->isMarkable())
         return true;
@@ -311,19 +311,19 @@ IsMarked(BarrieredValue *v)
 }
 
 inline bool
-IsMarked(BarrieredPtrObject *objp)
+IsMarked(EncapsulatedPtrObject *objp)
 {
     return IsObjectMarked(objp);
 }
 
 inline bool
-IsMarked(BarrieredPtrScript *scriptp)
+IsMarked(EncapsulatedPtrScript *scriptp)
 {
     return IsScriptMarked(scriptp);
 }
 
 inline bool
-IsAboutToBeFinalized(BarrieredValue *v)
+IsAboutToBeFinalized(EncapsulatedValue *v)
 {
     if (!v->isMarkable())
         return false;
@@ -331,13 +331,13 @@ IsAboutToBeFinalized(BarrieredValue *v)
 }
 
 inline bool
-IsAboutToBeFinalized(BarrieredPtrObject *objp)
+IsAboutToBeFinalized(EncapsulatedPtrObject *objp)
 {
     return IsObjectAboutToBeFinalized(objp);
 }
 
 inline bool
-IsAboutToBeFinalized(BarrieredPtrScript *scriptp)
+IsAboutToBeFinalized(EncapsulatedPtrScript *scriptp)
 {
     return IsScriptAboutToBeFinalized(scriptp);
 }
@@ -346,19 +346,19 @@ IsAboutToBeFinalized(BarrieredPtrScript *scriptp)
 /* Nonsense to get WeakCache to work with new Marking semantics. */
 
 inline bool
-IsAboutToBeFinalized(const js::jit::VMFunction **vmfunc)
+IsAboutToBeFinalized(const js::ion::VMFunction **vmfunc)
 {
     /*
-     * Preserves entries in the WeakCache<VMFunction, JitCode>
-     * iff the JitCode has been marked.
+     * Preserves entries in the WeakCache<VMFunction, IonCode>
+     * iff the IonCode has been marked.
      */
     return true;
 }
 
 inline bool
-IsAboutToBeFinalized(ReadBarriered<js::jit::JitCode> code)
+IsAboutToBeFinalized(ReadBarriered<js::ion::IonCode> code)
 {
-    return IsJitCodeAboutToBeFinalized(code.unsafeGet());
+    return IsIonCodeAboutToBeFinalized(code.unsafeGet());
 }
 #endif
 
@@ -367,7 +367,7 @@ ToMarkable(const Value &v)
 {
     if (v.isMarkable())
         return (Cell *)v.toGCThing();
-    return nullptr;
+    return NULL;
 }
 
 inline Cell *

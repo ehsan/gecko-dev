@@ -21,10 +21,12 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=548545
 
 SimpleTest.waitForExplicitFinish();
 
+netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+
 var content = document.getElementById("content");
 
-var CC = SpecialPowers.Cc;
-var CI = SpecialPowers.Ci;
+var CC = Components.classes;
+var CI = Components.interfaces;
 
 var fe =
   CC["@mozilla.org/gfx/fontenumerator;1"].createInstance(CI.nsIFontEnumerator);

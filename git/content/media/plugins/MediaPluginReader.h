@@ -10,7 +10,6 @@
 #include "MediaResource.h"
 #include "MediaDecoderReader.h"
 #include "ImageContainer.h"
-#include "nsAutoPtr.h"
 #include "mozilla/layers/SharedRGBImage.h"
  
 #include "MPAPI.h"
@@ -39,7 +38,7 @@ class MediaPluginReader : public MediaDecoderReader
   nsIntSize mInitialFrame;
   int64_t mVideoSeekTimeUs;
   int64_t mAudioSeekTimeUs;
-  nsAutoPtr<VideoData> mLastVideoFrame;
+  VideoData *mLastVideoFrame;
 public:
   MediaPluginReader(AbstractMediaDecoder* aDecoder,
                     const nsACString& aContentType);
@@ -62,26 +61,21 @@ public:
     return mHasVideo;
   }
 
-  virtual nsresult ReadMetadata(MediaInfo* aInfo,
+  virtual nsresult ReadMetadata(VideoInfo* aInfo,
                                 MetadataTags** aTags);
   virtual nsresult Seek(int64_t aTime, int64_t aStartTime, int64_t aEndTime, int64_t aCurrentTime);
-
+  virtual nsresult GetBuffered(mozilla::dom::TimeRanges* aBuffered, int64_t aStartTime);
   class ImageBufferCallback : public MPAPI::BufferCallback {
     typedef mozilla::layers::Image Image;
-
   public:
     ImageBufferCallback(mozilla::layers::ImageContainer *aImageContainer);
     void *operator()(size_t aWidth, size_t aHeight,
                      MPAPI::ColorFormat aColorFormat) MOZ_OVERRIDE;
     already_AddRefed<Image> GetImage();
-
   private:
-    uint8_t *CreateI420Image(size_t aWidth, size_t aHeight);
-
     mozilla::layers::ImageContainer *mImageContainer;
     nsRefPtr<Image> mImage;
   };
-
 };
 
 } // namespace mozilla

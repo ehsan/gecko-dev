@@ -67,7 +67,7 @@ this.WebappsHandler = {
           localDir = shell.appProfile.localDir;
         }
 
-        DOMApplicationRegistry.confirmInstall(data, localDir,
+        DOMApplicationRegistry.confirmInstall(data, false, localDir, null,
           function (aManifest) {
             WebappsInstaller.install(data, aManifest);
           }

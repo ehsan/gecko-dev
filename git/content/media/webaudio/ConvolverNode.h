@@ -13,6 +13,8 @@
 namespace mozilla {
 namespace dom {
 
+template <class T> class PlayingRefChangeHandler;
+
 class ConvolverNode : public AudioNode
 {
 public:
@@ -38,25 +40,25 @@ public:
 
   void SetNormalize(bool aNormal);
 
-  virtual void SetChannelCount(uint32_t aChannelCount, ErrorResult& aRv) MOZ_OVERRIDE
+  virtual void NotifyInputConnected() MOZ_OVERRIDE
   {
-    if (aChannelCount > 2) {
-      aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
-      return;
-    }
-    AudioNode::SetChannelCount(aChannelCount, aRv);
+    mMediaStreamGraphUpdateIndexAtLastInputConnection =
+      mStream->Graph()->GetCurrentGraphUpdateIndex();
   }
-  virtual void SetChannelCountModeValue(ChannelCountMode aMode, ErrorResult& aRv) MOZ_OVERRIDE
+  bool AcceptPlayingRefRelease(int64_t aLastGraphUpdateIndexProcessed) const
   {
-    if (aMode == ChannelCountMode::Max) {
-      aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
-      return;
-    }
-    AudioNode::SetChannelCountModeValue(aMode, aRv);
+    // Reject any requests to release mPlayingRef if the request was issued
+    // before the MediaStreamGraph was aware of the most-recently-added input
+    // connection.
+    return aLastGraphUpdateIndexProcessed >= mMediaStreamGraphUpdateIndexAtLastInputConnection;
   }
 
 private:
+  friend class PlayingRefChangeHandler<ConvolverNode>;
+
+  int64_t mMediaStreamGraphUpdateIndexAtLastInputConnection;
   nsRefPtr<AudioBuffer> mBuffer;
+  SelfReference<ConvolverNode> mPlayingRef;
   bool mNormalize;
 };
 

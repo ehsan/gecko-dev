@@ -10,6 +10,7 @@
 #include "nsDOMClassInfoID.h"
 #include "nsDOMFile.h"
 #include "nsError.h"
+#include "nsICharsetConverterManager.h"
 #include "nsIConverterInputStream.h"
 #include "nsIDocument.h"
 #include "nsIFile.h"
@@ -32,6 +33,7 @@
 #include "nsCExternalHandlerService.h"
 #include "nsIStreamConverterService.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsLayoutStatics.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsHostObjectProtocolHandler.h"
 #include "mozilla/Base64.h"
@@ -93,7 +95,7 @@ NS_IMPL_FORWARD_EVENT_HANDLER(nsDOMFileReader, error, FileIOObject)
 void
 nsDOMFileReader::RootResultArrayBuffer()
 {
-  mozilla::HoldJSObjects(this);
+  NS_HOLD_JS_OBJECTS(this, nsDOMFileReader);
 }
 
 //nsDOMFileReader constructors/initializers
@@ -103,6 +105,7 @@ nsDOMFileReader::nsDOMFileReader()
     mDataLen(0), mDataFormat(FILE_AS_BINARY),
     mResultArrayBuffer(nullptr)
 {
+  nsLayoutStatics::AddRef();
   SetDOMStringToNull(mResult);
   SetIsDOMBinding();
 }
@@ -111,7 +114,8 @@ nsDOMFileReader::~nsDOMFileReader()
 {
   FreeFileData();
   mResultArrayBuffer = nullptr;
-  mozilla::DropJSObjects(this);
+  NS_DROP_JS_OBJECTS(this, nsDOMFileReader);
+  nsLayoutStatics::Release();
 }
 
 
@@ -183,7 +187,7 @@ nsDOMFileReader::GetReadyState(uint16_t *aReadyState)
 JS::Value
 nsDOMFileReader::GetResult(JSContext* aCx, ErrorResult& aRv)
 {
-  JS::Rooted<JS::Value> result(aCx);
+  JS::Rooted<JS::Value> result(aCx, JS::UndefinedValue());
   aRv = GetResult(aCx, result.address());
   return result;
 }
@@ -191,25 +195,23 @@ nsDOMFileReader::GetResult(JSContext* aCx, ErrorResult& aRv)
 NS_IMETHODIMP
 nsDOMFileReader::GetResult(JSContext* aCx, JS::Value* aResult)
 {
-  JS::Rooted<JS::Value> result(aCx);
   if (mDataFormat == FILE_AS_ARRAYBUFFER) {
     if (mReadyState == nsIDOMFileReader::DONE && mResultArrayBuffer) {
-      result.setObject(*mResultArrayBuffer);
+      JSObject* tmp = mResultArrayBuffer;
+      *aResult = OBJECT_TO_JSVAL(tmp);
     } else {
-      result.setNull();
+      *aResult = JSVAL_NULL;
     }
-    if (!JS_WrapValue(aCx, &result)) {
+    if (!JS_WrapValue(aCx, aResult)) {
       return NS_ERROR_FAILURE;
     }
-    *aResult = result;
     return NS_OK;
   }
-
+ 
   nsString tmpResult = mResult;
-  if (!xpc::StringToJsval(aCx, tmpResult, &result)) {
+  if (!xpc::StringToJsval(aCx, tmpResult, aResult)) {
     return NS_ERROR_FAILURE;
   }
-  *aResult = result;
   return NS_OK;
 }
 
@@ -388,15 +390,7 @@ nsDOMFileReader::DoOnStopRequest(nsIRequest *aRequest,
     case FILE_AS_BINARY:
       break; //Already accumulated mResult
     case FILE_AS_TEXT:
-      if (!mFileData) {
-        if (mDataLen) {
-          rv = NS_ERROR_OUT_OF_MEMORY;
-          break;
-        }
-        rv = GetAsText(file, mCharset, "", mDataLen, mResult);
-        break;
-      }
-      rv = GetAsText(file, mCharset, mFileData, mDataLen, mResult);
+      rv = GetAsText(mCharset, mFileData, mDataLen, mResult);
       break;
     case FILE_AS_DATAURL:
       rv = GetAsDataURL(file, mFileData, mDataLen, mResult);
@@ -484,43 +478,28 @@ nsDOMFileReader::ReadFileContent(JSContext* aCx,
 }
 
 nsresult
-nsDOMFileReader::GetAsText(nsIDOMBlob *aFile,
-                           const nsACString &aCharset,
+nsDOMFileReader::GetAsText(const nsACString &aCharset,
                            const char *aFileData,
                            uint32_t aDataLen,
                            nsAString& aResult)
 {
-  // The BOM sniffing is baked into the "decode" part of the Encoding
-  // Standard, which the File API references.
-  nsAutoCString encoding;
-  if (!nsContentUtils::CheckForBOM(
-        reinterpret_cast<const unsigned char *>(aFileData),
-        aDataLen,
-        encoding)) {
-    // BOM sniffing failed. Try the API argument.
-    if (!EncodingUtils::FindEncodingForLabel(aCharset,
-                                             encoding)) {
-      // API argument failed. Try the type property of the blob.
-      nsAutoString type16;
-      aFile->GetType(type16);
-      NS_ConvertUTF16toUTF8 type(type16);
-      nsAutoCString specifiedCharset;
-      bool haveCharset;
-      int32_t charsetStart, charsetEnd;
-      NS_ExtractCharsetFromContentType(type,
-                                       specifiedCharset,
-                                       &haveCharset,
-                                       &charsetStart,
-                                       &charsetEnd);
-      if (!EncodingUtils::FindEncodingForLabel(specifiedCharset, encoding)) {
-        // Type property failed. Use UTF-8.
-        encoding.AssignLiteral("UTF-8");
-      }
-    }
+  nsresult rv;
+  nsAutoCString charsetGuess;
+  if (!aCharset.IsEmpty()) {
+    charsetGuess = aCharset;
+  } else {
+    rv = nsContentUtils::GuessCharset(aFileData, aDataLen, charsetGuess);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  nsDependentCSubstring data(aFileData, aDataLen);
-  return nsContentUtils::ConvertStringFromEncoding(encoding, data, aResult);
+  nsAutoCString charset;
+  if (!EncodingUtils::FindEncodingForLabel(charsetGuess, charset)) {
+    return NS_ERROR_DOM_ENCODING_NOT_SUPPORTED_ERR;
+  }
+
+  rv = ConvertStream(aFileData, aDataLen, charset.get(), aResult);
+
+  return NS_OK;
 }
 
 nsresult
@@ -548,6 +527,35 @@ nsDOMFileReader::GetAsDataURL(nsIDOMBlob *aFile,
   AppendASCIItoUTF16(encodedData, aResult);
 
   return NS_OK;
+}
+
+nsresult
+nsDOMFileReader::ConvertStream(const char *aFileData,
+                               uint32_t aDataLen,
+                               const char *aCharset,
+                               nsAString &aResult)
+{
+  nsresult rv;
+  nsCOMPtr<nsICharsetConverterManager> charsetConverter = 
+    do_GetService(NS_CHARSETCONVERTERMANAGER_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsIUnicodeDecoder> unicodeDecoder;
+  rv = charsetConverter->GetUnicodeDecoder(aCharset, getter_AddRefs(unicodeDecoder));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  int32_t destLength;
+  rv = unicodeDecoder->GetMaxLength(aFileData, aDataLen, &destLength);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (!aResult.SetLength(destLength, fallible_t()))
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  int32_t srcLength = aDataLen;
+  rv = unicodeDecoder->Convert(aFileData, &srcLength, aResult.BeginWriting(), &destLength);
+  aResult.SetLength(destLength); //Trim down to the correct size
+
+  return rv;
 }
 
 /* virtual */ JSObject*

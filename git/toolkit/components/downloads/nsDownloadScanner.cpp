@@ -161,7 +161,7 @@ nsDownloadScanner::Init()
   // This CoInitialize/CoUninitialize pattern seems to be common in the Mozilla
   // codebase. All other COM calls/objects are made on different threads.
   nsresult rv = NS_OK;
-  CoInitialize(nullptr);
+  CoInitialize(NULL);
 
   if (!IsAESAvailable()) {
     CoUninitialize();
@@ -192,7 +192,7 @@ nsDownloadScanner::IsAESAvailable()
   // Try to instantiate IAE to see if it's available.    
   nsRefPtr<IAttachmentExecute> ae;
   HRESULT hr;
-  hr = CoCreateInstance(CLSID_AttachmentServices, nullptr, CLSCTX_INPROC,
+  hr = CoCreateInstance(CLSID_AttachmentServices, NULL, CLSCTX_INPROC,
                         IID_IAttachmentExecute, getter_AddRefs(ae));
   if (FAILED(hr)) {
     NS_WARNING("Could not instantiate attachment execution service\n");
@@ -238,7 +238,7 @@ nsDownloadScanner::CheckPolicy(nsIURI *aSource, nsIURI *aTarget)
 
   nsRefPtr<IAttachmentExecute> ae;
   HRESULT hr;
-  hr = CoCreateInstance(CLSID_AttachmentServices, nullptr, CLSCTX_INPROC,
+  hr = CoCreateInstance(CLSID_AttachmentServices, NULL, CLSCTX_INPROC,
                         IID_IAttachmentExecute, getter_AddRefs(ae));
   if (FAILED(hr))
     return AVPOLICY_DOWNLOAD;
@@ -305,7 +305,7 @@ nsresult ReleaseDispatcher::Run() {
 }
 
 nsDownloadScanner::Scan::Scan(nsDownloadScanner *scanner, nsDownload *download)
-  : mDLScanner(scanner), mThread(nullptr), 
+  : mDLScanner(scanner), mThread(NULL), 
     mDownload(download), mStatus(AVSCAN_NOTSTARTED),
     mSkipSource(false)
 {
@@ -321,8 +321,8 @@ nsDownloadScanner::Scan::Start()
 {
   mStartTime = PR_Now();
 
-  mThread = (HANDLE)_beginthreadex(nullptr, 0, ScannerThreadFunction,
-      this, CREATE_SUSPENDED, nullptr);
+  mThread = (HANDLE)_beginthreadex(NULL, 0, ScannerThreadFunction,
+      this, CREATE_SUSPENDED, NULL);
   if (!mThread)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -446,7 +446,7 @@ nsDownloadScanner::Scan::DoScanAES()
   HRESULT hr;
   nsRefPtr<IAttachmentExecute> ae;
   MOZ_SEH_TRY {
-    hr = CoCreateInstance(CLSID_AttachmentServices, nullptr, CLSCTX_ALL,
+    hr = CoCreateInstance(CLSID_AttachmentServices, NULL, CLSCTX_ALL,
                           IID_IAttachmentExecute, getter_AddRefs(ae));
   } MOZ_SEH_EXCEPT(ExceptionFilterFunction(GetExceptionCode())) {
     return CheckAndSetState(AVSCAN_NOTSTARTED,AVSCAN_FAILED);
@@ -459,10 +459,10 @@ nsDownloadScanner::Scan::DoScanAES()
       bool gotException = false;
       MOZ_SEH_TRY {
         (void)ae->SetClientGuid(GUID_MozillaVirusScannerPromptGeneric);
-        (void)ae->SetLocalPath(mPath.get());
+        (void)ae->SetLocalPath(mPath.BeginWriting());
         // Provide the src for everything but data: schemes.
         if (!mSkipSource)
-          (void)ae->SetSource(mOrigin.get());
+          (void)ae->SetSource(mOrigin.BeginWriting());
 
         // Save() will invoke the scanner
         hr = ae->Save();
@@ -471,7 +471,7 @@ nsDownloadScanner::Scan::DoScanAES()
       }
 
       MOZ_SEH_TRY {
-        ae = nullptr;
+        ae = NULL;
       } MOZ_SEH_EXCEPT(ExceptionFilterFunction(GetExceptionCode())) {
         gotException = true;
       }
@@ -506,7 +506,7 @@ nsDownloadScanner::Scan::DoScanAES()
 void
 nsDownloadScanner::Scan::DoScan()
 {
-  CoInitialize(nullptr);
+  CoInitialize(NULL);
 
   if (DoScanAES()) {
     // We need to do a few more things on the main thread
@@ -588,7 +588,7 @@ nsDownloadScanner::ScanDownload(nsDownload *download)
 }
 
 nsDownloadScannerWatchdog::nsDownloadScannerWatchdog() 
-  : mNewItemEvent(nullptr), mQuitEvent(nullptr) {
+  : mNewItemEvent(NULL), mQuitEvent(NULL) {
   InitializeCriticalSection(&mQueueSync);
 }
 nsDownloadScannerWatchdog::~nsDownloadScannerWatchdog() {
@@ -598,10 +598,10 @@ nsDownloadScannerWatchdog::~nsDownloadScannerWatchdog() {
 nsresult
 nsDownloadScannerWatchdog::Init() {
   // Both events are auto-reset
-  mNewItemEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+  mNewItemEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
   if (INVALID_HANDLE_VALUE == mNewItemEvent)
     return NS_ERROR_OUT_OF_MEMORY;
-  mQuitEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+  mQuitEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
   if (INVALID_HANDLE_VALUE == mQuitEvent) {
     (void)CloseHandle(mNewItemEvent);
     return NS_ERROR_OUT_OF_MEMORY;
@@ -609,8 +609,8 @@ nsDownloadScannerWatchdog::Init() {
 
   // This thread is always running, however it will be asleep
   // for most of the dlmgr's lifetime
-  mThread = (HANDLE)_beginthreadex(nullptr, 0, WatchdogThread,
-                                   this, 0, nullptr);
+  mThread = (HANDLE)_beginthreadex(NULL, 0, WatchdogThread,
+                                   this, 0, NULL);
   if (!mThread) {
     (void)CloseHandle(mNewItemEvent);
     (void)CloseHandle(mQuitEvent);
@@ -667,7 +667,7 @@ nsDownloadScannerWatchdog::WatchdogThread(void *p) {
            (waitStatus =
               WaitForMultipleObjects(2, waitHandles, FALSE, INFINITE)) &&
          waitStatus != WAIT_FAILED) {
-    Scan *scan = nullptr;
+    Scan *scan = NULL;
     PRTime startTime, expectedEndTime, now;
     DWORD waitTime;
 

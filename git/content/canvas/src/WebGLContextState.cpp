@@ -12,15 +12,14 @@
 #include "WebGLRenderbuffer.h"
 #include "WebGLTexture.h"
 #include "WebGLVertexArray.h"
-#include "GLContext.h"
 
 using namespace mozilla;
 using namespace dom;
 
 void
-WebGLContext::Disable(GLenum cap)
+WebGLContext::Disable(WebGLenum cap)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     if (!ValidateCapabilityEnum(cap, "disable"))
@@ -38,9 +37,9 @@ WebGLContext::Disable(GLenum cap)
 }
 
 void
-WebGLContext::Enable(GLenum cap)
+WebGLContext::Enable(WebGLenum cap)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     if (!ValidateCapabilityEnum(cap, "enable"))
@@ -70,9 +69,9 @@ StringValue(JSContext* cx, const char* chars, ErrorResult& rv)
 }
 
 JS::Value
-WebGLContext::GetParameter(JSContext* cx, GLenum pname, ErrorResult& rv)
+WebGLContext::GetParameter(JSContext* cx, WebGLenum pname, ErrorResult& rv)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return JS::NullValue();
 
     MakeContextCurrent();
@@ -128,7 +127,7 @@ WebGLContext::GetParameter(JSContext* cx, GLenum pname, ErrorResult& rv)
             return JS::Int32Value(mGLMaxDrawBuffers);
         }
         else if (pname >= LOCAL_GL_DRAW_BUFFER0 &&
-                 pname < GLenum(LOCAL_GL_DRAW_BUFFER0 + mGLMaxDrawBuffers))
+                 pname < WebGLenum(LOCAL_GL_DRAW_BUFFER0 + mGLMaxDrawBuffers))
         {
             if (mBoundFramebuffer) {
                 GLint iv = 0;
@@ -485,9 +484,9 @@ WebGLContext::GetParameter(JSContext* cx, GLenum pname, ErrorResult& rv)
 }
 
 JS::Value
-WebGLContext::GetParameterIndexed(JSContext* cx, GLenum pname, GLuint index)
+WebGLContext::GetParameterIndexed(JSContext* cx, WebGLenum pname, WebGLuint index)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return JS::NullValue();
 
     MakeContextCurrent();
@@ -511,9 +510,9 @@ WebGLContext::GetParameterIndexed(JSContext* cx, GLenum pname, GLuint index)
 }
 
 bool
-WebGLContext::IsEnabled(GLenum cap)
+WebGLContext::IsEnabled(WebGLenum cap)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return false;
 
     if (!ValidateCapabilityEnum(cap, "isEnabled"))
@@ -524,7 +523,7 @@ WebGLContext::IsEnabled(GLenum cap)
 }
 
 bool
-WebGLContext::ValidateCapabilityEnum(GLenum cap, const char* info)
+WebGLContext::ValidateCapabilityEnum(WebGLenum cap, const char* info)
 {
     switch (cap) {
         case LOCAL_GL_BLEND:
@@ -546,7 +545,7 @@ WebGLContext::ValidateCapabilityEnum(GLenum cap, const char* info)
 }
 
 realGLboolean*
-WebGLContext::GetStateTrackingSlot(GLenum cap)
+WebGLContext::GetStateTrackingSlot(WebGLenum cap)
 {
     switch (cap) {
         case LOCAL_GL_SCISSOR_TEST:

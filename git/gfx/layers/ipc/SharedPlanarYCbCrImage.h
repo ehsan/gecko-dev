@@ -30,7 +30,12 @@ class TextureClient;
 class DeprecatedSharedPlanarYCbCrImage : public PlanarYCbCrImage
 {
 public:
-  DeprecatedSharedPlanarYCbCrImage(ISurfaceAllocator* aAllocator);
+  DeprecatedSharedPlanarYCbCrImage(ISurfaceAllocator* aAllocator)
+  : PlanarYCbCrImage(nullptr)
+  , mSurfaceAllocator(aAllocator), mAllocated(false)
+  {
+    MOZ_COUNT_CTOR(DeprecatedSharedPlanarYCbCrImage);
+  }
 
   ~DeprecatedSharedPlanarYCbCrImage();
 
@@ -48,10 +53,10 @@ public:
     return PlanarYCbCrImage::GetAsSurface();
   }
 
-  virtual void SetData(const PlanarYCbCrData& aData) MOZ_OVERRIDE;
+  virtual void SetData(const PlanarYCbCrImage::Data& aData) MOZ_OVERRIDE;
   virtual void SetDataNoCopy(const Data &aData) MOZ_OVERRIDE;
 
-  virtual bool Allocate(PlanarYCbCrData& aData);
+  virtual bool Allocate(PlanarYCbCrImage::Data& aData);
   virtual uint8_t* AllocateBuffer(uint32_t aSize) MOZ_OVERRIDE;
   // needs to be overriden because the parent class sets mBuffer which we
   // do not want to happen.
@@ -84,7 +89,7 @@ public:
 
 private:
   ipc::Shmem mShmem;
-  RefPtr<ISurfaceAllocator> mSurfaceAllocator;
+  ISurfaceAllocator* mSurfaceAllocator;
   bool mAllocated;
 };
 
@@ -101,10 +106,10 @@ public:
   virtual uint8_t* GetBuffer() MOZ_OVERRIDE;
 
   virtual already_AddRefed<gfxASurface> GetAsSurface() MOZ_OVERRIDE;
-  virtual void SetData(const PlanarYCbCrData& aData) MOZ_OVERRIDE;
+  virtual void SetData(const PlanarYCbCrImage::Data& aData) MOZ_OVERRIDE;
   virtual void SetDataNoCopy(const Data &aData) MOZ_OVERRIDE;
 
-  virtual bool Allocate(PlanarYCbCrData& aData);
+  virtual bool Allocate(PlanarYCbCrImage::Data& aData);
   virtual uint8_t* AllocateBuffer(uint32_t aSize) MOZ_OVERRIDE;
   // needs to be overriden because the parent class sets mBuffer which we
   // do not want to happen.
@@ -114,7 +119,6 @@ public:
 
 private:
   RefPtr<BufferTextureClient> mTextureClient;
-  RefPtr<ImageClient> mCompositable;
 };
 
 } // namespace

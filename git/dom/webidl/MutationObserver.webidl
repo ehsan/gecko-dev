@@ -27,11 +27,6 @@ interface MutationObserver {
   void observe(Node target, optional MutationObserverInit options);
   void disconnect();
   sequence<MutationRecord> takeRecords();
-
-  [ChromeOnly]
-  sequence<MutationObservingInfo?> getObservingInfo();
-  [ChromeOnly]
-  readonly attribute MutationCallback mutationCallback;
 };
 
 callback MutationCallback = void (sequence<MutationRecord> mutations, MutationObserver observer);
@@ -44,9 +39,4 @@ dictionary MutationObserverInit {
   boolean attributeOldValue = false;
   boolean characterDataOldValue = false;
   sequence<DOMString> attributeFilter;
-};
-
-dictionary MutationObservingInfo : MutationObserverInit
-{
-  Node? observedNode = null;
 };

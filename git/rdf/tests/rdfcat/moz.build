@@ -6,6 +6,6 @@
 
 PROGRAM = 'rdfcat'
 
-SOURCES += [
+CPP_SOURCES += [
     'rdfcat.cpp',
 ]

@@ -4,8 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "GLContextProvider.h"
-#include "GLContext.h"
-#include "TextureImageCGL.h"
 #include "nsDebug.h"
 #include "nsIWidget.h"
 #include "OpenGL/OpenGL.h"
@@ -104,16 +102,8 @@ public:
     {
         MarkDestroyed();
 
-        if (mContext) {
-            if ([NSOpenGLContext currentContext] == mContext) {
-                // Clear the current context before releasing. If we don't do
-                // this, the next time we call [NSOpenGLContext currentContext],
-                // "invalid context" will be printed to the console.
-                [NSOpenGLContext clearCurrentContext];
-            }
+        if (mContext)
             [mContext release];
-        }
-
     }
 
     GLContextType GetContextType() {
@@ -122,6 +112,7 @@ public:
 
     bool Init()
     {
+        MakeCurrent();
         if (!InitWithPrefix("gl", true))
             return false;
 
@@ -133,8 +124,7 @@ public:
         switch (aType) {
         case NativeGLContext:
             return mContext;
-        case NativeCGLContext:
-            return [mContext CGLContextObj];
+
         default:
             return nullptr;
         }
@@ -190,14 +180,234 @@ public:
 
     bool ResizeOffscreen(const gfxIntSize& aNewSize);
 
+    virtual already_AddRefed<TextureImage>
+    CreateTextureImage(const nsIntSize& aSize,
+                       TextureImage::ContentType aContentType,
+                       GLenum aWrapMode,
+                       TextureImage::Flags aFlags = TextureImage::NoFlags,
+                       TextureImage::ImageFormat aImageFormat = gfxASurface::ImageFormatUnknown) MOZ_OVERRIDE;
+
+    virtual already_AddRefed<TextureImage>
+    TileGenFunc(const nsIntSize& aSize,
+                TextureImage::ContentType aContentType,
+                TextureImage::Flags aFlags = TextureImage::NoFlags,
+                TextureImage::ImageFormat aImageFormat = gfxASurface::ImageFormatUnknown) MOZ_OVERRIDE;
+
+    virtual SharedTextureHandle CreateSharedHandle(SharedTextureShareType shareType,
+                                                   void* buffer,
+                                                   SharedTextureBufferType bufferType)
+    {
+        return GLContextProviderCGL::CreateSharedHandle(shareType, buffer, bufferType);
+    }
+
+    virtual void ReleaseSharedHandle(SharedTextureShareType shareType,
+                                     SharedTextureHandle sharedHandle)
+    {
+        if (sharedHandle) {
+            reinterpret_cast<MacIOSurface*>(sharedHandle)->Release();
+        }
+    }
+
+    virtual bool GetSharedHandleDetails(SharedTextureShareType shareType,
+                                        SharedTextureHandle sharedHandle,
+                                        SharedHandleDetails& details)
+    {
+        MacIOSurface* surf = reinterpret_cast<MacIOSurface*>(sharedHandle);
+        details.mTarget = LOCAL_GL_TEXTURE_RECTANGLE_ARB;
+        details.mTextureFormat = surf->HasAlpha() ? FORMAT_R8G8B8A8 : FORMAT_R8G8B8X8;
+        return true;
+    }
+
+    virtual bool AttachSharedHandle(SharedTextureShareType shareType,
+                                    SharedTextureHandle sharedHandle)
+    {
+        MacIOSurface* surf = reinterpret_cast<MacIOSurface*>(sharedHandle);
+        surf->CGLTexImageIOSurface2D(mContext);
+        return true;
+    }
+
     NSOpenGLContext *mContext;
     GLuint mTempTextureName;
+
+    already_AddRefed<TextureImage>
+    CreateTextureImageInternal(const nsIntSize& aSize,
+                               TextureImage::ContentType aContentType,
+                               GLenum aWrapMode,
+                               TextureImage::Flags aFlags,
+                               TextureImage::ImageFormat aImageFormat);
+
 };
 
 bool
 GLContextCGL::ResizeOffscreen(const gfxIntSize& aNewSize)
 {
     return ResizeScreenBuffer(aNewSize);
+}
+
+class TextureImageCGL : public BasicTextureImage
+{
+    friend already_AddRefed<TextureImage>
+    GLContextCGL::CreateTextureImageInternal(const nsIntSize& aSize,
+                                             TextureImage::ContentType aContentType,
+                                             GLenum aWrapMode,
+                                             TextureImage::Flags aFlags,
+                                             TextureImage::ImageFormat aImageFormat);
+public:
+    ~TextureImageCGL()
+    {
+        if (mPixelBuffer) {
+            mGLContext->MakeCurrent();
+            mGLContext->fDeleteBuffers(1, &mPixelBuffer);
+        }
+    }
+
+protected:
+    already_AddRefed<gfxASurface>
+    GetSurfaceForUpdate(const gfxIntSize& aSize, ImageFormat aFmt)
+    {
+        gfxIntSize size(aSize.width + 1, aSize.height + 1);
+        mGLContext->MakeCurrent();
+        if (!mGLContext->
+            IsExtensionSupported(GLContext::ARB_pixel_buffer_object)) 
+        {
+            return gfxPlatform::GetPlatform()->
+                CreateOffscreenSurface(size,
+                                       gfxASurface::ContentFromFormat(aFmt));
+        }
+
+        if (!mPixelBuffer) {
+            mGLContext->fGenBuffers(1, &mPixelBuffer);
+        }
+        mGLContext->fBindBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, mPixelBuffer);
+        int32_t length = size.width * 4 * size.height;
+
+        if (length > mPixelBufferSize) {
+            mGLContext->fBufferData(LOCAL_GL_PIXEL_UNPACK_BUFFER, length,
+                                    NULL, LOCAL_GL_STREAM_DRAW);
+            mPixelBufferSize = length;
+        }
+        unsigned char* data = 
+            (unsigned char*)mGLContext->
+                fMapBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, 
+                           LOCAL_GL_WRITE_ONLY);
+
+        mGLContext->fBindBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, 0);
+
+        if (!data) {
+            nsAutoCString failure;
+            failure += "Pixel buffer binding failed: ";
+            failure.AppendPrintf("%dx%d\n", size.width, size.height);
+            gfx::LogFailure(failure);
+
+            mGLContext->fBindBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, 0);
+            return gfxPlatform::GetPlatform()->
+                CreateOffscreenSurface(size,
+                                       gfxASurface::ContentFromFormat(aFmt));
+        }
+
+        nsRefPtr<gfxQuartzSurface> surf = 
+            new gfxQuartzSurface(data, size, size.width * 4, aFmt);
+
+        mBoundPixelBuffer = true;
+        return surf.forget();
+    }
+  
+    bool FinishedSurfaceUpdate()
+    {
+        if (mBoundPixelBuffer) {
+            mGLContext->MakeCurrent();
+            mGLContext->fBindBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, mPixelBuffer);
+            mGLContext->fUnmapBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER);
+            return true;
+        }
+        return false;
+    }
+
+    void FinishedSurfaceUpload()
+    {
+        if (mBoundPixelBuffer) {
+            mGLContext->MakeCurrent();
+            mGLContext->fBindBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, 0);
+            mBoundPixelBuffer = false;
+        }
+    }
+
+private:
+    TextureImageCGL(GLuint aTexture,
+                    const nsIntSize& aSize,
+                    GLenum aWrapMode,
+                    ContentType aContentType,
+                    GLContext* aContext,
+                    TextureImage::Flags aFlags = TextureImage::NoFlags,
+                    TextureImage::ImageFormat aImageFormat = gfxASurface::ImageFormatUnknown)
+        : BasicTextureImage(aTexture, aSize, aWrapMode, aContentType,
+                            aContext, aFlags, aImageFormat)
+        , mPixelBuffer(0)
+        , mPixelBufferSize(0)
+        , mBoundPixelBuffer(false)
+    {}
+    
+    GLuint mPixelBuffer;
+    int32_t mPixelBufferSize;
+    bool mBoundPixelBuffer;
+};
+
+already_AddRefed<TextureImage>
+GLContextCGL::CreateTextureImageInternal(const nsIntSize& aSize,
+                                         TextureImage::ContentType aContentType,
+                                         GLenum aWrapMode,
+                                         TextureImage::Flags aFlags,
+                                         TextureImage::ImageFormat aImageFormat)
+{
+    bool useNearestFilter = aFlags & TextureImage::UseNearestFilter;
+    MakeCurrent();
+
+    GLuint texture;
+    fGenTextures(1, &texture);
+
+    fActiveTexture(LOCAL_GL_TEXTURE0);
+    fBindTexture(LOCAL_GL_TEXTURE_2D, texture);
+
+    GLint texfilter = useNearestFilter ? LOCAL_GL_NEAREST : LOCAL_GL_LINEAR;
+    fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MIN_FILTER, texfilter);
+    fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MAG_FILTER, texfilter);
+    fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_S, aWrapMode);
+    fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_T, aWrapMode);
+
+    nsRefPtr<TextureImageCGL> teximage
+        (new TextureImageCGL(texture, aSize, aWrapMode, aContentType,
+                             this, aFlags, aImageFormat));
+    return teximage.forget();
+}
+
+already_AddRefed<TextureImage>
+GLContextCGL::CreateTextureImage(const nsIntSize& aSize,
+                                 TextureImage::ContentType aContentType,
+                                 GLenum aWrapMode,
+                                 TextureImage::Flags aFlags,
+                                 TextureImage::ImageFormat aImageFormat)
+{
+    if (!IsOffscreenSizeAllowed(gfxIntSize(aSize.width, aSize.height)) &&
+        gfxPlatform::OffMainThreadCompositingEnabled()) {
+      NS_ASSERTION(aWrapMode == LOCAL_GL_CLAMP_TO_EDGE, "Can't support wrapping with tiles!");
+      nsRefPtr<TextureImage> t = new gl::TiledTextureImage(this, aSize, aContentType,
+                                                           aFlags, aImageFormat);
+      return t.forget();
+    }
+
+    return CreateBasicTextureImage(this, aSize, aContentType, aWrapMode,
+                                   aFlags, aImageFormat);
+}
+
+already_AddRefed<TextureImage>
+GLContextCGL::TileGenFunc(const nsIntSize& aSize,
+                          TextureImage::ContentType aContentType,
+                          TextureImage::Flags aFlags,
+                          TextureImage::ImageFormat aImageFormat)
+{
+    return CreateTextureImageInternal(aSize, aContentType,
+                                      LOCAL_GL_CLAMP_TO_EDGE, aFlags,
+                                      aImageFormat);
 }
 
 static GLContextCGL *
@@ -305,6 +515,47 @@ GLContextProviderCGL::GetGlobalContext(const ContextFlags)
     }
 
     return gGlobalContext;
+}
+
+SharedTextureHandle
+GLContextProviderCGL::CreateSharedHandle(GLContext::SharedTextureShareType shareType,
+                                         void* buffer,
+                                         GLContext::SharedTextureBufferType bufferType)
+{
+    if (shareType != GLContext::SameProcess ||
+        bufferType != GLContext::IOSurface) {
+        return 0;
+    }
+
+    MacIOSurface* surf = static_cast<MacIOSurface*>(buffer);
+    surf->AddRef();
+
+    return (SharedTextureHandle)surf;
+}
+
+already_AddRefed<gfxASurface>
+GLContextProviderCGL::GetSharedHandleAsSurface(GLContext::SharedTextureShareType shareType,
+                                               SharedTextureHandle sharedHandle)
+{
+  MacIOSurface* surf = reinterpret_cast<MacIOSurface*>(sharedHandle);
+  surf->Lock();
+  size_t bytesPerRow = surf->GetBytesPerRow();
+  size_t ioWidth = surf->GetWidth();
+  size_t ioHeight = surf->GetHeight();
+
+  unsigned char* ioData = (unsigned char*)surf->GetBaseAddress();
+
+  nsRefPtr<gfxImageSurface> imgSurface =
+    new gfxImageSurface(gfxIntSize(ioWidth, ioHeight), gfxASurface::ImageFormatARGB32);
+
+  for (size_t i = 0; i < ioHeight; i++) {
+    memcpy(imgSurface->Data() + i * imgSurface->Stride(),
+           ioData + i * bytesPerRow, ioWidth * 4);
+  }
+
+  surf->Unlock();
+
+  return imgSurface.forget();
 }
 
 void

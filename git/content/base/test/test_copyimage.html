@@ -16,24 +16,25 @@
 <script class="testbody" type="text/javascript">
 
 function testCopyImage () {
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
   // selection of the node
   var node = document.getElementById('logo');
-  var webnav = SpecialPowers.wrap(window)
-               .QueryInterface(SpecialPowers.Ci.nsIInterfaceRequestor)
-               .getInterface(SpecialPowers.Ci.nsIWebNavigation)
+  var webnav = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                     .getInterface(Components.interfaces.nsIWebNavigation)
 
-  var docShell = webnav.QueryInterface(SpecialPowers.Ci.nsIDocShell);
+  var docShell = webnav.QueryInterface(Components.interfaces.nsIDocShell);
 
   docShell.chromeEventHandler.ownerDocument.popupNode = node;
 
   // let's copy the node
   var documentViewer = docShell.contentViewer
-                               .QueryInterface(SpecialPowers.Ci.nsIContentViewerEdit);
+                               .QueryInterface(Components.interfaces.nsIContentViewerEdit);
   documentViewer.copyImage(documentViewer.COPY_IMAGE_ALL);
   
   //--------- now check the content of the clipboard
-  var clipboard = SpecialPowers.Cc["@mozilla.org/widget/clipboard;1"]
-                               .getService(SpecialPowers.Ci.nsIClipboard);
+  var clipboard = Components.classes["@mozilla.org/widget/clipboard;1"]
+                            .getService(Components.interfaces.nsIClipboard);
   
   // does the clipboard contain text/unicode data ?
   ok(clipboard.hasDataMatchingFlavors(["text/unicode"], 1, clipboard.kGlobalClipboard), "clipboard contains unicode text");

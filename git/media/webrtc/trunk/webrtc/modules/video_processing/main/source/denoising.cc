@@ -8,10 +8,10 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/video_processing/main/source/denoising.h"
-#include "webrtc/system_wrappers/interface/trace.h"
+#include "denoising.h"
+#include "trace.h"
 
-#include <string.h>
+#include <cstring>
 
 namespace webrtc {
 
@@ -177,4 +177,4 @@ VPMDenoising::ProcessFrame(I420VideoFrame* frame)
     return numPixelsChanged;
 }
 
-}  // namespace
+} //namespace

@@ -7,12 +7,11 @@
 #ifndef mozilla_dom_telephony_CallsList_h__
 #define mozilla_dom_telephony_CallsList_h__
 
-#include "mozilla/dom/telephony/TelephonyCommon.h"
+#include "TelephonyCommon.h"
 
 #include "nsWrapperCache.h"
 
-namespace mozilla {
-namespace dom {
+BEGIN_TELEPHONY_NAMESPACE
 
 class CallsList MOZ_FINAL : public nsISupports,
                             public nsWrapperCache
@@ -47,7 +46,6 @@ private:
   ~CallsList();
 };
 
-} // namespace dom
-} // namespace mozilla
+END_TELEPHONY_NAMESPACE
 
 #endif // mozilla_dom_telephony_CallsList_h__

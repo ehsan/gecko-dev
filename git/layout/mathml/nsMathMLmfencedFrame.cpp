@@ -4,9 +4,14 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
-#include "nsMathMLmfencedFrame.h"
+#include "nsCOMPtr.h"
+#include "nsFrame.h"
+#include "nsPresContext.h"
+#include "nsStyleContext.h"
+#include "nsStyleConsts.h"
 #include "nsRenderingContext.h"
-#include "nsMathMLChar.h"
+
+#include "nsMathMLmfencedFrame.h"
 #include <algorithm>
 
 //
@@ -564,8 +569,8 @@ GetMaxCharWidth(nsPresContext*       aPresContext,
   return width;
 }
 
-/* virtual */ void
-nsMathMLmfencedFrame::GetIntrinsicWidthMetrics(nsRenderingContext* aRenderingContext, nsHTMLReflowMetrics& aDesiredSize)
+/* virtual */ nscoord
+nsMathMLmfencedFrame::GetIntrinsicWidth(nsRenderingContext* aRenderingContext)
 {
   nscoord width = 0;
 
@@ -607,10 +612,7 @@ nsMathMLmfencedFrame::GetIntrinsicWidthMetrics(nsRenderingContext* aRenderingCon
                       NS_MATHML_OPERATOR_FORM_POSTFIX, font->mScriptLevel, em);
   }
 
-  aDesiredSize.width = width;
-  aDesiredSize.mBoundingMetrics.width = width;
-  aDesiredSize.mBoundingMetrics.leftBearing = 0;
-  aDesiredSize.mBoundingMetrics.rightBearing = width;
+  return width;
 }
 
 nscoord

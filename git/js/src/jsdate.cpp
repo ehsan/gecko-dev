@@ -17,8 +17,8 @@
 
 #include "jsdate.h"
 
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/FloatingPoint.h"
+#include "mozilla/Util.h"
 
 #include <ctype.h>
 #include <math.h>
@@ -50,7 +50,6 @@ using namespace js::types;
 using mozilla::ArrayLength;
 using mozilla::IsFinite;
 using mozilla::IsNaN;
-using JS::GenericNaN;
 
 /*
  * The JS 'Date' object is patterned after the Java 'Date' object.
@@ -100,7 +99,7 @@ using JS::GenericNaN;
  *     hashCode
  */
 
-static inline double
+inline double
 Day(double t)
 {
     return floor(t / msPerDay);
@@ -116,22 +115,22 @@ TimeWithinDay(double t)
 }
 
 /* ES5 15.9.1.3. */
-static inline bool
+inline bool
 IsLeapYear(double year)
 {
     JS_ASSERT(ToInteger(year) == year);
     return fmod(year, 4) == 0 && (fmod(year, 100) != 0 || fmod(year, 400) == 0);
 }
 
-static inline double
+inline double
 DaysInYear(double year)
 {
     if (!IsFinite(year))
-        return GenericNaN();
+        return js_NaN;
     return IsLeapYear(year) ? 366 : 365;
 }
 
-static inline double
+inline double
 DayFromYear(double y)
 {
     return 365 * (y - 1970) +
@@ -140,7 +139,7 @@ DayFromYear(double y)
            floor((y - 1601) / 400.0);
 }
 
-static inline double
+inline double
 TimeFromYear(double y)
 {
     return DayFromYear(y) * msPerDay;
@@ -150,7 +149,7 @@ static double
 YearFromTime(double t)
 {
     if (!IsFinite(t))
-        return GenericNaN();
+        return js_NaN;
 
     JS_ASSERT(ToInteger(t) == t);
 
@@ -171,14 +170,14 @@ YearFromTime(double t)
     return y;
 }
 
-static inline int
+inline int
 DaysInFebruary(double year)
 {
     return IsLeapYear(year) ? 29 : 28;
 }
 
 /* ES5 15.9.1.4. */
-static inline double
+inline double
 DayWithinYear(double t, double year)
 {
     JS_ASSERT_IF(IsFinite(t), YearFromTime(t) == year);
@@ -189,7 +188,7 @@ static double
 MonthFromTime(double t)
 {
     if (!IsFinite(t))
-        return GenericNaN();
+        return js_NaN;
 
     double year = YearFromTime(t);
     double d = DayWithinYear(t, year);
@@ -225,7 +224,7 @@ static double
 DateFromTime(double t)
 {
     if (!IsFinite(t))
-        return GenericNaN();
+        return js_NaN;
 
     double year = YearFromTime(t);
     double d = DayWithinYear(t, year);
@@ -282,7 +281,7 @@ WeekDay(double t)
     return result;
 }
 
-static inline int
+inline int
 DayFromMonth(int month, bool isLeapYear)
 {
     /*
@@ -299,7 +298,7 @@ DayFromMonth(int month, bool isLeapYear)
 }
 
 template<typename T>
-static inline int
+inline int
 DayFromMonth(T month, bool isLeapYear) MOZ_DELETE;
 
 /* ES5 15.9.1.12 (out of order to accommodate DaylightSavingTA). */
@@ -308,7 +307,7 @@ MakeDay(double year, double month, double date)
 {
     /* Step 1. */
     if (!IsFinite(year) || !IsFinite(month) || !IsFinite(date))
-        return GenericNaN();
+        return js_NaN;
 
     /* Steps 2-4. */
     double y = ToInteger(year);
@@ -333,12 +332,12 @@ MakeDay(double year, double month, double date)
 }
 
 /* ES5 15.9.1.13 (out of order to accommodate DaylightSavingTA). */
-static inline double
+inline double
 MakeDate(double day, double time)
 {
     /* Step 1. */
     if (!IsFinite(day) || !IsFinite(time))
-        return GenericNaN();
+        return js_NaN;
 
     /* Step 2. */
     return day * msPerDay + time;
@@ -404,7 +403,7 @@ static double
 DaylightSavingTA(double t, DateTimeInfo *dtInfo)
 {
     if (!IsFinite(t))
-        return GenericNaN();
+        return js_NaN;
 
     /*
      * If earlier than 1970 or after 2038, potentially beyond the ken of
@@ -489,7 +488,7 @@ MakeTime(double hour, double min, double sec, double ms)
         !IsFinite(sec) ||
         !IsFinite(ms))
     {
-        return GenericNaN();
+        return js_NaN;
     }
 
     /* Step 2. */
@@ -525,7 +524,7 @@ date_convert(JSContext *cx, HandleObject obj, JSType hint, MutableHandleValue vp
  * Other Support routines and definitions
  */
 
-const Class DateObject::class_ = {
+Class DateObject::class_ = {
     js_Date_str,
     JSCLASS_HAS_RESERVED_SLOTS(RESERVED_SLOTS) |
     JSCLASS_HAS_CACHED_PROTO(JSProto_Date),
@@ -618,7 +617,7 @@ date_msecFromArgs(JSContext *cx, CallArgs args, double *rval)
                 return false;
             /* return NaN if any arg is not finite */
             if (!IsFinite(d)) {
-                *rval = GenericNaN();
+                *rval = js_NaN;
                 return true;
             }
             array[loop] = ToInteger(d);
@@ -1202,7 +1201,7 @@ date_parse(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     if (args.length() == 0) {
-        vp->setNaN();
+        vp->setDouble(js_NaN);
         return true;
     }
 
@@ -1216,7 +1215,7 @@ date_parse(JSContext *cx, unsigned argc, Value *vp)
 
     double result;
     if (!date_parseString(linearStr, &result, &cx->runtime()->dateTimeInfo)) {
-        vp->setNaN();
+        vp->setDouble(js_NaN);
         return true;
     }
 
@@ -1709,7 +1708,7 @@ date_setTime_impl(JSContext *cx, CallArgs args)
 {
     Rooted<DateObject*> dateObj(cx, &args.thisv().toObject().as<DateObject>());
     if (args.length() == 0) {
-        dateObj->setUTCTime(GenericNaN(), args.rval().address());
+        dateObj->setUTCTime(js_NaN, args.rval().address());
         return true;
     }
 
@@ -2344,7 +2343,7 @@ date_setYear_impl(JSContext *cx, CallArgs args)
 
     /* Step 3. */
     if (IsNaN(y)) {
-        dateObj->setUTCTime(GenericNaN(), args.rval().address());
+        dateObj->setUTCTime(js_NaN, args.rval().address());
         return true;
     }
 
@@ -2445,7 +2444,7 @@ date_toISOString_impl(JSContext *cx, CallArgs args)
 {
     double utctime = args.thisv().toObject().as<DateObject>().UTCTime().toNumber();
     if (!IsFinite(utctime)) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_INVALID_DATE);
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_INVALID_DATE);
         return false;
     }
 
@@ -2496,7 +2495,7 @@ date_toJSON(JSContext *cx, unsigned argc, Value *vp)
 
     /* Step 5. */
     if (!js_IsCallable(toISO)) {
-        JS_ReportErrorFlagsAndNumber(cx, JSREPORT_ERROR, js_GetErrorMessage, nullptr,
+        JS_ReportErrorFlagsAndNumber(cx, JSREPORT_ERROR, js_GetErrorMessage, NULL,
                                      JSMSG_BAD_TOISOSTRING_PROP);
         return false;
     }
@@ -2946,9 +2945,9 @@ static const JSFunctionSpec date_methods[] = {
     JS_FN("toUTCString",         date_toGMTString,        0,0),
     JS_FN("toLocaleFormat",      date_toLocaleFormat,     0,0),
 #if EXPOSE_INTL_API
-    JS_SELF_HOSTED_FN(js_toLocaleString_str, "Date_toLocaleString", 0,0),
-    JS_SELF_HOSTED_FN("toLocaleDateString", "Date_toLocaleDateString", 0,0),
-    JS_SELF_HOSTED_FN("toLocaleTimeString", "Date_toLocaleTimeString", 0,0),
+         {js_toLocaleString_str, {NULL, NULL},            0,0, "Date_toLocaleString"},
+         {"toLocaleDateString",  {NULL, NULL},            0,0, "Date_toLocaleDateString"},
+         {"toLocaleTimeString",  {NULL, NULL},            0,0, "Date_toLocaleTimeString"},
 #else
     JS_FN(js_toLocaleString_str, date_toLocaleString,     0,0),
     JS_FN("toLocaleDateString",  date_toLocaleDateString, 0,0),
@@ -2998,7 +2997,7 @@ js_Date(JSContext *cx, unsigned argc, Value *vp)
                 return false;
 
             if (!date_parseString(linearStr, &d, &cx->runtime()->dateTimeInfo))
-                d = GenericNaN();
+                d = js_NaN;
             else
                 d = TimeClip(d);
         } else {
@@ -3036,19 +3035,19 @@ js_InitDateClass(JSContext *cx, HandleObject obj)
 
     RootedObject dateProto(cx, global->createBlankPrototype(cx, &DateObject::class_));
     if (!dateProto)
-        return nullptr;
-    dateProto->as<DateObject>().setUTCTime(GenericNaN());
+        return NULL;
+    dateProto->as<DateObject>().setUTCTime(js_NaN);
 
     RootedFunction ctor(cx);
     ctor = global->createConstructor(cx, js_Date, cx->names().Date, MAXARGS);
     if (!ctor)
-        return nullptr;
+        return NULL;
 
     if (!LinkConstructorAndPrototype(cx, ctor, dateProto))
-        return nullptr;
+        return NULL;
 
-    if (!DefinePropertiesAndBrand(cx, ctor, nullptr, date_static_methods))
-        return nullptr;
+    if (!DefinePropertiesAndBrand(cx, ctor, NULL, date_static_methods))
+        return NULL;
 
     /*
      * Define all Date.prototype.* functions, then brand for trace-jitted code.
@@ -3056,7 +3055,7 @@ js_InitDateClass(JSContext *cx, HandleObject obj)
      * Date.prototype.toUTCString.
      */
     if (!JS_DefineFunctions(cx, dateProto, date_methods))
-        return nullptr;
+        return NULL;
     RootedValue toUTCStringFun(cx);
     RootedId toUTCStringId(cx, NameToId(cx->names().toUTCString));
     RootedId toGMTStringId(cx, NameToId(cx->names().toGMTString));
@@ -3064,11 +3063,11 @@ js_InitDateClass(JSContext *cx, HandleObject obj)
         !baseops::DefineGeneric(cx, dateProto, toGMTStringId, toUTCStringFun,
                                 JS_PropertyStub, JS_StrictPropertyStub, 0))
     {
-        return nullptr;
+        return NULL;
     }
 
     if (!DefineConstructorAndPrototype(cx, global, JSProto_Date, ctor, dateProto))
-        return nullptr;
+        return NULL;
 
     return dateProto;
 }
@@ -3078,7 +3077,7 @@ js_NewDateObjectMsec(JSContext *cx, double msec_time)
 {
     JSObject *obj = NewBuiltinClassInstance(cx, &DateObject::class_);
     if (!obj)
-        return nullptr;
+        return NULL;
     obj->as<DateObject>().setUTCTime(msec_time);
     return obj;
 }

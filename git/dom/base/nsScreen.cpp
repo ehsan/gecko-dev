@@ -5,9 +5,7 @@
 
 #include "mozilla/Hal.h"
 #include "nsScreen.h"
-#include "nsIDocument.h"
 #include "nsIDocShell.h"
-#include "nsIDocument.h"
 #include "nsPresContext.h"
 #include "nsCOMPtr.h"
 #include "nsIDocShellTreeItem.h"
@@ -15,7 +13,6 @@
 #include "nsDOMEvent.h"
 #include "nsJSUtils.h"
 #include "mozilla/dom/ScreenBinding.h"
-#include "nsDeviceContext.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -80,6 +77,8 @@ NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 
 NS_IMPL_ADDREF_INHERITED(nsScreen, nsDOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(nsScreen, nsDOMEventTargetHelper)
+
+NS_IMPL_EVENT_HANDLER(nsScreen, mozorientationchange)
 
 int32_t
 nsScreen::GetPixelDepth(ErrorResult& aRv)
@@ -239,11 +238,9 @@ nsScreen::GetLockOrientationPermission() const
 }
 
 NS_IMETHODIMP
-nsScreen::MozLockOrientation(const JS::Value& aOrientation_, JSContext* aCx,
+nsScreen::MozLockOrientation(const JS::Value& aOrientation, JSContext* aCx,
                              bool* aReturn)
 {
-  JS::Rooted<JS::Value> aOrientation(aCx, aOrientation_);
-
   if (aOrientation.isObject()) {
     JS::Rooted<JSObject*> seq(aCx, &aOrientation.toObject());
     if (IsArrayLike(aCx, seq)) {
@@ -264,7 +261,7 @@ nsScreen::MozLockOrientation(const JS::Value& aOrientation_, JSContext* aCx,
           return NS_ERROR_FAILURE;
         }
 
-        JS::Rooted<JSString*> jsString(aCx, JS::ToString(aCx, temp));
+        JS::RootedString jsString(aCx, JS_ValueToString(aCx, temp));
         if (!jsString) {
           return NS_ERROR_FAILURE;
         }
@@ -283,7 +280,7 @@ nsScreen::MozLockOrientation(const JS::Value& aOrientation_, JSContext* aCx,
     }
   }
 
-  JS::Rooted<JSString*> jsString(aCx, JS::ToString(aCx, aOrientation));
+  JS::RootedString jsString(aCx, JS_ValueToString(aCx, aOrientation));
   if (!jsString) {
     return NS_ERROR_FAILURE;
   }
@@ -333,8 +330,6 @@ nsScreen::MozLockOrientation(const Sequence<nsString>& aOrientations,
       orientation |= eScreenOrientation_LandscapePrimary;
     } else if (item.EqualsLiteral("landscape-secondary")) {
       orientation |= eScreenOrientation_LandscapeSecondary;
-    } else if (item.EqualsLiteral("default")) {
-      orientation |= eScreenOrientation_Default;
     } else {
       // If we don't recognize the token, we should just return 'false'
       // without throwing.
@@ -388,19 +383,6 @@ nsScreen::SlowMozUnlockOrientation()
 {
   MozUnlockOrientation();
   return NS_OK;
-}
-
-bool
-nsScreen::IsDeviceSizePageSize()
-{
-  nsPIDOMWindow* owner = GetOwner();
-  if (owner) {
-    nsIDocShell* docShell = owner->GetDocShell();
-    if (docShell) {
-      return docShell->GetDeviceSizeIsPageSize();
-    }
-  }
-  return false;
 }
 
 /* virtual */

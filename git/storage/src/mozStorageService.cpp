@@ -22,7 +22,7 @@
 #include "nsIPropertyBag2.h"
 #include "mozilla/Services.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/LateWriteChecks.h"
+#include "mozilla/mozPoisonWrite.h"
 #include "mozIStorageCompletionCallback.h"
 
 #include "sqlite3.h"
@@ -33,13 +33,7 @@
 #endif
 
 #include "nsIPromptService.h"
-
-#ifdef MOZ_STORAGE_MEMORY
-#  include "mozmemory.h"
-#  ifdef MOZ_DMD
-#    include "DMD.h"
-#  endif
-#endif
+#include "nsIMemoryReporter.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Defines
@@ -59,152 +53,181 @@ namespace storage {
 ////////////////////////////////////////////////////////////////////////////////
 //// Memory Reporting
 
-#ifdef MOZ_DMD
-static mozilla::Atomic<size_t> gSqliteMemoryUsed;
-#endif
-
 static int64_t
-StorageSQLiteDistinguishedAmount()
+GetStorageSQLiteMemoryUsed()
 {
   return ::sqlite3_memory_used();
 }
 
-/**
- * Passes a single SQLite memory statistic to a memory reporter callback.
- *
- * @param aHandleReport
- *        The callback.
- * @param aData
- *        The data for the callback.
- * @param aConn
- *        The SQLite connection.
- * @param aPathHead
- *        Head of the path for the memory report.
- * @param aKind
- *        The memory report statistic kind, one of "stmt", "cache" or
- *        "schema".
- * @param aDesc
- *        The memory report description.
- * @param aOption
- *        The SQLite constant for getting the measurement.
- * @param aTotal
- *        The accumulator for the measurement.
- */
-nsresult
-ReportConn(nsIHandleReportCallback *aHandleReport,
-           nsISupports *aData,
-           sqlite3 *aConn,
-           const nsACString &aPathHead,
-           const nsACString &aKind,
-           const nsACString &aDesc,
-           int aOption,
-           size_t *aTotal)
+// We don't need an "explicit" reporter for total SQLite memory usage, because
+// the multi-reporter provides reports that add up to the total.  But it's
+// useful to have the total in the "Other Measurements" list in about:memory,
+// and more importantly, we also gather the total via telemetry.
+NS_MEMORY_REPORTER_IMPLEMENT(StorageSQLite,
+    "storage-sqlite",
+    KIND_OTHER,
+    UNITS_BYTES,
+    GetStorageSQLiteMemoryUsed,
+    "Memory used by SQLite.")
+
+class StorageSQLiteMultiReporter MOZ_FINAL : public nsIMemoryMultiReporter
 {
-  nsCString path(aPathHead);
-  path.Append(aKind);
-  path.AppendLiteral("-used");
+private:
+  Service *mService;    // a weakref because Service contains a strongref to this
+  nsCString mStmtDesc;
+  nsCString mCacheDesc;
+  nsCString mSchemaDesc;
 
-  int curr = 0, max = 0;
-  int rc = ::sqlite3_db_status(aConn, aOption, &curr, &max, 0);
-  nsresult rv = convertResultCode(rc);
-  NS_ENSURE_SUCCESS(rv, rv);
+public:
+  NS_DECL_THREADSAFE_ISUPPORTS
 
-  rv = aHandleReport->Callback(EmptyCString(), path,
-                               nsIMemoryReporter::KIND_HEAP,
-                               nsIMemoryReporter::UNITS_BYTES, int64_t(curr),
-                               aDesc, aData);
-  NS_ENSURE_SUCCESS(rv, rv);
-  *aTotal += curr;
-
-  return NS_OK;
-}
-
-// Warning: To get a Connection's measurements requires holding its lock.
-// There may be a delay getting the lock if another thread is accessing the
-// Connection.  This isn't very nice if CollectReports is called from the main
-// thread!  But at the time of writing this function is only called when
-// about:memory is loaded (not, for example, when telemetry pings occur) and
-// any delays in that case aren't so bad.
-NS_IMETHODIMP
-Service::CollectReports(nsIHandleReportCallback *aHandleReport,
-                        nsISupports *aData)
-{
-  nsresult rv;
-  size_t totalConnSize = 0;
+  StorageSQLiteMultiReporter(Service *aService) 
+  : mService(aService)
   {
-    nsTArray<nsRefPtr<Connection> > connections;
-    getConnections(connections);
+    mStmtDesc = NS_LITERAL_CSTRING(
+      "Memory (approximate) used by all prepared statements used by "
+      "connections to this database.");
 
-    for (uint32_t i = 0; i < connections.Length(); i++) {
-      nsRefPtr<Connection> &conn = connections[i];
+    mCacheDesc = NS_LITERAL_CSTRING(
+      "Memory (approximate) used by all pager caches used by connections "
+      "to this database.");
 
-      // Someone may have closed the Connection, in which case we skip it.
-      bool isReady;
-      (void)conn->GetConnectionReady(&isReady);
-      if (!isReady) {
-          continue;
-      }
-
-      nsCString pathHead("explicit/storage/sqlite/");
-      pathHead.Append(conn->getFilename());
-      pathHead.AppendLiteral("/");
-
-      SQLiteMutexAutoLock lockedScope(conn->sharedDBMutex);
-
-      NS_NAMED_LITERAL_CSTRING(stmtDesc,
-        "Memory (approximate) used by all prepared statements used by "
-        "connections to this database.");
-      rv = ReportConn(aHandleReport, aData, *conn.get(), pathHead,
-                      NS_LITERAL_CSTRING("stmt"), stmtDesc,
-                      SQLITE_DBSTATUS_STMT_USED, &totalConnSize);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      NS_NAMED_LITERAL_CSTRING(cacheDesc,
-        "Memory (approximate) used by all pager caches used by connections "
-        "to this database.");
-      rv = ReportConn(aHandleReport, aData, *conn.get(), pathHead,
-                      NS_LITERAL_CSTRING("cache"), cacheDesc,
-                      SQLITE_DBSTATUS_CACHE_USED, &totalConnSize);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      NS_NAMED_LITERAL_CSTRING(schemaDesc,
-        "Memory (approximate) used to store the schema for all databases "
-        "associated with connections to this database.");
-      rv = ReportConn(aHandleReport, aData, *conn.get(), pathHead,
-                      NS_LITERAL_CSTRING("schema"), schemaDesc,
-                      SQLITE_DBSTATUS_SCHEMA_USED, &totalConnSize);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-
-#ifdef MOZ_DMD
-    if (::sqlite3_memory_used() != int64_t(gSqliteMemoryUsed)) {
-      NS_WARNING("memory consumption reported by SQLite doesn't match "
-                 "our measurements");
-    }
-#endif
+    mSchemaDesc = NS_LITERAL_CSTRING(
+      "Memory (approximate) used to store the schema for all databases "
+      "associated with connections to this database.");
   }
 
-  int64_t other = ::sqlite3_memory_used() - totalConnSize;
+  NS_IMETHOD GetName(nsACString &aName)
+  {
+      aName.AssignLiteral("storage-sqlite");
+      return NS_OK;
+  }
 
-  rv = aHandleReport->Callback(
-          EmptyCString(),
-          NS_LITERAL_CSTRING("explicit/storage/sqlite/other"),
-          KIND_HEAP, UNITS_BYTES, other,
-          NS_LITERAL_CSTRING("All unclassified sqlite memory."),
-          aData);
-  NS_ENSURE_SUCCESS(rv, rv);
+  // Warning: To get a Connection's measurements requires holding its lock.
+  // There may be a delay getting the lock if another thread is accessing the
+  // Connection.  This isn't very nice if CollectReports is called from the
+  // main thread!  But at the time of writing this function is only called when
+  // about:memory is loaded (not, for example, when telemetry pings occur) and
+  // any delays in that case aren't so bad.
+  NS_IMETHOD CollectReports(nsIMemoryMultiReporterCallback *aCb,
+                            nsISupports *aClosure)
+  {
+    nsresult rv;
+    size_t totalConnSize = 0;
+    {
+      nsTArray<nsRefPtr<Connection> > connections;
+      mService->getConnections(connections);
 
-  return NS_OK;
-}
+      for (uint32_t i = 0; i < connections.Length(); i++) {
+        nsRefPtr<Connection> &conn = connections[i];
+
+        // Someone may have closed the Connection, in which case we skip it.
+        bool isReady;
+        (void)conn->GetConnectionReady(&isReady);
+        if (!isReady) {
+            continue;
+        }
+
+        nsCString pathHead("explicit/storage/sqlite/");
+        pathHead.Append(conn->getFilename());
+        pathHead.AppendLiteral("/");
+
+        SQLiteMutexAutoLock lockedScope(conn->sharedDBMutex);
+
+        rv = reportConn(aCb, aClosure, *conn.get(), pathHead,
+                        NS_LITERAL_CSTRING("stmt"), mStmtDesc,
+                        SQLITE_DBSTATUS_STMT_USED, &totalConnSize);
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        rv = reportConn(aCb, aClosure, *conn.get(), pathHead,
+                        NS_LITERAL_CSTRING("cache"), mCacheDesc,
+                        SQLITE_DBSTATUS_CACHE_USED, &totalConnSize);
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        rv = reportConn(aCb, aClosure, *conn.get(), pathHead,
+                        NS_LITERAL_CSTRING("schema"), mSchemaDesc,
+                        SQLITE_DBSTATUS_SCHEMA_USED, &totalConnSize);
+        NS_ENSURE_SUCCESS(rv, rv);
+      }
+    }
+
+    int64_t other = ::sqlite3_memory_used() - totalConnSize;
+
+    rv = aCb->Callback(NS_LITERAL_CSTRING(""),
+                       NS_LITERAL_CSTRING("explicit/storage/sqlite/other"),
+                       nsIMemoryReporter::KIND_HEAP,
+                       nsIMemoryReporter::UNITS_BYTES, other,
+                       NS_LITERAL_CSTRING("All unclassified sqlite memory."),
+                       aClosure);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    return NS_OK;
+  }
+
+private:
+  /**
+   * Passes a single SQLite memory statistic to a memory multi-reporter
+   * callback.
+   *
+   * @param aCallback
+   *        The callback.
+   * @param aClosure
+   *        The closure for the callback.
+   * @param aConn
+   *        The SQLite connection.
+   * @param aPathHead
+   *        Head of the path for the memory report.
+   * @param aKind
+   *        The memory report statistic kind, one of "stmt", "cache" or
+   *        "schema".
+   * @param aDesc
+   *        The memory report description.
+   * @param aOption
+   *        The SQLite constant for getting the measurement.
+   * @param aTotal
+   *        The accumulator for the measurement.
+   */
+  nsresult reportConn(nsIMemoryMultiReporterCallback *aCb,
+                      nsISupports *aClosure,
+                      sqlite3 *aConn,
+                      const nsACString &aPathHead,
+                      const nsACString &aKind,
+                      const nsACString &aDesc,
+                      int aOption,
+                      size_t *aTotal)
+  {
+    nsCString path(aPathHead);
+    path.Append(aKind);
+    path.AppendLiteral("-used");
+
+    int curr = 0, max = 0;
+    int rc = ::sqlite3_db_status(aConn, aOption, &curr, &max, 0);
+    nsresult rv = convertResultCode(rc);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = aCb->Callback(NS_LITERAL_CSTRING(""), path,
+                       nsIMemoryReporter::KIND_HEAP,
+                       nsIMemoryReporter::UNITS_BYTES, int64_t(curr),
+                       aDesc, aClosure);
+    NS_ENSURE_SUCCESS(rv, rv);
+    *aTotal += curr;
+
+    return NS_OK;
+  }
+};
+
+NS_IMPL_ISUPPORTS1(
+  StorageSQLiteMultiReporter,
+  nsIMemoryMultiReporter
+)
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Service
 
-NS_IMPL_ISUPPORTS3(
+NS_IMPL_ISUPPORTS2(
   Service,
   mozIStorageService,
-  nsIObserver,
-  nsIMemoryReporter
+  nsIObserver
 )
 
 Service *Service::gService = nullptr;
@@ -282,13 +305,15 @@ Service::Service()
 , mSqliteVFS(nullptr)
 , mRegistrationMutex("Service::mRegistrationMutex")
 , mConnections()
+, mStorageSQLiteReporter(nullptr)
+, mStorageSQLiteMultiReporter(nullptr)
 {
 }
 
 Service::~Service()
 {
-  mozilla::UnregisterWeakMemoryReporter(this);
-  mozilla::UnregisterStorageSQLiteDistinguishedAmount();
+  (void)::NS_UnregisterMemoryReporter(mStorageSQLiteReporter);
+  (void)::NS_UnregisterMemoryMultiReporter(mStorageSQLiteMultiReporter);
 
   int rc = sqlite3_vfs_unregister(mSqliteVFS);
   if (rc != SQLITE_OK)
@@ -350,6 +375,7 @@ Service::shutdown()
 sqlite3_vfs *ConstructTelemetryVFS();
 
 #ifdef MOZ_STORAGE_MEMORY
+#  include "mozmemory.h"
 
 namespace {
 
@@ -373,6 +399,8 @@ namespace {
 
 #ifdef MOZ_DMD
 
+#include "DMD.h"
+
 // sqlite does its own memory accounting, and we use its numbers in our memory
 // reporters.  But we don't want sqlite's heap blocks to show up in DMD's
 // output as unreported, so we mark them as reported when they're allocated and
@@ -381,13 +409,10 @@ namespace {
 // In other words, we are marking all sqlite heap blocks as reported even
 // though we're not reporting them ourselves.  Instead we're trusting that
 // sqlite is fully and correctly accounting for all of its heap blocks via its
-// own memory accounting.  Well, we don't have to trust it entirely, because
-// it's easy to keep track (while doing this DMD-specific marking) of exactly
-// how much memory SQLite is using.  And we can compare that against what
-// SQLite reports it is using.
+// own memory accounting.
 
-MOZ_DEFINE_MALLOC_SIZE_OF_ON_ALLOC(SqliteMallocSizeOfOnAlloc)
-MOZ_DEFINE_MALLOC_SIZE_OF_ON_FREE(SqliteMallocSizeOfOnFree)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_ON_ALLOC_FUN(SqliteMallocSizeOfOnAlloc)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_ON_FREE_FUN(SqliteMallocSizeOfOnFree)
 
 #endif
 
@@ -395,7 +420,7 @@ static void *sqliteMemMalloc(int n)
 {
   void* p = ::moz_malloc(n);
 #ifdef MOZ_DMD
-  gSqliteMemoryUsed += SqliteMallocSizeOfOnAlloc(p);
+  SqliteMallocSizeOfOnAlloc(p);
 #endif
   return p;
 }
@@ -403,7 +428,7 @@ static void *sqliteMemMalloc(int n)
 static void sqliteMemFree(void *p)
 {
 #ifdef MOZ_DMD
-  gSqliteMemoryUsed -= SqliteMallocSizeOfOnFree(p);
+  SqliteMallocSizeOfOnFree(p);
 #endif
   ::moz_free(p);
 }
@@ -411,13 +436,13 @@ static void sqliteMemFree(void *p)
 static void *sqliteMemRealloc(void *p, int n)
 {
 #ifdef MOZ_DMD
-  gSqliteMemoryUsed -= SqliteMallocSizeOfOnFree(p);
+  SqliteMallocSizeOfOnFree(p);
   void *pnew = ::moz_realloc(p, n);
   if (pnew) {
-    gSqliteMemoryUsed += SqliteMallocSizeOfOnAlloc(pnew);
+    SqliteMallocSizeOfOnAlloc(pnew);
   } else {
     // realloc failed;  undo the SqliteMallocSizeOfOnFree from above
-    gSqliteMemoryUsed += SqliteMallocSizeOfOnAlloc(p);
+    SqliteMallocSizeOfOnAlloc(p);
   }
   return pnew;
 #else
@@ -518,8 +543,12 @@ Service::initialize()
   sDefaultPageSize =
       Preferences::GetInt(PREF_TS_PAGESIZE, PREF_TS_PAGESIZE_DEFAULT);
 
-  mozilla::RegisterWeakMemoryReporter(this);
-  mozilla::RegisterStorageSQLiteDistinguishedAmount(StorageSQLiteDistinguishedAmount);
+  // Create and register our SQLite memory reporters.  Registration can only
+  // happen on the main thread (otherwise you'll get cryptic crashes).
+  mStorageSQLiteReporter = new NS_MEMORY_REPORTER_NAME(StorageSQLite);
+  mStorageSQLiteMultiReporter = new StorageSQLiteMultiReporter(this);
+  (void)::NS_RegisterMemoryReporter(mStorageSQLiteReporter);
+  (void)::NS_RegisterMemoryMultiReporter(mStorageSQLiteMultiReporter);
 
   return NS_OK;
 }
@@ -877,7 +906,7 @@ Service::Observe(nsISupports *, const char *aTopic, const PRUnichar *)
 
         // While it would be nice to close all connections, we only
         // check async ones for now.
-        if (conn->isClosing()) {
+        if (conn->isAsyncClosing()) {
           anyOpen = true;
           break;
         }

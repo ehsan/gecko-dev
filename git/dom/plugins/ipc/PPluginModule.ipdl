@@ -8,17 +8,20 @@ include protocol PPluginInstance;
 include protocol PPluginScriptableObject;
 include protocol PCrashReporter;
 
+include "npapi.h";
+include "mozilla/plugins/PluginMessageUtils.h";
+include "mozilla/dom/TabMessageUtils.h";
 
-using NPError from "npapi.h";
-using NPNVariable from "npapi.h";
-using mozilla::dom::NativeThreadId from "mozilla/dom/TabMessageUtils.h";
-using class mac_plugin_interposing::NSCursorInfo from "mozilla/plugins/PluginMessageUtils.h";
-using struct nsID from "nsID.h";
+using NPError;
+using NPNVariable;
+using mozilla::dom::NativeThreadId;
+using mac_plugin_interposing::NSCursorInfo;
+using nsID;
 
 namespace mozilla {
 namespace plugins {
 
-intr protocol PPluginModule
+rpc protocol PPluginModule
 {
   manages PPluginInstance;
   manages PPluginIdentifier;
@@ -34,41 +37,41 @@ both:
    * from leaking out to plugin code and only allow the child's to be used.
    *
    * When calling into the plugin, the parent may create a "temporary"
-   * identifier which is only valid for the lifetime of the current inerrupt frame.
+   * identifier which is only valid for the lifetime of the current RPC frame.
    */
   async PPluginIdentifier(nsCString aString,
                           int32_t aInt,
                           bool temporary);
 
-  // Window-specific message which instructs the interrupt mechanism to enter
-  // a nested event loop for the current interrupt call.
-  async ProcessNativeEventsInInterruptCall();
+  // Window-specific message which instructs the RPC mechanism to enter
+  // a nested event loop for the current RPC call.
+  async ProcessNativeEventsInRPCCall();
 
 child:
   // Forces the child process to update its plugin function table.
-  intr NP_GetEntryPoints()
+  rpc NP_GetEntryPoints()
     returns (NPError rv);
 
-  intr NP_Initialize(uint32_t aFlags)
+  rpc NP_Initialize(uint32_t aFlags)
     returns (NPError rv);
 
-  intr PPluginInstance(nsCString aMimeType,
+  rpc PPluginInstance(nsCString aMimeType,
                       uint16_t aMode,
                       nsCString[] aNames,
                       nsCString[] aValues)
     returns (NPError rv);
 
-  intr NP_Shutdown()
+  rpc NP_Shutdown()
     returns (NPError rv);
 
-  intr OptionalFunctionsSupported()
+  rpc OptionalFunctionsSupported()
     returns (bool aURLRedirectNotify, bool aClearSiteData,
              bool aGetSitesWithData);
 
-  intr NPP_ClearSiteData(nsCString site, uint64_t flags, uint64_t maxAge)
+  rpc NPP_ClearSiteData(nsCString site, uint64_t flags, uint64_t maxAge)
     returns (NPError rv);
 
-  intr NPP_GetSitesWithData()
+  rpc NPP_GetSitesWithData()
     returns (nsCString[] sites);
 
   // Windows specific message to set up an audio session in the plugin process
@@ -78,10 +81,10 @@ child:
 
   async SetParentHangTimeout(uint32_t seconds);
 
-  intr PCrashReporter()
+  rpc PCrashReporter()
     returns (NativeThreadId tid, uint32_t processType);
 
-  intr GeckoGetProfile()
+  rpc GeckoGetProfile()
     returns (nsCString aProfile);
 
 parent:
@@ -98,10 +101,10 @@ parent:
    */
   async BackUpXResources(FileDescriptor aXSocketFd);
 
-  intr NPN_UserAgent()
+  rpc NPN_UserAgent()
     returns (nsCString userAgent);
 
-  intr NPN_GetValue_WithBoolReturn(NPNVariable aVariable)
+  rpc NPN_GetValue_WithBoolReturn(NPNVariable aVariable)
     returns (NPError aError,
              bool aBoolVal);
 
@@ -109,7 +112,7 @@ parent:
   // Gtk-specific code upon detecting that the plugin process has
   // entered a nested event loop.  If the browser doesn't process
   // native events, then "livelock" and some other glitches can occur.
-  intr ProcessSomeEvents();
+  rpc ProcessSomeEvents();
 
   // OS X Specific calls to manage the plugin's window
   // when interposing system calls.

@@ -15,6 +15,10 @@
 #include "mozilla/layers/PGrallocBufferChild.h"
 #include "mozilla/layers/PGrallocBufferParent.h"
 
+// used only for hacky fix in gecko 23 for bug 862324
+// see bug 865908 about fixing this.
+#include "TextureHost.h"
+
 #define MOZ_HAVE_SURFACEDESCRIPTORGRALLOC
 #define MOZ_HAVE_PLATFORM_SPECIFIC_LAYER_BUFFERS
 
@@ -25,8 +29,6 @@ namespace layers {
 
 class MaybeMagicGrallocBufferHandle;
 class SurfaceDescriptorGralloc;
-class TextureHost;
-class DeprecatedTextureHost;
 
 /**
  * This class exists to share the underlying GraphicBuffer resources
@@ -85,15 +87,12 @@ public:
 
   // used only for hacky fix in gecko 23 for bug 862324
   // see bug 865908 about fixing this.
-  void AddDeprecatedTextureHost(DeprecatedTextureHost* aDeprecatedTextureHost);
-  void RemoveDeprecatedTextureHost(DeprecatedTextureHost* aDeprecatedTextureHost);
-
-  android::GraphicBuffer* GetGraphicBuffer();
-
-  void InitFromHandle(const MagicGrallocBufferHandle& aHandle);
+  void SetDeprecatedTextureHost(DeprecatedTextureHost* aDeprecatedTextureHost);
 
 private:
   GrallocBufferActor();
+
+  void InitFromHandle(const MagicGrallocBufferHandle& aHandle);
 
   android::sp<GraphicBuffer> mGraphicBuffer;
 
@@ -103,7 +102,7 @@ private:
 
   // used only for hacky fix in gecko 23 for bug 862324
   // see bug 865908 about fixing this.
-  nsAutoTArray<DeprecatedTextureHost*, 2> mDeprecatedTextureHosts;
+  DeprecatedTextureHost* mDeprecatedTextureHost;
 
   friend class ISurfaceAllocator;
 };

@@ -5,6 +5,7 @@
 
 package org.mozilla.gecko.home;
 
+import org.mozilla.gecko.AutocompleteHandler;
 import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.GeckoEvent;
 import org.mozilla.gecko.PrefsHelper;
@@ -12,11 +13,9 @@ import org.mozilla.gecko.R;
 import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.Tabs;
 import org.mozilla.gecko.db.BrowserDB.URLColumns;
+import org.mozilla.gecko.gfx.BitmapUtils;
 import org.mozilla.gecko.home.HomePager.OnUrlOpenListener;
-import org.mozilla.gecko.home.SearchEngine;
 import org.mozilla.gecko.home.SearchLoader.SearchCursorLoader;
-import org.mozilla.gecko.mozglue.RobocopTarget;
-import org.mozilla.gecko.toolbar.AutocompleteHandler;
 import org.mozilla.gecko.util.GeckoEventListener;
 import org.mozilla.gecko.util.StringUtils;
 import org.mozilla.gecko.util.ThreadUtils;
@@ -28,8 +27,10 @@ import org.json.JSONObject;
 import android.app.Activity;
 import android.content.Context;
 import android.database.Cursor;
+import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
+import android.support.v4.app.LoaderManager;
 import android.support.v4.app.LoaderManager.LoaderCallbacks;
 import android.support.v4.content.AsyncTaskLoader;
 import android.support.v4.content.Loader;
@@ -92,10 +93,9 @@ public class BrowserSearch extends HomeFragment
     private LinearLayout mView;
 
     // The list showing search results
-    private HomeListView mList;
+    private ListView mList;
 
     // Client that performs search suggestion queries
-    @RobocopTarget
     private volatile SuggestClient mSuggestClient;
 
     // List of search engines from gecko
@@ -104,7 +104,7 @@ public class BrowserSearch extends HomeFragment
     // Whether search suggestions are enabled or not
     private boolean mSuggestionsEnabled;
 
-    // Callbacks used for the search loader
+    // Callbacks used for the search and favicon cursor loaders
     private CursorLoaderCallbacks mCursorLoaderCallbacks;
 
     // Callbacks used for the search suggestion loader
@@ -132,7 +132,7 @@ public class BrowserSearch extends HomeFragment
     private View mSuggestionsOptInPrompt;
 
     public interface OnSearchListener {
-        public void onSearch(SearchEngine engine, String text);
+        public void onSearch(String engineId, String text);
     }
 
     public interface OnEditSuggestionListener {
@@ -140,13 +140,7 @@ public class BrowserSearch extends HomeFragment
     }
 
     public static BrowserSearch newInstance() {
-        BrowserSearch browserSearch = new BrowserSearch();
-
-        final Bundle args = new Bundle();
-        args.putBoolean(HomePager.CAN_LOAD_ARG, true);
-        browserSearch.setArguments(args);
-
-        return browserSearch;
+        return new BrowserSearch();
     }
 
     public BrowserSearch() {
@@ -211,7 +205,7 @@ public class BrowserSearch extends HomeFragment
         // All list views are styled to look the same with a global activity theme.
         // If the style of the list changes, inflate it from an XML.
         mView = (LinearLayout) inflater.inflate(R.layout.browser_search, container, false);
-        mList = (HomeListView) mView.findViewById(R.id.home_list_view);
+        mList = (ListView) mView.findViewById(R.id.home_list_view);
 
         return mView;
     }
@@ -222,10 +216,8 @@ public class BrowserSearch extends HomeFragment
 
         unregisterEventListener("SearchEngines:Data");
 
-        mList.setAdapter(null);
-        mList = null;
-
         mView = null;
+        mList = null;
         mSuggestionsOptInPrompt = null;
         mSuggestClient = null;
     }
@@ -233,39 +225,17 @@ public class BrowserSearch extends HomeFragment
     @Override
     public void onViewCreated(View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
-        mList.setTag(HomePager.LIST_TAG_BROWSER_SEARCH);
 
         mList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                // Perform the user-entered search if the user clicks on a search engine row.
-                // This row will be disabled if suggestions (in addition to the user-entered term) are showing.
-                if (view instanceof SearchEngineRow) {
-                    ((SearchEngineRow) view).performUserEnteredSearch();
-                    return;
-                }
-
-                // Account for the search engine rows.
+                // Account for the search engines
                 position -= getSuggestEngineCount();
                 final Cursor c = mAdapter.getCursor(position);
                 final String url = c.getString(c.getColumnIndexOrThrow(URLColumns.URL));
 
                 // This item is a TwoLinePageRow, so we allow switch-to-tab.
                 mUrlOpenListener.onUrlOpen(url, EnumSet.of(OnUrlOpenListener.Flags.ALLOW_SWITCH_TO_TAB));
-            }
-        });
-
-        mList.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
-            @Override
-            public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
-                // Don't do anything when the user long-clicks on a search engine row.
-                if (view instanceof SearchEngineRow) {
-                    return true;
-                }
-
-                // Account for the search engine rows.
-                position -= getSuggestEngineCount();
-                return mList.onItemLongClick(parent, view, position, id);
             }
         });
 
@@ -288,22 +258,24 @@ public class BrowserSearch extends HomeFragment
         registerForContextMenu(mList);
         registerEventListener("SearchEngines:Data");
 
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("SearchEngines:GetVisible", null));
+        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("SearchEngines:Get", null));
     }
 
     @Override
     public void onActivityCreated(Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
 
+        final Activity activity = getActivity();
+
         // Intialize the search adapter
-        mAdapter = new SearchAdapter(getActivity());
+        mAdapter = new SearchAdapter(activity);
         mList.setAdapter(mAdapter);
 
         // Only create an instance when we need it
         mSuggestionLoaderCallbacks = null;
 
         // Create callbacks before the initial loader is started
-        mCursorLoaderCallbacks = new CursorLoaderCallbacks();
+        mCursorLoaderCallbacks = new CursorLoaderCallbacks(activity, getLoaderManager());
         loadIfVisible();
     }
 
@@ -321,71 +293,23 @@ public class BrowserSearch extends HomeFragment
 
     @Override
     protected void load() {
-        SearchLoader.init(getLoaderManager(), LOADER_ID_SEARCH, mCursorLoaderCallbacks, mSearchTerm);
+        getLoaderManager().initLoader(LOADER_ID_SEARCH, null, mCursorLoaderCallbacks);
     }
 
     private void handleAutocomplete(String searchTerm, Cursor c) {
-        if (c == null ||
-            mAutocompleteHandler == null ||
-            TextUtils.isEmpty(searchTerm)) {
+        if (TextUtils.isEmpty(mSearchTerm) || c == null || mAutocompleteHandler == null) {
             return;
         }
 
         // Avoid searching the path if we don't have to. Currently just
-        // decided by whether there is a '/' character in the string.
-        final boolean searchPath = searchTerm.indexOf('/') > 0;
+        // decided by if there is a '/' character in the string.
+        final boolean searchPath = (searchTerm.indexOf("/") > 0);
         final String autocompletion = findAutocompletion(searchTerm, c, searchPath);
 
-        if (autocompletion == null || mAutocompleteHandler == null) {
-            return;
+        if (autocompletion != null && mAutocompleteHandler != null) {
+            mAutocompleteHandler.onAutocomplete(autocompletion);
+            mAutocompleteHandler = null;
         }
-
-        // Prefetch auto-completed domain since it's a likely target
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Session:Prefetch", "http://" + autocompletion));
-
-        mAutocompleteHandler.onAutocomplete(autocompletion);
-        mAutocompleteHandler = null;
-    }
-
-    /**
-     * Returns the substring of a provided URI, starting at the given offset,
-     * and extending up to the end of the path segment in which the provided
-     * index is found.
-     *
-     * For example, given
-     *
-     *   "www.reddit.com/r/boop/abcdef", 0, ?
-     *
-     * this method returns
-     *
-     *   ?=2:  "www.reddit.com/"
-     *   ?=17: "www.reddit.com/r/boop/"
-     *   ?=21: "www.reddit.com/r/boop/"
-     *   ?=22: "www.reddit.com/r/boop/abcdef"
-     *
-     */
-    private static String uriSubstringUpToMatchedPath(final String url, final int offset, final int begin) {
-        final int afterEnd = url.length();
-
-        // We want to include the trailing slash, but not other characters.
-        int chop = url.indexOf('/', begin);
-        if (chop != -1) {
-            ++chop;
-            if (chop < offset) {
-                // This isn't supposed to happen. Fall back to returning the whole damn thing.
-                return url;
-            }
-        } else {
-            chop = url.indexOf('?', begin);
-            if (chop == -1) {
-                chop = url.indexOf('#', begin);
-            }
-            if (chop == -1) {
-                chop = afterEnd;
-            }
-        }
-
-        return url.substring(offset, chop);
     }
 
     private String findAutocompletion(String searchTerm, Cursor c, boolean searchPath) {
@@ -393,62 +317,36 @@ public class BrowserSearch extends HomeFragment
             return null;
         }
 
-        final int searchLength = searchTerm.length();
         final int urlIndex = c.getColumnIndexOrThrow(URLColumns.URL);
         int searchCount = 0;
 
         do {
-            final String url = c.getString(urlIndex);
+            final Uri url = Uri.parse(c.getString(urlIndex));
+            final String host = StringUtils.stripCommonSubdomains(url.getHost());
 
-            if (searchCount == 0) {
-                // Prefetch the first item in the list since it's weighted the highest
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Session:Prefetch", url.toString()));
-            }
-
-            // Does the completion match against the whole URL? This will match
-            // about: pages, as well as user input including "http://...".
-            if (url.startsWith(searchTerm)) {
-                return uriSubstringUpToMatchedPath(url, 0, searchLength);
-            }
-
-            final Uri uri = Uri.parse(url);
-            final String host = uri.getHost();
-
-            // Host may be null for about pages.
+            // Host may be null for about pages
             if (host == null) {
                 continue;
             }
 
-            if (host.startsWith(searchTerm)) {
-                return host + "/";
+            final StringBuilder hostBuilder = new StringBuilder(host);
+            if (hostBuilder.indexOf(searchTerm) == 0) {
+                return hostBuilder.append("/").toString();
             }
 
-            final String strippedHost = StringUtils.stripCommonSubdomains(host);
-            if (strippedHost.startsWith(searchTerm)) {
-                return strippedHost + "/";
+            if (searchPath) {
+                final List<String> path = url.getPathSegments();
+
+                for (String s : path) {
+                    hostBuilder.append("/").append(s);
+
+                    if (hostBuilder.indexOf(searchTerm) == 0) {
+                        return hostBuilder.append("/").toString();
+                    }
+                }
             }
 
-            ++searchCount;
-
-            if (!searchPath) {
-                continue;
-            }
-
-            // Otherwise, if we're matching paths, let's compare against the string itself.
-            final int hostOffset = url.indexOf(strippedHost);
-            if (hostOffset == -1) {
-                // This was a URL string that parsed to a different host (normalized?).
-                // Give up.
-                continue;
-            }
-
-            // We already matched the non-stripped host, so now we're
-            // substring-searching in the part of the URL without the common
-            // subdomains.
-            if (url.startsWith(searchTerm, hostOffset)) {
-                // Great! Return including the rest of the path segment.
-                return uriSubstringUpToMatchedPath(url, hostOffset, hostOffset + searchLength);
-            }
+            searchCount++;
         } while (searchCount < MAX_AUTOCOMPLETE_SEARCH && c.moveToNext());
 
         return null;
@@ -467,7 +365,7 @@ public class BrowserSearch extends HomeFragment
     }
 
     private void setSuggestions(ArrayList<String> suggestions) {
-        mSearchEngines.get(0).setSuggestions(suggestions);
+        mSearchEngines.get(0).suggestions = suggestions;
         mAdapter.notifyDataSetChanged();
     }
 
@@ -491,11 +389,14 @@ public class BrowserSearch extends HomeFragment
             ArrayList<SearchEngine> searchEngines = new ArrayList<SearchEngine>();
             for (int i = 0; i < engines.length(); i++) {
                 final JSONObject engineJSON = engines.getJSONObject(i);
-                final SearchEngine engine = new SearchEngine(engineJSON);
+                final String name = engineJSON.getString("name");
+                final String identifier = engineJSON.getString("identifier");
+                final String iconURI = engineJSON.getString("iconURI");
+                final Bitmap icon = BitmapUtils.getBitmapFromDataURI(iconURI);
 
-                if (engine.name.equals(suggestEngine) && suggestTemplate != null) {
-                    // Suggest engine should be at the front of the list.
-                    searchEngines.add(0, engine);
+                if (name.equals(suggestEngine) && suggestTemplate != null) {
+                    // Suggest engine should be at the front of the list
+                    searchEngines.add(0, new SearchEngine(name, identifier, icon));
 
                     // The only time Tabs.getInstance().getSelectedTab() should
                     // be null is when we're restoring after a crash. We should
@@ -512,7 +413,7 @@ public class BrowserSearch extends HomeFragment
                                 SUGGESTION_TIMEOUT, SUGGESTION_MAX);
                     }
                 } else {
-                    searchEngines.add(engine);
+                    searchEngines.add(new SearchEngine(name, identifier, icon));
                 }
             }
 
@@ -535,12 +436,6 @@ public class BrowserSearch extends HomeFragment
     }
 
     private void showSuggestionsOptIn() {
-        // Return if the ViewStub was already inflated - an inflated ViewStub is removed from the
-        // View hierarchy so a second call to findViewById will return null.
-        if (mSuggestionsOptInPrompt != null) {
-            return;
-        }
-
         mSuggestionsOptInPrompt = ((ViewStub) mView.findViewById(R.id.suggestions_opt_in_prompt)).inflate();
 
         TextView promptText = (TextView) mSuggestionsOptInPrompt.findViewById(R.id.suggestions_prompt_title);
@@ -683,7 +578,7 @@ public class BrowserSearch extends HomeFragment
             mAdapter.notifyDataSetChanged();
 
             // Restart loaders with the new search term
-            SearchLoader.restart(getLoaderManager(), LOADER_ID_SEARCH, mCursorLoaderCallbacks, mSearchTerm);
+            SearchLoader.restart(getLoaderManager(), LOADER_ID_SEARCH, mCursorLoaderCallbacks, mSearchTerm, false);
             filterSuggestions();
         }
     }
@@ -784,7 +679,7 @@ public class BrowserSearch extends HomeFragment
             // row contains multiple items, clicking the row will do nothing.
             final int index = getEngineIndex(position);
             if (index != -1) {
-                return !mSearchEngines.get(index).hasSuggestions();
+                return mSearchEngines.get(index).suggestions.isEmpty();
             }
 
             return true;
@@ -815,7 +710,7 @@ public class BrowserSearch extends HomeFragment
                 row.setSearchTerm(mSearchTerm);
 
                 final SearchEngine engine = mSearchEngines.get(getEngineIndex(position));
-                final boolean animate = (mAnimateSuggestions && engine.hasSuggestions());
+                final boolean animate = (mAnimateSuggestions && engine.suggestions.size() > 0);
                 row.updateFromSearchEngine(engine, animate);
                 if (animate) {
                     // Only animate suggestions the first time they are shown
@@ -850,26 +745,49 @@ public class BrowserSearch extends HomeFragment
         }
     }
 
-    private class CursorLoaderCallbacks implements LoaderCallbacks<Cursor> {
+    private class CursorLoaderCallbacks extends HomeCursorLoaderCallbacks {
+        public CursorLoaderCallbacks(Context context, LoaderManager loaderManager) {
+            super(context, loaderManager);
+        }
+
         @Override
         public Loader<Cursor> onCreateLoader(int id, Bundle args) {
-            return SearchLoader.createInstance(getActivity(), args);
+            if (id == LOADER_ID_SEARCH) {
+                return SearchLoader.createInstance(getActivity(), args);
+            } else {
+                return super.onCreateLoader(id, args);
+            }
         }
 
         @Override
         public void onLoadFinished(Loader<Cursor> loader, Cursor c) {
-            mAdapter.swapCursor(c);
+            if (loader.getId() == LOADER_ID_SEARCH) {
+                mAdapter.swapCursor(c);
 
-            // We should handle autocompletion based on the search term
-            // associated with the loader that has just provided
-            // the results.
-            SearchCursorLoader searchLoader = (SearchCursorLoader) loader;
-            handleAutocomplete(searchLoader.getSearchTerm(), c);
+                // We should handle autocompletion based on the search term
+                // associated with the currently loader that has just provided
+                // the results.
+                SearchCursorLoader searchLoader = (SearchCursorLoader) loader;
+                handleAutocomplete(searchLoader.getSearchTerm(), c);
+
+                loadFavicons(c);
+            } else {
+                super.onLoadFinished(loader, c);
+            }
         }
 
         @Override
         public void onLoaderReset(Loader<Cursor> loader) {
-            mAdapter.swapCursor(null);
+            if (loader.getId() == LOADER_ID_SEARCH) {
+                mAdapter.swapCursor(null);
+            } else {
+                super.onLoaderReset(loader);
+            }
+        }
+
+        @Override
+        public void onFaviconsLoaded() {
+            mAdapter.notifyDataSetChanged();
         }
     }
 
@@ -948,13 +866,13 @@ public class BrowserSearch extends HomeFragment
         }
 
         @Override
-        public boolean onTouchEvent(MotionEvent event) {
+        public boolean onInterceptTouchEvent(MotionEvent event) {
             if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
                 // Dismiss the soft keyboard.
                 requestFocus();
             }
 
-            return super.onTouchEvent(event);
+            return false;
         }
     }
 }

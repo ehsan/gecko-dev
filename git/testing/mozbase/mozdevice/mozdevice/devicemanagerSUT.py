@@ -363,7 +363,7 @@ class DeviceManagerSUT(DeviceManager):
         if not self.dirExists(name):
             self._runCmds([{ 'cmd': 'mkdr ' + name }])
 
-    def pushDir(self, localDir, remoteDir, retryLimit=None, timeout=None):
+    def pushDir(self, localDir, remoteDir, retryLimit = None):
         retryLimit = retryLimit or self.retryLimit
         self._logger.info("pushing directory: %s to %s" % (localDir, remoteDir))
 
@@ -525,9 +525,9 @@ class DeviceManagerSUT(DeviceManager):
             self.fireProcess(cmdline, failIfRunning)
         return outputFile
 
-    def killProcess(self, appname, sig=None):
-        if sig:
-            self._logger.warn("killProcess(): sig parameter unsupported on SUT")
+    def killProcess(self, appname, forceKill=False):
+        if forceKill:
+            self._logger.warn("killProcess(): forceKill parameter unsupported on SUT")
         retries = 0
         while retries < self.retryLimit:
             try:

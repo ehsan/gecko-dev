@@ -12,9 +12,27 @@
  * implementation of this interface for non-Windows systems, for testing and
  * development purposes only.
  */
-[scriptable, uuid(148f57d3-51df-4e5c-a40b-7ae5ee76188e)]
+[scriptable, uuid(c5a654c8-2443-47ce-9322-d150af3ca526)]
 interface nsIWinMetroUtils : nsISupports
 {
+  /* Fullscreen landscape orientation */
+  const long fullScreenLandscape = 0;
+  /* Larger snapped state */
+  const long filled = 1;
+  /* Smaller snapped state */
+  const long snapped = 2;
+  /* Fullscreen portrait orientation */
+  const long fullScreenPortrait = 3;
+
+  /* return constants for the handPreference property */
+  const long handPreferenceLeft = 0;
+  const long handPreferenceRight = 1;
+
+  /**
+   * Determines the current snapped state.
+   */
+  readonly attribute long snappedState;
+
   /**
    * Determine if the current browser is running in the metro immersive
    * environment.
@@ -22,16 +40,20 @@ interface nsIWinMetroUtils : nsISupports
   readonly attribute boolean immersive;
 
   /**
+   * Determine if the user prefers left handed or right handed input.
+   */
+  readonly attribute long handPreference;
+
+  /**
    * Determine the activation URI
    */
   readonly attribute AString activationURI;
 
   /**
-   * Determine the previous execution state. The possible values of this
-   * attribute are exactly those values in the
-   * Windows::ApplicationModel::Activation enumeration.
+   * Attempts to unsnap the application from snapped state to filled state
    */
-  readonly attribute long previousExecutionState;
+   void unsnap();
+
 
    /**
     * Show the settings flyout
@@ -47,7 +69,7 @@ interface nsIWinMetroUtils : nsISupports
   /**
    * Displays a native Windows 8 toast.
    */
-   void showNativeToast(in AString aTitle, in AString aMessage, in AString anImage, in AString aCookie);
+   void showNativeToast(in AString aTitle, in AString aMessage, in AString anImage);
 
   /**
    * Secondary tiles are a Windows 8 specific feature for pinning new tiles
@@ -90,6 +112,29 @@ interface nsIWinMetroUtils : nsISupports
    * @return true if the tile is pinned
    */
   bool isTilePinned(in AString aTileID);
+
+  /**
+   * Stores the sync info securely
+   *
+   * @param aEmail The sync account email
+   * @param aPassword The sync account password
+   * @param aKey The sync account key
+   */
+  void storeSyncInfo(in AString aEmail, in AString aPassword, in AString aKey);
+
+  /**
+   * Loads the sync info
+   *
+   * @param aEmail The sync account email
+   * @param aPassword The sync account password
+   * @param aKey The sync account key
+   */
+  void loadSyncInfo(out AString aEmail, out AString aPassword, out AString aKey);
+
+  /**
+   * Clears the stored sync info if any.
+   */
+  void clearSyncInfo();
 
   /**
    * Soft keyboard attributes. Used in unison with shown/hidden observer

@@ -6,8 +6,11 @@
 #ifndef MOZILLA_STREAMBUFFER_H_
 #define MOZILLA_STREAMBUFFER_H_
 
+#include "mozilla/DebugOnly.h"
+
 #include "MediaSegment.h"
 #include "nsAutoPtr.h"
+#include <algorithm>
 
 namespace mozilla {
 
@@ -161,7 +164,13 @@ public:
     void ForgetUpTo(TrackTicks aTime)
     {
       mSegment->ForgetUpTo(aTime);
+#ifdef DEBUG
+      mForgottenUpTo = std::max<TrackTicks>(mForgottenUpTo, aTime);
+#endif
     }
+#ifdef DEBUG
+    TrackTicks GetForgottenUpTo() { return mForgottenUpTo; }
+#endif
 
   protected:
     friend class StreamBuffer;
@@ -176,6 +185,7 @@ public:
     TrackID mID;
     // True when the track ends with the data in mSegment
     bool mEnded;
+    DebugOnly<TrackTicks> mForgottenUpTo;
   };
 
   class CompareTracksByID {

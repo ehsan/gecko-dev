@@ -10,11 +10,12 @@
 
 #include "jsatominlines.h"
 
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/RangedPtr.h"
+#include "mozilla/Util.h"
 
 #include <string.h>
 
+#include "jsapi.h"
 #include "jscntxt.h"
 #include "jsstr.h"
 #include "jstypes.h"
@@ -24,7 +25,6 @@
 
 #include "jscntxtinlines.h"
 #include "jscompartmentinlines.h"
-#include "jsobjinlines.h"
 
 #include "vm/String-inl.h"
 
@@ -38,10 +38,11 @@ using mozilla::RangedPtr;
 const char *
 js::AtomToPrintableString(ExclusiveContext *cx, JSAtom *atom, JSAutoByteString *bytes)
 {
-    JSString *str = js_QuoteString(cx, atom, 0);
-    if (!str)
-        return nullptr;
-    return bytes->encodeLatin1(cx, str);
+    // The only uses for this method when running off the main thread are for
+    // parse errors/warnings, which will not actually be reported in such cases.
+    if (!cx->isJSContext())
+        return "";
+    return js_ValueToPrintable(cx->asJSContext(), StringValue(atom), bytes);
 }
 
 const char * const js::TypeStrings[] = {
@@ -54,7 +55,7 @@ const char * const js::TypeStrings[] = {
     js_null_str,
 };
 
-#define DEFINE_PROTO_STRING(name,code,init,clasp) const char js_##name##_str[] = #name;
+#define DEFINE_PROTO_STRING(name,code,init) const char js_##name##_str[] = #name;
 JS_FOR_EACH_PROTOTYPE(DEFINE_PROTO_STRING)
 #undef DEFINE_PROTO_STRING
 
@@ -149,7 +150,7 @@ js::InitCommonNames(JSContext *cx)
 #define COMMON_NAME_INFO(idpart, id, text) { js_##idpart##_str, sizeof(text) - 1 },
         FOR_EACH_COMMON_PROPERTYNAME(COMMON_NAME_INFO)
 #undef COMMON_NAME_INFO
-#define COMMON_NAME_INFO(name, code, init, clasp) { js_##name##_str, sizeof(#name) - 1 },
+#define COMMON_NAME_INFO(name, code, init) { js_##name##_str, sizeof(#name) - 1 },
         JS_FOR_EACH_PROTOTYPE(COMMON_NAME_INFO)
 #undef COMMON_NAME_INFO
     };
@@ -170,7 +171,7 @@ js::InitCommonNames(JSContext *cx)
 void
 js::FinishCommonNames(JSRuntime *rt)
 {
-    rt->emptyString = nullptr;
+    rt->emptyString = NULL;
 #ifdef DEBUG
     memset(&rt->atomState, JS_FREE_PATTERN, sizeof(JSAtomState));
 #endif
@@ -180,16 +181,14 @@ void
 js::MarkAtoms(JSTracer *trc)
 {
     JSRuntime *rt = trc->runtime;
-    for (AtomSet::Enum e(rt->atoms()); !e.empty(); e.popFront()) {
-        const AtomStateEntry &entry = e.front();
+    for (AtomSet::Range r = rt->atoms().all(); !r.empty(); r.popFront()) {
+        AtomStateEntry entry = r.front();
         if (!entry.isTagged())
             continue;
 
-        JSAtom *atom = entry.asPtr();
-        bool tagged = entry.isTagged();
-        MarkStringRoot(trc, &atom, "interned_atom");
-        if (entry.asPtr() != atom)
-            e.rekeyFront(AtomHasher::Lookup(atom), AtomStateEntry(atom, tagged));
+        JSAtom *tmp = entry.asPtr();
+        MarkStringRoot(trc, &tmp, "interned_atom");
+        JS_ASSERT(tmp == entry.asPtr());
     }
 }
 
@@ -224,6 +223,12 @@ AtomIsInterned(JSContext *cx, JSAtom *atom)
 
     return p->isTagged();
 }
+
+enum OwnCharsBehavior
+{
+    CopyChars, /* in other words, do not take ownership */
+    TakeCharOwnership
+};
 
 /*
  * When the jschars reside in a freshly allocated buffer the memory can be used
@@ -261,11 +266,10 @@ AtomizeAndTakeOwnership(ExclusiveContext *cx, jschar *tbchars, size_t length, In
 
     AutoCompartment ac(cx, cx->atomsCompartment());
 
-    JSFlatString *flat = js_NewString<NoGC>(cx, tbchars, length);
+    JSFlatString *flat = js_NewString<CanGC>(cx, tbchars, length);
     if (!flat) {
         js_free(tbchars);
-        js_ReportOutOfMemory(cx);
-        return nullptr;
+        return NULL;
     }
 
     JSAtom *atom = flat->morphAtomizedStringIntoAtom();
@@ -273,13 +277,14 @@ AtomizeAndTakeOwnership(ExclusiveContext *cx, jschar *tbchars, size_t length, In
     if (!atoms.relookupOrAdd(p, AtomHasher::Lookup(tbchars, length),
                              AtomStateEntry(atom, bool(ib)))) {
         js_ReportOutOfMemory(cx); /* SystemAllocPolicy does not report OOM. */
-        return nullptr;
+        return NULL;
     }
 
     return atom;
 }
 
 /* |tbchars| must not point into an inline or short string. */
+template <AllowGC allowGC>
 JS_ALWAYS_INLINE
 static JSAtom *
 AtomizeAndCopyChars(ExclusiveContext *cx, const jschar *tbchars, size_t length, InternBehavior ib)
@@ -307,23 +312,23 @@ AtomizeAndCopyChars(ExclusiveContext *cx, const jschar *tbchars, size_t length, 
 
     AutoCompartment ac(cx, cx->atomsCompartment());
 
-    JSFlatString *flat = js_NewStringCopyN<NoGC>(cx, tbchars, length);
-    if (!flat) {
-        js_ReportOutOfMemory(cx);
-        return nullptr;
-    }
+    JSFlatString *flat = js_NewStringCopyN<allowGC>(cx, tbchars, length);
+    if (!flat)
+        return NULL;
 
     JSAtom *atom = flat->morphAtomizedStringIntoAtom();
 
     if (!atoms.relookupOrAdd(p, AtomHasher::Lookup(tbchars, length),
                              AtomStateEntry(atom, bool(ib)))) {
-        js_ReportOutOfMemory(cx); /* SystemAllocPolicy does not report OOM. */
-        return nullptr;
+        if (allowGC)
+            js_ReportOutOfMemory(cx); /* SystemAllocPolicy does not report OOM. */
+        return NULL;
     }
 
     return atom;
 }
 
+template <AllowGC allowGC>
 JSAtom *
 js::AtomizeString(ExclusiveContext *cx, JSString *str,
                   js::InternBehavior ib /* = js::DoNotInternAtom */)
@@ -346,10 +351,27 @@ js::AtomizeString(ExclusiveContext *cx, JSString *str,
 
     const jschar *chars = str->getChars(cx);
     if (!chars)
-        return nullptr;
+        return NULL;
 
-    return AtomizeAndCopyChars(cx, chars, str->length(), ib);
+    if (JSAtom *atom = AtomizeAndCopyChars<NoGC>(cx, chars, str->length(), ib))
+        return atom;
+
+    if (!cx->isJSContext() || !allowGC)
+        return NULL;
+
+    JSLinearString *linear = str->ensureLinear(cx->asJSContext());
+    if (!linear)
+        return NULL;
+
+    JS_ASSERT(linear->length() <= JSString::MAX_LENGTH);
+    return AtomizeAndCopyChars<CanGC>(cx, linear->chars(), linear->length(), ib);
 }
+
+template JSAtom *
+js::AtomizeString<CanGC>(ExclusiveContext *cx, JSString *str, InternBehavior ib);
+
+template JSAtom *
+js::AtomizeString<NoGC>(ExclusiveContext *cx, JSString *str, InternBehavior ib);
 
 JSAtom *
 js::Atomize(ExclusiveContext *cx, const char *bytes, size_t length, InternBehavior ib)
@@ -357,7 +379,7 @@ js::Atomize(ExclusiveContext *cx, const char *bytes, size_t length, InternBehavi
     CHECK_REQUEST(cx);
 
     if (!JSString::validateLength(cx, length))
-        return nullptr;
+        return NULL;
 
     static const unsigned ATOMIZE_BUF_MAX = 32;
     if (length < ATOMIZE_BUF_MAX) {
@@ -369,29 +391,45 @@ js::Atomize(ExclusiveContext *cx, const char *bytes, size_t length, InternBehavi
          * js::AtomizeString rarely has to copy the temp string we make.
          */
         jschar inflated[ATOMIZE_BUF_MAX];
-        InflateStringToBuffer(bytes, length, inflated);
-        return AtomizeAndCopyChars(cx, inflated, length, ib);
+        size_t inflatedLength = ATOMIZE_BUF_MAX - 1;
+        if (!InflateStringToBuffer(cx->maybeJSContext(),
+                                   bytes, length, inflated, &inflatedLength))
+        {
+            return NULL;
+        }
+        return AtomizeAndCopyChars<CanGC>(cx, inflated, inflatedLength, ib);
     }
 
     jschar *tbcharsZ = InflateString(cx, bytes, &length);
     if (!tbcharsZ)
-        return nullptr;
+        return NULL;
     return AtomizeAndTakeOwnership(cx, tbcharsZ, length, ib);
 }
 
+template <AllowGC allowGC>
 JSAtom *
 js::AtomizeChars(ExclusiveContext *cx, const jschar *chars, size_t length, InternBehavior ib)
 {
     CHECK_REQUEST(cx);
 
     if (!JSString::validateLength(cx, length))
-        return nullptr;
+        return NULL;
 
-    return AtomizeAndCopyChars(cx, chars, length, ib);
+    return AtomizeAndCopyChars<allowGC>(cx, chars, length, ib);
 }
 
+template JSAtom *
+js::AtomizeChars<CanGC>(ExclusiveContext *cx,
+                        const jschar *chars, size_t length, InternBehavior ib);
+
+template JSAtom *
+js::AtomizeChars<NoGC>(ExclusiveContext *cx,
+                       const jschar *chars, size_t length, InternBehavior ib);
+
+template <AllowGC allowGC>
 bool
-js::IndexToIdSlow(ExclusiveContext *cx, uint32_t index, MutableHandleId idp)
+js::IndexToIdSlow(ExclusiveContext *cx, uint32_t index,
+                  typename MaybeRooted<jsid, allowGC>::MutableHandleType idp)
 {
     JS_ASSERT(index > JSID_INT_MAX);
 
@@ -399,7 +437,7 @@ js::IndexToIdSlow(ExclusiveContext *cx, uint32_t index, MutableHandleId idp)
     RangedPtr<jschar> end(ArrayEnd(buf), buf, ArrayEnd(buf));
     RangedPtr<jschar> start = BackfillIndexInCharBuffer(index, end);
 
-    JSAtom *atom = AtomizeChars(cx, start.get(), end - start);
+    JSAtom *atom = AtomizeChars<allowGC>(cx, start.get(), end - start);
     if (!atom)
         return false;
 
@@ -407,47 +445,30 @@ js::IndexToIdSlow(ExclusiveContext *cx, uint32_t index, MutableHandleId idp)
     return true;
 }
 
-template <AllowGC allowGC>
-static JSAtom *
-ToAtomSlow(ExclusiveContext *cx, typename MaybeRooted<Value, allowGC>::HandleType arg)
-{
-    JS_ASSERT(!arg.isString());
+template bool
+js::IndexToIdSlow<CanGC>(ExclusiveContext *cx, uint32_t index, MutableHandleId idp);
 
-    Value v = arg;
-    if (!v.isPrimitive()) {
-        if (!cx->shouldBeJSContext() || !allowGC)
-            return nullptr;
-        RootedValue v2(cx, v);
-        if (!ToPrimitive(cx->asJSContext(), JSTYPE_STRING, &v2))
-            return nullptr;
-        v = v2;
-    }
-
-    if (v.isString())
-        return AtomizeString(cx, v.toString());
-    if (v.isInt32())
-        return Int32ToAtom(cx, v.toInt32());
-    if (v.isDouble())
-        return NumberToAtom(cx, v.toDouble());
-    if (v.isBoolean())
-        return v.toBoolean() ? cx->names().true_ : cx->names().false_;
-    if (v.isNull())
-        return cx->names().null;
-    return cx->names().undefined;
-}
+template bool
+js::IndexToIdSlow<NoGC>(ExclusiveContext *cx, uint32_t index, FakeMutableHandle<jsid> idp);
 
 template <AllowGC allowGC>
 JSAtom *
 js::ToAtom(ExclusiveContext *cx, typename MaybeRooted<Value, allowGC>::HandleType v)
 {
-    if (!v.isString())
-        return ToAtomSlow<allowGC>(cx, v);
+    if (!v.isString()) {
+        JSString *str = js::ToStringSlow<allowGC>(cx, v);
+        if (!str)
+            return NULL;
+        JS::Anchor<JSString *> anchor(str);
+        return AtomizeString<allowGC>(cx, str);
+    }
 
     JSString *str = v.toString();
     if (str->isAtom())
         return &str->asAtom();
 
-    return AtomizeString(cx, str);
+    JS::Anchor<JSString *> anchor(str);
+    return AtomizeString<allowGC>(cx, str);
 }
 
 template JSAtom *
@@ -482,7 +503,7 @@ js::XDRAtom(XDRState<mode> *xdr, MutableHandleAtom atomp)
 #if IS_LITTLE_ENDIAN
     /* Directly access the little endian chars in the XDR buffer. */
     const jschar *chars = reinterpret_cast<const jschar *>(xdr->buf.read(nchars * sizeof(jschar)));
-    atom = AtomizeChars(cx, chars, nchars);
+    atom = AtomizeChars<CanGC>(cx, chars, nchars);
 #else
     /*
      * We must copy chars to a temporary buffer to convert between little and
@@ -504,7 +525,7 @@ js::XDRAtom(XDRState<mode> *xdr, MutableHandleAtom atomp)
     }
 
     JS_ALWAYS_TRUE(xdr->codeChars(chars, nchars));
-    atom = AtomizeChars(cx, chars, nchars);
+    atom = AtomizeChars<CanGC>(cx, chars, nchars);
     if (chars != stackChars)
         js_free(chars);
 #endif /* !IS_LITTLE_ENDIAN */

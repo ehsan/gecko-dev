@@ -32,23 +32,12 @@ function Prompt(aOptions) {
   if ("buttons" in aOptions && aOptions.buttons != null)
     this.msg.buttons = aOptions.buttons;
 
-  if ("hint" in aOptions && aOptions.hint != null)
-    this.msg.hint = aOptions.hint;
-
   let idService = Cc["@mozilla.org/uuid-generator;1"].getService(Ci.nsIUUIDGenerator); 
   this.guid = idService.generateUUID().toString();
   this.msg.guid = this.guid;
 }
 
 Prompt.prototype = {
-  setHint: function(aHint) {
-    if (!aHint)
-      delete this.msg.hint;
-    else
-      this.msg.hint = aHint;
-    return this;
-  },
-
   addButton: function(aOptions) {
     if (!this.msg.buttons)
       this.msg.buttons = [];
@@ -89,16 +78,6 @@ Prompt.prototype = {
     });
   },
 
-  addNumber: function(aOptions) {
-    return this._addInput({
-      type: "number",
-      value: aOptions.value,
-      hint: aOptions.hint,
-      autofocus: aOptions.autofocus,
-      id: aOptions.id
-    });
-  },
-
   addPassword: function(aOptions) {
     return this._addInput({
       type: "password",
@@ -117,14 +96,6 @@ Prompt.prototype = {
     });
   },
 
-  addColorPicker: function(aOptions) {
-    return this._addInput({
-      type: "color",
-      value: aOptions.value,
-      id: aOptions.id
-    });
-  },
-
   addLabel: function(aOptions) {
     return this._addInput({
       type: "label",
@@ -137,14 +108,6 @@ Prompt.prototype = {
     return this._addInput({
       type: "menulist",
       values: aOptions.values,
-      id: aOptions.id
-    });
-  },
-
-  addIconGrid: function(aOptions) {
-    return this._addInput({
-      type: "icongrid",
-      items: aOptions.items,
       id: aOptions.id
     });
   },

@@ -8,11 +8,10 @@
 
 #include "nscore.h"
 #include "nsAutoPtr.h"
+#include "nsEvent.h"
 #include "nsString.h"
 #include "nsWindowBase.h"
 #include "nsWindowDefs.h"
-#include "mozilla/Attributes.h"
-#include "mozilla/EventForwards.h"
 #include <windows.h>
 
 #define NS_NUM_OF_KEYS          70
@@ -55,38 +54,86 @@ static const uint32_t sModifierKeyMap[][3] = {
 
 class KeyboardLayout;
 
-class ModifierKeyState
-{
+class ModifierKeyState {
 public:
-  ModifierKeyState();
-  ModifierKeyState(bool aIsShiftDown, bool aIsControlDown, bool aIsAltDown);
-  ModifierKeyState(Modifiers aModifiers);
+  ModifierKeyState()
+  {
+    Update();
+  }
 
-  MOZ_ALWAYS_INLINE void Update();
+  ModifierKeyState(bool aIsShiftDown, bool aIsControlDown, bool aIsAltDown)
+  {
+    Update();
+    Unset(MODIFIER_SHIFT | MODIFIER_CONTROL | MODIFIER_ALT | MODIFIER_ALTGRAPH);
+    Modifiers modifiers = 0;
+    if (aIsShiftDown) {
+      modifiers |= MODIFIER_SHIFT;
+    }
+    if (aIsControlDown) {
+      modifiers |= MODIFIER_CONTROL;
+    }
+    if (aIsAltDown) {
+      modifiers |= MODIFIER_ALT;
+    }
+    if (modifiers) {
+      Set(modifiers);
+    }
+  }
 
-  MOZ_ALWAYS_INLINE void Unset(Modifiers aRemovingModifiers);
-  void Set(Modifiers aAddingModifiers);
+  ModifierKeyState(Modifiers aModifiers) :
+    mModifiers(aModifiers)
+  {
+    EnsureAltGr();
+  }
 
-  void InitInputEvent(WidgetInputEvent& aInputEvent) const;
+  void Update();
 
-  bool IsShift() const;
-  bool IsControl() const;
-  MOZ_ALWAYS_INLINE bool IsAlt() const;
-  MOZ_ALWAYS_INLINE bool IsAltGr() const;
-  MOZ_ALWAYS_INLINE bool IsWin() const;
+  void Unset(Modifiers aRemovingModifiers)
+  {
+    mModifiers &= ~aRemovingModifiers;
+    // Note that we don't need to unset AltGr flag here automatically.
+    // For nsEditor, we need to remove Alt and Control flags but AltGr isn't
+    // checked in nsEditor, so, it can be kept.
+  }
 
-  MOZ_ALWAYS_INLINE bool IsCapsLocked() const;
-  MOZ_ALWAYS_INLINE bool IsNumLocked() const;
-  MOZ_ALWAYS_INLINE bool IsScrollLocked() const;
+  void Set(Modifiers aAddingModifiers)
+  {
+    mModifiers |= aAddingModifiers;
+    EnsureAltGr();
+  }
 
-  MOZ_ALWAYS_INLINE Modifiers GetModifiers() const;
+  void InitInputEvent(nsInputEvent& aInputEvent) const;
+
+  bool IsShift() const { return (mModifiers & MODIFIER_SHIFT) != 0; }
+  bool IsControl() const { return (mModifiers & MODIFIER_CONTROL) != 0; }
+  bool IsAlt() const { return (mModifiers & MODIFIER_ALT) != 0; }
+  bool IsAltGr() const { return IsControl() && IsAlt(); }
+  bool IsWin() const { return (mModifiers & MODIFIER_OS) != 0; }
+
+  bool IsCapsLocked() const { return (mModifiers & MODIFIER_CAPSLOCK) != 0; }
+  bool IsNumLocked() const { return (mModifiers & MODIFIER_NUMLOCK) != 0; }
+  bool IsScrollLocked() const
+  {
+    return (mModifiers & MODIFIER_SCROLLLOCK) != 0;
+  }
+
+  Modifiers GetModifiers() const { return mModifiers; }
 
 private:
   Modifiers mModifiers;
 
-  MOZ_ALWAYS_INLINE void EnsureAltGr();
+  void EnsureAltGr()
+  {
+    // If both Control key and Alt key are pressed, it means AltGr is pressed.
+    // Ideally, we should check whether the current keyboard layout has AltGr
+    // or not.  However, setting AltGr flags for keyboard which doesn't have
+    // AltGr must not be serious bug.  So, it should be OK for now.
+    if (IsAltGr()) {
+      mModifiers |= MODIFIER_ALTGRAPH;
+    }
+  }
 
-  void InitMouseEvent(WidgetInputEvent& aMouseEvent) const;
+  void InitMouseEvent(nsInputEvent& aMouseEvent) const;
 };
 
 struct UniCharsAndModifiers
@@ -149,8 +196,45 @@ public:
 
   typedef uint8_t ShiftState;
 
-  static ShiftState ModifiersToShiftState(Modifiers aModifiers);
-  static Modifiers ShiftStateToModifiers(ShiftState aShiftState);
+  static ShiftState ModifiersToShiftState(Modifiers aModifiers)
+  {
+    ShiftState state = 0;
+    if (aModifiers & MODIFIER_SHIFT) {
+      state |= STATE_SHIFT;
+    }
+    if (aModifiers & MODIFIER_CONTROL) {
+      state |= STATE_CONTROL;
+    }
+    if (aModifiers & MODIFIER_ALT) {
+      state |= STATE_ALT;
+    }
+    if (aModifiers & MODIFIER_CAPSLOCK) {
+      state |= STATE_CAPSLOCK;
+    }
+    return state;
+  }
+
+  static Modifiers ShiftStateToModifiers(ShiftState aShiftState)
+  {
+    Modifiers modifiers = 0;
+    if (aShiftState & STATE_SHIFT) {
+      modifiers |= MODIFIER_SHIFT;
+    }
+    if (aShiftState & STATE_CONTROL) {
+      modifiers |= MODIFIER_CONTROL;
+    }
+    if (aShiftState & STATE_ALT) {
+      modifiers |= MODIFIER_ALT;
+    }
+    if (aShiftState & STATE_CAPSLOCK) {
+      modifiers |= MODIFIER_CAPSLOCK;
+    }
+    if ((modifiers & (MODIFIER_ALT | MODIFIER_CONTROL)) ==
+           (MODIFIER_ALT | MODIFIER_CONTROL)) {
+      modifiers |= MODIFIER_ALTGRAPH;
+    }
+    return modifiers;
+  }
 
 private:
   union KeyShiftState
@@ -264,6 +348,10 @@ private:
   nsRefPtr<nsWindowBase> mWidget;
   HKL mKeyboardLayout;
   MSG mMsg;
+  // mCharMsg stores WM_*CHAR message following WM_*KEYDOWN message.
+  // If mMsg isn't WM_*KEYDOWN message or WM_*KEYDOWN but there is no following
+  // WM_*CHAR message, the message member is 0.
+  MSG mCharMsg;
 
   uint32_t mDOMKeyCode;
   KeyNameIndex mKeyNameIndex;
@@ -298,24 +386,6 @@ private:
     MOZ_CRASH("The default constructor of NativeKey isn't available");
   }
 
-  /**
-   * Returns true if the key event is caused by auto repeat.
-   */
-  bool IsRepeat() const
-  {
-    switch (mMsg.message) {
-      case WM_KEYDOWN:
-      case WM_SYSKEYDOWN:
-      case WM_CHAR:
-      case WM_SYSCHAR:
-      case WM_DEADCHAR:
-      case WM_SYSDEADCHAR:
-        return ((mMsg.lParam & (1 << 30)) != 0);
-      default:
-        return false;
-    }
-  }
-
   UINT GetScanCodeWithExtendedFlag() const;
 
   // The result is one of nsIDOMKeyEvent::DOM_KEY_LOCATION_*.
@@ -338,9 +408,12 @@ private:
   {
     return (mMsg.message == WM_KEYDOWN || mMsg.message == WM_SYSKEYDOWN);
   }
-  bool IsFollowedByCharMessage() const;
-  bool IsFollowedByDeadCharMessage() const;
-  MSG RemoveFollowingCharMessage() const;
+  bool IsFollowedByCharMessage() const
+  {
+    MOZ_ASSERT(mMsg.message == WM_KEYDOWN || mMsg.message == WM_SYSKEYDOWN);
+    return (mCharMsg.message != 0);
+  }
+  const MSG& RemoveFollowingCharMessage() const;
 
   /**
    * Wraps MapVirtualKeyEx() with MAPVK_VSC_TO_VK.
@@ -360,15 +433,18 @@ private:
   /**
    * Initializes the aKeyEvent with the information stored in the instance.
    */
-  void InitKeyEvent(WidgetKeyboardEvent& aKeyEvent,
+  void InitKeyEvent(nsKeyEvent& aKeyEvent,
                     const ModifierKeyState& aModKeyState) const;
-  void InitKeyEvent(WidgetKeyboardEvent& aKeyEvent) const;
+  void InitKeyEvent(nsKeyEvent& aKeyEvent) const
+  {
+    InitKeyEvent(aKeyEvent, mModKeyState);
+  }
 
   /**
    * Dispatches the key event.  Returns true if the event is consumed.
    * Otherwise, false.
    */
-  bool DispatchKeyEvent(WidgetKeyboardEvent& aKeyEvent,
+  bool DispatchKeyEvent(nsKeyEvent& aKeyEvent,
                         const MSG* aMsgSentToPlugin = nullptr) const;
 
   /**

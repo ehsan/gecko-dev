@@ -19,8 +19,8 @@
 
 #include "webrtc/modules/interface/module_common_types.h"
 #include "webrtc/modules/video_coding/main/interface/video_coding.h"
-#include "webrtc/system_wrappers/interface/constructor_magic.h"
 #include "webrtc/system_wrappers/interface/event_wrapper.h"
+#include "webrtc/system_wrappers/interface/constructor_magic.h"
 
 enum { kMaxNackListSize = 250 };
 enum { kMaxPacketAgeToNack = 450 };
@@ -50,7 +50,7 @@ int MTRxTxTest(CmdArgs& args);
 double NormalDist(double mean, double stdDev);
 
 struct RtpPacket {
-  uint8_t data[1650]; // max packet size
+  int8_t data[1650]; // max packet size
   int32_t length;
   int64_t receiveTime;
 };
@@ -87,7 +87,7 @@ class FileOutputFrameReceiver : public webrtc::VCMReceiveCallback {
   virtual ~FileOutputFrameReceiver();
 
   // VCMReceiveCallback
-  virtual int32_t FrameToRender(webrtc::I420VideoFrame& video_frame);
+  virtual WebRtc_Word32 FrameToRender(webrtc::I420VideoFrame& video_frame);
 
  private:
   std::string out_filename_;
@@ -102,6 +102,6 @@ class FileOutputFrameReceiver : public webrtc::VCMReceiveCallback {
 };
 
 // Codec type conversion
-webrtc::RtpVideoCodecTypes ConvertCodecType(const char* plname);
+webrtc::RTPVideoCodecTypes ConvertCodecType(const char* plname);
 
 #endif

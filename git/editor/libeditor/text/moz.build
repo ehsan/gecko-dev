@@ -6,7 +6,9 @@
 
 TEST_DIRS += ['tests']
 
-UNIFIED_SOURCES += [
+MODULE = 'editor'
+
+CPP_SOURCES += [
     'nsInternetCiter.cpp',
     'nsPlaintextDataTransfer.cpp',
     'nsPlaintextEditor.cpp',
@@ -15,12 +17,9 @@ UNIFIED_SOURCES += [
     'nsTextEditUtils.cpp',
 ]
 
+LIBRARY_NAME = 'texteditor_s'
+
 FAIL_ON_WARNINGS = True
 
-LOCAL_INCLUDES += [
-    '../base',
-    '/content/base/src',
-    '/editor/txmgr/src',
-]
+LIBXUL_LIBRARY = True
 
-FINAL_LIBRARY = 'gklayout'

@@ -15,7 +15,7 @@
 #ifndef WEBRTC_MODULES_AUDIO_CONFERENCE_MIXER_SOURCE_TIME_SCHEDULER_H_
 #define WEBRTC_MODULES_AUDIO_CONFERENCE_MIXER_SOURCE_TIME_SCHEDULER_H_
 
-#include "webrtc/system_wrappers/interface/tick_util.h"
+#include "tick_util.h"
 
 namespace webrtc {
 class CriticalSectionWrapper;
@@ -42,6 +42,6 @@ private:
     int64_t  _periodicityInTicks;
     uint32_t _missedPeriods;
 };
-}  // namespace webrtc
+} // namespace webrtc
 
 #endif // WEBRTC_MODULES_AUDIO_CONFERENCE_MIXER_SOURCE_TIME_SCHEDULER_H_

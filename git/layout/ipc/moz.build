@@ -4,13 +4,15 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+MODULE = 'layout'
+
 EXPORTS.mozilla.layout += [
     'RenderFrameChild.h',
     'RenderFrameParent.h',
     'RenderFrameUtils.h',
 ]
 
-UNIFIED_SOURCES += [
+CPP_SOURCES += [
     'RenderFrameChild.cpp',
     'RenderFrameParent.cpp',
 ]
@@ -21,15 +23,5 @@ IPDL_SOURCES = [
 
 FAIL_ON_WARNINGS = True
 
-include('/ipc/chromium/chromium-config.mozbuild')
+LIBXUL_LIBRARY = True
 
-FINAL_LIBRARY = 'gklayout'
-
-LOCAL_INCLUDES += [
-    '/content/base/src',
-    '/layout/base',
-    '/layout/generic',
-    '/layout/xul',
-]
-
-JAR_MANIFESTS += ['jar.mn']

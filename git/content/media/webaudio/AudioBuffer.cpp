@@ -6,12 +6,12 @@
 
 #include "AudioBuffer.h"
 #include "mozilla/dom/AudioBufferBinding.h"
+#include "nsContentUtils.h"
 #include "jsfriendapi.h"
 #include "mozilla/ErrorResult.h"
 #include "AudioSegment.h"
 #include "AudioChannelFormat.h"
 #include "mozilla/PodOperations.h"
-#include "mozilla/CheckedInt.h"
 #include "AudioNodeEngine.h"
 
 namespace mozilla {
@@ -48,7 +48,8 @@ AudioBuffer::AudioBuffer(AudioContext* aContext, uint32_t aLength,
     mSampleRate(aSampleRate)
 {
   SetIsDOMBinding();
-  mozilla::HoldJSObjects(this);
+
+  nsContentUtils::HoldJSObjects(this, NS_CYCLE_COLLECTION_PARTICIPANT(AudioBuffer));
 }
 
 AudioBuffer::~AudioBuffer()
@@ -60,7 +61,7 @@ void
 AudioBuffer::ClearJSChannels()
 {
   mJSChannels.Clear();
-  mozilla::DropJSObjects(this);
+  nsContentUtils::DropJSObjects(this);
 }
 
 bool
@@ -70,8 +71,7 @@ AudioBuffer::InitializeBuffers(uint32_t aNumberOfChannels, JSContext* aJSContext
     return false;
   }
   for (uint32_t i = 0; i < aNumberOfChannels; ++i) {
-    JS::Rooted<JSObject*> array(aJSContext,
-                                JS_NewFloat32Array(aJSContext, mLength));
+    JS::RootedObject array(aJSContext, JS_NewFloat32Array(aJSContext, mLength));
     if (!array) {
       return false;
     }
@@ -96,8 +96,7 @@ AudioBuffer::RestoreJSChannelData(JSContext* aJSContext)
       // The following code first zeroes the array and then copies our data
       // into it. We could avoid this with additional JS APIs to construct
       // an array (or ArrayBuffer) containing initial data.
-      JS::Rooted<JSObject*> array(aJSContext,
-                                  JS_NewFloat32Array(aJSContext, mLength));
+      JS::RootedObject array(aJSContext, JS_NewFloat32Array(aJSContext, mLength));
       if (!array) {
         return false;
       }
@@ -109,60 +108,6 @@ AudioBuffer::RestoreJSChannelData(JSContext* aJSContext)
   }
 
   return true;
-}
-
-void
-AudioBuffer::CopyFromChannel(const Float32Array& aDestination, uint32_t aChannelNumber,
-                             uint32_t aStartInChannel, ErrorResult& aRv)
-{
-  uint32_t length = aDestination.Length();
-  CheckedInt<uint32_t> end = aStartInChannel;
-  end += length;
-  if (aChannelNumber >= NumberOfChannels() ||
-      !end.isValid() || end.value() > mLength) {
-    aRv.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
-    return;
-  }
-
-  if (!mSharedChannels && JS_GetTypedArrayLength(mJSChannels[aChannelNumber]) != mLength) {
-    // The array was probably neutered
-    aRv.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
-    return;
-  }
-
-  const float* sourceData = mSharedChannels ?
-    mSharedChannels->GetData(aChannelNumber) :
-    JS_GetFloat32ArrayData(mJSChannels[aChannelNumber]);
-  PodMove(aDestination.Data(), sourceData + aStartInChannel, length);
-}
-
-void
-AudioBuffer::CopyToChannel(JSContext* aJSContext, const Float32Array& aSource,
-                           uint32_t aChannelNumber, uint32_t aStartInChannel,
-                           ErrorResult& aRv)
-{
-  uint32_t length = aSource.Length();
-  CheckedInt<uint32_t> end = aStartInChannel;
-  end += length;
-  if (aChannelNumber >= NumberOfChannels() ||
-      !end.isValid() || end.value() > mLength) {
-    aRv.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
-    return;
-  }
-
-  if (!mSharedChannels && JS_GetTypedArrayLength(mJSChannels[aChannelNumber]) != mLength) {
-    // The array was probably neutered
-    aRv.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
-    return;
-  }
-
-  if (!RestoreJSChannelData(aJSContext)) {
-    aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
-    return;
-  }
-
-  PodMove(JS_GetFloat32ArrayData(mJSChannels[aChannelNumber]) + aStartInChannel,
-          aSource.Data(), length);
 }
 
 void
@@ -196,8 +141,7 @@ StealJSArrayDataIntoThreadSharedFloatArrayBufferList(JSContext* aJSContext,
   nsRefPtr<ThreadSharedFloatArrayBufferList> result =
     new ThreadSharedFloatArrayBufferList(aJSArrays.Length());
   for (uint32_t i = 0; i < aJSArrays.Length(); ++i) {
-    JS::Rooted<JSObject*> arrayBuffer(aJSContext,
-                                      JS_GetArrayBufferViewBuffer(aJSArrays[i]));
+    JS::RootedObject arrayBuffer(aJSContext, JS_GetArrayBufferViewBuffer(aJSArrays[i]));
     void* dataToFree = nullptr;
     uint8_t* stolenData = nullptr;
     if (arrayBuffer &&

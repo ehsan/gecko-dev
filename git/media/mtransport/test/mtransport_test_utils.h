@@ -9,8 +9,6 @@
 #ifndef mtransport_test_utils_h__
 #define mtransport_test_utils_h__
 
-#include <iostream>
-
 #include "nspr.h"
 #include "nsCOMPtr.h"
 #include "nsNetCID.h"
@@ -31,6 +29,7 @@
 #include "nsPISocketTransportService.h"
 #include "nsServiceManagerUtils.h"
 #include "TestHarness.h"
+#include "mozilla/mozPoisonWrite.h"
 
 class MtransportTestUtils {
  public:

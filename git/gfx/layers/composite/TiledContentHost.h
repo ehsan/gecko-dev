@@ -12,6 +12,7 @@
 #include "ContentHost.h"                // for ContentHost
 #include "TiledLayerBuffer.h"           // for TiledLayerBuffer, etc
 #include "CompositableHost.h"
+#include "gfxPoint.h"                   // for gfxSize
 #include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
 #include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
 #include "mozilla/RefPtr.h"             // for RefPtr
@@ -105,13 +106,13 @@ public:
   void Upload(const BasicTiledLayerBuffer* aMainMemoryTiledBuffer,
               const nsIntRegion& aNewValidRegion,
               const nsIntRegion& aInvalidateRegion,
-              const CSSToScreenScale& aResolution);
+              const gfxSize& aResolution);
 
   TiledTexture GetPlaceholderTile() const { return TiledTexture(); }
 
   // Stores the absolute resolution of the containing frame, calculated
   // by the sum of the resolutions of all parent layers' FrameMetrics.
-  const CSSToScreenScale& GetFrameResolution() { return mFrameResolution; }
+  const gfxSize& GetFrameResolution() { return mFrameResolution; }
 
   void SetCompositor(Compositor* aCompositor)
   {
@@ -133,7 +134,7 @@ protected:
 private:
   Compositor* mCompositor;
   const BasicTiledLayerBuffer* mMainMemoryTiledBuffer;
-  CSSToScreenScale mFrameResolution;
+  gfxSize mFrameResolution;
 };
 
 /**
@@ -201,6 +202,7 @@ public:
                   EffectChain& aEffectChain,
                   float aOpacity,
                   const gfx::Matrix4x4& aTransform,
+                  const gfx::Point& aOffset,
                   const gfx::Filter& aFilter,
                   const gfx::Rect& aClipRect,
                   const nsIntRegion& aScreenRegion,
@@ -210,6 +212,7 @@ public:
   void Composite(EffectChain& aEffectChain,
                  float aOpacity,
                  const gfx::Matrix4x4& aTransform,
+                 const gfx::Point& aOffset,
                  const gfx::Filter& aFilter,
                  const gfx::Rect& aClipRect,
                  const nsIntRegion* aVisibleRegion = nullptr,
@@ -244,7 +247,9 @@ public:
                     bool aDumpHtml=false) MOZ_OVERRIDE;
 #endif
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual void PrintInfo(nsACString& aTo, const char* aPrefix);
+#endif
 
 private:
   void ProcessUploadQueue(nsIntRegion* aNewValidRegion,
@@ -255,6 +260,7 @@ private:
                          const nsIntRegion& aValidRegion,
                          EffectChain& aEffectChain,
                          float aOpacity,
+                         const gfx::Point& aOffset,
                          const gfx::Filter& aFilter,
                          const gfx::Rect& aClipRect,
                          const nsIntRegion& aMaskRegion,

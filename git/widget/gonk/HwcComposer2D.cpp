@@ -19,39 +19,45 @@
 
 #include "libdisplay/GonkDisplay.h"
 #include "Framebuffer.h"
-#include "HwcUtils.h"
 #include "HwcComposer2D.h"
 #include "mozilla/layers/LayerManagerComposite.h"
 #include "mozilla/layers/PLayerTransaction.h"
 #include "mozilla/layers/ShadowLayerUtilsGralloc.h"
 #include "mozilla/StaticPtr.h"
 #include "cutils/properties.h"
-
-#if ANDROID_VERSION >= 18
-#include "libdisplay/FramebufferSurface.h"
-#endif
+#include "gfxUtils.h"
 
 #define LOG_TAG "HWComposer"
 
-/*
- * By default the debug message of hwcomposer (LOG_DEBUG level) are undefined,
- * but can be enabled by uncommenting HWC_DEBUG below.
- */
-//#define HWC_DEBUG
-
-#ifdef HWC_DEBUG
+#if (LOG_NDEBUG == 0)
 #define LOGD(args...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, ## args)
 #else
 #define LOGD(args...) ((void)0)
 #endif
 
-#define LOGI(args...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, ## args)
 #define LOGE(args...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, ## args)
 
 #define LAYER_COUNT_INCREMENTS 5
 
 using namespace android;
 using namespace mozilla::layers;
+
+enum {
+    HWC_USE_GPU = HWC_FRAMEBUFFER,
+    HWC_USE_OVERLAY = HWC_OVERLAY,
+    HWC_USE_COPYBIT
+};
+
+// HWC layer flags
+enum {
+    // Draw a solid color rectangle
+    // The color should be set on the transform member of the hwc_layer_t struct
+    // The expected format is a 32 bit ABGR with 8 bits per component
+    HWC_COLOR_FILL = 0x8,
+    // Swap the RB pixels of gralloc buffer, like RGBA<->BGRA or RGBX<->BGRX
+    // The flag will be set inside LayerRenderState
+    HWC_FORMAT_RB_SWAP = 0x40
+};
 
 namespace mozilla {
 
@@ -61,10 +67,6 @@ HwcComposer2D::HwcComposer2D()
     : mMaxLayerCount(0)
     , mList(nullptr)
     , mHwc(nullptr)
-    , mColorFill(false)
-    , mRBSwapSupport(false)
-    , mPrevRetireFence(-1)
-    , mPrepared(false)
 {
 }
 
@@ -77,7 +79,7 @@ HwcComposer2D::Init(hwc_display_t dpy, hwc_surface_t sur)
 {
     MOZ_ASSERT(!Initialized());
 
-    mHwc = (HwcDevice*)GetGonkDisplay()->GetHWCDevice();
+    mHwc = (hwc_composer_device_t*)GetGonkDisplay()->GetHWCDevice();
     if (!mHwc) {
         LOGE("Failed to initialize hwc");
         return -1;
@@ -88,20 +90,9 @@ HwcComposer2D::Init(hwc_display_t dpy, hwc_surface_t sur)
     mozilla::Framebuffer::GetSize(&screenSize);
     mScreenRect  = nsIntRect(nsIntPoint(0, 0), screenSize);
 
-#if ANDROID_VERSION >= 18
-    int supported = 0;
-    if (mHwc->query(mHwc, HwcUtils::HWC_COLOR_FILL, &supported) == NO_ERROR) {
-        mColorFill = supported ? true : false;
-    }
-    if (mHwc->query(mHwc, HwcUtils::HWC_FORMAT_RB_SWAP, &supported) == NO_ERROR) {
-        mRBSwapSupport = supported ? true : false;
-    }
-#else
     char propValue[PROPERTY_VALUE_MAX];
     property_get("ro.display.colorfill", propValue, "0");
     mColorFill = (atoi(propValue) == 1) ? true : false;
-    mRBSwapSupport = true;
-#endif
 
     mDpy = dpy;
     mSur = sur;
@@ -113,7 +104,7 @@ HwcComposer2D*
 HwcComposer2D::GetInstance()
 {
     if (!sInstance) {
-        LOGI("Creating new instance");
+        LOGD("Creating new instance");
         sInstance = new HwcComposer2D();
     }
     return sInstance;
@@ -122,10 +113,10 @@ HwcComposer2D::GetInstance()
 bool
 HwcComposer2D::ReallocLayerList()
 {
-    int size = sizeof(HwcList) +
-        ((mMaxLayerCount + LAYER_COUNT_INCREMENTS) * sizeof(HwcLayer));
+    int size = sizeof(hwc_layer_list_t) +
+        ((mMaxLayerCount + LAYER_COUNT_INCREMENTS) * sizeof(hwc_layer_t));
 
-    HwcList* listrealloc = (HwcList*)realloc(mList, size);
+    hwc_layer_list_t* listrealloc = (hwc_layer_list_t*)realloc(mList, size);
 
     if (!listrealloc) {
         return false;
@@ -139,6 +130,159 @@ HwcComposer2D::ReallocLayerList()
 
     mList = listrealloc;
     mMaxLayerCount += LAYER_COUNT_INCREMENTS;
+    return true;
+}
+
+/**
+ * Sets hwc layer rectangles required for hwc composition
+ *
+ * @param aVisible Input. Layer's unclipped visible rectangle
+ *        The origin is the top-left corner of the layer
+ * @param aTransform Input. Layer's transformation matrix
+ *        It transforms from layer space to screen space
+ * @param aClip Input. A clipping rectangle.
+ *        The origin is the top-left corner of the screen
+ * @param aBufferRect Input. The layer's buffer bounds
+ *        The origin is the top-left corner of the layer
+ * @param aSurceCrop Output. Area of the source to consider,
+ *        the origin is the top-left corner of the buffer
+ * @param aVisibleRegionScreen Output. Visible region in screen space.
+ *        The origin is the top-left corner of the screen
+ * @return true if the layer should be rendered.
+ *         false if the layer can be skipped
+ */
+static bool
+PrepareLayerRects(nsIntRect aVisible, const gfxMatrix& aTransform,
+                  nsIntRect aClip, nsIntRect aBufferRect,
+                  hwc_rect_t* aSourceCrop, hwc_rect_t* aVisibleRegionScreen) {
+
+    gfxRect visibleRect(aVisible);
+    gfxRect clip(aClip);
+    gfxRect visibleRectScreen = aTransform.TransformBounds(visibleRect);
+    // |clip| is guaranteed to be integer
+    visibleRectScreen.IntersectRect(visibleRectScreen, clip);
+
+    if (visibleRectScreen.IsEmpty()) {
+        LOGD("Skip layer");
+        return false;
+    }
+
+    gfxMatrix inverse(aTransform);
+    inverse.Invert();
+    gfxRect crop = inverse.TransformBounds(visibleRectScreen);
+
+    //clip to buffer size
+    crop.IntersectRect(crop, aBufferRect);
+    crop.Round();
+
+    if (crop.IsEmpty()) {
+        LOGD("Skip layer");
+        return false;
+    }
+
+    //propagate buffer clipping back to visible rect
+    visibleRectScreen = aTransform.TransformBounds(crop);
+    visibleRectScreen.Round();
+
+    // Map from layer space to buffer space
+    crop -= aBufferRect.TopLeft();
+
+    aSourceCrop->left = crop.x;
+    aSourceCrop->top  = crop.y;
+    aSourceCrop->right  = crop.x + crop.width;
+    aSourceCrop->bottom = crop.y + crop.height;
+
+    aVisibleRegionScreen->left = visibleRectScreen.x;
+    aVisibleRegionScreen->top  = visibleRectScreen.y;
+    aVisibleRegionScreen->right  = visibleRectScreen.x + visibleRectScreen.width;
+    aVisibleRegionScreen->bottom = visibleRectScreen.y + visibleRectScreen.height;
+
+    return true;
+}
+
+/**
+ * Prepares hwc layer visible region required for hwc composition
+ *
+ * @param aVisible Input. Layer's unclipped visible region
+ *        The origin is the top-left corner of the layer
+ * @param aTransform Input. Layer's transformation matrix
+ *        It transforms from layer space to screen space
+ * @param aClip Input. A clipping rectangle.
+ *        The origin is the top-left corner of the screen
+ * @param aBufferRect Input. The layer's buffer bounds
+ *        The origin is the top-left corner of the layer
+ * @param aVisibleRegionScreen Output. Visible region in screen space.
+ *        The origin is the top-left corner of the screen
+ * @return true if the layer should be rendered.
+ *         false if the layer can be skipped
+ */
+static bool
+PrepareVisibleRegion(const nsIntRegion& aVisible,
+                     const gfxMatrix& aTransform,
+                     nsIntRect aClip, nsIntRect aBufferRect,
+                     RectVector* aVisibleRegionScreen) {
+
+    nsIntRegionRectIterator rect(aVisible);
+    bool isVisible = false;
+    while (const nsIntRect* visibleRect = rect.Next()) {
+        hwc_rect_t visibleRectScreen;
+        gfxRect screenRect;
+
+        screenRect.IntersectRect(gfxRect(*visibleRect), aBufferRect);
+        screenRect = aTransform.TransformBounds(screenRect);
+        screenRect.IntersectRect(screenRect, aClip);
+        screenRect.Round();
+        if (screenRect.IsEmpty()) {
+            continue;
+        }
+        visibleRectScreen.left = screenRect.x;
+        visibleRectScreen.top  = screenRect.y;
+        visibleRectScreen.right  = screenRect.XMost();
+        visibleRectScreen.bottom = screenRect.YMost();
+        aVisibleRegionScreen->push_back(visibleRectScreen);
+        isVisible = true;
+    }
+
+    return isVisible;
+}
+
+/**
+ * Calculates the layer's clipping rectangle
+ *
+ * @param aTransform Input. A transformation matrix
+ *        It transforms the clip rect to screen space
+ * @param aLayerClip Input. The layer's internal clipping rectangle.
+ *        This may be NULL which means the layer has no internal clipping
+ *        The origin is the top-left corner of the layer
+ * @param aParentClip Input. The parent layer's rendering clipping rectangle
+ *        The origin is the top-left corner of the screen
+ * @param aRenderClip Output. The layer's rendering clipping rectangle
+ *        The origin is the top-left corner of the screen
+ * @return true if the layer should be rendered.
+ *         false if the layer can be skipped
+ */
+static bool
+CalculateClipRect(const gfxMatrix& aTransform, const nsIntRect* aLayerClip,
+                  nsIntRect aParentClip, nsIntRect* aRenderClip) {
+
+    *aRenderClip = aParentClip;
+
+    if (!aLayerClip) {
+        return true;
+    }
+
+    if (aLayerClip->IsEmpty()) {
+        return false;
+    }
+
+    nsIntRect clip = *aLayerClip;
+
+    gfxRect r(clip);
+    gfxRect trClip = aTransform.TransformBounds(r);
+    trClip.Round();
+    gfxUtils::GfxRectToIntRect(trClip, &clip);
+
+    aRenderClip->IntersectRect(*aRenderClip, clip);
     return true;
 }
 
@@ -159,19 +303,17 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
         return true;
     }
 
-    uint8_t opacity = std::min(0xFF, (int)(aLayer->GetEffectiveOpacity() * 256.0));
-#if ANDROID_VERSION < 18
-    if (opacity < 0xFF) {
+    float opacity = aLayer->GetEffectiveOpacity();
+    if (opacity < 1) {
         LOGD("%s Layer has planar semitransparency which is unsupported", aLayer->Name());
         return false;
     }
-#endif
 
     nsIntRect clip;
-    if (!HwcUtils::CalculateClipRect(aParentTransform * aGLWorldTransform,
-                                     aLayer->GetEffectiveClipRect(),
-                                     aClip,
-                                     &clip))
+    if (!CalculateClipRect(aParentTransform * aGLWorldTransform,
+                           aLayer->GetEffectiveClipRect(),
+                           aClip,
+                           &clip))
     {
         LOGD("%s Clip rect is empty. Skip layer", aLayer->Name());
         return true;
@@ -179,8 +321,8 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
 
     // HWC supports only the following 2D transformations:
     //
-    // Scaling via the sourceCrop and displayFrame in HwcLayer
-    // Translation via the sourceCrop and displayFrame in HwcLayer
+    // Scaling via the sourceCrop and displayFrame in hwc_layer_t
+    // Translation via the sourceCrop and displayFrame in hwc_layer_t
     // Rotation (in square angles only) via the HWC_TRANSFORM_ROT_* flags
     // Reflection (horizontal and vertical) via the HWC_TRANSFORM_FLIP_* flags
     //
@@ -257,9 +399,9 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
         }
     }
 
-    HwcLayer& hwcLayer = mList->hwLayers[current];
+    hwc_layer_t& hwcLayer = mList->hwLayers[current];
 
-    if(!HwcUtils::PrepareLayerRects(visibleRect,
+    if(!PrepareLayerRects(visibleRect,
                           transform * aGLWorldTransform,
                           clip,
                           bufferRect,
@@ -275,23 +417,11 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
     hwcLayer.flags = 0;
     hwcLayer.hints = 0;
     hwcLayer.blending = HWC_BLENDING_PREMULT;
-#if ANDROID_VERSION >= 18
-    hwcLayer.compositionType = HWC_FRAMEBUFFER;
-
-    hwcLayer.acquireFenceFd = -1;
-    hwcLayer.releaseFenceFd = -1;
-    hwcLayer.planeAlpha = opacity;
-#else
-    hwcLayer.compositionType = HwcUtils::HWC_USE_COPYBIT;
-#endif
+    hwcLayer.compositionType = HWC_USE_COPYBIT;
 
     if (!fillColor) {
         if (state.FormatRBSwapped()) {
-            if (!mRBSwapSupport) {
-                LOGD("No R/B swap support in H/W Composer");
-                return false;
-            }
-            hwcLayer.flags |= HwcUtils::HWC_FORMAT_RB_SWAP;
+            hwcLayer.flags |= HWC_FORMAT_RB_SWAP;
         }
 
         // Translation and scaling have been addressed in PrepareLayerRects().
@@ -412,9 +542,9 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
         }
         hwc_region_t region;
         if (visibleRegion.GetNumRects() > 1) {
-            mVisibleRegions.push_back(HwcUtils::RectVector());
-            HwcUtils::RectVector* visibleRects = &(mVisibleRegions.back());
-            if(!HwcUtils::PrepareVisibleRegion(visibleRegion,
+            mVisibleRegions.push_back(RectVector());
+            RectVector* visibleRects = &(mVisibleRegions.back());
+            if(!PrepareVisibleRegion(visibleRegion,
                                      transform * aGLWorldTransform,
                                      clip,
                                      bufferRect,
@@ -429,7 +559,7 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
         }
         hwcLayer.visibleRegionScreen = region;
     } else {
-        hwcLayer.flags |= HwcUtils::HWC_COLOR_FILL;
+        hwcLayer.flags |= HWC_COLOR_FILL;
         ColorLayer* colorLayer = aLayer->AsColorLayer();
         if (colorLayer->GetColor().a < 1.0) {
             LOGD("Color layer has semitransparency which is unsupported");
@@ -438,210 +568,9 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
         hwcLayer.transform = colorLayer->GetColor().Packed();
     }
 
-    mHwcLayerMap.AppendElement(static_cast<LayerComposite*>(aLayer->ImplData()));
     mList->numHwLayers++;
     return true;
 }
-
-
-#if ANDROID_VERSION >= 18
-bool
-HwcComposer2D::TryHwComposition()
-{
-    FramebufferSurface* fbsurface = (FramebufferSurface*)(GetGonkDisplay()->GetFBSurface());
-
-    if (!(fbsurface && fbsurface->lastHandle)) {
-        LOGD("H/W Composition failed. FBSurface not initialized.");
-        return false;
-    }
-
-    // Add FB layer
-    int idx = mList->numHwLayers++;
-    if (idx >= mMaxLayerCount) {
-        if (!ReallocLayerList() || idx >= mMaxLayerCount) {
-            LOGE("TryHwComposition failed! Could not add FB layer");
-            return false;
-        }
-    }
-
-    Prepare(fbsurface->lastHandle, -1);
-
-    bool fullHwcComposite = true;
-    for (int j = 0; j < idx; j++) {
-        if (mList->hwLayers[j].compositionType == HWC_FRAMEBUFFER) {
-            // After prepare, if there is an HWC_FRAMEBUFFER layer,
-            // it means full HWC Composition is not possible this time
-            LOGD("GPU or Partial HWC Composition");
-            fullHwcComposite = false;
-            break;
-        }
-    }
-
-    if (!fullHwcComposite) {
-        for (int k=0; k < idx; k++) {
-            if (mList->hwLayers[k].compositionType == HWC_OVERLAY) {
-                // HWC will compose HWC_OVERLAY layers in partial
-                // HWC Composition, so set layer composition flag
-                // on mapped LayerComposite to skip GPU composition
-                mHwcLayerMap[k]->SetLayerComposited(true);
-            }
-        }
-        return false;
-    }
-
-    // Full HWC Composition
-    Commit();
-
-    // No composition on FB layer, so closing releaseFenceFd
-    close(mList->hwLayers[idx].releaseFenceFd);
-    return true;
-}
-
-bool
-HwcComposer2D::Render(EGLDisplay dpy, EGLSurface sur)
-{
-    if (!mList) {
-        // After boot, HWC list hasn't been created yet
-        return GetGonkDisplay()->SwapBuffers(dpy, sur);
-    }
-
-    GetGonkDisplay()->UpdateFBSurface(dpy, sur);
-
-    FramebufferSurface* fbsurface = (FramebufferSurface*)(GetGonkDisplay()->GetFBSurface());
-    if (!fbsurface) {
-        LOGE("H/W Composition failed. FBSurface not initialized.");
-        return false;
-    }
-
-    if (mPrepared) {
-        // No mHwc prepare, if already prepared in current draw cycle
-        mList->hwLayers[mList->numHwLayers - 1].handle = fbsurface->lastHandle;
-        mList->hwLayers[mList->numHwLayers - 1].acquireFenceFd = fbsurface->lastFenceFD;
-    } else {
-        mList->numHwLayers = 2;
-        mList->hwLayers[0].hints = 0;
-        mList->hwLayers[0].compositionType = HWC_BACKGROUND;
-        mList->hwLayers[0].flags = HWC_SKIP_LAYER;
-        mList->hwLayers[0].backgroundColor = {0};
-        mList->hwLayers[0].acquireFenceFd = -1;
-        mList->hwLayers[0].releaseFenceFd = -1;
-        mList->hwLayers[0].displayFrame = {0, 0, mScreenRect.width, mScreenRect.height};
-        Prepare(fbsurface->lastHandle, fbsurface->lastFenceFD);
-    }
-
-    // GPU or partial HWC Composition
-    Commit();
-
-    GetGonkDisplay()->SetFBReleaseFd(mList->hwLayers[mList->numHwLayers - 1].releaseFenceFd);
-    return true;
-}
-
-void
-HwcComposer2D::Prepare(buffer_handle_t fbHandle, int fence)
-{
-    int idx = mList->numHwLayers - 1;
-    const hwc_rect_t r = {0, 0, mScreenRect.width, mScreenRect.height};
-    hwc_display_contents_1_t *displays[HWC_NUM_DISPLAY_TYPES] = { nullptr };
-
-    displays[HWC_DISPLAY_PRIMARY] = mList;
-    mList->flags = HWC_GEOMETRY_CHANGED;
-    mList->outbufAcquireFenceFd = -1;
-    mList->outbuf = nullptr;
-    mList->retireFenceFd = -1;
-
-    mList->hwLayers[idx].hints = 0;
-    mList->hwLayers[idx].flags = 0;
-    mList->hwLayers[idx].transform = 0;
-    mList->hwLayers[idx].handle = fbHandle;
-    mList->hwLayers[idx].blending = HWC_BLENDING_PREMULT;
-    mList->hwLayers[idx].compositionType = HWC_FRAMEBUFFER_TARGET;
-    mList->hwLayers[idx].sourceCrop = r;
-    mList->hwLayers[idx].displayFrame = r;
-    mList->hwLayers[idx].visibleRegionScreen.numRects = 1;
-    mList->hwLayers[idx].visibleRegionScreen.rects = &mList->hwLayers[idx].sourceCrop;
-    mList->hwLayers[idx].acquireFenceFd = fence;
-    mList->hwLayers[idx].releaseFenceFd = -1;
-    mList->hwLayers[idx].planeAlpha = 0xFF;
-
-    if (mPrepared) {
-        LOGE("Multiple hwc prepare calls!");
-    }
-    mHwc->prepare(mHwc, HWC_NUM_DISPLAY_TYPES, displays);
-    mPrepared = true;
-}
-
-bool
-HwcComposer2D::Commit()
-{
-    hwc_display_contents_1_t *displays[HWC_NUM_DISPLAY_TYPES] = { nullptr };
-    displays[HWC_DISPLAY_PRIMARY] = mList;
-
-    int err = mHwc->set(mHwc, HWC_NUM_DISPLAY_TYPES, displays);
-
-    // To avoid tearing, workaround for missing releaseFenceFd
-    // waits in Gecko layers, see Bug 925444.
-    if (!mPrevReleaseFds.IsEmpty()) {
-        // Wait for previous retire Fence to signal.
-        // Denotes contents on display have been replaced.
-        // For buffer-sync, framework should not over-write
-        // prev buffers until we close prev releaseFenceFds
-        sp<Fence> fence = new Fence(mPrevRetireFence);
-        if (fence->wait(1000) == -ETIME) {
-            LOGE("Wait timed-out for retireFenceFd %d", mPrevRetireFence);
-        }
-        for (int i = 0; i < mPrevReleaseFds.Length(); i++) {
-            close(mPrevReleaseFds[i]);
-        }
-        close(mPrevRetireFence);
-        mPrevReleaseFds.Clear();
-    }
-
-    for (uint32_t j=0; j < (mList->numHwLayers - 1); j++) {
-        if (mList->hwLayers[j].releaseFenceFd >= 0) {
-            mPrevReleaseFds.AppendElement(mList->hwLayers[j].releaseFenceFd);
-        }
-    }
-
-    if (mList->retireFenceFd >= 0) {
-        if (!mPrevReleaseFds.IsEmpty()) {
-            mPrevRetireFence = mList->retireFenceFd;
-        } else { // GPU Composition
-            close(mList->retireFenceFd);
-        }
-    }
-
-    mPrepared = false;
-    return !err;
-}
-
-void
-HwcComposer2D::Reset()
-{
-    LOGD("hwcomposer is already prepared, reset with null set");
-    hwc_display_contents_1_t *displays[HWC_NUM_DISPLAY_TYPES] = { nullptr };
-    displays[HWC_DISPLAY_PRIMARY] = nullptr;
-    mHwc->set(mHwc, HWC_DISPLAY_PRIMARY, displays);
-    mPrepared = false;
-}
-#else
-bool
-HwcComposer2D::TryHwComposition()
-{
-    return !mHwc->set(mHwc, mDpy, mSur, mList);
-}
-
-bool
-HwcComposer2D::Render(EGLDisplay dpy, EGLSurface sur)
-{
-    return GetGonkDisplay()->SwapBuffers(dpy, sur);
-}
-
-void
-HwcComposer2D::Reset()
-{
-    mPrepared = false;
-}
-#endif
 
 bool
 HwcComposer2D::TryRender(Layer* aRoot,
@@ -655,18 +584,12 @@ HwcComposer2D::TryRender(Layer* aRoot,
     MOZ_ASSERT(Initialized());
     if (mList) {
         mList->numHwLayers = 0;
-        mHwcLayerMap.Clear();
-    }
-
-    if (mPrepared) {
-        Reset();
     }
 
     // XXX: The clear() below means all rect vectors will be have to be
     // reallocated. We may want to avoid this if possible
     mVisibleRegions.clear();
 
-    MOZ_ASSERT(mHwcLayerMap.IsEmpty());
     if (!PrepareLayerList(aRoot,
                           mScreenRect,
                           gfxMatrix(),
@@ -676,8 +599,8 @@ HwcComposer2D::TryRender(Layer* aRoot,
         return false;
     }
 
-    if (!TryHwComposition()) {
-        LOGD("H/W Composition failed");
+    if (mHwc->set(mHwc, mDpy, mSur, mList)) {
+        LOGE("Hardware device failed to render");
         return false;
     }
 

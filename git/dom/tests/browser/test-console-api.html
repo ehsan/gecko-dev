@@ -39,8 +39,6 @@
         console.info(str);
         console.warn(str);
         console.error(str);
-        console.exception(str);
-        console.assert(false, str);
       }
 
       function testGroups() {
@@ -51,7 +49,7 @@
 
       function nativeCallback() {
         SpecialPowers.pushPrefEnv({"set": [["dom.promise.enabled", true]]}, function() {
-          new Promise(function(resolve, reject) { resolve(42); }).then(console.log);
+          new Promise(r => r.resolve(42)).then(console.log);
         });
       }
     </script>

@@ -40,7 +40,6 @@ this.NS_ASSERT = function NS_ASSERT(condition, message) {
   try {
     switch (defB.getCharPref("app.update.channel")) {
       case "nightly":
-      case "aurora":
       case "beta":
       case "default":
         releaseBuild = false;
@@ -50,14 +49,15 @@ this.NS_ASSERT = function NS_ASSERT(condition, message) {
   var caller = arguments.callee.caller;
   var assertionText = "ASSERT: " + message + "\n";
 
-  // Report the error to the console
-  Components.utils.reportError(assertionText);
-
   if (releaseBuild) {
+    // Just report the error to the console
+    Components.utils.reportError(assertionText);
     return;
   }
 
-  // dump the stack to stdout too in non-release builds
+  // Otherwise, dump to stdout and launch an assertion failure dialog
+  dump(assertionText);
+
   var stackText = "";
   if (gTraceOnAssert) {
     stackText = "Stack Trace: \n";
@@ -75,5 +75,16 @@ this.NS_ASSERT = function NS_ASSERT(condition, message) {
     }
   }
 
-  dump(assertionText + stackText);
+  var environment = Components.classes["@mozilla.org/process/environment;1"].
+                    getService(Components.interfaces.nsIEnvironment);
+  if (environment.exists("XUL_ASSERT_PROMPT") &&
+      !parseInt(environment.get("XUL_ASSERT_PROMPT")))
+    return;
+
+  var source = null;
+  if (this.window)
+    source = this.window;
+  var ps = Components.classes["@mozilla.org/embedcomp/prompt-service;1"].
+           getService(Components.interfaces.nsIPromptService);
+  ps.alert(source, "Assertion Failed", assertionText + stackText);
 }

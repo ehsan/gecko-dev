@@ -10,33 +10,34 @@
 simple_events = [
     'ProgressEvent',
     'StorageEvent',
+    'DeviceProximityEvent',
     'MozSettingsEvent',
+    'UserProximityEvent',
     'CustomEvent',
     'PageTransitionEvent',
     'DOMTransactionEvent',
     'PopStateEvent',
     'HashChangeEvent',
     'CloseEvent',
+    'MozContactChangeEvent',
     'DeviceOrientationEvent',
+    'DeviceLightEvent',
     'MozApplicationEvent',
     'SmartCardEvent',
     'StyleRuleChangeEvent',
     'StyleSheetChangeEvent',
     'StyleSheetApplicableStateChangeEvent',
-#ifdef MOZ_WIDGET_GONK
-    'MozWifiStatusChangeEvent',
-    'MozWifiConnectionInfoEvent',
-#endif
 #ifdef MOZ_B2G_BT
     'BluetoothDeviceEvent',
     'BluetoothStatusChangedEvent',
-    'BluetoothDiscoveryStateChangedEvent',
 #endif
 #ifdef MOZ_B2G_RIL
     'CFStateChangeEvent',
     'DataErrorEvent',
+    'IccCardLockErrorEvent',
     'MozEmergencyCbModeEvent',
-    'MozOtaStatusEvent',
+    'MozWifiStatusChangeEvent',
+    'MozWifiConnectionInfoEvent',
     'MozCellBroadcastEvent',
     'MozVoicemailEvent',
     'USSDReceivedEvent',
@@ -49,7 +50,13 @@ simple_events = [
 #endif
     'DeviceStorageChangeEvent',
     'PopupBlockedEvent',
+    'BlobEvent',
     'RecordErrorEvent',
+#ifdef MOZ_GAMEPAD
+    'GamepadEvent',
+    'GamepadButtonEvent',
+    'GamepadAxisMoveEvent',
+#endif
 #ifdef MOZ_WEBSPEECH
     'SpeechRecognitionEvent',
 #endif
@@ -75,6 +82,6 @@ xpidl_to_native = [
     ['nsIDOMDocument', 'nsIDocument', 'nsIDocument'],
     ['nsIDOMElement', 'mozilla::dom::Element', 'mozilla::dom::Element'],
     ['nsIDOMCSSStyleSheet', 'nsCSSStyleSheet', 'nsIStyleSheet'],
-    ['nsIDOMWindow', 'nsGlobalWindow', 'nsIDOMEventTarget']
+    ['nsIDOMGamepad', 'Gamepad', 'nsIDOMGamepad']
   ]
 

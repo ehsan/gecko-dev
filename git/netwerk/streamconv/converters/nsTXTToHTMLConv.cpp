@@ -4,13 +4,13 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsTXTToHTMLConv.h"
+#include "nsNetUtil.h"
 #include "nsEscape.h"
 #include "nsStringStream.h"
 #include "nsAutoPtr.h"
-#include "nsIChannel.h"
 #include <algorithm>
 
-#define TOKEN_DELIMITERS MOZ_UTF16("\t\r\n ")
+#define TOKEN_DELIMITERS NS_LITERAL_STRING("\t\r\n ").get()
 
 // nsISupports methods
 NS_IMPL_ISUPPORTS4(nsTXTToHTMLConv,

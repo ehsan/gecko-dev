@@ -7,12 +7,12 @@
 #include "mozilla/net/WyciwygChannelParent.h"
 #include "nsWyciwygChannel.h"
 #include "nsNetUtil.h"
+#include "nsISupportsPriority.h"
 #include "nsCharsetSource.h"
 #include "nsISerializable.h"
 #include "nsSerializationHelper.h"
 #include "mozilla/ipc/URIUtils.h"
 #include "mozilla/net/NeckoParent.h"
-#include "SerializedLoadContext.h"
 
 using namespace mozilla::ipc;
 

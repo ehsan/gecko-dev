@@ -161,37 +161,17 @@ private:
   bool mAppend;
 
   /**
-   * This is set by the first SetTarget call on the control thread, and contains
-   * the target file name that will be used by the worker thread, as soon as it
-   * is possible to update mActualTarget and open the file.  This is null if no
-   * target was ever assigned to this object.
+   * Set by the control thread to the target file name that will be used by the
+   * worker thread, as soon as it is possible to update mActualTarget and open
+   * the file.  This is null if no target was ever assigned to this object.
    */
-  nsCOMPtr<nsIFile> mInitialTarget;
+  nsCOMPtr<nsIFile> mAssignedTarget;
 
   /**
-   * This is set by the first SetTarget call on the control thread, and
-   * indicates whether mInitialTarget should be kept as partially completed,
+   * Indicates whether mAssignedTarget should be kept as partially completed,
    * rather than deleted, if the operation fails or is canceled.
    */
-  bool mInitialTargetKeepPartial;
-
-  /**
-   * This is set by subsequent SetTarget calls on the control thread, and
-   * contains the new target file name to which the worker thread will move the
-   * target file, as soon as it can be done.  This is null if SetTarget was
-   * called only once, or no target was ever assigned to this object.
-   *
-   * The target file can be renamed multiple times, though only the most recent
-   * rename is guaranteed to be processed by the worker thread.
-   */
-  nsCOMPtr<nsIFile> mRenamedTarget;
-
-  /**
-   * This is set by subsequent SetTarget calls on the control thread, and
-   * indicates whether mRenamedTarget should be kept as partially completed,
-   * rather than deleted, if the operation fails or is canceled.
-   */
-  bool mRenamedTargetKeepPartial;
+  bool mAssignedTargetKeepPartial;
 
   /**
    * While NS_AsyncCopy is in progress, allows canceling it.  Null otherwise.

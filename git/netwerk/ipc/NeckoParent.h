@@ -57,16 +57,6 @@ public:
                            const SerializedLoadContext& aSerialized,
                            nsCOMPtr<nsILoadContext> &aResult);
 
-  virtual void
-  CloneManagees(ProtocolBase* aSource,
-              mozilla::ipc::ProtocolCloneContext* aCtx) MOZ_OVERRIDE;
-  virtual PCookieServiceParent* AllocPCookieServiceParent() MOZ_OVERRIDE;
-  virtual bool
-  RecvPCookieServiceConstructor(PCookieServiceParent* aActor) MOZ_OVERRIDE
-  {
-    return PNeckoParent::RecvPCookieServiceConstructor(aActor);
-  }
-
 protected:
   virtual PHttpChannelParent*
     AllocPHttpChannelParent(PBrowserParent*, const SerializedLoadContext&,
@@ -78,6 +68,7 @@ protected:
                       const SerializedLoadContext& aSerialized,
                       const HttpChannelCreationArgs& aOpenArgs);
   virtual bool DeallocPHttpChannelParent(PHttpChannelParent*);
+  virtual PCookieServiceParent* AllocPCookieServiceParent();
   virtual bool DeallocPCookieServiceParent(PCookieServiceParent*);
   virtual PWyciwygChannelParent* AllocPWyciwygChannelParent();
   virtual bool DeallocPWyciwygChannelParent(PWyciwygChannelParent*);
@@ -97,12 +88,10 @@ protected:
   virtual bool DeallocPWebSocketParent(PWebSocketParent*);
   virtual PTCPSocketParent* AllocPTCPSocketParent();
 
-  virtual PRemoteOpenFileParent* AllocPRemoteOpenFileParent(const URIParams& aFileURI,
-                                                            const OptionalURIParams& aAppURI)
+  virtual PRemoteOpenFileParent* AllocPRemoteOpenFileParent(const URIParams& aFileURI)
                                                             MOZ_OVERRIDE;
   virtual bool RecvPRemoteOpenFileConstructor(PRemoteOpenFileParent* aActor,
-                                              const URIParams& aFileURI,
-                                              const OptionalURIParams& aAppURI)
+                                              const URIParams& aFileURI)
                                               MOZ_OVERRIDE;
   virtual bool DeallocPRemoteOpenFileParent(PRemoteOpenFileParent* aActor)
                                             MOZ_OVERRIDE;
@@ -116,32 +105,11 @@ protected:
                                                const uint16_t& aBacklog,
                                                const nsString& aBinaryType);
   virtual bool DeallocPTCPServerSocketParent(PTCPServerSocketParent*);
-  virtual PUDPSocketParent* AllocPUDPSocketParent(const nsCString& aHost,
-                                                  const uint16_t& aPort,
-                                                  const nsCString& aFilter);
-  virtual bool RecvPUDPSocketConstructor(PUDPSocketParent*,
-                                         const nsCString& aHost,
-                                         const uint16_t& aPort,
-                                         const nsCString& aFilter);
-  virtual bool DeallocPUDPSocketParent(PUDPSocketParent*);
-  virtual PDNSRequestParent* AllocPDNSRequestParent(const nsCString& aHost,
-                                                    const uint32_t& aFlags);
-  virtual bool RecvPDNSRequestConstructor(PDNSRequestParent* actor,
-                                          const nsCString& hostName,
-                                          const uint32_t& flags);
-  virtual bool DeallocPDNSRequestParent(PDNSRequestParent*);
   virtual bool RecvHTMLDNSPrefetch(const nsString& hostname,
                                    const uint16_t& flags);
   virtual bool RecvCancelHTMLDNSPrefetch(const nsString& hostname,
                                          const uint16_t& flags,
                                          const nsresult& reason);
-
-  virtual mozilla::ipc::IProtocol*
-  CloneProtocol(Channel* aChannel,
-                mozilla::ipc::ProtocolCloneContext* aCtx) MOZ_OVERRIDE;
-  virtual PRtspControllerParent* AllocPRtspControllerParent();
-  virtual bool DeallocPRtspControllerParent(PRtspControllerParent*);
-
 private:
   nsCString mCoreAppsBasePath;
   nsCString mWebAppsBasePath;

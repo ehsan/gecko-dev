@@ -6,7 +6,7 @@ MARIONETTE_TIMEOUT = 60000;
  
 SpecialPowers.addPermission("mobileconnection", true, document);
 
-let connection = navigator.mozMobileConnections[0];
+let connection = navigator.mozMobileConnection;
 ok(connection instanceof MozMobileConnection,
    "connection is instanceof " + connection.constructor);
 

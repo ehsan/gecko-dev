@@ -10,12 +10,11 @@
 
 #include "webrtc/modules/video_render//video_render_frames.h"
 
-#include <assert.h>
+#include <cassert>
 
-#include "webrtc/common_video/interface/texture_video_frame.h"
-#include "webrtc/modules/interface/module_common_types.h"
-#include "webrtc/system_wrappers/interface/tick_util.h"
-#include "webrtc/system_wrappers/interface/trace.h"
+#include "modules/interface/module_common_types.h"
+#include "system_wrappers/interface/tick_util.h"
+#include "system_wrappers/interface/trace.h"
 
 namespace webrtc {
 
@@ -37,25 +36,13 @@ int32_t VideoRenderFrames::AddFrame(I420VideoFrame* new_frame) {
 
   if (new_frame->render_time_ms() + KOldRenderTimestampMS < time_now) {
     WEBRTC_TRACE(kTraceWarning, kTraceVideoRenderer, -1,
-                 "%s: too old frame, timestamp=%u.",
-                 __FUNCTION__, new_frame->timestamp());
+                 "%s: too old frame.", __FUNCTION__);
     return -1;
   }
   if (new_frame->render_time_ms() > time_now + KFutureRenderTimestampMS) {
     WEBRTC_TRACE(kTraceWarning, kTraceVideoRenderer, -1,
-                 "%s: frame too long into the future, timestamp=%u.",
-                 __FUNCTION__, new_frame->timestamp());
+                 "%s: frame too long into the future.", __FUNCTION__);
     return -1;
-  }
-
-  if (new_frame->native_handle() != NULL) {
-    incoming_frames_.PushBack(new TextureVideoFrame(
-        static_cast<NativeHandle*>(new_frame->native_handle()),
-        new_frame->width(),
-        new_frame->height(),
-        new_frame->timestamp(),
-        new_frame->render_time_ms()));
-    return incoming_frames_.GetSize();
   }
 
   // Get an empty frame
@@ -72,8 +59,8 @@ int32_t VideoRenderFrames::AddFrame(I420VideoFrame* new_frame) {
         KMaxNumberOfFrames) {
       // Already allocated too many frames.
       WEBRTC_TRACE(kTraceWarning, kTraceVideoRenderer,
-                   -1, "%s: too many frames, timestamp=%u, limit=%d",
-                   __FUNCTION__, new_frame->timestamp(), KMaxNumberOfFrames);
+                   -1, "%s: too many frames, limit: %d", __FUNCTION__,
+                   KMaxNumberOfFrames);
       return -1;
     }
 
@@ -114,7 +101,10 @@ I420VideoFrame* VideoRenderFrames::FrameToRender() {
         // This is the oldest one so far and it's OK to render.
         if (render_frame) {
           // This one is older than the newly found frame, remove this one.
-          ReturnFrame(render_frame);
+          render_frame->ResetSize();
+          render_frame->set_timestamp(0);
+          render_frame->set_render_time_ms(0);
+          empty_frames_.PushFront(render_frame);
         }
         render_frame = oldest_frame_in_list;
         incoming_frames_.Erase(item);
@@ -130,15 +120,10 @@ I420VideoFrame* VideoRenderFrames::FrameToRender() {
 }
 
 int32_t VideoRenderFrames::ReturnFrame(I420VideoFrame* old_frame) {
-  // No need to reuse texture frames because they do not allocate memory.
-  if (old_frame->native_handle() == NULL) {
-    old_frame->ResetSize();
-    old_frame->set_timestamp(0);
-    old_frame->set_render_time_ms(0);
-    empty_frames_.PushBack(old_frame);
-  } else {
-    delete old_frame;
-  }
+  old_frame->ResetSize();
+  old_frame->set_timestamp(0);
+  old_frame->set_render_time_ms(0);
+  empty_frames_.PushBack(old_frame);
   return 0;
 }
 

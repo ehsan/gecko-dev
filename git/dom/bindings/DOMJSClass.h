@@ -168,20 +168,27 @@ struct DOMJSClass
   // It would be nice to just inherit from JSClass, but that precludes pure
   // compile-time initialization of the form |DOMJSClass = {...};|, since C++
   // only allows brace initialization for aggregate/POD types.
-  const JSClass mBase;
+  JSClass mBase;
 
-  const DOMClass mClass;
+  DOMClass mClass;
 
+  static DOMJSClass* FromJSClass(JSClass* base) {
+    MOZ_ASSERT(base->flags & JSCLASS_IS_DOMJSCLASS);
+    return reinterpret_cast<DOMJSClass*>(base);
+  }
   static const DOMJSClass* FromJSClass(const JSClass* base) {
     MOZ_ASSERT(base->flags & JSCLASS_IS_DOMJSCLASS);
     return reinterpret_cast<const DOMJSClass*>(base);
   }
 
+  static DOMJSClass* FromJSClass(js::Class* base) {
+    return FromJSClass(Jsvalify(base));
+  }
   static const DOMJSClass* FromJSClass(const js::Class* base) {
     return FromJSClass(Jsvalify(base));
   }
 
-  const JSClass* ToJSClass() const { return &mBase; }
+  JSClass* ToJSClass() { return &mBase; }
 };
 
 // Special JSClass for DOM interface and interface prototype objects.
@@ -191,7 +198,7 @@ struct DOMIfaceAndProtoJSClass
   // compile-time initialization of the form
   // |DOMJSInterfaceAndPrototypeClass = {...};|, since C++ only allows brace
   // initialization for aggregate/POD types.
-  const JSClass mBase;
+  JSClass mBase;
 
   // Either eInterface or eInterfacePrototype
   DOMObjectType mType;
@@ -213,10 +220,8 @@ struct DOMIfaceAndProtoJSClass
     return FromJSClass(Jsvalify(base));
   }
 
-  const JSClass* ToJSClass() const { return &mBase; }
+  JSClass* ToJSClass() { return &mBase; }
 };
-
-class ProtoAndIfaceArray;
 
 inline bool
 HasProtoAndIfaceArray(JSObject* global)
@@ -226,11 +231,11 @@ HasProtoAndIfaceArray(JSObject* global)
   return !js::GetReservedSlot(global, DOM_PROTOTYPE_SLOT).isUndefined();
 }
 
-inline ProtoAndIfaceArray*
+inline JS::Heap<JSObject*>*
 GetProtoAndIfaceArray(JSObject* global)
 {
   MOZ_ASSERT(js::GetObjectClass(global)->flags & JSCLASS_DOM_GLOBAL);
-  return static_cast<ProtoAndIfaceArray*>(
+  return static_cast<JS::Heap<JSObject*>*>(
     js::GetReservedSlot(global, DOM_PROTOTYPE_SLOT).toPrivate());
 }
 

@@ -19,8 +19,7 @@ interface HTMLObjectElement : HTMLElement {
            attribute DOMString data;
   [Pure, SetterThrows]
            attribute DOMString type;
-  [Pure, SetterThrows]
-           attribute boolean typeMustMatch;
+//           attribute boolean typeMustMatch;
   [Pure, SetterThrows]
            attribute DOMString name;
   [Pure, SetterThrows]
@@ -161,15 +160,6 @@ interface MozObjectLoadingContent {
    */
   [ChromeOnly, Throws]
   void playPlugin();
-
-  /**
-   * Forces a re-evaluation and reload of the tag, optionally invalidating its
-   * click-to-play state.  This can be used when the MIME type that provides a
-   * type has changed, for instance, to force the tag to re-evalulate the
-   * handler to use.
-   */
-  [ChromeOnly, Throws]
-  void reload(boolean aClearActivation);
 
   /**
    * This attribute will return true if the current content type has been

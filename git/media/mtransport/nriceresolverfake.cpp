@@ -115,14 +115,11 @@ int NrIceResolverFake::resolve(void *obj,
 
   MOZ_ASSERT(fake->allocated_resolvers_ > 0);
 
-  PendingResolution *pending =
-      new PendingResolution(fake,
-                            resource->domain_name,
-                            resource->port ? resource->port : 3478,
-                            resource->transport_protocol ?
-                            resource->transport_protocol :
-                            IPPROTO_UDP,
-                            cb, cb_arg);
+  PendingResolution *pending = new PendingResolution(fake,
+                                                     resource->domain_name,
+                                                     resource->port ?
+                                                     resource->port : 3478,
+                                                     cb, cb_arg);
 
   if ((r=NR_ASYNC_TIMER_SET(fake->delay_ms_,NrIceResolverFake::resolve_cb,
                             (void *)pending, &pending->timer_handle_))) {
@@ -145,8 +142,7 @@ void NrIceResolverFake::resolve_cb(NR_SOCKET s, int how, void *cb_arg) {
   if (addr) {
     nr_transport_addr transport_addr;
 
-    int r = nr_praddr_to_transport_addr(addr, &transport_addr,
-                                        pending->transport_, 0);
+    int r = nr_praddr_to_transport_addr(addr, &transport_addr, 0);
     MOZ_ASSERT(!r);
     if (r)
       goto abort;

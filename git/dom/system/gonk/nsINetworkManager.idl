@@ -4,12 +4,10 @@
 
 #include "nsISupports.idl"
 
-interface nsIWifiTetheringCallback;
-
 /**
  * Information about networks that is exposed to network manager API consumers.
  */
-[scriptable, uuid(f4cf9d88-f962-4d29-9baa-fb295dad387b)]
+[scriptable, uuid(04fe5049-1ea8-4b4f-8c27-d23cd24611bb)]
 interface nsINetworkInterface : nsISupports
 {
   const long NETWORK_STATE_UNKNOWN = -1;
@@ -26,7 +24,6 @@ interface nsINetworkInterface : nsISupports
    */
   readonly attribute long state;
 
-  const long NETWORK_TYPE_UNKNOWN     = -1;
   const long NETWORK_TYPE_WIFI        = 0;
   const long NETWORK_TYPE_MOBILE      = 1;
   const long NETWORK_TYPE_MOBILE_MMS  = 2;
@@ -78,16 +75,51 @@ interface nsINetworkInterface : nsISupports
   readonly attribute DOMString httpProxyHost;
 
   /*
-   * The port number of the http proxy server.
+   * The port number of the http proxy server. 
    */
   readonly attribute long httpProxyPort;
 
 };
 
+[scriptable, function, uuid(91824160-fb25-11e1-a21f-0800200c9a66)]
+interface nsIWifiTetheringCallback : nsISupports
+{
+  /**
+   * Callback function used to report status to WifiManager.
+   *
+   * @param error
+   *        An error message if the operation wasn't successful,
+   *        or `null` if it was.
+   */
+  void wifiTetheringEnabledChange(in jsval error);
+};
+
+[scriptable, function, uuid(e079aa2a-ec0a-4bbd-b1a4-d81a9faae464)]
+interface nsINetworkStatsCallback : nsISupports
+{
+  void networkStatsAvailable(in boolean success,
+                             in unsigned long rxBytes,
+                             in unsigned long txBytes,
+                             in jsval date);
+};
+
+[scriptable, function, uuid(9ede8720-f8bc-11e2-b778-0800200c9a66)]
+interface nsIWifiOperationModeCallback : nsISupports
+{
+  /**
+   * Callback function used to report result to WifiManager.
+   *
+   * @param error
+   *        An error message if the operation wasn't successful,
+   *        or `null` if it was.
+   */
+  void wifiOperationModeResult(in jsval error);
+};
+
 /**
  * Manage network interfaces.
  */
-[scriptable, uuid(3ea50550-4b3c-11e3-8f96-0800200c9a66)]
+[scriptable, uuid(5b22c620-f8b9-11e2-b778-0800200c9a66)]
 interface nsINetworkManager : nsISupports
 {
   /**
@@ -171,4 +203,32 @@ interface nsINetworkManager : nsISupports
                         in nsINetworkInterface networkInterface,
                         in jsval config,
                         in nsIWifiTetheringCallback callback);
+
+  /**
+   * Retrieve network interface stats.
+   *
+   * @param networkName
+   *        Select the Network interface to request estats.
+   *
+   * @param callback
+   *        Callback to notify result and provide stats, connectionType
+   *        and the date when stats are retrieved
+   */
+  void getNetworkInterfaceStats(in DOMString networkName, in nsINetworkStatsCallback callback);
+
+  /**
+   * Reload Wifi firmware to specific operation mode.
+   *
+   * @param interfaceName
+   *        Wifi Network interface name.
+   *
+   * @param mode
+   *        AP  - Access pointer mode.
+   *        P2P - Peer to peer connection mode.
+   *        STA - Station mode.
+   *
+   * @param callback
+   *        Callback to notify Wifi firmware reload result.
+   */
+  void setWifiOperationMode(in DOMString interfaceName, in DOMString mode, in nsIWifiOperationModeCallback callback);
 };

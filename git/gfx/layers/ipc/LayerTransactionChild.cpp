@@ -13,7 +13,6 @@
 #include "mozilla/mozalloc.h"           // for operator delete, etc
 #include "nsDebug.h"                    // for NS_RUNTIMEABORT, etc
 #include "nsTArray.h"                   // for nsTArray
-#include "mozilla/layers/TextureClient.h"
 
 namespace mozilla {
 namespace layers {
@@ -86,27 +85,9 @@ LayerTransactionChild::DeallocPCompositableChild(PCompositableChild* actor)
 void
 LayerTransactionChild::ActorDestroy(ActorDestroyReason why)
 {
-#ifdef MOZ_B2G
-  // Due to poor lifetime management of gralloc (and possibly shmems) we will
-  // crash at some point in the future when we get destroyed due to abnormal
-  // shutdown. Its better just to crash here. On desktop though, we have a chance
-  // of recovering.
   if (why == AbnormalShutdown) {
     NS_RUNTIMEABORT("ActorDestroy by IPC channel failure at LayerTransactionChild");
   }
-#endif
-}
-
-PTextureChild*
-LayerTransactionChild::AllocPTextureChild()
-{
-  return TextureClient::CreateIPDLActor();
-}
-
-bool
-LayerTransactionChild::DeallocPTextureChild(PTextureChild* actor)
-{
-  return TextureClient::DestroyIPDLActor(actor);
 }
 
 }  // namespace layers

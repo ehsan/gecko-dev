@@ -13,7 +13,6 @@
 #include "nsStyleAnimation.h"
 #include "mozilla/dom/Element.h"
 #include "nsIDOMElement.h"
-#include "nsIDocument.h"
 
 using namespace mozilla::dom;
 

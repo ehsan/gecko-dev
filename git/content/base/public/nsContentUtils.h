@@ -9,6 +9,7 @@
 #ifndef nsContentUtils_h___
 #define nsContentUtils_h___
 
+#include <math.h>
 #if defined(XP_WIN) || defined(XP_OS2)
 #include <float.h>
 #endif
@@ -17,20 +18,12 @@
 #include <ieeefp.h>
 #endif
 
-#include "js/TypeDecls.h"
-#include "js/Value.h"
 #include "js/RootingAPI.h"
-#include "mozilla/EventForwards.h"
+#include "mozilla/Assertions.h"
 #include "mozilla/GuardObjects.h"
 #include "mozilla/TimeStamp.h"
 #include "nsContentListDeclarations.h"
 #include "nsMathUtils.h"
-#include "Units.h"
-
-#if defined(XP_WIN)
-// Undefine LoadImage to prevent naming conflict with Windows.
-#undef LoadImage
-#endif
 
 class imgICache;
 class imgIContainer;
@@ -39,6 +32,8 @@ class imgIRequest;
 class imgLoader;
 class imgRequestProxy;
 class nsAutoScriptBlockerSuppressNodeRemoved;
+class nsDragEvent;
+class nsEvent;
 class nsEventListenerManager;
 class nsHtml5StringParser;
 class nsIChannel;
@@ -87,16 +82,17 @@ class nsIWidget;
 class nsIWordBreaker;
 class nsIXPConnect;
 class nsIXPConnectJSObjectHolder;
+class nsKeyEvent;
 class nsNodeInfoManager;
 class nsPIDOMWindow;
 class nsPresContext;
 class nsScriptObjectTracer;
-class nsStringBuffer;
 class nsStringHashKey;
 class nsTextFragment;
 class nsViewportInfo;
 class nsWrapperCache;
 
+struct JSContext;
 struct JSPropertyDescriptor;
 struct JSRuntime;
 struct nsIntMargin;
@@ -106,6 +102,10 @@ template<class E> class nsTArray;
 template<class K, class V> class nsDataHashtable;
 template<class K, class V> class nsRefPtrHashtable;
 template<class T> class nsReadingIterator;
+
+namespace JS {
+class Value;
+} // namespace JS
 
 namespace mozilla {
 class ErrorResult;
@@ -189,14 +189,12 @@ public:
   static JSContext* GetContextFromDocument(nsIDocument *aDocument);
 
   static bool     IsCallerChrome();
-  static bool     ThreadsafeIsCallerChrome();
   static bool     IsCallerXBL();
 
   static bool     IsImageSrcSetDisabled();
 
   static bool LookupBindingMember(JSContext* aCx, nsIContent *aContent,
-                                  JS::Handle<jsid> aId,
-                                  JS::MutableHandle<JSPropertyDescriptor> aDesc);
+                                  JS::HandleId aId, JS::MutableHandle<JSPropertyDescriptor> aDesc);
 
   /**
    * Returns the parent node of aChild crossing document boundaries.
@@ -506,14 +504,13 @@ public:
                                             nsIURI* aBaseURI);
 
   /**
-   * Convert aInput (in encoding aEncoding) to UTF16 in aOutput.
+   * Convert aInput (in charset aCharset) to UTF16 in aOutput.
    *
-   * @param aEncoding the Gecko-canonical name of the encoding or the empty
-   *                  string (meaning UTF-8)
+   * @param aCharset the name of the charset; if empty, we assume UTF8
    */
-  static nsresult ConvertStringFromEncoding(const nsACString& aEncoding,
-                                            const nsACString& aInput,
-                                            nsAString& aOutput);
+  static nsresult ConvertStringFromCharset(const nsACString& aCharset,
+                                           const nsACString& aInput,
+                                           nsAString& aOutput);
 
   /**
    * Determine whether a buffer begins with a BOM for UTF-8, UTF-16LE,
@@ -526,6 +523,9 @@ public:
    */
   static bool CheckForBOM(const unsigned char* aBuffer, uint32_t aLength,
                           nsACString& aCharset);
+
+  static nsresult GuessCharset(const char *aData, uint32_t aDataLen,
+                               nsACString &aCharset);
 
   static nsresult CheckQName(const nsAString& aQualifiedName,
                              bool aNamespaceAware = true,
@@ -739,14 +739,6 @@ public:
   {
     return sXPConnect;
   }
-
-  /**
-   * Report simple error message to the browser console
-   *   @param aErrorText the error message
-   *   @param classification Name of the module reporting error
-   */
-  static void LogSimpleConsoleError(const nsAString& aErrorText,
-                                    const char * classification);
 
   /**
    * Report a non-localized error message to the error console.
@@ -1063,19 +1055,15 @@ public:
                                       nsCycleCollectionTraversalCallback &cb);
 
   /**
-   * Get the eventlistener manager for aNode, creating it if it does not
-   * already exist.
+   * Get the eventlistener manager for aNode. If a new eventlistener manager
+   * was created, aCreated is set to true.
    *
    * @param aNode The node for which to get the eventlistener manager.
+   * @param aCreateIfNotFound If false, returns a listener manager only if
+   *                          one already exists.
    */
-  static nsEventListenerManager* GetListenerManagerForNode(nsINode* aNode);
-  /**
-   * Get the eventlistener manager for aNode, returning null if it does not
-   * already exist.
-   *
-   * @param aNode The node for which to get the eventlistener manager.
-   */
-  static nsEventListenerManager* GetExistingListenerManagerForNode(const nsINode* aNode);
+  static nsEventListenerManager* GetListenerManager(nsINode* aNode,
+                                                    bool aCreateIfNotFound);
 
   static void UnmarkGrayJSListenersInCCGenerationDocuments(uint32_t aGeneration);
 
@@ -1259,7 +1247,28 @@ public:
    * Unbinds the content from the tree and nulls it out if it's not null.
    */
   static void DestroyAnonymousContent(nsCOMPtr<nsIContent>* aContent);
-  static void DestroyAnonymousContent(nsCOMPtr<Element>* aElement);
+
+  /**
+   * Keep the JS objects held by aScriptObjectHolder alive.
+   *
+   * @param aScriptObjectHolder the object that holds JS objects that we want to
+   *                            keep alive
+   * @param aTracer the tracer for aScriptObject
+   */
+  static void HoldJSObjects(void* aScriptObjectHolder,
+                            nsScriptObjectTracer* aTracer);
+
+  /**
+   * Drop the JS objects held by aScriptObjectHolder.
+   *
+   * @param aScriptObjectHolder the object that holds JS objects that we want to
+   *                            drop
+   */
+  static void DropJSObjects(void* aScriptObjectHolder);
+
+#ifdef DEBUG
+  static bool AreJSObjectsHeld(void* aScriptObjectHolder); 
+#endif
 
   static void DeferredFinalize(nsISupports* aSupports);
   static void DeferredFinalize(mozilla::DeferredFinalizeAppendFunction aAppendFunc,
@@ -1376,6 +1385,13 @@ public:
   static const nsDependentString GetLocalizedEllipsis();
 
   /**
+   * The routine GetNativeEvent returns the result of
+   * aDOMEvent->GetInternalNSEvent().
+   * XXX Is this necessary?
+   */
+  static nsEvent* GetNativeEvent(nsIDOMEvent* aDOMEvent);
+
+  /**
    * Get the candidates for accelkeys for aDOMKeyEvent.
    *
    * @param aDOMKeyEvent [in] the key event for accelkey handling.
@@ -1392,9 +1408,8 @@ public:
    * @param aCandidates [out] the candidate access key list.
    *                          the first item is most preferred.
    */
-  static void GetAccessKeyCandidates(
-                mozilla::WidgetKeyboardEvent* aNativeKeyEvent,
-                nsTArray<uint32_t>& aCandidates);
+  static void GetAccessKeyCandidates(nsKeyEvent* aNativeKeyEvent,
+                                     nsTArray<uint32_t>& aCandidates);
 
   /**
    * Hide any XUL popups associated with aDocument, including any documents
@@ -1408,9 +1423,9 @@ public:
   static already_AddRefed<nsIDragSession> GetDragSession();
 
   /*
-   * Initialize and set the dataTransfer field of an WidgetDragEvent.
+   * Initialize and set the dataTransfer field of an nsDragEvent.
    */
-  static nsresult SetDataTransferInEvent(mozilla::WidgetDragEvent* aDragEvent);
+  static nsresult SetDataTransferInEvent(nsDragEvent* aDragEvent);
 
   // filters the drag and drop action to fit within the effects allowed and
   // returns it.
@@ -1421,7 +1436,7 @@ public:
    * an ancestor of the document for the source of the drag.
    */
   static bool CheckForSubFrameDrop(nsIDragSession* aDragSession,
-                                   mozilla::WidgetDragEvent* aDropEvent);
+                                   nsDragEvent* aDropEvent);
 
   /**
    * Return true if aURI is a local file URI (i.e. file://).
@@ -1518,16 +1533,17 @@ public:
    * will return viewport information that specifies default information.
    */
   static nsViewportInfo GetViewportInfo(nsIDocument* aDocument,
-                                        const mozilla::ScreenIntSize& aDisplaySize);
+                                        uint32_t aDisplayWidth,
+                                        uint32_t aDisplayHeight);
 
   // Call EnterMicroTask when you're entering JS execution.
   // Usually the best way to do this is to use nsAutoMicroTask.
-  static void EnterMicroTask();
+  static void EnterMicroTask() { ++sMicroTaskLevel; }
   static void LeaveMicroTask();
 
-  static bool IsInMicroTask();
-  static uint32_t MicroTaskLevel();
-  static void SetMicroTaskLevel(uint32_t aLevel);
+  static bool IsInMicroTask() { return sMicroTaskLevel != 0; }
+  static uint32_t MicroTaskLevel() { return sMicroTaskLevel; }
+  static void SetMicroTaskLevel(uint32_t aLevel) { sMicroTaskLevel = aLevel; }
 
   /* Process viewport META data. This gives us information for the scale
    * and zoom of a page on mobile devices. We stick the information in
@@ -1543,8 +1559,6 @@ public:
 
   static JSContext *GetCurrentJSContext();
   static JSContext *GetSafeJSContext();
-  static JSContext *GetCurrentJSContextForThread();
-  static JSContext *GetDefaultJSContextForThread();
 
   /**
    * Case insensitive comparison between two strings. However it only ignores
@@ -1601,7 +1615,6 @@ public:
   static nsresult GetUTFOrigin(nsIPrincipal* aPrincipal,
                                nsString& aOrigin);
   static nsresult GetUTFOrigin(nsIURI* aURI, nsString& aOrigin);
-  static void GetUTFNonNullOrigin(nsIURI* aURI, nsString& aOrigin);
 
   /**
    * This method creates and dispatches "command" event, which implements
@@ -1639,7 +1652,7 @@ public:
 
   static nsresult WrapNative(JSContext *cx, JS::Handle<JSObject*> scope,
                              nsISupports *native, const nsIID* aIID,
-                             JS::MutableHandle<JS::Value> vp,
+                             JS::Value *vp,
                              // If non-null aHolder will keep the Value alive
                              // while there's a ref to it
                              nsIXPConnectJSObjectHolder** aHolder = nullptr,
@@ -1651,7 +1664,7 @@ public:
 
   // Same as the WrapNative above, but use this one if aIID is nsISupports' IID.
   static nsresult WrapNative(JSContext *cx, JS::Handle<JSObject*> scope,
-                             nsISupports *native, JS::MutableHandle<JS::Value> vp,
+                             nsISupports *native, JS::Value *vp,
                              // If non-null aHolder will keep the Value alive
                              // while there's a ref to it
                              nsIXPConnectJSObjectHolder** aHolder = nullptr,
@@ -1662,7 +1675,7 @@ public:
   }
   static nsresult WrapNative(JSContext *cx, JS::Handle<JSObject*> scope,
                              nsISupports *native, nsWrapperCache *cache,
-                             JS::MutableHandle<JS::Value> vp,
+                             JS::Value *vp,
                              // If non-null aHolder will keep the Value alive
                              // while there's a ref to it
                              nsIXPConnectJSObjectHolder** aHolder = nullptr,
@@ -1695,14 +1708,6 @@ public:
    * @param aString the string to convert the newlines inside [in/out]
    */
   static void PlatformToDOMLineBreaks(nsString &aString);
-
-  /**
-   * Populates aResultString with the contents of the string-buffer aBuf, up
-   * to aBuf's null-terminator.  aBuf must not be null. Ownership of the string
-   * is not transferred.
-   */
-  static void PopulateStringFromStringBuffer(nsStringBuffer* aBuf,
-                                             nsAString& aResultString);
 
   static bool IsHandlingKeyBoardEvent()
   {
@@ -1846,18 +1851,6 @@ public:
   static bool HasPluginWithUncontrolledEventDispatch(nsIDocument* aDoc);
 
   /**
-   * Fire mutation events for changes caused by parsing directly into a
-   * context node.
-   *
-   * @param aDoc the document of the node
-   * @param aDest the destination node that got stuff appended to it
-   * @param aOldChildCount the number of children the node had before parsing
-   */
-  static void FireMutationEventsForDirectParsing(nsIDocument* aDoc,
-                                                 nsIContent* aDest,
-                                                 int32_t aOldChildCount);
-
-  /**
    * Returns true if the content is in a document and contains a plugin
    * which we don't control event dispatch for, i.e. do any plugins in this
    * doc tree receive key events outside of our control? This always returns
@@ -1902,21 +1895,6 @@ public:
    * @return Whether the subdocument is tabbable.
    */
   static bool IsSubDocumentTabbable(nsIContent* aContent);
-
-  /**
-   * Returns if aNode ignores user focus.
-   *
-   * @param aNode node to test
-   *
-   * @return Whether the node ignores user focus.
-   */
-  static bool IsUserFocusIgnored(nsINode* aNode);
-
-  /**
-   * Returns if aContent has the 'scrollgrab' property.
-   * aContent may be null (in this case false is returned).
-   */
-  static bool HasScrollgrab(nsIContent* aContent);
 
   /**
    * Flushes the layout tree (recursively)
@@ -2110,17 +2088,6 @@ public:
    */
   static bool DOMWindowDumpEnabled();
 
-  /**
-   * Returns whether a content is an insertion point for XBL
-   * bindings or web components ShadowRoot. In web components,
-   * this corresponds to a <content> element that participates
-   * in node distribution. In XBL this corresponds to an
-   * <xbl:children> element in anonymous content.
-   *
-   * @param aContent The content to test for being an insertion point.
-   */
-  static bool IsContentInsertionPoint(const nsIContent* aContent);
-
 private:
   static bool InitializeEventTable();
 
@@ -2131,7 +2098,7 @@ private:
 
   static nsresult WrapNative(JSContext *cx, JS::Handle<JSObject*> scope,
                              nsISupports *native, nsWrapperCache *cache,
-                             const nsIID* aIID, JS::MutableHandle<JS::Value> vp,
+                             const nsIID* aIID, JS::Value *vp,
                              nsIXPConnectJSObjectHolder** aHolder,
                              bool aAllowWrapping);
 
@@ -2233,6 +2200,14 @@ private:
   static bool sDOMWindowDumpEnabled;
 #endif
 };
+
+#define NS_HOLD_JS_OBJECTS(obj, clazz)                                         \
+  nsContentUtils::HoldJSObjects(NS_CYCLE_COLLECTION_UPCAST(obj, clazz),        \
+                                NS_CYCLE_COLLECTION_PARTICIPANT(clazz))
+
+#define NS_DROP_JS_OBJECTS(obj, clazz)                                         \
+  nsContentUtils::DropJSObjects(NS_CYCLE_COLLECTION_UPCAST(obj, clazz))
+
 
 class MOZ_STACK_CLASS nsAutoScriptBlocker {
 public:

@@ -8,7 +8,6 @@
 
 #include "SharedSurfaceGL.h"
 #include "mozilla/layers/LayersSurfaces.h"
-#include "mozilla/layers/ISurfaceAllocator.h"
 
 namespace mozilla {
 namespace layers {
@@ -38,7 +37,7 @@ public:
 
 protected:
     GLLibraryEGL* const mEGL;
-    RefPtr<layers::ISurfaceAllocator> mAllocator;
+    layers::ISurfaceAllocator* const mAllocator;
     // We keep the SurfaceDescriptor around, because we'll end up
     // using it often and it's handy to do so.  The actual
     // GraphicBuffer is kept alive by the sp<GraphicBuffer> in
@@ -93,7 +92,7 @@ class SurfaceFactory_Gralloc
     : public SurfaceFactory_GL
 {
 protected:
-    RefPtr<layers::ISurfaceAllocator> mAllocator;
+    layers::ISurfaceAllocator* mAllocator;
 
 public:
     SurfaceFactory_Gralloc(GLContext* prodGL,
@@ -102,9 +101,6 @@ public:
 
     virtual SharedSurface* CreateShared(const gfxIntSize& size) {
         bool hasAlpha = mReadCaps.alpha;
-        if (!mAllocator) {
-            return nullptr;
-        }
         return SharedSurface_Gralloc::Create(mGL, mFormats, size, hasAlpha, mAllocator);
     }
 };

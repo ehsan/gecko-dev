@@ -24,11 +24,6 @@
   -moz-user-focus: normal;
 }
 
-.side-menu-widget-group-checkbox .checkbox-label-box,
-.side-menu-widget-item-checkbox .checkbox-label-box {
-  display: none; /* See bug 669507 */
-}
-
 /* VariablesView */
 
 .variables-view-container {
@@ -50,41 +45,15 @@
   overflow: hidden;
 }
 
-.variables-view-scope[untitled] > .title,
-.variable-or-property[untitled] > .title,
-.variable-or-property[unmatched] > .title {
+.variables-view-scope[non-header] > .title,
+.variable-or-property[non-header] > .title,
+.variable-or-property[non-match] > .title {
   display: none;
 }
 
-.variable-or-property:not([safe-getter]) > tooltip > label.WebIDL,
-.variable-or-property:not([overridden]) > tooltip > label.overridden,
-.variable-or-property:not([non-extensible]) > tooltip > label.extensible,
-.variable-or-property:not([frozen]) > tooltip > label.frozen,
-.variable-or-property:not([sealed]) > tooltip > label.sealed {
-  display: none;
-}
-
-.variable-or-property[pseudo-item] > tooltip,
-.variable-or-property[pseudo-item] > .title > .variables-view-edit,
-.variable-or-property[pseudo-item] > .title > .variables-view-delete,
-.variable-or-property[pseudo-item] > .title > .variables-view-add-property,
-.variable-or-property[pseudo-item] > .title > .variable-or-property-frozen-label,
-.variable-or-property[pseudo-item] > .title > .variable-or-property-sealed-label,
-.variable-or-property[pseudo-item] > .title > .variable-or-property-non-extensible-label,
-.variable-or-property[pseudo-item] > .title > .variable-or-property-non-writable-icon {
-  display: none;
-}
-
-*:not(:hover) .variables-view-delete,
-*:not(:hover) .variables-view-add-property {
-  visibility: hidden;
-}
-
-.variables-view-delete > .toolbarbutton-text,
-.variables-view-add-property > .toolbarbutton-text {
-  display: none;
-}
-
-.variables-view-container[aligned-values] [optional-visibility] {
+.variable-or-property:not([safe-getter]) > tooltip > label[value=WebIDL],
+.variable-or-property:not([non-extensible]) > tooltip > label[value=extensible],
+.variable-or-property:not([frozen]) > tooltip > label[value=frozen],
+.variable-or-property:not([sealed]) > tooltip > label[value=sealed] {
   display: none;
 }

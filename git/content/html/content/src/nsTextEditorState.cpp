@@ -38,11 +38,9 @@
 #include "mozilla/Selection.h"
 #include "nsEventListenerManager.h"
 #include "nsContentUtils.h"
+#include "nsCxPusher.h"
 #include "mozilla/Preferences.h"
 #include "nsTextNode.h"
-#include "nsIController.h"
-#include "mozilla/TextEvents.h"
-#include "mozilla/dom/ScriptSettings.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -51,33 +49,6 @@ static NS_DEFINE_CID(kTextEditorCID, NS_TEXTEDITOR_CID);
 
 static nsINativeKeyBindings *sNativeInputBindings = nullptr;
 static nsINativeKeyBindings *sNativeTextAreaBindings = nullptr;
-
-class MOZ_STACK_CLASS ValueSetter
-{
-public:
-  ValueSetter(nsIEditor* aEditor)
-    : mEditor(aEditor)
-  {
-    MOZ_ASSERT(aEditor);
-  
-    // To protect against a reentrant call to SetValue, we check whether
-    // another SetValue is already happening for this editor.  If it is,
-    // we must wait until we unwind to re-enable oninput events.
-    mEditor->GetSuppressDispatchingInputEvent(&mOuterTransaction);
-  }
-  ~ValueSetter()
-  {
-    mEditor->SetSuppressDispatchingInputEvent(mOuterTransaction);
-  }
-  void Init()
-  {
-    mEditor->SetSuppressDispatchingInputEvent(true);
-  }
-
-private:
-  nsCOMPtr<nsIEditor> mEditor;
-  bool mOuterTransaction;
-};
 
 class RestoreSelectionState : public nsRunnable {
 public:
@@ -775,7 +746,7 @@ nsTextInputListener::NotifySelectionChanged(nsIDOMDocument* aDoc, nsISelection* 
         if (presShell) 
         {
           nsEventStatus status = nsEventStatus_eIgnore;
-          WidgetEvent event(true, NS_FORM_SELECTED);
+          nsEvent event(true, NS_FORM_SELECTED);
 
           presShell->HandleEventWithTarget(&event, mFrame, content, &status);
         }
@@ -852,9 +823,9 @@ nsTextInputListener::HandleEvent(nsIDOMEvent* aEvent)
     return NS_OK;
   }
 
-  WidgetKeyboardEvent* keyEvent =
-    aEvent->GetInternalNSEvent()->AsKeyboardEvent();
-  if (!keyEvent) {
+  nsKeyEvent* keyEvent =
+    static_cast<nsKeyEvent*>(aEvent->GetInternalNSEvent());
+  if (keyEvent->eventStructType != NS_KEY_EVENT) {
     return NS_ERROR_UNEXPECTED;
   }
 
@@ -1283,12 +1254,13 @@ nsTextEditorState::PrepareEditor(const nsAString *aValue)
 
     // What follows is a bit of a hack.  The editor uses the public DOM APIs
     // for its content manipulations, and it causes it to fail some security
-    // checks deep inside when initializing. So we explictly make it clear that
-    // we're native code.
+    // checks deep inside when initializing.  So we push a null JSContext
+    // on the JS stack here to make it clear that we're native code.
     // Note that any script that's directly trying to access our value
     // has to be going through some scriptable object to do that and that
     // already does the relevant security checks.
-    AutoSystemCaller asc;
+    nsCxPusher pusher;
+    pusher.PushNull();
 
     rv = newEditor->Init(domdoc, GetRootNode(), mSelCon, editorFlags);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -1561,7 +1533,8 @@ nsTextEditorState::UnbindFromFrame(nsTextControlFrame* aFrame)
     mTextListener->SetFrame(nullptr);
 
     nsCOMPtr<EventTarget> target = do_QueryInterface(mTextCtrlElement);
-    nsEventListenerManager* manager = target->GetExistingListenerManager();
+    nsEventListenerManager* manager =
+      target->GetListenerManager(false);
     if (manager) {
       manager->RemoveEventListenerByType(mTextListener,
         NS_LITERAL_STRING("keydown"),
@@ -1776,8 +1749,9 @@ nsTextEditorState::GetValue(nsAString& aValue, bool aIgnoreWrap) const
     // XXXbz if we could just get the textContent of our anonymous content (eg
     // if plaintext editor didn't create <br> nodes all over), we wouldn't need
     // this.
-    { /* Scope for AutoSystemCaller. */
-      AutoSystemCaller asc;
+    { /* Scope for context pusher */
+      nsCxPusher pusher;
+      pusher.PushNull();
 
       mEditor->OutputToString(NS_LITERAL_STRING("text/plain"), flags,
                               aValue);
@@ -1834,7 +1808,7 @@ nsTextEditorState::SetValue(const nsAString& aValue, bool aUserInput,
     // this is necessary to avoid infinite recursion
     if (!currentValue.Equals(aValue))
     {
-      ValueSetter valueSetter(mEditor);
+      nsTextControlFrame::ValueSetter valueSetter(mEditor);
 
       // \r is an illegal character in the dom, but people use them,
       // so convert windows and mac platform linebreaks to \n:
@@ -1855,8 +1829,9 @@ nsTextEditorState::SetValue(const nsAString& aValue, bool aUserInput,
       // Time to mess with our security context... See comments in GetValue()
       // for why this is needed.  Note that we have to do this up here, because
       // otherwise SelectAll() will fail.
-      {
-        AutoSystemCaller asc;
+      { /* Scope for context pusher */
+        nsCxPusher pusher;
+        pusher.PushNull();
 
         nsCOMPtr<nsISelection> domSel;
         nsCOMPtr<nsISelectionPrivate> selPriv;
@@ -1927,6 +1902,7 @@ nsTextEditorState::SetValue(const nsAString& aValue, bool aUserInput,
           if (!mBoundFrame) {
             SetValue(newValue, false, aSetValueChanged);
           }
+          valueSetter.Cancel();
           return;
         }
 
@@ -1966,7 +1942,7 @@ nsTextEditorState::InitializeKeyboardEventListeners()
 {
   //register key listeners
   nsCOMPtr<EventTarget> target = do_QueryInterface(mTextCtrlElement);
-  nsEventListenerManager* manager = target->GetOrCreateListenerManager();
+  nsEventListenerManager* manager = target->GetListenerManager(true);
   if (manager) {
     manager->AddEventListenerByType(mTextListener,
                                     NS_LITERAL_STRING("keydown"),

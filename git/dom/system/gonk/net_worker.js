@@ -151,19 +151,7 @@ function networkInterfaceStatsFail(params) {
 function networkInterfaceStatsSuccess(params) {
   // Notify the main thread.
   params.txBytes = parseFloat(params.resultReason);
-  postMessage(params);
-  return true;
-}
 
-function networkInterfaceAlarmFail(params) {
-  // Notify the main thread.
-  postMessage(params);
-  return true;
-}
-
-function networkInterfaceAlarmSuccess(params) {
-  // Notify the main thread.
-  params.error = parseFloat(params.resultReason);
   postMessage(params);
   return true;
 }
@@ -226,40 +214,6 @@ self.onmessage = function onmessage(event) {
 };
 
 /**
- * Start/Stop DHCP server.
- */
-function setDhcpServer(config) {
-  function onSuccess() {
-    postMessage({ id: config.id, success: true });
-    return true;
-  }
-
-  function onError() {
-    postMessage({ id: config.id, success: false });
-  }
-
-  let startDhcpServerChain = [setInterfaceUp,
-                              startTethering,
-                              onSuccess];
-
-  let stopDhcpServerChain = [stopTethering,
-                             onSuccess];
-
-  if (config.enabled) {
-    let params = { wifiStartIp: config.startIp,
-                   wifiEndIp: config.endIp,
-                   ip: config.serverIp,
-                   prefix: config.maskLength,
-                   ifname: config.ifname,
-                   link: "up" };
-
-    chain(params, startDhcpServerChain, onError);
-  } else {
-    chain({}, stopDhcpServerChain, onError);
-  }
-}
-
-/**
  * Set DNS servers for given network interface.
  */
 function setDNS(options) {
@@ -319,13 +273,6 @@ function removeHostRoute(options) {
   for (let i = 0; i < options.hostnames.length; i++) {
     libnetutils.ifc_remove_route(options.ifname, options.hostnames[i], 32, options.gateway);
   }
-}
-
-/**
- * Remove the routes associated with the named interface.
- */
-function removeHostRoutes(options) {
-  libnetutils.ifc_remove_host_routes(options.ifname);
 }
 
 function removeNetworkRoute(options) {
@@ -501,14 +448,8 @@ function startTethering(params, callback) {
   if (params.resultReason.indexOf("started") !== -1) {
     command = DUMMY_COMMAND;
   } else {
-    command = "tether start " + params.wifiStartIp + " " + params.wifiEndIp;
-
-    // If usbStartIp/usbEndIp is not valid, don't append them since
-    // the trailing white spaces will be parsed to extra empty args
-    // See: http://androidxref.com/4.3_r2.1/xref/system/core/libsysutils/src/FrameworkListener.cpp#78
-    if (params.usbStartIp && params.usbEndIp) {
-      command += " " + params.usbStartIp + " " + params.usbEndIp;
-    }
+    command = "tether start " + params.wifiStartIp + " " + params.wifiEndIp +
+              " " + params.usbStartIp + " " + params.usbEndIp;
   }
   return doCommand(command, callback);
 }
@@ -567,8 +508,16 @@ function enableNat(params, callback) {
 }
 
 function disableNat(params, callback) {
-  let command = "nat disable " + params.internalIfname + " " +
-                 params.externalIfname + " " + "0";
+  let command;
+
+  // Don't disable nat because others interface still need it.
+  // Send the dummy command to continue the function chain.
+  if ("interfaceList" in params && params.interfaceList.length > 1) {
+    command = DUMMY_COMMAND;
+  } else {
+    command = "nat disable " + params.internalIfname + " " +
+              params.externalIfname + " " + "0";
+  }
   return doCommand(command, callback);
 }
 
@@ -616,31 +565,6 @@ function getTxBytes(params, callback) {
   params.rxBytes = parseFloat(params.resultReason);
 
   let command = "interface readtxcounter " + params.ifname;
-  return doCommand(command, callback);
-}
-
-function enableAlarm(params, callback) {
-  let command = "bandwidth enable";
-  return doCommand(command, callback);
-}
-
-function disableAlarm(params, callback) {
-  let command = "bandwidth disable";
-  return doCommand(command, callback);
-}
-
-function setQuota(params, callback) {
-  let command = "bandwidth setiquota " + params.ifname + " " + parseInt('0xffffffffffffffff');
-  return doCommand(command, callback);
-}
-
-function removeQuota(params, callback) {
-  let command = "bandwidth removeiquota " + params.ifname;
-  return doCommand(command, callback);
-}
-
-function setAlarm(params, callback) {
-  let command = "bandwidth setinterfacealert " + params.ifname + " " + params.threshold;
   return doCommand(command, callback);
 }
 
@@ -948,39 +872,6 @@ function getNetworkInterfaceStats(params) {
   params.date = new Date();
 
   chain(params, gNetworkInterfaceStatsChain, networkInterfaceStatsFail);
-  return true;
-}
-
-let gNetworkInterfaceEnableAlarmChain = [enableAlarm,
-                                         setQuota,
-                                         setAlarm,
-                                         networkInterfaceAlarmSuccess];
-
-function enableNetworkInterfaceAlarm(params) {
-  debug("enableNetworkInterfaceAlarms: " + params.ifname);
-
-  chain(params, gNetworkInterfaceEnableAlarmChain, networkInterfaceAlarmFail);
-  return true;
-}
-
-let gNetworkInterfaceDisableAlarmChain = [removeQuota,
-                                          disableAlarm,
-                                          networkInterfaceAlarmSuccess];
-
-function disableNetworkInterfaceAlarm(params) {
-  debug("disableNetworkInterfaceAlarms: " + params.ifname);
-
-  chain(params, gNetworkInterfaceDisableAlarmChain, networkInterfaceAlarmFail);
-  return true;
-}
-
-let gNetworkInterfaceSetAlarmChain = [setAlarm,
-                                      networkInterfaceAlarmSuccess];
-
-function setNetworkInterfaceAlarm(params) {
-  debug("setNetworkInterfaceAlarms: " + params.ifname);
-
-  chain(params, gNetworkInterfaceSetAlarmChain, networkInterfaceAlarmFail);
   return true;
 }
 

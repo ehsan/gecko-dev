@@ -8,16 +8,18 @@
 
 #include <stdio.h>
 
+#include "jit/Ion.h"
+#include "jit/IonBuilder.h"
 #include "jit/IonSpewer.h"
 #include "jit/MIR.h"
-#include "jit/MIRGenerator.h"
 #include "jit/MIRGraph.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 namespace {
 
+typedef Vector<MBasicBlock*, 1, IonAllocPolicy> BlockQueue;
 typedef Vector<MInstruction*, 1, IonAllocPolicy> InstructionQueue;
 
 class Loop
@@ -55,10 +57,6 @@ class Loop
     // floating-point constants should not be hoisted unless it enables further
     // hoisting.
     bool containsPossibleCall_;
-
-    TempAllocator &alloc() const {
-        return mir->alloc();
-    }
 
     bool hoistInstructions(InstructionQueue &toHoist);
 
@@ -126,8 +124,7 @@ LICM::analyze()
 Loop::Loop(MIRGenerator *mir, MBasicBlock *header)
   : mir(mir),
     header_(header),
-    containsPossibleCall_(false),
-    worklist_(mir->alloc())
+    containsPossibleCall_(false)
 {
     preLoop_ = header_->getPredecessor(0);
 }
@@ -144,7 +141,7 @@ Loop::init()
     // Loops from backedge to header and marks all visited blocks
     // as part of the loop. At the same time add all hoistable instructions
     // (in RPO order) to the instruction worklist.
-    Vector<MBasicBlock *, 1, IonAllocPolicy> inlooplist(alloc());
+    Vector<MBasicBlock *, 1, IonAllocPolicy> inlooplist;
     if (!inlooplist.append(header_->backedge()))
         return LoopReturn_Error;
     header_->backedge()->mark();
@@ -206,7 +203,7 @@ Loop::init()
 bool
 Loop::optimize()
 {
-    InstructionQueue invariantInstructions(alloc());
+    InstructionQueue invariantInstructions;
 
     IonSpew(IonSpew_LICM, "These instructions are in the loop: ");
 
@@ -251,7 +248,7 @@ Loop::requiresHoistedUse(const MDefinition *ins) const
     // hoisting on their own, in general. Floating-point constants typically
     // are worth hoisting, unless they'll end up being spilled (eg. due to a
     // call).
-    if (ins->isConstant() && (IsFloatingPointType(ins->type()) || containsPossibleCall_))
+    if (ins->isConstant() && (ins->type() != MIRType_Double || containsPossibleCall_))
         return true;
 
     return false;

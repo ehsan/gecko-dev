@@ -3,10 +3,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/MemoryReporting.h"
+#include "mozilla/Util.h"
 
-#if (MOZ_WIDGET_GTK == 2)
+#if defined(MOZ_WIDGET_GTK2)
 #include "gfxPlatformGtk.h"
 #define gfxToolkitPlatform gfxPlatformGtk
 #elif defined(MOZ_WIDGET_QT)
@@ -52,7 +52,6 @@
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsISimpleEnumerator.h"
 #include "nsIMemory.h"
-#include "gfxFontConstants.h"
 
 #include "mozilla/Preferences.h"
 #include "mozilla/scache/StartupCache.h"
@@ -538,20 +537,20 @@ FT2FontEntry::GetFontTable(uint32_t aTableTag)
 }
 
 void
-FT2FontEntry::AddSizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
-                                     FontListSizes* aSizes) const
+FT2FontEntry::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
+                                  FontListSizes*    aSizes) const
 {
-    gfxFontEntry::AddSizeOfExcludingThis(aMallocSizeOf, aSizes);
+    gfxFontEntry::SizeOfExcludingThis(aMallocSizeOf, aSizes);
     aSizes->mFontListSize +=
         mFilename.SizeOfExcludingThisIfUnshared(aMallocSizeOf);
 }
 
 void
-FT2FontEntry::AddSizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
-                                     FontListSizes* aSizes) const
+FT2FontEntry::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
+                                  FontListSizes*    aSizes) const
 {
     aSizes->mFontListSize += aMallocSizeOf(this);
-    AddSizeOfExcludingThis(aMallocSizeOf, aSizes);
+    SizeOfExcludingThis(aMallocSizeOf, aSizes);
 }
 
 /*
@@ -1427,12 +1426,7 @@ gfxFT2FontList::GetDefaultFont(const gfxFontStyle* aStyle)
             return FindFamily(resolvedName);
         }
     }
-#elif defined(MOZ_WIDGET_GONK)
-    nsAutoString resolvedName;
-    if (ResolveFontName(NS_LITERAL_STRING("Fira Sans OT"), resolvedName)) {
-        return FindFamily(resolvedName);
-    }
-#elif defined(MOZ_WIDGET_ANDROID)
+#elif defined(ANDROID)
     nsAutoString resolvedName;
     if (ResolveFontName(NS_LITERAL_STRING("Roboto"), resolvedName) ||
         ResolveFontName(NS_LITERAL_STRING("Droid Sans"), resolvedName)) {

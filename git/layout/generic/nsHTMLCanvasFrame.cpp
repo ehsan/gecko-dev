@@ -5,14 +5,12 @@
 
 /* rendering object for the HTML <canvas> element */
 
-#include "nsHTMLCanvasFrame.h"
-
 #include "nsGkAtoms.h"
+#include "nsHTMLCanvasFrame.h"
 #include "mozilla/dom/HTMLCanvasElement.h"
 #include "nsDisplayList.h"
 #include "nsLayoutUtils.h"
 #include "Layers.h"
-#include "ActiveLayerTracker.h"
 
 #include <algorithm>
 
@@ -56,24 +54,23 @@ public:
 
   virtual already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
                                              LayerManager* aManager,
-                                             const ContainerLayerParameters& aContainerParameters)
+                                             const ContainerParameters& aContainerParameters)
   {
     return static_cast<nsHTMLCanvasFrame*>(mFrame)->
       BuildLayer(aBuilder, aManager, this, aContainerParameters);
   }
   virtual LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
                                    LayerManager* aManager,
-                                   const ContainerLayerParameters& aParameters)
+                                   const FrameLayerBuilder::ContainerParameters& aParameters)
   {
     if (HTMLCanvasElement::FromContent(mFrame->GetContent())->ShouldForceInactiveLayer(aManager))
       return LAYER_INACTIVE;
 
     // If compositing is cheap, just do that
-    if (aManager->IsCompositingCheap() ||
-        ActiveLayerTracker::IsContentActive(mFrame))
+    if (aManager->IsCompositingCheap())
       return mozilla::LAYER_ACTIVE;
 
-    return LAYER_INACTIVE;
+    return mFrame->AreLayersMarkedActive() ? LAYER_ACTIVE : LAYER_INACTIVE;
   }
 };
 
@@ -98,9 +95,9 @@ nsHTMLCanvasFrame::Init(nsIContent* aContent,
   nsContainerFrame::Init(aContent, aParent, aPrevInFlow);
 
   // We can fill in the canvas before the canvas frame is created, in
-  // which case we never get around to marking the content as active. Therefore,
+  // which case we never get around to marking the layer active. Therefore,
   // we mark it active here when we create the frame.
-  ActiveLayerTracker::NotifyContentChange(this);
+  MarkLayersActive(nsChangeHint(0));
 }
 
 nsHTMLCanvasFrame::~nsHTMLCanvasFrame()
@@ -242,7 +239,7 @@ already_AddRefed<Layer>
 nsHTMLCanvasFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
                               LayerManager* aManager,
                               nsDisplayItem* aItem,
-                              const ContainerLayerParameters& aContainerParameters)
+                              const ContainerParameters& aContainerParameters)
 {
   nsRect area = GetContentRect() - GetPosition() + aItem->ToReferenceFrame();
   HTMLCanvasElement* element = static_cast<HTMLCanvasElement*>(GetContent());

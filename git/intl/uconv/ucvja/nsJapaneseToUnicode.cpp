@@ -9,9 +9,11 @@
 #include "japanese.map"
 
 #include "nsICharsetConverterManager.h"
-#include "nsServiceManagerUtils.h"
+#include "nsIServiceManager.h"
 
 #include "mozilla/Assertions.h"
+
+static NS_DEFINE_CID(kCharsetConverterManagerCID, NS_ICHARSETCONVERTERMANAGER_CID);
 
 #ifdef XP_OS2
   // HTML5-incompliant behavior for OS/2, see bug 108136
@@ -386,8 +388,6 @@ NS_IMETHODIMP nsISO2022JPToUnicodeV2::Convert(
    const char * aSrc, int32_t * aSrcLen,
      PRUnichar * aDest, int32_t * aDestLen)
 {
-   static NS_DEFINE_CID(kCharsetConverterManagerCID, NS_ICHARSETCONVERTERMANAGER_CID);
-
    static const uint16_t fbIdx[128] =
    {
 /* 0x8X */

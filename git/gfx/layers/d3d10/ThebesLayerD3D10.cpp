@@ -7,7 +7,7 @@
 
 // This must occur *after* layers/PLayerTransaction.h to avoid
 // typedefs conflicts.
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #include "ThebesLayerD3D10.h"
 #include "gfxPlatform.h"
@@ -286,8 +286,8 @@ void
 ThebesLayerD3D10::VerifyContentType(SurfaceMode aMode)
 {
   if (mD2DSurface) {
-    gfxContentType type = aMode != SURFACE_SINGLE_CHANNEL_ALPHA ?
-      GFX_CONTENT_COLOR : GFX_CONTENT_COLOR_ALPHA;
+    gfxASurface::gfxContentType type = aMode != SURFACE_SINGLE_CHANNEL_ALPHA ?
+      gfxASurface::CONTENT_COLOR : gfxASurface::CONTENT_COLOR_ALPHA;
 
     if (type != mD2DSurface->GetContentType()) {  
       mD2DSurface = new gfxD2DSurface(mTexture, type);
@@ -414,22 +414,40 @@ ThebesLayerD3D10::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode)
     destinationSurface = mD2DSurface;
   }
 
-  MOZ_ASSERT(mDrawTarget);
-  nsRefPtr<gfxContext> context = new gfxContext(mDrawTarget);
+  nsRefPtr<gfxContext> context;
 
+  if (mDrawTarget) {
+    context = new gfxContext(mDrawTarget);
+  } else {
+    context = new gfxContext(destinationSurface);
+  }
+
+  nsIntRegionRectIterator iter(aRegion);
   context->Translate(gfxPoint(-visibleRect.x, -visibleRect.y));
-  if (aMode == SURFACE_SINGLE_CHANNEL_ALPHA) {
-    nsIntRegionRectIterator iter(aRegion);
-    const nsIntRect *iterRect;
-    while ((iterRect = iter.Next())) {
+  context->NewPath();
+  const nsIntRect *iterRect;
+  while ((iterRect = iter.Next())) {
+    context->Rectangle(gfxRect(iterRect->x, iterRect->y, iterRect->width, iterRect->height));
+    if (mDrawTarget && aMode == SURFACE_SINGLE_CHANNEL_ALPHA) {
       mDrawTarget->ClearRect(Rect(iterRect->x, iterRect->y, iterRect->width, iterRect->height));
     }
   }
+  context->Clip();
 
-  mDrawTarget->SetPermitSubpixelAA(!(mContentFlags & CONTENT_COMPONENT_ALPHA));
+  if (!mDrawTarget && aMode == SURFACE_SINGLE_CHANNEL_ALPHA) {
+    context->SetOperator(gfxContext::OPERATOR_CLEAR);
+    context->Paint();
+    context->SetOperator(gfxContext::OPERATOR_OVER);
+  }
+
+  if (mD2DSurface) {
+    mD2DSurface->SetSubpixelAntialiasingEnabled(!(mContentFlags & CONTENT_COMPONENT_ALPHA));
+  } else if (mDrawTarget) {
+    mDrawTarget->SetPermitSubpixelAA(!(mContentFlags & CONTENT_COMPONENT_ALPHA));
+  }
 
   LayerManagerD3D10::CallbackInfo cbInfo = mD3DManager->GetCallbackInfo();
-  cbInfo.Callback(this, context, aRegion, CLIP_DRAW, nsIntRegion(), cbInfo.CallbackData);
+  cbInfo.Callback(this, context, aRegion, nsIntRegion(), cbInfo.CallbackData);
 }
 
 void
@@ -461,7 +479,7 @@ ThebesLayerD3D10::CreateNewTextures(const gfxIntSize &aSize, SurfaceMode aMode)
 
     if (!gfxPlatform::GetPlatform()->SupportsAzureContent()) {
       mD2DSurface = new gfxD2DSurface(mTexture, aMode != SURFACE_SINGLE_CHANNEL_ALPHA ?
-                                                GFX_CONTENT_COLOR : GFX_CONTENT_COLOR_ALPHA);
+                                                gfxASurface::CONTENT_COLOR : gfxASurface::CONTENT_COLOR_ALPHA);
 
       if (!mD2DSurface || mD2DSurface->CairoStatus()) {
         NS_WARNING("Failed to create surface for ThebesLayerD3D10.");
@@ -488,7 +506,7 @@ ThebesLayerD3D10::CreateNewTextures(const gfxIntSize &aSize, SurfaceMode aMode)
     }
 
     if (!gfxPlatform::GetPlatform()->SupportsAzureContent()) {
-      mD2DSurfaceOnWhite = new gfxD2DSurface(mTextureOnWhite, GFX_CONTENT_COLOR);
+      mD2DSurfaceOnWhite = new gfxD2DSurface(mTextureOnWhite, gfxASurface::CONTENT_COLOR);
 
       if (!mD2DSurfaceOnWhite || mD2DSurfaceOnWhite->CairoStatus()) {
         NS_WARNING("Failed to create surface for ThebesLayerD3D10.");

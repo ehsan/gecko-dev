@@ -11,7 +11,6 @@
 #include "nsNativeCharsetUtils.h"
 #include "mozilla/Preferences.h"
 #include "mozJSComponentLoader.h"
-#include "nsZipArchive.h"
 
 #define JSCTYPES_CONTRACTID \
   "@mozilla.org/jsctypes;1"
@@ -31,12 +30,12 @@ UnicodeToNative(JSContext *cx, const jschar *source, size_t slen)
   nsresult rv = NS_CopyUnicodeToNative(unicode, native);
   if (NS_FAILED(rv)) {
     JS_ReportError(cx, "could not convert string to native charset");
-    return nullptr;
+    return NULL;
   }
 
   char* result = static_cast<char*>(JS_malloc(cx, native.Length() + 1));
   if (!result)
-    return nullptr;
+    return NULL;
 
   memcpy(result, native.get(), native.Length() + 1);
   return result;
@@ -134,13 +133,13 @@ Module::Call(nsIXPConnectWrappedNative* wrapper,
 NS_DEFINE_NAMED_CID(JSCTYPES_CID);
 
 static const mozilla::Module::CIDEntry kCTypesCIDs[] = {
-  { &kJSCTYPES_CID, false, nullptr, mozilla::ctypes::ModuleConstructor },
-  { nullptr }
+  { &kJSCTYPES_CID, false, NULL, mozilla::ctypes::ModuleConstructor },
+  { NULL }
 };
 
 static const mozilla::Module::ContractIDEntry kCTypesContracts[] = {
   { JSCTYPES_CONTRACTID, &kJSCTYPES_CID },
-  { nullptr }
+  { NULL }
 };
 
 static const mozilla::Module kCTypesModule = {

@@ -16,14 +16,9 @@
 #include "nsIClassInfoImpl.h"
 #include "nsAlgorithm.h"
 #include "nsMemory.h"
-#include "nsIAsyncInputStream.h"
-#include "nsIAsyncOutputStream.h"
 
 using namespace mozilla;
 
-#ifdef LOG
-#undef LOG
-#endif
 #if defined(PR_LOGGING)
 //
 // set NSPR_LOG_MODULES=nsPipe:5
@@ -299,8 +294,8 @@ protected:
 //-----------------------------------------------------------------------------
 
 nsPipe::nsPipe()
-    : mInput(MOZ_THIS_IN_INITIALIZER_LIST())
-    , mOutput(MOZ_THIS_IN_INITIALIZER_LIST())
+    : mInput(this)
+    , mOutput(this)
     , mReentrantMonitor("nsPipe.mReentrantMonitor")
     , mReadCursor(nullptr)
     , mReadLimit(nullptr)
@@ -322,7 +317,8 @@ NS_IMETHODIMP
 nsPipe::Init(bool nonBlockingIn,
              bool nonBlockingOut,
              uint32_t segmentSize,
-             uint32_t segmentCount)
+             uint32_t segmentCount,
+             nsIMemory *segmentAlloc)
 {
     mInited = true;
 
@@ -336,7 +332,7 @@ nsPipe::Init(bool nonBlockingIn,
     if (segmentCount > maxCount)
         segmentCount = maxCount;
 
-    nsresult rv = mBuffer.Init(segmentSize, segmentSize * segmentCount);
+    nsresult rv = mBuffer.Init(segmentSize, segmentSize * segmentCount, segmentAlloc);
     if (NS_FAILED(rv))
         return rv;
 
@@ -355,8 +351,7 @@ nsPipe::GetInputStream(nsIAsyncInputStream **aInputStream)
 NS_IMETHODIMP
 nsPipe::GetOutputStream(nsIAsyncOutputStream **aOutputStream)
 {
-    if (NS_WARN_IF(!mInited))
-	return NS_ERROR_NOT_INITIALIZED;
+    NS_ENSURE_TRUE(mInited, NS_ERROR_NOT_INITIALIZED);
     NS_ADDREF(*aOutputStream = &mOutput);
     return NS_OK;
 }
@@ -1241,7 +1236,8 @@ NS_NewPipe(nsIInputStream **pipeIn,
            uint32_t segmentSize,
            uint32_t maxSize,
            bool nonBlockingInput,
-           bool nonBlockingOutput)
+           bool nonBlockingOutput,
+           nsIMemory *segmentAlloc)
 {
     if (segmentSize == 0)
         segmentSize = DEFAULT_SEGMENT_SIZE;
@@ -1256,7 +1252,7 @@ NS_NewPipe(nsIInputStream **pipeIn,
     nsIAsyncInputStream *in;
     nsIAsyncOutputStream *out;
     nsresult rv = NS_NewPipe2(&in, &out, nonBlockingInput, nonBlockingOutput,
-                              segmentSize, segmentCount);
+                              segmentSize, segmentCount, segmentAlloc);
     if (NS_FAILED(rv)) return rv;
 
     *pipeIn = in;
@@ -1270,7 +1266,8 @@ NS_NewPipe2(nsIAsyncInputStream **pipeIn,
             bool nonBlockingInput,
             bool nonBlockingOutput,
             uint32_t segmentSize,
-            uint32_t segmentCount)
+            uint32_t segmentCount,
+            nsIMemory *segmentAlloc)
 {
     nsresult rv;
 
@@ -1281,7 +1278,8 @@ NS_NewPipe2(nsIAsyncInputStream **pipeIn,
     rv = pipe->Init(nonBlockingInput,
                     nonBlockingOutput,
                     segmentSize,
-                    segmentCount);
+                    segmentCount,
+                    segmentAlloc);
     if (NS_FAILED(rv)) {
         NS_ADDREF(pipe);
         NS_RELEASE(pipe);

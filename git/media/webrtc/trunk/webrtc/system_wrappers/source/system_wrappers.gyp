@@ -39,6 +39,7 @@
         '../interface/fix_interlocked_exchange_pointer_win.h',
         '../interface/list_wrapper.h',
         '../interface/logging.h',
+        '../interface/map_wrapper.h',
         '../interface/ref_count.h',
         '../interface/rw_lock_wrapper.h',
         '../interface/scoped_ptr.h',
@@ -84,6 +85,7 @@
         'list_no_stl.cc',
         'logging.cc',
         'logging_no_op.cc',
+        'map.cc',
         'rw_lock.cc',
         'rw_lock_generic.cc',
         'rw_lock_generic.h',
@@ -130,20 +132,7 @@
             'trace_win.h',
           ],
         }],
-        ['enable_lazy_trace_alloc==0', {
-          'defines': [
-            'WEBRTC_LAZY_TRACE_ALLOC',
-          ],
-        }],
         ['OS=="android" or moz_widget_toolkit_gonk==1', {
-          'defines': [
-            'WEBRTC_THREAD_RR',
-            # TODO(leozwang): Investigate CLOCK_REALTIME and CLOCK_MONOTONIC
-            # support on Android. Keep WEBRTC_CLOCK_TYPE_REALTIME for now,
-            # remove it after I verify that CLOCK_MONOTONIC is fully functional
-            # with condition and event functions in system_wrappers.
-            'WEBRTC_CLOCK_TYPE_REALTIME',
-           ],
           'dependencies': [ 'cpu_features_android', ],
           'sources!': [
             # Android doesn't have these in <=2.2
@@ -152,12 +141,6 @@
           ],
         }],
         ['OS=="linux"', {
-          'defines': [
-            'WEBRTC_THREAD_RR',
-            # TODO(andrew): can we select this automatically?
-            # Define this if the Linux system does not support CLOCK_MONOTONIC.
-            #'WEBRTC_CLOCK_TYPE_REALTIME',
-          ],
           'link_settings': {
             'libraries': [ '-lrt', ],
           },
@@ -168,12 +151,6 @@
           },
           'sources!': [
             'atomic32_posix.cc',
-          ],
-        }],
-        ['OS=="ios" or OS=="mac"', {
-          'defines': [
-            'WEBRTC_THREAD_RR',
-            'WEBRTC_CLOCK_TYPE_REALTIME',
           ],
         }],
         ['OS=="win"', {
@@ -219,7 +196,7 @@
             'cpu_features_android.c',
           ],
           'conditions': [
-            ['include_ndk_cpu_features==1', {
+            ['build_with_chromium==1', {
               'conditions': [
                 ['android_webview_build == 1', {
                   'libraries': [

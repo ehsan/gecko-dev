@@ -10,11 +10,6 @@
  * or pointers to it across thread boundaries.
  */
 
-// This must be the first include in the file in order for the
-// PL_ARENA_CONST_ALIGN_MASK macro to be effective.
-#define PL_ARENA_CONST_ALIGN_MASK  (sizeof(void*)-1)
-#include "plarena.h"
-
 #define READTYPE  int32_t
 #include "zlib.h"
 #include "nsISupportsUtils.h"
@@ -105,7 +100,7 @@ public:
       if (path.IsEmpty())
         return;
       HANDLE handle = CreateFileW(path.get(), FILE_APPEND_DATA, FILE_SHARE_WRITE,
-                                  nullptr, OPEN_ALWAYS, 0, nullptr);
+                                  NULL, OPEN_ALWAYS, 0, NULL);
       if (handle == INVALID_HANDLE_VALUE)
         return;
       file = PR_ImportFile((PROsfd)handle);
@@ -134,7 +129,7 @@ public:
     MOZ_ASSERT(refCnt > 0);
     if ((0 == --refCnt) && fd) {
       PR_Close(fd);
-      fd = nullptr;
+      fd = NULL;
     }
   }
 private:
@@ -338,7 +333,7 @@ nsresult nsZipArchive::CloseArchive()
 {
   if (mFd) {
     PL_FinishArenaPool(&mArena);
-    mFd = nullptr;
+    mFd = NULL;
   }
 
   // CAUTION:
@@ -450,7 +445,7 @@ nsZipArchive::FindInit(const char * aPattern, nsZipFind **aFind)
     return NS_ERROR_ILLEGAL_VALUE;
 
   // null out param in case an error happens
-  *aFind = nullptr;
+  *aFind = NULL;
 
   bool    regExp = false;
   char*   pattern = 0;
@@ -720,7 +715,7 @@ MOZ_WIN_MEM_TRY_BEGIN
         // Is the directory already in the file table?
         uint32_t hash = HashName(item->Name(), dirlen);
         bool found = false;
-        for (nsZipItem* zi = mFiles[hash]; zi != nullptr; zi = zi->next)
+        for (nsZipItem* zi = mFiles[hash]; zi != NULL; zi = zi->next)
         {
           if ((dirlen == zi->nameLength) &&
               (0 == memcmp(item->Name(), zi->Name(), dirlen)))
@@ -758,7 +753,7 @@ MOZ_WIN_MEM_TRY_CATCH(return NS_ERROR_FAILURE)
 nsZipHandle* nsZipArchive::GetFD()
 {
   if (!mFd)
-    return nullptr;
+    return NULL;
   return mFd.get();
 }
 
@@ -826,7 +821,7 @@ nsZipArchive::nsZipArchive()
 
   MOZ_COUNT_CTOR(nsZipArchive);
 
-  // initialize the table to nullptr
+  // initialize the table to NULL
   memset(mFiles, 0, sizeof(mFiles));
 }
 
@@ -1128,10 +1123,7 @@ nsZipItemPtr_base::nsZipItemPtr_base(nsZipArchive *aZip, const char * aEntryName
   uint32_t size = 0;
   if (item->Compression() == DEFLATED) {
     size = item->RealSize();
-    mAutoBuf = new ((fallible_t())) uint8_t[size];
-    if (!mAutoBuf) {
-      return;
-    }
+    mAutoBuf = new uint8_t[size];
   }
 
   nsZipCursor cursor(item, aZip, mAutoBuf, size, doCRC);

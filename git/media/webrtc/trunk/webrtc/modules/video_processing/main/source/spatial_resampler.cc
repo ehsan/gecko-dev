@@ -8,7 +8,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/video_processing/main/source/spatial_resampler.h"
+#include "spatial_resampler.h"
 
 
 namespace webrtc {
@@ -119,4 +119,4 @@ VPMSimpleSpatialResampler::ApplyResample(int32_t width,
     return true;
 }
 
-}  // namespace
+} //namespace

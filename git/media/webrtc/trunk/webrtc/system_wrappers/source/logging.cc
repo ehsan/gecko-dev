@@ -11,7 +11,6 @@
 #include "webrtc/system_wrappers/interface/logging.h"
 
 #include <string.h>
-
 #include <sstream>
 
 #include "webrtc/common_types.h"
@@ -22,7 +21,7 @@ namespace {
 
 TraceLevel WebRtcSeverity(LoggingSeverity sev) {
   switch (sev) {
-    // TODO(ajm): SENSITIVE doesn't have a corresponding webrtc level.
+    // TODO(andrew): SENSITIVE doesn't have a corresponding webrtc level.
     case LS_SENSITIVE:  return kTraceInfo;
     case LS_VERBOSE:    return kTraceInfo;
     case LS_INFO:       return kTraceTerseInfo;
@@ -46,11 +45,6 @@ const char* DescribeFile(const char* file) {
 LogMessage::LogMessage(const char* file, int line, LoggingSeverity sev)
     : severity_(sev) {
   print_stream_ << "(" << DescribeFile(file) << ":" << line << "): ";
-}
-
-bool LogMessage::Loggable(LoggingSeverity sev) {
-  // |level_filter| is a bitmask, unlike libjingle's minimum severity value.
-  return WebRtcSeverity(sev) & Trace::level_filter() ? true : false;
 }
 
 LogMessage::~LogMessage() {

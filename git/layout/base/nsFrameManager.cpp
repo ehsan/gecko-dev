@@ -65,7 +65,7 @@ PlaceholderMapMatchEntry(PLDHashTable *table, const PLDHashEntryHdr *hdr,
   return entry->placeholderFrame->GetOutOfFlowFrame() == key;
 }
 
-static const PLDHashTableOps PlaceholderMapOps = {
+static PLDHashTableOps PlaceholderMapOps = {
   PL_DHashAllocTable,
   PL_DHashFreeTable,
   PL_DHashVoidPtrKeyStub,
@@ -73,7 +73,7 @@ static const PLDHashTableOps PlaceholderMapOps = {
   PL_DHashMoveEntryStub,
   PL_DHashClearEntryStub,
   PL_DHashFinalizeStub,
-  nullptr
+  NULL
 };
 
 //----------------------------------------------------------------------
@@ -611,7 +611,7 @@ nsFrameManagerBase::UndisplayedMap::GetEntryFor(nsIContent** aParentContent)
   // be a <xbl:children> element) but the parent in the frame tree would be the
   // insertion parent (parent of the <xbl:children> element). Here the children
   // elements are normalized to the insertion parent to correct for the mismatch.
-  if (parentContent && nsContentUtils::IsContentInsertionPoint(parentContent)) {
+  if (parentContent && parentContent->IsActiveChildrenElement()) {
     parentContent = parentContent->GetParent();
     // Change the caller's pointer for the parent content to be the insertion parent.
     *aParentContent = parentContent;

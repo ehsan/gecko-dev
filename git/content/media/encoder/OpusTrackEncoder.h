@@ -6,25 +6,12 @@
 #ifndef OpusTrackEncoder_h_
 #define OpusTrackEncoder_h_
 
-#include <stdint.h>
-#include <speex/speex_resampler.h>
 #include "TrackEncoder.h"
+#include "nsCOMPtr.h"
 
 struct OpusEncoder;
 
 namespace mozilla {
-
-// Opus meta data structure
-class OpusMetadata : public TrackMetadataBase
-{
-public:
-  // The ID Header of OggOpus. refer to http://wiki.xiph.org/OggOpus.
-  nsTArray<uint8_t> mIdHeader;
-  // The Comment Header of OggOpus.
-  nsTArray<uint8_t> mCommentHeader;
-
-  MetadataKind GetKind() const MOZ_OVERRIDE { return METADATA_OPUS; }
-};
 
 class OpusTrackEncoder : public AudioTrackEncoder
 {
@@ -32,21 +19,21 @@ public:
   OpusTrackEncoder();
   virtual ~OpusTrackEncoder();
 
-  already_AddRefed<TrackMetadataBase> GetMetadata() MOZ_OVERRIDE;
+  nsresult GetHeader(nsTArray<uint8_t>* aOutput) MOZ_OVERRIDE;
 
-  nsresult GetEncodedTrack(EncodedFrameContainer& aData) MOZ_OVERRIDE;
+  nsresult GetEncodedTrack(nsTArray<uint8_t>* aOutput, int &aOutputDuration) MOZ_OVERRIDE;
 
 protected:
-  int GetPacketDuration();
+  int GetPacketDuration() MOZ_OVERRIDE;
 
   nsresult Init(int aChannels, int aSamplingRate) MOZ_OVERRIDE;
 
 private:
-  /**
-   * Get the samplerate of the data to be fed to the Opus encoder. This might be
-   * different from the intput samplerate if resampling occurs.
-   */
-  int GetOutputSampleRate();
+  enum {
+    ID_HEADER,
+    COMMENT_HEADER,
+    DATA
+  } mEncoderState;
 
   /**
    * The Opus encoder from libopus.
@@ -54,12 +41,11 @@ private:
   OpusEncoder* mEncoder;
 
   /**
-   * A local segment queue which takes the raw data out from mRawSegment in the
-   * call of GetEncodedTrack(). Opus encoder only accepts GetPacketDuration()
-   * samples from mSourceSegment every encoding cycle, thus it needs to be
-   * global in order to store the leftover segments taken from mRawSegment.
+   * A local segment queue which stores the raw segments. Opus encoder only
+   * takes GetPacketDuration() samples from mSourceSegment in every encoding
+   * cycle, thus it needs to store the raw track data.
    */
-  AudioSegment mSourceSegment;
+  nsAutoPtr<AudioSegment> mSourceSegment;
 
   /**
    * Total samples of delay added by codec, can be queried by the encoder. From
@@ -68,12 +54,6 @@ private:
    * in order to align the time of input and output.
    */
   int mLookahead;
-
-  /**
-   * If the input sample rate does not divide 48kHz evenly, the input data are
-   * resampled.
-   */
-  SpeexResamplerState* mResampler;
 };
 
 }

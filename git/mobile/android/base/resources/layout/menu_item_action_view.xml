@@ -5,29 +5,23 @@
 
 <merge xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Application icons will be added dynamically -->
+    <org.mozilla.gecko.menu.MenuItemDefault
+            android:id="@+id/menu_item"
+            android:layout_width="0dip"
+            android:layout_height="fill_parent"
+            android:layout_weight="1.0"
+            android:background="@drawable/action_bar_button"
+            android:clickable="true"
+            android:focusable="true"/>
 
-    <FrameLayout android:layout_width="0dip"
+    <ImageButton android:id="@+id/action_button"
+                 android:layout_width="@dimen/menu_item_action_icon"
                  android:layout_height="@dimen/menu_item_row_height"
-                 android:layout_weight="1.0">
-
-        <org.mozilla.gecko.menu.MenuItemDefault
-                android:id="@+id/menu_item"
-                android:layout_width="fill_parent"
-                android:layout_height="fill_parent"
-                android:background="@drawable/action_bar_button"
-                android:clickable="true"
-                android:focusable="true"/>
-
-        <org.mozilla.gecko.menu.MenuItemActionBar
-                style="@style/Widget.MenuItemSecondaryActionBar"
-                android:id="@+id/menu_item_button"
-                android:layout_width="fill_parent"
-                android:layout_height="fill_parent"
-                android:background="@drawable/action_bar_button"
-                android:layout_gravity="center_vertical"
-                android:visibility="gone"/>
-
-    </FrameLayout>
+                 android:paddingTop="8dip"
+                 android:paddingBottom="8dip"
+                 android:scaleType="centerInside"
+                 android:background="@drawable/action_bar_button"
+                 android:layout_gravity="center_vertical"
+                 android:visibility="gone"/>
 
 </merge>

@@ -5,8 +5,6 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.mozglue.RobocopTarget;
-
 import android.content.Context;
 import android.os.Build;
 import android.provider.Settings.Secure;
@@ -16,7 +14,7 @@ import android.view.inputmethod.InputMethodManager;
 import java.util.Collection;
 import java.util.Locale;
 
-final public class InputMethods {
+final class InputMethods {
     public static final String METHOD_ANDROID_LATINIME = "com.android.inputmethod.latin/.LatinIME";
     public static final String METHOD_ATOK = "com.justsystems.atokmobile.service/.AtokInputMethodService";
     public static final String METHOD_GOOGLE_JAPANESE_INPUT = "com.google.android.inputmethod.japanese/.MozcService";
@@ -60,12 +58,6 @@ final public class InputMethods {
     }
 
     public static boolean shouldCommitCharAsKey(String inputMethod) {
-        return METHOD_HTC_TOUCH_INPUT.equals(inputMethod);
-    }
-
-    @RobocopTarget
-    public static boolean shouldDisableUrlBarUpdate(Context context) {
-        String inputMethod = getCurrentInputMethod(context);
         return METHOD_HTC_TOUCH_INPUT.equals(inputMethod);
     }
 

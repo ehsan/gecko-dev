@@ -8,10 +8,10 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/test/testsupport/frame_writer.h"
+#include "testsupport/frame_writer.h"
 
-#include "testing/gtest/include/gtest/gtest.h"
-#include "webrtc/test/testsupport/fileutils.h"
+#include "gtest/gtest.h"
+#include "testsupport/fileutils.h"
 
 namespace webrtc {
 namespace test {
@@ -25,14 +25,14 @@ class FrameWriterTest: public testing::Test {
   virtual ~FrameWriterTest() {}
   void SetUp() {
     // Cleanup any previous output file.
-    remove(kOutputFilename.c_str());
+    std::remove(kOutputFilename.c_str());
     frame_writer_ = new FrameWriterImpl(kOutputFilename, kFrameLength);
     ASSERT_TRUE(frame_writer_->Init());
   }
   void TearDown() {
     delete frame_writer_;
     // Cleanup the temporary file.
-    remove(kOutputFilename.c_str());
+    std::remove(kOutputFilename.c_str());
   }
   FrameWriter* frame_writer_;
 };

@@ -8,6 +8,7 @@
 
 #include "mozilla/FloatingPoint.h"
 
+#include "jsapi.h"
 #include "jsarray.h"
 #include "jsatom.h"
 #include "jscntxt.h"
@@ -32,7 +33,7 @@ using namespace js::types;
 using mozilla::IsFinite;
 using mozilla::Maybe;
 
-const Class js::JSONClass = {
+Class js::JSONClass = {
     js_JSON_str,
     JSCLASS_HAS_CACHED_PROTO(JSProto_JSON),
     JS_PropertyStub,        /* addProperty */
@@ -114,8 +115,6 @@ Quote(JSContext *cx, StringBuffer &sb, JSString *str)
     return sb.append('"');
 }
 
-namespace {
-
 class StringifyContext
 {
   public:
@@ -135,8 +134,6 @@ class StringifyContext
     uint32_t depth;
 };
 
-} /* anonymous namespace */
-
 static bool Str(JSContext *cx, const Value &v, StringifyContext *scx);
 
 static bool
@@ -153,8 +150,6 @@ WriteIndent(JSContext *cx, StringifyContext *scx, uint32_t limit)
 
     return true;
 }
-
-namespace {
 
 template<typename KeyType>
 class KeyStringifier {
@@ -175,8 +170,6 @@ class KeyStringifier<HandleId> {
         return IdToString(cx, id);
     }
 };
-
-} /* anonymous namespace */
 
 /*
  * ES5 15.12.3 Str, steps 2-4, extracted to enable preprocessing of property
@@ -289,7 +282,7 @@ JO(JSContext *cx, HandleObject obj, StringifyContext *scx)
     if (!detect.init())
         return false;
     if (detect.foundCycle()) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_CYCLIC_VALUE, js_object_str);
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CYCLIC_VALUE, js_object_str);
         return false;
     }
 
@@ -379,7 +372,7 @@ JA(JSContext *cx, HandleObject obj, StringifyContext *scx)
     if (!detect.init())
         return false;
     if (detect.foundCycle()) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_CYCLIC_VALUE, js_object_str);
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CYCLIC_VALUE, js_object_str);
         return false;
     }
 
@@ -597,7 +590,7 @@ js_Stringify(JSContext *cx, MutableHandleValue vp, JSObject *replacer_, Value sp
                 }
             }
         } else {
-            replacer = nullptr;
+            replacer = NULL;
         }
     }
 
@@ -828,7 +821,7 @@ json_stringify(JSContext *cx, unsigned argc, Value *vp)
 {
     RootedObject replacer(cx, (argc >= 2 && vp[3].isObject())
                               ? &vp[3].toObject()
-                              : nullptr);
+                              : NULL);
     RootedValue value(cx, (argc >= 1) ? vp[2] : UndefinedValue());
     RootedValue space(cx, (argc >= 3) ? vp[4] : UndefinedValue());
 
@@ -871,21 +864,20 @@ js_InitJSONClass(JSContext *cx, HandleObject obj)
      * called from PreprocessValue above.
      */
     if (!global->getOrCreateBooleanPrototype(cx))
-        return nullptr;
+        return NULL;
 
-    RootedObject proto(cx, obj->as<GlobalObject>().getOrCreateObjectPrototype(cx));
-    RootedObject JSON(cx, NewObjectWithClassProto(cx, &JSONClass, proto, global, SingletonObject));
+    RootedObject JSON(cx, NewObjectWithClassProto(cx, &JSONClass, NULL, global, SingletonObject));
     if (!JSON)
-        return nullptr;
+        return NULL;
 
     if (!JS_DefineProperty(cx, global, js_JSON_str, OBJECT_TO_JSVAL(JSON),
                            JS_PropertyStub, JS_StrictPropertyStub, 0))
-        return nullptr;
+        return NULL;
 
     if (!JS_DefineFunctions(cx, JSON, json_static_methods))
-        return nullptr;
+        return NULL;
 
-    global->setConstructor(JSProto_JSON, ObjectValue(*JSON));
+    MarkStandardClassInitializedNoProto(global, &JSONClass);
 
     return JSON;
 }

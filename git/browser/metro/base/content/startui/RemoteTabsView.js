@@ -20,8 +20,8 @@ Components.utils.import("resource://services-sync/main.js");
  *                          You may only have one UI access point at this time.
  */
 function RemoteTabsView(aSet, aSetUIAccessList) {
-  View.call(this, aSet);
-
+  this._set = aSet;
+  this._set.controller = this;
   this._uiAccessElements = aSetUIAccessList;
 
   // Sync uses special voodoo observers.
@@ -29,12 +29,15 @@ function RemoteTabsView(aSet, aSetUIAccessList) {
   Weave.Svc.Obs.add("weave:service:sync:finish", this);
   Weave.Svc.Obs.add("weave:service:start-over", this);
 
+  Services.obs.addObserver(this, "metro_viewstate_changed", false);
+
   if (this.isSyncEnabled() ) {
     this.populateGrid();
   }
   else {
     this.setUIAccessVisible(false);
   }
+  this._adjustDOMforViewState();
 }
 
 RemoteTabsView.prototype = Util.extend(Object.create(View.prototype), {
@@ -48,6 +51,9 @@ RemoteTabsView.prototype = Util.extend(Object.create(View.prototype), {
 
   observe: function(subject, topic, data) {
     switch (topic) {
+      case "metro_viewstate_changed":
+        this.onViewStateChange(data);
+        break;
       case "weave:service:sync:finish":
         this.populateGrid();
         break;
@@ -96,9 +102,9 @@ RemoteTabsView.prototype = Util.extend(Object.create(View.prototype), {
   },
 
   destruct: function destruct() {
+    Services.obs.removeObserver(this, "metro_viewstate_changed");
     Weave.Svc.Obs.remove("weave:engine:sync:finish", this);
     Weave.Svc.Obs.remove("weave:service:logout:start-over", this);
-    View.prototype.destruct.call(this);
   },
 
   isSyncEnabled: function isSyncEnabled() {
@@ -115,7 +121,6 @@ let RemoteTabsStartView = {
     let vbox = document.getElementById("start-remotetabs");
     let uiList = [vbox];
     this._view = new RemoteTabsView(this._grid, uiList);
-    this._grid.removeAttribute("fade");
   },
 
   uninit: function uninit() {

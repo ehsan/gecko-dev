@@ -5,7 +5,9 @@
 
 #include "nsDeviceProtocolHandler.h"
 #include "nsDeviceChannel.h"
+#include "nsNetCID.h"
 #include "nsAutoPtr.h"
+#include "nsCOMPtr.h"
 #include "nsSimpleURI.h"
 
 //-----------------------------------------------------------------------------

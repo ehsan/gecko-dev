@@ -12,13 +12,9 @@
 #include "mozilla/Attributes.h"
 #include "gfxPoint.h"
 #include "SurfaceTypes.h"
+#include "GLContext.h"
 
 namespace mozilla {
-
-namespace gl {
-class GLContext;
-}
-
 namespace gfx {
 class SharedSurface;
 class SurfaceFactory;

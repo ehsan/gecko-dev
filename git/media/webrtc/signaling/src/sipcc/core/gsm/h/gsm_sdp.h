@@ -37,6 +37,20 @@ typedef struct {
     int         value;
 } gsmsdp_key_table_entry_t;
 
+typedef enum constraints_ {
+    OfferToReceiveAudio     = 0,
+    OfferToReceiveVideo     = 1,
+    VoiceActivityDetection  = 2,
+    MozDontOfferDataChannel = 3
+} constraints;
+
+static const gsmsdp_key_table_entry_t constraints_table[] = {
+    {"OfferToReceiveAudio",         OfferToReceiveAudio},
+    {"OfferToReceiveVideo",         OfferToReceiveVideo},
+    {"VoiceActivityDetection",      VoiceActivityDetection},
+    {"MozDontOfferDataChannel",     MozDontOfferDataChannel}
+};
+
 cc_causes_t gsmsdp_create_local_sdp(fsmdef_dcb_t *dcb_p, boolean force_streams_enabled,
                                     boolean audio, boolean video, boolean data, boolean offer);
 void gsmsdp_create_options_sdp(cc_sdp_t **sdp_pp);
@@ -127,7 +141,6 @@ fsmdef_media_t* gsmsdp_find_media_by_media_type(fsmdef_dcb_t *dcb, sdp_media_e 	
 
 extern void gsmsdp_set_ice_attribute (sdp_attr_e sdp_attr, uint16_t level,
                                       void *sdp_p, char *ice_attrib);
-extern void gsmsdp_clean_candidate_list(fsmdef_dcb_t *dcb);
 
 #endif
 

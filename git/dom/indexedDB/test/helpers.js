@@ -84,7 +84,6 @@ if (!window.runTest) {
       allowUnlimitedQuota();
     }
 
-    enableExperimental();
     enableArchiveReader();
 
     clearAllDatabases(function () { testGenerator.next(); });
@@ -94,7 +93,6 @@ if (!window.runTest) {
 function finishTest()
 {
   resetUnlimitedQuota();
-  resetExperimental();
   resetArchiveReader();
   SpecialPowers.notifyObserversInParentProcess(null, "disk-space-watcher",
                                                "free");
@@ -255,23 +253,8 @@ function resetArchiveReader()
   SpecialPowers.setBoolPref("dom.archivereader.enabled", archiveReaderEnabled);
 }
 
-function enableExperimental()
-{
-  SpecialPowers.setBoolPref("dom.indexedDB.experimental", true);
-}
-
-function resetExperimental()
-{
-  SpecialPowers.clearUserPref("dom.indexedDB.experimental");
-}
-
 function gc()
 {
   SpecialPowers.forceGC();
   SpecialPowers.forceCC();
-}
-
-function scheduleGC()
-{
-  SpecialPowers.exactGC(window, continueToNextStep);
 }

@@ -10,9 +10,9 @@
 
 #pragma mark **** imports/includes
 
-#import "webrtc/modules/video_capture/mac/qtkit/video_capture_qtkit_info_objc.h"
+#import "video_capture_qtkit_info_objc.h"
 
-#include "webrtc/system_wrappers/interface/trace.h"
+#include "trace.h"
 
 using namespace webrtc;
 
@@ -60,10 +60,11 @@ using namespace webrtc;
 {
     NSString* strTitle = [NSString stringWithFormat:@"%s", dialogTitleUTF8];
     NSString* strButton = @"Alright";
+    NSString* strMessage = [NSString stringWithFormat:@"Device %s is capturing", deviceUniqueIdUTF8];
     NSAlert* alert = [NSAlert alertWithMessageText:strTitle
                       defaultButton:strButton
                       alternateButton:nil otherButton:nil
-                      informativeTextWithFormat:@"Device %s is capturing", deviceUniqueIdUTF8];
+                      informativeTextWithFormat:strMessage];
     [alert setAlertStyle:NSInformationalAlertStyle];
     [alert runModal];
     return [NSNumber numberWithInt:0];

@@ -16,10 +16,8 @@
 #include "nsIServiceManager.h"
 #include "nsMenuUtilsX.h"
 #include "nsToolkit.h"
-#include "nsCRT.h"
-#include "mozilla/MiscEvents.h"
+#include "nsGUIEvent.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/TextEvents.h"
 
 using namespace mozilla;
 using namespace mozilla::widget;
@@ -282,7 +280,7 @@ nsresult nsCocoaUtils::CreateCGImageFromSurface(gfxImageSurface *aFrame, CGImage
                              32,
                              stride,
                              colorSpace,
-                             kCGBitmapByteOrder32Host | kCGImageAlphaPremultipliedFirst,
+                             kCGBitmapByteOrder32Host | kCGImageAlphaFirst,
                              dataProvider,
                              NULL,
                              0,
@@ -296,89 +294,35 @@ nsresult nsCocoaUtils::CreateNSImageFromCGImage(CGImageRef aInputImage, NSImage 
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  // Be very careful when creating the NSImage that the backing NSImageRep is
-  // exactly 1:1 with the input image. On a retina display, both [NSImage
-  // lockFocus] and [NSImage initWithCGImage:size:] will create an image with a
-  // 2x backing NSImageRep. This prevents NSCursor from recognizing a retina
-  // cursor, which only occurs if pixelsWide and pixelsHigh are exactly 2x the
-  // size of the NSImage.
-  //
-  // For example, if a 32x32 SVG cursor is rendered on a retina display, then
-  // aInputImage will be 64x64. The resulting NSImage will be scaled back down
-  // to 32x32 so it stays the correct size on the screen by changing its size
-  // (resizing a NSImage only scales the image and doesn't resample the data).
-  // If aInputImage is converted using [NSImage initWithCGImage:size:] then the
-  // bitmap will be 128x128 and NSCursor won't recognize a retina cursor, since
-  // it will expect a 64x64 bitmap.
-
   int32_t width = ::CGImageGetWidth(aInputImage);
   int32_t height = ::CGImageGetHeight(aInputImage);
   NSRect imageRect = ::NSMakeRect(0.0, 0.0, width, height);
 
-  NSBitmapImageRep *offscreenRep = [[NSBitmapImageRep alloc]
-    initWithBitmapDataPlanes:NULL
-    pixelsWide:width
-    pixelsHigh:height
-    bitsPerSample:8
-    samplesPerPixel:4
-    hasAlpha:YES
-    isPlanar:NO
-    colorSpaceName:NSDeviceRGBColorSpace
-    bitmapFormat:NSAlphaFirstBitmapFormat
-    bytesPerRow:0
-    bitsPerPixel:0];
+  // Create a new image to receive the Quartz image data.
+  *aResult = [[NSImage alloc] initWithSize:imageRect.size];
 
-  NSGraphicsContext *context = [NSGraphicsContext graphicsContextWithBitmapImageRep:offscreenRep];
-  [NSGraphicsContext saveGraphicsState];
-  [NSGraphicsContext setCurrentContext:context];
+  [*aResult lockFocus];
 
   // Get the Quartz context and draw.
   CGContextRef imageContext = (CGContextRef)[[NSGraphicsContext currentContext] graphicsPort];
   ::CGContextDrawImage(imageContext, *(CGRect*)&imageRect, aInputImage);
 
-  [NSGraphicsContext restoreGraphicsState];
-
-  *aResult = [[NSImage alloc] initWithSize:NSMakeSize(width, height)];
-  [*aResult addRepresentation:offscreenRep];
-  [offscreenRep release];
+  [*aResult unlockFocus];
   return NS_OK;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-nsresult nsCocoaUtils::CreateNSImageFromImageContainer(imgIContainer *aImage, uint32_t aWhichFrame, NSImage **aResult, CGFloat scaleFactor)
+nsresult nsCocoaUtils::CreateNSImageFromImageContainer(imgIContainer *aImage, uint32_t aWhichFrame, NSImage **aResult)
 {
-  nsRefPtr<gfxImageSurface> frame;
-  int32_t width = 0, height = 0;
-  aImage->GetWidth(&width);
-  aImage->GetHeight(&height);
+  nsRefPtr<gfxASurface> surface;
+  aImage->GetFrame(aWhichFrame,
+                   imgIContainer::FLAG_SYNC_DECODE,
+                   getter_AddRefs(surface));
+  NS_ENSURE_TRUE(surface, NS_ERROR_FAILURE);
 
-  // Render a vector image at the correct resolution on a retina display
-  if (aImage->GetType() == imgIContainer::TYPE_VECTOR && scaleFactor != 1.0f) {
-    int scaledWidth = (int)ceilf(width * scaleFactor);
-    int scaledHeight = (int)ceilf(height * scaleFactor);
-
-    frame = new gfxImageSurface(gfxIntSize(scaledWidth, scaledHeight), gfxImageFormatARGB32);
-    NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
-
-    nsRefPtr<gfxContext> context = new gfxContext(frame);
-    NS_ENSURE_TRUE(context, NS_ERROR_FAILURE);
-
-    aImage->Draw(context, GraphicsFilter::FILTER_NEAREST, gfxMatrix(),
-      gfxRect(0.0f, 0.0f, scaledWidth, scaledHeight),
-      nsIntRect(0, 0, width, height),
-      nsIntSize(scaledWidth, scaledHeight),
-      nullptr, aWhichFrame, imgIContainer::FLAG_SYNC_DECODE);
-  }
-
-  else {
-    nsRefPtr<gfxASurface> surface =
-      aImage->GetFrame(aWhichFrame, imgIContainer::FLAG_SYNC_DECODE);
-    NS_ENSURE_TRUE(surface, NS_ERROR_FAILURE);
-
-    frame = surface->GetAsReadableARGB32ImageSurface();
-    NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
-  }
+  nsRefPtr<gfxImageSurface> frame(surface->GetAsReadableARGB32ImageSurface());
+  NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
 
   CGImageRef imageRef = NULL;
   nsresult rv = nsCocoaUtils::CreateCGImageFromSurface(frame, &imageRef);
@@ -391,11 +335,6 @@ nsresult nsCocoaUtils::CreateNSImageFromImageContainer(imgIContainer *aImage, ui
     return NS_ERROR_FAILURE;
   }
   ::CGImageRelease(imageRef);
-
-  // Ensure the image will be rendered the correct size on a retina display
-  NSSize size = NSMakeSize(width, height);
-  [*aResult setSize:size];
-  [[[*aResult representations] objectAtIndex:0] setSize:size];
   return NS_OK;
 }
 
@@ -411,7 +350,7 @@ nsCocoaUtils::GetStringForNSString(const NSString *aSrc, nsAString& aDist)
   }
 
   aDist.SetLength([aSrc length]);
-  [aSrc getCharacters: reinterpret_cast<unichar*>(aDist.BeginWriting())];
+  [aSrc getCharacters: aDist.BeginWriting()];
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -423,7 +362,7 @@ nsCocoaUtils::ToNSString(const nsAString& aString)
   if (aString.IsEmpty()) {
     return [NSString string];
   }
-  return [NSString stringWithCharacters:reinterpret_cast<const unichar*>(aString.BeginReading())
+  return [NSString stringWithCharacters:aString.BeginReading()
                                  length:aString.Length()];
 }
 
@@ -480,7 +419,7 @@ nsCocoaUtils::InitNPCocoaEvent(NPCocoaEvent* aNPCocoaEvent)
 
 // static
 void
-nsCocoaUtils::InitPluginEvent(WidgetPluginEvent &aPluginEvent,
+nsCocoaUtils::InitPluginEvent(nsPluginEvent &aPluginEvent,
                               NPCocoaEvent &aCocoaEvent)
 {
   aPluginEvent.time = PR_IntervalNow();
@@ -490,7 +429,7 @@ nsCocoaUtils::InitPluginEvent(WidgetPluginEvent &aPluginEvent,
 
 // static
 void
-nsCocoaUtils::InitInputEvent(WidgetInputEvent& aInputEvent,
+nsCocoaUtils::InitInputEvent(nsInputEvent &aInputEvent,
                              NSEvent* aNativeEvent)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
@@ -506,7 +445,7 @@ nsCocoaUtils::InitInputEvent(WidgetInputEvent& aInputEvent,
 
 // static
 void
-nsCocoaUtils::InitInputEvent(WidgetInputEvent& aInputEvent,
+nsCocoaUtils::InitInputEvent(nsInputEvent &aInputEvent,
                              NSUInteger aModifiers)
 {
   aInputEvent.modifiers = 0;

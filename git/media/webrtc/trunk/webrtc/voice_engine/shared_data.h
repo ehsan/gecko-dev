@@ -22,7 +22,6 @@
 class ProcessThread;
 
 namespace webrtc {
-class Config;
 class CriticalSectionWrapper;
 
 namespace voe {
@@ -59,9 +58,9 @@ public:
     uint16_t NumOfSendingChannels();
 
     // Convenience methods for calling statistics().SetLastError().
-    void SetLastError(int32_t error) const;
-    void SetLastError(int32_t error, TraceLevel level) const;
-    void SetLastError(int32_t error, TraceLevel level,
+    void SetLastError(const int32_t error) const;
+    void SetLastError(const int32_t error, const TraceLevel level) const;
+    void SetLastError(const int32_t error, const TraceLevel level,
                       const char* msg) const;
 
 protected:
@@ -80,11 +79,11 @@ protected:
 
     AudioDeviceModule::AudioLayer _audioDeviceLayer;
 
-    SharedData(const Config& config);
+    SharedData();
     virtual ~SharedData();
 };
 
-}  // namespace voe
+} //  namespace voe
 
-}  // namespace webrtc
+} //  namespace webrtc
 #endif // WEBRTC_VOICE_ENGINE_SHARED_DATA_H

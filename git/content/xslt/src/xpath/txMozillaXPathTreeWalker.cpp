@@ -535,8 +535,13 @@ txXPathNodeUtils::getOwnerDocument(const txXPathNode& aNode)
     return new txXPathNode(aNode.mNode->OwnerDoc());
 }
 
-const char gPrintfFmt[] = "id0x%p";
-const char gPrintfFmtAttr[] = "id0x%p-%010i";
+#ifndef HAVE_64BIT_OS
+const char gPrintfFmt[] = "id0x%08p";
+const char gPrintfFmtAttr[] = "id0x%08p-%010i";
+#else
+const char gPrintfFmt[] = "id0x%016p";
+const char gPrintfFmtAttr[] = "id0x%016p-%010i";
+#endif
 
 /* static */
 nsresult

@@ -5,7 +5,6 @@
 #include "plstr.h"
 #include "prlog.h"
 #include "prprf.h"
-#include "prnetdb.h"
 #include "nsCRTGlue.h"
 #include "nsIPermissionManager.h"
 #include "nsISSLStatus.h"
@@ -14,7 +13,7 @@
 #include "nsIURI.h"
 #include "nsNetUtil.h"
 #include "nsThreadUtils.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsISocketProvider.h"
 #include "mozilla/Preferences.h"
@@ -97,6 +96,8 @@ nsSiteSecurityService::Init()
    mObserverService = mozilla::services::GetObserverService();
    if (mObserverService)
      mObserverService->AddObserver(this, "last-pb-context-exited", false);
+
+   mPrivateModeHostTable.Init();
 
    return NS_OK;
 }
@@ -217,13 +218,6 @@ nsSiteSecurityService::RemoveState(uint32_t aType, nsIURI* aURI, uint32_t aFlags
   return NS_OK;
 }
 
-static bool
-HostIsIPAddress(const char *hostname)
-{
-  PRNetAddr hostAddr;
-  return (PR_StringToNetAddr(hostname, &hostAddr) == PR_SUCCESS);
-}
-
 NS_IMETHODIMP
 nsSiteSecurityService::ProcessHeader(uint32_t aType,
                                      nsIURI* aSourceURI,
@@ -247,18 +241,10 @@ nsSiteSecurityService::ProcessHeader(uint32_t aType,
     *aIncludeSubdomains = false;
   }
 
-  nsAutoCString host;
-  nsresult rv = GetHost(aSourceURI, host);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (HostIsIPAddress(host.get())) {
-    /* Don't process headers if a site is accessed by IP address. */
-    return NS_OK;
-  }
-
   char * header = NS_strdup(aHeader);
   if (!header) return NS_ERROR_OUT_OF_MEMORY;
-  rv = ProcessHeaderMutating(aType, aSourceURI, header, aFlags,
-                             aMaxAge, aIncludeSubdomains);
+  nsresult rv = ProcessHeaderMutating(aType, aSourceURI, header, aFlags,
+                                      aMaxAge, aIncludeSubdomains);
   NS_Free(header);
   return rv;
 }
@@ -391,12 +377,6 @@ nsSiteSecurityService::IsSecureHost(uint32_t aType, const char* aHost,
   NS_ENSURE_TRUE(aType == nsISiteSecurityService::HEADER_HSTS,
                  NS_ERROR_NOT_IMPLEMENTED);
 
-  /* An IP address never qualifies as a secure URI. */
-  if (HostIsIPAddress(aHost)) {
-    *aResult = false;
-    return NS_OK;
-  }
-
   nsCOMPtr<nsIURI> uri;
   nsDependentCString hostString(aHost);
   nsresult rv = NS_NewURI(getter_AddRefs(uri),
@@ -454,11 +434,6 @@ nsSiteSecurityService::IsSecureURI(uint32_t aType, nsIURI* aURI,
   nsAutoCString host;
   nsresult rv = GetHost(aURI, host);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  /* An IP address never qualifies as a secure URI. */
-  if (HostIsIPAddress(host.BeginReading())) {
-    return NS_OK;
-  }
 
   const nsSTSPreload *preload = nullptr;
   nsSSSHostEntry *pbEntry = nullptr;

@@ -147,12 +147,3 @@ a.b = {};
 a.b.c = {};
 a.b["c"]["d e"] = { f: { 1: { "g": { "h i": function() {} } } } };
 assertName(a.b.c["d e"].f[1].g["h i"], 'a.b.c["d e"].f[1].g["h i"]');
-
-this.m = function () {};
-assertName(m, "this.m");
-
-function N() {
-  this.o = function () {}
-}
-let n = new N()
-assertName(n.o, "N/this.o");

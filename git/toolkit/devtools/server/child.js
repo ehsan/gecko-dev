@@ -1,5 +1,6 @@
-const {DevToolsUtils} = Cu.import("resource://gre/modules/devtools/DevToolsUtils.jsm", {});
-const {DebuggerServer, ActorPool} = Cu.import("resource://gre/modules/devtools/dbg-server.jsm", {});
+Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/devtools/dbg-server.jsm");
+Cu.import("resource://gre/modules/devtools/DevToolsUtils.jsm");
 
 if (!DebuggerServer.initialized) {
   DebuggerServer.init();
@@ -20,7 +21,7 @@ let onConnect = DevToolsUtils.makeInfallible(function (msg) {
 
   let conn = DebuggerServer.connectToParent(prefix, mm);
 
-  let actor = new DebuggerServer.ContentAppActor(conn, content);
+  let actor = new DebuggerServer.ContentTabActor(conn, content);
   let actorPool = new ActorPool(conn);
   actorPool.addActor(actor);
   conn.addActorPool(actorPool);

@@ -13,6 +13,7 @@ from mozboot.debian import DebianBootstrapper
 from mozboot.fedora import FedoraBootstrapper
 from mozboot.freebsd import FreeBSDBootstrapper
 from mozboot.gentoo import GentooBootstrapper
+from mozboot.mint import MintBootstrapper
 from mozboot.osx import OSXBootstrapper
 from mozboot.openbsd import OpenBSDBootstrapper
 from mozboot.ubuntu import UbuntuBootstrapper
@@ -26,7 +27,7 @@ obtain a copy of the source code by running:
 
 Or, if you prefer Git:
 
-    git clone https://git.mozilla.org/integration/gecko-dev.git
+    git clone git://github.com/mozilla/mozilla-central.git
 '''
 
 
@@ -49,15 +50,8 @@ class Bootstrapper(object):
             elif distro == 'Gentoo Base System':
                 cls = GentooBootstrapper
             elif distro in ('Mint', 'LinuxMint'):
-                # Most Linux Mint editions are based on Ubuntu; one is based on
-                # Debian, and reports this in dist_id
-                if dist_id == 'debian':
-                    cls = DebianBootstrapper
-                else:
-                    cls = UbuntuBootstrapper
+                cls = MintBootstrapper
             elif distro == 'Ubuntu':
-                cls = UbuntuBootstrapper
-            elif distro == 'Elementary':
                 cls = UbuntuBootstrapper
             else:
                 raise NotImplementedError('Bootstrap support for this Linux '

@@ -21,9 +21,6 @@
 
 #include "nsCycleCollectionParticipant.h"
 
-// Thanks, Windows.h :(
-#undef CompareString
-
 #define TO_ICONTAINER(_node)                                                  \
     static_cast<nsINavHistoryContainerResultNode*>(_node)                      
 
@@ -64,8 +61,8 @@
 #define END_RESULT_BATCH_AND_REFRESH_CONTENTS() \
   PR_BEGIN_MACRO \
   nsNavHistoryResult* result = GetResult(); \
-  NS_WARN_IF_FALSE(result, "Working with a non-live-updating Places container"); \
-  if (result && result->mBatchInProgress) { \
+  NS_ENSURE_STATE(result); \
+  if (result->mBatchInProgress) { \
     result->EndBatch(); \
   } \
   PR_END_MACRO
@@ -233,19 +230,6 @@ nsNavHistoryResultNode::GetTags(nsAString& aTags) {
     result->AddAllBookmarksObserver(query);
   }
 
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsNavHistoryResultNode::GetPageGuid(nsACString& aPageGuid) {
-  aPageGuid = mPageGuid;
-  return NS_OK;
-}
-
-
-NS_IMETHODIMP
-nsNavHistoryResultNode::GetBookmarkGuid(nsACString& aBookmarkGuid) {
-  aBookmarkGuid = mBookmarkGuid;
   return NS_OK;
 }
 
@@ -1636,8 +1620,8 @@ nsNavHistoryContainerResultNode::ChangeTitles(nsIURI* aURI,
   NS_ENSURE_SUCCESS(rv, rv);
 
   // The recursive function will update the result's tree nodes, but only if we
-  // give it a non-null pointer.  So if there isn't a tree, just pass nullptr
-  // so it doesn't bother trying to call the result.
+  // give it a non-null pointer.  So if there isn't a tree, just pass NULL so
+  // it doesn't bother trying to call the result.
   nsNavHistoryResult* result = GetResult();
   NS_ENSURE_STATE(result);
 
@@ -4047,15 +4031,14 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsNavHistoryResult)
 NS_INTERFACE_MAP_END
 
 nsNavHistoryResult::nsNavHistoryResult(nsNavHistoryContainerResultNode* aRoot)
-  : mRootNode(aRoot)
-  , mNeedsToApplySortingMode(false)
-  , mIsHistoryObserver(false)
-  , mIsBookmarkFolderObserver(false)
-  , mIsAllBookmarksObserver(false)
-  , mBookmarkFolderObservers(128)
-  , mBatchInProgress(false)
-  , mRelatedNotificationsCount(0)
-  , mSuppressNotifications(false)
+: mRootNode(aRoot)
+, mNeedsToApplySortingMode(false)
+, mIsHistoryObserver(false)
+, mIsBookmarkFolderObserver(false)
+, mIsAllBookmarksObserver(false)
+, mBatchInProgress(false)
+, mRelatedNotificationsCount(0)
+, mSuppressNotifications(false)
 {
   mRootNode->mResult = this;
 }
@@ -4114,6 +4097,8 @@ nsNavHistoryResult::Init(nsINavHistoryQuery** aQueries,
   mSortingMode = aOptions->SortingMode();
   rv = aOptions->GetSortingAnnotation(mSortingAnnotation);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  mBookmarkFolderObservers.Init(128);
 
   NS_ASSERTION(mRootNode->mIndentLevel == -1,
                "Root node's indent level initialized wrong");
@@ -4718,7 +4703,7 @@ nsNavHistoryResult::OnVisit(nsIURI* aURI, int64_t aVisitId, PRTime aTime,
       NS_ENSURE_TRUE(history, NS_OK);
       nsAutoCString todayLabel;
       history->GetStringFromName(
-        MOZ_UTF16("finduri-AgeInDays-is-0"), todayLabel);
+        NS_LITERAL_STRING("finduri-AgeInDays-is-0").get(), todayLabel);
       todayIsMissing = !todayLabel.Equals(title);
     }
   }

@@ -8,7 +8,6 @@
 #include "mozilla/layers/CompositorParent.h"  // for CompositorParent
 #include "mozilla/layers/Effects.h"     // for Effect, EffectChain, etc
 #include "mozilla/mozalloc.h"           // for operator delete, etc
-#include "gfx2DGlue.h"
 
 namespace mozilla {
 namespace gfx {
@@ -33,73 +32,22 @@ Compositor::AssertOnCompositorThread()
              "Can only call this from the compositor thread!");
 }
 
-bool
-Compositor::ShouldDrawDiagnostics(DiagnosticFlags aFlags)
-{
-  if ((aFlags & DIAGNOSTIC_TILE) && !(mDiagnosticTypes & DIAGNOSTIC_TILE_BORDERS)) {
-    return false;
-  }
-  if ((aFlags & DIAGNOSTIC_BIGIMAGE) &&
-      !(mDiagnosticTypes & DIAGNOSTIC_BIGIMAGE_BORDERS)) {
-    return false;
-  }
-  if (!mDiagnosticTypes) {
-    return false;
-  }
-  return true;
-}
-
 void
 Compositor::DrawDiagnostics(DiagnosticFlags aFlags,
-                            const nsIntRegion& aVisibleRegion,
+                            const gfx::Rect& rect,
                             const gfx::Rect& aClipRect,
-                            const gfx::Matrix4x4& aTransform)
+                            const gfx::Matrix4x4& aTransform,
+                            const gfx::Point& aOffset)
 {
-  if (!ShouldDrawDiagnostics(aFlags)) {
+  if (!(mDiagnosticTypes & DIAGNOSTIC_TILE_BORDERS) && (aFlags & DIAGNOSTIC_TILE)) {
     return;
   }
 
-  if (aVisibleRegion.GetNumRects() > 1) {
-    nsIntRegionRectIterator screenIter(aVisibleRegion);
-
-    while (const nsIntRect* rect = screenIter.Next())
-    {
-      DrawDiagnostics(aFlags | DIAGNOSTIC_REGION_RECT,
-                      ToRect(*rect), aClipRect, aTransform);
-    }
-  }
-
-  DrawDiagnostics(aFlags, ToRect(aVisibleRegion.GetBounds()),
-                  aClipRect, aTransform);
-}
-
-void
-Compositor::DrawDiagnostics(DiagnosticFlags aFlags,
-                            const gfx::Rect& aVisibleRect,
-                            const gfx::Rect& aClipRect,
-                            const gfx::Matrix4x4& aTransform)
-{
-  if (!ShouldDrawDiagnostics(aFlags)) {
+  if (!(mDiagnosticTypes & DIAGNOSTIC_LAYER_BORDERS)) {
     return;
   }
 
-  DrawDiagnosticsInternal(aFlags, aVisibleRect,
-                          aClipRect, aTransform);
-}
-
-void
-Compositor::DrawDiagnosticsInternal(DiagnosticFlags aFlags,
-                                    const gfx::Rect& aVisibleRect,
-                                    const gfx::Rect& aClipRect,
-                                    const gfx::Matrix4x4& aTransform)
-{
-#ifdef MOZ_B2G
-  int lWidth = 4;
-#elif defined(ANDROID)
-  int lWidth = 10;
-#else
   int lWidth = 2;
-#endif
   float opacity = 0.7;
 
   gfx::Color color;
@@ -109,7 +57,7 @@ Compositor::DrawDiagnosticsInternal(DiagnosticFlags aFlags,
       color = gfx::Color(0.0, 1.0, 1.0, 1.0); // greenish blue
     }
   } else if (aFlags & DIAGNOSTIC_IMAGE) {
-    color = gfx::Color(1.0, 0.0, 0.0, 1.0); // red
+    color = gfx::Color(0.5, 0.0, 0.0, 1.0); // red
   } else if (aFlags & DIAGNOSTIC_COLOR) {
     color = gfx::Color(0.0, 0.0, 1.0, 1.0); // blue
   } else if (aFlags & DIAGNOSTIC_CONTAINER) {
@@ -117,9 +65,7 @@ Compositor::DrawDiagnosticsInternal(DiagnosticFlags aFlags,
   }
 
   // make tile borders a bit more transparent to keep layer borders readable.
-  if (aFlags & DIAGNOSTIC_TILE ||
-      aFlags & DIAGNOSTIC_BIGIMAGE ||
-      aFlags & DIAGNOSTIC_REGION_RECT) {
+  if (aFlags & DIAGNOSTIC_TILE || aFlags & DIAGNOSTIC_BIGIMAGE) {
     lWidth = 1;
     opacity = 0.5;
     color.r *= 0.7;
@@ -131,25 +77,25 @@ Compositor::DrawDiagnosticsInternal(DiagnosticFlags aFlags,
 
   effects.mPrimaryEffect = new EffectSolidColor(color);
   // left
-  this->DrawQuad(gfx::Rect(aVisibleRect.x, aVisibleRect.y,
-                           lWidth, aVisibleRect.height),
+  this->DrawQuad(gfx::Rect(rect.x, rect.y,
+                           lWidth, rect.height),
                  aClipRect, effects, opacity,
-                 aTransform);
+                 aTransform, aOffset);
   // top
-  this->DrawQuad(gfx::Rect(aVisibleRect.x + lWidth, aVisibleRect.y,
-                           aVisibleRect.width - 2 * lWidth, lWidth),
+  this->DrawQuad(gfx::Rect(rect.x + lWidth, rect.y,
+                           rect.width - 2 * lWidth, lWidth),
                  aClipRect, effects, opacity,
-                 aTransform);
+                 aTransform, aOffset);
   // right
-  this->DrawQuad(gfx::Rect(aVisibleRect.x + aVisibleRect.width - lWidth, aVisibleRect.y,
-                           lWidth, aVisibleRect.height),
+  this->DrawQuad(gfx::Rect(rect.x + rect.width - lWidth, rect.y,
+                           lWidth, rect.height),
                  aClipRect, effects, opacity,
-                 aTransform);
+                 aTransform, aOffset);
   // bottom
-  this->DrawQuad(gfx::Rect(aVisibleRect.x + lWidth, aVisibleRect.y + aVisibleRect.height-lWidth,
-                           aVisibleRect.width - 2 * lWidth, lWidth),
+  this->DrawQuad(gfx::Rect(rect.x + lWidth, rect.y + rect.height-lWidth,
+                           rect.width - 2 * lWidth, lWidth),
                  aClipRect, effects, opacity,
-                 aTransform);
+                 aTransform, aOffset);
 }
 
 } // namespace

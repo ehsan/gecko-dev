@@ -40,8 +40,11 @@ function OptionsPanel(iframeWindow, toolbox) {
   this.toolbox = toolbox;
   this.isReady = false;
 
+  // Make restart method available from xul
+  this.panelWin.restart = this.restart;
+
   EventEmitter.decorate(this);
-}
+};
 
 OptionsPanel.prototype = {
 
@@ -50,35 +53,21 @@ OptionsPanel.prototype = {
   },
 
   open: function() {
-    let targetPromise;
+    let deferred = promise.defer();
 
-    // For local debugging we need to make the target remote.
-    if (!this.target.isRemote) {
-      targetPromise = this.target.makeRemote();
-    } else {
-      targetPromise = promise.resolve(this.target);
-    }
+    this.setupToolsList();
+    this.populatePreferences();
+    this.prepareRestartPreferences();
 
-    return targetPromise.then(() => {
-      this.setupToolsList();
-      this.populatePreferences();
+    this._disableJSClicked = this._disableJSClicked.bind(this);
 
-      this._disableJSClicked = this._disableJSClicked.bind(this);
-      this._disableCacheClicked = this._disableCacheClicked.bind(this);
+    let disableJSNode = this.panelDoc.getElementById("devtools-disable-javascript");
+    disableJSNode.addEventListener("click", this._disableJSClicked, false);
 
-      let disableJSNode = this.panelDoc.getElementById("devtools-disable-javascript");
-      disableJSNode.addEventListener("click", this._disableJSClicked, false);
-
-      let disableCacheNode = this.panelDoc.getElementById("devtools-disable-cache");
-      disableCacheNode.addEventListener("click", this._disableCacheClicked, false);
-    }).then(() => {
-      this.isReady = true;
-      this.emit("ready");
-      return this;
-    }).then(null, function onError(aReason) {
-      Cu.reportError("OptionsPanel open failed. " +
-                     aReason.error + ": " + aReason.message);
-    });
+    this.isReady = true;
+    this.emit("ready");
+    deferred.resolve(this);
+    return deferred.promise;
   },
 
   setupToolsList: function() {
@@ -122,7 +111,6 @@ OptionsPanel.prototype = {
         atleastOneToolNotSupported = true;
         checkbox.setAttribute("label",
                               l10n("options.toolNotSupportedMarker", tool.label));
-        checkbox.setAttribute("unsupported", "");
       }
       checkbox.setAttribute("checked", pref(tool.visibilityswitch));
       checkbox.addEventListener("command", onCheckboxClick.bind(checkbox, tool.id));
@@ -130,10 +118,10 @@ OptionsPanel.prototype = {
     };
 
     // Populating the default tools lists
-    let toggleableTools = gDevTools.getDefaultTools().filter(tool => {
-      return tool.visibilityswitch
-    });
-    for (let tool of toggleableTools) {
+    for (let tool of gDevTools.getDefaultTools()) {
+      if (tool.id == "options") {
+        continue;
+      }
       defaultToolsBox.appendChild(createToolCheckbox(tool));
     }
 
@@ -190,45 +178,34 @@ OptionsPanel.prototype = {
         gDevTools.emit("pref-changed", data);
       }.bind(radiogroup));
     }
-    let prefMenulists = this.panelDoc.querySelectorAll("menulist[data-pref]");
-    for (let menulist of prefMenulists) {
-      let pref = Services.prefs.getCharPref(menulist.getAttribute("data-pref"));
-      let menuitems = menulist.querySelectorAll("menuitem");
-      for (let menuitem of menuitems) {
-        let value = menuitem.getAttribute("value");
-        if (value === pref) {
-          menulist.selectedItem = menuitem;
-          break;
-        }
-      }
-      menulist.addEventListener("command", function() {
-        let data = {
-          pref: this.getAttribute("data-pref"),
-          newValue: this.value
-        };
-        data.oldValue = Services.prefs.getCharPref(data.pref);
-        Services.prefs.setCharPref(data.pref, data.newValue);
-        gDevTools.emit("pref-changed", data);
-      }.bind(menulist));
+  },
+
+  /**
+   * Handles checkbox click inside hbox with class "hidden-labels-box". The
+   * labels inside the hbox are shown again when the user click on the checkbox
+   * in the box.
+   */
+  prepareRestartPreferences: function() {
+    let checkboxes = this.panelDoc.querySelectorAll(".hidden-labels-box > checkbox");
+    for (let checkbox of checkboxes) {
+      checkbox.addEventListener("command", function(target) {
+        target.parentNode.classList.toggle("visible");
+      }.bind(null, checkbox));
+    }
+  },
+
+  restart: function() {
+    let canceled = Cc["@mozilla.org/supports-PRBool;1"]
+                     .createInstance(Ci.nsISupportsPRBool);
+    Services.obs.notifyObservers(canceled, "quit-application-requested", "restart");
+    if (canceled.data) {
+      return;
     }
 
-    this.target.client.attachTab(this.target.client.activeTab._actor, (response) => {
-      this._origJavascriptEnabled = response.javascriptEnabled;
-      this._origCacheEnabled = response.cacheEnabled;
-
-      this._populateDisableJSCheckbox();
-      this._populateDisableCacheCheckbox();
-    });
-  },
-
-  _populateDisableJSCheckbox: function() {
-    let cbx = this.panelDoc.getElementById("devtools-disable-javascript");
-    cbx.checked = !this._origJavascriptEnabled;
-  },
-
-  _populateDisableCacheCheckbox: function() {
-    let cbx = this.panelDoc.getElementById("devtools-disable-cache");
-    cbx.checked = !this._origCacheEnabled;
+    // restart
+    Cc['@mozilla.org/toolkit/app-startup;1']
+      .getService(Ci.nsIAppStartup)
+      .quit(Ci.nsIAppStartup.eAttemptQuit | Ci.nsIAppStartup.eRestart);
   },
 
   /**
@@ -243,59 +220,22 @@ OptionsPanel.prototype = {
    */
   _disableJSClicked: function(event) {
     let checked = event.target.checked;
+    let linkedBrowser = this.toolbox._host.hostTab.linkedBrowser;
+    let win = linkedBrowser.contentWindow;
+    let docShell = linkedBrowser.docShell;
 
-    let options = {
-      "javascriptEnabled": !checked
-    };
-
-    this.target.client.reconfigureTab(options);
-  },
-
-  /**
-   * Disables the cache for the currently loaded tab.
-   *
-   * @param {Event} event
-   *        The event sent by checking / unchecking the disable cache checkbox.
-   */
-  _disableCacheClicked: function(event) {
-    let checked = event.target.checked;
-
-    let options = {
-      "cacheEnabled": !checked
-    };
-
-    this.target.client.reconfigureTab(options);
-  },
-
-  destroy: function() {
-    if (this.destroyPromise) {
-      return this.destroyPromise;
+    if (typeof this.toolbox._origAllowJavascript == "undefined") {
+      this.toolbox._origAllowJavascript = docShell.allowJavascript;
     }
 
-    let deferred = promise.defer();
+    docShell.allowJavascript = !checked;
+    win.location.reload();
+  },
 
-    this.destroyPromise = deferred.promise;
-
+  destroy: function OP_destroy() {
     let disableJSNode = this.panelDoc.getElementById("devtools-disable-javascript");
     disableJSNode.removeEventListener("click", this._disableJSClicked, false);
 
-    let disableCacheNode = this.panelDoc.getElementById("devtools-disable-cache");
-    disableCacheNode.removeEventListener("click", this._disableCacheClicked, false);
-
-    this.panelWin = this.panelDoc = null;
-    this._disableJSClicked = this._disableCacheClicked = null;
-
-    // If the cache or JavaScript is disabled we need to revert them to their
-    // original values.
-    let options = {
-      "cacheEnabled": this._origCacheEnabled,
-      "javascriptEnabled": this._origJavascriptEnabled
-    };
-    this.target.client.reconfigureTab(options, () => {
-      this.toolbox = null;
-      deferred.resolve();
-    }, true);
-
-    return deferred.promise;
+    this.panelWin = this.panelDoc = this.toolbox = this._disableJSClicked = null;
   }
 };

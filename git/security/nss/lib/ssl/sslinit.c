@@ -22,11 +22,6 @@ ssl_Init(void)
 	    PORT_SetError(SEC_ERROR_NO_MEMORY);
 	    return (SECFailure);
 	}
-
-#ifdef DEBUG
-        ssl3_CheckCipherSuiteOrderConsistency();
-#endif
-
 	ssl_inited = 1;
     }
     return SECSuccess;

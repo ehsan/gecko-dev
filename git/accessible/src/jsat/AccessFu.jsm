@@ -19,8 +19,6 @@ const ACCESSFU_DISABLE = 0;
 const ACCESSFU_ENABLE = 1;
 const ACCESSFU_AUTO = 2;
 
-const SCREENREADER_SETTING = 'accessibility.screenreader';
-
 this.AccessFu = {
   /**
    * Initialize chrome-layer accessibility functionality.
@@ -37,15 +35,8 @@ this.AccessFu = {
       Services.obs.addObserver(this, 'Accessibility:Settings', false);
     } catch (x) {
       // Not on Android
-      if (aWindow.navigator.mozSettings) {
-        let lock = aWindow.navigator.mozSettings.createLock();
-        let req = lock.get(SCREENREADER_SETTING);
-        req.addEventListener('success', () => {
-          this._systemPref = req.result[SCREENREADER_SETTING];
-          this._enableOrDisable();
-        });
-        aWindow.navigator.mozSettings.addObserver(
-          SCREENREADER_SETTING, this.handleEvent.bind(this));
+      if (Utils.MozBuildApp === 'b2g') {
+        aWindow.addEventListener('ContentStart', this, false);
       }
     }
 
@@ -65,9 +56,10 @@ this.AccessFu = {
     }
     if (Utils.MozBuildApp === 'mobile/android') {
       Services.obs.removeObserver(this, 'Accessibility:Settings');
-    } else if (Utils.win.navigator.mozSettings) {
-      Utils.win.navigator.mozSettings.removeObserver(
-        SCREENREADER_SETTING, this.handleEvent.bind(this));
+    } else if (Utils.MozBuildApp === 'b2g') {
+      Utils.win.shell.contentBrowser.contentWindow.removeEventListener(
+        'mozContentEvent', this);
+      Utils.win.removeEventListener('ContentStart', this);
     }
     delete this._activatePref;
     Utils.uninit();
@@ -86,7 +78,7 @@ this.AccessFu = {
     Cu.import('resource://gre/modules/accessibility/TouchAdapter.jsm');
     Cu.import('resource://gre/modules/accessibility/Presentation.jsm');
 
-    Logger.info('Enabled');
+    Logger.info('enable');
 
     for each (let mm in Utils.AllMessageManagers) {
       this._addMessageListeners(mm);
@@ -145,7 +137,7 @@ this.AccessFu = {
 
     this._enabled = false;
 
-    Logger.info('Disabled');
+    Logger.info('disable');
 
     Utils.win.document.removeChild(this.stylesheet.get());
 
@@ -316,6 +308,20 @@ this.AccessFu = {
 
   handleEvent: function handleEvent(aEvent) {
     switch (aEvent.type) {
+      case 'ContentStart':
+      {
+        Utils.win.shell.contentBrowser.contentWindow.addEventListener(
+          'mozContentEvent', this, false, true);
+        break;
+      }
+      case 'mozContentEvent':
+      {
+        if (aEvent.detail.type == 'accessibility-screenreader') {
+          this._systemPref = aEvent.detail.enabled;
+          this._enableOrDisable();
+        }
+        break;
+      }
       case 'TabOpen':
       {
         let mm = Utils.getMessageManager(aEvent.target);
@@ -342,15 +348,6 @@ this.AccessFu = {
             function () {
               this.showCurrent(false);
             }.bind(this), 500);
-        }
-        break;
-      }
-      default:
-      {
-        // A settings change, it does not have an event type
-        if (aEvent.settingName == SCREENREADER_SETTING) {
-          this._systemPref = aEvent.settingValue;
-          this._enableOrDisable();
         }
         break;
       }
@@ -495,58 +492,6 @@ var Output = {
     }
   },
 
-  speechHelper: {
-    EARCONS: ['virtual_cursor_move.ogg',
-              'virtual_cursor_key.ogg',
-              'clicked.ogg'],
-
-    earconBuffers: {},
-
-    inited: false,
-
-    webspeechEnabled: false,
-
-    init: function init() {
-      let window = Utils.win;
-      this.webspeechEnabled = !!window.speechSynthesis;
-
-      for (let earcon of this.EARCONS) {
-        let earconName = /(^.*)\..*$/.exec(earcon)[1];
-        this.earconBuffers[earconName] = new WeakMap();
-        this.earconBuffers[earconName].set(
-          window, new window.Audio('chrome://global/content/accessibility/' + earcon));
-      }
-
-      this.inited = true;
-    },
-
-    output: function output(aActions) {
-      if (!this.inited) {
-        this.init();
-      }
-
-      for (let action of aActions) {
-        let window = Utils.win;
-        Logger.debug('tts.' + action.method, '"' + action.data + '"',
-                     JSON.stringify(action.options));
-
-        if (!action.options.enqueue && this.webspeechEnabled) {
-          window.speechSynthesis.cancel();
-        }
-
-        if (action.method === 'speak' && this.webspeechEnabled) {
-          window.speechSynthesis.speak(
-            new window.SpeechSynthesisUtterance(action.data));
-        } else if (action.method === 'playEarcon') {
-          let audioBufferWeakMap = this.earconBuffers[action.data];
-          if (audioBufferWeakMap) {
-            audioBufferWeakMap.get(window).cloneNode(false).play();
-          }
-        }
-      }
-    }
-  },
-
   start: function start() {
     Cu.import('resource://gre/modules/Geometry.jsm');
   },
@@ -564,7 +509,8 @@ var Output = {
   },
 
   Speech: function Speech(aDetails, aBrowser) {
-    this.speechHelper.output(aDetails.actions);
+    for each (let action in aDetails.actions)
+      Logger.info('tts.' + action.method, '"' + action.data + '"', JSON.stringify(action.options));
   },
 
   Visual: function Visual(aDetails, aBrowser) {
@@ -717,8 +663,8 @@ var Input = {
 
   _handleGesture: function _handleGesture(aGesture) {
     let gestureName = aGesture.type + aGesture.touches.length;
-    Logger.debug('Gesture', aGesture.type,
-                 '(fingers: ' + aGesture.touches.length + ')');
+    Logger.info('Gesture', aGesture.type,
+                '(fingers: ' + aGesture.touches.length + ')');
 
     switch (gestureName) {
       case 'dwell1':
@@ -736,16 +682,6 @@ var Input = {
         break;
       case 'swipeleft1':
         this.moveCursor('movePrevious', 'Simple', 'gesture');
-        break;
-      case 'swipeup1':
-        this.contextAction('backward');
-        break;
-      case 'swipedown1':
-        this.contextAction('forward');
-        break;
-      case 'exploreend1':
-      case 'dwellend1':
-        this.activateCurrent(null, true);
         break;
       case 'swiperight2':
         this.sendScrollMessage(-1, true);
@@ -868,12 +804,6 @@ var Input = {
                          origin: 'top', inputType: aInputType});
   },
 
-  contextAction: function contextAction(aDirection) {
-    // XXX: For now, the only supported context action is adjusting a range.
-    let mm = Utils.getMessageManager(Utils.CurrentBrowser);
-    mm.sendAsyncMessage('AccessFu:AdjustRange', {direction: aDirection});
-  },
-
   moveByGranularity: function moveByGranularity(aDetails) {
     const MOVEMENT_GRANULARITY_PARAGRAPH = 8;
 
@@ -893,13 +823,12 @@ var Input = {
     mm.sendAsyncMessage(type, aDetails);
   },
 
-  activateCurrent: function activateCurrent(aData, aActivateIfKey = false) {
+  activateCurrent: function activateCurrent(aData) {
     let mm = Utils.getMessageManager(Utils.CurrentBrowser);
     let offset = aData && typeof aData.keyIndex === 'number' ?
                  aData.keyIndex - Output.brailleState.startOffset : -1;
 
-    mm.sendAsyncMessage('AccessFu:Activate',
-                        {offset: offset, activateIfKey: aActivateIfKey});
+    mm.sendAsyncMessage('AccessFu:Activate', {offset: offset});
   },
 
   sendContextMenuMessage: function sendContextMenuMessage() {

@@ -83,6 +83,7 @@ nsCommandManager::Init(nsIDOMWindow *aWindow)
   
   NS_ASSERTION(aWindow, "Need non-null window here");
   mWindow = aWindow;      // weak ptr
+  mObserversTable.Init();
   return NS_OK;
 }
 
@@ -103,7 +104,7 @@ nsCommandManager::CommandStatusChanged(const char * aCommandName)
       // should we get the command state to pass here? This might be expensive.
       observer->Observe(NS_ISUPPORTS_CAST(nsICommandManager*, this),
                         aCommandName,
-                        MOZ_UTF16("command_status_changed"));
+                        NS_LITERAL_STRING("command_status_changed").get());
     }
   }
 

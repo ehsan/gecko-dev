@@ -46,7 +46,6 @@
 #include "nsXPCOMPrivate.h" // for MAXPATHLEN and XPCOM_DLL
 
 #include "mozilla/Telemetry.h"
-#include "mozilla/WindowsDllBlocklist.h"
 
 using namespace mozilla;
 
@@ -79,19 +78,9 @@ static void Output(const char *fmt, ... )
 #if MOZ_WINCONSOLE
   fwprintf_s(stderr, wide_msg);
 #else
-  // Linking user32 at load-time interferes with the DLL blocklist (bug 932100).
-  // This is a rare codepath, so we can load user32 at run-time instead.
-  HMODULE user32 = LoadLibraryW(L"user32.dll");
-  if (user32) {
-    typedef int (WINAPI * MessageBoxWFn)(HWND, LPCWSTR, LPCWSTR, UINT);
-    MessageBoxWFn messageBoxW = (MessageBoxWFn)GetProcAddress(user32, "MessageBoxW");
-    if (messageBoxW) {
-      messageBoxW(nullptr, wide_msg, L"Firefox", MB_OK
-                                               | MB_ICONERROR
-                                               | MB_SETFOREGROUND);
-    }
-    FreeLibrary(user32);
-  }
+  MessageBoxW(nullptr, wide_msg, L"Firefox", MB_OK
+                                           | MB_ICONERROR
+                                           | MB_SETFOREGROUND);
 #endif
 #endif
 
@@ -155,19 +144,25 @@ static void AttachToTestHarness()
 XRE_GetFileFromPathType XRE_GetFileFromPath;
 XRE_CreateAppDataType XRE_CreateAppData;
 XRE_FreeAppDataType XRE_FreeAppData;
+#ifdef XRE_HAS_DLL_BLOCKLIST
+XRE_SetupDllBlocklistType XRE_SetupDllBlocklist;
+#endif
 XRE_TelemetryAccumulateType XRE_TelemetryAccumulate;
 XRE_StartupTimelineRecordType XRE_StartupTimelineRecord;
 XRE_mainType XRE_main;
-XRE_StopLateWriteChecksType XRE_StopLateWriteChecks;
+XRE_DisableWritePoisoningType XRE_DisableWritePoisoning;
 
 static const nsDynamicFunctionLoad kXULFuncs[] = {
     { "XRE_GetFileFromPath", (NSFuncPtr*) &XRE_GetFileFromPath },
     { "XRE_CreateAppData", (NSFuncPtr*) &XRE_CreateAppData },
     { "XRE_FreeAppData", (NSFuncPtr*) &XRE_FreeAppData },
+#ifdef XRE_HAS_DLL_BLOCKLIST
+    { "XRE_SetupDllBlocklist", (NSFuncPtr*) &XRE_SetupDllBlocklist },
+#endif
     { "XRE_TelemetryAccumulate", (NSFuncPtr*) &XRE_TelemetryAccumulate },
     { "XRE_StartupTimelineRecord", (NSFuncPtr*) &XRE_StartupTimelineRecord },
     { "XRE_main", (NSFuncPtr*) &XRE_main },
-    { "XRE_StopLateWriteChecks", (NSFuncPtr*) &XRE_StopLateWriteChecks },
+    { "XRE_DisableWritePoisoning", (NSFuncPtr*) &XRE_DisableWritePoisoning },
     { nullptr, nullptr }
 };
 
@@ -602,24 +597,16 @@ int main(int argc, char* argv[])
 
   nsIFile *xreDirectory;
 
-#ifdef HAS_DLL_BLOCKLIST
-  DllBlocklist_Initialize();
-
-#ifdef DEBUG
-  // In order to be effective against AppInit DLLs, the blocklist must be
-  // initialized before user32.dll is loaded into the process (bug 932100).
-  if (GetModuleHandleA("user32.dll")) {
-    fprintf(stderr, "DLL blocklist was unable to intercept AppInit DLLs.\n");
-  }
-#endif
-#endif
-
   nsresult rv = InitXPCOMGlue(argv[0], &xreDirectory);
   if (NS_FAILED(rv)) {
     return 255;
   }
 
   XRE_StartupTimelineRecord(mozilla::StartupTimeline::START, start);
+
+#ifdef XRE_HAS_DLL_BLOCKLIST
+  XRE_SetupDllBlocklist();
+#endif
 
   if (gotCounters) {
 #if defined(XP_WIN)
@@ -655,7 +642,7 @@ int main(int argc, char* argv[])
   // at least one such write that we don't control (see bug 826029). For
   // now we enable writes again and early exits will have to use exit instead
   // of _exit.
-  XRE_StopLateWriteChecks();
+  XRE_DisableWritePoisoning();
 #endif
 
   return result;

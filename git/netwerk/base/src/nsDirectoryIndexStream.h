@@ -8,11 +8,12 @@
 
 #include "mozilla/Attributes.h"
 
+#include "nsIFile.h"
 #include "nsString.h"
 #include "nsIInputStream.h"
+#include "nsCOMPtr.h"
 #include "nsCOMArray.h"
-
-class nsIFile;
+#include "nsITextToSubURI.h"
 
 class nsDirectoryIndexStream MOZ_FINAL : public nsIInputStream
 {

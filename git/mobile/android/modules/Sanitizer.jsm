@@ -9,8 +9,9 @@ let Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://gre/modules/LoadContextInfo.jsm");
-Cu.import("resource://gre/modules/FormHistory.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "FormHistory",
+                                  "resource://gre/modules/FormHistory.jsm");
 
 function dump(a) {
   Services.console.logStringMessage(a);
@@ -67,9 +68,9 @@ Sanitizer.prototype = {
     cache: {
       clear: function ()
       {
-        var cache = Cc["@mozilla.org/netwerk/cache-storage-service;1"].getService(Ci.nsICacheStorageService);
+        var cacheService = Cc["@mozilla.org/network/cache-service;1"].getService(Ci.nsICacheService);
         try {
-          cache.clear();
+          cacheService.evictEntries(Ci.nsICache.STORE_ANYWHERE);
         } catch(er) {}
 
         let imageCache = Cc["@mozilla.org/image/tools;1"].getService(Ci.imgITools)
@@ -125,10 +126,9 @@ Sanitizer.prototype = {
     offlineApps: {
       clear: function ()
       {
-        var cacheService = Cc["@mozilla.org/netwerk/cache-storage-service;1"].getService(Ci.nsICacheStorageService);
-        var appCacheStorage = cacheService.appCacheStorage(LoadContextInfo.default, null);
+        var cacheService = Cc["@mozilla.org/network/cache-service;1"].getService(Ci.nsICacheService);
         try {
-          appCacheStorage.asyncEvictStorage(null);
+          cacheService.evictEntries(Ci.nsICache.STORE_OFFLINE);
         } catch(er) {}
       },
 
@@ -148,10 +148,11 @@ Sanitizer.prototype = {
         }
         catch (e) { }
 
+        // Clear last URL of the Open Web Location dialog
         try {
-          var seer = Cc["@mozilla.org/network/seer;1"].getService(Ci.nsINetworkSeer);
-          seer.reset();
-        } catch (e) { }
+          Services.prefs.clearUserPref("general.open_location.last_url");
+        }
+        catch (e) { }
       },
 
       get canClear()
@@ -165,6 +166,16 @@ Sanitizer.prototype = {
     formdata: {
       clear: function ()
       {
+        //Clear undo history of all searchBars
+        var windows = Services.wm.getEnumerator("navigator:browser");
+        while (windows.hasMoreElements()) {
+          var searchBar = windows.getNext().document.getElementById("searchbar");
+          if (searchBar) {
+            searchBar.value = "";
+            searchBar.textbox.editor.transactionManager.clear();
+          }
+        }
+
         FormHistory.update({ op: "remove" });
       },
 

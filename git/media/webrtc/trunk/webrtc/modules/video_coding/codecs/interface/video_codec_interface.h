@@ -13,13 +13,13 @@
 
 #include <vector>
 
-#include "webrtc/common_types.h"
-#include "webrtc/common_video/interface/i420_video_frame.h"
-#include "webrtc/common_video/interface/video_image.h"
-#include "webrtc/modules/interface/module_common_types.h"
-#include "webrtc/modules/video_coding/codecs/interface/video_error_codes.h"
+#include "common_types.h"
+#include "common_video/interface/i420_video_frame.h"
+#include "modules/interface/module_common_types.h"
+#include "modules/video_coding/codecs/interface/video_error_codes.h"
+#include "common_video/interface/video_image.h"
 
-#include "webrtc/typedefs.h"
+#include "typedefs.h"
 
 namespace webrtc
 {
@@ -43,13 +43,8 @@ struct CodecSpecificInfoVP8
     int8_t     keyIdx;            // negative value to skip keyIdx
 };
 
-struct CodecSpecificInfoGeneric {
-  uint8_t simulcast_idx;
-};
-
 union CodecSpecificInfoUnion
 {
-    CodecSpecificInfoGeneric   generic;
     CodecSpecificInfoVP8       VP8;
 };
 
@@ -252,6 +247,6 @@ public:
     virtual VideoDecoder* Copy() { return NULL; }
 };
 
-}  // namespace webrtc
+} // namespace webrtc
 
 #endif // WEBRTC_MODULES_VIDEO_CODING_CODECS_INTERFACE_VIDEO_CODEC_INTERFACE_H

@@ -34,9 +34,7 @@ splitPath.push('mochitest');
 const mochitestPath = splitPath.join('/') + '/';
 
 [
-  "helpers/BookmarksHelper.js",
-  "helpers/HistoryHelper.js",
-  "helpers/ViewStateHelper.js"
+  "ViewStateHelper.js"
 ].forEach(function(lib) {
   Services.scriptloader.loadSubScript(mochitestPath + lib, this);
 }, this);
@@ -47,7 +45,7 @@ const mochitestPath = splitPath.join('/') + '/';
 
 function isLandscapeMode()
 {
-  return Elements.windowState.getAttribute("viewstate") == "landscape";
+  return (MetroUtils.snappedState == Ci.nsIWinMetroUtils.fullScreenLandscape);
 }
 
 function setDevPixelEqualToPx()
@@ -114,37 +112,37 @@ function checkMonoclePositionRange(aMonocle, aMinX, aMaxX, aMinY, aMaxY)
 function showNotification()
 {
   return Task.spawn(function() {
-    let strings = Strings.browser;
-    var buttons = [
-      {
-        isDefault: false,
-        label: strings.GetStringFromName("popupButtonAllowOnce2"),
-        accessKey: "",
-        callback: function() { }
-      },
-      {
-        label: strings.GetStringFromName("popupButtonAlwaysAllow3"),
-        accessKey: "",
-        callback: function() { }
-      },
-      {
-        label: strings.GetStringFromName("popupButtonNeverWarn3"),
-        accessKey: "",
-        callback: function() { }
-      }
-    ];
-    let notificationBox = Browser.getNotificationBox();
-    const priority = notificationBox.PRIORITY_WARNING_MEDIUM;
-    let note = notificationBox.appendNotification("test notification", "popup-blocked",
-                                                  "chrome://browser/skin/images/infobar-popup.png",
-                                                  priority, buttons);
-    yield waitForEvent(notificationBox, "transitionend");
-    throw new Task.Result(note);
+    try {
+      let strings = Strings.browser;
+      var buttons = [
+        {
+          isDefault: false,
+          label: strings.GetStringFromName("popupButtonAllowOnce2"),
+          accessKey: "",
+          callback: function() { }
+        },
+        {
+          label: strings.GetStringFromName("popupButtonAlwaysAllow3"),
+          accessKey: "",
+          callback: function() { }
+        },
+        {
+          label: strings.GetStringFromName("popupButtonNeverWarn3"),
+          accessKey: "",
+          callback: function() { }
+        }
+      ];
+      let notificationBox = Browser.getNotificationBox();
+      const priority = notificationBox.PRIORITY_WARNING_MEDIUM;
+      notificationBox.appendNotification("test notification", "popup-blocked",
+                                          "chrome://browser/skin/images/infobar-popup.png",
+                                          priority, buttons);
+      yield waitForEvent(notificationBox, "transitionend");
+      return;
+    } catch (ex) {
+      throw new Task.Result(ex);
+    }
   });
-}
-
-function removeNotifications() {
-  Browser.getNotificationBox().removeAllNotifications(true);
 }
 
 function getSelection(aElement) {
@@ -190,6 +188,10 @@ function clearSelection(aTarget) {
   purgeEventQueue();
 }
 
+/*=============================================================================
+  Asynchronous Metro ui helpers
+=============================================================================*/
+
 // Hides the tab and context app bar if they are visible
 function hideContextUI()
 {
@@ -231,38 +233,9 @@ function fireAppBarDisplayEvent()
 }
 
 /*=============================================================================
-  General test helpers
+  Asynchronous test helpers
 =============================================================================*/
 let gOpenedTabs = [];
-
-function loadUriInActiveTab(aUri)
-{
-  return Task.spawn(function() {
-    let promise = waitForEvent(getBrowser(), "pageshow");
-    BrowserUI.goToURI(aUri);
-    yield waitForCondition(function () {
-      return getBrowser().currentURI.spec == aUri
-    }, "getBrowser().currentURI.spec == " + aUri);
-    yield promise;
-  });
-}
-
-function navForward() {
-  return Task.spawn(function() {
-    let promise = waitForEvent(getBrowser(), "pageshow");
-    EventUtils.synthesizeKey("VK_RIGHT", { altKey: true }, window);
-    yield promise;
-  });
-}
-
-function navBackViaNavButton() {
-  return Task.spawn(function() {
-    let promise = waitForEvent(getBrowser(), "pageshow");
-    let backButton = document.getElementById("overlay-back");
-    sendElementTap(window, backButton);
-    yield promise;
-  });
-}
 
 /**
  *  Loads a URL in a new tab asynchronously.
@@ -328,11 +301,11 @@ function waitForEvent(aSubject, aEventName, aTimeoutMs, aTarget) {
   let timeoutMs = aTimeoutMs || kDefaultWait;
   let stack = new Error().stack;
   let timerID = setTimeout(function wfe_canceller() {
-    aSubject.removeEventListener(aEventName, listener);
+    aSubject.removeEventListener(aEventName, onEvent);
     eventDeferred.reject( new Error(aEventName+" event timeout at " + stack) );
   }, timeoutMs);
 
-  var listener = function (aEvent) {
+  function onEvent(aEvent) {
     if (aTarget && aTarget !== aEvent.target)
         return;
 
@@ -341,29 +314,14 @@ function waitForEvent(aSubject, aEventName, aTimeoutMs, aTarget) {
     eventDeferred.resolve(aEvent);
   }
 
-  function cleanup(aEventOrError) {
+  function cleanup() {
     // unhook listener in case of success or failure
-    aSubject.removeEventListener(aEventName, listener);
-    return aEventOrError;
+    aSubject.removeEventListener(aEventName, onEvent);
   }
-  aSubject.addEventListener(aEventName, listener, false);
-  return eventDeferred.promise.then(cleanup, cleanup);
-}
+  eventDeferred.promise.then(cleanup, cleanup);
 
-/**
- * Wait for an nsIMessageManager IPC message.
- */
-function waitForMessage(aName, aMessageManager) {
-  let deferred = Promise.defer();
-  let manager = aMessageManager || messageManager;
-  function listener(aMessage) {
-    deferred.resolve(aMessage);
-  }
-  manager.addMessageListener(aName, listener);
-  function cleanup(aEventOrError) {
-    manager.removeMessageListener(aName, listener);
-  }
-  return deferred.promise.then(cleanup, cleanup);
+  aSubject.addEventListener(aEventName, onEvent, false);
+  return eventDeferred.promise;
 }
 
 /**
@@ -412,12 +370,11 @@ function waitForCondition(aCondition, aTimeoutMs, aIntervalMs) {
   let timeoutMs = aTimeoutMs || kDefaultWait;
   let intervalMs = aIntervalMs || kDefaultInterval;
   let startTime = Date.now();
-  let stack = new Error().stack;
 
   function testCondition() {
     let now = Date.now();
     if((now - startTime) > timeoutMs) {
-      deferred.reject( new Error("Timed out waiting for condition to be true at " + stack) );
+      deferred.reject( new Error("Timed out waiting for condition to be true") );
       return;
     }
 
@@ -430,50 +387,6 @@ function waitForCondition(aCondition, aTimeoutMs, aIntervalMs) {
     }
 
     if (condition) {
-      deferred.resolve(true);
-    } else {
-      setTimeout(testCondition, intervalMs);
-    }
-  }
-
-  setTimeout(testCondition, 0);
-  return deferred.promise;
-}
-
-/**
- * same as waitForCondition but with better test output.
- *
- * @param aCondition the callback that must return a truthy value
- * @param aTestMsg test condition message printed when the test succeeds or
- * fails. Defaults to the stringified version of aCondition.
- * @param aTimeoutMs the number of miliseconds to wait before giving up
- * @param aIntervalMs the number of miliseconds between calls to aCondition
- * @returns a Promise that resolves to true, or to an Error
- */
-function waitForCondition2(aCondition, aTestMsg, aTimeoutMs, aIntervalMs) {
-  let deferred = Promise.defer();
-  let msg = aTestMsg || aCondition;
-  let timeoutMs = aTimeoutMs || kDefaultWait;
-  let intervalMs = aIntervalMs || kDefaultInterval;
-  let startTime = Date.now();
-
-  function testCondition() {
-    let now = Date.now();
-    if((now - startTime) > timeoutMs) {
-      deferred.reject( new Error("Timed out waiting for " + msg) );
-      return;
-    }
-
-    let condition;
-    try {
-      condition = aCondition();
-    } catch (e) {
-      deferred.reject( new Error("Got exception while attempting to test '" + msg + "': " + e) );
-      return;
-    }
-
-    if (condition) {
-      ok(true, msg);
       deferred.resolve(true);
     } else {
       setTimeout(testCondition, intervalMs);
@@ -557,10 +470,24 @@ function waitForObserver(aObsEvent, aTimeoutMs) {
 }
 
 /*=============================================================================
- * Native input helpers - these helpers send input directly to the os
- * generating os level input events that get processed by widget and
- * apzc logic.
- *===========================================================================*/
+  Native input synthesis helpers
+=============================================================================*/
+// Keyboard layouts for use with synthesizeNativeKey
+const usEnglish = 0x409;
+const arSpanish = 0x2C0A;
+
+// Modifiers for use with synthesizeNativeKey
+const leftShift = 0x100;
+const rightShift = 0x200;
+const leftControl = 0x400;
+const rightControl = 0x800;
+const leftAlt = 0x1000;
+const rightAlt = 0x2000;
+
+function synthesizeNativeKey(aKbLayout, aVKey, aModifiers) {
+  Browser.windowUtils.sendNativeKeyEvent(aKbLayout, aVKey, aModifiers, '', '');
+}
+
 function synthesizeNativeMouse(aElement, aOffsetX, aOffsetY, aMsg) {
   let x = aOffsetX;
   let y = aOffsetY;
@@ -625,36 +552,6 @@ function synthesizeNativeMouseMUp(aElement, aOffsetX, aOffsetY) {
                         aOffsetY,
                         0x0040);  // MOUSEEVENTF_MIDDLEUP
 }
-
-// WARNING: these calls can trigger the soft keyboard on tablets, but not
-// on test slaves (bug 947428).
-// WARNING: When testing the apzc, be careful of bug 933990. Events sent
-// shortly after loading a page may get ignored.
-
-function sendNativeLongTap(aElement, aX, aY) {
-  let coords = logicalCoordsForElement(aElement, aX, aY);
-  Browser.windowUtils.sendNativeTouchTap(coords.x, coords.y, true);
-}
-
-function sendNativeTap(aElement, aX, aY) {
-  let coords = logicalCoordsForElement(aElement, aX, aY);
-  Browser.windowUtils.sendNativeTouchTap(coords.x, coords.y, false);
-}
-
-function sendNativeDoubleTap(aElement, aX, aY) {
-  let coords = logicalCoordsForElement(aElement, aX, aY);
-  Browser.windowUtils.sendNativeTouchTap(coords.x, coords.y, false);
-  Browser.windowUtils.sendNativeTouchTap(coords.x, coords.y, false);
-}
-
-function clearNativeTouchSequence() {
-  Browser.windowUtils.clearNativeTouchSequence();
-}
-
-/*=============================================================================
- * Synthesized event helpers - these helpers synthesize input events that get
- * dispatched directly to the dom. As such widget and apzc logic is bypassed.
- *===========================================================================*/
 
 /*
  * logicalCoordsForElement - given coordinates relative to top-left of
@@ -800,36 +697,13 @@ TouchDragAndHold.prototype = {
   _numSteps: 50,
   _debug: false,
   _win: null,
-  _native: false,
-  _pointerId: 1,
-  _dui: Components.interfaces.nsIDOMWindowUtils,
-
-  set useNativeEvents(aValue) {
-    this._native = aValue;
-  },
-
-  set nativePointerId(aValue) {
-    this._pointerId = aValue;
-  },
 
   callback: function callback() {
     if (this._win == null)
       return;
-
-    if (this._debug) {
-      SelectionHelperUI.debugDisplayDebugPoint(this._currentPoint.xPos,
-        this._currentPoint.yPos, 5, "#FF0000", true);
-    }
-
     if (++this._step.steps >= this._numSteps) {
-      if (this._native) {
-        this._utils.sendNativeTouchPoint(this._pointerId, this._dui.TOUCH_CONTACT,
-                                         this._endPoint.xPos, this._endPoint.yPos,
-                                         1, 90);
-      } else {
-        EventUtils.synthesizeTouchAtPoint(this._endPoint.xPos, this._endPoint.yPos,
-                                          { type: "touchmove" }, this._win);
-      }
+      EventUtils.synthesizeTouchAtPoint(this._endPoint.xPos, this._endPoint.yPos,
+                                        { type: "touchmove" }, this._win);
       this._defer.resolve();
       return;
     }
@@ -838,16 +712,8 @@ TouchDragAndHold.prototype = {
     if (this._debug) {
       info("[" + this._step.steps + "] touchmove " + this._currentPoint.xPos + " x " + this._currentPoint.yPos);
     }
-
-    if (this._native) {
-      this._utils.sendNativeTouchPoint(this._pointerId, this._dui.TOUCH_CONTACT,
-                                       this._currentPoint.xPos, this._currentPoint.yPos,
-                                       1, 90);
-    } else {
-      EventUtils.synthesizeTouchAtPoint(this._currentPoint.xPos, this._currentPoint.yPos,
-                                        { type: "touchmove" }, this._win);
-    }
-
+    EventUtils.synthesizeTouchAtPoint(this._currentPoint.xPos, this._currentPoint.yPos,
+                                      { type: "touchmove" }, this._win);
     let self = this;
     setTimeout(function () { self.callback(); }, this._timeoutStep);
   },
@@ -855,20 +721,13 @@ TouchDragAndHold.prototype = {
   start: function start(aWindow, aStartX, aStartY, aEndX, aEndY) {
     this._defer = Promise.defer();
     this._win = aWindow;
-    this._utils = aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                         .getInterface(Ci.nsIDOMWindowUtils);
     this._endPoint = { xPos: aEndX, yPos: aEndY };
     this._currentPoint = { xPos: aStartX, yPos: aStartY };
     this._step = { steps: 0, x: (aEndX - aStartX) / this._numSteps, y: (aEndY - aStartY) / this._numSteps };
     if (this._debug) {
       info("[0] touchstart " + aStartX + " x " + aStartY);
     }
-    if (this._native) {
-      this._utils.sendNativeTouchPoint(this._pointerId, this._dui.TOUCH_CONTACT,
-                                       aStartX, aStartY, 1, 90);
-    } else {
-      EventUtils.synthesizeTouchAtPoint(aStartX, aStartY, { type: "touchstart" }, aWindow);
-    }
+    EventUtils.synthesizeTouchAtPoint(aStartX, aStartY, { type: "touchstart" }, aWindow);
     let self = this;
     setTimeout(function () { self.callback(); }, this._timeoutStep);
     return this._defer.promise;
@@ -893,16 +752,9 @@ TouchDragAndHold.prototype = {
   end: function start() {
     if (this._debug) {
       info("[" + this._step.steps + "] touchend " + this._endPoint.xPos + " x " + this._endPoint.yPos);
-      SelectionHelperUI.debugClearDebugPoints();
     }
-    if (this._native) {
-      this._utils.sendNativeTouchPoint(this._pointerId, this._dui.TOUCH_REMOVE,
-                                       this._endPoint.xPos, this._endPoint.yPos,
-                                       1, 90);
-    } else {
-      EventUtils.synthesizeTouchAtPoint(this._endPoint.xPos, this._endPoint.yPos,
-                                        { type: "touchend" }, this._win);
-    }
+    EventUtils.synthesizeTouchAtPoint(this._endPoint.xPos, this._endPoint.yPos,
+                                      { type: "touchend" }, this._win);
     this._win = null;
   },
 };

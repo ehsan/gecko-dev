@@ -134,12 +134,12 @@ class InlineMap
 
         K &key() {
             JS_ASSERT(found());
-            return isInlinePtr ? inlPtr->key : mapPtr->key();
+            return isInlinePtr ? inlPtr->key : mapPtr->key;
         }
 
         V &value() {
             JS_ASSERT(found());
-            return isInlinePtr ? inlPtr->value : mapPtr->value();
+            return isInlinePtr ? inlPtr->value : mapPtr->value;
         }
     }; /* class Ptr */
 
@@ -178,7 +178,7 @@ class InlineMap
             JS_ASSERT(found());
             if (isInlinePtr)
                 return inlAddPtr->value;
-            return mapAddPtr->value();
+            return mapAddPtr->value;
         }
     }; /* class AddPtr */
 
@@ -224,7 +224,7 @@ class InlineMap
                 return Ptr(it);
         }
 
-        return Ptr(nullptr);
+        return Ptr(NULL);
     }
 
     JS_ALWAYS_INLINE
@@ -283,8 +283,8 @@ class InlineMap
         JS_ASSERT(p);
         if (p.isInlinePtr) {
             JS_ASSERT(inlCount > 0);
-            JS_ASSERT(p.inlPtr->key != nullptr);
-            p.inlPtr->key = nullptr;
+            JS_ASSERT(p.inlPtr->key != NULL);
+            p.inlPtr->key = NULL;
             --inlCount;
             return;
         }
@@ -307,7 +307,7 @@ class InlineMap
         bool            isInline;
 
         explicit Range(WordMapRange r)
-          : cur(nullptr), end(nullptr), /* Avoid GCC 4.3.3 over-warning. */
+          : cur(NULL), end(NULL), /* Avoid GCC 4.3.3 over-warning. */
             isInline(false) {
             mapRange = r;
             JS_ASSERT(!isInlineRange());
@@ -323,7 +323,7 @@ class InlineMap
 
         bool checkInlineRangeInvariants() const {
             JS_ASSERT(uintptr_t(cur) <= uintptr_t(end));
-            JS_ASSERT_IF(cur != end, cur->key != nullptr);
+            JS_ASSERT_IF(cur != end, cur->key != NULL);
             return true;
         }
 
@@ -334,7 +334,7 @@ class InlineMap
 
         void advancePastNulls(InlineElem *begin) {
             InlineElem *newCur = begin;
-            while (newCur < end && nullptr == newCur->key)
+            while (newCur < end && NULL == newCur->key)
                 ++newCur;
             JS_ASSERT(uintptr_t(newCur) <= uintptr_t(end));
             cur = newCur;
@@ -356,7 +356,7 @@ class InlineMap
             JS_ASSERT(!empty());
             if (isInlineRange())
                 return Entry(cur->key, cur->value);
-            return Entry(mapRange.front().key(), mapRange.front().value());
+            return Entry(mapRange.front().key, mapRange.front().value);
         }
 
         void popFront() {

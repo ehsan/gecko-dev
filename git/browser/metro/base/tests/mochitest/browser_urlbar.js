@@ -92,18 +92,19 @@ function removeMockSearchDefault(aTimeoutMs) {
 
 function test() {
   waitForExplicitFinish();
-  runTests();
+  Task.spawn(function(){
+    yield addTab("about:blank");
+  }).then(runTests);
 }
 
 function setUp() {
   if (!gEdit)
     gEdit = document.getElementById("urlbar-edit");
-
-  yield addTab("about:blank");
   yield showNavBar();
 }
 
 function tearDown() {
+  yield removeMockSearchDefault();
   Browser.closeTab(Browser.selectedTab, { forceClose: true });
 }
 
@@ -117,7 +118,6 @@ gTests.push({
       gEdit.openPopup();
       gEdit.closePopup();
     }
-    yield waitForCondition(() => gEdit.popup._searches.itemCount);
 
     let numSearches = gEdit.popup._searches.itemCount;
     function getEngineItem() {
@@ -125,11 +125,11 @@ gTests.push({
     }
 
     yield addMockSearchDefault();
-    is(gEdit.popup._searches.itemCount, numSearches + 1, "added search engine count");
+    ok(gEdit.popup._searches.itemCount == numSearches + 1, "added search engine count");
     ok(getEngineItem(), "added search engine item");
 
     yield removeMockSearchDefault();
-    is(gEdit.popup._searches.itemCount, numSearches, "normal search engine count");
+    ok(gEdit.popup._searches.itemCount == numSearches, "normal search engine count");
     ok(!getEngineItem(), "added search engine item");
   }
 });
@@ -272,17 +272,15 @@ gTests.push({
     let searchSubmission = gEngine.getSubmission(search, null);
     let trimmedSubmission = gEdit.trimValue(searchSubmission.uri.spec);
     is(gEdit.value, trimmedSubmission, "tap search option: search conducted");
-
-    yield removeMockSearchDefault();
   }
 });
 
 gTests.push({
   desc: "bug 897131 - url bar update after content tap + edge swipe",
+  setUp: setUp,
   tearDown: tearDown,
   run: function testUrlbarTyping() {
     let tab = yield addTab("about:mozilla");
-    yield showNavBar();
 
     sendElementTap(window, gEdit);
     ok(gEdit.isEditing, "focus urlbar: in editing mode");
@@ -304,75 +302,6 @@ gTests.push({
 
     ok(ContextUI.navbarVisible, "navbar visible");
     is(gEdit.value, "about:mozilla", "url bar text refreshed");
-  }
-});
-
-gTests.push({
-  desc: "Bug 916383 - Invisible autocomplete items selectable by keyboard when 'your results' not shown",
-  tearDown: tearDown,
-  run: function testBug916383() {
-    yield addTab("about:start");
-    yield showNavBar();
-
-    sendElementTap(window, gEdit);
-
-    let bookmarkItem = Browser.selectedBrowser.contentWindow.BookmarksStartView._grid.querySelector("richgriditem");
-    // Get the first bookmark item label to make sure it will show up in 'your results'
-    let label = bookmarkItem.getAttribute("label");
-
-    EventUtils.sendString(label, window);
-
-    let opened = yield waitForCondition(() => gEdit.popup.popupOpen);
-    yield waitForCondition(() => gEdit.popup._results.itemCount > 0);
-
-    ok(!gEdit.popup._resultsContainer.hidden, "'Your results' are visible");
-    ok(gEdit.popup._results.itemCount > 0, "'Your results' are populated");
-
-    // Append a string to make sure it doesn't match anything in 'your results'
-    EventUtils.sendString("zzzzzzzzzzzzzzzzzz", window);
-
-    yield waitForCondition(() => gEdit.popup._resultsContainer.hidden);
-
-    ok(gEdit.popup._resultsContainer.hidden, "'Your results' are hidden");
-    ok(gEdit.popup._results.itemCount === 0, "'Your results' are empty");
-
-    EventUtils.synthesizeKey("VK_DOWN", {}, window);
-    is(gEdit.popup._searches.selectedIndex, 0, "key select search: first search selected");
-
-    EventUtils.synthesizeKey("VK_TAB", {}, window);
-    is(gEdit.popup._searches.selectedIndex, 1, "tab key: second search selected");
-
-    EventUtils.synthesizeKey("VK_TAB", { shiftKey: true }, window);
-    is(gEdit.popup._searches.selectedIndex, 0, "shift-tab: first search selected");
-  }
-});
-
-gTests.push({
-  desc: "Bug 891667 - Use up arrow too",
-  tearDown: tearDown,
-  run: function testBug891667() {
-    yield addTab("about:start");
-    yield showNavBar();
-
-    sendElementTap(window, gEdit);
-
-    let bookmarkItem = Browser.selectedBrowser.contentWindow.BookmarksStartView._grid.querySelector("richgriditem");
-    // Get the first bookmark item label to make sure it will show up in 'your results'
-    let label = bookmarkItem.getAttribute("label");
-
-    EventUtils.sendString(label, window);
-
-    yield waitForCondition(() => gEdit.popup.popupOpen);
-    yield waitForCondition(() => gEdit.popup._results.itemCount > 0);
-
-    ok(gEdit.popup._results.itemCount > 0, "'Your results' populated");
-
-    EventUtils.synthesizeKey("VK_UP", {}, window);
-    is(gEdit.popup._results.selectedIndex, 0, "Pressing arrow up selects first item.");
-
-    EventUtils.synthesizeKey("VK_BACK_SPACE", {}, window);
-    yield waitForEvent(document.getElementById("urlbar-edit"), "input");
-    is(gEdit.popup._results.selectedIndex, -1, "backspace: autocomplete de-selected");
   }
 });
 

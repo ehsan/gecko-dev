@@ -9,19 +9,6 @@
 
 #include <dirent.h>
 
-#define USE_DEBUG 0
-
-#undef LOG
-#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO,  "OpenFileFinder", ## args)
-#define LOGW(args...) __android_log_print(ANDROID_LOG_WARN,  "OpenFileFinder", ## args)
-#define ERR(args...)  __android_log_print(ANDROID_LOG_ERROR, "OpenFileFinder", ## args)
-
-#if USE_DEBUG
-#define DBG(args...)  __android_log_print(ANDROID_LOG_DEBUG, "OpenFileFinder" , ## args)
-#else
-#define DBG(args...)
-#endif
-
 namespace mozilla {
 namespace system {
 
@@ -42,10 +29,9 @@ public:
     pid_t     mPid;       // pid of the process which has the file open
     nsCString mComm;      // comm associated with pid
     nsCString mExe;       // executable name associated with pid
-    bool      mIsB2gOrDescendant; // this is b2g/its descendant or not
   };
 
-  OpenFileFinder(const nsACString& aPath, bool aCheckIsB2gOrDescendant = true);
+  OpenFileFinder(const nsACString& aPath);
   ~OpenFileFinder();
 
   bool First(Info* aInfo);  // Return the first open file
@@ -66,8 +52,6 @@ private:
   DIR*      mProcDir; // Used for scanning /proc
   DIR*      mFdDir;   // Used for scanning /proc/PID/fd
   int       mPid;     // PID currently being processed
-  pid_t     mMyPid;   // PID of parent process, we assume we're running on it.
-  bool      mCheckIsB2gOrDescendant; // Do we care about non-b2g process?
 };
 
 } // system

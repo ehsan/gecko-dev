@@ -1,13 +1,13 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+ * vim: sw=2 ts=2 et lcs=trail\:.,tab\:>~ :
+ * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/MemoryReporting.h"
+#include "mozilla/Util.h"
 
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/ContentParent.h"
@@ -31,6 +31,7 @@
 #include "nsIXPConnect.h"
 #include "mozilla/unused.h"
 #include "nsContentUtils.h" // for nsAutoScriptBlocker
+#include "nsIMemoryReporter.h"
 #include "mozilla/ipc/URIUtils.h"
 #include "nsPrintfCString.h"
 #include "nsTHashtable.h"
@@ -83,7 +84,7 @@ struct VisitData {
   }
 
   VisitData(nsIURI* aURI,
-            nsIURI* aReferrer = nullptr)
+            nsIURI* aReferrer = NULL)
   : placeId(0)
   , visitId(0)
   , hidden(true)
@@ -394,7 +395,7 @@ GetIntFromJSObject(JSContext* aCtx,
   NS_ENSURE_ARG(JSVAL_IS_NUMBER(value));
 
   double num;
-  rc = JS::ToNumber(aCtx, value, &num);
+  rc = JS_ValueToNumber(aCtx, value, &num);
   NS_ENSURE_TRUE(rc, NS_ERROR_UNEXPECTED);
   NS_ENSURE_ARG(IntType(num) == num);
 
@@ -786,7 +787,7 @@ private:
 bool
 CanAddURI(nsIURI* aURI,
           const nsCString& aGUID = EmptyCString(),
-          mozIVisitInfoCallback* aCallback = nullptr)
+          mozIVisitInfoCallback* aCallback = NULL)
 {
   nsNavHistory* navHistory = nsNavHistory::GetHistoryService();
   NS_ENSURE_TRUE(navHistory, false);
@@ -837,7 +838,7 @@ public:
    */
   static nsresult Start(mozIStorageConnection* aConnection,
                         nsTArray<VisitData>& aPlaces,
-                        mozIVisitInfoCallback* aCallback = nullptr)
+                        mozIVisitInfoCallback* aCallback = NULL)
   {
     MOZ_ASSERT(NS_IsMainThread(), "This should be called on the main thread");
     MOZ_ASSERT(aPlaces.Length() > 0, "Must pass a non-empty array!");
@@ -868,7 +869,7 @@ public:
     mozStorageTransaction transaction(mDBConn, false,
                                       mozIStorageConnection::TRANSACTION_IMMEDIATE);
 
-    VisitData* lastPlace = nullptr;
+    VisitData* lastPlace = NULL;
     for (nsTArray<VisitData>::size_type i = 0; i < mPlaces.Length(); i++) {
       VisitData& place = mPlaces.ElementAt(i);
       VisitData& referrer = mReferrers.ElementAt(i);
@@ -1580,11 +1581,11 @@ class NotifyRemoveVisits : public nsRunnable
 public:
 
   NotifyRemoveVisits(nsTHashtable<PlaceHashKey>& aPlaces)
-    : mPlaces(VISITS_REMOVAL_INITIAL_HASH_SIZE)
-    , mHistory(History::GetService())
+  : mHistory(History::GetService())
   {
     MOZ_ASSERT(!NS_IsMainThread(),
                "This should not be called on the main thread");
+    mPlaces.Init(VISITS_REMOVAL_INITIAL_HASH_SIZE);
     aPlaces.EnumerateEntries(TransferHashEntries, &mPlaces);
   }
 
@@ -1685,7 +1686,8 @@ public:
 
     // Find all the visits relative to the current filters and whether their
     // pages will be removed or not.
-    nsTHashtable<PlaceHashKey> places(VISITS_REMOVAL_INITIAL_HASH_SIZE);
+    nsTHashtable<PlaceHashKey> places;
+    places.Init(VISITS_REMOVAL_INITIAL_HASH_SIZE);
     nsresult rv = FindRemovableVisits(places);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1871,7 +1873,7 @@ private:
  */
 void
 StoreAndNotifyEmbedVisit(VisitData& aPlace,
-                         mozIVisitInfoCallback* aCallback = nullptr)
+                         mozIVisitInfoCallback* aCallback = NULL)
 {
   MOZ_ASSERT(aPlace.transitionType == nsINavHistoryService::TRANSITION_EMBED,
              "Must only pass TRANSITION_EMBED visits to this!");
@@ -1907,21 +1909,33 @@ StoreAndNotifyEmbedVisit(VisitData& aPlace,
   (void)NS_DispatchToMainThread(event);
 }
 
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(HistoryLinksHashtableMallocSizeOf)
+
+int64_t GetHistoryObserversSize()
+{
+  History* history = History::GetService();
+  return history ?
+         history->SizeOfIncludingThis(HistoryLinksHashtableMallocSizeOf) : 0;
+}
+
+NS_MEMORY_REPORTER_IMPLEMENT(HistoryService,
+  "explicit/history-links-hashtable",
+  KIND_HEAP,
+  UNITS_BYTES,
+  GetHistoryObserversSize,
+  "Memory used by the hashtable of observers Places uses to notify objects of "
+  "changes to links' visited state.")
+
 } // anonymous namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 //// History
 
-History* History::gService = nullptr;
+History* History::gService = NULL;
 
 History::History()
-  : MemoryUniReporter("explicit/history-links-hashtable",
-                      KIND_HEAP, UNITS_BYTES,
-"Memory used by the hashtable that records changes to the visited state of "
-"links.")
-  , mShuttingDown(false)
+  : mShuttingDown(false)
   , mShutdownMutex("History::mShutdownMutex")
-  , mObservers(VISIT_OBSERVERS_INITIAL_CACHE_SIZE)
   , mRecentlyVisitedURIsNextIndex(0)
 {
   NS_ASSERTION(!gService, "Ruh-roh!  This service has already been created!");
@@ -1932,22 +1946,20 @@ History::History()
   if (os) {
     (void)os->AddObserver(this, TOPIC_PLACES_SHUTDOWN, false);
   }
+
+  NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(HistoryService));
 }
 
 History::~History()
 {
-  UnregisterWeakMemoryReporter(this);
+  gService = NULL;
 
-  gService = nullptr;
-
-  NS_ASSERTION(mObservers.Count() == 0,
-               "Not all Links were removed before we disappear!");
-}
-
-void
-History::InitMemoryReporter()
-{
-  RegisterWeakMemoryReporter(this);
+#ifdef DEBUG
+  if (mObservers.IsInitialized()) {
+    NS_ASSERTION(mObservers.Count() == 0,
+                 "Not all Links were removed before we disappear!");
+  }
+#endif
 }
 
 NS_IMETHODIMP
@@ -1970,7 +1982,14 @@ History::NotifyVisited(nsIURI* aURI)
     }
   }
 
-  // If we have no observers for this URI, we have nothing to notify about.
+  // If the hash table has not been initialized, then we have nothing to notify
+  // about.
+  if (!mObservers.IsInitialized()) {
+    return NS_OK;
+  }
+
+  // Additionally, if we have no observers for this URI, we have nothing to
+  // notify about.
   KeyClass* key = mObservers.GetEntry(aURI);
   if (!key) {
     return NS_OK;
@@ -2221,12 +2240,6 @@ History::SizeOfEntryExcludingThis(KeyClass* aEntry, mozilla::MallocSizeOf aMallo
   return aEntry->array.SizeOfExcludingThis(aMallocSizeOf);
 }
 
-int64_t
-History::Amount()
-{
-  return SizeOfIncludingThis(MallocSizeOf);
-}
-
 size_t
 History::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOfThis)
 {
@@ -2256,7 +2269,6 @@ History::GetSingleton()
   if (!gService) {
     gService = new History();
     NS_ENSURE_TRUE(gService, nullptr);
-    gService->InitMemoryReporter();
   }
 
   NS_ADDREF(gService);
@@ -2450,6 +2462,11 @@ History::RegisterVisitedCallback(nsIURI* aURI,
     NS_PRECONDITION(aLink, "Must pass a non-null Link!");
   }
 
+  // First, ensure that our hash table is setup.
+  if (!mObservers.IsInitialized()) {
+    mObservers.Init(VISIT_OBSERVERS_INITIAL_CACHE_SIZE);
+  }
+
   // Obtain our array of observers for this URI.
 #ifdef DEBUG
   bool keyAlreadyExists = !!mObservers.GetEntry(aURI);
@@ -2467,19 +2484,19 @@ History::RegisterVisitedCallback(nsIURI* aURI,
     // database now.
     nsresult rv = VisitedQuery::Start(aURI);
 
-    // In IPC builds, we are passed a nullptr Link from
-    // ContentParent::RecvStartVisitedQuery.  Since we won't be adding a
-    // nullptr entry to our list of observers, and the code after this point
-    // assumes that aLink is non-nullptr, we will need to return now.
+    // In IPC builds, we are passed a NULL Link from
+    // ContentParent::RecvStartVisitedQuery.  Since we won't be adding a NULL
+    // entry to our list of observers, and the code after this point assumes
+    // that aLink is non-NULL, we will need to return now.
     if (NS_FAILED(rv) || !aLink) {
       // Remove our array from the hashtable so we don't keep it around.
       mObservers.RemoveEntry(aURI);
       return rv;
     }
   }
-  // In IPC builds, we are passed a nullptr Link from
+  // In IPC builds, we are passed a NULL Link from
   // ContentParent::RecvStartVisitedQuery.  All of our code after this point
-  // assumes aLink is non-nullptr, so we have to return now.
+  // assumes aLink is non-NULL, so we have to return now.
   else if (!aLink) {
     NS_ASSERTION(XRE_GetProcessType() == GeckoProcessType_Default,
                  "We should only ever get a null Link in the default process!");
@@ -2914,9 +2931,8 @@ History::Observe(nsISupports* aSubject, const char* aTopic,
 ////////////////////////////////////////////////////////////////////////////////
 //// nsISupports
 
-NS_IMPL_ISUPPORTS_INHERITED4(
+NS_IMPL_ISUPPORTS4(
   History
-, MemoryUniReporter
 , IHistory
 , nsIDownloadHistory
 , mozIAsyncHistory

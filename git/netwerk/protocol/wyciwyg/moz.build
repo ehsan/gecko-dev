@@ -10,19 +10,19 @@ XPIDL_SOURCES += [
 
 XPIDL_MODULE = 'necko_wyciwyg'
 
+MODULE = 'necko'
+
 EXPORTS.mozilla.net += [
     'WyciwygChannelChild.h',
     'WyciwygChannelParent.h',
 ]
 
-# These files cannot be built in unified mode because they want to force NSPR
-# logging.
-SOURCES += [
+CPP_SOURCES += [
+    'WyciwygChannelChild.cpp',
+    'WyciwygChannelParent.cpp',
     'nsWyciwyg.cpp',
     'nsWyciwygChannel.cpp',
     'nsWyciwygProtocolHandler.cpp',
-    'WyciwygChannelChild.cpp',
-    'WyciwygChannelParent.cpp',
 ]
 
 IPDL_SOURCES += [
@@ -31,10 +31,5 @@ IPDL_SOURCES += [
 
 FAIL_ON_WARNINGS = True
 
-include('/ipc/chromium/chromium-config.mozbuild')
+LIBXUL_LIBRARY = True
 
-FINAL_LIBRARY = 'necko'
-
-LOCAL_INCLUDES += [
-    '../../base/src',
-]

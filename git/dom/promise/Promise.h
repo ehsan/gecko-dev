@@ -15,28 +15,23 @@
 #include "nsWrapperCache.h"
 #include "nsAutoPtr.h"
 #include "nsPIDOMWindow.h"
-#include "js/TypeDecls.h"
+
+struct JSContext;
 
 namespace mozilla {
 namespace dom {
 
-class AnyCallback;
-class PromiseCallback;
 class PromiseInit;
-class PromiseNativeHandler;
+class PromiseCallback;
+class AnyCallback;
+class PromiseResolver;
 
 class Promise MOZ_FINAL : public nsISupports,
                           public nsWrapperCache
 {
-  friend class NativePromiseCallback;
-  friend class PromiseResolverMixin;
-  friend class PromiseResolverTask;
   friend class PromiseTask;
-  friend class RejectPromiseCallback;
-  friend class ResolvePromiseCallback;
-  friend class WorkerPromiseResolverTask;
-  friend class WorkerPromiseTask;
-  friend class WrapperPromiseCallback;
+  friend class PromiseResolver;
+  friend class PromiseResolverTask;
 
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -45,12 +40,8 @@ public:
   Promise(nsPIDOMWindow* aWindow);
   ~Promise();
 
+  static bool PrefEnabled();
   static bool EnabledForScope(JSContext* aCx, JSObject* /* unused */);
-
-  void MaybeResolve(JSContext* aCx,
-                    JS::Handle<JS::Value> aValue);
-  void MaybeReject(JSContext* aCx,
-                   JS::Handle<JS::Value> aValue);
 
   // WebIDL
 
@@ -68,32 +59,25 @@ public:
 
   static already_AddRefed<Promise>
   Resolve(const GlobalObject& aGlobal, JSContext* aCx,
-          const Optional<JS::Handle<JS::Value>>& aValue, ErrorResult& aRv);
+          JS::Handle<JS::Value> aValue, ErrorResult& aRv);
 
   static already_AddRefed<Promise>
   Reject(const GlobalObject& aGlobal, JSContext* aCx,
-         const Optional<JS::Handle<JS::Value>>& aValue, ErrorResult& aRv);
+         JS::Handle<JS::Value> aValue, ErrorResult& aRv);
 
   already_AddRefed<Promise>
-  Then(const Optional<nsRefPtr<AnyCallback>>& aResolveCallback,
-       const Optional<nsRefPtr<AnyCallback>>& aRejectCallback);
+  Then(const Optional<OwningNonNull<AnyCallback> >& aResolveCallback,
+       const Optional<OwningNonNull<AnyCallback> >& aRejectCallback);
 
 
   already_AddRefed<Promise>
-  Catch(const Optional<nsRefPtr<AnyCallback>>& aRejectCallback);
-
-  void AppendNativeHandler(PromiseNativeHandler* aRunnable);
+  Catch(const Optional<OwningNonNull<AnyCallback> >& aRejectCallback);
 
 private:
   enum PromiseState {
     Pending,
     Resolved,
     Rejected
-  };
-
-  enum PromiseTaskSync {
-    SyncTask,
-    AsyncTask
   };
 
   void SetState(PromiseState aState)
@@ -114,40 +98,12 @@ private:
   // appended by then(), catch() or done().
   void RunTask();
 
-  void RunResolveTask(JS::Handle<JS::Value> aValue,
-                      Promise::PromiseState aState,
-                      PromiseTaskSync aAsynchronous);
-
   void AppendCallbacks(PromiseCallback* aResolveCallback,
                        PromiseCallback* aRejectCallback);
 
-  // If we have been rejected and our mResult is a JS exception,
-  // report it to the error console.
-  void MaybeReportRejected();
-
-  void MaybeResolveInternal(JSContext* aCx,
-                            JS::Handle<JS::Value> aValue,
-                            PromiseTaskSync aSync = AsyncTask);
-  void MaybeRejectInternal(JSContext* aCx,
-                           JS::Handle<JS::Value> aValue,
-                           PromiseTaskSync aSync = AsyncTask);
-
-  void ResolveInternal(JSContext* aCx,
-                       JS::Handle<JS::Value> aValue,
-                       PromiseTaskSync aSync = AsyncTask);
-
-  void RejectInternal(JSContext* aCx,
-                      JS::Handle<JS::Value> aValue,
-                      PromiseTaskSync aSync = AsyncTask);
-
-  // Static methods for the PromiseInit functions.
-  static bool
-  JSCallback(JSContext *aCx, unsigned aArgc, JS::Value *aVp);
-  static JSObject*
-  CreateFunction(JSContext* aCx, JSObject* aParent, Promise* aPromise,
-                int32_t aTask);
-
   nsRefPtr<nsPIDOMWindow> mWindow;
+
+  nsRefPtr<PromiseResolver> mResolver;
 
   nsTArray<nsRefPtr<PromiseCallback> > mResolveCallbacks;
   nsTArray<nsRefPtr<PromiseCallback> > mRejectCallbacks;
@@ -155,9 +111,6 @@ private:
   JS::Heap<JS::Value> mResult;
   PromiseState mState;
   bool mTaskPending;
-  bool mHadRejectCallback;
-
-  bool mResolvePending;
 };
 
 } // namespace dom

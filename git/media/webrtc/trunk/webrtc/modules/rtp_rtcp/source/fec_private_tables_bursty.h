@@ -25,7 +25,7 @@
 // (i.e., more packets/symbols in the code, so larger (k,m), i.e.,  k > 4,
 // m > 3).
 
-#include "webrtc/typedefs.h"
+#include "typedefs.h"
 
 namespace {
 
@@ -758,3 +758,4 @@ const uint8_t** kPacketMaskBurstyTbl[12] = {
 
 }  // namespace
 #endif  // WEBRTC_MODULES_RTP_RTCP_SOURCE_FEC_PRIVATE_TABLES_BURSTY_H_
+

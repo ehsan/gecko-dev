@@ -5,8 +5,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/ArrayUtils.h"
-#include "mozilla/WindowsVersion.h"
+#include "mozilla/Util.h"
 
 #include "nsUXThemeData.h"
 #include "nsDebug.h"
@@ -16,14 +15,14 @@
 using namespace mozilla;
 using namespace mozilla::widget;
 
-const wchar_t
+const PRUnichar
 nsUXThemeData::kThemeLibraryName[] = L"uxtheme.dll";
 
 HANDLE
 nsUXThemeData::sThemes[eUXNumClasses];
 
 HMODULE
-nsUXThemeData::sThemeDLL = nullptr;
+nsUXThemeData::sThemeDLL = NULL;
 
 bool
 nsUXThemeData::sFlatMenus = false;
@@ -54,7 +53,7 @@ nsUXThemeData::Invalidate() {
   for(int i = 0; i < eUXNumClasses; i++) {
     if(sThemes[i]) {
       CloseThemeData(sThemes[i]);
-      sThemes[i] = nullptr;
+      sThemes[i] = NULL;
     }
   }
   BOOL useFlat = FALSE;
@@ -67,7 +66,7 @@ nsUXThemeData::GetTheme(nsUXThemeClass cls) {
   NS_ASSERTION(cls < eUXNumClasses, "Invalid theme class!");
   if(!sThemes[cls])
   {
-    sThemes[cls] = OpenThemeData(nullptr, GetClassName(cls));
+    sThemes[cls] = OpenThemeData(NULL, GetClassName(cls));
   }
   return sThemes[cls];
 }
@@ -145,7 +144,7 @@ nsUXThemeData::InitTitlebarInfo()
   // Use system metrics for pre-vista, otherwise trigger a
   // refresh on the next layout.
   sTitlebarInfoPopulatedAero = sTitlebarInfoPopulatedThemed =
-    !IsVistaOrLater();
+    (WinUtils::GetWindowsVersion() < WinUtils::VISTA_VERSION);
 }
 
 // static
@@ -180,10 +179,10 @@ nsUXThemeData::UpdateTitlebarInfo(HWND aWnd)
   wc.cbClsExtra    = 0;
   wc.cbWndExtra    = 0;
   wc.hInstance     = nsToolkit::mDllInstance;
-  wc.hIcon         = nullptr;
-  wc.hCursor       = nullptr;
-  wc.hbrBackground = nullptr;
-  wc.lpszMenuName  = nullptr;
+  wc.hIcon         = NULL;
+  wc.hCursor       = NULL;
+  wc.hbrBackground = NULL;
+  wc.lpszMenuName  = NULL;
   wc.lpszClassName = className.get();
   ::RegisterClassW(&wc);
 
@@ -194,8 +193,8 @@ nsUXThemeData::UpdateTitlebarInfo(HWND aWnd)
   HWND hWnd = CreateWindowExW(WS_EX_LAYERED,
                               className.get(), L"",
                               WS_OVERLAPPEDWINDOW,
-                              0, 0, 0, 0, aWnd, nullptr,
-                              nsToolkit::mDllInstance, nullptr);
+                              0, 0, 0, 0, aWnd, NULL,
+                              nsToolkit::mDllInstance, NULL);
   NS_ASSERTION(hWnd, "UpdateTitlebarInfo window creation failed.");
 
   ShowWindow(hWnd, SW_SHOW);
@@ -282,7 +281,8 @@ void
 nsUXThemeData::UpdateNativeThemeInfo()
 {
   // Trigger a refresh of themed button metrics if needed
-  sTitlebarInfoPopulatedThemed = !IsVistaOrLater();
+  sTitlebarInfoPopulatedThemed =
+    (WinUtils::GetWindowsVersion() < WinUtils::VISTA_VERSION);
 
   sIsDefaultWindowsTheme = false;
   sThemeId = LookAndFeel::eWindowsTheme_Generic;
@@ -298,7 +298,7 @@ nsUXThemeData::UpdateNativeThemeInfo()
                                  MAX_PATH,
                                  themeColor,
                                  MAX_PATH,
-                                 nullptr, 0))) {
+                                 NULL, 0))) {
     sThemeId = LookAndFeel::eWindowsTheme_Classic;
     return;
   }
@@ -307,7 +307,7 @@ nsUXThemeData::UpdateNativeThemeInfo()
   themeName = themeName ? themeName + 1 : themeFileName;
 
   WindowsTheme theme = WINTHEME_UNRECOGNIZED;
-  for (size_t i = 0; i < ArrayLength(knownThemes); ++i) {
+  for (int i = 0; i < ArrayLength(knownThemes); ++i) {
     if (!lstrcmpiW(themeName, knownThemes[i].name)) {
       theme = (WindowsTheme)knownThemes[i].type;
       break;
@@ -342,7 +342,7 @@ nsUXThemeData::UpdateNativeThemeInfo()
 
   // calculate the luna color scheme
   WindowsThemeColor color = WINTHEMECOLOR_UNRECOGNIZED;
-  for (size_t i = 0; i < ArrayLength(knownColors); ++i) {
+  for (int i = 0; i < ArrayLength(knownColors); ++i) {
     if (!lstrcmpiW(themeColor, knownColors[i].name)) {
       color = (WindowsThemeColor)knownColors[i].type;
       break;

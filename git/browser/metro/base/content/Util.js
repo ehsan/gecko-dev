@@ -2,9 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-let Cc = Components.classes;
-let Ci = Components.interfaces;
-
 Components.utils.import("resource:///modules/ContentUtil.jsm");
 
 let Util = {
@@ -179,7 +176,7 @@ let Util = {
    */
   getDownloadSize: function dv__getDownloadSize (aSize) {
     let [size, units] = DownloadUtils.convertByteUnits(aSize);
-    if (aSize > 0)
+    if (size > 0)
       return size + units;
     else
       return Strings.browser.GetStringFromName("downloadsUnknownSize");
@@ -212,8 +209,7 @@ let Util = {
             aURL == "about:blank" ||
             aURL == "about:empty" ||
             aURL == "about:home" ||
-            aURL == "about:newtab" ||
-            aURL.startsWith("about:newtab"));
+            aURL == "about:start");
   },
 
   // Title to use for emptyURL tabs.
@@ -269,43 +265,6 @@ let Util = {
   get displayDPI() {
     delete this.displayDPI;
     return this.displayDPI = this.getWindowUtils(window).displayDPI;
-  },
-
-  /*
-   * aViewHeight - the height of the viewable area in the browser
-   * aRect - a bounding rectangle of a selection or element.
-   *
-   * return - number of pixels for the browser to be shifted up by such
-   * that aRect is centered vertically within aViewHeight.
-   */
-  centerElementInView: function centerElementInView(aViewHeight, aRect) {
-    // If the bottom of the target bounds is higher than the new height,
-    // there's no need to adjust. It will be above the keyboard.
-    if (aRect.bottom <= aViewHeight) {
-      return 0;
-    }
-
-    // height of the target element
-    let targetHeight = aRect.bottom - aRect.top;
-    // height of the browser view.
-    let viewBottom = content.innerHeight;
-
-    // If the target is shorter than the new content height, we can go ahead
-    // and center it.
-    if (targetHeight <= aViewHeight) {
-      // Try to center the element vertically in the new content area, but
-      // don't position such that the bottom of the browser view moves above
-      // the top of the chrome. We purposely do not resize the browser window
-      // by making it taller when trying to center elements that are near the
-      // lower bounds. This would trigger reflow which can cause content to
-      // shift around.
-      let splitMargin = Math.round((aViewHeight - targetHeight) * .5);
-      let distanceToPageBounds = viewBottom - aRect.bottom;
-      let distanceFromChromeTop = aRect.bottom - aViewHeight;
-      let distanceToCenter =
-        distanceFromChromeTop + Math.min(distanceToPageBounds, splitMargin);
-      return distanceToCenter;
-    }
   },
 
   /*
@@ -412,5 +371,3 @@ Util.Timeout.prototype = {
       Util[name] = copy;
   }
 }
-
-this.Util = Util;

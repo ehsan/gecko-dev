@@ -160,17 +160,12 @@ public class PropertyAnimator implements Runnable {
         }
 
         // Try to start animation after any on-going layout round
-        // in the current view tree. OnPreDrawListener seems broken
-        // on pre-Honeycomb devices, start animation immediatelly
-        // in this case.
-        if (Build.VERSION.SDK_INT >= 11 && treeObserver != null && treeObserver.isAlive()) {
+        // in the current view tree.
+        if (treeObserver != null && treeObserver.isAlive()) {
             treeObserver.addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
                 @Override
                 public boolean onPreDraw() {
-                    if (treeObserver.isAlive()) {
-                        treeObserver.removeOnPreDrawListener(this);
-                    }
-
+                    treeObserver.removeOnPreDrawListener(this);
                     mFramePoster.postFirstAnimationFrame();
                     return true;
                 }

@@ -43,7 +43,6 @@
 #include "mozilla/dom/battery/Constants.h"
 #include "mozilla/FileUtils.h"
 #include "mozilla/Monitor.h"
-#include "mozilla/RefPtr.h"
 #include "mozilla/Services.h"
 #include "mozilla/StaticPtr.h"
 #include "mozilla/Preferences.h"
@@ -742,7 +741,7 @@ AdjustSystemClock(int64_t aDeltaMilliseconds)
   hal::NotifySystemClockChange(aDeltaMilliseconds);
 }
 
-int32_t
+static int32_t
 GetTimezoneOffset()
 {
   PRExplodedTime prTime;
@@ -885,7 +884,7 @@ DestroyAlarmData(void* aData)
 // Runs on alarm-watcher thread.
 void ShutDownAlarm(int aSigno)
 {
-  if (aSigno == SIGUSR1 && sAlarmData) {
+  if (aSigno == SIGUSR1) {
     sAlarmData->mShuttingDown = true;
   }
   return;
@@ -1030,15 +1029,6 @@ OomAdjOfOomScoreAdj(int aOomScoreAdj)
 }
 
 static void
-RoundOomScoreAdjUpWithBackroundLRU(int& aOomScoreAdj, uint32_t aBackgroundLRU)
-{
-  // We want to add minimum value to round OomScoreAdj up according to
-  // the steps by aBackgroundLRU.
-  aOomScoreAdj +=
-    ceil(((float)OOM_SCORE_ADJ_MAX / OOM_ADJUST_MAX) * aBackgroundLRU);
-}
-
-static void
 EnsureKernelLowMemKillerParamsSet()
 {
   static bool kernelLowMemKillerParamsSet;
@@ -1070,7 +1060,6 @@ EnsureKernelLowMemKillerParamsSet()
 
   int32_t lowerBoundOfNextOomScoreAdj = OOM_SCORE_ADJ_MIN - 1;
   int32_t lowerBoundOfNextKillUnderMB = 0;
-  int32_t countOfLowmemorykillerParametersSets = 0;
 
   for (int i = NUM_PROCESS_PRIORITY - 1; i >= 0; i--) {
     // The system doesn't function correctly if we're missing these prefs, so
@@ -1091,16 +1080,13 @@ EnsureKernelLowMemKillerParamsSet()
           nsPrintfCString("hal.processPriorityManager.gonk.%s.KillUnderMB",
                           ProcessPriorityToString(priority)).get(),
           &killUnderMB))) {
-      continue;
+      MOZ_CRASH();
     }
 
     // The LMK in kernel silently malfunctions if we assign the parameters
     // in non-increasing order, so we add this assertion here. See bug 887192.
     MOZ_ASSERT(oomScoreAdj > lowerBoundOfNextOomScoreAdj);
     MOZ_ASSERT(killUnderMB > lowerBoundOfNextKillUnderMB);
-
-    // The LMK in kernel only accept 6 sets of LMK parameters. See bug 914728.
-    MOZ_ASSERT(countOfLowmemorykillerParametersSets < 6);
 
     // adj is in oom_adj units.
     adjParams.AppendPrintf("%d,", OomAdjOfOomScoreAdj(oomScoreAdj));
@@ -1110,7 +1096,6 @@ EnsureKernelLowMemKillerParamsSet()
 
     lowerBoundOfNextOomScoreAdj = oomScoreAdj;
     lowerBoundOfNextKillUnderMB = killUnderMB;
-    countOfLowmemorykillerParametersSets++;
   }
 
   // Strip off trailing commas.
@@ -1213,11 +1198,10 @@ SetNiceForPid(int aPid, int aNice)
 void
 SetProcessPriority(int aPid,
                    ProcessPriority aPriority,
-                   ProcessCPUPriority aCPUPriority,
-                   uint32_t aBackgroundLRU)
+                   ProcessCPUPriority aCPUPriority)
 {
-  HAL_LOG(("SetProcessPriority(pid=%d, priority=%d, cpuPriority=%d, LRU=%u)",
-           aPid, aPriority, aCPUPriority, aBackgroundLRU));
+  HAL_LOG(("SetProcessPriority(pid=%d, priority=%d, cpuPriority=%d)",
+           aPid, aPriority, aCPUPriority));
 
   // If this is the first time SetProcessPriority was called, set the kernel's
   // OOM parameters according to our prefs.
@@ -1232,8 +1216,6 @@ SetProcessPriority(int aPid,
   nsresult rv = Preferences::GetInt(nsPrintfCString(
     "hal.processPriorityManager.gonk.%s.OomScoreAdjust",
     ProcessPriorityToString(aPriority)).get(), &oomScoreAdj);
-
-  RoundOomScoreAdjUpWithBackroundLRU(oomScoreAdj, aBackgroundLRU);
 
   if (NS_SUCCEEDED(rv)) {
     int clampedOomScoreAdj = clamped<int>(oomScoreAdj, OOM_SCORE_ADJ_MIN,

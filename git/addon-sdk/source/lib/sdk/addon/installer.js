@@ -87,31 +87,20 @@ exports.uninstall = function uninstall(addonId) {
   AddonManager.addAddonListener(listener);
 
   // Order Addonmanager to uninstall the addon
-  getAddon(addonId).then(addon => addon.uninstall(), reject);
+  AddonManager.getAddonByID(addonId, function (addon) {
+    addon.uninstall();
+  });
 
   return promise;
 };
 
 exports.disable = function disable(addonId) {
-  return getAddon(addonId).then(addon => {
-    addon.userDisabled = true;
-    return addonId;
-  });
-};
-
-exports.enable = function enabled(addonId) {
-  return getAddon(addonId).then(addon => {
-    addon.userDisabled = false;
-    return addonId;
-  });
-};
-
-exports.isActive = function isActive(addonId) {
-  return getAddon(addonId).then(addon => addon.isActive && !addon.appDisabled);
-};
-
-function getAddon (id) {
   let { promise, resolve, reject } = defer();
-  AddonManager.getAddonByID(id, addon => addon ? resolve(addon) : reject());
+
+  AddonManager.getAddonByID(addonId, function (addon) {
+    addon.userDisabled = true;
+    resolve();
+  });
+
   return promise;
-}
+};

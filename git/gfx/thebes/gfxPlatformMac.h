@@ -6,13 +6,16 @@
 #ifndef GFX_PLATFORM_MAC_H
 #define GFX_PLATFORM_MAC_H
 
-#include "nsTArrayForwardDeclare.h"
+#include "nsTArray.h"
 #include "gfxPlatform.h"
 
 #define MAC_OS_X_VERSION_10_6_HEX 0x00001060
 #define MAC_OS_X_VERSION_10_7_HEX 0x00001070
 
 #define MAC_OS_X_MAJOR_VERSION_MASK 0xFFFFFFF0U
+
+class gfxTextRun;
+class gfxFontFamily;
 
 namespace mozilla { namespace gfx { class DrawTarget; }}
 
@@ -26,13 +29,13 @@ public:
     }
 
     already_AddRefed<gfxASurface> CreateOffscreenSurface(const gfxIntSize& size,
-                                                         gfxContentType contentType);
+                                                         gfxASurface::gfxContentType contentType);
     virtual already_AddRefed<gfxASurface>
       CreateOffscreenImageSurface(const gfxIntSize& aSize,
-                                  gfxContentType aContentType);
+                                  gfxASurface::gfxContentType aContentType);
 
     already_AddRefed<gfxASurface> OptimizeImage(gfxImageSurface *aSurface,
-                                                gfxImageFormat format);
+                                                gfxASurface::gfxImageFormat format);
 
     mozilla::TemporaryRef<mozilla::gfx::ScaledFont>
       GetScaledFontForFont(mozilla::gfx::DrawTarget* aTarget, gfxFont *aFont);
@@ -89,6 +92,7 @@ private:
     // read in the pref value for the lower threshold on font anti-aliasing
     static uint32_t ReadAntiAliasingThreshold();
 
+    int32_t mOSXVersion;
     uint32_t mFontAntiAliasingThreshold;
 };
 

@@ -38,7 +38,6 @@
 #include "nsIPrompt.h"
 #include "nsAutoPtr.h"
 #include "mozilla/Attributes.h"
-#include "necko-config.h"
 
 class nsExternalAppHandler;
 class nsIMIMEInfo;
@@ -176,15 +175,6 @@ protected:
    * the private browsing mode)
    */
   void ExpungeTemporaryPrivateFiles();
-
-#ifdef NECKO_PROTOCOL_rtsp
-  /**
-   * Launch video app for rtsp protocol. This function is supported only on Gonk
-   * for now.
-   */
-  static void LaunchVideoAppForRtsp(nsIURI* aURI);
-#endif
-
   /**
    * Array for the files that should be deleted
    */
@@ -383,14 +373,9 @@ protected:
   void ProcessAnyRefreshTags();
 
   /**
-   * Notify our nsITransfer object that we are done with the download.  This is
-   * always called after the target file has been closed.
-   *
-   * @param aStatus
-   *        NS_OK for success, or a failure code if the download failed.
-   *        A partially downloaded file may still be available in this case.
+   * Notify our nsITransfer object that we are done with the download.
    */
-  void NotifyTransfer(nsresult aStatus);
+  nsresult NotifyTransfer();
 
   /**
    * Helper routine that searches a pref string for a given mime type

@@ -7,10 +7,12 @@
 #ifndef jit_ValueNumbering_h
 #define jit_ValueNumbering_h
 
+#include "jit/CompileInfo.h"
 #include "jit/MIR.h"
+#include "jit/MIRGraph.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class ValueNumberer
 {
@@ -50,7 +52,6 @@ class ValueNumberer
                     IonAllocPolicy> InstructionMap;
 
   protected:
-    TempAllocator &alloc() const;
     uint32_t lookupValue(MDefinition *ins);
     MDefinition *findDominatingDef(InstructionMap &defs, MDefinition *ins, size_t index);
 
@@ -97,7 +98,7 @@ class ValueNumberData : public TempObject {
     MDefinition *classPrev;
 
   public:
-    ValueNumberData() : number(0), classNext(nullptr), classPrev(nullptr) {}
+    ValueNumberData() : number(0), classNext(NULL), classPrev(NULL) {}
 
     void setValueNumber(uint32_t number_) {
         number = number_;
@@ -132,7 +133,7 @@ class ValueNumberData : public TempObject {
         rep->valueNumberData()->classNext = thisDef;
     }
 };
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_ValueNumbering_h */

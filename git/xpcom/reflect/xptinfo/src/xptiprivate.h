@@ -72,6 +72,7 @@
 /***************************************************************************/
 
 class xptiInterfaceInfo;
+class xptiInterfaceInfoManager;
 class xptiInterfaceEntry;
 class xptiTypelibGuts;
 

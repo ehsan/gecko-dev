@@ -9,9 +9,6 @@ let Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
 
-XPCOMUtils.defineLazyServiceGetter(this, "gUUIDGenerator",
-                                   "@mozilla.org/uuid-generator;1", "nsIUUIDGenerator");
-
 let WebProgressListener = {
   _lastLocation: null,
   _firstPaint: false,
@@ -263,7 +260,7 @@ let WebNavigation =  {
       // start might already be in use)
       let id = aIdMap[aEntry.ID] || 0;
       if (!id) {
-        id = gUUIDGenerator.generateUUID();
+        for (id = Date.now(); id in aIdMap.used; id++);
         aIdMap[aEntry.ID] = id;
         aIdMap.used[id] = true;
       }
@@ -347,12 +344,6 @@ let WebNavigation =  {
     let history = docShell.QueryInterface(Ci.nsIWebNavigation).sessionHistory;
     for (let i = 0; i < history.count; i++) {
       let entry = this._serializeHistoryEntry(history.getEntryAtIndex(i, false));
-
-      // If someone directly navigates to one of these URLs and they switch to Desktop,
-      // we need to make the page load-able.
-      if (entry.url == "about:home" || entry.url == "about:start") {
-        entry.url = "about:newtab";
-      }
       entries.push(entry);
     }
     let index = history.index + 1;
@@ -557,12 +548,13 @@ let DOMEvents =  {
 DOMEvents.init();
 
 let ContentScroll =  {
-  // The most recent offset set by APZC for the root scroll frame
   _scrollOffset: { x: 0, y: 0 },
 
   init: function() {
+    addMessageListener("Content:SetCacheViewport", this);
     addMessageListener("Content:SetWindowSize", this);
 
+    addEventListener("scroll", this, false);
     addEventListener("pagehide", this, false);
     addEventListener("MozScrolledAreaChanged", this, false);
   },
@@ -580,13 +572,74 @@ let ContentScroll =  {
     return { x: aElement.scrollLeft, y: aElement.scrollTop };
   },
 
+  setScrollOffsetForElement: function(aElement, aLeft, aTop) {
+    if (aElement.parentNode == aElement.ownerDocument) {
+      aElement.ownerDocument.defaultView.scrollTo(aLeft, aTop);
+    } else {
+      aElement.scrollLeft = aLeft;
+      aElement.scrollTop = aTop;
+    }
+  },
+
   receiveMessage: function(aMessage) {
     let json = aMessage.json;
     switch (aMessage.name) {
+      case "Content:SetCacheViewport": {
+        // Set resolution for root view
+        let rootCwu = content.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
+        if (json.id == 1) {
+          rootCwu.setResolution(json.scale, json.scale);
+          if (!WebProgressListener._firstPaint)
+            break;
+        }
+
+        let displayport = new Rect(json.x, json.y, json.w, json.h);
+        if (displayport.isEmpty())
+          break;
+
+        // Map ID to element
+        let element = null;
+        try {
+          element = rootCwu.findElementWithViewId(json.id);
+        } catch(e) {
+          // This could give NS_ERROR_NOT_AVAILABLE. In that case, the
+          // presshell is not available because the page is reloading.
+        }
+
+        if (!element)
+          break;
+
+        let binding = element.ownerDocument.getBindingParent(element);
+        if (binding instanceof Ci.nsIDOMHTMLInputElement && binding.mozIsTextField(false))
+          break;
+
+        // Set the scroll offset for this element if specified
+        if (json.scrollX >= 0 || json.scrollY >= 0) {
+          this.setScrollOffsetForElement(element, json.scrollX, json.scrollY)
+          if (json.id == 1)
+            this._scrollOffset = this.getScrollOffset(content);
+        }
+
+        // Set displayport. We want to set this after setting the scroll offset, because
+        // it is calculated based on the scroll offset.
+        let scrollOffset = this.getScrollOffsetForElement(element);
+        let x = displayport.x - scrollOffset.x;
+        let y = displayport.y - scrollOffset.y;
+
+        if (json.id == 1) {
+          x = Math.round(x * json.scale) / json.scale;
+          y = Math.round(y * json.scale) / json.scale;
+        }
+
+        let win = element.ownerDocument.defaultView;
+        let winCwu = win.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
+        winCwu.setDisplayPortForElement(x, y, displayport.width, displayport.height, element);
+        break;
+      }
+
       case "Content:SetWindowSize": {
         let cwu = content.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
         cwu.setCSSViewport(json.width, json.height);
-        sendAsyncMessage("Content:SetWindowSize:Complete", {});
         break;
       }
     }
@@ -597,6 +650,11 @@ let ContentScroll =  {
       case "pagehide":
         this._scrollOffset = { x: 0, y: 0 };
         break;
+
+      case "scroll": {
+        this.sendScroll(aEvent.target);
+        break;
+      }
 
       case "MozScrolledAreaChanged": {
         let doc = aEvent.originalTarget;
@@ -619,9 +677,39 @@ let ContentScroll =  {
         break;
       }
     }
+  },
+
+  sendScroll: function sendScroll(target) {
+    let isRoot = false;
+    if (target instanceof Ci.nsIDOMDocument) {
+      var window = target.defaultView;
+      var scrollOffset = this.getScrollOffset(window);
+      var element = target.documentElement;
+
+      if (target == content.document) {
+        if (this._scrollOffset.x == scrollOffset.x && this._scrollOffset.y == scrollOffset.y) {
+          return;
+        }
+        this._scrollOffset = scrollOffset;
+        isRoot = true;
+      }
+    } else {
+      var window = target.currentDoc.defaultView;
+      var scrollOffset = this.getScrollOffsetForElement(target);
+      var element = target;
+    }
+
+    let utils = window.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
+    let presShellId = {};
+    utils.getPresShellId(presShellId);
+    let viewId = utils.getViewId(element);
+
+    sendAsyncMessage("scroll", { presShellId: presShellId.value,
+                                 viewId: viewId,
+                                 scrollOffset: scrollOffset,
+                                 isRoot: isRoot });
   }
 };
-this.ContentScroll = ContentScroll;
 
 ContentScroll.init();
 

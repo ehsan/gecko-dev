@@ -11,7 +11,7 @@
 #ifndef WEBRTC_MODULES_RTP_RTCP_SOURCE_BWE_DEFINES_H_
 #define WEBRTC_MODULES_RTP_RTCP_SOURCE_BWE_DEFINES_H_
 
-#include "webrtc/typedefs.h"
+#include "typedefs.h"
 
 #define BWE_MAX(a,b) ((a)>(b)?(a):(b))
 #define BWE_MIN(a,b) ((a)<(b)?(a):(b))
@@ -52,6 +52,6 @@ public:
     uint32_t      _incomingBitRate;
     double              _noiseVar;
 };
-}  // namespace webrtc
+} //namespace webrtc
 
 #endif // WEBRTC_MODULES_RTP_RTCP_SOURCE_BWE_DEFINES_H_

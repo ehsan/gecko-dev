@@ -46,30 +46,10 @@ pref("dom.mozTCPSocket.enabled", true);
 // Enable smooth scrolling
 pref("general.smoothScroll", true);
 
-// WebPayment
-pref("dom.mozPay.enabled", true);
-
-// Disable slow script dialog for apps
-pref("dom.max_script_run_time", 0);
-pref("dom.max_chrome_script_run_time", 0);
-
-
-#ifndef RELEASE_BUILD
-// Enable mozPay default provider
-pref("dom.payment.provider.0.name", "Firefox Marketplace");
-pref("dom.payment.provider.0.description", "marketplace.firefox.com");
-pref("dom.payment.provider.0.uri", "https://marketplace.firefox.com/mozpay/?req=");
-pref("dom.payment.provider.0.type", "mozilla/payments/pay/v1");
-pref("dom.payment.provider.0.requestMethod", "GET");
-#endif
-
 // Enable window resize and move
 pref("dom.always_allow_move_resize_window", true);
 
 pref("plugin.allowed_types", "application/x-shockwave-flash,application/futuresplash");
-
-pref("devtools.debugger.remote-enabled", true);
-pref("devtools.debugger.force-local", true);
 
 // The default for this pref reflects whether the build is capable of IPC.
 // (Turning it on in a no-IPC build will have no effect.)
@@ -83,4 +63,3 @@ pref("dom.ipc.plugins.enabled.x86_64", true);
 pref("dom.ipc.plugins.enabled", true);
 #endif
 
-pref("places.database.growthIncrementKiB", 0);

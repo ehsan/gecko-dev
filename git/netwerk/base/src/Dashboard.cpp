@@ -2,20 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http:mozilla.org/MPL/2.0/. */
 
-#include "mozilla/dom/NetDashboardBinding.h"
 #include "mozilla/net/Dashboard.h"
+
+#include "jsapi.h"
+#include "mozilla/dom/NetDashboardBinding.h"
 #include "mozilla/net/HttpInfo.h"
 #include "nsCxPusher.h"
-#include "nsHttp.h"
-#include "nsICancelable.h"
-#include "nsIDNSService.h"
-#include "nsIDNSRecord.h"
-#include "nsIInputStream.h"
-#include "nsISocketTransport.h"
-#include "nsIThread.h"
-#include "nsSocketTransportService2.h"
-#include "nsThreadUtils.h"
-#include "nsURLHelper.h"
 
 using mozilla::AutoSafeJSContext;
 namespace mozilla {
@@ -26,11 +18,6 @@ NS_IMPL_ISUPPORTS5(Dashboard, nsIDashboard, nsIDashboardEventNotifier,
                               nsIDNSListener)
 using mozilla::dom::Sequence;
 
-struct ConnStatus
-{
-    nsString creationSts;
-};
-
 Dashboard::Dashboard()
 {
     mEnableLogging = false;
@@ -38,8 +25,6 @@ Dashboard::Dashboard()
 
 Dashboard::~Dashboard()
 {
-    if (mDnsup.cancel)
-        mDnsup.cancel->Cancel(NS_ERROR_ABORT);
 }
 
 NS_IMETHODIMP
@@ -74,14 +59,26 @@ Dashboard::GetSockets()
     AutoSafeJSContext cx;
 
     mozilla::dom::SocketsDict dict;
-    dict.mSockets.Construct();
+    dict.mHost.Construct();
+    dict.mPort.Construct();
+    dict.mActive.Construct();
+    dict.mTcp.Construct();
+    dict.mSocksent.Construct();
+    dict.mSockreceived.Construct();
     dict.mSent = 0;
     dict.mReceived = 0;
 
-    Sequence<mozilla::dom::SocketElement> &sockets = dict.mSockets.Value();
+    Sequence<uint32_t> &ports = dict.mPort.Value();
+    Sequence<nsString> &hosts = dict.mHost.Value();
+    Sequence<bool> &active = dict.mActive.Value();
+    Sequence<uint32_t> &tcp = dict.mTcp.Value();
+    Sequence<double> &sent = dict.mSocksent.Value();
+    Sequence<double> &received = dict.mSockreceived.Value();
 
     uint32_t length = mSock.data.Length();
-    if (!sockets.SetCapacity(length)) {
+    if (!ports.SetCapacity(length) || !hosts.SetCapacity(length) ||
+        !active.SetCapacity(length) || !tcp.SetCapacity(length) ||
+        !sent.SetCapacity(length) || !received.SetCapacity(length)) {
             mSock.cb = nullptr;
             mSock.data.Clear();
             JS_ReportOutOfMemory(cx);
@@ -89,19 +86,19 @@ Dashboard::GetSockets()
     }
 
     for (uint32_t i = 0; i < mSock.data.Length(); i++) {
-        mozilla::dom::SocketElement &socket = *sockets.AppendElement();
-        CopyASCIItoUTF16(mSock.data[i].host, socket.mHost);
-        socket.mPort = mSock.data[i].port;
-        socket.mActive = mSock.data[i].active;
-        socket.mTcp = mSock.data[i].tcp;
-        socket.mSent = (double) mSock.data[i].sent;
-        socket.mReceived = (double) mSock.data[i].received;
+        CopyASCIItoUTF16(mSock.data[i].host, *hosts.AppendElement());
+        *ports.AppendElement() = mSock.data[i].port;
+        *active.AppendElement() = mSock.data[i].active;
+        *tcp.AppendElement() = mSock.data[i].tcp;
+        *sent.AppendElement() = (double) mSock.data[i].sent;
+        *received.AppendElement() = (double) mSock.data[i].received;
         dict.mSent += mSock.data[i].sent;
         dict.mReceived += mSock.data[i].received;
     }
 
     dict.mSent += mSock.totalSent;
     dict.mReceived += mSock.totalRecv;
+
     JS::RootedValue val(cx);
     if (!dict.ToObject(cx, JS::NullPtr(), &val)) {
         mSock.cb = nullptr;
@@ -143,15 +140,29 @@ Dashboard::GetHttpConnections()
     AutoSafeJSContext cx;
 
     mozilla::dom::HttpConnDict dict;
-    dict.mConnections.Construct();
+    dict.mActive.Construct();
+    dict.mHost.Construct();
+    dict.mIdle.Construct();
+    dict.mPort.Construct();
+    dict.mSpdy.Construct();
+    dict.mSsl.Construct();
+    dict.mHalfOpens.Construct();
 
+    using mozilla::dom::HttpConnInfoDict;
     using mozilla::dom::HalfOpenInfoDict;
-    using mozilla::dom::HttpConnectionElement;
-    using mozilla::dom::HttpConnInfo;
-    Sequence<HttpConnectionElement> &connections = dict.mConnections.Value();
+    Sequence<HttpConnInfoDict> &active = dict.mActive.Value();
+    Sequence<nsString> &hosts = dict.mHost.Value();
+    Sequence<HttpConnInfoDict> &idle = dict.mIdle.Value();
+    Sequence<HalfOpenInfoDict> &halfOpens = dict.mHalfOpens.Value();
+    Sequence<uint32_t> &ports = dict.mPort.Value();
+    Sequence<bool> &spdy = dict.mSpdy.Value();
+    Sequence<bool> &ssl = dict.mSsl.Value();
 
     uint32_t length = mHttp.data.Length();
-    if (!connections.SetCapacity(length)) {
+    if (!active.SetCapacity(length) || !hosts.SetCapacity(length) ||
+        !idle.SetCapacity(length) || !ports.SetCapacity(length) ||
+        !spdy.SetCapacity(length) || !ssl.SetCapacity(length) ||
+        !halfOpens.SetCapacity(length)) {
             mHttp.cb = nullptr;
             mHttp.data.Clear();
             JS_ReportOutOfMemory(cx);
@@ -159,47 +170,64 @@ Dashboard::GetHttpConnections()
     }
 
     for (uint32_t i = 0; i < mHttp.data.Length(); i++) {
-        HttpConnectionElement &connection = *connections.AppendElement();
-
-        CopyASCIItoUTF16(mHttp.data[i].host, connection.mHost);
-        connection.mPort = mHttp.data[i].port;
-        connection.mSpdy = mHttp.data[i].spdy;
-        connection.mSsl = mHttp.data[i].ssl;
-
-        connection.mActive.Construct();
-        connection.mIdle.Construct();
-        connection.mHalfOpens.Construct();
-
-        Sequence<HttpConnInfo> &active = connection.mActive.Value();
-        Sequence<HttpConnInfo> &idle = connection.mIdle.Value();
-        Sequence<HalfOpenInfoDict> &halfOpens = connection.mHalfOpens.Value();
-
-        if (!active.SetCapacity(mHttp.data[i].active.Length()) ||
-            !idle.SetCapacity(mHttp.data[i].idle.Length()) ||
-            !halfOpens.SetCapacity(mHttp.data[i].halfOpens.Length())) {
+        CopyASCIItoUTF16(mHttp.data[i].host,*hosts.AppendElement());
+        *ports.AppendElement() = mHttp.data[i].port;
+        *spdy.AppendElement() = mHttp.data[i].spdy;
+        *ssl.AppendElement() = mHttp.data[i].ssl;
+        HttpConnInfoDict &activeInfo = *active.AppendElement();
+        activeInfo.mRtt.Construct();
+        activeInfo.mTtl.Construct();
+        activeInfo.mProtocolVersion.Construct();
+        Sequence<uint32_t> &active_rtt = activeInfo.mRtt.Value();
+        Sequence<uint32_t> &active_ttl = activeInfo.mTtl.Value();
+        Sequence<nsString> &active_protocolVersion = activeInfo.mProtocolVersion.Value();
+        if (!active_rtt.SetCapacity(mHttp.data[i].active.Length()) ||
+            !active_ttl.SetCapacity(mHttp.data[i].active.Length()) ||
+            !active_protocolVersion.SetCapacity(mHttp.data[i].active.Length())) {
                 mHttp.cb = nullptr;
                 mHttp.data.Clear();
                 JS_ReportOutOfMemory(cx);
                 return NS_ERROR_OUT_OF_MEMORY;
         }
-
         for (uint32_t j = 0; j < mHttp.data[i].active.Length(); j++) {
-            HttpConnInfo &info = *active.AppendElement();
-            info.mRtt = mHttp.data[i].active[j].rtt;
-            info.mTtl = mHttp.data[i].active[j].ttl;
-            info.mProtocolVersion = mHttp.data[i].active[j].protocolVersion;
+            *active_rtt.AppendElement() = mHttp.data[i].active[j].rtt;
+            *active_ttl.AppendElement() = mHttp.data[i].active[j].ttl;
+            *active_protocolVersion.AppendElement() = mHttp.data[i].active[j].protocolVersion;
         }
 
+        HttpConnInfoDict &idleInfo = *idle.AppendElement();
+        idleInfo.mRtt.Construct();
+        idleInfo.mTtl.Construct();
+        idleInfo.mProtocolVersion.Construct();
+        Sequence<uint32_t> &idle_rtt = idleInfo.mRtt.Value();
+        Sequence<uint32_t> &idle_ttl = idleInfo.mTtl.Value();
+        Sequence<nsString> &idle_protocolVersion = idleInfo.mProtocolVersion.Value();
+        if (!idle_rtt.SetCapacity(mHttp.data[i].idle.Length()) ||
+            !idle_ttl.SetCapacity(mHttp.data[i].idle.Length()) ||
+            !idle_protocolVersion.SetCapacity(mHttp.data[i].idle.Length())) {
+                mHttp.cb = nullptr;
+                mHttp.data.Clear();
+                JS_ReportOutOfMemory(cx);
+                return NS_ERROR_OUT_OF_MEMORY;
+        }
         for (uint32_t j = 0; j < mHttp.data[i].idle.Length(); j++) {
-            HttpConnInfo &info = *idle.AppendElement();
-            info.mRtt = mHttp.data[i].idle[j].rtt;
-            info.mTtl = mHttp.data[i].idle[j].ttl;
-            info.mProtocolVersion = mHttp.data[i].idle[j].protocolVersion;
+            *idle_rtt.AppendElement() = mHttp.data[i].idle[j].rtt;
+            *idle_ttl.AppendElement() = mHttp.data[i].idle[j].ttl;
+            *idle_protocolVersion.AppendElement() = mHttp.data[i].idle[j].protocolVersion;
         }
 
-        for (uint32_t j = 0; j < mHttp.data[i].halfOpens.Length(); j++) {
-            HalfOpenInfoDict &info = *halfOpens.AppendElement();
-            info.mSpeculative = mHttp.data[i].halfOpens[j].speculative;
+        HalfOpenInfoDict &allHalfOpens = *halfOpens.AppendElement();
+        allHalfOpens.mSpeculative.Construct();
+        Sequence<bool> allHalfOpens_speculative;
+        if(!allHalfOpens_speculative.SetCapacity(mHttp.data[i].halfOpens.Length())) {
+                mHttp.cb = nullptr;
+                mHttp.data.Clear();
+                JS_ReportOutOfMemory(cx);
+                return NS_ERROR_OUT_OF_MEMORY;
+        }
+        allHalfOpens_speculative = allHalfOpens.mSpeculative.Value();
+        for(uint32_t j = 0; j < mHttp.data[i].halfOpens.Length(); j++) {
+            *allHalfOpens_speculative.AppendElement() = mHttp.data[i].halfOpens[j].speculative;
         }
     }
 
@@ -308,26 +336,38 @@ Dashboard::GetWebSocketConnections()
     AutoSafeJSContext cx;
 
     mozilla::dom::WebSocketDict dict;
-    dict.mWebsockets.Construct();
-    Sequence<mozilla::dom::WebSocketElement> &websockets = dict.mWebsockets.Value();
+    dict.mEncrypted.Construct();
+    dict.mHostport.Construct();
+    dict.mMsgreceived.Construct();
+    dict.mMsgsent.Construct();
+    dict.mReceivedsize.Construct();
+    dict.mSentsize.Construct();
 
-    mozilla::MutexAutoLock lock(mWs.lock);
+    Sequence<bool> &encrypted = dict.mEncrypted.Value();
+    Sequence<nsString> &hostport = dict.mHostport.Value();
+    Sequence<uint32_t> &received = dict.mMsgreceived.Value();
+    Sequence<uint32_t> &sent = dict.mMsgsent.Value();
+    Sequence<double> &receivedSize = dict.mReceivedsize.Value();
+    Sequence<double> &sentSize = dict.mSentsize.Value();
+
     uint32_t length = mWs.data.Length();
-    if (!websockets.SetCapacity(length)) {
-        mWs.cb = nullptr;
-        mWs.data.Clear();
-        JS_ReportOutOfMemory(cx);
-        return NS_ERROR_OUT_OF_MEMORY;
+    if (!encrypted.SetCapacity(length) || !hostport.SetCapacity(length) ||
+        !received.SetCapacity(length) || !sent.SetCapacity(length) ||
+        !receivedSize.SetCapacity(length) || !sentSize.SetCapacity(length)) {
+            mWs.cb = nullptr;
+            mWs.data.Clear();
+            JS_ReportOutOfMemory(cx);
+            return NS_ERROR_OUT_OF_MEMORY;
     }
 
+    mozilla::MutexAutoLock lock(mWs.lock);
     for (uint32_t i = 0; i < mWs.data.Length(); i++) {
-        mozilla::dom::WebSocketElement &websocket = *websockets.AppendElement();
-        CopyASCIItoUTF16(mWs.data[i].mHost, websocket.mHostport);
-        websocket.mMsgsent = mWs.data[i].mMsgSent;
-        websocket.mMsgreceived = mWs.data[i].mMsgReceived;
-        websocket.mSentsize = mWs.data[i].mSizeSent;
-        websocket.mReceivedsize = mWs.data[i].mSizeReceived;
-        websocket.mEncrypted = mWs.data[i].mEncrypted;
+        CopyASCIItoUTF16(mWs.data[i].mHost, *hostport.AppendElement());
+        *sent.AppendElement() = mWs.data[i].mMsgSent;
+        *received.AppendElement() = mWs.data[i].mMsgReceived;
+        *receivedSize.AppendElement() = mWs.data[i].mSizeSent;
+        *sentSize.AppendElement() = mWs.data[i].mSizeReceived;
+        *encrypted.AppendElement() = mWs.data[i].mEncrypted;
     }
 
     JS::RootedValue val(cx);
@@ -363,6 +403,66 @@ Dashboard::RequestDNSInfo(NetDashboardCallback* cb)
     return NS_OK;
 }
 
+NS_IMETHODIMP
+Dashboard::RequestDNSLookup(const nsACString &aHost, NetDashboardCallback* cb)
+{
+    if (mDnsup.cb)
+        return NS_ERROR_FAILURE;
+    mDnsup.cb = cb;
+    nsresult rv;
+    mDnsup.thread = NS_GetCurrentThread();
+
+    if (!mDnsup.serv) {
+        mDnsup.serv = do_GetService("@mozilla.org/network/dns-service;1", &rv);
+        if (NS_FAILED(rv)) {
+            mDnsup.cb = nullptr;
+            return rv;
+        }
+    }
+    mDnsup.serv->AsyncResolve(aHost, 0, this, mDnsup.thread, getter_AddRefs(mDnsup.mCancel));
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+Dashboard::OnLookupComplete(nsICancelable *aRequest, nsIDNSRecord *aRecord, nsresult aStatus)
+{
+    AutoSafeJSContext cx;
+
+    mozilla::dom::DNSLookupDict dict;
+    dict.mAddress.Construct();
+    dict.mError.Construct();
+    dict.mAnswer.Construct();
+
+    Sequence<nsString> &addresses = dict.mAddress.Value();
+    nsString &error = dict.mError.Value();
+    bool &answer = dict.mAnswer.Value();
+
+    if (!NS_FAILED(aStatus)) {
+        answer = true;
+        bool hasMore;
+        aRecord->HasMore(&hasMore);
+        while(hasMore) {
+           nsCString nextAddress;
+           aRecord->GetNextAddrAsString(nextAddress);
+           CopyASCIItoUTF16(nextAddress, *addresses.AppendElement());
+           aRecord->HasMore(&hasMore);
+        }
+    } else {
+        answer = false;
+        CopyASCIItoUTF16(GetErrorString(aStatus), error);
+    }
+
+    JS::RootedValue val(cx);
+    if (!dict.ToObject(cx, JS::NullPtr(), &val)) {
+        mDnsup.cb = nullptr;
+        return NS_ERROR_FAILURE;
+    }
+    mDnsup.cb->OnDashboardDataAvailable(val);
+    mDnsup.cb = nullptr;
+
+    return NS_OK;
+}
+
 void
 Dashboard::GetDnsInfoDispatch()
 {
@@ -378,40 +478,44 @@ Dashboard::GetDNSCacheEntries()
     AutoSafeJSContext cx;
 
     mozilla::dom::DNSCacheDict dict;
-    dict.mEntries.Construct();
-    Sequence<mozilla::dom::DnsCacheEntry> &entries = dict.mEntries.Value();
+    dict.mExpiration.Construct();
+    dict.mFamily.Construct();
+    dict.mHostaddr.Construct();
+    dict.mHostname.Construct();
+
+    Sequence<double> &expiration = dict.mExpiration.Value();
+    Sequence<nsString> &family = dict.mFamily.Value();
+    Sequence<Sequence<nsString> > &hostaddr = dict.mHostaddr.Value();
+    Sequence<nsString> &hostname = dict.mHostname.Value();
 
     uint32_t length = mDns.data.Length();
-    if (!entries.SetCapacity(length)) {
-        mDns.cb = nullptr;
-        mDns.data.Clear();
-        JS_ReportOutOfMemory(cx);
-        return NS_ERROR_OUT_OF_MEMORY;
+    if (!expiration.SetCapacity(length) || !family.SetCapacity(length) ||
+        !hostaddr.SetCapacity(length) || !hostname.SetCapacity(length)) {
+            mDns.cb = nullptr;
+            mDns.data.Clear();
+            JS_ReportOutOfMemory(cx);
+            return NS_ERROR_OUT_OF_MEMORY;
     }
 
     for (uint32_t i = 0; i < mDns.data.Length(); i++) {
-        mozilla::dom::DnsCacheEntry &entry = *entries.AppendElement();
-        entry.mHostaddr.Construct();
+        CopyASCIItoUTF16(mDns.data[i].hostname, *hostname.AppendElement());
+        *expiration.AppendElement() = mDns.data[i].expiration;
 
-        Sequence<nsString> &addrs = entry.mHostaddr.Value();
+        Sequence<nsString> &addrs = *hostaddr.AppendElement();
         if (!addrs.SetCapacity(mDns.data[i].hostaddr.Length())) {
             mDns.cb = nullptr;
             mDns.data.Clear();
             JS_ReportOutOfMemory(cx);
             return NS_ERROR_OUT_OF_MEMORY;
         }
-
-        CopyASCIItoUTF16(mDns.data[i].hostname, entry.mHostname);
-        entry.mExpiration = mDns.data[i].expiration;
-
         for (uint32_t j = 0; j < mDns.data[i].hostaddr.Length(); j++) {
             CopyASCIItoUTF16(mDns.data[i].hostaddr[j], *addrs.AppendElement());
         }
 
         if (mDns.data[i].family == PR_AF_INET6)
-            CopyASCIItoUTF16("ipv6", entry.mFamily);
+            CopyASCIItoUTF16("ipv6", *family.AppendElement());
         else
-            CopyASCIItoUTF16("ipv4", entry.mFamily);
+            CopyASCIItoUTF16("ipv4", *family.AppendElement());
     }
 
     JS::RootedValue val(cx);
@@ -422,68 +526,6 @@ Dashboard::GetDNSCacheEntries()
     }
     mDns.cb->OnDashboardDataAvailable(val);
     mDns.cb = nullptr;
-
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-Dashboard::RequestDNSLookup(const nsACString &aHost, NetDashboardCallback *cb)
-{
-    if (mDnsup.cb)
-        return NS_ERROR_FAILURE;
-    nsresult rv;
-
-    if (!mDnsup.serv) {
-        mDnsup.serv = do_GetService("@mozilla.org/network/dns-service;1", &rv);
-        if (NS_FAILED(rv))
-            return rv;
-    }
-
-    mDnsup.cb = cb;
-    rv = mDnsup.serv->AsyncResolve(aHost, 0, this, NS_GetCurrentThread(), getter_AddRefs(mDnsup.cancel));
-    if (NS_FAILED(rv)) {
-        mDnsup.cb = nullptr;
-        return rv;
-    }
-
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-Dashboard::OnLookupComplete(nsICancelable *aRequest, nsIDNSRecord *aRecord, nsresult aStatus)
-{
-    MOZ_ASSERT(aRequest == mDnsup.cancel);
-    mDnsup.cancel = nullptr;
-
-    AutoSafeJSContext cx;
-
-    mozilla::dom::DNSLookupDict dict;
-    dict.mAddress.Construct();
-
-    Sequence<nsString> &addresses = dict.mAddress.Value();
-
-    if (NS_SUCCEEDED(aStatus)) {
-        dict.mAnswer = true;
-        bool hasMore;
-        aRecord->HasMore(&hasMore);
-        while(hasMore) {
-           nsCString nextAddress;
-           aRecord->GetNextAddrAsString(nextAddress);
-           CopyASCIItoUTF16(nextAddress, *addresses.AppendElement());
-           aRecord->HasMore(&hasMore);
-        }
-    } else {
-        dict.mAnswer = false;
-        CopyASCIItoUTF16(GetErrorString(aStatus), dict.mError);
-    }
-
-    JS::RootedValue val(cx);
-    if (!dict.ToObject(cx, JS::NullPtr(), &val)) {
-        mDnsup.cb = nullptr;
-        return NS_ERROR_FAILURE;
-    }
-    mDnsup.cb->OnDashboardDataAvailable(val);
-    mDnsup.cb = nullptr;
 
     return NS_OK;
 }
@@ -509,12 +551,10 @@ HttpConnInfo::SetHTTP1ProtocolVersion(uint8_t pv)
 void
 HttpConnInfo::SetHTTP2ProtocolVersion(uint8_t pv)
 {
-    if (pv == SPDY_VERSION_3)
+    if (pv == SPDY_VERSION_2)
+        protocolVersion.Assign(NS_LITERAL_STRING("spdy/2"));
+    else
         protocolVersion.Assign(NS_LITERAL_STRING("spdy/3"));
-    else {
-        MOZ_ASSERT (pv == SPDY_VERSION_31);
-        protocolVersion.Assign(NS_LITERAL_STRING("spdy/3.1"));
-    }
 }
 
 NS_IMETHODIMP
@@ -530,8 +570,7 @@ Dashboard::RequestConnection(const nsACString& aHost, uint32_t aPort,
     if (NS_FAILED(rv)) {
         ConnStatus status;
         CopyASCIItoUTF16(GetErrorString(rv), status.creationSts);
-        nsCOMPtr<nsIRunnable> event =
-            NS_NewRunnableMethodWithArg<ConnStatus>(this, &Dashboard::GetConnectionStatus, status);
+        nsCOMPtr<nsIRunnable> event = new DashConnStatusRunnable(this, status);
         mConn.thread->Dispatch(event, NS_DISPATCH_NORMAL);
         return rv;
     }
@@ -545,7 +584,9 @@ Dashboard::GetConnectionStatus(ConnStatus aStatus)
     AutoSafeJSContext cx;
 
     mozilla::dom::ConnStatusDict dict;
-    dict.mStatus = aStatus.creationSts;
+    dict.mStatus.Construct();
+    nsString &status = dict.mStatus.Value();
+    status = aStatus.creationSts;
 
     JS::RootedValue val(cx);
     if (!dict.ToObject(cx, JS::NullPtr(), &val)) {
@@ -599,7 +640,7 @@ Dashboard::OnTransportStatus(nsITransport *aTransport, nsresult aStatus,
 
     ConnStatus status;
     CopyASCIItoUTF16(GetErrorString(aStatus), status.creationSts);
-    nsCOMPtr<nsIRunnable> event = NS_NewRunnableMethodWithArg<ConnStatus>(this, &Dashboard::GetConnectionStatus, status);
+    nsCOMPtr<nsIRunnable> event = new DashConnStatusRunnable(this, status);
     mConn.thread->Dispatch(event, NS_DISPATCH_NORMAL);
 
     return NS_OK;
@@ -618,7 +659,7 @@ Dashboard::Notify(nsITimer *timer)
 
     ConnStatus status;
     status.creationSts.Assign(NS_LITERAL_STRING("NS_ERROR_NET_TIMEOUT"));
-    nsCOMPtr<nsIRunnable> event = NS_NewRunnableMethodWithArg<ConnStatus>(this, &Dashboard::GetConnectionStatus, status);
+    nsCOMPtr<nsIRunnable> event = new DashConnStatusRunnable(this, status);
     mConn.thread->Dispatch(event, NS_DISPATCH_NORMAL);
 
     return NS_OK;
@@ -678,7 +719,7 @@ Dashboard::GetErrorString(nsresult rv)
         if (errors[i].key == rv)
             return errors[i].error;
 
-    return nullptr;
+    return NULL;
 }
 
 } } // namespace mozilla::net

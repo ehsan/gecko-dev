@@ -12,7 +12,7 @@
 #define nsStyleStruct_h___
 
 #include "mozilla/Attributes.h"
-#include "mozilla/CSSVariableValues.h"
+
 #include "nsColor.h"
 #include "nsCoord.h"
 #include "nsMargin.h"
@@ -28,7 +28,6 @@
 #include "nsIAtom.h"
 #include "nsCSSValue.h"
 #include "imgRequestProxy.h"
-#include "Orientation.h"
 #include <algorithm>
 
 class nsIFrame;
@@ -40,27 +39,27 @@ class imgIContainer;
 
 // Bits for each struct.
 // NS_STYLE_INHERIT_BIT defined in nsStyleStructFwd.h
-#define NS_STYLE_INHERIT_MASK              0x000ffffff
+#define NS_STYLE_INHERIT_MASK             0x007fffff
 
 // Additional bits for nsStyleContext's mBits:
 // See nsStyleContext::HasTextDecorationLines
-#define NS_STYLE_HAS_TEXT_DECORATION_LINES 0x001000000
+#define NS_STYLE_HAS_TEXT_DECORATION_LINES 0x00800000
 // See nsStyleContext::HasPseudoElementData.
-#define NS_STYLE_HAS_PSEUDO_ELEMENT_DATA   0x002000000
+#define NS_STYLE_HAS_PSEUDO_ELEMENT_DATA  0x01000000
 // See nsStyleContext::RelevantLinkIsVisited
-#define NS_STYLE_RELEVANT_LINK_VISITED     0x004000000
+#define NS_STYLE_RELEVANT_LINK_VISITED    0x02000000
 // See nsStyleContext::IsStyleIfVisited
-#define NS_STYLE_IS_STYLE_IF_VISITED       0x008000000
+#define NS_STYLE_IS_STYLE_IF_VISITED      0x04000000
 // See nsStyleContext::GetPseudoEnum
-#define NS_STYLE_CONTEXT_TYPE_MASK         0x1f0000000
-#define NS_STYLE_CONTEXT_TYPE_SHIFT        28
+#define NS_STYLE_CONTEXT_TYPE_MASK        0xf8000000
+#define NS_STYLE_CONTEXT_TYPE_SHIFT       27
 
 // Additional bits for nsRuleNode's mDependentBits:
-#define NS_RULE_NODE_GC_MARK                0x02000000
-#define NS_RULE_NODE_USED_DIRECTLY          0x04000000
-#define NS_RULE_NODE_IS_IMPORTANT           0x08000000
-#define NS_RULE_NODE_LEVEL_MASK             0xf0000000
-#define NS_RULE_NODE_LEVEL_SHIFT            28
+#define NS_RULE_NODE_GC_MARK              0x02000000
+#define NS_RULE_NODE_USED_DIRECTLY        0x04000000
+#define NS_RULE_NODE_IS_IMPORTANT         0x08000000
+#define NS_RULE_NODE_LEVEL_MASK           0xf0000000
+#define NS_RULE_NODE_LEVEL_SHIFT          28
 
 // The lifetime of these objects is managed by the presshell's arena.
 
@@ -101,8 +100,6 @@ public:
 
   // MathML scriptlevel support
   int8_t  mScriptLevel;          // [inherited]
-  // MathML  mathvariant support
-  uint8_t mMathVariant;          // [inherited]
 
   // was mLanguage set based on a lang attribute in the document?
   bool mExplicitLanguage;        // [inherited]
@@ -445,7 +442,6 @@ struct nsStyleBackground {
     uint8_t mAttachment;                // [reset] See nsStyleConsts.h
     uint8_t mClip;                      // [reset] See nsStyleConsts.h
     uint8_t mOrigin;                    // [reset] See nsStyleConsts.h
-    uint8_t mBlendMode;                 // [reset] See nsStyleConsts.h
     Repeat mRepeat;                     // [reset] See nsStyleConsts.h
     Position mPosition;                 // [reset]
     nsStyleImage mImage;                // [reset]
@@ -491,8 +487,7 @@ struct nsStyleBackground {
            mRepeatCount,
            mPositionCount,
            mImageCount,
-           mSizeCount,
-           mBlendModeCount;
+           mSizeCount;
   // Layers are stored in an array, matching the top-to-bottom order in
   // which they are specified in CSS.  The number of layers to be used
   // should come from the background-image property.  We create
@@ -634,7 +629,7 @@ struct nsBorderColors {
       c1 = c1->mNext;
       c2 = c2->mNext;
     }
-    // both should be nullptr if these are equal, otherwise one
+    // both should be NULL if these are equal, otherwise one
     // has more colors than another
     return !c1 && !c2;
   }
@@ -919,7 +914,7 @@ struct nsStyleBorder {
 
 public:
   nsBorderColors** mBorderColors;        // [reset] composite (stripe) colors
-  nsRefPtr<nsCSSShadowArray> mBoxShadow; // [reset] nullptr for 'none'
+  nsRefPtr<nsCSSShadowArray> mBoxShadow; // [reset] NULL for 'none'
 
 #ifdef DEBUG
   bool mImageTracked;
@@ -1129,11 +1124,9 @@ struct nsStylePosition {
   nsStyleCoord  mMaxHeight;             // [reset] coord, percent, calc, none
   nsStyleCoord  mFlexBasis;             // [reset] coord, percent, enum, calc, auto
   uint8_t       mBoxSizing;             // [reset] see nsStyleConsts.h
-  uint8_t       mAlignContent;          // [reset] see nsStyleConsts.h
   uint8_t       mAlignItems;            // [reset] see nsStyleConsts.h
   uint8_t       mAlignSelf;             // [reset] see nsStyleConsts.h
   uint8_t       mFlexDirection;         // [reset] see nsStyleConsts.h
-  uint8_t       mFlexWrap;              // [reset] see nsStyleConsts.h
   uint8_t       mJustifyContent;        // [reset] see nsStyleConsts.h
   int32_t       mOrder;                 // [reset] integer
   float         mFlexGrow;              // [reset] float
@@ -1316,8 +1309,6 @@ struct nsStyleText {
 
   uint8_t mTextAlign;                   // [inherited] see nsStyleConsts.h
   uint8_t mTextAlignLast;               // [inherited] see nsStyleConsts.h
-  bool mTextAlignTrue : 1;              // [inherited] see nsStyleConsts.h
-  bool mTextAlignLastTrue : 1;          // [inherited] see nsStyleConsts.h
   uint8_t mTextTransform;               // [inherited] see nsStyleConsts.h
   uint8_t mWhiteSpace;                  // [inherited] see nsStyleConsts.h
   uint8_t mWordBreak;                   // [inherited] see nsStyleConsts.h
@@ -1333,7 +1324,7 @@ struct nsStyleText {
   nsStyleCoord  mLineHeight;            // [inherited] coord, factor, normal
   nsStyleCoord  mTextIndent;            // [inherited] coord, percent, calc
 
-  nsRefPtr<nsCSSShadowArray> mTextShadow; // [inherited] nullptr in case of a zero-length
+  nsRefPtr<nsCSSShadowArray> mTextShadow; // [inherited] NULL in case of a zero-length
 
   bool WhiteSpaceIsSignificant() const {
     return mWhiteSpace == NS_STYLE_WHITESPACE_PRE ||
@@ -1381,94 +1372,6 @@ struct nsStyleText {
   inline bool WordCanWrap(const nsIFrame* aContextFrame) const;
 };
 
-struct nsStyleImageOrientation {
-  static nsStyleImageOrientation CreateAsAngleAndFlip(double aRadians,
-                                                      bool aFlip) {
-    uint8_t orientation(0);
-
-    // Compute the final angle value, rounding to the closest quarter turn.
-    double roundedAngle = fmod(aRadians, 2 * M_PI);
-    if      (roundedAngle < 0.25 * M_PI) orientation = ANGLE_0;
-    else if (roundedAngle < 0.75 * M_PI) orientation = ANGLE_90;
-    else if (roundedAngle < 1.25 * M_PI) orientation = ANGLE_180;
-    else if (roundedAngle < 1.75 * M_PI) orientation = ANGLE_270;
-    else                                 orientation = ANGLE_0;
-
-    // Add a bit for 'flip' if needed.
-    if (aFlip)
-      orientation |= FLIP_MASK;
-
-    return nsStyleImageOrientation(orientation);
-  }
-
-  static nsStyleImageOrientation CreateAsFlip() {
-    return nsStyleImageOrientation(FLIP_MASK);
-  }
-
-  static nsStyleImageOrientation CreateAsFromImage() {
-    return nsStyleImageOrientation(FROM_IMAGE_MASK);
-  }
-
-  // The default constructor yields 0 degrees of rotation and no flip.
-  nsStyleImageOrientation() : mOrientation(0) { }
-
-  bool IsDefault()   const { return mOrientation == 0; }
-  bool IsFlipped()   const { return mOrientation & FLIP_MASK; }
-  bool IsFromImage() const { return mOrientation & FROM_IMAGE_MASK; }
-
-  mozilla::image::Angle Angle() const {
-    switch (mOrientation & ORIENTATION_MASK) {
-      case ANGLE_0:   return mozilla::image::Angle::D0;
-      case ANGLE_90:  return mozilla::image::Angle::D90;
-      case ANGLE_180: return mozilla::image::Angle::D180;
-      case ANGLE_270: return mozilla::image::Angle::D270;
-      default:
-        NS_NOTREACHED("Unexpected angle");
-        return mozilla::image::Angle::D0;
-    }
-  }
-
-  nsStyleCoord AngleAsCoord() const {
-    switch (mOrientation & ORIENTATION_MASK) {
-      case ANGLE_0:   return nsStyleCoord(0.0f,   eStyleUnit_Degree);
-      case ANGLE_90:  return nsStyleCoord(90.0f,  eStyleUnit_Degree);
-      case ANGLE_180: return nsStyleCoord(180.0f, eStyleUnit_Degree);
-      case ANGLE_270: return nsStyleCoord(270.0f, eStyleUnit_Degree);
-      default:
-        NS_NOTREACHED("Unexpected angle");
-        return nsStyleCoord();
-    }
-  }
-
-  bool operator==(const nsStyleImageOrientation& aOther) const {
-    return aOther.mOrientation == mOrientation;
-  }
-
-  bool operator!=(const nsStyleImageOrientation& aOther) const {
-    return !(*this == aOther);
-  }
-
-protected:
-  enum Bits {
-    ORIENTATION_MASK = 0x1 | 0x2,  // The bottom two bits are the angle.
-    FLIP_MASK        = 0x4,        // Whether the image should be flipped.
-    FROM_IMAGE_MASK  = 0x8,        // Whether the image's inherent orientation
-  };                               // should be used.
-
-  enum Angles {
-    ANGLE_0   = 0,
-    ANGLE_90  = 1,
-    ANGLE_180 = 2,
-    ANGLE_270 = 3,
-  };
-
-  explicit nsStyleImageOrientation(uint8_t aOrientation)
-    : mOrientation(aOrientation)
-  { }
-
-  uint8_t mOrientation;
-};
-
 struct nsStyleVisibility {
   nsStyleVisibility(nsPresContext* aPresContext);
   nsStyleVisibility(const nsStyleVisibility& aVisibility);
@@ -1489,7 +1392,6 @@ struct nsStyleVisibility {
     return NS_STYLE_HINT_FRAMECHANGE;
   }
 
-  nsStyleImageOrientation mImageOrientation;  // [inherited]
   uint8_t mDirection;                  // [inherited] see nsStyleConsts.h NS_STYLE_DIRECTION_*
   uint8_t mVisible;                    // [inherited]
   uint8_t mPointerEvents;              // [inherited] see nsStyleConsts.h
@@ -1724,10 +1626,10 @@ struct nsStyleDisplay {
   // mSpecifiedTransform is the list of transform functions as
   // specified, or null to indicate there is no transform.  (inherit or
   // initial are replaced by an actual list of transform functions, or
-  // null, as appropriate.)
+  // null, as appropriate.) (owned by the style rule)
   uint8_t mBackfaceVisibility;
   uint8_t mTransformStyle;
-  nsRefPtr<nsCSSValueSharedList> mSpecifiedTransform; // [reset]
+  const nsCSSValueList *mSpecifiedTransform; // [reset]
   nsStyleCoord mTransformOrigin[3]; // [reset] percent, coord, calc, 3rd param is coord, calc only
   nsStyleCoord mChildPerspective; // [reset] coord
   nsStyleCoord mPerspectiveOrigin[2]; // [reset] percent, coord, calc
@@ -1786,17 +1688,6 @@ struct nsStyleDisplay {
     return IsDisplayTypeInlineOutside(mOriginalDisplay);
   }
 
-  bool IsInnerTableStyle() const {
-    return NS_STYLE_DISPLAY_TABLE_CAPTION == mDisplay ||
-           NS_STYLE_DISPLAY_TABLE_CELL == mDisplay ||
-           NS_STYLE_DISPLAY_TABLE_ROW == mDisplay ||
-           NS_STYLE_DISPLAY_TABLE_ROW_GROUP == mDisplay ||
-           NS_STYLE_DISPLAY_TABLE_HEADER_GROUP == mDisplay ||
-           NS_STYLE_DISPLAY_TABLE_FOOTER_GROUP == mDisplay ||
-           NS_STYLE_DISPLAY_TABLE_COLUMN == mDisplay ||
-           NS_STYLE_DISPLAY_TABLE_COLUMN_GROUP == mDisplay;
-  }
-
   bool IsFloatingStyle() const {
     return NS_STYLE_FLOAT_NONE != mFloats;
   }
@@ -1807,8 +1698,7 @@ struct nsStyleDisplay {
   }
 
   bool IsRelativelyPositionedStyle() const {
-    return NS_STYLE_POSITION_RELATIVE == mPosition ||
-           NS_STYLE_POSITION_STICKY == mPosition;
+    return mPosition == NS_STYLE_POSITION_RELATIVE;
   }
 
   bool IsScrollableOverflow() const {
@@ -1906,8 +1796,7 @@ enum nsStyleContentType {
   eStyleContentType_CloseQuote    = 41,
   eStyleContentType_NoOpenQuote   = 42,
   eStyleContentType_NoCloseQuote  = 43,
-  eStyleContentType_AltContent    = 50,
-  eStyleContentType_Uninitialized
+  eStyleContentType_AltContent    = 50
 };
 
 struct nsStyleContentData {
@@ -1922,7 +1811,7 @@ struct nsStyleContentData {
 #endif
 
   nsStyleContentData()
-    : mType(eStyleContentType_Uninitialized)
+    : mType(nsStyleContentType(0))
 #ifdef DEBUG
     , mImageTracked(false)
 #endif
@@ -2300,14 +2189,14 @@ enum nsStyleSVGPaintType {
   eStyleSVGPaintType_None = 1,
   eStyleSVGPaintType_Color,
   eStyleSVGPaintType_Server,
-  eStyleSVGPaintType_ContextFill,
-  eStyleSVGPaintType_ContextStroke
+  eStyleSVGPaintType_ObjectFill,
+  eStyleSVGPaintType_ObjectStroke
 };
 
 enum nsStyleSVGOpacitySource {
   eStyleSVGOpacitySource_Normal,
-  eStyleSVGOpacitySource_ContextFillOpacity,
-  eStyleSVGOpacitySource_ContextStrokeOpacity
+  eStyleSVGOpacitySource_ObjectFillOpacity,
+  eStyleSVGOpacitySource_ObjectStrokeOpacity
 };
 
 struct nsStyleSVGPaint
@@ -2391,22 +2280,6 @@ struct nsStyleSVG {
   bool HasMarker() const {
     return mMarkerStart || mMarkerMid || mMarkerEnd;
   }
-
-  /**
-   * Returns true if the stroke is not "none" and the stroke-opacity is greater
-   * than zero. This ignores stroke-widths as that depends on the context.
-   */
-  bool HasStroke() const {
-    return mStroke.mType != eStyleSVGPaintType_None && mStrokeOpacity > 0;
-  }
-
-  /**
-   * Returns true if the fill is not "none" and the fill-opacity is greater
-   * than zero.
-   */
-  bool HasFill() const {
-    return mFill.mType != eStyleSVGPaintType_None && mFillOpacity > 0;
-  }
 };
 
 struct nsStyleFilter {
@@ -2455,9 +2328,8 @@ private:
 };
 
 template<>
-struct nsTArray_CopyChooser<nsStyleFilter> {
-  typedef nsTArray_CopyWithConstructors<nsStyleFilter> Type;
-};
+struct nsTArray_CopyElements<nsStyleFilter>
+  : public nsTArray_CopyWithConstructors<nsStyleFilter> {};
 
 struct nsStyleSVGReset {
   nsStyleSVGReset();
@@ -2500,27 +2372,6 @@ struct nsStyleSVGReset {
   uint8_t          mDominantBaseline; // [reset] see nsStyleConsts.h
   uint8_t          mVectorEffect;     // [reset] see nsStyleConsts.h
   uint8_t          mMaskType;         // [reset] see nsStyleConsts.h
-};
-
-struct nsStyleVariables {
-  nsStyleVariables();
-  nsStyleVariables(const nsStyleVariables& aSource);
-  ~nsStyleVariables();
-
-  void* operator new(size_t sz, nsPresContext* aContext) CPP_THROW_NEW {
-    return aContext->AllocateFromShell(sz);
-  }
-  void Destroy(nsPresContext* aContext) {
-    this->~nsStyleVariables();
-    aContext->FreeToShell(sizeof(nsStyleVariables), this);
-  }
-
-  nsChangeHint CalcDifference(const nsStyleVariables& aOther) const;
-  static nsChangeHint MaxDifference() {
-    return nsChangeHint(0);
-  }
-
-  mozilla::CSSVariableValues mVariables;
 };
 
 #endif /* nsStyleStruct_h___ */

@@ -7,6 +7,8 @@
 #ifndef jit_InlineList_h
 #define jit_InlineList_h
 
+#include "mozilla/DebugOnly.h"
+
 #include "jsutil.h"
 
 namespace js {
@@ -18,7 +20,7 @@ template <typename T>
 class InlineForwardListNode
 {
   public:
-    InlineForwardListNode() : next(nullptr)
+    InlineForwardListNode() : next(NULL)
     { }
     InlineForwardListNode(InlineForwardListNode<T> *n) : next(n)
     { }
@@ -38,9 +40,7 @@ class InlineForwardList : protected InlineForwardListNode<T>
     typedef InlineForwardListNode<T> Node;
 
     Node *tail_;
-#ifdef DEBUG
-    int modifyCount_;
-#endif
+    mozilla::DebugOnly<int> modifyCount_;
 
     InlineForwardList<T> *thisFromConstructor() {
         return this;
@@ -50,9 +50,7 @@ class InlineForwardList : protected InlineForwardListNode<T>
     InlineForwardList()
       : tail_(thisFromConstructor())
     {
-#ifdef DEBUG
         modifyCount_ = 0;
-#endif
     }
 
   public:
@@ -63,22 +61,20 @@ class InlineForwardList : protected InlineForwardListNode<T>
         return iterator(this);
     }
     iterator end() const {
-        return iterator(nullptr);
+        return iterator(NULL);
     }
     iterator removeAt(iterator &where) {
         iterator iter(where);
         iter++;
         iter.prev = where.prev;
-#ifdef DEBUG
         iter.modifyCount_++;
-#endif
 
         // Once the element 'where' points at has been removed, it is no longer
         // safe to do any operations that would touch 'iter', as the element
-        // may be added to another list, etc. This nullptr ensures that any
+        // may be added to another list, etc. This NULL ensures that any
         // improper uses of this function will fail quickly and loudly.
         removeAfter(where.prev, where.iter);
-        where.prev = where.iter = nullptr;
+        where.prev = where.iter = NULL;
 
         return iter;
     }
@@ -86,11 +82,9 @@ class InlineForwardList : protected InlineForwardListNode<T>
         insertAfter(this, t);
     }
     void pushBack(Node *t) {
-#ifdef DEBUG
         modifyCount_++;
-#endif
         tail_->next = t;
-        t->next = nullptr;
+        t->next = NULL;
         tail_ = t;
     }
     T *popFront() {
@@ -99,23 +93,15 @@ class InlineForwardList : protected InlineForwardListNode<T>
         removeAfter(this, result);
         return result;
     }
-    T *back() {
-        JS_ASSERT(!empty());
-        return static_cast<T *>(tail_);
-    }
     void insertAfter(Node *at, Node *item) {
-#ifdef DEBUG
         modifyCount_++;
-#endif
         if (at == tail_)
             tail_ = item;
         item->next = at->next;
         at->next = item;
     }
     void removeAfter(Node *at, Node *item) {
-#ifdef DEBUG
         modifyCount_++;
-#endif
         if (item == tail_)
             tail_ = at;
         JS_ASSERT(at->next == item);
@@ -127,23 +113,19 @@ class InlineForwardList : protected InlineForwardListNode<T>
             at = this;
         if (at == tail_)
             return;
-#ifdef DEBUG
         modifyCount_++;
-#endif
         to->next = at->next;
         to->tail_ = tail_;
         tail_ = at;
-        at->next = nullptr;
+        at->next = NULL;
     }
     bool empty() const {
         return tail_ == this;
     }
     void clear() {
-        this->next = nullptr;
+        this->next = NULL;
         tail_ = this;
-#ifdef DEBUG
         modifyCount_ = 0;
-#endif
     }
 };
 
@@ -157,10 +139,10 @@ private:
 
     InlineForwardListIterator<T>(const InlineForwardList<T> *owner)
       : prev(const_cast<Node *>(static_cast<const Node *>(owner))),
-        iter(owner ? owner->next : nullptr)
+        iter(owner ? owner->next : NULL)
 #ifdef DEBUG
       , owner_(owner),
-        modifyCount_(owner ? owner->modifyCount_ : 0)
+        modifyCount_(owner ? owner->modifyCount_.value : 0)
 #endif
     { }
 
@@ -199,8 +181,8 @@ private:
 
 #ifdef DEBUG
     const InlineForwardList<T> *owner_;
-    int modifyCount_;
 #endif
+    mozilla::DebugOnly<int> modifyCount_;
 };
 
 template <typename T> class InlineList;
@@ -211,7 +193,7 @@ template <typename T>
 class InlineListNode : public InlineForwardListNode<T>
 {
   public:
-    InlineListNode() : InlineForwardListNode<T>(nullptr), prev(nullptr)
+    InlineListNode() : InlineForwardListNode<T>(NULL), prev(NULL)
     { }
     InlineListNode(InlineListNode<T> *n, InlineListNode<T> *p)
       : InlineForwardListNode<T>(n),
@@ -231,8 +213,13 @@ class InlineList : protected InlineListNode<T>
 {
     typedef InlineListNode<T> Node;
 
+    // Silence MSVC warning C4355
+    InlineList<T> *thisFromConstructor() {
+        return this;
+    }
+
   public:
-    InlineList() : InlineListNode<T>(MOZ_THIS_IN_INITIALIZER_LIST(), MOZ_THIS_IN_INITIALIZER_LIST())
+    InlineList() : InlineListNode<T>(thisFromConstructor(), thisFromConstructor())
     { }
 
   public:
@@ -265,10 +252,10 @@ class InlineList : protected InlineListNode<T>
 
         // Once the element 'where' points at has been removed, it is no longer
         // safe to do any operations that would touch 'iter', as the element
-        // may be added to another list, etc. This nullptr ensures that any
+        // may be added to another list, etc. This NULL ensures that any
         // improper uses of this function will fail quickly and loudly.
         remove(where.iter);
-        where.iter = nullptr;
+        where.iter = NULL;
 
         return iter;
     }
@@ -310,7 +297,7 @@ class InlineList : protected InlineListNode<T>
     void remove(Node *t) {
         t->prev->next = t->next;
         static_cast<Node *>(t->next)->prev = t->prev;
-        t->next = t->prev = nullptr;
+        t->next = t->prev = NULL;
     }
     void clear() {
         this->next = this->prev = this;
@@ -334,8 +321,8 @@ class InlineListIterator
 
   public:
     InlineListIterator<T> & operator ++() {
-        iter = static_cast<Node *>(iter->next);
-        return *this;
+        iter = iter->next;
+        return *iter;
     }
     InlineListIterator<T> operator ++(int) {
         InlineListIterator<T> old(*this);
@@ -379,7 +366,7 @@ class InlineListReverseIterator
   public:
     InlineListReverseIterator<T> & operator ++() {
         iter = iter->prev;
-        return *this;
+        return *iter;
     }
     InlineListReverseIterator<T> operator ++(int) {
         InlineListReverseIterator<T> old(*this);
@@ -396,92 +383,6 @@ class InlineListReverseIterator
         return iter != where.iter;
     }
     bool operator ==(const InlineListReverseIterator<T> &where) const {
-        return iter == where.iter;
-    }
-
-  private:
-    Node *iter;
-};
-
-/* This list type is more or less exactly an InlineForwardList without a sentinel
- * node. It is useful in cases where you are doing algorithms that deal with many
- * merging singleton lists, rather than often empty ones.
- */
-template <typename T> class InlineConcatListIterator;
-template <typename T>
-class InlineConcatList
-{
-  private:
-    typedef InlineConcatList<T> Node;
-
-    InlineConcatList<T> *thisFromConstructor() {
-        return this;
-    }
-
-  public:
-    InlineConcatList() : next(nullptr), tail(thisFromConstructor())
-    { }
-
-    typedef InlineConcatListIterator<T> iterator;
-
-    iterator begin() const {
-        return iterator(this);
-    }
-
-    iterator end() const {
-        return iterator(nullptr);
-    }
-
-    void append(InlineConcatList<T> *adding)
-    {
-        JS_ASSERT(tail);
-        JS_ASSERT(!tail->next);
-        JS_ASSERT(adding->tail);
-        JS_ASSERT(!adding->tail->next);
-
-        tail->next = adding;
-        tail = adding->tail;
-        adding->tail = nullptr;
-    }
-
-  protected:
-    friend class InlineConcatListIterator<T>;
-    Node *next;
-    Node *tail;
-};
-
-template <typename T>
-class InlineConcatListIterator
-{
-  private:
-    friend class InlineConcatList<T>;
-
-    typedef InlineConcatList<T> Node;
-
-    InlineConcatListIterator(const Node *iter)
-      : iter(const_cast<Node *>(iter))
-    { }
-
-  public:
-    InlineConcatListIterator<T> & operator ++() {
-        iter = iter->next;
-        return *iter;
-    }
-    InlineConcatListIterator<T> operator ++(int) {
-        InlineConcatListIterator<T> old(*this);
-        iter = static_cast<Node *>(iter->next);
-        return old;
-    }
-    T * operator *() const {
-        return static_cast<T *>(iter);
-    }
-    T * operator ->() const {
-        return static_cast<T *>(iter);
-    }
-    bool operator !=(const InlineConcatListIterator<T> &where) const {
-        return iter != where.iter;
-    }
-    bool operator ==(const InlineConcatListIterator<T> &where) const {
         return iter == where.iter;
     }
 

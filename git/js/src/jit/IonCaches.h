@@ -10,15 +10,19 @@
 #ifdef JS_CPU_ARM
 # include "jit/arm/Assembler-arm.h"
 #endif
+#include "jit/IonCode.h"
 #include "jit/Registers.h"
 #include "jit/shared/Assembler-shared.h"
+
+class JSFunction;
+class JSScript;
 
 namespace js {
 
 class LockedJSContext;
 class TypedArrayObject;
 
-namespace jit {
+namespace ion {
 
 #define IONCACHE_KIND_LIST(_)                                   \
     _(GetProperty)                                              \
@@ -29,9 +33,7 @@ namespace jit {
     _(Name)                                                     \
     _(CallsiteClone)                                            \
     _(GetPropertyPar)                                           \
-    _(GetElementPar)                                            \
-    _(SetPropertyPar)                                           \
-    _(SetElementPar)
+    _(GetElementPar)
 
 // Forward declarations of Cache kinds.
 #define FORWARD_DECLARE(kind) class kind##IC;
@@ -42,7 +44,7 @@ class IonCacheVisitor
 {
   public:
 #define VISIT_INS(op)                                               \
-    virtual bool visit##op##IC(CodeGenerator *codegen) {            \
+    virtual bool visit##op##IC(CodeGenerator *codegen, op##IC *) {  \
         MOZ_ASSUME_UNREACHABLE("NYI: " #op "IC");                   \
     }
 
@@ -162,7 +164,7 @@ class IonCache
 
     CodeLocationLabel fallbackLabel_;
 
-    // Location of this operation, nullptr for idempotent caches.
+    // Location of this operation, NULL for idempotent caches.
     JSScript *script_;
     jsbytecode *pc_;
 
@@ -182,8 +184,8 @@ class IonCache
         disabled_(false),
         stubCount_(0),
         fallbackLabel_(),
-        script_(nullptr),
-        pc_(nullptr)
+        script_(NULL),
+        pc_(NULL)
     {
     }
 
@@ -201,7 +203,7 @@ class IonCache
 
     virtual void emitInitialJump(MacroAssembler &masm, AddCacheState &addState) = 0;
     virtual void bindInitialJump(MacroAssembler &masm, AddCacheState &addState) = 0;
-    virtual void updateBaseAddress(JitCode *code, MacroAssembler &masm);
+    virtual void updateBaseAddress(IonCode *code, MacroAssembler &masm);
 
     // Initialize the AddCacheState depending on the kind of cache, like
     // setting a scratch register. Defaults to doing nothing.
@@ -230,10 +232,10 @@ class IonCache
     // monitoring/allocation caused an invalidation of the running ion script,
     // this function returns CACHE_FLUSHED. In case of allocation issue this
     // function returns LINK_ERROR.
-    LinkStatus linkCode(JSContext *cx, MacroAssembler &masm, IonScript *ion, JitCode **code);
+    LinkStatus linkCode(JSContext *cx, MacroAssembler &masm, IonScript *ion, IonCode **code);
     // Fixup variables and update jumps in the list of stubs.  Increment the
     // number of attached stubs accordingly.
-    void attachStub(MacroAssembler &masm, StubAttacher &attacher, Handle<JitCode *> code);
+    void attachStub(MacroAssembler &masm, StubAttacher &attacher, Handle<IonCode *> code);
 
     // Combine both linkStub and attachStub into one function. In addition, it
     // produces a spew augmented with the attachKind string.
@@ -380,7 +382,7 @@ class RepatchIonCache : public IonCache
     void bindInitialJump(MacroAssembler &masm, AddCacheState &addState);
 
     // Update the labels once the code is finalized.
-    void updateBaseAddress(JitCode *code, MacroAssembler &masm);
+    void updateBaseAddress(IonCode *code, MacroAssembler &masm);
 };
 
 //
@@ -465,7 +467,7 @@ class DispatchIonCache : public IonCache
 
   public:
     DispatchIonCache()
-      : firstStub_(nullptr),
+      : firstStub_(NULL),
         rejoinLabel_(),
         dispatchLabel_()
     {
@@ -478,7 +480,7 @@ class DispatchIonCache : public IonCache
     void bindInitialJump(MacroAssembler &masm, AddCacheState &addState);
 
     // Fix up the first stub pointer once the code is finalized.
-    void updateBaseAddress(JitCode *code, MacroAssembler &masm);
+    void updateBaseAddress(IonCode *code, MacroAssembler &masm);
 };
 
 // Define the cache kind and pre-declare data structures used for calling inline
@@ -489,31 +491,13 @@ class DispatchIonCache : public IonCache
     }                                                               \
                                                                     \
     bool accept(CodeGenerator *codegen, IonCacheVisitor *visitor) { \
-        return visitor->visit##ickind##IC(codegen);                 \
+        return visitor->visit##ickind##IC(codegen, this);           \
     }                                                               \
                                                                     \
     static const VMFunction UpdateInfo;
 
 // Subclasses of IonCache for the various kinds of caches. These do not define
 // new data members; all caches must be of the same size.
-
-// Helper for idempotent GetPropertyIC location tracking. Declared externally
-// to be forward declarable.
-//
-// Since all the scripts stored in CacheLocations are guaranteed to have been
-// Ion compiled, and are kept alive by function objects in jitcode, and since
-// the CacheLocations only have the lifespan of the jitcode, there is no need
-// to trace or mark any of the scripts. Since JSScripts are always allocated
-// tenured, and never moved, we can keep raw pointers, and there is no need
-// for HeapPtrScripts here.
-struct CacheLocation {
-    jsbytecode *pc;
-    JSScript *script;
-
-    CacheLocation(jsbytecode *pcin, JSScript *scriptin)
-        : pc(pcin), script(scriptin)
-    { }
-};
 
 class GetPropertyIC : public RepatchIonCache
 {
@@ -525,11 +509,6 @@ class GetPropertyIC : public RepatchIonCache
     Register object_;
     PropertyName *name_;
     TypedOrValueRegister output_;
-
-    // Only valid if idempotent
-    size_t locationsIndex_;
-    size_t numLocations_;
-
     bool allowGetters_ : 1;
     bool hasTypedArrayLengthStub_ : 1;
     bool hasStrictArgumentsLengthStub_ : 1;
@@ -545,8 +524,6 @@ class GetPropertyIC : public RepatchIonCache
         object_(object),
         name_(name),
         output_(output),
-        locationsIndex_(0),
-        numLocations_(0),
         allowGetters_(allowGetters),
         hasTypedArrayLengthStub_(false),
         hasStrictArgumentsLengthStub_(false),
@@ -581,20 +558,8 @@ class GetPropertyIC : public RepatchIonCache
         return hasGenericProxyStub_;
     }
 
-    void setLocationInfo(size_t locationsIndex, size_t numLocations) {
-        JS_ASSERT(idempotent());
-        JS_ASSERT(!numLocations_);
-        JS_ASSERT(numLocations);
-        locationsIndex_ = locationsIndex;
-        numLocations_ = numLocations;
-    }
-    void getLocationInfo(uint32_t *index, uint32_t *num) const {
-        JS_ASSERT(idempotent());
-        *index = locationsIndex_;
-        *num = numLocations_;
-    }
-
     enum NativeGetPropCacheability {
+        CanAttachError,
         CanAttachNone,
         CanAttachReadSlot,
         CanAttachArrayLength,
@@ -603,7 +568,14 @@ class GetPropertyIC : public RepatchIonCache
 
     // Helpers for CanAttachNativeGetProp
     typedef JSContext * Context;
-    bool allowArrayLength(Context cx, HandleObject obj) const;
+    static bool doPropertyLookup(Context cx, HandleObject obj, HandlePropertyName name,
+                                 MutableHandleObject holder, MutableHandleShape shape) {
+        return JSObject::lookupProperty(cx, obj, name, holder, shape);
+    }
+    bool lookupNeedsIdempotentChain() const {
+        return idempotent();
+    }
+    bool canMonitorSingletonUndefinedSlot(HandleObject holder, HandleShape shape) const;
 
     // Attach the proper stub, if possible
     bool tryAttachStub(JSContext *cx, IonScript *ion, HandleObject obj,
@@ -639,26 +611,19 @@ class SetPropertyIC : public RepatchIonCache
     PropertyName *name_;
     ConstantOrRegister value_;
     bool strict_;
-    bool needsTypeBarrier_;
-
-    bool hasGenericProxyStub_;
 
   public:
     SetPropertyIC(RegisterSet liveRegs, Register object, PropertyName *name,
-                  ConstantOrRegister value, bool strict, bool needsTypeBarrier)
+                  ConstantOrRegister value, bool strict)
       : liveRegs_(liveRegs),
         object_(object),
         name_(name),
         value_(value),
-        strict_(strict),
-        needsTypeBarrier_(needsTypeBarrier),
-        hasGenericProxyStub_(false)
+        strict_(strict)
     {
     }
 
     CACHE_HEADER(SetProperty)
-
-    void reset();
 
     Register object() const {
         return object_;
@@ -672,31 +637,12 @@ class SetPropertyIC : public RepatchIonCache
     bool strict() const {
         return strict_;
     }
-    bool needsTypeBarrier() const {
-        return needsTypeBarrier_;
-    }
-    bool hasGenericProxyStub() const {
-        return hasGenericProxyStub_;
-    }
 
-    enum NativeSetPropCacheability {
-        CanAttachNone,
-        CanAttachSetSlot,
-        MaybeCanAttachAddSlot,
-        CanAttachCallSetter
-    };
-
-    bool attachSetSlot(JSContext *cx, IonScript *ion, HandleObject obj, HandleShape shape,
-                       bool checkTypeset);
-    bool attachCallSetter(JSContext *cx, IonScript *ion, HandleObject obj,
+    bool attachNativeExisting(JSContext *cx, IonScript *ion, HandleObject obj, HandleShape shape);
+    bool attachSetterCall(JSContext *cx, IonScript *ion, HandleObject obj,
                           HandleObject holder, HandleShape shape, void *returnAddr);
-    bool attachAddSlot(JSContext *cx, IonScript *ion, JSObject *obj, HandleShape oldShape,
-                       bool checkTypeset);
-    bool attachGenericProxy(JSContext *cx, IonScript *ion, void *returnAddr);
-    bool attachDOMProxyShadowed(JSContext *cx, IonScript *ion, HandleObject obj,
-                                void *returnAddr);
-    bool attachDOMProxyUnshadowed(JSContext *cx, IonScript *ion, HandleObject obj,
-                                  void *returnAddr);
+    bool attachNativeAdding(JSContext *cx, IonScript *ion, JSObject *obj, HandleShape oldshape,
+                            HandleShape newshape, HandleShape propshape);
 
     static bool
     update(JSContext *cx, size_t cacheIndex, HandleObject obj, HandleValue value);
@@ -705,8 +651,6 @@ class SetPropertyIC : public RepatchIonCache
 class GetElementIC : public RepatchIonCache
 {
   protected:
-    RegisterSet liveRegs_;
-
     Register object_;
     ConstantOrRegister index_;
     TypedOrValueRegister output_;
@@ -721,10 +665,9 @@ class GetElementIC : public RepatchIonCache
     static const size_t MAX_FAILED_UPDATES;
 
   public:
-    GetElementIC(RegisterSet liveRegs, Register object, ConstantOrRegister index,
+    GetElementIC(Register object, ConstantOrRegister index,
                  TypedOrValueRegister output, bool monitoredResult)
-      : liveRegs_(liveRegs),
-        object_(object),
+      : object_(object),
         index_(index),
         output_(output),
         monitoredResult_(monitoredResult),
@@ -764,8 +707,12 @@ class GetElementIC : public RepatchIonCache
 
     // Helpers for CanAttachNativeGetProp
     typedef JSContext * Context;
-    bool allowGetters() const { JS_ASSERT(!idempotent()); return true; }
-    bool allowArrayLength(Context, HandleObject) const { return false; }
+    static bool doPropertyLookup(Context cx, HandleObject obj, HandlePropertyName name,
+                                 MutableHandleObject holder, MutableHandleShape shape) {
+        return JSObject::lookupProperty(cx, obj, name, holder, shape);
+    }
+    bool allowGetters() const { return false; }
+    bool lookupNeedsIdempotentChain() const { return false; }
     bool canMonitorSingletonUndefinedSlot(HandleObject holder, HandleShape shape) const {
         return monitoredResult();
     }
@@ -775,8 +722,7 @@ class GetElementIC : public RepatchIonCache
     static bool canAttachTypedArrayElement(JSObject *obj, const Value &idval,
                                            TypedOrValueRegister output);
 
-    bool attachGetProp(JSContext *cx, IonScript *ion, HandleObject obj, const Value &idval,
-                       HandlePropertyName name, void *returnAddr);
+    bool attachGetProp(JSContext *cx, IonScript *ion, HandleObject obj, const Value &idval, HandlePropertyName name);
     bool attachDenseElement(JSContext *cx, IonScript *ion, JSObject *obj, const Value &idval);
     bool attachTypedArrayElement(JSContext *cx, IonScript *ion, TypedArrayObject *tarr,
                                  const Value &idval);
@@ -784,7 +730,7 @@ class GetElementIC : public RepatchIonCache
 
     static bool
     update(JSContext *cx, size_t cacheIndex, HandleObject obj, HandleValue idval,
-           MutableHandleValue vp);
+                MutableHandleValue vp);
 
     void incFailedUpdates() {
         failedUpdates_++;
@@ -804,26 +750,22 @@ class SetElementIC : public RepatchIonCache
     Register object_;
     Register tempToUnboxIndex_;
     Register temp_;
-    FloatRegister tempFloat_;
     ValueOperand index_;
     ConstantOrRegister value_;
     bool strict_;
-    bool guardHoles_;
 
     bool hasDenseStub_ : 1;
 
   public:
     SetElementIC(Register object, Register tempToUnboxIndex, Register temp,
-                 FloatRegister tempFloat, ValueOperand index, ConstantOrRegister value,
-                 bool strict, bool guardHoles)
+                 ValueOperand index, ConstantOrRegister value,
+                 bool strict)
       : object_(object),
         tempToUnboxIndex_(tempToUnboxIndex),
         temp_(temp),
-        tempFloat_(tempFloat),
         index_(index),
         value_(value),
         strict_(strict),
-        guardHoles_(guardHoles),
         hasDenseStub_(false)
     {
     }
@@ -841,9 +783,6 @@ class SetElementIC : public RepatchIonCache
     Register temp() const {
         return temp_;
     }
-    FloatRegister tempFloat() const {
-        return tempFloat_;
-    }
     ValueOperand index() const {
         return index_;
     }
@@ -852,9 +791,6 @@ class SetElementIC : public RepatchIonCache
     }
     bool strict() const {
         return strict_;
-    }
-    bool guardHoles() const {
-        return guardHoles_;
     }
 
     bool hasDenseStub() const {
@@ -866,11 +802,10 @@ class SetElementIC : public RepatchIonCache
     }
 
     bool attachDenseElement(JSContext *cx, IonScript *ion, JSObject *obj, const Value &idval);
-    bool attachTypedArrayElement(JSContext *cx, IonScript *ion, TypedArrayObject *tarr);
 
     static bool
     update(JSContext *cx, size_t cacheIndex, HandleObject obj, HandleValue idval,
-           HandleValue value);
+                HandleValue value);
 };
 
 class BindNameIC : public RepatchIonCache
@@ -946,8 +881,8 @@ class NameIC : public RepatchIonCache
         return typeOf_;
     }
 
-    bool attachReadSlot(JSContext *cx, IonScript *ion, HandleObject scopeChain,
-                        HandleObject holderBase, HandleObject holder, HandleShape shape);
+    bool attachReadSlot(JSContext *cx, IonScript *ion, HandleObject scopeChain, HandleObject obj,
+                        HandleShape shape);
     bool attachCallGetter(JSContext *cx, IonScript *ion, JSObject *obj, JSObject *holder,
                           HandleShape shape, void *returnAddr);
 
@@ -1000,7 +935,7 @@ class ParallelIonCache : public DispatchIonCache
     ShapeSet *stubbedShapes_;
 
     ParallelIonCache()
-      : stubbedShapes_(nullptr)
+      : stubbedShapes_(NULL)
     {
     }
 
@@ -1055,17 +990,21 @@ class GetPropertyParIC : public ParallelIonCache
 
     // CanAttachNativeGetProp Helpers
     typedef LockedJSContext & Context;
+    static bool doPropertyLookup(Context cx, HandleObject obj, HandlePropertyName name,
+                                 MutableHandleObject holder, MutableHandleShape shape) {
+        return LookupPropertyPure(obj, NameToId(name), holder.address(), shape.address());
+    }
+    bool lookupNeedsIdempotentChain() const { return true; }
     bool canMonitorSingletonUndefinedSlot(HandleObject, HandleShape) const { return true; }
     bool allowGetters() const { return false; }
-    bool allowArrayLength(Context, HandleObject) const { return true; }
 
     bool attachReadSlot(LockedJSContext &cx, IonScript *ion, JSObject *obj, JSObject *holder,
                         Shape *shape);
     bool attachArrayLength(LockedJSContext &cx, IonScript *ion, JSObject *obj);
     bool attachTypedArrayLength(LockedJSContext &cx, IonScript *ion, JSObject *obj);
 
-    static bool update(ForkJoinSlice *slice, size_t cacheIndex, HandleObject obj,
-                       MutableHandleValue vp);
+    static ParallelResult update(ForkJoinSlice *slice, size_t cacheIndex, HandleObject obj,
+                                 MutableHandleValue vp);
 };
 
 class GetElementParIC : public ParallelIonCache
@@ -1110,9 +1049,13 @@ class GetElementParIC : public ParallelIonCache
 
     // CanAttachNativeGetProp Helpers
     typedef LockedJSContext & Context;
+    static bool doPropertyLookup(Context cx, HandleObject obj, HandlePropertyName name,
+                                 MutableHandleObject holder, MutableHandleShape shape) {
+        return LookupPropertyPure(obj, NameToId(name), holder.address(), shape.address());
+    }
+    bool lookupNeedsIdempotentChain() const { return true; }
     bool canMonitorSingletonUndefinedSlot(HandleObject, HandleShape) const { return true; }
     bool allowGetters() const { return false; }
-    bool allowArrayLength(Context, HandleObject) const { return false; }
 
     bool attachReadSlot(LockedJSContext &cx, IonScript *ion, JSObject *obj, const Value &idval,
                         PropertyName *name, JSObject *holder, Shape *shape);
@@ -1120,129 +1063,9 @@ class GetElementParIC : public ParallelIonCache
     bool attachTypedArrayElement(LockedJSContext &cx, IonScript *ion, TypedArrayObject *tarr,
                                  const Value &idval);
 
-    static bool update(ForkJoinSlice *slice, size_t cacheIndex, HandleObject obj, HandleValue idval,
-                       MutableHandleValue vp);
+    static ParallelResult update(ForkJoinSlice *slice, size_t cacheIndex, HandleObject obj, HandleValue idval,
+                                 MutableHandleValue vp);
 
-};
-
-class SetPropertyParIC : public ParallelIonCache
-{
-  protected:
-    Register object_;
-    PropertyName *name_;
-    ConstantOrRegister value_;
-    bool strict_;
-    bool needsTypeBarrier_;
-
-  public:
-    SetPropertyParIC(Register object, PropertyName *name, ConstantOrRegister value,
-                     bool strict, bool needsTypeBarrier)
-      : object_(object),
-        name_(name),
-        value_(value),
-        strict_(strict),
-        needsTypeBarrier_(needsTypeBarrier)
-    {
-    }
-
-    CACHE_HEADER(SetPropertyPar)
-
-#ifdef JS_CPU_X86
-    // x86 lacks a general purpose scratch register for dispatch caches and
-    // must be given one manually.
-    void initializeAddCacheState(LInstruction *ins, AddCacheState *addState);
-#endif
-
-    Register object() const {
-        return object_;
-    }
-    PropertyName *name() const {
-        return name_;
-    }
-    ConstantOrRegister value() const {
-        return value_;
-    }
-    bool strict() const {
-        return strict_;
-    }
-    bool needsTypeBarrier() const {
-        return needsTypeBarrier_;
-    }
-
-    bool attachSetSlot(LockedJSContext &cx, IonScript *ion, JSObject *obj, Shape *shape,
-                       bool checkTypeset);
-    bool attachAddSlot(LockedJSContext &cx, IonScript *ion, JSObject *obj, Shape *oldShape,
-                       bool checkTypeset);
-
-    static bool update(ForkJoinSlice *slice, size_t cacheIndex, HandleObject obj,
-                       HandleValue value);
-};
-
-class SetElementParIC : public ParallelIonCache
-{
-  protected:
-    Register object_;
-    Register tempToUnboxIndex_;
-    Register temp_;
-    FloatRegister tempFloat_;
-    ValueOperand index_;
-    ConstantOrRegister value_;
-    bool strict_;
-    bool guardHoles_;
-
-  public:
-    SetElementParIC(Register object, Register tempToUnboxIndex, Register temp,
-                    FloatRegister tempFloat, ValueOperand index, ConstantOrRegister value,
-                    bool strict, bool guardHoles)
-      : object_(object),
-        tempToUnboxIndex_(tempToUnboxIndex),
-        temp_(temp),
-        tempFloat_(tempFloat),
-        index_(index),
-        value_(value),
-        strict_(strict),
-        guardHoles_(guardHoles)
-    {
-    }
-
-    CACHE_HEADER(SetElementPar)
-
-#ifdef JS_CPU_X86
-    // x86 lacks a general purpose scratch register for dispatch caches and
-    // must be given one manually.
-    void initializeAddCacheState(LInstruction *ins, AddCacheState *addState);
-#endif
-
-    Register object() const {
-        return object_;
-    }
-    Register tempToUnboxIndex() const {
-        return tempToUnboxIndex_;
-    }
-    Register temp() const {
-        return temp_;
-    }
-    FloatRegister tempFloat() const {
-        return tempFloat_;
-    }
-    ValueOperand index() const {
-        return index_;
-    }
-    ConstantOrRegister value() const {
-        return value_;
-    }
-    bool strict() const {
-        return strict_;
-    }
-    bool guardHoles() const {
-        return guardHoles_;
-    }
-
-    bool attachDenseElement(LockedJSContext &cx, IonScript *ion, JSObject *obj, const Value &idval);
-    bool attachTypedArrayElement(LockedJSContext &cx, IonScript *ion, TypedArrayObject *tarr);
-
-    static bool update(ForkJoinSlice *slice, size_t cacheIndex, HandleObject obj,
-                       HandleValue idval, HandleValue value);
 };
 
 #undef CACHE_HEADER
@@ -1262,7 +1085,7 @@ class SetElementParIC : public ParallelIonCache
 IONCACHE_KIND_LIST(CACHE_CASTS)
 #undef OPCODE_CASTS
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_IonCaches_h */

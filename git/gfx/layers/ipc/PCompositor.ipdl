@@ -8,16 +8,12 @@
 include LayersSurfaces;
 include protocol PGrallocBuffer;
 include protocol PLayerTransaction;
+include "mozilla/layers/CompositorTypes.h";
 include "mozilla/GfxMessageUtils.h";
-include "nsRegion.h";
 
-using struct mozilla::null_t from "ipc/IPCMessageUtils.h";
-using struct mozilla::layers::TextureFactoryIdentifier from "mozilla/layers/CompositorTypes.h";
-using struct mozilla::layers::FrameMetrics from "FrameMetrics.h";
-using mozilla::layers::FrameMetrics::ViewID from "FrameMetrics.h";
-using mozilla::layers::LayersBackend from "mozilla/layers/LayersTypes.h";
-using mozilla::CrossProcessMutexHandle from "mozilla/ipc/CrossProcessMutex.h";
-using mozilla::ipc::SharedMemoryBasic::Handle from "mozilla/ipc/SharedMemoryBasic.h";
+using mozilla::null_t;
+using mozilla::layers::TextureFactoryIdentifier;
+using mozilla::layers::LayersBackend;
 
 namespace mozilla {
 namespace layers {
@@ -30,14 +26,10 @@ namespace layers {
  */
 // This should really be 'sync', but we're using 'rpc' as a workaround
 // for Bug 716631.
-intr protocol PCompositor
+rpc protocol PCompositor
 {
   // A Compositor manages a single Layer Manager (PLayerTransaction)
   manages PLayerTransaction;
-
-child:
-  // The child should invalidate everything so that the whole window is redrawn.
-  async InvalidateAll();
 
 parent:
 
@@ -68,29 +60,11 @@ parent:
   // block until they are completed.
   sync FlushRendering();
 
-  // Schedule a composite if one isn't already scheduled.
-  async ForceComposite();
-
-  sync StartFrameTimeRecording(int32_t bufferSize)
-    returns (uint32_t startIndex);
-
-  sync StopFrameTimeRecording(uint32_t startIndex)
-    returns (float[] intervals);
-
   // layersBackendHints is an ordered list of preffered backends where
   // layersBackendHints[0] is the best backend. If any hints are LAYERS_NONE
   // that hint is ignored.
   sync PLayerTransaction(LayersBackend[] layersBackendHints, uint64_t id)
     returns (TextureFactoryIdentifier textureFactoryIdentifier, bool success);
-
-  // Notify the compositor that a region of the screen has been invalidated.
-  async NotifyRegionInvalidated(nsIntRegion region);
-
-child:
-  // Send back Compositor Frame Metrics from APZCs so tiled layers can
-  // update progressively.
-  async SharedCompositorFrameMetrics(Handle metrics, CrossProcessMutexHandle mutex, uint32_t aAPZCId);
-  async ReleaseSharedCompositorFrameMetrics(ViewID aId, uint32_t aAPZCId);
 };
 
 } // layers

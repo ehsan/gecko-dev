@@ -3,6 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/Util.h"
+
 #include "mozilla/dom/HTMLImageElement.h"
 #include "mozilla/dom/HTMLImageElementBinding.h"
 #include "nsGkAtoms.h"
@@ -20,7 +22,7 @@
 #include "nsContentUtils.h"
 #include "nsIFrame.h"
 #include "nsNodeInfoManager.h"
-#include "mozilla/MouseEvents.h"
+#include "nsGUIEvent.h"
 #include "nsContentPolicyUtils.h"
 #include "nsIDOMWindow.h"
 #include "nsFocusManager.h"
@@ -230,9 +232,9 @@ HTMLImageElement::ParseAttribute(int32_t aNamespaceID,
                                               aResult);
 }
 
-void
-HTMLImageElement::MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
-                                        nsRuleData* aData)
+static void
+MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
+                      nsRuleData* aData)
 {
   nsGenericHTMLElement::MapImageAlignAttributeInto(aAttributes, aData);
   nsGenericHTMLElement::MapImageBorderAttributeInto(aAttributes, aData);
@@ -316,49 +318,6 @@ HTMLImageElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
       nsDependentAtomString(aValue->GetAtomValue()));
   }
 
-  if (aNameSpaceID == kNameSpaceID_None &&
-      aName == nsGkAtoms::src &&
-      !aValue) {
-    CancelImageRequests(aNotify);
-  }
-
-  // If we plan to call LoadImage, we want to do it first so that the image load
-  // kicks off. But if aNotify is false, we are coming from the parser or some
-  // such place; we'll get bound after all the attributes have been set, so
-  // we'll do the image load from BindToTree. Skip the LoadImage call in that case.
-  if (aNotify &&
-      aNameSpaceID == kNameSpaceID_None &&
-      aName == nsGkAtoms::crossorigin) {
-    // We want aForce == true in this LoadImage call, because we want to force
-    // a new load of the image with the new cross origin policy.
-    nsAutoString uri;
-    GetAttr(kNameSpaceID_None, nsGkAtoms::src, uri);
-    LoadImage(uri, true, aNotify);
-  }
-
-  if (aNotify &&
-      aNameSpaceID == kNameSpaceID_None &&
-      aName == nsGkAtoms::src &&
-      aValue) {
-
-    // Prevent setting image.src by exiting early
-    if (nsContentUtils::IsImageSrcSetDisabled()) {
-      return NS_OK;
-    }
-
-    // A hack to get animations to reset. See bug 594771.
-    mNewRequestsWillNeedAnimationReset = true;
-
-    // Force image loading here, so that we'll try to load the image from
-    // network if it's set to be not cacheable...  If we change things so that
-    // the state gets in Element's attr-setting happen around this
-    // LoadImage call, we could start passing false instead of aNotify
-    // here.
-    LoadImage(aValue->GetStringValue(), true, aNotify);
-
-    mNewRequestsWillNeedAnimationReset = false;
-  }
-
   return nsGenericHTMLElement::AfterSetAttr(aNameSpaceID, aName,
                                             aValue, aNotify);
 }
@@ -371,8 +330,10 @@ HTMLImageElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   // the Generic Element as this could cause a click event to fire
   // twice, once by the image frame for the map and once by the Anchor
   // element. (bug 39723)
-  WidgetMouseEvent* mouseEvent = aVisitor.mEvent->AsMouseEvent();
-  if (mouseEvent && mouseEvent->IsLeftClickEvent()) {
+  if (aVisitor.mEvent->eventStructType == NS_MOUSE_EVENT &&
+      aVisitor.mEvent->message == NS_MOUSE_CLICK &&
+      static_cast<nsMouseEvent*>(aVisitor.mEvent)->button ==
+        nsMouseEvent::eLeftButton) {
     bool isMap = false;
     GetIsMap(&isMap);
     if (isMap) {
@@ -426,6 +387,32 @@ HTMLImageElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
                           nsIAtom* aPrefix, const nsAString& aValue,
                           bool aNotify)
 {
+  // If we plan to call LoadImage, we want to do it first so that the
+  // image load kicks off _before_ the reflow triggered by the SetAttr.  But if
+  // aNotify is false, we are coming from the parser or some such place; we'll
+  // get bound after all the attributes have been set, so we'll do the
+  // image load from BindToTree.  Skip the LoadImage call in that case.
+  if (aNotify &&
+      aNameSpaceID == kNameSpaceID_None && aName == nsGkAtoms::src) {
+
+    // Prevent setting image.src by exiting early
+    if (nsContentUtils::IsImageSrcSetDisabled()) {
+      return NS_OK;
+    }
+
+    // A hack to get animations to reset. See bug 594771.
+    mNewRequestsWillNeedAnimationReset = true;
+
+    // Force image loading here, so that we'll try to load the image from
+    // network if it's set to be not cacheable...  If we change things so that
+    // the state gets in Element's attr-setting happen around this
+    // LoadImage call, we could start passing false instead of aNotify
+    // here.
+    LoadImage(aValue, true, aNotify);
+
+    mNewRequestsWillNeedAnimationReset = false;
+  }
+    
   return nsGenericHTMLElement::SetAttr(aNameSpaceID, aName, aPrefix, aValue,
                                        aNotify);
 }
@@ -434,6 +421,10 @@ nsresult
 HTMLImageElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
                             bool aNotify)
 {
+  if (aNameSpaceID == kNameSpaceID_None && aAttribute == nsGkAtoms::src) {
+    CancelImageRequests(aNotify);
+  }
+
   return nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute, aNotify);
 }
 

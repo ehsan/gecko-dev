@@ -324,13 +324,9 @@ ScaledFontDWrite::GetPathForGlyphs(const GlyphBuffer &aBuffer, const DrawTarget 
 }
 
 void
-ScaledFontDWrite::CopyGlyphsToBuilder(const GlyphBuffer &aBuffer, PathBuilder *aBuilder, BackendType aBackendType, const Matrix *aTransformHint)
+ScaledFontDWrite::CopyGlyphsToBuilder(const GlyphBuffer &aBuffer, PathBuilder *aBuilder)
 {
-  if (aBackendType != BACKEND_DIRECT2D) {
-    ScaledFontBase::CopyGlyphsToBuilder(aBuffer, aBuilder, aBackendType, aTransformHint);
-    return;
-  }
-
+  // XXX - Check path builder type!
   PathBuilderD2D *pathBuilderD2D =
     static_cast<PathBuilderD2D*>(aBuilder);
 

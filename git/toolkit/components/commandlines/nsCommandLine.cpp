@@ -84,7 +84,7 @@ nsCommandLine::nsCommandLine() :
 }
 
 
-NS_IMPL_CLASSINFO(nsCommandLine, nullptr, 0, NS_COMMANDLINE_CID)
+NS_IMPL_CLASSINFO(nsCommandLine, NULL, 0, NS_COMMANDLINE_CID)
 NS_IMPL_ISUPPORTS2_CI(nsCommandLine,
                       nsICommandLine,
                       nsICommandLineRunner)
@@ -267,7 +267,7 @@ nsCommandLine::ResolveFile(const nsAString& aArgument, nsIFile* *aResult)
   NS_CopyUnicodeToNative(aArgument, path);
 
   CFURLRef newurl =
-    CFURLCreateFromFileSystemRepresentationRelativeToBase(nullptr, (const UInt8*) path.get(),
+    CFURLCreateFromFileSystemRepresentationRelativeToBase(NULL, (const UInt8*) path.get(),
                                                           path.Length(),
                                                           true, baseurl);
 
@@ -551,7 +551,7 @@ nsCommandLine::EnumerateHandlers(EnumerateHandlersCallback aCallback, void *aClo
 
     nsCOMPtr<nsICommandLineHandler> clh(do_GetService(contractID.get()));
     if (!clh) {
-      LogConsoleMessage(MOZ_UTF16("Contract ID '%s' was registered as a command line handler for entry '%s', but could not be created."),
+      LogConsoleMessage(NS_LITERAL_STRING("Contract ID '%s' was registered as a command line handler for entry '%s', but could not be created.").get(),
                         contractID.get(), entry.get());
       continue;
     }
@@ -668,13 +668,13 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsCommandLine)
 NS_DEFINE_NAMED_CID(NS_COMMANDLINE_CID);
 
 static const mozilla::Module::CIDEntry kCommandLineCIDs[] = {
-  { &kNS_COMMANDLINE_CID, false, nullptr, nsCommandLineConstructor },
-  { nullptr }
+  { &kNS_COMMANDLINE_CID, false, NULL, nsCommandLineConstructor },
+  { NULL }
 };
 
 static const mozilla::Module::ContractIDEntry kCommandLineContracts[] = {
   { "@mozilla.org/toolkit/command-line;1", &kNS_COMMANDLINE_CID },
-  { nullptr }
+  { NULL }
 };
 
 static const mozilla::Module kCommandLineModule = {

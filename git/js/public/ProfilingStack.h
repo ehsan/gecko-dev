@@ -7,14 +7,13 @@
 #ifndef js_ProfilingStack_h
 #define js_ProfilingStack_h
 
-#include "mozilla/NullPtr.h"
- 
 #include "jsbytecode.h"
 #include "jstypes.h"
 
 #include "js/Utility.h"
 
 struct JSRuntime;
+class JSScript;
 
 namespace js {
 
@@ -35,9 +34,9 @@ class ProfileEntry
     // if a sample were taken it would be examining bogus information.
     //
     // A ProfileEntry represents both a C++ profile entry and a JS one. Both use
-    // the string as a description, but JS uses the sp as nullptr to indicate
-    // that it is a JS entry. The script_ is then only ever examined for a JS
-    // entry, and the idx is used by both, but with different meanings.
+    // the string as a description, but JS uses the sp as NULL to indicate that
+    // it is a JS entry. The script_ is then only ever examined for a JS entry,
+    // and the idx is used by both, but with different meanings.
     //
     const char * volatile string; // Descriptive string of this entry
     void * volatile sp;           // Relevant stack pointer for the entry
@@ -50,15 +49,15 @@ class ProfileEntry
     // instances are volatile. These methods would not be available unless they
     // were marked as volatile as well.
 
-    bool js() const volatile {
-        JS_ASSERT_IF(sp == nullptr, script_ != nullptr);
-        return sp == nullptr;
+    bool js() volatile {
+        JS_ASSERT_IF(sp == NULL, script_ != NULL);
+        return sp == NULL;
     }
 
-    uint32_t line() const volatile { JS_ASSERT(!js()); return idx; }
-    JSScript *script() const volatile { JS_ASSERT(js()); return script_; }
-    void *stackAddress() const volatile { return sp; }
-    const char *label() const volatile { return string; }
+    uint32_t line() volatile { JS_ASSERT(!js()); return idx; }
+    JSScript *script() volatile { JS_ASSERT(js()); return script_; }
+    void *stackAddress() volatile { return sp; }
+    const char *label() volatile { return string; }
 
     void setLine(uint32_t aLine) volatile { JS_ASSERT(!js()); idx = aLine; }
     void setLabel(const char *aString) volatile { string = aString; }
@@ -66,7 +65,7 @@ class ProfileEntry
     void setScript(JSScript *aScript) volatile { script_ = aScript; }
 
     // We can't know the layout of JSScript, so look in vm/SPSProfiler.cpp.
-    JS_FRIEND_API(jsbytecode *) pc() const volatile;
+    JS_FRIEND_API(jsbytecode *) pc() volatile;
     JS_FRIEND_API(void) setPC(jsbytecode *pc) volatile;
 
     static size_t offsetOfString() { return offsetof(ProfileEntry, string); }
@@ -75,8 +74,8 @@ class ProfileEntry
     static size_t offsetOfScript() { return offsetof(ProfileEntry, script_); }
 
     // The index used in the entry can either be a line number or the offset of
-    // a pc into a script's code. To signify a nullptr pc, use a -1 index. This
-    // is checked against in pc() and setPC() to set/get the right pc.
+    // a pc into a script's code. To signify a NULL pc, use a -1 index. This is
+    // checked against in pc() and setPC() to set/get the right pc.
     static const int32_t NullPCIndex = -1;
 };
 

@@ -7,11 +7,10 @@
 #include <string.h>
 
 #include "mozilla/dom/DocumentFragment.h"
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/Base64.h"
-#include "mozilla/BasicEvents.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Selection.h"
+#include "mozilla/Util.h"
 #include "nsAString.h"
 #include "nsAutoPtr.h"
 #include "nsCOMArray.h"
@@ -27,6 +26,7 @@
 #include "nsEditor.h"
 #include "nsEditorUtils.h"
 #include "nsError.h"
+#include "nsGUIEvent.h"
 #include "nsGkAtoms.h"
 #include "nsHTMLEditUtils.h"
 #include "nsHTMLEditor.h"
@@ -94,6 +94,8 @@ class nsISupports;
 
 using namespace mozilla;
 using namespace mozilla::dom;
+
+const PRUnichar nbsp = 160;
 
 #define kInsertCookie  "_moz_Insert Here_moz_"
 
@@ -369,7 +371,7 @@ nsHTMLEditor::DoInsertHTMLWithContext(const nsAString & aInputString,
       // pasting does not inherit local inline styles
       nsCOMPtr<nsIDOMNode> tmpNode =
         do_QueryInterface(selection->GetAnchorNode());
-      int32_t tmpOffset = static_cast<int32_t>(selection->AnchorOffset());
+      int32_t tmpOffset = selection->GetAnchorOffset();
       rv = ClearStyle(address_of(tmpNode), &tmpOffset, nullptr, nullptr);
       NS_ENSURE_SUCCESS(rv, rv);
     }

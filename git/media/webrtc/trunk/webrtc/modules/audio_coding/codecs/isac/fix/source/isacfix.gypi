@@ -12,7 +12,7 @@
       'target_name': 'iSACFix',
       'type': 'static_library',
       'dependencies': [
-        '<(webrtc_root)/common_audio/common_audio.gyp:common_audio',
+        '<(webrtc_root)/common_audio/common_audio.gyp:signal_processing',
         '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:system_wrappers',
       ],
       'include_dirs': [
@@ -72,7 +72,7 @@
             'WEBRTC_LINUX',
           ],
         }],
-        ['(target_arch=="arm" and armv7==1) or target_arch=="armv7"', {
+        ['target_arch=="arm" and armv7==1', {
           'dependencies': [ 'isac_neon', ],
           'sources': [
             'lattice_armv7.S',
@@ -87,14 +87,14 @@
     },
   ],
   'conditions': [
-    ['(target_arch=="arm" and armv7==1) or target_arch=="armv7"', {
+    ['target_arch=="arm" and armv7==1', {
       'targets': [
         {
           'target_name': 'isac_neon',
           'type': 'static_library',
           'includes': ['../../../../../../build/arm_neon.gypi',],
           'dependencies': [
-            '<(webrtc_root)/common_audio/common_audio.gyp:common_audio',
+            '<(webrtc_root)/common_audio/common_audio.gyp:signal_processing',
           ],
           'sources': [
             'entropy_coding_neon.c',

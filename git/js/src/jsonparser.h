@@ -9,6 +9,8 @@
 
 #include "mozilla/Attributes.h"
 
+#include "jsapi.h"
+
 #include "ds/IdValuePair.h"
 #include "vm/String.h"
 
@@ -24,7 +26,7 @@ class MOZ_STACK_CLASS JSONParser : private AutoGCRooter
 
     JSContext * const cx;
     StableCharPtr current;
-    const StableCharPtr begin, end;
+    const StableCharPtr end;
 
     Value v;
 
@@ -112,7 +114,6 @@ class MOZ_STACK_CLASS JSONParser : private AutoGCRooter
       : AutoGCRooter(cx, JSONPARSER),
         cx(cx),
         current(data),
-        begin(data),
         end((data + length).get(), data.get(), length),
         errorHandling(errorHandling),
         stack(cx),
@@ -200,8 +201,6 @@ class MOZ_STACK_CLASS JSONParser : private AutoGCRooter
     JSObject *createFinishedObject(PropertyVector &properties);
     bool finishObject(MutableHandleValue vp, PropertyVector &properties);
     bool finishArray(MutableHandleValue vp, ElementVector &elements);
-
-    void getTextPosition(uint32_t *column, uint32_t *line);
 
     friend void AutoGCRooter::trace(JSTracer *trc);
     void trace(JSTracer *trc);

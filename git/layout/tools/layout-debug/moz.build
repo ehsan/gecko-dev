@@ -7,3 +7,5 @@
 DIRS += ['src', 'ui']
 TEST_DIRS += ['tests']
 
+MODULE = 'layout_debug'
+

@@ -146,9 +146,9 @@ public class ClientRecordArrayAdapter extends ArrayAdapter<ClientRecord> {
 
   private int getImage(ClientRecord record) {
     if ("mobile".equals(record.type)) {
-      return R.drawable.sync_mobile;
+      return R.drawable.mobile;
     }
-    return R.drawable.sync_desktop;
+    return R.drawable.desktop;
   }
 
   private void setSelectable(View view, boolean selectable) {

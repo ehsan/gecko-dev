@@ -26,40 +26,35 @@ function testViewSource(aHud)
     nodes = hud = StyleEditorUI = null;
   });
 
-  waitForMessages({
-    webconsole: hud,
-    messages: [{
-      text: "'font-weight'",
-      category: CATEGORY_CSS,
-      severity: SEVERITY_WARNING,
-    },
+  let selector = ".webconsole-msg-cssparser .webconsole-location";
+
+  waitForSuccess({
+    name: "find the location node",
+    validatorFn: function()
     {
-      text: "'color'",
-      category: CATEGORY_CSS,
-      severity: SEVERITY_WARNING,
-    }],
-  }).then(([error1Rule, error2Rule]) => {
-    let error1Msg = [...error1Rule.matched][0];
-    let error2Msg = [...error2Rule.matched][0];
-    nodes = [error1Msg.querySelector(".location"),
-             error2Msg.querySelector(".location")];
-    ok(nodes[0], ".location node for the first error");
-    ok(nodes[1], ".location node for the second error");
+      return hud.outputNode.querySelector(selector);
+    },
+    successFn: function()
+    {
+      nodes = hud.outputNode.querySelectorAll(selector);
+      is(nodes.length, 2, "correct number of css messages");
 
-    let target = TargetFactory.forTab(gBrowser.selectedTab);
-    let toolbox = gDevTools.getToolbox(target);
-    toolbox.once("styleeditor-selected", (event, panel) => {
-      StyleEditorUI = panel.UI;
+      let target = TargetFactory.forTab(gBrowser.selectedTab);
+      let toolbox = gDevTools.getToolbox(target);
+      toolbox.once("styleeditor-selected", (event, panel) => {
+        StyleEditorUI = panel.UI;
 
-      let count = 0;
-      StyleEditorUI.on("editor-added", function() {
-        if (++count == 2) {
-          onStyleEditorReady(panel);
-        }
+        let count = 0;
+        StyleEditorUI.on("editor-added", function() {
+          if (++count == 2) {
+            onStyleEditorReady(panel);
+          }
+        });
       });
-    });
 
-    EventUtils.sendMouseEvent({ type: "click" }, nodes[0]);
+      EventUtils.sendMouseEvent({ type: "click" }, nodes[0]);
+    },
+    failureFn: finishTest,
   });
 }
 
@@ -131,7 +126,7 @@ function performLineCheck(aEditor, aLine, aCallback)
 {
   function checkForCorrectState()
   {
-    is(aEditor.sourceEditor.getCursor().line, aLine,
+    is(aEditor.sourceEditor.getCaretPosition().line, aLine,
        "correct line is selected");
     is(StyleEditorUI.selectedStyleSheetIndex, aEditor.styleSheet.styleSheetIndex,
        "correct stylesheet is selected in the editor");

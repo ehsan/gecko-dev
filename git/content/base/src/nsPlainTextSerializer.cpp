@@ -29,6 +29,7 @@ using namespace mozilla::dom;
 #define PREF_HEADER_STRATEGY "converter.html2txt.header_strategy"
 
 static const  int32_t kTabSize=4;
+static const  int32_t kOLNumberWidth = 3;
 static const  int32_t kIndentSizeHeaders = 2;  /* Indention of h1, if
                                                 mHeaderStrategy = 1 or = 2.
                                                 Indention of other headers
@@ -570,7 +571,7 @@ nsPlainTextSerializer::DoOpenContainer(nsIAtom* aTag)
     // importable, we use a TAB.
     if (GetLastBool(mHasWrittenCellsForRow)) {
       // Bypass |Write| so that the TAB isn't compressed away.
-      AddToLine(MOZ_UTF16("\t"), 1);
+      AddToLine(NS_LITERAL_STRING("\t").get(), 1);
       mInWhitespace = true;
     }
     else if (mHasWrittenCellsForRow.IsEmpty()) {
@@ -1173,7 +1174,7 @@ static bool
 IsSpaceStuffable(const PRUnichar *s)
 {
   if (s[0] == '>' || s[0] == ' ' || s[0] == kNBSP ||
-      nsCRT::strncmp(s, MOZ_UTF16("From "), 5) == 0)
+      nsCRT::strncmp(s, NS_LITERAL_STRING("From ").get(), 5) == 0)
     return true;
   else
     return false;
@@ -1372,7 +1373,6 @@ nsPlainTextSerializer::EndLine(bool aSoftlinebreak, bool aBreakBySpace)
    * signed messages according to the OpenPGP standard (RFC 2440).
    */  
   if (!(mFlags & nsIDocumentEncoder::OutputPreformatted) &&
-      !(mFlags & nsIDocumentEncoder::OutputDontRemoveLineEndingSpaces) &&
      (aSoftlinebreak || 
      !(mCurrentLine.EqualsLiteral("-- ") || mCurrentLine.EqualsLiteral("- -- ")))) {
     // Remove spaces from the end of the line.

@@ -149,7 +149,6 @@ protected:
 
   nsString mContentType;
   nsString mName;
-  nsString mPath; // The path relative to a directory chosen by the user
 
   uint64_t mStart;
   uint64_t mLength;
@@ -300,8 +299,6 @@ public:
   NS_IMETHOD GetMozLastModifiedDate(uint64_t* aLastModifiedDate) MOZ_OVERRIDE;
   NS_IMETHOD GetMozFullPathInternal(nsAString& aFullPath) MOZ_OVERRIDE;
   NS_IMETHOD GetInternalStream(nsIInputStream**) MOZ_OVERRIDE;
-
-  void SetPath(const nsAString& aFullPath);
 
 protected:
   // Create slice

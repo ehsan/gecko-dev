@@ -311,15 +311,17 @@ nsTypeAheadFind::FindItNow(nsIPresShell *aPresShell, bool aIsLinksOnly,
       nsISelectionController::SELECTION_NORMAL, getter_AddRefs(selection));
   }
  
-  nsCOMPtr<nsIDocShell> startingDocShell(presContext->GetDocShell());
-  NS_ASSERTION(startingDocShell, "Bug 175321 Crashes with Type Ahead Find [@ nsTypeAheadFind::FindItNow]");
-  if (!startingDocShell)
+  nsCOMPtr<nsISupports> startingContainer = presContext->GetContainer();
+  nsCOMPtr<nsIDocShellTreeItem> treeItem(do_QueryInterface(startingContainer));
+  NS_ASSERTION(treeItem, "Bug 175321 Crashes with Type Ahead Find [@ nsTypeAheadFind::FindItNow]");
+  if (!treeItem)
     return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIDocShellTreeItem> rootContentTreeItem;
   nsCOMPtr<nsIDocShell> currentDocShell;
+  nsCOMPtr<nsIDocShell> startingDocShell(do_QueryInterface(startingContainer));
 
-  startingDocShell->GetSameTypeRootTreeItem(getter_AddRefs(rootContentTreeItem));
+  treeItem->GetSameTypeRootTreeItem(getter_AddRefs(rootContentTreeItem));
   nsCOMPtr<nsIDocShell> rootContentDocShell =
     do_QueryInterface(rootContentTreeItem);
 
@@ -332,7 +334,7 @@ nsTypeAheadFind::FindItNow(nsIPresShell *aPresShell, bool aIsLinksOnly,
                                              getter_AddRefs(docShellEnumerator));
 
   // Default: can start at the current document
-  nsCOMPtr<nsISupports> currentContainer =
+  nsCOMPtr<nsISupports> currentContainer = startingContainer =
     do_QueryInterface(rootContentDocShell);
 
   // Iterate up to current shell, if there's more than 1 that we're
@@ -917,17 +919,15 @@ nsTypeAheadFind::Find(const nsAString& aSearchString, bool aLinksOnly,
   *aResult = FIND_NOTFOUND;
 
   nsCOMPtr<nsIPresShell> presShell (GetPresShell());
-  if (!presShell) {
+  if (!presShell) {    
     nsCOMPtr<nsIDocShell> ds (do_QueryReferent(mDocShell));
     NS_ENSURE_TRUE(ds, NS_ERROR_FAILURE);
 
     presShell = ds->GetPresShell();
-    NS_ENSURE_TRUE(presShell, NS_ERROR_FAILURE);
-    mPresShell = do_GetWeakReference(presShell);
-  }
-
+    mPresShell = do_GetWeakReference(presShell);    
+  }  
   nsCOMPtr<nsISelection> selection;
-  nsCOMPtr<nsISelectionController> selectionController =
+  nsCOMPtr<nsISelectionController> selectionController = 
     do_QueryReferent(mSelectionController);
   if (!selectionController) {
     GetSelection(presShell, getter_AddRefs(selectionController),
@@ -1222,7 +1222,7 @@ nsTypeAheadFind::GetPresShell()
   nsCOMPtr<nsIPresShell> shell = do_QueryReferent(mPresShell);
   if (shell) {
     nsPresContext *pc = shell->GetPresContext();
-    if (!pc || !pc->GetContainerWeak()) {
+    if (!pc || !nsCOMPtr<nsISupports>(pc->GetContainer())) {
       return nullptr;
     }
   }

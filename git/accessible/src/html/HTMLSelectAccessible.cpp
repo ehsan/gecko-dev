@@ -410,7 +410,8 @@ HTMLComboboxAccessible::CacheChildren()
       new HTMLComboboxListAccessible(mParent, mContent, mDoc);
 
     // Initialize and put into cache.
-    Document()->BindToDocument(mListAccessible, nullptr);
+    if (!Document()->BindToDocument(mListAccessible, nullptr))
+      return;
   }
 
   if (AppendChild(mListAccessible)) {
@@ -595,7 +596,7 @@ HTMLComboboxListAccessible::
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// HTMLComboboxAccessible: Accessible
+// HTMLComboboxAccessible: nsAccessNode
 
 nsIFrame*
 HTMLComboboxListAccessible::GetFrame() const
@@ -611,6 +612,9 @@ HTMLComboboxListAccessible::GetFrame() const
 
   return nullptr;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// HTMLComboboxAccessible: Accessible
 
 role
 HTMLComboboxListAccessible::NativeRole()

@@ -31,12 +31,12 @@ public:
   typedef FileView RawRef;
   static FileView Void()
   {
-    return nullptr;
+    return NULL;
   }
 
   static void Release(RawRef aView)
   {
-    if (nullptr != aView)
+    if (NULL != aView)
       UnmapViewOfFile(aView);
   }
 };
@@ -67,9 +67,7 @@ OutputLastError(const char *msg)
   char* tmp;
   char *tmpmsg;
   FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-                 nullptr, GetLastError(),
-                 MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                 (LPSTR) &tmp, 0, nullptr);
+                 NULL, GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR) &tmp, 0, NULL);
   tmpmsg = (char *)LocalAlloc(LPTR, strlen(msg) + strlen(tmp) + 3);
   sprintf(tmpmsg, "%s: %s", msg, tmp);
   OutputDebugStringA(tmpmsg);
@@ -151,7 +149,7 @@ FinalizeSections(PMEMORYMODULE module, HANDLE hRemoteProcess)
                               remoteAddress,
                               localAddress,
                               size,
-                              nullptr)) {
+                              NULL)) {
 #ifdef DEBUG_OUTPUT
         OutputLastError("Error writing remote memory.\n");
 #endif
@@ -239,7 +237,7 @@ BuildImportTable(PMEMORYMODULE module)
       POINTER_TYPE *thunkRef;
       FARPROC *funcRef;
       HMODULE handle = GetModuleHandleA((LPCSTR) (codeBase + importDesc->Name));
-      if (handle == nullptr) {
+      if (handle == NULL) {
 #if DEBUG_OUTPUT
         OutputLastError("Can't load library");
 #endif
@@ -248,7 +246,7 @@ BuildImportTable(PMEMORYMODULE module)
       }
 
       module->modules = (HMODULE *)realloc(module->modules, (module->numModules+1)*(sizeof(HMODULE)));
-      if (module->modules == nullptr) {
+      if (module->modules == NULL) {
         result = 0;
         break;
       }
@@ -292,22 +290,22 @@ void* LoadRemoteLibraryAndGetAddress(HANDLE hRemoteProcess,
 {
   // Map the DLL into memory
   nsAutoHandle hLibrary(
-    CreateFile(library, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
-               FILE_ATTRIBUTE_NORMAL, nullptr));
+    CreateFile(library, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING,
+               FILE_ATTRIBUTE_NORMAL, NULL));
   if (INVALID_HANDLE_VALUE == hLibrary) {
 #if DEBUG_OUTPUT
     OutputLastError("Couldn't CreateFile the library.\n");
 #endif
-    return nullptr;
+    return NULL;
   }
 
   nsAutoHandle hMapping(
-    CreateFileMapping(hLibrary, nullptr, PAGE_READONLY, 0, 0, nullptr));
+    CreateFileMapping(hLibrary, NULL, PAGE_READONLY, 0, 0, NULL));
   if (!hMapping) {
 #if DEBUG_OUTPUT
     OutputLastError("Couldn't CreateFileMapping.\n");
 #endif
-    return nullptr;
+    return NULL;
   }
 
   nsAutoRef<FileView> data(
@@ -316,7 +314,7 @@ void* LoadRemoteLibraryAndGetAddress(HANDLE hRemoteProcess,
 #if DEBUG_OUTPUT
     OutputLastError("Couldn't MapViewOfFile.\n");
 #endif
-    return nullptr;
+    return NULL;
   }
 
   SIZE_T locationDelta;
@@ -326,7 +324,7 @@ void* LoadRemoteLibraryAndGetAddress(HANDLE hRemoteProcess,
 #if DEBUG_OUTPUT
     OutputDebugStringA("Not a valid executable file.\n");
 #endif
-    return nullptr;
+    return NULL;
   }
 
   PIMAGE_NT_HEADERS old_header = (PIMAGE_NT_HEADERS)(data + dos_header->e_lfanew);
@@ -334,11 +332,11 @@ void* LoadRemoteLibraryAndGetAddress(HANDLE hRemoteProcess,
 #if DEBUG_OUTPUT
     OutputDebugStringA("No PE header found.\n");
 #endif
-    return nullptr;
+    return NULL;
   }
 
   // reserve memory for image of library in this process and the target process
-  unsigned char* localCode = (unsigned char*) VirtualAlloc(nullptr,
+  unsigned char* localCode = (unsigned char*) VirtualAlloc(NULL,
     old_header->OptionalHeader.SizeOfImage,
     MEM_RESERVE | MEM_COMMIT,
     PAGE_READWRITE);
@@ -348,7 +346,7 @@ void* LoadRemoteLibraryAndGetAddress(HANDLE hRemoteProcess,
 #endif
   }
 
-  unsigned char* remoteCode = (unsigned char*) VirtualAllocEx(hRemoteProcess, nullptr,
+  unsigned char* remoteCode = (unsigned char*) VirtualAllocEx(hRemoteProcess, NULL,
     old_header->OptionalHeader.SizeOfImage,
     MEM_RESERVE,
     PAGE_EXECUTE_READ);
@@ -362,7 +360,7 @@ void* LoadRemoteLibraryAndGetAddress(HANDLE hRemoteProcess,
   result.localCodeBase = localCode;
   result.remoteCodeBase = remoteCode;
   result.numModules = 0;
-  result.modules = nullptr;
+  result.modules = NULL;
 
   // copy PE header to code
   memcpy(localCode, dos_header, dos_header->e_lfanew + old_header->OptionalHeader.SizeOfHeaders);
@@ -382,13 +380,13 @@ void* LoadRemoteLibraryAndGetAddress(HANDLE hRemoteProcess,
 
   // load required dlls and adjust function table of imports
   if (!BuildImportTable(&result)) {
-    return nullptr;
+    return NULL;
   }
 
   // mark memory pages depending on section headers and release
   // sections that are marked as "discardable"
   if (!FinalizeSections(&result, hRemoteProcess)) {
-    return nullptr;
+    return NULL;
   }
 
   return MemoryGetProcAddress(&result, symbol);
@@ -404,13 +402,13 @@ static void* MemoryGetProcAddress(PMEMORYMODULE module, const char *name)
   PIMAGE_DATA_DIRECTORY directory = GET_HEADER_DICTIONARY(module, IMAGE_DIRECTORY_ENTRY_EXPORT);
   if (directory->Size == 0) {
     // no export table found
-    return nullptr;
+    return NULL;
   }
 
   exports = (PIMAGE_EXPORT_DIRECTORY) (localCodeBase + directory->VirtualAddress);
   if (exports->NumberOfNames == 0 || exports->NumberOfFunctions == 0) {
     // DLL doesn't export anything
-    return nullptr;
+    return NULL;
   }
 
   // search function name in list of exported names
@@ -425,12 +423,12 @@ static void* MemoryGetProcAddress(PMEMORYMODULE module, const char *name)
 
   if (idx == -1) {
     // exported symbol not found
-    return nullptr;
+    return NULL;
   }
 
   if ((DWORD)idx > exports->NumberOfFunctions) {
     // name <-> ordinal number don't match
-    return nullptr;
+    return NULL;
   }
 
   // AddressOfFunctions contains the RVAs to the "real" functions

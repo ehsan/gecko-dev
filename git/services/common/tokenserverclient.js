@@ -14,7 +14,7 @@ this.EXPORTED_SYMBOLS = [
 const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 
 Cu.import("resource://gre/modules/Preferences.jsm");
-Cu.import("resource://gre/modules/Log.jsm");
+Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-common/rest.js");
 Cu.import("resource://services-common/utils.js");
 
@@ -114,8 +114,8 @@ TokenServerClientServerError.prototype.constructor =
  *    at fault (e.g. differentiating a 503 from a 401).
  */
 this.TokenServerClient = function TokenServerClient() {
-  this._log = Log.repository.getLogger("Common.TokenServerClient");
-  this._log.level = Log.Level[Prefs.get("logger.level")];
+  this._log = Log4Moz.repository.getLogger("Common.TokenServerClient");
+  this._log.level = Log4Moz.Level[Prefs.get("logger.level")];
 }
 TokenServerClient.prototype = {
   /**
@@ -326,7 +326,7 @@ TokenServerClient.prototype = {
         error.message = "Malformed request.";
         error.cause = "malformed-request";
       } else if (response.status == 401) {
-        error.message = "Authentication failed.";
+        error.message("Authentication failed.");
         error.cause = "invalid-credentials";
       }
 
@@ -359,7 +359,7 @@ TokenServerClient.prototype = {
       return;
     }
 
-    for (let k of ["id", "key", "api_endpoint", "uid", "duration"]) {
+    for (let k of ["id", "key", "api_endpoint", "uid"]) {
       if (!(k in result)) {
         let error = new TokenServerClientServerError("Expected key not " +
                                                      " present in result: " +
@@ -377,7 +377,6 @@ TokenServerClient.prototype = {
       key:      result.key,
       endpoint: result.api_endpoint,
       uid:      result.uid,
-      duration: result.duration,
     });
   }
 };

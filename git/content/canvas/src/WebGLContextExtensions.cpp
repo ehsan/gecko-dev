@@ -9,7 +9,7 @@
 #include "GLContext.h"
 
 #include "nsString.h"
-#include "mozilla/Preferences.h"
+
 #include "AccessCheck.h"
 
 using namespace mozilla;
@@ -17,7 +17,6 @@ using namespace mozilla::gl;
 
 // must match WebGLContext::WebGLExtensionID
 static const char *sExtensionNames[] = {
-    "EXT_sRGB",
     "EXT_texture_filter_anisotropic",
     "OES_element_index_uint",
     "OES_standard_derivatives",
@@ -106,32 +105,24 @@ bool WebGLContext::IsExtensionSupported(WebGLExtensionID ext) const
         case WEBGL_compressed_texture_pvrtc:
             return gl->IsExtensionSupported(GLContext::IMG_texture_compression_pvrtc);
         case WEBGL_depth_texture:
-            // WEBGL_depth_texture supports DEPTH_STENCIL textures
-            if (!gl->IsSupported(GLFeature::packed_depth_stencil)) {
-                return false;
-            }
-            return gl->IsSupported(GLFeature::depth_texture) ||
-                   gl->IsExtensionSupported(GLContext::ANGLE_depth_texture);
+            return gl->IsSupported(GLFeature::packed_depth_stencil) &&
+            gl->IsSupported(GLFeature::depth_texture);
         case ANGLE_instanced_arrays:
             return WebGLExtensionInstancedArrays::IsSupported(this);
-        case EXT_sRGB:
-            return WebGLExtensionSRGB::IsSupported(this);
-        case WEBGL_draw_buffers:
-            return WebGLExtensionDrawBuffers::IsSupported(this);
         default:
             // For warnings-as-errors.
             break;
     }
-// Uncomment this switch for any new extensions
-#if 0
+
     if (Preferences::GetBool("webgl.enable-draft-extensions", false) || IsWebGL2()) {
         switch (ext) {
+            case WEBGL_draw_buffers:
+                return WebGLExtensionDrawBuffers::IsSupported(this);
             default:
                 // For warnings-as-errors.
                 break;
         }
     }
-#endif
 
     return false;
 }
@@ -145,7 +136,7 @@ CompareWebGLExtensionName(const nsACString& name, const char *other)
 JSObject*
 WebGLContext::GetExtension(JSContext *cx, const nsAString& aName, ErrorResult& rv)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return nullptr;
 
     NS_LossyConvertUTF16toASCII name(aName);
@@ -184,13 +175,6 @@ WebGLContext::GetExtension(JSContext *cx, const nsAString& aName, ErrorResult& r
         }
         else if (CompareWebGLExtensionName(name, "MOZ_WEBGL_depth_texture")) {
             ext = WEBGL_depth_texture;
-        }
-
-        if (ext != WebGLExtensionID_unknown_extension) {
-            GenerateWarning("getExtension('%s'): MOZ_ prefixed WebGL extension strings are deprecated. "
-                            "Support for them will be removed in the future. Use unprefixed extension strings. "
-                            "To get draft extensions, set the webgl.enable-draft-extensions preference.",
-                            name.get());
         }
     }
 
@@ -262,9 +246,6 @@ WebGLContext::EnableExtension(WebGLExtensionID ext)
         case ANGLE_instanced_arrays:
             obj = new WebGLExtensionInstancedArrays(this);
             break;
-        case EXT_sRGB:
-            obj = new WebGLExtensionSRGB(this);
-            break;
         default:
             MOZ_ASSERT(false, "should not get there.");
     }
@@ -276,7 +257,7 @@ void
 WebGLContext::GetSupportedExtensions(JSContext *cx, Nullable< nsTArray<nsString> > &retval)
 {
     retval.SetNull();
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     nsTArray<nsString>& arr = retval.SetValue();

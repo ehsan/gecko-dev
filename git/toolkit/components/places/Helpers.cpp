@@ -210,8 +210,8 @@ Base64urlEncode(const uint8_t* aBytes,
                 uint32_t aNumBytes,
                 nsCString& _result)
 {
-  // SetLength does not set aside space for null termination.  PL_Base64Encode
-  // will not null terminate, however, nsCStrings must be null terminated.  As a
+  // SetLength does not set aside space for NULL termination.  PL_Base64Encode
+  // will not NULL terminate, however, nsCStrings must be NULL terminated.  As a
   // result, we set the capacity to be one greater than what we need, and the
   // length to our desired length.
   uint32_t length = (aNumBytes + 2) / 3 * 4; // +2 due to integer math.
@@ -229,16 +229,10 @@ Base64urlEncode(const uint8_t* aBytes,
 }
 
 #ifdef XP_WIN
-} // namespace places
-} // namespace mozilla
-
 // Included here because windows.h conflicts with the use of mozIStorageError
-// above, but make sure that these are not included inside mozilla::places.
+// above.
 #include <windows.h>
 #include <wincrypt.h>
-
-namespace mozilla {
-namespace places {
 #endif
 
 static

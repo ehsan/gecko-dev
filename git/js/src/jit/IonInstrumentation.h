@@ -11,7 +11,7 @@ namespace js {
 
 class SPSProfiler;
 
-namespace jit {
+namespace ion {
 
 class MacroAssembler;
 
@@ -26,7 +26,7 @@ class IonInstrumentation : public BaseInstrumentation
       : BaseInstrumentation(profiler),
         trackedPc_(pc)
     {
-        JS_ASSERT(pc != nullptr);
+        JS_ASSERT(pc != NULL);
     }
 
     void leave(MacroAssembler &masm, Register reg) {
@@ -34,7 +34,7 @@ class IonInstrumentation : public BaseInstrumentation
     }
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_IonInstrumentatjit_h */

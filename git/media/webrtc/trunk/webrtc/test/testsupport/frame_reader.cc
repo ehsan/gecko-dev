@@ -8,9 +8,9 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/test/testsupport/frame_reader.h"
+#include "testsupport/frame_reader.h"
 
-#include <assert.h>
+#include <cassert>
 
 #include "webrtc/test/testsupport/fileutils.h"
 
@@ -77,9 +77,6 @@ bool FrameReaderImpl::ReadFrame(uint8_t* source_buffer) {
   }
   return true;
 }
-
-size_t FrameReaderImpl::FrameLength() { return frame_length_in_bytes_; }
-int FrameReaderImpl::NumberOfFrames() { return number_of_frames_; }
 
 }  // namespace test
 }  // namespace webrtc

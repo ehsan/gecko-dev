@@ -293,12 +293,11 @@ function eventQueue(aEventType)
   {
     // Some scenario was matched, we wait on next invoker processing.
     if (this.mNextInvokerStatus == kInvokerCanceled) {
-      this.setInvokerStatus(kInvokerNotScheduled,
-                            "scenario was matched, wait for next invoker activation");
+      this.mNextInvokerStatus = kInvokerNotScheduled;
       return;
     }
 
-    this.setInvokerStatus(kInvokerNotScheduled, "the next invoker is processed now");
+    this.mNextInvokerStatus = kInvokerNotScheduled;
 
     // Finish processing of the current invoker if any.
     var testFailed = false;
@@ -434,7 +433,7 @@ function eventQueue(aEventType)
   this.processNextInvokerInTimeout =
     function eventQueue_processNextInvokerInTimeout(aUncondProcess)
   {
-    this.setInvokerStatus(kInvokerPending, "Process next invoker in timeout");
+    this.mNextInvokerStatus = kInvokerPending;
 
     // No need to wait extra timeout when a) we know we don't need to do that
     // and b) there's no any single unexpected event.
@@ -542,22 +541,15 @@ function eventQueue(aEventType)
     }
 
     // If we don't have more events to wait then schedule next invoker.
-    if (this.hasMatchedScenario()) {
-      if (this.mNextInvokerStatus == kInvokerNotScheduled) {
-        this.processNextInvokerInTimeout();
-
-      } else if (this.mNextInvokerStatus == kInvokerCanceled) {
-        this.setInvokerStatus(kInvokerPending,
-                              "Full match. Void the cancelation of next invoker processing");
-      }
+    if (this.hasMatchedScenario() &&
+        (this.mNextInvokerStatus == kInvokerNotScheduled)) {
+      this.processNextInvokerInTimeout();
       return;
     }
 
     // If we have scheduled a next invoker then cancel in case of match.
-    if ((this.mNextInvokerStatus == kInvokerPending) && hasMatchedCheckers) {
-      this.setInvokerStatus(kInvokerCanceled,
-                            "Cancel the scheduled invoker in case of match");
-    }
+    if ((this.mNextInvokerStatus == kInvokerPending) && hasMatchedCheckers)
+      this.mNextInvokerStatus = kInvokerCanceled;
   }
 
   // Helpers
@@ -630,17 +622,6 @@ function eventQueue(aEventType)
     return true;
   }
 
-  this.isUnexpectedEventScenario =
-    function eventQueue_isUnexpectedEventsScenario(aScenario)
-  {
-    for (var idx = 0; idx < aScenario.length; idx++) {
-      if (!aScenario[idx].unexpected)
-        break;
-    }
-
-    return idx == aScenario.length;
-  }
-
   this.hasUnexpectedEventsScenario =
     function eventQueue_hasUnexpectedEventsScenario()
   {
@@ -648,19 +629,23 @@ function eventQueue(aEventType)
       return true;
 
     for (var scnIdx = 0; scnIdx < this.mScenarios.length; scnIdx++) {
-      if (this.isUnexpectedEventScenario(this.mScenarios[scnIdx]))
+      var eventSeq = this.mScenarios[scnIdx];
+      for (var idx = 0; idx < eventSeq.length; idx++) {
+        if (!eventSeq[idx].unexpected)
+          break;
+      }
+      if (idx == eventSeq.length)
         return true;
     }
 
     return false;
   }
-
+  
   this.hasMatchedScenario =
     function eventQueue_hasMatchedScenario()
   {
     for (var scnIdx = 0; scnIdx < this.mScenarios.length; scnIdx++) {
-      var scn = this.mScenarios[scnIdx];
-      if (!this.isUnexpectedEventScenario(scn) && !this.areExpectedEventsLeft(scn))
+      if (!this.areExpectedEventsLeft(this.mScenarios[scnIdx]))
         return true;
     }
     return false;
@@ -790,14 +775,6 @@ function eventQueue(aEventType)
     return invoker.getID();
   }
 
-  this.setInvokerStatus = function eventQueue_setInvokerStatus(aStatus, aLogMsg)
-  {
-    this.mNextInvokerStatus = aStatus;
-
-    // Uncomment it to debug invoker processing logic.
-    //gLogger.log(eventQueue.invokerStatusToMsg(aStatus, aLogMsg));
-  }
-
   this.mDefEventType = aEventType;
 
   this.mInvokers = new Array();
@@ -895,10 +872,24 @@ eventQueue.isSameEvent = function eventQueue_isSameEvent(aChecker, aEvent)
     !(aEvent instanceof nsIAccessibleStateChangeEvent);
 }
 
-eventQueue.invokerStatusToMsg =
-  function eventQueue_invokerStatusToMsg(aInvokerStatus, aMsg)
+eventQueue.logEvent = function eventQueue_logEvent(aOrigEvent, aMatchedChecker,
+                                                   aScenarioIdx, aEventIdx,
+                                                   aAreExpectedEventsLeft,
+                                                   aInvokerStatus)
 {
-  var msg = "invoker status: ";
+  if (!gLogger.isEnabled()) // debug stuff
+    return;
+
+  // Dump DOM event information. Skip a11y event since it is dumped by
+  // gA11yEventObserver.
+  if (aOrigEvent instanceof nsIDOMEvent) {
+    var info = "Event type: " + eventQueue.getEventTypeAsString(aOrigEvent);
+    info += ". Target: " + eventQueue.getEventTargetDescr(aOrigEvent);
+    gLogger.logToDOM(info);
+  }
+
+  var msg = "unhandled expected events: " + aAreExpectedEventsLeft +
+    ", invoker status: ";
   switch (aInvokerStatus) {
     case kInvokerNotScheduled:
       msg += "not scheduled";
@@ -911,37 +902,23 @@ eventQueue.invokerStatusToMsg =
       break;
   }
 
-  if (aMsg)
-    msg += " (" + aMsg + ")";
+  gLogger.logToConsole(msg);
+  gLogger.logToDOM(msg);
 
-  return msg;
-}
+  if (!aMatchedChecker)
+    return;
 
-eventQueue.logEvent = function eventQueue_logEvent(aOrigEvent, aMatchedChecker,
-                                                   aScenarioIdx, aEventIdx,
-                                                   aAreExpectedEventsLeft,
-                                                   aInvokerStatus)
-{
-  // Dump DOM event information. Skip a11y event since it is dumped by
-  // gA11yEventObserver.
-  if (aOrigEvent instanceof nsIDOMEvent) {
-    var info = "Event type: " + eventQueue.getEventTypeAsString(aOrigEvent);
-    info += ". Target: " + eventQueue.getEventTargetDescr(aOrigEvent);
-    gLogger.logToDOM(info);
-  }
-
-  var infoMsg = "unhandled expected events: " + aAreExpectedEventsLeft +
-    ", "  + eventQueue.invokerStatusToMsg(aInvokerStatus);
+  var msg = "EQ: ";
+  var emphText = "matched ";
 
   var currType = eventQueue.getEventTypeAsString(aMatchedChecker);
   var currTargetDescr = eventQueue.getEventTargetDescr(aMatchedChecker);
   var consoleMsg = "*****\nScenario " + aScenarioIdx + 
-    ", event " + aEventIdx + " matched: " + currType + "\n" + infoMsg + "\n*****";
+    ", event " + aEventIdx + " matched: " + currType + "\n*****";
   gLogger.logToConsole(consoleMsg);
 
-  var emphText = "matched ";
-  var msg = "EQ event, type: " + currType + ", target: " + currTargetDescr +
-    ", " + infoMsg;
+  msg += " event, type: " + currType + ", target: " + currTargetDescr;
+
   gLogger.logToDOM(msg, true, emphText);
 }
 
@@ -1207,14 +1184,6 @@ function synthUpKey(aNodeOrID, aCheckerOrEventSeq, aArgs)
 {
   this.__proto__ = new synthKey(aNodeOrID, "VK_UP", aArgs,
                                 aCheckerOrEventSeq);
-}
-
-/**
- * Left arrow key invoker.
- */
-function synthLeftKey(aNodeOrID, aCheckerOrEventSeq)
-{
-  this.__proto__ = new synthKey(aNodeOrID, "VK_LEFT", null, aCheckerOrEventSeq);
 }
 
 /**
@@ -1549,12 +1518,10 @@ function moveToTextStart(aID)
 /**
  * Move the caret in text accessible.
  */
-function moveCaretToDOMPoint(aID, aDOMPointNodeID, aDOMPointOffset,
-                             aExpectedOffset, aFocusTargetID,
-                             aCheckFunc)
+function moveCaretToDOMPoint(aID, aNode, aOffset, aExpectedOffset,
+                             aFocusTargetID)
 {
   this.target = getAccessible(aID, [nsIAccessibleText]);
-  this.DOMPointNode = getNode(aDOMPointNodeID);
   this.focus = aFocusTargetID ? getAccessible(aFocusTargetID) : null;
   this.focusNode = this.focus ? this.focus.DOMNode : null;
 
@@ -1563,25 +1530,13 @@ function moveCaretToDOMPoint(aID, aDOMPointNodeID, aDOMPointOffset,
     if (this.focusNode)
       this.focusNode.focus();
 
-    var selection = this.DOMPointNode.ownerDocument.defaultView.getSelection();
-    var selRange = selection.getRangeAt(0);
-    selRange.setStart(this.DOMPointNode, aDOMPointOffset);
-    selRange.collapse(true);
-
-    selection.removeRange(selRange);
-    selection.addRange(selRange);
+    window.getSelection().getRangeAt(0).setStart(aNode, aOffset);
   }
 
   this.getID = function moveCaretToDOMPoint_getID()
   {
    return "Set caret on " + prettyName(aID) + " at point: " +
-     prettyName(aDOMPointNodeID) + " node with offset " + aDOMPointOffset;
-  }
-
-  this.finalCheck = function moveCaretToDOMPoint_finalCheck()
-  {
-    if (aCheckFunc)
-      aCheckFunc.call();
+     prettyName(aNode) + " node with offset " + aOffset;
   }
 
   this.eventSeq = [
@@ -1666,17 +1621,6 @@ function invokerChecker(aEventType, aTargetOrFunc, aTargetFuncArg, aIsAsync)
 }
 
 /**
- * Generic invoker checker for unexpected events.
- */
-function unexpectedInvokerChecker(aEventType, aTargetOrFunc, aTargetFuncArg)
-{
-  this.__proto__ = new invokerChecker(aEventType, aTargetOrFunc,
-                                      aTargetFuncArg, true);
-
-  this.unexpected = true;
-}
-
-/**
  * Common invoker checker for async events.
  */
 function asyncInvokerChecker(aEventType, aTargetOrFunc, aTargetFuncArg)
@@ -1752,19 +1696,6 @@ function caretMoveChecker(aCaretOffset, aTargetOrFunc, aTargetFuncArg)
     is(aEvent.QueryInterface(nsIAccessibleCaretMoveEvent).caretOffset,
        aCaretOffset,
        "Wrong caret offset for " + prettyName(aEvent.accessible));
-  }
-}
-
-/**
- * Text selection change checker.
- */
-function textSelectionChecker(aID, aStartOffset, aEndOffset)
-{
-  this.__proto__ = new invokerChecker(EVENT_TEXT_SELECTION_CHANGED, aID);
-
-  this.check = function textSelectionChecker_check(aEvent)
-  {
-    testTextGetSelection(aID, aStartOffset, aEndOffset, 0);
   }
 }
 
@@ -1959,12 +1890,7 @@ var gA11yEventObserver =
         var type = eventTypeToString(event.eventType);
         var info = "Event type: " + type;
 
-        if (event instanceof nsIAccessibleStateChangeEvent) {
-          var stateStr = statesToString(event.isExtraState ? 0 : event.state,
-                                        event.isExtraState ? event.state : 0);
-          info += ", state: " + stateStr + ", is enabled: " + event.isEnabled;
-
-        } else if (event instanceof nsIAccessibleTextChangeEvent) {
+        if (event instanceof nsIAccessibleTextChangeEvent) {
           info += ", start: " + event.start + ", length: " + event.length +
             ", " + (event.isInserted ? "inserted" : "removed") +
             " text: " + event.modifiedText;

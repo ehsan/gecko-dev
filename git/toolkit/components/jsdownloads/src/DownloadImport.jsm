@@ -53,8 +53,7 @@ const DOWNLOAD_QUEUED = 5;
  *                imported download will be added.
  * @param aPath   The path to the database file.
  */
-this.DownloadImport = function (aList, aPath)
-{
+this.DownloadImport = function(aList, aPath) {
   this.list = aList;
   this.path = aPath;
 }
@@ -107,7 +106,7 @@ this.DownloadImport.prototype = {
 
             let autoResume = false;
             try {
-              autoResume = (row.getResultByName("autoResume") == 1);
+              autoResume = row.getResultByName("autoResume");
             } catch (ex) {
               // autoResume wasn't present in schema version 7
             }
@@ -154,7 +153,7 @@ this.DownloadImport.prototype = {
                 type: "copy",
                 entityID: entityID
               },
-              startTime: new Date(startTime / 1000),
+              startTime: startTime,
               totalBytes: maxBytes,
               hasPartialData: !!tempPath,
               tryToKeepPartialData: true,
@@ -171,7 +170,7 @@ this.DownloadImport.prototype = {
 
             let download = yield Downloads.createDownload(downloadOptions);
 
-            yield this.list.add(download);
+            this.list.add(download);
 
             if (resumeDownload) {
               download.start();

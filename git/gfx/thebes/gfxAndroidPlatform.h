@@ -9,10 +9,7 @@
 #include "gfxFT2Fonts.h"
 #include "gfxPlatform.h"
 #include "gfxUserFontSet.h"
-#include "nsCOMPtr.h"
 #include "nsTArray.h"
-
-class nsIMemoryReporter;
 
 namespace mozilla {
     namespace dom {
@@ -34,7 +31,7 @@ public:
 
     virtual already_AddRefed<gfxASurface>
     CreateOffscreenSurface(const gfxIntSize& size,
-                           gfxContentType contentType);
+                           gfxASurface::gfxContentType contentType);
     
     virtual gfxImageFormat GetOffscreenFormat() { return mOffscreenFormat; }
     

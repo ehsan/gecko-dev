@@ -22,6 +22,7 @@
 #include <vector>
 #include "mozilla/FileUtils.h"
 #include "mozilla/NullPtr.h"
+#include "mozilla/Util.h"
 #include "png.h"
 
 #include "android/log.h"

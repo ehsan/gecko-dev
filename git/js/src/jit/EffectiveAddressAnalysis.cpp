@@ -5,14 +5,12 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "jit/EffectiveAddressAnalysis.h"
-#include "jit/MIR.h"
-#include "jit/MIRGraph.h"
 
 using namespace js;
-using namespace jit;
+using namespace ion;
 
 static void
-AnalyzeLsh(TempAllocator &alloc, MLsh *lsh)
+AnalyzeLsh(MBasicBlock *block, MLsh *lsh)
 {
     if (lsh->specialization() != MIRType_Int32)
         return;
@@ -32,9 +30,9 @@ AnalyzeLsh(TempAllocator &alloc, MLsh *lsh)
 
     int32_t displacement = 0;
     MInstruction *last = lsh;
-    MDefinition *base = nullptr;
+    MDefinition *base = NULL;
     while (true) {
-        if (!last->hasOneUse())
+        if (last->useCount() != 1)
             break;
 
         MUseIterator use = last->usesBegin();
@@ -63,7 +61,7 @@ AnalyzeLsh(TempAllocator &alloc, MLsh *lsh)
         if (displacement % elemSize != 0)
             return;
 
-        if (!last->hasOneUse())
+        if (last->useCount() != 1)
             return;
 
         MUseIterator use = last->usesBegin();
@@ -84,9 +82,9 @@ AnalyzeLsh(TempAllocator &alloc, MLsh *lsh)
         return;
     }
 
-    MEffectiveAddress *eaddr = MEffectiveAddress::New(alloc, base, index, scale, displacement);
+    MEffectiveAddress *eaddr = MEffectiveAddress::New(base, index, scale, displacement);
     last->replaceAllUsesWith(eaddr);
-    last->block()->insertAfter(last, eaddr);
+    block->insertAfter(last, eaddr);
 }
 
 // This analysis converts patterns of the form:
@@ -109,7 +107,7 @@ EffectiveAddressAnalysis::analyze()
     for (ReversePostorderIterator block(graph_.rpoBegin()); block != graph_.rpoEnd(); block++) {
         for (MInstructionIterator i = block->begin(); i != block->end(); i++) {
             if (i->isLsh())
-                AnalyzeLsh(graph_.alloc(), i->toLsh());
+                AnalyzeLsh(*block, i->toLsh());
         }
     }
     return true;

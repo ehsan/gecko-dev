@@ -12,18 +12,18 @@
 // vie_autotest.cc
 //
 
-#include "webrtc/video_engine/test/auto_test/interface/vie_autotest.h"
+#include "video_engine/test/auto_test/interface/vie_autotest.h"
 
 #include <stdio.h>
 
-#include "webrtc/engine_configurations.h"
+#include "engine_configurations.h"
 #include "webrtc/modules/video_render/include/video_render.h"
-#include "webrtc/test/testsupport/fileutils.h"
-#include "webrtc/video_engine/test/auto_test/interface/vie_autotest_defines.h"
-#include "webrtc/video_engine/test/auto_test/primitives/general_primitives.h"
-#include "webrtc/video_engine/test/libvietest/include/tb_capture_device.h"
-#include "webrtc/video_engine/test/libvietest/include/tb_interfaces.h"
-#include "webrtc/video_engine/test/libvietest/include/tb_video_channel.h"
+#include "testsupport/fileutils.h"
+#include "video_engine/test/auto_test/interface/vie_autotest_defines.h"
+#include "video_engine/test/auto_test/primitives/general_primitives.h"
+#include "video_engine/test/libvietest/include/tb_capture_device.h"
+#include "video_engine/test/libvietest/include/tb_interfaces.h"
+#include "video_engine/test/libvietest/include/tb_video_channel.h"
 
 DEFINE_bool(include_timing_dependent_tests, true,
             "If true, we will include tests / parts of tests that are known "
@@ -65,6 +65,7 @@ void ViEAutoTest::ViEStandardTest()
     ViECaptureStandardTest();
     ViECodecStandardTest();
     ViEEncryptionStandardTest();
+    ViEFileStandardTest();
     ViEImageProcessStandardTest();
     ViERenderStandardTest();
     ViERtpRtcpStandardTest();
@@ -76,6 +77,7 @@ void ViEAutoTest::ViEExtendedTest()
     ViECaptureExtendedTest();
     ViECodecExtendedTest();
     ViEEncryptionExtendedTest();
+    ViEFileExtendedTest();
     ViEImageProcessExtendedTest();
     ViERenderExtendedTest();
     ViERtpRtcpExtendedTest();
@@ -87,6 +89,7 @@ void ViEAutoTest::ViEAPITest()
     ViECaptureAPITest();
     ViECodecAPITest();
     ViEEncryptionAPITest();
+    ViEFileAPITest();
     ViEImageProcessAPITest();
     ViERenderAPITest();
     ViERtpRtcpAPITest();

@@ -27,7 +27,6 @@
 #include "nsISupportsPrimitives.h"
 #include "nsThreadUtils.h"
 #include "nsXULAppAPI.h"
-#include "mozilla/WindowsVersion.h"
 
 #include "windows.h"
 #include "shellapi.h"
@@ -53,8 +52,6 @@
   (val != ERROR_SUCCESS)
 
 #define NS_TASKBAR_CONTRACTID "@mozilla.org/windows-taskbar;1"
-
-using mozilla::IsWin8OrLater;
 
 NS_IMPL_ISUPPORTS2(nsWindowsShellService, nsIWindowsShellService, nsIShellService)
 
@@ -163,12 +160,8 @@ typedef struct {
 // more info. The FTP protocol is not checked so advanced users can set the FTP
 // handler to another application and still have Firefox check if it is the
 // default HTTP and HTTPS handler.
-// *** Do not add additional checks here unless you skip them when aForAllTypes
-// is false below***.
 static SETTING gSettings[] = {
   // File Handler Class
-  // ***keep this as the first entry because when aForAllTypes is not set below
-  // it will skip over this check.***
   { MAKE_KEY_NAME1("FirefoxHTML", SOC), VAL_OPEN, OLD_VAL_OPEN },
 
   // Protocol Handler Class - for Vista and above
@@ -318,6 +311,16 @@ nsWindowsShellService::ShortcutMaintenance()
 }
 
 static bool
+IsWin8OrLater()
+{
+  OSVERSIONINFOW osInfo;
+  osInfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFOW);
+  GetVersionExW(&osInfo);
+  return osInfo.dwMajorVersion > 6 || 
+         (osInfo.dwMajorVersion >= 6 && osInfo.dwMinorVersion >= 2);
+}
+
+static bool
 IsAARDefaultHTTP(IApplicationAssociationRegistration* pAAR,
                  bool* aIsDefaultBrowser)
 {
@@ -352,12 +355,6 @@ IsAARDefaultHTML(IApplicationAssociationRegistration* pAAR,
   return SUCCEEDED(hr);
 }
 
-/*
- * Query's the AAR for the default status.
- * This only checks for FirefoxURL and if aCheckAllTypes is set, then
- * it also checks for FirefoxHTML.  Note that those ProgIDs are shared
- * by all Firefox browsers.
-*/
 bool
 nsWindowsShellService::IsDefaultBrowserVista(bool aCheckAllTypes,
                                              bool* aIsDefaultBrowser)
@@ -406,11 +403,18 @@ nsWindowsShellService::IsDefaultBrowser(bool aStartupCheck,
   if (aStartupCheck)
     mCheckedThisSession = true;
 
+  // Check if we only care about a lightweight check, and make sure this
+  // only has an effect on Win8 and later.
+  if (!aForAllTypes && IsWin8OrLater()) {
+    return IsDefaultBrowserVista(false,
+                                 aIsDefaultBrowser) ? NS_OK : NS_ERROR_FAILURE;
+  }
+
   // Assume we're the default unless one of the several checks below tell us
   // otherwise.
   *aIsDefaultBrowser = true;
 
-  wchar_t exePath[MAX_BUF];
+  PRUnichar exePath[MAX_BUF];
   if (!::GetModuleFileNameW(0, exePath, MAX_BUF))
     return NS_ERROR_FAILURE;
 
@@ -424,17 +428,12 @@ nsWindowsShellService::IsDefaultBrowser(bool aStartupCheck,
   HKEY theKey;
   DWORD res;
   nsresult rv;
-  wchar_t currValue[MAX_BUF];
+  PRUnichar currValue[MAX_BUF];
 
-  SETTING* settings = gSettings;
-  if (!aForAllTypes && IsWin8OrLater()) {
-    // Skip over the file handler check
-    settings++;
-  }
-
+  SETTING* settings;
   SETTING* end = gSettings + sizeof(gSettings) / sizeof(SETTING);
 
-  for (; settings < end; ++settings) {
+  for (settings = gSettings; settings < end; ++settings) {
     NS_ConvertUTF8toUTF16 keyName(settings->keyName);
     NS_ConvertUTF8toUTF16 valueData(settings->valueData);
     int32_t offset = valueData.Find("%APPPATH%");
@@ -453,13 +452,13 @@ nsWindowsShellService::IsDefaultBrowser(bool aStartupCheck,
     // Close the key that was opened.
     ::RegCloseKey(theKey);
     if (REG_FAILED(res) ||
-        _wcsicmp(valueData.get(), currValue)) {
+        !valueData.Equals(currValue, CaseInsensitiveCompare)) {
       // Key wasn't set or was set to something other than our registry entry.
       NS_ConvertUTF8toUTF16 oldValueData(settings->oldValueData);
       offset = oldValueData.Find("%APPPATH%");
       oldValueData.Replace(offset, 9, appLongPath);
       // The current registry value doesn't match the current or the old format.
-      if (_wcsicmp(oldValueData.get(), currValue)) {
+      if (!oldValueData.Equals(currValue, CaseInsensitiveCompare)) {
         *aIsDefaultBrowser = false;
         return NS_OK;
       }
@@ -491,7 +490,7 @@ nsWindowsShellService::IsDefaultBrowser(bool aStartupCheck,
   // Only check if Firefox is the default browser on Vista and above if the
   // previous checks show that Firefox is the default browser.
   if (*aIsDefaultBrowser) {
-    IsDefaultBrowserVista(aForAllTypes, aIsDefaultBrowser);
+    IsDefaultBrowserVista(true, aIsDefaultBrowser);
   }
 
   // To handle the case where DDE isn't disabled due for a user because there
@@ -499,7 +498,7 @@ nsWindowsShellService::IsDefaultBrowser(bool aStartupCheck,
   // default browser and if dde is disabled for each handler
   // and if it isn't disable it. When Firefox is not the default browser the
   // helper application will disable dde for each handler.
-  if (*aIsDefaultBrowser && aForAllTypes) {
+  if (*aIsDefaultBrowser) {
     // Check ftp settings
 
     end = gDDESettings + sizeof(gDDESettings) / sizeof(SETTING);
@@ -572,7 +571,7 @@ nsWindowsShellService::IsDefaultBrowser(bool aStartupCheck,
     // Don't update the FTP protocol handler's shell open command when the
     // current registry value doesn't exist or matches the old format.
     if (REG_FAILED(res) ||
-        _wcsicmp(oldValueOpen.get(), currValue)) {
+        !oldValueOpen.Equals(currValue, CaseInsensitiveCompare)) {
       ::RegCloseKey(theKey);
       return NS_OK;
     }
@@ -608,27 +607,27 @@ DynSHOpenWithDialog(HWND hwndParent, const OPENASINFO *poainfo)
 {
   typedef HRESULT (WINAPI * SHOpenWithDialogPtr)(HWND hwndParent,
                                                  const OPENASINFO *poainfo);
-  
-  // shell32.dll is in the knownDLLs list so will always be loaded from the
-  // system32 directory.
-  static const wchar_t kSehllLibraryName[] =  L"shell32.dll";
-  HMODULE shellDLL = ::LoadLibraryW(kSehllLibraryName);
-  if (!shellDLL) {
-    return NS_ERROR_FAILURE;
-  }
-
-  SHOpenWithDialogPtr SHOpenWithDialogFn =
-    (SHOpenWithDialogPtr)GetProcAddress(shellDLL, "SHOpenWithDialog");
-
+  static SHOpenWithDialogPtr SHOpenWithDialogFn = nullptr;
   if (!SHOpenWithDialogFn) {
-    return NS_ERROR_FAILURE;
+    // shell32.dll is in the knownDLLs list so will always be loaded from the
+    // system32 directory.
+    static const PRUnichar kSehllLibraryName[] =  L"shell32.dll";
+    HMODULE shellDLL = ::LoadLibraryW(kSehllLibraryName);
+    if (!shellDLL) {
+      return NS_ERROR_FAILURE;
+    }
+
+    SHOpenWithDialogFn =
+      (SHOpenWithDialogPtr)GetProcAddress(shellDLL, "SHOpenWithDialog");
+    FreeLibrary(shellDLL);
+
+    if (!SHOpenWithDialogFn) {
+      return NS_ERROR_FAILURE;
+    }
   }
 
-  nsresult rv = 
-    SUCCEEDED(SHOpenWithDialogFn(hwndParent, poainfo)) ? NS_OK :
-                                                         NS_ERROR_FAILURE;
-  FreeLibrary(shellDLL);
-  return rv;
+  return SUCCEEDED(SHOpenWithDialogFn(hwndParent, poainfo)) ? NS_OK :
+                                                              NS_ERROR_FAILURE;
 }
 
 nsresult
@@ -752,9 +751,10 @@ WriteBitmap(nsIFile* aFile, imgIContainer* aImage)
 {
   nsresult rv;
 
-  nsRefPtr<gfxASurface> surface =
-    aImage->GetFrame(imgIContainer::FRAME_FIRST,
-                     imgIContainer::FLAG_SYNC_DECODE);
+  nsRefPtr<gfxASurface> surface;
+  aImage->GetFrame(imgIContainer::FRAME_FIRST,
+                   imgIContainer::FLAG_SYNC_DECODE,
+                   getter_AddRefs(surface));
   NS_ENSURE_TRUE(surface, NS_ERROR_FAILURE);
 
   nsRefPtr<gfxImageSurface> image(surface->GetAsReadableARGB32ImageSurface());
@@ -867,7 +867,7 @@ nsWindowsShellService::SetDesktopBackground(nsIDOMElement* aElement,
   // e.g. "Desktop Background.bmp"
   nsString fileLeafName;
   rv = shellBundle->GetStringFromName
-                      (MOZ_UTF16("desktopBackgroundLeafNameWin"),
+                      (NS_LITERAL_STRING("desktopBackgroundLeafNameWin").get(),
                        getter_Copies(fileLeafName));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -966,7 +966,7 @@ nsWindowsShellService::OpenApplication(int32_t aApplication)
   if (NS_FAILED(rv))
     return rv;
 
-  wchar_t buf[MAX_BUF];
+  PRUnichar buf[MAX_BUF];
   DWORD type, len = sizeof buf;
   DWORD res = ::RegQueryValueExW(theKey, EmptyString().get(), 0,
                                  &type, (LPBYTE)&buf, &len);
@@ -1067,7 +1067,7 @@ nsWindowsShellService::SetDesktopBackgroundColor(uint32_t aColor)
                       nsIWindowsRegKey::ACCESS_SET_VALUE);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  wchar_t rgb[12];
+  PRUnichar rgb[12];
   _snwprintf(rgb, 12, L"%u %u %u", r, g, b);
 
   rv = regKey->WriteStringValue(NS_LITERAL_STRING("Background"),

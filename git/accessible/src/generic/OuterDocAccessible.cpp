@@ -102,7 +102,7 @@ OuterDocAccessible::DoAction(uint8_t aIndex)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Accessible public
+// nsAccessNode public
 
 void
 OuterDocAccessible::Shutdown()
@@ -132,6 +132,9 @@ OuterDocAccessible::Shutdown()
 
   AccessibleWrap::Shutdown();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// Accessible public
 
 void
 OuterDocAccessible::InvalidateChildren()

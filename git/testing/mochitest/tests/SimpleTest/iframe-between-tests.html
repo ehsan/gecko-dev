@@ -7,16 +7,6 @@
 -->
 <script>
 window.addEventListener("load", function() {
-  var runner = (parent.TestRunner || parent.wrappedJSObject.TestRunner);
-  runner.testUnloaded();
-
-  if (SpecialPowers) {
-    if (!runner.garbageCollectCount) {
-      runner.garbageCollectCount = 0;
-    }
-    if (runner.garbageCollectCount++ % 10 == 0) {
-      SpecialPowers.DOMWindowUtils.garbageCollect();
-    }
-  }
+  (parent.TestRunner || parent.wrappedJSObject.TestRunner).testUnloaded();
 });
 </script>

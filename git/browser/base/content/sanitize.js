@@ -113,12 +113,12 @@ Sanitizer.prototype = {
     cache: {
       clear: function ()
       {
-        var cache = Cc["@mozilla.org/netwerk/cache-storage-service;1"].
-                    getService(Ci.nsICacheStorageService);
+        var cacheService = Cc["@mozilla.org/network/cache-service;1"].
+                          getService(Ci.nsICacheService);
         try {
           // Cache doesn't consult timespan, nor does it have the
           // facility for timespan-based eviction.  Wipe it.
-          cache.clear();
+          cacheService.evictEntries(Ci.nsICache.STORE_ANYWHERE);
         } catch(er) {}
 
         var imageCache = Cc["@mozilla.org/image/tools;1"].
@@ -227,12 +227,6 @@ Sanitizer.prototype = {
           prefs.clearUserPref("general.open_location.last_url");
         }
         catch (e) { }
-
-        try {
-          var seer = Components.classes["@mozilla.org/network/seer;1"]
-                               .getService(Components.interfaces.nsINetworkSeer);
-          seer.reset();
-        } catch (e) { }
       },
 
       get canClear()
@@ -316,25 +310,51 @@ Sanitizer.prototype = {
     downloads: {
       clear: function ()
       {
-        Task.spawn(function () {
-          let filterByTime = null;
-          if (this.range) {
-            // Convert microseconds back to milliseconds for date comparisons.
-            let rangeBeginMs = this.range[0] / 1000;
-            let rangeEndMs = this.range[1] / 1000;
-            filterByTime = download => download.startTime >= rangeBeginMs &&
-                                       download.startTime <= rangeEndMs;
-          }
+        if (DownloadsCommon.useJSTransfer) {
+          Task.spawn(function () {
+            let filterByTime = null;
+            if (this.range) {
+              // Convert microseconds back to milliseconds for date comparisons.
+              let rangeBeginMs = this.range[0] / 1000;
+              let rangeEndMs = this.range[1] / 1000;
+              filterByTime = download => download.startTime >= rangeBeginMs &&
+                                         download.startTime <= rangeEndMs;
+            }
 
-          // Clear all completed/cancelled downloads
-          let list = yield Downloads.getList(Downloads.ALL);
-          list.removeFinished(filterByTime);
-        }.bind(this)).then(null, Components.utils.reportError);
+            // Clear all completed/cancelled downloads
+            let publicList = yield Downloads.getPublicDownloadList();
+            publicList.removeFinished(filterByTime);
+
+            let privateList = yield Downloads.getPrivateDownloadList();
+            privateList.removeFinished(filterByTime);
+          }.bind(this)).then(null, Components.utils.reportError);
+        }
+        else {
+          var dlMgr = Components.classes["@mozilla.org/download-manager;1"]
+                                .getService(Components.interfaces.nsIDownloadManager);
+
+          if (this.range) {
+            // First, remove the completed/cancelled downloads
+            dlMgr.removeDownloadsByTimeframe(this.range[0], this.range[1]);
+          }
+          else {
+            // Clear all completed/cancelled downloads
+            dlMgr.cleanUp();
+            dlMgr.cleanUpPrivate();
+          }
+        }
       },
 
       canClear : function(aCallback, aArg)
       {
-        aCallback("downloads", true, aArg);
+        if (DownloadsCommon.useJSTransfer) {
+          aCallback("downloads", true, aArg);
+        }
+        else {
+          var dlMgr = Components.classes["@mozilla.org/download-manager;1"]
+                                .getService(Components.interfaces.nsIDownloadManager);
+          aCallback("downloads", dlMgr.canCleanUp || dlMgr.canCleanUpPrivate, aArg);
+        }
         return false;
       }
     },

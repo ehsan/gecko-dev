@@ -103,6 +103,8 @@ nsCertOverrideService::Init()
     return NS_ERROR_NOT_SAME_THREAD;
   }
 
+  mSettingsTable.Init();
+
   mOidTagForStoringNewHashes = SEC_OID_SHA256;
 
   SECOidData *od = SECOID_FindOIDByTag(mOidTagForStoringNewHashes);
@@ -145,7 +147,7 @@ nsCertOverrideService::Observe(nsISupports     *,
 
     ReentrantMonitorAutoEnter lock(monitor);
 
-    if (!nsCRT::strcmp(aData, MOZ_UTF16("shutdown-cleanse"))) {
+    if (!nsCRT::strcmp(aData, NS_LITERAL_STRING("shutdown-cleanse").get())) {
       RemoveAllFromMemory();
       // delete the storage file
       if (mSettingsFile) {

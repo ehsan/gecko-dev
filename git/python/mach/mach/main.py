@@ -5,8 +5,7 @@
 # This module provides functionality for the command-line build tool
 # (mach). It is packaged as a module because everything is a library.
 
-from __future__ import absolute_import, print_function, unicode_literals
-from collections import Iterable
+from __future__ import absolute_import, unicode_literals
 
 import argparse
 import codecs
@@ -95,16 +94,6 @@ command failed to meet the following conditions: %s
 Run |mach help| to show a list of all commands available to the current context.
 '''.lstrip()
 
-INVALID_ENTRY_POINT = r'''
-Entry points should return a list of command providers or directories
-containing command providers. The following entry point is invalid:
-
-    %s
-
-You are seeing this because there is an error in an external module attempting
-to implement a mach command. Please fix the error, or uninstall the module from
-your system.
-'''.lstrip()
 
 class ArgumentParser(argparse.ArgumentParser):
     """Custom implementation argument parser to make things look pretty."""
@@ -226,35 +215,6 @@ To see more help for a specific command, run:
 
         imp.load_source(module_name, path)
 
-    def load_commands_from_entry_point(self, group='mach.providers'):
-        """Scan installed packages for mach command provider entry points. An
-        entry point is a function that returns a list of paths to files or
-        directories containing command providers.
-
-        This takes an optional group argument which specifies the entry point
-        group to use. If not specified, it defaults to 'mach.providers'.
-        """
-        try:
-            import pkg_resources
-        except ImportError:
-            print("Could not find setuptools, ignoring command entry points",
-                  file=sys.stderr)
-            return
-
-        for entry in pkg_resources.iter_entry_points(group=group, name=None):
-            paths = entry.load()()
-            if not isinstance(paths, Iterable):
-                print(INVALID_ENTRY_POINT % entry)
-                sys.exit(1)
-
-            for path in paths:
-                if os.path.isfile(path):
-                    self.load_commands_from_file(path)
-                elif os.path.isdir(path):
-                    self.load_commands_from_directory(path)
-                else:
-                    print("command provider '%s' does not exist" % path)
-
     def define_category(self, name, title, description, priority=50):
         """Provide a description for a named command category."""
 
@@ -329,7 +289,7 @@ To see more help for a specific command, run:
             sys.stderr = orig_stderr
 
     def _run(self, argv):
-        context = CommandContext(cwd=self.cwd,
+        context = CommandContext(topdir=self.cwd, cwd=self.cwd,
             settings=self.settings, log_manager=self.log_manager,
             commands=Registrar)
 
@@ -370,14 +330,10 @@ To see more help for a specific command, run:
 
         self.log_manager.register_structured_logger(logging.getLogger('mach'))
 
-        write_times = True
-        if args.log_no_times or 'MACH_NO_WRITE_TIMES' in os.environ:
-            write_times = False
-
         # Always enable terminal logging. The log manager figures out if we are
         # actually in a TTY or are a pipe and does the right thing.
         self.log_manager.add_terminal_logging(level=log_level,
-            write_interval=args.log_interval, write_times=write_times)
+            write_interval=args.log_interval)
 
         self.load_settings(args)
 
@@ -555,10 +511,6 @@ To see more help for a specific command, run:
             help='Prefix log line with interval from last message rather '
                 'than relative time. Note that this is NOT execution time '
                 'if there are parallel operations.')
-        global_group.add_argument('--log-no-times', dest='log_no_times',
-            action='store_true', default=False,
-            help='Do not prefix log lines with times. By default, mach will '
-                'prefix each output line with the time since command start.')
 
         # We need to be last because CommandAction swallows all remaining
         # arguments and argparse parses arguments in the order they were added.
@@ -566,3 +518,4 @@ To see more help for a specific command, run:
             registrar=Registrar, context=context)
 
         return parser
+

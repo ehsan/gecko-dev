@@ -8,9 +8,9 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/voice_engine/test/auto_test/fixtures/after_streaming_fixture.h"
+#include "after_streaming_fixture.h"
 
-#include <string.h>
+#include <cstring>
 
 AfterStreamingFixture::AfterStreamingFixture()
     : channel_(voe_base_->CreateChannel()) {

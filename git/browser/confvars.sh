@@ -24,7 +24,6 @@ if test "$OS_ARCH" = "WINNT"; then
 fi
 
 MOZ_CHROME_FILE_FORMAT=omni
-MOZ_DISABLE_EXPORT_JS=1
 MOZ_SAFE_BROWSING=1
 MOZ_SERVICES_COMMON=1
 MOZ_SERVICES_CRYPTO=1
@@ -59,9 +58,3 @@ if test "$OS_TARGET" = "WINNT" -o "$OS_TARGET" = "Darwin"; then
   MOZ_FOLD_LIBS=1
 fi
 MOZ_WEBGL_CONFORMANT=1
-# Enable navigator.mozPay
-MOZ_PAY=1
-# Enable activities. These are used for FxOS developers currently.
-MOZ_ACTIVITIES=1
-MOZ_JSDOWNLOADS=1
-

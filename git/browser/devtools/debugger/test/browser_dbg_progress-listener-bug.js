@@ -1,53 +1,40 @@
-/* Any copyright is dedicated to the Public Domain.
-   http://creativecommons.org/publicdomain/zero/1.0/ */
-
-/**
- * Tests that the debugger does show up even if a progress listener reads the
- * WebProgress argument's DOMWindow property in onStateChange() (bug 771655).
+/*
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-let gTab, gDebuggee, gPanel, gDebugger;
-let gOldListener;
+// Tests that the debugger does show up even if a progress listener reads the
+// WebProgress argument's DOMWindow property in onStateChange() (bug 771655).
 
-const TAB_URL = EXAMPLE_URL + "doc_inline-script.html";
+var gPane = null;
+var gTab = null;
+var gOldListener = null;
+
+const TEST_URL = EXAMPLE_URL + "browser_dbg_script-switching.html";
 
 function test() {
   installListener();
 
-  initDebugger(TAB_URL).then(([aTab, aDebuggee, aPanel]) => {
+  debug_tab_pane(TEST_URL, function(aTab, aDebuggee, aPane) {
     gTab = aTab;
-    gDebuggee = aDebuggee;
-    gPanel = aPanel;
-    gDebugger = gPanel.panelWin;
+    gPane = aPane;
+    let gDebugger = gPane.panelWin;
 
-    is(!!gDebugger.DebuggerController._startup, true,
-      "Controller should be initialized after starting the test.");
-    is(!!gDebugger.DebuggerView._startup, true,
-      "View should be initialized after starting the test.");
+    is(gDebugger.DebuggerController._isInitialized, true,
+      "Controller should be initialized after debug_tab_pane.");
+    is(gDebugger.DebuggerView._isInitialized, true,
+      "View should be initialized after debug_tab_pane.");
 
-    testPause();
+    closeDebuggerAndFinish();
   });
-}
-
-function testPause() {
-  waitForSourceAndCaretAndScopes(gPanel, ".html", 16).then(() => {
-    is(gDebugger.gThreadClient.state, "paused",
-      "The debugger statement was reached.");
-
-    resumeDebuggerThenCloseAndFinish(gPanel);
-  });
-
-  gDebuggee.runDebuggerStatement();
 }
 
 // This is taken almost verbatim from bug 771655.
 function installListener() {
   if ("_testPL" in window) {
     gOldListener = _testPL;
-
-    Cc['@mozilla.org/docloaderservice;1']
-      .getService(Ci.nsIWebProgress)
-      .removeProgressListener(_testPL);
+    Cc['@mozilla.org/docloaderservice;1'].getService(Ci.nsIWebProgress)
+                                         .removeProgressListener(_testPL);
   }
 
   window._testPL = {
@@ -67,8 +54,7 @@ function installListener() {
     }
   }
 
-  Cc['@mozilla.org/docloaderservice;1']
-    .getService(Ci.nsIWebProgress)
+  Cc['@mozilla.org/docloaderservice;1'].getService(Ci.nsIWebProgress)
     .addProgressListener(_testPL, Ci.nsIWebProgress.NOTIFY_STATE_REQUEST);
 }
 
@@ -78,10 +64,7 @@ registerCleanupFunction(function() {
   } else {
     delete window._testPL;
   }
-
+  removeTab(gTab);
+  gPane = null;
   gTab = null;
-  gDebuggee = null;
-  gPanel = null;
-  gDebugger = null;
-  gOldListener = null;
 });

@@ -4,41 +4,47 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "jsapi.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "JSObjectBuilder.h"
 
 JSObjectBuilder::JSObjectBuilder(JSContext *aCx) : mCx(aCx), mOk(true)
 {}
 
 void
-JSObjectBuilder::DefineProperty(JS::HandleObject aObject, const char *name, JS::HandleObject aValue)
+JSObjectBuilder::DefineProperty(JSCustomObject *aObject, const char *name, JSCustomArray *aValue)
+{
+  DefineProperty(aObject, name, (JSCustomObject*)aValue);
+}
+
+void
+JSObjectBuilder::DefineProperty(JSCustomObject *aObject, const char *name, JSCustomObject *aValue)
 {
   if (!mOk)
     return;
 
-  mOk = JS_DefineProperty(mCx, aObject, name, OBJECT_TO_JSVAL(aValue), nullptr, nullptr, JSPROP_ENUMERATE);
+  mOk = JS_DefineProperty(mCx, (JSObject*)aObject, name, OBJECT_TO_JSVAL((JSObject*)aValue), nullptr, nullptr, JSPROP_ENUMERATE);
 }
 
 void
-JSObjectBuilder::DefineProperty(JS::HandleObject aObject, const char *name, int value)
+JSObjectBuilder::DefineProperty(JSCustomObject *aObject, const char *name, int value)
 {
   if (!mOk)
     return;
 
-  mOk = JS_DefineProperty(mCx, aObject, name, INT_TO_JSVAL(value), nullptr, nullptr, JSPROP_ENUMERATE);
+  mOk = JS_DefineProperty(mCx, (JSObject*)aObject, name, INT_TO_JSVAL(value), nullptr, nullptr, JSPROP_ENUMERATE);
 }
 
 void
-JSObjectBuilder::DefineProperty(JS::HandleObject aObject, const char *name, double value)
+JSObjectBuilder::DefineProperty(JSCustomObject *aObject, const char *name, double value)
 {
   if (!mOk)
     return;
 
-  mOk = JS_DefineProperty(mCx, aObject, name, DOUBLE_TO_JSVAL(value), nullptr, nullptr, JSPROP_ENUMERATE);
+  mOk = JS_DefineProperty(mCx, (JSObject*)aObject, name, DOUBLE_TO_JSVAL(value), nullptr, nullptr, JSPROP_ENUMERATE);
 }
 
 void
-JSObjectBuilder::DefineProperty(JS::HandleObject aObject, const char *name, nsAString &value)
+JSObjectBuilder::DefineProperty(JSCustomObject *aObject, const char *name, nsAString &value)
 {
   if (!mOk)
     return;
@@ -51,11 +57,11 @@ JSObjectBuilder::DefineProperty(JS::HandleObject aObject, const char *name, nsAS
   if (!mOk)
     return;
 
-  mOk = JS_DefineProperty(mCx, aObject, name, STRING_TO_JSVAL(string), nullptr, nullptr, JSPROP_ENUMERATE);
+  mOk = JS_DefineProperty(mCx, (JSObject*)aObject, name, STRING_TO_JSVAL(string), nullptr, nullptr, JSPROP_ENUMERATE);
 }
 
 void
-JSObjectBuilder::DefineProperty(JS::HandleObject aObject, const char *name, const char *value, size_t valueLength)
+JSObjectBuilder::DefineProperty(JSCustomObject *aObject, const char *name, const char *value, size_t valueLength)
 {
   if (!mOk)
     return;
@@ -69,13 +75,13 @@ JSObjectBuilder::DefineProperty(JS::HandleObject aObject, const char *name, cons
   mOk = JS_DefineProperty(mCx, (JSObject*)aObject, name, STRING_TO_JSVAL(string), nullptr, nullptr, JSPROP_ENUMERATE); }
 
 void
-JSObjectBuilder::DefineProperty(JS::HandleObject aObject, const char *name, const char *value)
+JSObjectBuilder::DefineProperty(JSCustomObject *aObject, const char *name, const char *value)
 {
   DefineProperty(aObject, name, value, strlen(value));
 }
 
 void
-JSObjectBuilder::ArrayPush(JS::HandleObject aArray, int value)
+JSObjectBuilder::ArrayPush(JSCustomArray *aArray, int value)
 {
   if (!mOk)
     return;
@@ -86,12 +92,12 @@ JSObjectBuilder::ArrayPush(JS::HandleObject aArray, int value)
   if (!mOk)
     return;
 
-  JS::RootedValue objval(mCx, INT_TO_JSVAL(value));
-  mOk = JS_SetElement(mCx, aArray, length, &objval);
+  JS::Rooted<JS::Value> objval(mCx, INT_TO_JSVAL(value));
+  mOk = JS_SetElement(mCx, (JSObject*)aArray, length, &objval);
 }
 
 void
-JSObjectBuilder::ArrayPush(JS::HandleObject aArray, const char *value)
+JSObjectBuilder::ArrayPush(JSCustomArray *aArray, const char *value)
 {
   if (!mOk)
     return;
@@ -108,38 +114,38 @@ JSObjectBuilder::ArrayPush(JS::HandleObject aArray, const char *value)
   if (!mOk)
     return;
 
-  JS::RootedValue objval(mCx, STRING_TO_JSVAL(string));
-  mOk = JS_SetElement(mCx, aArray, length, &objval);
+  JS::Rooted<JS::Value> objval(mCx, STRING_TO_JSVAL(string));
+  mOk = JS_SetElement(mCx, (JSObject*)aArray, length, &objval);
 }
 
 void
-JSObjectBuilder::ArrayPush(JS::HandleObject aArray, JS::HandleObject aObject)
+JSObjectBuilder::ArrayPush(JSCustomArray *aArray, JSCustomObject *aObject)
 {
   if (!mOk)
     return;
 
   uint32_t length;
-  mOk = JS_GetArrayLength(mCx, aArray, &length);
+  mOk = JS_GetArrayLength(mCx, (JSObject*)aArray, &length);
 
   if (!mOk)
     return;
 
-  JS::RootedValue objval(mCx, OBJECT_TO_JSVAL(aObject));
-  mOk = JS_SetElement(mCx, aArray, length, &objval);
+  JS::Rooted<JS::Value> objval(mCx, OBJECT_TO_JSVAL((JSObject*)aObject));
+  mOk = JS_SetElement(mCx, (JSObject*)aArray, length, &objval);
 }
 
-JSObject*
+JSCustomArray*
 JSObjectBuilder::CreateArray() {
-  JSObject *array = JS_NewArrayObject(mCx, 0, nullptr);
+  JSCustomArray *array = (JSCustomArray*)JS_NewArrayObject(mCx, 0, nullptr);
   if (!array)
     mOk = false;
 
   return array;
 }
 
-JSObject*
+JSCustomObject*
 JSObjectBuilder::CreateObject() {
-  JSObject *obj = JS_NewObject(mCx, nullptr, nullptr, nullptr);
+  JSCustomObject *obj = (JSCustomObject*)JS_NewObject(mCx, nullptr, nullptr, nullptr);
   if (!obj)
     mOk = false;
 

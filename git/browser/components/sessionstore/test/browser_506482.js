@@ -47,7 +47,9 @@ function test() {
 
   // create and select a first tab
   let tab = gBrowser.addTab(TEST_URL);
-  whenBrowserLoaded(tab.linkedBrowser, function() {
+  tab.linkedBrowser.addEventListener("load", function loadListener(e) {
+    tab.linkedBrowser.removeEventListener("load", arguments.callee, true);
+
     // step1: the above has triggered some saveStateDelayed(), sleep until
     // it's done, and get the initial sessionstore.js mtime
     setTimeout(function step1(e) {
@@ -70,5 +72,5 @@ function test() {
         finish();
       }, 3500); // end of sleep after tab selection and scrolling
     }, 3500); // end of sleep after initial saveStateDelayed()
-  });
+  }, true);
 }

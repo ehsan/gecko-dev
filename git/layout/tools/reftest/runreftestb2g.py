@@ -24,11 +24,8 @@ from marionette import Marionette
 
 class B2GOptions(ReftestOptions):
 
-    def __init__(self, automation=None, **kwargs):
+    def __init__(self, automation, **kwargs):
         defaults = {}
-        if not automation:
-            automation = B2GRemoteAutomation(None, "fennec", context_chrome=True)
-
         ReftestOptions.__init__(self, automation)
 
         self.add_option("--b2gpath", action="store",
@@ -404,20 +401,27 @@ class B2GReftest(RefTest):
         prefs = {}
         # Turn off the locale picker screen
         prefs["browser.firstrun.show.localepicker"] = False
-        prefs["browser.homescreenURL"] = "app://test-container.gaiamobile.org/index.html"
-        prefs["browser.manifestURL"] = "app://test-container.gaiamobile.org/manifest.webapp"
+        prefs["browser.homescreenURL"] = "app://system.gaiamobile.org"
+        prefs["browser.manifestURL"] = "app://system.gaiamobile.org/manifest.webapp"
         prefs["browser.tabs.remote"] = False
+        prefs["dom.ipc.browser_frames.oop_by_default"] = True
         prefs["dom.ipc.tabs.disabled"] = False
         prefs["dom.mozBrowserFramesEnabled"] = True
+        prefs["dom.mozBrowserFramesWhitelist"] = "app://system.gaiamobile.org"
+        prefs["network.dns.localDomains"] = "app://system.gaiamobile.org"
         prefs["font.size.inflation.emPerLine"] = 0
         prefs["font.size.inflation.minTwips"] = 0
-        prefs["network.dns.localDomains"] = "app://test-container.gaiamobile.org"
         prefs["reftest.browser.iframe.enabled"] = False
         prefs["reftest.remote"] = True
         prefs["reftest.uri"] = "%s" % reftestlist
         # Set a future policy version to avoid the telemetry prompt.
         prefs["toolkit.telemetry.prompted"] = 999
         prefs["toolkit.telemetry.notifiedOptOut"] = 999
+
+        # Workaround for jsreftests.
+        if getattr(options, 'enablePrivilege', False):
+            prefs["capability.principal.codebase.p2.granted"] = "UniversalXPConnect"
+            prefs["capability.principal.codebase.p2.id"] = "http://%s:%s" % (options.remoteWebServer, options.httpPort)
 
         # Set the extra prefs.
         profile.set_preferences(prefs)
@@ -466,8 +470,11 @@ class B2GReftest(RefTest):
     def getManifestPath(self, path):
         return path
 
-def run_remote_reftests(parser, options, args):
+
+def main(args=sys.argv[1:]):
     auto = B2GRemoteAutomation(None, "fennec", context_chrome=True)
+    parser = B2GOptions(auto)
+    options, args = parser.parse_args(args)
 
     # create our Marionette instance
     kwargs = {}
@@ -501,7 +508,6 @@ def run_remote_reftests(parser, options, args):
     if options.deviceIP:
         kwargs.update({'host': options.deviceIP,
                        'port': options.devicePort})
-
     dm = DeviceManagerADB(**kwargs)
     auto.setDeviceManager(dm)
 
@@ -574,12 +580,6 @@ def run_remote_reftests(parser, options, args):
 
     reftest.stopWebServer(options)
     return retVal
-
-def main(args=sys.argv[1:]):
-    parser = B2GOptions()
-    options, args = parser.parse_args(args)
-    return run_remote_reftests(parser, options, args)
-
 
 if __name__ == "__main__":
     sys.exit(main())

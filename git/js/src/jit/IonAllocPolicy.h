@@ -8,7 +8,6 @@
 #define jit_IonAllocPolicy_h
 
 #include "mozilla/GuardObjects.h"
-#include "mozilla/TypeTraits.h"
 
 #include "jscntxt.h"
 
@@ -17,7 +16,7 @@
 #include "jit/Ion.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class TempAllocator
 {
@@ -29,7 +28,7 @@ class TempAllocator
   public:
     TempAllocator(LifoAlloc *lifoAlloc)
       : lifoScope_(lifoAlloc),
-        rootList_(nullptr)
+        rootList_(NULL)
     { }
 
     void *allocateInfallible(size_t bytes)
@@ -43,7 +42,7 @@ class TempAllocator
     {
         void *p = lifoScope_.alloc().alloc(bytes);
         if (!ensureBallast())
-            return nullptr;
+            return NULL;
         return p;
     }
 
@@ -85,48 +84,13 @@ class AutoTempAllocatorRooter : private AutoGCRooter
 
 class IonAllocPolicy
 {
-    TempAllocator &alloc_;
-
   public:
-    IonAllocPolicy(TempAllocator &alloc)
-      : alloc_(alloc)
-    {}
-    void *malloc_(size_t bytes) {
-        return alloc_.allocate(bytes);
-    }
-    void *calloc_(size_t bytes) {
-        void *p = alloc_.allocate(bytes);
-        if (p)
-            memset(p, 0, bytes);
-        return p;
-    }
-    void *realloc_(void *p, size_t oldBytes, size_t bytes) {
-        void *n = malloc_(bytes);
-        if (!n)
-            return n;
-        memcpy(n, p, Min(oldBytes, bytes));
-        return n;
-    }
-    void free_(void *p) {
-    }
-    void reportAllocOverflow() const {
-    }
-};
-
-// Deprecated. Don't use this. Will be removed after everything has been
-// converted to IonAllocPolicy.
-class OldIonAllocPolicy
-{
-  public:
-    OldIonAllocPolicy()
-    {}
     void *malloc_(size_t bytes) {
         return GetIonContext()->temp->allocate(bytes);
     }
     void *calloc_(size_t bytes) {
         void *p = GetIonContext()->temp->allocate(bytes);
-        if (p)
-            memset(p, 0, bytes);
+        memset(p, 0, bytes);
         return p;
     }
     void *realloc_(void *p, size_t oldBytes, size_t bytes) {
@@ -165,13 +129,12 @@ class AutoIonContextAlloc
 
 struct TempObject
 {
-    inline void *operator new(size_t nbytes, TempAllocator &alloc) {
-        return alloc.allocateInfallible(nbytes);
+    inline void *operator new(size_t nbytes) {
+        return GetIonContext()->temp->allocateInfallible(nbytes);
     }
-    template <class T>
-    inline void *operator new(size_t nbytes, T *pos) {
-        static_assert(mozilla::IsConvertible<T*, TempObject*>::value,
-                      "Placement new argument type must inherit from TempObject");
+
+  public:
+    inline void *operator new(size_t nbytes, void *pos) {
         return pos;
     }
 };
@@ -179,21 +142,12 @@ struct TempObject
 template <typename T>
 class TempObjectPool
 {
-    TempAllocator *alloc_;
     InlineForwardList<T> freed_;
 
   public:
-    TempObjectPool()
-      : alloc_(nullptr)
-    {}
-    void setAllocator(TempAllocator &alloc) {
-        JS_ASSERT(freed_.empty());
-        alloc_ = &alloc;
-    }
     T *allocate() {
-        JS_ASSERT(alloc_);
         if (freed_.empty())
-            return new(*alloc_) T();
+            return new T();
         return freed_.popFront();
     }
     void free(T *obj) {
@@ -204,7 +158,7 @@ class TempObjectPool
     }
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_IonAllocPolicy_h */

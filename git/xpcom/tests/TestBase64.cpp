@@ -258,9 +258,7 @@ FakeInputStream::CheckTest(nsACString& aResult)
 }
 
 #ifdef XP_WIN
-static inline int NS_tstrcmp(char16ptr_t x, char16ptr_t y) {
-    return wcscmp(x, y);
-}
+#define NS_tstrcmp wcscmp
 #else
 #define NS_tstrcmp strcmp
 #endif

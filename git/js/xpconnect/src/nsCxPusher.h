@@ -5,7 +5,7 @@
 #define nsCxPusher_h
 
 #include "jsapi.h"
-#include "mozilla/Maybe.h"
+#include "mozilla/Util.h"
 #include "nsCOMPtr.h"
 
 namespace mozilla {

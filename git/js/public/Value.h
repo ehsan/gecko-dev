@@ -15,8 +15,6 @@
 
 #include <limits> /* for std::numeric_limits */
 
-#include "jstypes.h"
-
 #include "js/Anchor.h"
 #include "js/RootingAPI.h"
 #include "js/Utility.h"
@@ -843,32 +841,23 @@ JSVAL_EXTRACT_NON_DOUBLE_TYPE_IMPL(jsval_layout l)
 
 #endif  /* JS_BITS_PER_WORD */
 
+static inline double
+JS_CANONICALIZE_NAN(double d)
+{
+    if (MOZ_UNLIKELY(d != d)) {
+        jsval_layout l;
+        l.asBits = 0x7FF8000000000000LL;
+        return l.asDouble;
+    }
+    return d;
+}
+
 static inline jsval_layout JSVAL_TO_IMPL(JS::Value v);
 static inline JS_VALUE_CONSTEXPR JS::Value IMPL_TO_JSVAL(jsval_layout l);
 
 namespace JS {
 
 static inline JS_VALUE_CONSTEXPR JS::Value UndefinedValue();
-
-/**
- * Returns a generic quiet NaN value, with all payload bits set to zero.
- *
- * Among other properties, this NaN's bit pattern conforms to JS::Value's
- * bit pattern restrictions.
- */
-static MOZ_ALWAYS_INLINE double
-GenericNaN()
-{
-  return mozilla::SpecificNaN(0, 0x8000000000000ULL);
-}
-
-static inline double
-CanonicalizeNaN(double d)
-{
-    if (MOZ_UNLIKELY(mozilla::IsNaN(d)))
-        return GenericNaN();
-    return d;
-}
 
 /*
  * JS::Value is the interface for a single JavaScript Engine value.  A few
@@ -940,10 +929,6 @@ class Value
         data = DOUBLE_TO_JSVAL_IMPL(d);
     }
 
-    void setNaN() {
-        setDouble(GenericNaN());
-    }
-
     double &getDoubleRef() {
         MOZ_ASSERT(isDouble());
         return data.asDouble;
@@ -952,6 +937,10 @@ class Value
     void setString(JSString *str) {
         MOZ_ASSERT(!IsPoisonedPtr(str));
         data = STRING_TO_JSVAL_IMPL(str);
+    }
+
+    void setString(const JS::Anchor<JSString *> &str) {
+        setString(str.get());
     }
 
     void setObject(JSObject &obj) {
@@ -1285,22 +1274,6 @@ DoubleValue(double dbl)
 }
 
 static inline Value
-DoubleNaNValue()
-{
-    Value v;
-    v.setNaN();
-    return v;
-}
-
-static inline Value
-Float32Value(float f)
-{
-    Value v;
-    v.setDouble(f);
-    return v;
-}
-
-static inline Value
 StringValue(JSString *str)
 {
     Value v;
@@ -1313,22 +1286,6 @@ BooleanValue(bool boo)
 {
     Value v;
     v.setBoolean(boo);
-    return v;
-}
-
-static inline Value
-TrueValue()
-{
-    Value v;
-    v.setBoolean(true);
-    return v;
-}
-
-static inline Value
-FalseValue()
-{
-    Value v;
-    v.setBoolean(false);
     return v;
 }
 
@@ -1516,6 +1473,7 @@ template <> struct GCMethods<JS::Value>
 #endif
 };
 
+template <class Outer> class UnbarrieredMutableValueOperations;
 template <class Outer> class MutableValueOperations;
 
 /*
@@ -1527,6 +1485,7 @@ template <class Outer> class MutableValueOperations;
 template <class Outer>
 class ValueOperations
 {
+    friend class UnbarrieredMutableValueOperations<Outer>;
     friend class MutableValueOperations<Outer>;
 
     const JS::Value * value() const { return static_cast<const Outer*>(this)->extract(); }
@@ -1567,14 +1526,16 @@ class ValueOperations
 };
 
 /*
- * A class designed for CRTP use in implementing all the mutating parts of the
- * Value interface in Value-like classes.  Outer must be a class inheriting
- * MutableValueOperations<Outer> with visible extractMutable() and extract()
- * methods returning the const Value* and Value* abstracted by Outer.
+ * A class designed for CRTP use in implementing the mutating parts of the Value
+ * interface in Value-like classes that don't need post barriers.  Outer must be
+ * a class inheriting UnbarrieredMutableValueOperations<Outer> with visible
+ * extractMutable() and extract() methods returning the const Value* and Value*
+ * abstracted by Outer.
  */
 template <class Outer>
-class MutableValueOperations : public ValueOperations<Outer>
+class UnbarrieredMutableValueOperations : public ValueOperations<Outer>
 {
+    friend class MutableValueOperations<Outer>;
     JS::Value * value() { return static_cast<Outer*>(this)->extractMutable(); }
 
   public:
@@ -1582,12 +1543,24 @@ class MutableValueOperations : public ValueOperations<Outer>
     void setUndefined() { value()->setUndefined(); }
     void setInt32(int32_t i) { value()->setInt32(i); }
     void setDouble(double d) { value()->setDouble(d); }
-    void setNaN() { setDouble(JS::GenericNaN()); }
     void setBoolean(bool b) { value()->setBoolean(b); }
     void setMagic(JSWhyMagic why) { value()->setMagic(why); }
     bool setNumber(uint32_t ui) { return value()->setNumber(ui); }
     bool setNumber(double d) { return value()->setNumber(d); }
+};
+
+/*
+ * A class designed for CRTP use in implementing all the mutating parts of the
+ * Value interface in Value-like classes.  Outer must be a class inheriting
+ * MutableValueOperations<Outer> with visible extractMutable() and extract()
+ * methods returning the const Value* and Value* abstracted by Outer.
+ */
+template <class Outer>
+class MutableValueOperations : public UnbarrieredMutableValueOperations<Outer>
+{
+  public:
     void setString(JSString *str) { this->value()->setString(str); }
+    void setString(const JS::Anchor<JSString *> &str) { this->value()->setString(str); }
     void setObject(JSObject &obj) { this->value()->setObject(obj); }
     void setObjectOrNull(JSObject *arg) { this->value()->setObjectOrNull(arg); }
 };
@@ -1597,49 +1570,32 @@ class MutableValueOperations : public ValueOperations<Outer>
  * type-querying, value-extracting, and mutating operations.
  */
 template <>
-class HeapBase<JS::Value> : public ValueOperations<JS::Heap<JS::Value> >
+class HeapBase<JS::Value> : public UnbarrieredMutableValueOperations<JS::Heap<JS::Value> >
 {
     typedef JS::Heap<JS::Value> Outer;
 
     friend class ValueOperations<Outer>;
+    friend class UnbarrieredMutableValueOperations<Outer>;
 
     const JS::Value * extract() const { return static_cast<const Outer*>(this)->address(); }
+    JS::Value * extractMutable() { return static_cast<Outer*>(this)->unsafeGet(); }
 
+    /*
+     * Setters that potentially change the value to a GC thing from a non-GC
+     * thing must call JS::Heap::set() to trigger the post barrier.
+     *
+     * Changing from a GC thing to a non-GC thing value will leave the heap
+     * value in the store buffer, but it will be ingored so this is not a
+     * problem.
+     */
     void setBarriered(const JS::Value &v) {
         static_cast<JS::Heap<JS::Value> *>(this)->set(v);
     }
 
   public:
-    void setNull() { setBarriered(JS::NullValue()); }
-    void setUndefined() { setBarriered(JS::UndefinedValue()); }
-    void setInt32(int32_t i) { setBarriered(JS::Int32Value(i)); }
-    void setDouble(double d) { setBarriered(JS::DoubleValue(d)); }
-    void setNaN() { setDouble(JS::GenericNaN()); }
-    void setBoolean(bool b) { setBarriered(JS::BooleanValue(b)); }
-    void setMagic(JSWhyMagic why) { setBarriered(JS::MagicValue(why)); }
     void setString(JSString *str) { setBarriered(JS::StringValue(str)); }
+    void setString(const JS::Anchor<JSString *> &str) { setBarriered(JS::StringValue(str.get())); }
     void setObject(JSObject &obj) { setBarriered(JS::ObjectValue(obj)); }
-
-    bool setNumber(uint32_t ui) {
-        if (ui > JSVAL_INT_MAX) {
-            setDouble((double)ui);
-            return false;
-        } else {
-            setInt32((int32_t)ui);
-            return true;
-        }
-    }
-
-    bool setNumber(double d) {
-        int32_t i;
-        if (mozilla::DoubleIsInt32(d, &i)) {
-            setInt32(i);
-            return true;
-        }
-
-        setDouble(d);
-        return false;
-    }
 
     void setObjectOrNull(JSObject *arg) {
         if (arg)
@@ -1674,6 +1630,7 @@ class MutableHandleBase<JS::Value> : public MutableValueOperations<JS::MutableHa
         return static_cast<const JS::MutableHandle<JS::Value>*>(this)->address();
     }
 
+    friend class UnbarrieredMutableValueOperations<JS::MutableHandle<JS::Value> >;
     friend class MutableValueOperations<JS::MutableHandle<JS::Value> >;
     JS::Value * extractMutable() {
         return static_cast<JS::MutableHandle<JS::Value>*>(this)->address();
@@ -1692,6 +1649,7 @@ class RootedBase<JS::Value> : public MutableValueOperations<JS::Rooted<JS::Value
         return static_cast<const JS::Rooted<JS::Value>*>(this)->address();
     }
 
+    friend class UnbarrieredMutableValueOperations<JS::Rooted<JS::Value> >;
     friend class MutableValueOperations<JS::Rooted<JS::Value> >;
     JS::Value * extractMutable() {
         return static_cast<JS::Rooted<JS::Value>*>(this)->address();
@@ -1740,7 +1698,7 @@ inline Anchor<Value>::~Anchor()
 }
 #endif
 
-#ifdef JS_DEBUG
+#ifdef DEBUG
 namespace detail {
 
 struct ValueAlignmentTester { char c; JS::Value v; };
@@ -1752,7 +1710,7 @@ static_assert(sizeof(LayoutAlignmentTester) == 16,
               "jsval_layout must be 16-byte-aligned");
 
 } // namespace detail
-#endif /* JS_DEBUG */
+#endif /* DEBUG */
 
 } // namespace JS
 

@@ -50,49 +50,34 @@ DIRS += ['client']
 
 if CONFIG['MOZ_CRASHREPORTER_INJECTOR']:
     DIRS += ['injector']
-    UNIFIED_SOURCES += [
-        'InjectCrashReporter.cpp',
+    CPP_SOURCES += [
         'LoadLibraryRemote.cpp',
+        'InjectCrashReporter.cpp',
     ]
 
 TEST_TOOL_DIRS += ['test']
+
+MODULE = 'crashreporter'
 
 EXPORTS += [
     'nsExceptionHandler.h',
 ]
 
-UNIFIED_SOURCES += [
+CPP_SOURCES += [
     'nsExceptionHandler.cpp',
 ]
 
 if CONFIG['OS_ARCH'] == 'Darwin':
-    UNIFIED_SOURCES += [
+    CMMSRCS += [
         'mac_utils.mm',
     ]
 
 EXTRA_JS_MODULES += [
-    'CrashReports.jsm',
     'CrashSubmit.jsm',
     'KeyValueParser.jsm',
 ]
 
+LIBXUL_LIBRARY = True
+
 MSVC_ENABLE_PGO = True
 
-include('/ipc/chromium/chromium-config.mozbuild')
-
-FINAL_LIBRARY = 'xulapp_s'
-
-if CONFIG['OS_TARGET'] == 'Android':
-    DEFINES['ANDROID_PACKAGE_NAME'] = '"%s"' % CONFIG['ANDROID_PACKAGE_NAME']
-    # NDK5 workarounds
-    DEFINES['_STLP_CONST_CONSTRUCTOR_BUG'] = True
-    DEFINES['_STLP_NO_MEMBER_TEMPLATES'] = True
-
-if CONFIG['OS_ARCH'] == 'SunOS':
-    # there's no define for this normally
-    DEFINES['XP_SOLARIS'] = True
-
-DEFINES['UNICODE'] = True
-DEFINES['_UNICODE'] = True
-
-JAR_MANIFESTS += ['jar.mn']

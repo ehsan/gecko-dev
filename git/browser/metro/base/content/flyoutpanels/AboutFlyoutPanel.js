@@ -39,7 +39,6 @@ let AboutFlyoutPanel = {
     }
 
     window.addEventListener('MozFlyoutPanelShowing', this, false);
-    window.addEventListener('MozFlyoutPanelHiding', this, false);
 
 #if MOZ_UPDATE_CHANNEL != release
     let defaults = Services.prefs.getDefaultBranch("");
@@ -48,25 +47,13 @@ let AboutFlyoutPanel = {
 #endif
   },
 
-  onPolicyClick: function(aEvent) {
-    if (aEvent.button != 0) {
-      return;
-    }
-    let url = Services.urlFormatter.formatURLPref("app.privacyURL");
-    BrowserUI.addAndShowTab(url, Browser.selectedTab);
-  },
-
-  handleEvent: function(aEvent) {
+  handleEvent: function Appbar_handleEvent(aEvent) {
     switch (aEvent.type) {
       case 'MozFlyoutPanelShowing':
 #ifdef MOZ_UPDATER
+        onUnload();
         this.appUpdater = new appUpdater();
         gAppUpdater = this.appUpdater;
-#endif
-        break;
-      case 'MozFlyoutPanelHiding':
-#ifdef MOZ_UPDATER
-        onUnload();
 #endif
         break;
     }
@@ -88,7 +75,7 @@ function onUnload(aEvent) {
   // Safe to call even when there isn't a download in progress.
   gAppUpdater.removeDownloadListener();
   gAppUpdater = null;
-  AboutFlyoutPanel.appUpdater = null;
+  AboutFlyout.appUpdater = null;
 }
 
 function appUpdater()
@@ -269,6 +256,19 @@ appUpdater.prototype =
       if (cancelQuit.data)
         return;
 
+      // It's not possible for the Metro browser to restart itself.
+      // The Windows background process ensures only one instance exists.
+      // So start the update while the browser is open and close the browser
+      // right after.
+      try {
+        Components.classes["@mozilla.org/updates/update-processor;1"].
+          createInstance(Components.interfaces.nsIUpdateProcessor).
+          processUpdate(null);
+      } catch (e) {
+        // If there was an error just close down and the next startup
+        // will do this.
+      }
+
       let appStartup = Components.classes["@mozilla.org/toolkit/app-startup;1"].
                        getService(Components.interfaces.nsIAppStartup);
 
@@ -278,8 +278,7 @@ appUpdater.prototype =
         return;
       }
 
-      appStartup.quit(Components.interfaces.nsIAppStartup.eAttemptQuit |
-                      Components.interfaces.nsIAppStartup.eRestartTouchEnvironment);
+      appStartup.quit(Components.interfaces.nsIAppStartup.eAttemptQuit);
       return;
     }
 

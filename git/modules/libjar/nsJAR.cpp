@@ -911,7 +911,6 @@ nsJARItem::nsJARItem(nsZipItem* aZipItem)
       mCrc32(aZipItem->CRC32()),
       mLastModTime(aZipItem->LastModTime()),
       mCompression(aZipItem->Compression()),
-      mPermissions(aZipItem->Mode()),
       mIsDirectory(aZipItem->IsDirectory()),
       mIsSynthetic(aZipItem->isSynthetic)
 {
@@ -998,18 +997,6 @@ nsJARItem::GetLastModifiedTime(PRTime* aLastModTime)
     NS_ENSURE_ARG_POINTER(aLastModTime);
 
     *aLastModTime = mLastModTime;
-    return NS_OK;
-}
-
-//------------------------------------------
-// nsJARItem::GetPermissions
-//------------------------------------------
-NS_IMETHODIMP
-nsJARItem::GetPermissions(uint32_t* aPermissions)
-{
-    NS_ENSURE_ARG_POINTER(aPermissions);
-
-    *aPermissions = mPermissions;
     return NS_OK;
 }
 

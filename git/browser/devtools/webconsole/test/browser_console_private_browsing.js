@@ -15,10 +15,6 @@ function test()
   let privateWindow, privateBrowser, privateTab, privateContent;
   let hud, expectedMessages, nonPrivateMessage;
 
-  // This test is slightly more involved: it opens the web console twice,
-  // a new private window once, and the browser console twice. We can get
-  // a timeout with debug builds on slower machines.
-  requestLongerTimeout(2);
   start();
 
   function start()

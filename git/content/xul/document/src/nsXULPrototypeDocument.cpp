@@ -38,6 +38,10 @@ using mozilla::AutoPushJSContext;
 using mozilla::AutoSafeJSContext;
 using mozilla::dom::XULDocument;
 
+static NS_DEFINE_CID(kDOMScriptObjectFactoryCID,
+                     NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
+
+
 class nsXULPDGlobalObject : public nsISupports
 {
 public:
@@ -48,12 +52,7 @@ public:
     NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsXULPDGlobalObject)
 
     JSObject* GetCompilationGlobal();
-    void UnmarkCompilationGlobal()
-    {
-        if (mJSObject) {
-            JS::ExposeObjectToActiveJS(mJSObject);
-        }
-    }
+    void UnmarkCompilationGlobal() { xpc_UnmarkGrayObject(mJSObject); }
     void Destroy();
     nsIPrincipal* GetPrincipal();
     void ClearGlobalObjectOwner();
@@ -66,7 +65,7 @@ protected:
     JS::Heap<JSObject*> mJSObject;
     bool mDestroyed; // Probably not necessary, but let's be safe.
 
-    static const JSClass gSharedGlobalClass;
+    static JSClass gSharedGlobalClass;
 };
 
 nsIPrincipal* nsXULPrototypeDocument::gSystemPrincipal;
@@ -94,7 +93,7 @@ nsXULPDGlobalObject_resolve(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle
 }
 
 
-const JSClass nsXULPDGlobalObject::gSharedGlobalClass = {
+JSClass nsXULPDGlobalObject::gSharedGlobalClass = {
     "nsXULPrototypeScript compilation scope",
     JSCLASS_HAS_PRIVATE | JSCLASS_PRIVATE_IS_NSISUPPORTS |
     JSCLASS_IMPLEMENTS_BARRIERS | JSCLASS_GLOBAL_FLAGS_WITH_SLOTS(0),
@@ -731,14 +730,9 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsXULPDGlobalObject)
 JSObject *
 nsXULPDGlobalObject::GetCompilationGlobal()
 {
-  if (mJSObject) {
+  if (mJSObject || mDestroyed) {
     // We've been initialized before. This is what we get.
-    JS::ExposeObjectToActiveJS(mJSObject);
-    return mJSObject;
-  }
-
-  if (mDestroyed) {
-    return nullptr;
+    return xpc_UnmarkGrayObject(mJSObject);
   }
 
   AutoSafeJSContext cx;
@@ -750,7 +744,7 @@ nsXULPDGlobalObject::GetCompilationGlobal()
                                  JS::DontFireOnNewGlobalHook, options);
   NS_ENSURE_TRUE(mJSObject, nullptr);
 
-  mozilla::HoldJSObjects(this);
+  NS_HOLD_JS_OBJECTS(this, nsXULPDGlobalObject);
 
   // Add an owning reference from JS back to us. This'll be
   // released when the JSObject is finalized.
@@ -785,7 +779,7 @@ nsXULPDGlobalObject::Destroy()
     return;
   }
   mJSObject = nullptr;
-  mozilla::DropJSObjects(this);
+  NS_DROP_JS_OBJECTS(this, nsXULPDGlobalObject);
 }
 
 nsIPrincipal*

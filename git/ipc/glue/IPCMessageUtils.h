@@ -10,17 +10,17 @@
 #include "base/process_util.h"
 #include "chrome/common/ipc_message_utils.h"
 
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/TimeStamp.h"
 #ifdef XP_WIN
 #include "mozilla/TimeStamp_windows.h"
 #endif
+#include "mozilla/Util.h"
 
 #include <stdint.h>
 
 #include "nsID.h"
 #include "nsMemory.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "nsTArray.h"
 #include "js/StructuredClone.h"
 #include "nsCSSProperty.h"

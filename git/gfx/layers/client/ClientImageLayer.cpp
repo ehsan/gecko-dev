@@ -11,7 +11,7 @@
 #include "mozilla/RefPtr.h"             // for RefPtr
 #include "mozilla/layers/CompositorTypes.h"
 #include "mozilla/layers/ImageClient.h"  // for ImageClient, etc
-#include "mozilla/layers/LayersMessages.h"  // for ImageLayerAttributes, etc
+#include "mozilla/layers/LayerTransaction.h"  // for ImageLayerAttributes, etc
 #include "mozilla/mozalloc.h"           // for operator delete, etc
 #include "nsAutoPtr.h"                  // for nsRefPtr, getter_AddRefs, etc
 #include "nsCOMPtr.h"                   // for already_AddRefed
@@ -138,12 +138,12 @@ ClientImageLayer::RenderLayer()
     if (type == BUFFER_UNKNOWN) {
       return;
     }
-    TextureFlags flags = TEXTURE_FRONT;
+    TextureFlags flags = TEXTURE_FLAGS_DEFAULT;
     if (mDisallowBigImage) {
       flags |= TEXTURE_DISALLOW_BIGIMAGE;
     }
     mImageClient = ImageClient::CreateImageClient(type,
-                                                  ClientManager()->AsShadowForwarder(),
+                                                  ClientManager(),
                                                   flags);
     if (type == BUFFER_BRIDGE) {
       static_cast<ImageClientBridge*>(mImageClient.get())->SetLayer(this);
@@ -154,7 +154,7 @@ ClientImageLayer::RenderLayer()
     }
     if (HasShadow() && !mContainer->IsAsync()) {
       mImageClient->Connect();
-      ClientManager()->AsShadowForwarder()->Attach(mImageClient, this);
+      ClientManager()->Attach(mImageClient, this);
     }
     if (!mImageClient->UpdateImage(mContainer, GetContentFlags())) {
       return;

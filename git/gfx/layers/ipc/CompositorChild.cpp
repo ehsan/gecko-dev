@@ -6,7 +6,7 @@
 
 #include "CompositorChild.h"
 #include <stddef.h>                     // for size_t
-#include "ClientLayerManager.h"         // for ClientLayerManager
+#include "Layers.h"                     // for LayerManager
 #include "base/message_loop.h"          // for MessageLoop
 #include "base/process_util.h"          // for OpenProcessHandle
 #include "base/task.h"                  // for NewRunnableMethod, etc
@@ -19,7 +19,6 @@
 #include "nsTArray.h"                   // for nsTArray, nsTArray_Impl
 #include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
 #include "nsXULAppAPI.h"                // for XRE_GetIOMessageLoop, etc
-#include "FrameLayerBuilder.h"
 
 using mozilla::layers::LayerTransactionChild;
 
@@ -28,7 +27,7 @@ namespace layers {
 
 /*static*/ CompositorChild* CompositorChild::sCompositor;
 
-CompositorChild::CompositorChild(ClientLayerManager *aLayerManager)
+CompositorChild::CompositorChild(LayerManager *aLayerManager)
   : mLayerManager(aLayerManager)
 {
   MOZ_COUNT_CTOR(CompositorChild);
@@ -52,18 +51,6 @@ CompositorChild::Destroy()
   SendStop();
 }
 
-bool
-CompositorChild::LookupCompositorFrameMetrics(const FrameMetrics::ViewID aId,
-                                              FrameMetrics& aFrame)
-{
-  SharedFrameMetricsData* data = mFrameMetricsTable.Get(aId);
-  if (data) {
-    data->CopyFrameMetrics(&aFrame);
-    return true;
-  }
-  return false;
-}
-
 /*static*/ PCompositorChild*
 CompositorChild::Create(Transport* aTransport, ProcessId aOtherProcess)
 {
@@ -77,7 +64,8 @@ CompositorChild::Create(Transport* aTransport, ProcessId aOtherProcess)
     NS_RUNTIMEABORT("Couldn't OpenProcessHandle() to parent process.");
     return nullptr;
   }
-  if (!child->Open(aTransport, handle, XRE_GetIOMessageLoop(), ipc::ChildSide)) {
+  if (!child->Open(aTransport, handle, XRE_GetIOMessageLoop(),
+                AsyncChannel::Child)) {
     NS_RUNTIMEABORT("Couldn't Open() Compositor channel.");
     return nullptr;
   }
@@ -85,7 +73,7 @@ CompositorChild::Create(Transport* aTransport, ProcessId aOtherProcess)
   return sCompositor = child.forget().get();
 }
 
-/*static*/ CompositorChild*
+/*static*/ PCompositorChild*
 CompositorChild::Get()
 {
   // This is only expected to be used in child processes.
@@ -99,22 +87,13 @@ CompositorChild::AllocPLayerTransactionChild(const nsTArray<LayersBackend>& aBac
                                              TextureFactoryIdentifier*,
                                              bool*)
 {
-  LayerTransactionChild* c = new LayerTransactionChild();
-  c->AddIPDLReference();
-  return c;
+  return new LayerTransactionChild();
 }
 
 bool
 CompositorChild::DeallocPLayerTransactionChild(PLayerTransactionChild* actor)
 {
-  static_cast<LayerTransactionChild*>(actor)->ReleaseIPDLReference();
-  return true;
-}
-
-bool
-CompositorChild::RecvInvalidateAll()
-{
-  FrameLayerBuilder::InvalidateAllLayers(mLayerManager);
+  delete actor;
   return true;
 }
 
@@ -123,15 +102,9 @@ CompositorChild::ActorDestroy(ActorDestroyReason aWhy)
 {
   MOZ_ASSERT(sCompositor == this);
 
-#ifdef MOZ_B2G
-  // Due to poor lifetime management of gralloc (and possibly shmems) we will
-  // crash at some point in the future when we get destroyed due to abnormal
-  // shutdown. Its better just to crash here. On desktop though, we have a chance
-  // of recovering.
   if (aWhy == AbnormalShutdown) {
     NS_RUNTIMEABORT("ActorDestroy by IPC channel failure at CompositorChild");
   }
-#endif
 
   sCompositor = nullptr;
   // We don't want to release the ref to sCompositor here, during
@@ -143,80 +116,6 @@ CompositorChild::ActorDestroy(ActorDestroyReason aWhy)
     NewRunnableMethod(this, &CompositorChild::Release));
 }
 
-bool
-CompositorChild::RecvSharedCompositorFrameMetrics(
-    const mozilla::ipc::SharedMemoryBasic::Handle& metrics,
-    const CrossProcessMutexHandle& handle,
-    const uint32_t& aAPZCId)
-{
-  SharedFrameMetricsData* data = new SharedFrameMetricsData(metrics, handle, aAPZCId);
-  mFrameMetricsTable.Put(data->GetViewID(), data);
-  return true;
-}
-
-bool
-CompositorChild::RecvReleaseSharedCompositorFrameMetrics(
-    const ViewID& aId,
-    const uint32_t& aAPZCId)
-{
-  SharedFrameMetricsData* data = mFrameMetricsTable.Get(aId);
-  // The SharedFrameMetricsData may have been removed previously if
-  // a SharedFrameMetricsData with the same ViewID but later APZCId had
-  // been store and over wrote it.
-  if (data && (data->GetAPZCId() == aAPZCId)) {
-    mFrameMetricsTable.Remove(aId);
-  }
-  return true;
-}
-
-CompositorChild::SharedFrameMetricsData::SharedFrameMetricsData(
-    const ipc::SharedMemoryBasic::Handle& metrics,
-    const CrossProcessMutexHandle& handle,
-    const uint32_t& aAPZCId) :
-    mBuffer(nullptr),
-    mMutex(nullptr),
-    mAPZCId(aAPZCId)
-{
-  mBuffer = new ipc::SharedMemoryBasic(metrics);
-  mBuffer->Map(sizeof(FrameMetrics));
-  mMutex = new CrossProcessMutex(handle);
-  MOZ_COUNT_CTOR(SharedFrameMetricsData);
-}
-
-CompositorChild::SharedFrameMetricsData::~SharedFrameMetricsData()
-{
-  // When the hash table deletes the class, delete
-  // the shared memory and mutex.
-  delete mMutex;
-  delete mBuffer;
-  MOZ_COUNT_DTOR(SharedFrameMetricsData);
-}
-
-void
-CompositorChild::SharedFrameMetricsData::CopyFrameMetrics(FrameMetrics* aFrame)
-{
-  FrameMetrics* frame = static_cast<FrameMetrics*>(mBuffer->memory());
-  MOZ_ASSERT(frame);
-  mMutex->Lock();
-  *aFrame = *frame;
-  mMutex->Unlock();
-}
-
-FrameMetrics::ViewID
-CompositorChild::SharedFrameMetricsData::GetViewID()
-{
-  FrameMetrics* frame = static_cast<FrameMetrics*>(mBuffer->memory());
-  MOZ_ASSERT(frame);
-  // Not locking to read of mScrollId since it should not change after being
-  // initially set.
-  return frame->mScrollId;
-}
-
-uint32_t
-CompositorChild::SharedFrameMetricsData::GetAPZCId()
-{
-  return mAPZCId;
-}
 
 } // namespace layers
 } // namespace mozilla

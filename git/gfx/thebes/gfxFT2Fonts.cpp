@@ -548,10 +548,10 @@ gfxFT2Font::gfxFT2Font(cairo_scaled_font_t *aCairoFont,
                        const gfxFontStyle *aFontStyle,
                        bool aNeedsBold)
     : gfxFT2FontBase(aCairoFont, aFontEntry, aFontStyle)
-    , mCharGlyphCache(64)
 {
     NS_ASSERTION(mFontEntry, "Unable to find font entry for font.  Something is whack.");
     mApplySyntheticBold = aNeedsBold;
+    mCharGlyphCache.Init(64);
 }
 
 gfxFT2Font::~gfxFT2Font()
@@ -642,20 +642,20 @@ gfxFT2Font::FillGlyphDataForChar(uint32_t ch, CachedGlyphData *gd)
 }
 
 void
-gfxFT2Font::AddSizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
-                                   FontCacheSizes* aSizes) const
+gfxFT2Font::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+                                FontCacheSizes*   aSizes) const
 {
-    gfxFont::AddSizeOfExcludingThis(aMallocSizeOf, aSizes);
+    gfxFont::SizeOfExcludingThis(aMallocSizeOf, aSizes);
     aSizes->mFontInstances +=
         mCharGlyphCache.SizeOfExcludingThis(nullptr, aMallocSizeOf);
 }
 
 void
-gfxFT2Font::AddSizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
-                                   FontCacheSizes* aSizes) const
+gfxFT2Font::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+                                FontCacheSizes*   aSizes) const
 {
     aSizes->mFontInstances += aMallocSizeOf(this);
-    AddSizeOfExcludingThis(aMallocSizeOf, aSizes);
+    SizeOfExcludingThis(aMallocSizeOf, aSizes);
 }
 
 #ifdef USE_SKIA

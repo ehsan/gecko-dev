@@ -5,5 +5,4 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 PARALLEL_DIRS += ['src']
-
-MOCHITEST_MANIFESTS += ['test/mochitest.ini']
+TEST_DIRS += ['test']

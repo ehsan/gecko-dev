@@ -7,8 +7,7 @@
 #include "nsIDOMClassInfo.h"
 #include "jsapi.h" // For OBJECT_TO_JSVAL and JS_NewDateObjectMsec
 #include "jsfriendapi.h" // For js_DateGetMsecSinceEpoch
-#include "mozilla/dom/mobilemessage/Constants.h" // For MessageType
-#include "MessageUtils.h"
+#include "Constants.h"
 
 using namespace mozilla::dom::mobilemessage;
 
@@ -27,8 +26,7 @@ NS_IMPL_ADDREF(SmsMessage)
 NS_IMPL_RELEASE(SmsMessage)
 
 SmsMessage::SmsMessage(int32_t aId,
-                       uint64_t aThreadId,
-                       const nsString& aIccId,
+                       const uint64_t aThreadId,
                        DeliveryState aDelivery,
                        DeliveryStatus aDeliveryStatus,
                        const nsString& aSender,
@@ -36,12 +34,9 @@ SmsMessage::SmsMessage(int32_t aId,
                        const nsString& aBody,
                        MessageClass aMessageClass,
                        uint64_t aTimestamp,
-                       uint64_t aSentTimestamp,
-                       uint64_t aDeliveryTimestamp,
                        bool aRead)
-  : mData(aId, aThreadId, aIccId, aDelivery, aDeliveryStatus,
-          aSender, aReceiver, aBody, aMessageClass, aTimestamp, aSentTimestamp,
-          aDeliveryTimestamp, aRead)
+  : mData(aId, aThreadId, aDelivery, aDeliveryStatus, aSender, aReceiver, aBody,
+          aMessageClass, aTimestamp, aRead)
 {
 }
 
@@ -52,8 +47,7 @@ SmsMessage::SmsMessage(const SmsMessageData& aData)
 
 /* static */ nsresult
 SmsMessage::Create(int32_t aId,
-                   uint64_t aThreadId,
-                   const nsAString& aIccId,
+                   const uint64_t aThreadId,
                    const nsAString& aDelivery,
                    const nsAString& aDeliveryStatus,
                    const nsAString& aSender,
@@ -61,8 +55,6 @@ SmsMessage::Create(int32_t aId,
                    const nsAString& aBody,
                    const nsAString& aMessageClass,
                    const JS::Value& aTimestamp,
-                   const JS::Value& aSentTimestamp,
-                   const JS::Value& aDeliveryTimestamp,
                    const bool aRead,
                    JSContext* aCx,
                    nsIDOMMozSmsMessage** aMessage)
@@ -74,7 +66,6 @@ SmsMessage::Create(int32_t aId,
   SmsMessageData data;
   data.id() = aId;
   data.threadId() = aThreadId;
-  data.iccId() = nsString(aIccId);
   data.sender() = nsString(aSender);
   data.receiver() = nsString(aReceiver);
   data.body() = nsString(aBody);
@@ -118,17 +109,23 @@ SmsMessage::Create(int32_t aId,
     return NS_ERROR_INVALID_ARG;
   }
 
-  // Set |timestamp|.
-  nsresult rv = convertTimeToInt(aCx, aTimestamp, data.timestamp());
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Set |sentTimestamp|.
-  rv = convertTimeToInt(aCx, aSentTimestamp, data.sentTimestamp());
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Set |deliveryTimestamp|.
-  rv = convertTimeToInt(aCx, aDeliveryTimestamp, data.deliveryTimestamp());
-  NS_ENSURE_SUCCESS(rv, rv);
+  // We support both a Date object and a millisecond timestamp as a number.
+  if (aTimestamp.isObject()) {
+    JS::Rooted<JSObject*> obj(aCx, &aTimestamp.toObject());
+    if (!JS_ObjectIsDate(aCx, obj)) {
+      return NS_ERROR_INVALID_ARG;
+    }
+    data.timestamp() = js_DateGetMsecSinceEpoch(obj);
+  } else {
+    if (!aTimestamp.isNumber()) {
+      return NS_ERROR_INVALID_ARG;
+    }
+    double number = aTimestamp.toNumber();
+    if (static_cast<uint64_t>(number) != number) {
+      return NS_ERROR_INVALID_ARG;
+    }
+    data.timestamp() = static_cast<uint64_t>(number);
+  }
 
   nsCOMPtr<nsIDOMMozSmsMessage> message = new SmsMessage(data);
   message.swap(*aMessage);
@@ -159,13 +156,6 @@ NS_IMETHODIMP
 SmsMessage::GetThreadId(uint64_t* aThreadId)
 {
   *aThreadId = mData.threadId();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-SmsMessage::GetIccId(nsAString& aIccId)
-{
-  aIccId = mData.iccId();
   return NS_OK;
 }
 
@@ -266,23 +256,12 @@ SmsMessage::GetMessageClass(nsAString& aMessageClass)
 }
 
 NS_IMETHODIMP
-SmsMessage::GetTimestamp(DOMTimeStamp* aTimestamp)
+SmsMessage::GetTimestamp(JSContext* cx, JS::Value* aDate)
 {
-  *aTimestamp = mData.timestamp();
-  return NS_OK;
-}
+  JSObject *obj = JS_NewDateObjectMsec(cx, mData.timestamp());
+  NS_ENSURE_TRUE(obj, NS_ERROR_FAILURE);
 
-NS_IMETHODIMP
-SmsMessage::GetSentTimestamp(DOMTimeStamp* aSentTimestamp)
-{
-  *aSentTimestamp = mData.sentTimestamp();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-SmsMessage::GetDeliveryTimestamp(DOMTimeStamp* aDate)
-{
-  *aDate = mData.deliveryTimestamp();
+  *aDate = OBJECT_TO_JSVAL(obj);
   return NS_OK;
 }
 

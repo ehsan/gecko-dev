@@ -1,4 +1,4 @@
-/* -*- js2-basic-offset: 2; indent-tabs-mode: nil; -*- */
+/* -*- Mode: js2; js2-basic-offset: 2; indent-tabs-mode: nil; -*- */
 /* vim: set ft=javascript ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -27,8 +27,6 @@ const BROWSER_CONSOLE_WINDOW_FEATURES = "chrome,titlebar,toolbar,centerscreen,re
 
 // The preference prefix for all of the Browser Console filters.
 const BROWSER_CONSOLE_FILTER_PREFS_PREFIX = "devtools.browserconsole.filter.";
-
-let gHudId = 0;
 
 ///////////////////////////////////////////////////////////////////////////
 //// The HUD service
@@ -256,14 +254,13 @@ HUD_SERVICE.prototype =
       return deferred.promise;
     }
 
-    connect().then(getTarget).then(openWindow).then((aWindow) => {
+    connect().then(getTarget).then(openWindow).then((aWindow) =>
       this.openBrowserConsole(target, aWindow, aWindow)
         .then((aBrowserConsole) => {
           this._browserConsoleID = aBrowserConsole.hudId;
           this._browserConsoleDefer.resolve(aBrowserConsole);
           this._browserConsoleDefer = null;
-        })
-    }, console.error);
+        }));
 
     return this._browserConsoleDefer.promise;
   },
@@ -303,7 +300,7 @@ function WebConsole(aTarget, aIframeWindow, aChromeWindow)
 {
   this.iframeWindow = aIframeWindow;
   this.chromeWindow = aChromeWindow;
-  this.hudId = "hud_" + ++gHudId;
+  this.hudId = "hud_" + Date.now();
   this.target = aTarget;
 
   this.browserWindow = this.chromeWindow.top;
@@ -336,28 +333,12 @@ WebConsole.prototype = {
   get lastFinishedRequestCallback() HUDService.lastFinishedRequest.callback,
 
   /**
-   * Getter for the window that can provide various utilities that the web
-   * console makes use of, like opening links, managing popups, etc.  In
-   * most cases, this will be |this.browserWindow|, but in some uses (such as
-   * the Browser Toolbox), there is no browser window, so an alternative window
-   * hosts the utilities there.
-   * @type nsIDOMWindow
-   */
-  get chromeUtilsWindow()
-  {
-    if (this.browserWindow) {
-      return this.browserWindow;
-    }
-    return this.chromeWindow.top;
-  },
-
-  /**
    * Getter for the xul:popupset that holds any popups we open.
    * @type nsIDOMElement
    */
   get mainPopupSet()
   {
-    return this.chromeUtilsWindow.document.getElementById("mainPopupSet");
+    return this.browserWindow.document.getElementById("mainPopupSet");
   },
 
   /**
@@ -369,10 +350,7 @@ WebConsole.prototype = {
     return this.ui ? this.ui.outputNode : null;
   },
 
-  get gViewSourceUtils()
-  {
-    return this.chromeUtilsWindow.gViewSourceUtils;
-  },
+  get gViewSourceUtils() this.browserWindow.gViewSourceUtils,
 
   /**
    * Initialize the Web Console instance.
@@ -435,7 +413,7 @@ WebConsole.prototype = {
    */
   openLink: function WC_openLink(aLink)
   {
-    this.chromeUtilsWindow.openUILinkIn(aLink, "tab");
+    this.browserWindow.openUILinkIn(aLink, "tab");
   },
 
   /**
@@ -496,68 +474,55 @@ WebConsole.prototype = {
   viewSourceInDebugger:
   function WC_viewSourceInDebugger(aSourceURL, aSourceLine)
   {
+    let self = this;
+    let panelWin = null;
+    let debuggerWasOpen = true;
     let toolbox = gDevTools.getToolbox(this.target);
     if (!toolbox) {
-      this.viewSource(aSourceURL, aSourceLine);
+      self.viewSource(aSourceURL, aSourceLine);
       return;
     }
 
-    let showSource = ({ DebuggerView }) => {
-      if (DebuggerView.Sources.containsValue(aSourceURL)) {
-        DebuggerView.setEditorLocation(aSourceURL, aSourceLine, { noDebug: true });
-        return;
-      }
-      toolbox.selectTool("webconsole");
-      this.viewSource(aSourceURL, aSourceLine);
+    if (!toolbox.getPanel("jsdebugger")) {
+      debuggerWasOpen = false;
+      let toolboxWin = toolbox.doc.defaultView;
+      toolboxWin.addEventListener("Debugger:AfterSourcesAdded",
+                                  function afterSourcesAdded() {
+        toolboxWin.removeEventListener("Debugger:AfterSourcesAdded",
+                                       afterSourcesAdded);
+        loadScript();
+      });
     }
 
-    // If the Debugger was already open, switch to it and try to show the
-    // source immediately. Otherwise, initialize it and wait for the sources
-    // to be added first.
-    let debuggerAlreadyOpen = toolbox.getPanel("jsdebugger");
-    toolbox.selectTool("jsdebugger").then(({ panelWin: dbg }) => {
-      if (debuggerAlreadyOpen) {
-        showSource(dbg);
-      } else {
-        dbg.once(dbg.EVENTS.SOURCES_ADDED, () => showSource(dbg));
+    toolbox.selectTool("jsdebugger").then(function onDebuggerOpen(dbg) {
+      panelWin = dbg.panelWin;
+      if (debuggerWasOpen) {
+        loadScript();
       }
     });
-  },
 
-
-  /**
-   * Tries to open a JavaScript file related to the web page for the web console
-   * instance in the corresponding Scratchpad.
-   *
-   * @param string aSourceURL
-   *        The URL of the file which corresponds to a Scratchpad id.
-   */
-  viewSourceInScratchpad: function WC_viewSourceInScratchpad(aSourceURL)
-  {
-    // Check for matching top level Scratchpad window.
-    let wins = Services.wm.getEnumerator("devtools:scratchpad");
-
-    while (wins.hasMoreElements()) {
-      let win = wins.getNext();
-
-      if (!win.closed && win.Scratchpad.uniqueName === aSourceURL) {
-        win.focus();
+    function loadScript() {
+      let debuggerView = panelWin.DebuggerView;
+      if (!debuggerView.Sources.containsValue(aSourceURL)) {
+        toolbox.selectTool("webconsole");
+        self.viewSource(aSourceURL, aSourceLine);
         return;
       }
+      if (debuggerWasOpen && debuggerView.Sources.selectedValue == aSourceURL) {
+        debuggerView.editor.setCaretPosition(aSourceLine - 1);
+        return;
+      }
+
+      panelWin.addEventListener("Debugger:SourceShown", onSource, false);
+      debuggerView.Sources.preferredSource = aSourceURL;
     }
 
-    // Check for matching Scratchpad toolbox tab.
-    for (let [, toolbox] of gDevTools) {
-      let scratchpadPanel = toolbox.getPanel("scratchpad");
-      if (scratchpadPanel) {
-        let { scratchpad } = scratchpadPanel;
-        if (scratchpad.uniqueName === aSourceURL) {
-          toolbox.selectTool("scratchpad");
-          toolbox.raise();
-          scratchpad.editor.focus();
-          return;
-        }
+    function onSource(aEvent) {
+      if (aEvent.detail.url != aSourceURL) {
+        return;
       }
+      panelWin.removeEventListener("Debugger:SourceShown", onSource, false);
+      panelWin.DebuggerView.editor.setCaretPosition(aSourceLine - 1);
     }
   },
 
@@ -584,12 +549,12 @@ WebConsole.prototype = {
     if (!panel) {
       return null;
     }
-    let framesController = panel.panelWin.DebuggerController.StackFrames;
+    let framesController = panel.panelWin.gStackFrames;
     let thread = framesController.activeThread;
     if (thread && thread.paused) {
       return {
         frames: thread.cachedFrames,
-        selected: framesController.currentFrameDepth,
+        selected: framesController.currentFrame,
       };
     }
     return null;

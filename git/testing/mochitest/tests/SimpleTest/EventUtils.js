@@ -9,7 +9,6 @@
  *  synthesizeMouseAtCenter
  *  synthesizeWheel
  *  synthesizeKey
- *  synthesizeNativeKey
  *  synthesizeMouseExpectEvent
  *  synthesizeKeyExpectEvent
  *
@@ -45,7 +44,7 @@ function getElement(id) {
 this.$ = this.getElement;
 
 function sendMouseEvent(aEvent, aTarget, aWindow) {
-  if (['click', 'contextmenu', 'dblclick', 'mousedown', 'mouseup', 'mouseover', 'mouseout'].indexOf(aEvent.type) == -1) {
+  if (['click', 'dblclick', 'mousedown', 'mouseup', 'mouseover', 'mouseout'].indexOf(aEvent.type) == -1) {
     throw new Error("sendMouseEvent doesn't know about event type '" + aEvent.type + "'");
   }
 
@@ -75,7 +74,7 @@ function sendMouseEvent(aEvent, aTarget, aWindow) {
   var altKeyArg        = aEvent.altKey        || false;
   var shiftKeyArg      = aEvent.shiftKey      || false;
   var metaKeyArg       = aEvent.metaKey       || false;
-  var buttonArg        = aEvent.button        || (aEvent.type == 'contextmenu' ? 2 : 0);
+  var buttonArg        = aEvent.button        || 0;
   var relatedTargetArg = aEvent.relatedTarget || null;
 
   event.initMouseEvent(typeArg, canBubbleArg, cancelableArg, viewArg, detailArg,
@@ -83,7 +82,7 @@ function sendMouseEvent(aEvent, aTarget, aWindow) {
                        ctrlKeyArg, altKeyArg, shiftKeyArg, metaKeyArg,
                        buttonArg, relatedTargetArg);
 
-  return SpecialPowers.dispatchEvent(aWindow, aTarget, event);
+  SpecialPowers.dispatchEvent(aWindow, aTarget, event);
 }
 
 /**
@@ -569,140 +568,6 @@ function synthesizeKey(aKey, aEvent, aWindow)
   }
 }
 
-function _parseNativeModifiers(aModifiers)
-{
-  var modifiers;
-  if (aModifiers.capsLockKey) {
-    modifiers |= 0x00000001;
-  }
-  if (aModifiers.numLockKey) {
-    modifiers |= 0x00000002;
-  }
-  if (aModifiers.shiftKey) {
-    modifiers |= 0x00000100;
-  }
-  if (aModifiers.shiftRightKey) {
-    modifiers |= 0x00000200;
-  }
-  if (aModifiers.ctrlKey) {
-    modifiers |= 0x00000400;
-  }
-  if (aModifiers.ctrlRightKey) {
-    modifiers |= 0x00000800;
-  }
-  if (aModifiers.altKey) {
-    modifiers |= 0x00001000;
-  }
-  if (aModifiers.altRightKey) {
-    modifiers |= 0x00002000;
-  }
-  if (aModifiers.metaKey) {
-    modifiers |= 0x00004000;
-  }
-  if (aModifiers.metaRightKey) {
-    modifiers |= 0x00008000;
-  }
-  if (aModifiers.helpKey) {
-    modifiers |= 0x00010000;
-  }
-  if (aModifiers.fnKey) {
-    modifiers |= 0x00100000;
-  }
-  if (aModifiers.numericKeyPadKey) {
-    modifiers |= 0x01000000;
-  }
-
-  if (aModifiers.accelKey) {
-    modifiers |=
-      (navigator.platform.indexOf("Mac") == 0) ? 0x00004000 : 0x00000400;
-  }
-  if (aModifiers.accelRightKey) {
-    modifiers |=
-      (navigator.platform.indexOf("Mac") == 0) ? 0x00008000 : 0x00000800;
-  }
-  if (aModifiers.altGrKey) {
-    modifiers |=
-      (navigator.platform.indexOf("Win") == 0) ? 0x00002800 : 0x00001000;
-  }
-  return modifiers;
-}
-
-// Mac: Any unused number is okay for adding new keyboard layout.
-//      When you add new keyboard layout here, you need to modify
-//      TISInputSourceWrapper::InitByLayoutID().
-// Win: These constants can be found by inspecting registry keys under
-//      HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Keyboard Layouts
-
-const KEYBOARD_LAYOUT_ARABIC =
-  { name: "Arabic",             Mac: 6,    Win: 0x00000401 };
-const KEYBOARD_LAYOUT_BRAZILIAN_ABNT =
-  { name: "Brazilian ABNT",     Mac: null, Win: 0x00000416 };
-const KEYBOARD_LAYOUT_DVORAK_QWERTY =
-  { name: "Dvorak-QWERTY",      Mac: 4,    Win: null       };
-const KEYBOARD_LAYOUT_EN_US =
-  { name: "US",                 Mac: 0,    Win: 0x00000409 };
-const KEYBOARD_LAYOUT_FRENCH =
-  { name: "French",             Mac: 7,    Win: 0x0000040C };
-const KEYBOARD_LAYOUT_GREEK =
-  { name: "Greek",              Mac: 1,    Win: 0x00000408 };
-const KEYBOARD_LAYOUT_GERMAN =
-  { name: "German",             Mac: 2,    Win: 0x00000407 };
-const KEYBOARD_LAYOUT_HEBREW =
-  { name: "Hebrew",             Mac: 8,    Win: 0x0000040D };
-const KEYBOARD_LAYOUT_JAPANESE =
-  { name: "Japanese",           Mac: null, Win: 0x00000411 };
-const KEYBOARD_LAYOUT_LITHUANIAN =
-  { name: "Lithuanian",         Mac: 9,    Win: 0x00010427 };
-const KEYBOARD_LAYOUT_NORWEGIAN =
-  { name: "Norwegian",          Mac: 10,   Win: 0x00000414 };
-const KEYBOARD_LAYOUT_SPANISH =
-  { name: "Spanish",            Mac: 11,   Win: 0x0000040A };
-const KEYBOARD_LAYOUT_SWEDISH =
-  { name: "Swedish",            Mac: 3,    Win: 0x0000041D };
-const KEYBOARD_LAYOUT_THAI =
-  { name: "Thai",               Mac: 5,    Win: 0x0002041E };
-
-/**
- * synthesizeNativeKey() dispatches native key event on active window.
- * This is implemented only on Windows and Mac.
- *
- * @param aKeyboardLayout       One of KEYBOARD_LAYOUT_* defined above.
- * @param aNativeKeyCode        A native keycode value defined in
- *                              NativeKeyCodes.js.
- * @param aModifiers            Modifier keys.  If no modifire key is pressed,
- *                              this must be {}.  Otherwise, one or more items
- *                              referred in _parseNativeModifiers() must be
- *                              true.
- * @param aChars                Specify characters which should be generated
- *                              by the key event.
- * @param aUnmodifiedChars      Specify characters of unmodified (except Shift)
- *                              aChar value.
- * @return                      True if this function succeed dispatching
- *                              native key event.  Otherwise, false.
- */
-
-function synthesizeNativeKey(aKeyboardLayout, aNativeKeyCode, aModifiers,
-                             aChars, aUnmodifiedChars)
-{
-  var utils = _getDOMWindowUtils(window);
-  if (!utils) {
-    return false;
-  }
-  var nativeKeyboardLayout = null;
-  if (navigator.platform.indexOf("Mac") == 0) {
-    nativeKeyboardLayout = aKeyboardLayout.Mac;
-  } else if (navigator.platform.indexOf("Win") == 0) {
-    nativeKeyboardLayout = aKeyboardLayout.Win;
-  }
-  if (nativeKeyboardLayout === null) {
-    return false;
-  }
-  utils.sendNativeKeyEvent(nativeKeyboardLayout, aNativeKeyCode,
-                           _parseNativeModifiers(aModifiers),
-                           aChars, aUnmodifiedChars);
-  return true;
-}
-
 var _gSeenEvent = false;
 
 /**
@@ -821,7 +686,7 @@ function _getDOMWindowUtils(aWindow)
                                getInterface(_EU_Ci.nsIDOMWindowUtils);
 }
 
-// Must be synchronized with nsICompositionStringSynthesizer.
+// Must be synchronized with nsIDOMWindowUtils.
 const COMPOSITION_ATTR_RAWINPUT              = 0x02;
 const COMPOSITION_ATTR_SELECTEDRAWTEXT       = 0x03;
 const COMPOSITION_ATTR_CONVERTEDTEXT         = 0x04;
@@ -876,7 +741,7 @@ function synthesizeComposition(aEvent, aWindow)
  *                 When it's composing, set the each clauses' length to the
  *                 |composition.clauses[n].length|.  The sum of the all length
  *                 values must be same as the length of |composition.string|.
- *                 Set nsICompositionStringSynthesizer.ATTR_* to the
+ *                 Set nsIDOMWindowUtils.COMPOSITION_ATTR_* to the
  *                 |composition.clauses[n].attr|.
  *
  *                 When it's not composing, set 0 to the
@@ -903,20 +768,33 @@ function synthesizeText(aEvent, aWindow)
     return;
   }
 
-  var compositionString = utils.createCompositionStringSynthesizer();
-  compositionString.setString(aEvent.composition.string);
-  if (aEvent.composition.clauses[0].length) {
-    for (var i = 0; i < aEvent.composition.clauses.length; i++) {
-      compositionString.appendClause(aEvent.composition.clauses[i].length,
-                                     aEvent.composition.clauses[i].attr);
+  var firstClauseLength = aEvent.composition.clauses[0].length;
+  var firstClauseAttr   = aEvent.composition.clauses[0].attr;
+  var secondClauseLength = 0;
+  var secondClauseAttr = 0;
+  var thirdClauseLength = 0;
+  var thirdClauseAttr = 0;
+  if (aEvent.composition.clauses[1]) {
+    secondClauseLength = aEvent.composition.clauses[1].length;
+    secondClauseAttr   = aEvent.composition.clauses[1].attr;
+    if (aEvent.composition.clauses[2]) {
+      thirdClauseLength = aEvent.composition.clauses[2].length;
+      thirdClauseAttr   = aEvent.composition.clauses[2].attr;
     }
   }
 
+  var caretStart = -1;
+  var caretLength = 0;
   if (aEvent.caret) {
-    compositionString.setCaret(aEvent.caret.start, aEvent.caret.length);
+    caretStart = aEvent.caret.start;
+    caretLength = aEvent.caret.length;
   }
 
-  compositionString.dispatchEvent();
+  utils.sendTextEvent(aEvent.composition.string,
+                      firstClauseLength, firstClauseAttr,
+                      secondClauseLength, secondClauseAttr,
+                      thirdClauseLength, thirdClauseAttr,
+                      caretStart, caretLength);
 }
 
 /**

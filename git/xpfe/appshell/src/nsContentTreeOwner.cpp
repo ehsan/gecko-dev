@@ -12,6 +12,7 @@
 // Helper Classes
 #include "nsIServiceManager.h"
 #include "nsAutoPtr.h"
+#include "nsCxPusher.h"
 
 // Interfaces needed to be included
 #include "nsIDOMNode.h"
@@ -30,25 +31,22 @@
 #include "nsIURIFixup.h"
 #include "nsCDefaultURIFixup.h"
 #include "nsIWebNavigation.h"
-#include "nsDocShellCID.h"
-#include "nsIExternalURLHandlerService.h"
-#include "nsIMIMEInfo.h"
-#include "nsIWidget.h"
 #include "mozilla/BrowserElementParent.h"
 
 #include "nsIDOMDocument.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIURI.h"
-#include "nsIDocument.h"
 #if defined(XP_MACOSX)
 #include "nsThreadUtils.h"
 #endif
 
 #include "mozilla/Preferences.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/dom/ScriptSettings.h"
 
 using namespace mozilla;
+
+// CIDs
+static NS_DEFINE_CID(kWindowMediatorCID, NS_WINDOWMEDIATOR_CID);
 
 //*****************************************************************************
 //*** nsSiteWindow declaration
@@ -164,8 +162,6 @@ NS_IMETHODIMP nsContentTreeOwner::FindItemWithName(const PRUnichar* aName,
    nsIDocShellTreeItem* aRequestor, nsIDocShellTreeItem* aOriginalRequestor,
    nsIDocShellTreeItem** aFoundItem)
 {
-   NS_DEFINE_CID(kWindowMediatorCID, NS_WINDOWMEDIATOR_CID);
-
    NS_ENSURE_ARG_POINTER(aFoundItem);
 
    *aFoundItem = nullptr;
@@ -836,36 +832,14 @@ nsContentTreeOwner::ProvideWindow(nsIDOMWindow* aParent,
       !(aChromeFlags & (nsIWebBrowserChrome::CHROME_MODAL |
                         nsIWebBrowserChrome::CHROME_OPENAS_DIALOG |
                         nsIWebBrowserChrome::CHROME_OPENAS_CHROME))) {
-
-    BrowserElementParent::OpenWindowResult opened =
+    *aWindowIsNew =
       BrowserElementParent::OpenWindowInProcess(aParent, aURI, aName,
                                                 aFeatures, aReturn);
 
-    // If OpenWindowInProcess handled the open (by opening it or blocking the
+    // If OpenWindowInProcess failed (perhaps because the embedder blocked the
     // popup), tell our caller not to proceed trying to create a new window
     // through other means.
-    if (opened != BrowserElementParent::OPEN_WINDOW_IGNORED) {
-      *aWindowIsNew = opened == BrowserElementParent::OPEN_WINDOW_ADDED;
-      return *aWindowIsNew ? NS_OK : NS_ERROR_ABORT;
-    }
-
-    // If we're in an app and the target is _blank, send the url to the OS
-    if (aName.LowerCaseEqualsLiteral("_blank")) {
-      nsCOMPtr<nsIExternalURLHandlerService> exUrlServ(
-                        do_GetService(NS_EXTERNALURLHANDLERSERVICE_CONTRACTID));
-      if (exUrlServ) {
-
-        nsCOMPtr<nsIHandlerInfo> info;
-        bool found;
-        exUrlServ->GetURLHandlerInfoFromOS(aURI, &found, getter_AddRefs(info));
-  
-        if (info && found) {
-          info->LaunchWithURI(aURI, nullptr);
-          return NS_ERROR_ABORT;
-        }
-
-      }
-    }
+    return *aWindowIsNew ? NS_OK : NS_ERROR_ABORT;
   }
 
   // the parent window is fullscreen mode or not.
@@ -945,7 +919,8 @@ nsContentTreeOwner::ProvideWindow(nsIDOMWindow* aParent,
   *aWindowIsNew = (containerPref != nsIBrowserDOMWindow::OPEN_CURRENTWINDOW);
 
   {
-    dom::AutoSystemCaller asc;
+    nsCxPusher pusher;
+    pusher.PushNull();
 
     // Get a new rendering area from the browserDOMWin.  We don't want
     // to be starting any loads here, so get it with a null URI.
@@ -1090,8 +1065,6 @@ nsSiteWindow::SetFocus(void)
 NS_IMETHODIMP
 nsSiteWindow::Blur(void)
 {
-  NS_DEFINE_CID(kWindowMediatorCID, NS_WINDOWMEDIATOR_CID);
-
   nsCOMPtr<nsISimpleEnumerator> windowEnumerator;
   nsCOMPtr<nsIXULWindow>        xulWindow;
   bool                          more, foundUs;

@@ -12,7 +12,6 @@
 #include "States.h"
 
 #include "nsIMutableArray.h"
-#include "nsIPersistentProperties2.h"
 #include "nsComponentManagerUtils.h"
 
 using namespace mozilla;
@@ -40,7 +39,7 @@ NS_IMPL_ISUPPORTS_INHERITED1(ARIAGridAccessible,
                              nsIAccessibleTable)
 
 ////////////////////////////////////////////////////////////////////////////////
-// Accessible
+//nsAccessNode
 
 void
 ARIAGridAccessible::Shutdown()

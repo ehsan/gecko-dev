@@ -24,12 +24,15 @@ CertVerifier::CertVerifier(missing_cert_download_config mcdc,
                            crl_download_config cdc,
                            ocsp_download_config odc,
                            ocsp_strict_config osc,
-                           ocsp_get_config ogc)
+                           any_revo_fresh_config arfc,
+                           const char *firstNetworkRevocationMethod)
   : mMissingCertDownloadEnabled(mcdc == missing_cert_download_on)
   , mCRLDownloadEnabled(cdc == crl_download_allowed)
   , mOCSPDownloadEnabled(odc == ocsp_on)
   , mOCSPStrict(osc == ocsp_strict)
-  , mOCSPGETEnabled(ogc == ocsp_get_enabled)
+  , mRequireRevocationInfo(arfc == any_revo_strict)
+  , mCRLFirst(firstNetworkRevocationMethod != nullptr &&
+              !strcmp("crl", firstNetworkRevocationMethod))
 {
   MOZ_COUNT_CTOR(CertVerifier);
 }
@@ -136,21 +139,6 @@ CertVerifier::VerifyCert(CERTCertificate * cert,
     *evOidPolicy = SEC_OID_UNKNOWN;
   }
 
-  switch(usage){
-    case certificateUsageSSLClient:
-    case certificateUsageSSLServer:
-    case certificateUsageSSLCA:
-    case certificateUsageEmailSigner:
-    case certificateUsageEmailRecipient:
-    case certificateUsageObjectSigner:
-    case certificateUsageStatusResponder:
-      break;
-    default:
-      NS_WARNING("Calling VerifyCert with invalid usage");
-      PORT_SetError(SEC_ERROR_INVALID_ARGS);
-      return SECFailure;
-  }
-
   ScopedCERTCertList trustAnchors;
   SECStatus rv;
   SECOidTag evPolicy = SEC_OID_UNKNOWN;
@@ -168,12 +156,6 @@ CertVerifier::VerifyCert(CERTCertificate * cert,
       }
       if (!trustAnchors) {
         return SECFailure;
-      }
-      // pkix ignores an empty trustanchors list and
-      // decides then to use the whole set of trust in the DB
-      // so we set the evPolicy to unkown in this case
-      if (CERT_LIST_EMPTY(trustAnchors)) {
-        evPolicy = SEC_OID_UNKNOWN;
       }
     } else {
       // Do not setup EV verification params
@@ -237,23 +219,19 @@ CertVerifier::VerifyCert(CERTCertificate * cert,
     // EV setup!
     // XXX 859872 The current flags are not quite correct. (use
     // of ocsp flags for crl preferences).
-    uint64_t ocspRevMethodFlags =
+    uint64_t revMethodFlags =
       CERT_REV_M_TEST_USING_THIS_METHOD
       | ((mOCSPDownloadEnabled && !localOnly) ?
           CERT_REV_M_ALLOW_NETWORK_FETCHING : CERT_REV_M_FORBID_NETWORK_FETCHING)
       | CERT_REV_M_ALLOW_IMPLICIT_DEFAULT_SOURCE
       | CERT_REV_M_REQUIRE_INFO_ON_MISSING_SOURCE
       | CERT_REV_M_IGNORE_MISSING_FRESH_INFO
-      | CERT_REV_M_STOP_TESTING_ON_FRESH_INFO
-      | (mOCSPGETEnabled ? 0 : CERT_REV_M_FORCE_POST_METHOD_FOR_OCSP);
-
+      | CERT_REV_M_STOP_TESTING_ON_FRESH_INFO;
+ 
     rev.leafTests.cert_rev_flags_per_method[cert_revocation_method_crl] =
-    rev.chainTests.cert_rev_flags_per_method[cert_revocation_method_crl]
-      = CERT_REV_M_DO_NOT_TEST_USING_THIS_METHOD;
-
+    rev.chainTests.cert_rev_flags_per_method[cert_revocation_method_crl] = revMethodFlags;
     rev.leafTests.cert_rev_flags_per_method[cert_revocation_method_ocsp] =
-    rev.chainTests.cert_rev_flags_per_method[cert_revocation_method_ocsp]
-      = ocspRevMethodFlags;
+    rev.chainTests.cert_rev_flags_per_method[cert_revocation_method_ocsp] = revMethodFlags;
 
     rev.leafTests.cert_rev_method_independent_flags =
     rev.chainTests.cert_rev_method_independent_flags =
@@ -286,8 +264,6 @@ CertVerifier::VerifyCert(CERTCertificate * cert,
              ("VerifyCert: successful CERT_PKIXVerifyCert(ev) \n"));
       goto pkix_done;
     }
-    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
-           ("VerifyCert: failed CERT_PKIXVerifyCert(ev)\n"));
 
     if (validationChain && *validationChain) {
       // There SHOULD not be a validation chain on failure, asserion here for
@@ -366,17 +342,21 @@ CertVerifier::VerifyCert(CERTCertificate * cert,
     // ocsp enabled controls network fetching, too
     | ((mOCSPDownloadEnabled && !localOnly) ?
         CERT_REV_M_ALLOW_NETWORK_FETCHING : CERT_REV_M_FORBID_NETWORK_FETCHING)
-    
-    | (mOCSPGETEnabled ? 0 : CERT_REV_M_FORCE_POST_METHOD_FOR_OCSP);
     ;
 
   rev.leafTests.preferred_methods[0] =
-  rev.chainTests.preferred_methods[0] = cert_revocation_method_ocsp;
+  rev.chainTests.preferred_methods[0] =
+    mCRLFirst ? cert_revocation_method_crl : cert_revocation_method_ocsp;
 
   rev.leafTests.cert_rev_method_independent_flags =
   rev.chainTests.cert_rev_method_independent_flags =
     // avoiding the network is good, let's try local first
-    CERT_REV_MI_TEST_ALL_LOCAL_INFORMATION_FIRST;
+    CERT_REV_MI_TEST_ALL_LOCAL_INFORMATION_FIRST
+
+    // is overall revocation requirement strict or relaxed?
+    | (mRequireRevocationInfo ?
+       CERT_REV_MI_REQUIRE_SOME_FRESH_INFO_AVAILABLE : CERT_REV_MI_NO_OVERALL_INFO_REQUIREMENT)
+    ;
 
   // Skip EV parameters
   cvin[evParamLocation].type = cert_pi_end;

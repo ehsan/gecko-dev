@@ -9,6 +9,12 @@
 
 #include "mozilla/Array.h"
 
+#include "jsutil.h"
+
+// ARM defines the RegisterID within Architecture-arm.h
+#if !defined(JS_CPU_ARM)
+#include "assembler/assembler/MacroAssembler.h"
+#endif
 #include "jit/IonTypes.h"
 #if defined(JS_CPU_X86)
 # include "jit/x86/Architecture-x86.h"
@@ -19,11 +25,12 @@
 #endif
 
 namespace js {
-namespace jit {
+namespace ion {
 
 struct Register {
     typedef Registers Codes;
     typedef Codes::Code Code;
+    typedef js::ion::Registers::RegisterID RegisterID;
     Code code_;
 
     static Register FromCode(uint32_t i) {
@@ -81,8 +88,8 @@ struct FloatRegister {
 class RegisterDump
 {
   protected: // Silence Clang warning.
-    mozilla::Array<uintptr_t, Registers::Total> regs_;
-    mozilla::Array<double, FloatRegisters::Total> fpregs_;
+    uintptr_t regs_[Registers::Total];
+    double fpregs_[FloatRegisters::Total];
 
   public:
     static size_t offsetOfRegister(Register reg) {
@@ -100,8 +107,8 @@ class MachineState
     mozilla::Array<double *, FloatRegisters::Total> fpregs_;
 
   public:
-    static MachineState FromBailout(mozilla::Array<uintptr_t, Registers::Total> &regs,
-                                    mozilla::Array<double, FloatRegisters::Total> &fpregs);
+    static MachineState FromBailout(uintptr_t regs[Registers::Total],
+                                    double fpregs[FloatRegisters::Total]);
 
     void setRegisterLocation(Register reg, uintptr_t *up) {
         regs_[reg.code()] = up;
@@ -111,10 +118,10 @@ class MachineState
     }
 
     bool has(Register reg) const {
-        return regs_[reg.code()] != nullptr;
+        return regs_[reg.code()] != NULL;
     }
     bool has(FloatRegister reg) const {
-        return fpregs_[reg.code()] != nullptr;
+        return fpregs_[reg.code()] != NULL;
     }
     uintptr_t read(Register reg) const {
         return *regs_[reg.code()];
@@ -127,7 +134,7 @@ class MachineState
     }
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_Registers_h */

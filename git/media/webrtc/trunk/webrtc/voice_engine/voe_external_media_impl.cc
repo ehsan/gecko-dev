@@ -8,15 +8,15 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/voice_engine/voe_external_media_impl.h"
+#include "voe_external_media_impl.h"
 
-#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
-#include "webrtc/system_wrappers/interface/trace.h"
-#include "webrtc/voice_engine/channel.h"
-#include "webrtc/voice_engine/include/voe_errors.h"
-#include "webrtc/voice_engine/output_mixer.h"
-#include "webrtc/voice_engine/transmit_mixer.h"
-#include "webrtc/voice_engine/voice_engine_impl.h"
+#include "channel.h"
+#include "critical_section_wrapper.h"
+#include "output_mixer.h"
+#include "trace.h"
+#include "transmit_mixer.h"
+#include "voice_engine_impl.h"
+#include "voe_errors.h"
 
 namespace webrtc {
 
@@ -72,9 +72,8 @@ int VoEExternalMediaImpl::RegisterExternalMediaProcessing(
         case kPlaybackPerChannel:
         case kRecordingPerChannel:
         {
-            voe::ChannelOwner ch =
-                shared_->channel_manager().GetChannel(channel);
-            voe::Channel* channelPtr = ch.channel();
+            voe::ScopedChannel sc(shared_->channel_manager(), channel);
+            voe::Channel* channelPtr = sc.ChannelPtr();
             if (channelPtr == NULL)
             {
                 shared_->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -116,9 +115,8 @@ int VoEExternalMediaImpl::DeRegisterExternalMediaProcessing(
         case kPlaybackPerChannel:
         case kRecordingPerChannel:
         {
-            voe::ChannelOwner ch =
-                shared_->channel_manager().GetChannel(channel);
-            voe::Channel* channelPtr = ch.channel();
+            voe::ScopedChannel sc(shared_->channel_manager(), channel);
+            voe::Channel* channelPtr = sc.ChannelPtr();
             if (channelPtr == NULL)
             {
                 shared_->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -246,8 +244,7 @@ int VoEExternalMediaImpl::ExternalRecordingInsertData(
             samplingFreqHz,
             totalDelayMS,
             0,
-            0,
-            false); // Typing detection not supported
+            0);
 
         shared_->transmit_mixer()->DemuxAndMix();
         shared_->transmit_mixer()->EncodeAndSend();
@@ -351,8 +348,8 @@ int VoEExternalMediaImpl::GetAudioFrame(int channel, int desired_sample_rate_hz,
         shared_->SetLastError(VE_NOT_INITED, kTraceError);
         return -1;
     }
-    voe::ChannelOwner ch = shared_->channel_manager().GetChannel(channel);
-    voe::Channel* channelPtr = ch.channel();
+    voe::ScopedChannel sc(shared_->channel_manager(), channel);
+    voe::Channel* channelPtr = sc.ChannelPtr();
     if (channelPtr == NULL)
     {
         shared_->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -389,8 +386,8 @@ int VoEExternalMediaImpl::SetExternalMixing(int channel, bool enable) {
         shared_->SetLastError(VE_NOT_INITED, kTraceError);
         return -1;
     }
-    voe::ChannelOwner ch = shared_->channel_manager().GetChannel(channel);
-    voe::Channel* channelPtr = ch.channel();
+    voe::ScopedChannel sc(shared_->channel_manager(), channel);
+    voe::Channel* channelPtr = sc.ChannelPtr();
     if (channelPtr == NULL)
     {
         shared_->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,

@@ -15,8 +15,6 @@
 
 namespace webrtc {
 
-namespace acm1 {
-
 struct ACMISACInst;
 
 enum IsacCodingMode {
@@ -27,19 +25,17 @@ enum IsacCodingMode {
 class ACMISAC : public ACMGenericCodec {
  public:
   explicit ACMISAC(int16_t codec_id);
-  virtual ~ACMISAC();
+  ~ACMISAC();
 
   // for FEC
-  virtual ACMGenericCodec* CreateInstance(void) OVERRIDE;
+  ACMGenericCodec* CreateInstance(void);
 
-  virtual int16_t InternalEncode(uint8_t* bitstream,
-                                 int16_t* bitstream_len_byte) OVERRIDE;
+  int16_t InternalEncode(uint8_t* bitstream,
+                         int16_t* bitstream_len_byte);
 
-  virtual int16_t InternalInitEncoder(
-      WebRtcACMCodecParams* codec_params) OVERRIDE;
+  int16_t InternalInitEncoder(WebRtcACMCodecParams *codec_params);
 
-  virtual int16_t InternalInitDecoder(
-      WebRtcACMCodecParams* codec_params) OVERRIDE;
+  int16_t InternalInitDecoder(WebRtcACMCodecParams *codec_params);
 
   int16_t DeliverCachedIsacData(uint8_t* bitstream,
                                 int16_t* bitstream_len_byte,
@@ -55,56 +51,55 @@ class ACMISAC : public ACMGenericCodec {
     return -1;
   }
 
-  virtual int16_t UpdateDecoderSampFreq(int16_t codec_id) OVERRIDE;
+  int16_t UpdateDecoderSampFreq(int16_t codec_id);
 
-  virtual int16_t UpdateEncoderSampFreq(uint16_t samp_freq_hz) OVERRIDE;
+  int16_t UpdateEncoderSampFreq(uint16_t samp_freq_hz);
 
-  virtual int16_t EncoderSampFreq(uint16_t& samp_freq_hz) OVERRIDE;
+  int16_t EncoderSampFreq(uint16_t& samp_freq_hz);
 
-  virtual int32_t ConfigISACBandwidthEstimator(
+  int32_t ConfigISACBandwidthEstimator(
       const uint8_t init_frame_size_msec,
       const uint16_t init_rate_bit_per_sec,
-      const bool enforce_frame_size) OVERRIDE;
+      const bool enforce_frame_size);
 
-  virtual int32_t SetISACMaxPayloadSize(
-      const uint16_t max_payload_len_bytes) OVERRIDE;
+  int32_t SetISACMaxPayloadSize(
+      const uint16_t max_payload_len_bytes);
 
-  virtual int32_t SetISACMaxRate(const uint32_t max_rate_bit_per_sec) OVERRIDE;
+  int32_t SetISACMaxRate(const uint32_t max_rate_bit_per_sec);
 
-  virtual int16_t REDPayloadISAC(const int32_t isac_rate,
-                                 const int16_t isac_bw_estimate,
-                                 uint8_t* payload,
-                                 int16_t* payload_len_bytes) OVERRIDE;
+  int16_t REDPayloadISAC(const int32_t isac_rate,
+                         const int16_t isac_bw_estimate,
+                         uint8_t* payload,
+                         int16_t* payload_len_bytes);
 
  protected:
-  virtual int16_t DecodeSafe(uint8_t* bitstream,
-                             int16_t bitstream_len_byte,
-                             int16_t* audio,
-                             int16_t* audio_samples,
-                             int8_t* speech_type) OVERRIDE;
+  int16_t DecodeSafe(uint8_t* bitstream,
+                     int16_t bitstream_len_byte,
+                     int16_t* audio,
+                     int16_t* audio_samples,
+                     int8_t* speech_type);
 
-  virtual int32_t CodecDef(WebRtcNetEQ_CodecDef& codec_def,
-                           const CodecInst& codec_inst) OVERRIDE;
+  int32_t CodecDef(WebRtcNetEQ_CodecDef& codec_def,
+                   const CodecInst& codec_inst);
 
-  virtual void DestructEncoderSafe() OVERRIDE;
+  void DestructEncoderSafe();
 
-  virtual void DestructDecoderSafe() OVERRIDE;
+  void DestructDecoderSafe();
 
-  virtual int16_t SetBitRateSafe(const int32_t bit_rate) OVERRIDE;
+  int16_t SetBitRateSafe(const int32_t bit_rate);
 
-  virtual int32_t GetEstimatedBandwidthSafe() OVERRIDE;
+  int32_t GetEstimatedBandwidthSafe();
 
-  virtual int32_t SetEstimatedBandwidthSafe(
-      int32_t estimated_bandwidth) OVERRIDE;
+  int32_t SetEstimatedBandwidthSafe(int32_t estimated_bandwidth);
 
-  virtual int32_t GetRedPayloadSafe(uint8_t* red_payload,
-                                    int16_t* payload_bytes) OVERRIDE;
+  int32_t GetRedPayloadSafe(uint8_t* red_payload,
+                            int16_t* payload_bytes);
 
-  virtual int16_t InternalCreateEncoder() OVERRIDE;
+  int16_t InternalCreateEncoder();
 
-  virtual int16_t InternalCreateDecoder() OVERRIDE;
+  int16_t InternalCreateDecoder();
 
-  virtual void InternalDestructEncoderInst(void* ptr_inst) OVERRIDE;
+  void InternalDestructEncoderInst(void* ptr_inst);
 
   int16_t Transcode(uint8_t* bitstream,
                     int16_t* bitstream_len_byte,
@@ -112,15 +107,14 @@ class ACMISAC : public ACMGenericCodec {
                     int32_t rate,
                     bool is_red);
 
-  virtual void CurrentRate(int32_t& rate_bit_per_sec) OVERRIDE;
+  void CurrentRate(int32_t& rate_bit_per_sec);
 
   void UpdateFrameLen();
 
-  virtual bool DecoderParamsSafe(WebRtcACMCodecParams* dec_params,
-                                 const uint8_t payload_type) OVERRIDE;
+  bool DecoderParamsSafe(WebRtcACMCodecParams *dec_params,
+                         const uint8_t payload_type);
 
-  virtual void SaveDecoderParamSafe(
-      const WebRtcACMCodecParams* codec_params) OVERRIDE;
+  void SaveDecoderParamSafe(const WebRtcACMCodecParams* codec_params);
 
   ACMISACInst* codec_inst_ptr_;
   bool is_enc_initialized_;
@@ -131,8 +125,6 @@ class ACMISAC : public ACMGenericCodec {
   WebRtcACMCodecParams decoder_params_32khz_;
 };
 
-}  // namespace acm1
-
-}  // namespace webrtc
+}  // namespace
 
 #endif  // WEBRTC_MODULES_AUDIO_CODING_MAIN_SOURCE_ACM_ISAC_H_

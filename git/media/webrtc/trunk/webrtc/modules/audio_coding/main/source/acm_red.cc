@@ -10,15 +10,13 @@
 
 #include "webrtc/modules/audio_coding/main/source/acm_red.h"
 
-#include "webrtc/modules/audio_coding/main/acm2/acm_common_defs.h"
+#include "webrtc/modules/audio_coding/main/source/acm_common_defs.h"
 #include "webrtc/modules/audio_coding/main/source/acm_neteq.h"
 #include "webrtc/modules/audio_coding/neteq/interface/webrtc_neteq.h"
 #include "webrtc/modules/audio_coding/neteq/interface/webrtc_neteq_help_macros.h"
 #include "webrtc/system_wrappers/interface/trace.h"
 
 namespace webrtc {
-
-namespace acm1 {
 
 ACMRED::ACMRED(int16_t codec_id) {
   codec_id_ = codec_id;
@@ -102,7 +100,5 @@ void ACMRED::DestructDecoderSafe() {
   // RED has no instance
   return;
 }
-
-}  // namespace acm1
 
 }  // namespace webrtc

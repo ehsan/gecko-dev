@@ -12,9 +12,13 @@
 #define WEBRTC_MODULES_RTP_RTCP_SOURCE_TMMBR_HELP_H_
 
 #include <vector>
+#include "typedefs.h"
 
-#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
-#include "webrtc/typedefs.h"
+#include "critical_section_wrapper.h"
+
+#ifndef NULL
+    #define NULL    0
+#endif
 
 namespace webrtc {
 class TMMBRSet
@@ -110,6 +114,6 @@ private:
     float*                  _ptrIntersectionBoundingSet;
     float*                  _ptrMaxPRBoundingSet;
 };
-}  // namespace webrtc
+} // namespace webrtc
 
 #endif // WEBRTC_MODULES_RTP_RTCP_SOURCE_TMMBR_HELP_H_

@@ -109,17 +109,19 @@ function checkUnmodifiedForm(formNum) {
 // Mochitest gives us a sendKey(), but it's targeted to a specific element.
 // This basically sends an untargeted key event, to whatever's focused.
 function doKey(aKey, modifier) {
+    // Seems we need to enable this again, or sendKeyEvent() complaints.
+    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+
     var keyName = "DOM_VK_" + aKey.toUpperCase();
-    var key = KeyEvent[keyName];
+    var key = Components.interfaces.nsIDOMKeyEvent[keyName];
 
     // undefined --> null
     if (!modifier)
         modifier = null;
 
     // Window utils for sending fake sey events.
-    var wutils = window.QueryInterface(SpecialPowers.Ci.nsIInterfaceRequestor).
-                          getInterface(SpecialPowers.Ci.nsIDOMWindowUtils);
-    wutils = SpecialPowers.wrap(wutils);
+    var wutils = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor).
+                          getInterface(Components.interfaces.nsIDOMWindowUtils);
 
     if (wutils.sendKeyEvent("keydown",  key, 0, modifier)) {
       wutils.sendKeyEvent("keypress", key, 0, modifier);
@@ -129,8 +131,10 @@ function doKey(aKey, modifier) {
 
 // Init with a common login
 function commonInit() {
-    var pwmgr = SpecialPowers.Cc["@mozilla.org/login-manager;1"].
-                getService(SpecialPowers.Ci.nsILoginManager);
+    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+
+    var pwmgr = Components.classes["@mozilla.org/login-manager;1"].
+                getService(Components.interfaces.nsILoginManager);
     ok(pwmgr != null, "Access LoginManager");
 
 
@@ -148,8 +152,8 @@ function commonInit() {
     }
 
     // Add a login that's used in multiple tests
-    var login = SpecialPowers.Cc["@mozilla.org/login-manager/loginInfo;1"].
-                createInstance(SpecialPowers.Ci.nsILoginInfo);
+    var login = Components.classes["@mozilla.org/login-manager/loginInfo;1"].
+                createInstance(Components.interfaces.nsILoginInfo);
     login.init("http://mochi.test:8888", "http://mochi.test:8888", null,
                "testuser", "testpass", "uname", "pword");
     pwmgr.addLogin(login);

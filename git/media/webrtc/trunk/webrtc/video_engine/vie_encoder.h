@@ -14,28 +14,28 @@
 #include <list>
 #include <map>
 
-#include "webrtc/common_types.h"
-#include "webrtc/modules/bitrate_controller/include/bitrate_controller.h"
-#include "webrtc/modules/rtp_rtcp/interface/rtp_rtcp_defines.h"
-#include "webrtc/modules/video_coding/main/interface/video_coding_defines.h"
-#include "webrtc/modules/video_processing/main/interface/video_processing.h"
-#include "webrtc/system_wrappers/interface/scoped_ptr.h"
-#include "webrtc/typedefs.h"
-#include "webrtc/video_engine/vie_defines.h"
-#include "webrtc/video_engine/vie_frame_provider_base.h"
+#include "common_types.h"  // NOLINT
+#include "typedefs.h"  //NOLINT
+#include "modules/bitrate_controller/include/bitrate_controller.h"
+#include "modules/rtp_rtcp/interface/rtp_rtcp_defines.h"
+#include "modules/video_coding/main/interface/video_coding_defines.h"
+#include "modules/video_processing/main/interface/video_processing.h"
+#include "system_wrappers/interface/scoped_ptr.h"
+#include "video_engine/vie_defines.h"
+#include "video_engine/vie_file_recorder.h"
+#include "video_engine/vie_frame_provider_base.h"
 
 namespace webrtc {
 
-class Config;
 class CriticalSectionWrapper;
 class PacedSender;
 class ProcessThread;
 class QMVideoSettingsCallback;
 class RtpRtcp;
+class VideoCodingModule;
 class ViEBitrateObserver;
 class ViEEffectFilter;
 class ViEEncoderObserver;
-class VideoCodingModule;
 class ViEPacedSenderCallback;
 
 class ViEEncoder
@@ -51,7 +51,6 @@ class ViEEncoder
   ViEEncoder(int32_t engine_id,
              int32_t channel_id,
              uint32_t number_of_cores,
-             const Config& config,
              ProcessThread& module_process_thread,
              BitrateController* bitrate_controller);
   ~ViEEncoder();
@@ -114,8 +113,7 @@ class ViEEncoder
 
   int CodecTargetBitrate(uint32_t* bitrate) const;
   // Loss protection.
-  int32_t UpdateProtectionMethod(bool enable_nack);
-  bool nack_enabled() const { return nack_enabled_; }
+  int32_t UpdateProtectionMethod();
 
   // Buffering mode.
   void SetSenderBufferingMode(int target_delay_ms);
@@ -156,6 +154,9 @@ class ViEEncoder
   // Effect filter.
   int32_t RegisterEffectFilter(ViEEffectFilter* effect_filter);
 
+  // Recording.
+  ViEFileRecorder& GetOutgoingFileRecorder();
+
   // Enables recording of debugging information.
   virtual int StartDebugRecording(const char* fileNameUTF8);
 
@@ -170,9 +171,8 @@ class ViEEncoder
                         const uint32_t round_trip_time_ms);
 
   // Called by PacedSender.
-  bool TimeToSendPacket(uint32_t ssrc, uint16_t sequence_number,
+  void TimeToSendPacket(uint32_t ssrc, uint16_t sequence_number,
                         int64_t capture_time_ms);
-  int TimeToSendPadding(int bytes);
 
  private:
   bool EncoderPaused() const;
@@ -192,7 +192,6 @@ class ViEEncoder
 
   BitrateController* bitrate_controller_;
 
-  bool send_padding_;
   int target_delay_ms_;
   bool network_is_transmitting_;
   bool encoder_paused_;
@@ -213,6 +212,8 @@ class ViEEncoder
   bool has_received_rpsi_;
   uint64_t picture_id_rpsi_;
   std::map<unsigned int, int> ssrc_streams_;
+
+  ViEFileRecorder file_recorder_;
 
   // Quality modes callback
   QMVideoSettingsCallback* qm_callback_;

@@ -103,14 +103,12 @@ function editableItem(aOptions, aCallback)
   let trigger = aOptions.trigger || "click"
   let element = aOptions.element;
   element.addEventListener(trigger, function(evt) {
-    if (evt.target.nodeName !== "a") {
-      let win = this.ownerDocument.defaultView;
-      let selection = win.getSelection();
-      if (trigger != "click" || selection.isCollapsed) {
-        aCallback(element, evt);
-      }
-      evt.stopPropagation();
+    let win = this.ownerDocument.defaultView;
+    let selection = win.getSelection();
+    if (trigger != "click" || selection.isCollapsed) {
+      aCallback(element, evt);
     }
+    evt.stopPropagation();
   }, false);
 
   // If focused by means other than a click, start editing by
@@ -127,16 +125,14 @@ function editableItem(aOptions, aCallback)
   // to an ugly flash of the focus ring before showing the editor.
   // So hide the focus ring while the mouse is down.
   element.addEventListener("mousedown", function(evt) {
-    if (evt.target.nodeName !== "a") {
-      let cleanup = function() {
-        element.style.removeProperty("outline-style");
-        element.removeEventListener("mouseup", cleanup, false);
-        element.removeEventListener("mouseout", cleanup, false);
-      };
-      element.style.setProperty("outline-style", "none");
-      element.addEventListener("mouseup", cleanup, false);
-      element.addEventListener("mouseout", cleanup, false);
-    }
+    let cleanup = function() {
+      element.style.removeProperty("outline-style");
+      element.removeEventListener("mouseup", cleanup, false);
+      element.removeEventListener("mouseout", cleanup, false);
+    };
+    element.style.setProperty("outline-style", "none");
+    element.addEventListener("mouseup", cleanup, false);
+    element.addEventListener("mouseout", cleanup, false);
   }, false);
 
   // Mark the element editable field for tab
@@ -183,7 +179,6 @@ function InplaceEditor(aOptions, aEvent)
 
   this._createInput();
   this._autosize();
-  this.inputCharWidth = this._getInputCharWidth();
 
   // Pull out character codes for advanceChars, listing the
   // characters that should trigger a blur.
@@ -206,15 +201,14 @@ function InplaceEditor(aOptions, aEvent)
   this.input.addEventListener("blur", this._onBlur, false);
   this.input.addEventListener("keypress", this._onKeyPress, false);
   this.input.addEventListener("input", this._onInput, false);
+  this.input.addEventListener("mousedown", function(aEvt) {
+                                             aEvt.stopPropagation();
+                                           }, false);
 
-  this.input.addEventListener("dblclick",
-    (e) => { e.stopPropagation(); }, false);
-  this.input.addEventListener("mousedown",
-    (e) => { e.stopPropagation(); }, false);
-
+  this.warning = aOptions.warning;
   this.validate = aOptions.validate;
 
-  if (this.validate) {
+  if (this.warning && this.validate) {
     this.input.addEventListener("keyup", this._onKeyup, false);
   }
 
@@ -260,15 +254,15 @@ InplaceEditor.prototype = {
     this.elt.style.display = this.originalDisplay;
     this.elt.focus();
 
+    if (this.destroy) {
+      this.destroy();
+    }
+
     this.elt.parentNode.removeChild(this.input);
     this.input = null;
 
     delete this.elt.inplaceEditor;
     delete this.elt;
-
-    if (this.destroy) {
-      this.destroy();
-    }
   },
 
   /**
@@ -336,18 +330,6 @@ InplaceEditor.prototype = {
     this.input.style.width = width + "px";
   },
 
-  /**
-   * Get the width of a single character in the input to properly position the
-   * autocompletion popup.
-   */
-  _getInputCharWidth: function InplaceEditor_getInputCharWidth()
-  {
-    // Just make the text content to be 'x' to get the width of any character in
-    // a monospace font.
-    this._measurement.textContent = "x";
-    return this._measurement.offsetWidth;
-  },
-
    /**
    * Increment property values in rule view.
    *
@@ -370,7 +352,6 @@ InplaceEditor.prototype = {
 
     this.input.value = newValue.value;
     this.input.setSelectionRange(newValue.start, newValue.end);
-    this._doValidation();
 
     return true;
   },
@@ -705,50 +686,6 @@ InplaceEditor.prototype = {
   },
 
   /**
-   * Cycle through the autocompletion suggestions in the popup.
-   *
-   * @param {boolean} aReverse
-   *        true to select previous item from the popup.
-   * @param {boolean} aNoSelect
-   *        true to not select the text after selecting the newly selectedItem
-   *        from the popup.
-   */
-  _cycleCSSSuggestion:
-  function InplaceEditor_cycleCSSSuggestion(aReverse, aNoSelect)
-  {
-    let {label, preLabel} = this.popup.selectedItem;
-    if (aReverse) {
-      this.popup.selectPreviousItem();
-    } else {
-      this.popup.selectNextItem();
-    }
-    this._selectedIndex = this.popup.selectedIndex;
-    let input = this.input;
-    let pre = "";
-    if (input.selectionStart < input.selectionEnd) {
-      pre = input.value.slice(0, input.selectionStart);
-    }
-    else {
-      pre = input.value.slice(0, input.selectionStart - label.length +
-                                 preLabel.length);
-    }
-    let post = input.value.slice(input.selectionEnd, input.value.length);
-    let item = this.popup.selectedItem;
-    let toComplete = item.label.slice(item.preLabel.length);
-    input.value = pre + toComplete + post;
-    if (!aNoSelect) {
-      input.setSelectionRange(pre.length, pre.length + toComplete.length);
-    }
-    else {
-      input.setSelectionRange(pre.length + toComplete.length,
-                              pre.length + toComplete.length);
-    }
-    this._updateSize();
-    // This emit is mainly for the purpose of making the test flow simpler.
-    this.emit("after-suggest");
-  },
-
-  /**
    * Call the client's done handler and clear out.
    */
   _apply: function InplaceEditor_apply(aEvent)
@@ -772,45 +709,6 @@ InplaceEditor.prototype = {
    */
   _onBlur: function InplaceEditor_onBlur(aEvent, aDoNotClear)
   {
-    if (aEvent && this.popup && this.popup.isOpen &&
-        this.contentType == CONTENT_TYPES.CSS_MIXED) {
-      let label, preLabel;
-      if (this._selectedIndex === undefined) {
-        ({label, preLabel}) = this.popup.getItemAtIndex(this.popup.selectedIndex);
-      }
-      else {
-        ({label, preLabel}) = this.popup.getItemAtIndex(this._selectedIndex);
-      }
-      let input = this.input;
-      let pre = "";
-      if (input.selectionStart < input.selectionEnd) {
-        pre = input.value.slice(0, input.selectionStart);
-      }
-      else {
-        pre = input.value.slice(0, input.selectionStart - label.length +
-                                   preLabel.length);
-      }
-      let post = input.value.slice(input.selectionEnd, input.value.length);
-      let item = this.popup.selectedItem;
-      this._selectedIndex = this.popup.selectedIndex;
-      let toComplete = item.label.slice(item.preLabel.length);
-      input.value = pre + toComplete + post;
-      input.setSelectionRange(pre.length + toComplete.length,
-                              pre.length + toComplete.length);
-      this._updateSize();
-      // Wait for the popup to hide and then focus input async otherwise it does
-      // not work.
-      let onPopupHidden = () => {
-        this.popup._panel.removeEventListener("popuphidden", onPopupHidden);
-        this.doc.defaultView.setTimeout(()=> {
-          input.focus();
-          this.emit("after-suggest");
-        }, 0);
-      };
-      this.popup._panel.addEventListener("popuphidden", onPopupHidden);
-      this.popup.hidePopup();
-      return;
-    }
     this._apply();
     if (!aDoNotClear) {
       this._clear();
@@ -856,8 +754,21 @@ InplaceEditor.prototype = {
     } else if (increment && this.popup && this.popup.isOpen) {
       cycling = true;
       prevent = true;
-      this._cycleCSSSuggestion(increment > 0);
-      this._doValidation();
+      if (increment > 0) {
+        this.popup.selectPreviousItem();
+      } else {
+        this.popup.selectNextItem();
+      }
+      let input = this.input;
+      let pre = input.value.slice(0, input.selectionStart);
+      let post = input.value.slice(input.selectionEnd, input.value.length);
+      let item = this.popup.selectedItem;
+      let toComplete = item.label.slice(item.preLabel.length);
+      input.value = pre + toComplete + post;
+      input.setSelectionRange(pre.length, pre.length + toComplete.length);
+      this._updateSize();
+      // This emit is mainly for the purpose of making the test flow simpler.
+      this.emit("after-suggest");
     }
 
     if (aEvent.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_BACK_SPACE ||
@@ -883,6 +794,7 @@ InplaceEditor.prototype = {
       let direction = FOCUS_FORWARD;
       if (aEvent.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_TAB &&
           aEvent.shiftKey) {
+        this.cancelled = true;
         direction = FOCUS_BACKWARD;
       }
       if (this.stopOnReturn && aEvent.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_RETURN) {
@@ -893,21 +805,6 @@ InplaceEditor.prototype = {
       this._preventSuggestions = true;
 
       let input = this.input;
-
-      if (aEvent.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_TAB &&
-          this.contentType == CONTENT_TYPES.CSS_MIXED) {
-        if (this.popup && input.selectionStart < input.selectionEnd) {
-          aEvent.preventDefault();
-          input.setSelectionRange(input.selectionEnd, input.selectionEnd);
-          this.emit("after-suggest");
-          return;
-        }
-        else if (this.popup && this.popup.isOpen) {
-          aEvent.preventDefault();
-          this._cycleCSSSuggestion(aEvent.shiftKey, true);
-          return;
-        }
-      }
 
       this._apply();
 
@@ -958,7 +855,10 @@ InplaceEditor.prototype = {
    * Handle the input field's keyup event.
    */
   _onKeyup: function(aEvent) {
+    // Validate the entered value.
+    this.warning.hidden = this.validate(this.input.value);
     this._applied = false;
+    this._onBlur(null, true);
   },
 
   /**
@@ -967,7 +867,9 @@ InplaceEditor.prototype = {
   _onInput: function InplaceEditor_onInput(aEvent)
   {
     // Validate the entered value.
-    this._doValidation();
+    if (this.warning && this.validate) {
+      this.warning.hidden = this.validate(this.input.value);
+    }
 
     // Update size if we're autosizing.
     if (this._measurement) {
@@ -977,16 +879,6 @@ InplaceEditor.prototype = {
     // Call the user's change handler if available.
     if (this.change) {
       this.change(this.input.value.trim());
-    }
-  },
-
-  /**
-   * Fire validation callback with current input
-   */
-  _doValidation: function()
-  {
-    if (this.validate && this.input) {
-      this.validate(this.input.value);
     }
   },
 
@@ -1016,36 +908,22 @@ InplaceEditor.prototype = {
       if (!query) {
         return;
       }
+
       let list = [];
       if (this.contentType == CONTENT_TYPES.CSS_PROPERTY) {
         list = CSSPropertyList;
       } else if (this.contentType == CONTENT_TYPES.CSS_VALUE) {
-        // Get the last query to be completed before the caret.
-        let match = /([^\s,.\/]+$)/.exec(query);
-        if (match) {
-          startCheckQuery = match[0];
-        } else {
-          startCheckQuery = "";
-        }
-
-        list =
-          ["!important", ...domUtils.getCSSValuesForProperty(this.property.name)];
+        list = domUtils.getCSSValuesForProperty(this.property.name);
       } else if (this.contentType == CONTENT_TYPES.CSS_MIXED &&
                  /^\s*style\s*=/.test(query)) {
         // Detecting if cursor is at property or value;
-        let match = query.match(/([:;"'=]?)\s*([^"';:=]+)$/);
+        let match = query.match(/([:;"'=]?)\s*([^"';:= ]+)$/);
         if (match && match.length == 3) {
           if (match[1] == ":") { // We are in CSS value completion
             let propertyName =
-              query.match(/[;"'=]\s*([^"';:= ]+)\s*:\s*[^"';:=]+$/)[1];
-            list =
-              ["!important;", ...domUtils.getCSSValuesForProperty(propertyName)];
-            let matchLastQuery = /([^\s,.\/]+$)/.exec(match[2]);
-            if (matchLastQuery) {
-              startCheckQuery = matchLastQuery[0];
-            } else {
-              startCheckQuery = "";
-            }
+              query.match(/[;"'=]\s*([^"';:= ]+)\s*:\s*[^"';:= ]+$/)[1];
+            list = domUtils.getCSSValuesForProperty(propertyName);
+            startCheckQuery = match[2];
           } else if (match[1]) { // We are in CSS property name completion
             list = CSSPropertyList;
             startCheckQuery = match[2];
@@ -1057,8 +935,9 @@ InplaceEditor.prototype = {
           }
         }
       }
+
       list.some(item => {
-        if (startCheckQuery && item.startsWith(startCheckQuery)) {
+        if (item.startsWith(startCheckQuery)) {
           input.value = query + item.slice(startCheckQuery.length) +
                         input.value.slice(query.length);
           input.setSelectionRange(query.length, query.length + item.length -
@@ -1076,7 +955,7 @@ InplaceEditor.prototype = {
       let finalList = [];
       let length = list.length;
       for (let i = 0, count = 0; i < length && count < MAX_POPUP_ENTRIES; i++) {
-        if (startCheckQuery && list[i].startsWith(startCheckQuery)) {
+        if (list[i].startsWith(startCheckQuery)) {
           count++;
           finalList.push({
             preLabel: startCheckQuery,
@@ -1095,17 +974,13 @@ InplaceEditor.prototype = {
       }
 
       if (finalList.length > 1) {
-        // Calculate the offset for the popup to be opened.
-        let x = (this.input.selectionStart - startCheckQuery.length) *
-                this.inputCharWidth;
         this.popup.setItems(finalList);
-        this.popup.openPopup(this.input, x);
+        this.popup.openPopup(this.input);
       } else {
         this.popup.hidePopup();
       }
       // This emit is mainly for the purpose of making the test flow simpler.
       this.emit("after-suggest");
-      this._doValidation();
     }, 0);
   }
 };

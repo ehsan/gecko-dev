@@ -6,10 +6,10 @@
 
 //#define __INCREMENTAL 1
 
-#include "mozilla/DebugOnly.h"
-
 #include "nsScanner.h"
 #include "nsDebug.h"
+#include "nsIServiceManager.h"
+#include "nsICharsetConverterManager.h"
 #include "nsReadableUtils.h"
 #include "nsIInputStream.h"
 #include "nsIFile.h"
@@ -44,6 +44,12 @@ nsReadEndCondition::nsReadEndCondition(const PRUnichar* aTerminateChars) :
     terminalChar = *current;
   }
 }
+
+#ifdef __INCREMENTAL
+const int   kBufsize=1;
+#else
+const int   kBufsize=64;
+#endif
 
 /**
  *  Use this constructor if you want i/o to be based on 
@@ -112,28 +118,40 @@ nsScanner::nsScanner(nsString& aFilename, bool aCreateStream)
 
 nsresult nsScanner::SetDocumentCharset(const nsACString& aCharset , int32_t aSource)
 {
-  if (aSource < mCharsetSource) // priority is lower than the current one
+  if (aSource < mCharsetSource) // priority is lower the the current one , just
     return NS_OK;
 
-  mCharsetSource = aSource;
-
   nsCString charsetName;
-  mozilla::DebugOnly<bool> valid =
-      EncodingUtils::FindEncodingForLabel(aCharset, charsetName);
+  bool valid = EncodingUtils::FindEncodingForLabel(aCharset, charsetName);
   MOZ_ASSERT(valid, "Should never call with a bogus aCharset.");
-
-  if (!mCharset.IsEmpty() && charsetName.Equals(mCharset)) {
-    return NS_OK; // no difference, don't change it
+  if (!mCharset.IsEmpty())
+  {
+    if (charsetName.Equals(mCharset))
+    {
+      mCharsetSource = aSource;
+      return NS_OK; // no difference, don't change it
+    }
   }
 
   // different, need to change it
 
   mCharset.Assign(charsetName);
 
-  mUnicodeDecoder = EncodingUtils::DecoderForEncoding(mCharset);
-  mUnicodeDecoder->SetInputErrorBehavior(nsIUnicodeDecoder::kOnError_Signal);
+  mCharsetSource = aSource;
 
-  return NS_OK;
+  NS_ASSERTION(nsParser::GetCharsetConverterManager(),
+               "Must have the charset converter manager!");
+
+  nsresult res = nsParser::GetCharsetConverterManager()->
+    GetUnicodeDecoderRaw(mCharset.get(), getter_AddRefs(mUnicodeDecoder));
+  if (NS_SUCCEEDED(res) && mUnicodeDecoder)
+  {
+     // We need to detect conversion error of character to support XML
+     // encoding error.
+     mUnicodeDecoder->SetInputErrorBehavior(nsIUnicodeDecoder::kOnError_Signal);
+  }
+
+  return res;
 }
 
 

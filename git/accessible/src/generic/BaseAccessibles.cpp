@@ -12,6 +12,8 @@
 #include "nsCoreUtils.h"
 #include "Role.h"
 #include "States.h"
+
+#include "nsGUIEvent.h"
 #include "nsINameSpaceManager.h"
 #include "nsIURI.h"
 
@@ -155,7 +157,7 @@ LinkableAccessible::AccessKey() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// LinkableAccessible. Accessible
+// LinkableAccessible. nsAccessNode
 
 void
 LinkableAccessible::Shutdown()

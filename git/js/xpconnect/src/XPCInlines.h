@@ -17,19 +17,19 @@
 inline void
 XPCJSRuntime::AddVariantRoot(XPCTraceableVariant* variant)
 {
-    variant->AddToRootSet(&mVariantRoots);
+    variant->AddToRootSet(GetMapLock(), &mVariantRoots);
 }
 
 inline void
 XPCJSRuntime::AddWrappedJSRoot(nsXPCWrappedJS* wrappedJS)
 {
-    wrappedJS->AddToRootSet(&mWrappedJSRoots);
+    wrappedJS->AddToRootSet(GetMapLock(), &mWrappedJSRoots);
 }
 
 inline void
 XPCJSRuntime::AddObjectHolderRoot(XPCJSObjectHolder* holder)
 {
-    holder->AddToRootSet(&mObjectHolderRoots);
+    holder->AddToRootSet(GetMapLock(), &mObjectHolderRoots);
 }
 
 /***************************************************************************/
@@ -488,9 +488,7 @@ inline
 JSObject* XPCWrappedNativeTearOff::GetJSObject()
 {
     JSObject *obj = GetJSObjectPreserveColor();
-    if (obj) {
-      JS::ExposeObjectToActiveJS(obj);
-    }
+    xpc_UnmarkGrayObject(obj);
     return obj;
 }
 

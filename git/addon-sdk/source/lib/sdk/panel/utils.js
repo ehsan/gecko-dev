@@ -81,10 +81,6 @@ function isOpen(panel) {
 }
 exports.isOpen = isOpen;
 
-function isOpening(panel) {
-  return panel.state === "showing"
-}
-exports.isOpening = isOpening
 
 function close(panel) {
   // Sometimes "TypeError: panel.hidePopup is not a function" is thrown
@@ -240,12 +236,7 @@ function make(document) {
   let viewFrame = createFrame(panel, frameOptions);
   setupPanelFrame(viewFrame);
 
-  function onDisplayChange({type, target}) {
-    // Events from child element like <select /> may propagate (dropdowns are
-    // popups too), in which case frame loader shouldn't be swapped.
-    // See Bug 886329
-    if (target !== this) return;
-
+  function onDisplayChange({type}) {
     try { swapFrameLoaders(backgroundFrame, viewFrame); }
     catch(error) { console.exception(error); }
     events.emit(type, { subject: panel });
@@ -367,10 +358,8 @@ function style(panel) {
 }
 exports.style = style;
 
-let getContentFrame = panel =>
-    (isOpen(panel) || isOpening(panel)) ?
-    panel.firstChild :
-    panel.backgroundFrame
+function getContentFrame(panel) isOpen(panel) ? panel.firstChild :
+                                                panel.backgroundFrame
 exports.getContentFrame = getContentFrame;
 
 function getContentDocument(panel) getContentFrame(panel).contentDocument

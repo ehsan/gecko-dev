@@ -3,9 +3,7 @@
 
 function test() {
   addTab().then(function(data) {
-    let toolIds = gDevTools.getToolDefinitionArray()
-                    .filter(def => def.isTargetSupported(data.target))
-                    .map(def => def.id);
+    let toolIds = gDevTools.getToolDefinitionArray().map((def) => def.id);
 
     let open = function(index) {
       let toolId = toolIds[index];
@@ -20,10 +18,8 @@ function test() {
 
         let nextIndex = index + 1;
         if (nextIndex >= toolIds.length) {
-          toolbox.destroy().then(function() {
-            gBrowser.removeCurrentTab();
-            finish();
-          });
+          toolbox.destroy();
+          finish();
         }
         else {
           open(nextIndex);

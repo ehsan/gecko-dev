@@ -21,7 +21,6 @@
 #include "nsIDOMXULPopupElement.h"
 #include "nsIDOMXULSelectCntrlItemEl.h"
 #include "nsIMutableArray.h"
-#include "nsIPersistentProperties2.h"
 
 using namespace mozilla::a11y;
 
@@ -133,7 +132,7 @@ XULListboxAccessible::QueryInterface(REFNSIID aIID, void** aInstancePtr)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Accessible
+//nsAccessNode
 
 void
 XULListboxAccessible::Shutdown()
@@ -635,7 +634,7 @@ XULListitemAccessible::NativeName(nsString& aName)
     }
   }
 
-  return Accessible::NativeName(aName);
+  return GetXULName(aName);
 }
 
 role

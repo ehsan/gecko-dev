@@ -15,13 +15,19 @@
 #define JS_CPU_ARM_HARDFP
 #endif
 namespace js {
-namespace jit {
+namespace ion {
+
+static const uint32_t STACK_SLOT_SIZE       = 4;
+static const uint32_t DOUBLE_STACK_ALIGNMENT = 2;
 
 // In bytes: slots needed for potential memory->memory move spills.
 //   +8 for cycles
 //   +4 for gpr spills
 //   +8 for double spills
 static const uint32_t ION_FRAME_SLACK_SIZE   = 20;
+
+// An offset that is illegal for a local variable's stack allocation.
+static const int32_t INVALID_STACK_SLOT      = -1;
 
 // These offsets are specific to nunboxing, and capture offsets into the
 // components of a js::Value.
@@ -43,7 +49,7 @@ static const uint32_t BAILOUT_TABLE_ENTRY_SIZE    = 4;
 class Registers
 {
   public:
-    enum RegisterID {
+    typedef enum {
         r0 = 0,
         r1,
         r2,
@@ -67,7 +73,7 @@ class Registers
         r15,
         pc = r15,
         invalid_reg
-    };
+    } RegisterID;
     typedef RegisterID Code;
 
     static const char *GetName(Code code) {
@@ -139,11 +145,12 @@ typedef uint16_t PackedRegisterMask;
 class FloatRegisters
 {
   public:
-    enum FPRegisterID {
+    typedef enum {
         d0,
         d1,
         d2,
         d3,
+        SD0 = d3,
         d4,
         d5,
         d6,
@@ -172,7 +179,7 @@ class FloatRegisters
         d29,
         d30,
         invalid_freg
-    };
+    } FPRegisterID;
     typedef FPRegisterID Code;
 
     static const char *GetName(Code code) {
@@ -188,7 +195,6 @@ class FloatRegisters
 
     static const uint32_t AllMask = (1 << Total) - 1;
 
-    // d15 is the ScratchFloatReg.
     static const uint32_t NonVolatileMask =
         (1 << d8) |
         (1 << d9) |
@@ -196,14 +202,15 @@ class FloatRegisters
         (1 << d11) |
         (1 << d12) |
         (1 << d13) |
-        (1 << d14);
+        (1 << d14) |
+        (1 << d15);
 
     static const uint32_t VolatileMask = AllMask & ~NonVolatileMask;
 
     static const uint32_t WrapperMask = VolatileMask;
 
-    // d15 is the ARM scratch float register.
-    static const uint32_t NonAllocatableMask = (1 << d15) | (1 << invalid_freg);
+    // d1 is the ARM scratch float register.
+    static const uint32_t NonAllocatableMask = (1 << d1) | (1 << invalid_freg);
 
     // Registers that can be allocated without being saved, generally.
     static const uint32_t TempMask = VolatileMask & ~NonAllocatableMask;
@@ -211,14 +218,13 @@ class FloatRegisters
     static const uint32_t AllocatableMask = AllMask & ~NonAllocatableMask;
 };
 
-uint32_t GetARMFlags();
 bool hasMOVWT();
 bool hasVFPv3();
 bool hasVFP();
 bool has16DP();
 bool hasIDIV();
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_arm_Architecture_arm_h */

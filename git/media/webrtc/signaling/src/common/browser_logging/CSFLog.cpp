@@ -8,6 +8,7 @@
 
 #include "CSFLog.h"
 #include "base/basictypes.h"
+#include "prtypes.h"
 
 #include <map>
 #include "cpr_threads.h"
@@ -24,22 +25,22 @@
 #include <sys/prctl.h>
 #endif
 
-static PRLogModuleInfo *gLogModuleInfo = nullptr;
+static PRLogModuleInfo *gLogModuleInfo = NULL;
 
 PRLogModuleInfo *GetSignalingLogInfo()
 {
-  if (gLogModuleInfo == nullptr)
+  if (gLogModuleInfo == NULL)
     gLogModuleInfo = PR_NewLogModule("signaling");
 
   return gLogModuleInfo;
 }
 
-static PRLogModuleInfo *gWebRTCLogModuleInfo = nullptr;
+static PRLogModuleInfo *gWebRTCLogModuleInfo = NULL;
 int gWebrtcTraceLoggingOn = 0;
 
 PRLogModuleInfo *GetWebRTCLogInfo()
 {
-  if (gWebRTCLogModuleInfo == nullptr)
+  if (gWebRTCLogModuleInfo == NULL)
     gWebRTCLogModuleInfo = PR_NewLogModule("webrtc_trace");
 
   return gWebRTCLogModuleInfo;

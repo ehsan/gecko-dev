@@ -22,12 +22,6 @@ Accessible::Role()
   return ARIATransformRole(mRoleMapEntry->role);
 }
 
-inline bool
-Accessible::IsARIARole(nsIAtom* aARIARole) const
-{
-  return mRoleMapEntry && mRoleMapEntry->Is(aARIARole);
-}
-
 inline mozilla::a11y::role
 Accessible::ARIARole()
 {

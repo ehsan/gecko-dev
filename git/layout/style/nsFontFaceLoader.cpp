@@ -27,24 +27,22 @@
 #include "nsContentPolicyUtils.h"
 #include "nsCrossSiteListenerProxy.h"
 #include "nsIContentSecurityPolicy.h"
+#include "nsChannelPolicy.h"
 #include "nsIDocShell.h"
 #include "nsIWebNavigation.h"
-#include "nsISupportsPriority.h"
-#include "nsINetworkSeer.h"
 
 #include "nsIConsoleService.h"
 
 #include "nsStyleSet.h"
 #include "nsPrintfCString.h"
-#include "mozilla/gfx/2D.h"
 
 using namespace mozilla;
 
 #ifdef PR_LOGGING
-static PRLogModuleInfo* 
+static PRLogModuleInfo *
 GetFontDownloaderLog()
 {
-  static PRLogModuleInfo* sLog;
+  static PRLogModuleInfo *sLog;
   if (!sLog)
     sLog = PR_NewLogModule("fontdownloader");
   return sLog;
@@ -55,11 +53,11 @@ GetFontDownloaderLog()
 #define LOG_ENABLED() PR_LOG_TEST(GetFontDownloaderLog(), PR_LOG_DEBUG)
 
 
-nsFontFaceLoader::nsFontFaceLoader(gfxMixedFontFamily* aFontFamily,
-                                   gfxProxyFontEntry* aProxy,
-                                   nsIURI* aFontURI,
-                                   nsUserFontSet* aFontSet,
-                                   nsIChannel* aChannel)
+nsFontFaceLoader::nsFontFaceLoader(gfxMixedFontFamily *aFontFamily,
+                                   gfxProxyFontEntry *aProxy,
+                                   nsIURI *aFontURI,
+                                   nsUserFontSet *aFontSet,
+                                   nsIChannel *aChannel)
   : mFontFamily(aFontFamily),
     mFontEntry(aProxy),
     mFontURI(aFontURI),
@@ -83,7 +81,7 @@ nsFontFaceLoader::~nsFontFaceLoader()
 }
 
 void
-nsFontFaceLoader::StartedLoading(nsIStreamLoader* aStreamLoader)
+nsFontFaceLoader::StartedLoading(nsIStreamLoader *aStreamLoader)
 {
   int32_t loadTimeout =
     Preferences::GetInt("gfx.downloadable_fonts.fallback_delay", 3000);
@@ -102,16 +100,16 @@ nsFontFaceLoader::StartedLoading(nsIStreamLoader* aStreamLoader)
 }
 
 void
-nsFontFaceLoader::LoadTimerCallback(nsITimer* aTimer, void* aClosure)
+nsFontFaceLoader::LoadTimerCallback(nsITimer *aTimer, void *aClosure)
 {
-  nsFontFaceLoader* loader = static_cast<nsFontFaceLoader*>(aClosure);
+  nsFontFaceLoader *loader = static_cast<nsFontFaceLoader*>(aClosure);
 
   if (!loader->mFontSet) {
     // We've been canceled
     return;
   }
 
-  gfxProxyFontEntry* pe = loader->mFontEntry.get();
+  gfxProxyFontEntry *pe = loader->mFontEntry.get();
   bool updateUserFontSet = true;
 
   // If the entry is loading, check whether it's >75% done; if so,
@@ -145,8 +143,8 @@ nsFontFaceLoader::LoadTimerCallback(nsITimer* aTimer, void* aClosure)
   // font will be used in the meantime, and tell the context to refresh.
   if (updateUserFontSet) {
     pe->mLoadingState = gfxProxyFontEntry::LOADING_SLOWLY;
-    gfxUserFontSet* fontSet = loader->mFontSet;
-    nsPresContext* ctx = loader->mFontSet->GetPresContext();
+    gfxUserFontSet *fontSet = loader->mFontSet;
+    nsPresContext *ctx = loader->mFontSet->GetPresContext();
     NS_ASSERTION(ctx, "userfontset doesn't have a presContext?");
     if (ctx) {
       fontSet->IncrementGeneration();
@@ -186,7 +184,7 @@ nsFontFaceLoader::OnStreamComplete(nsIStreamLoader* aLoader,
   }
 #endif
 
-  nsPresContext* ctx = mFontSet->GetPresContext();
+  nsPresContext *ctx = mFontSet->GetPresContext();
   NS_ASSERTION(ctx && !ctx->PresShell()->IsDestroying(),
                "We should have been canceled already");
 
@@ -260,7 +258,7 @@ nsFontFaceLoader::CheckLoadAllowed(nsIPrincipal* aSourcePrincipal,
     return NS_OK;
 
   // check with the security manager
-  nsIScriptSecurityManager* secMan = nsContentUtils::GetSecurityManager();
+  nsIScriptSecurityManager *secMan = nsContentUtils::GetSecurityManager();
   rv = secMan->CheckLoadURIWithPrincipal(aSourcePrincipal, aTargetURI,
                                         nsIScriptSecurityManager::STANDARD);
   if (NS_FAILED(rv)) {
@@ -286,10 +284,11 @@ nsFontFaceLoader::CheckLoadAllowed(nsIPrincipal* aSourcePrincipal,
   return NS_OK;
 }
 
-nsUserFontSet::nsUserFontSet(nsPresContext* aContext)
+nsUserFontSet::nsUserFontSet(nsPresContext *aContext)
   : mPresContext(aContext)
 {
   NS_ASSERTION(mPresContext, "null context passed to nsUserFontSet");
+  mLoaders.Init();
 }
 
 nsUserFontSet::~nsUserFontSet()
@@ -313,19 +312,19 @@ nsUserFontSet::Destroy()
 }
 
 void
-nsUserFontSet::RemoveLoader(nsFontFaceLoader* aLoader)
+nsUserFontSet::RemoveLoader(nsFontFaceLoader *aLoader)
 {
   mLoaders.RemoveEntry(aLoader);
 }
 
 nsresult
-nsUserFontSet::StartLoad(gfxMixedFontFamily* aFamily,
-                         gfxProxyFontEntry* aProxy,
-                         const gfxFontFaceSrc* aFontFaceSrc)
+nsUserFontSet::StartLoad(gfxMixedFontFamily *aFamily,
+                         gfxProxyFontEntry *aProxy,
+                         const gfxFontFaceSrc *aFontFaceSrc)
 {
   nsresult rv;
 
-  nsIPresShell* ps = mPresContext->PresShell();
+  nsIPresShell *ps = mPresContext->PresShell();
   if (!ps)
     return NS_ERROR_FAILURE;
 
@@ -374,17 +373,8 @@ nsUserFontSet::StartLoad(gfxMixedFontFamily* aFamily,
   nsCOMPtr<nsIHttpChannel> httpChannel(do_QueryInterface(channel));
   if (httpChannel)
     httpChannel->SetReferrer(aFontFaceSrc->mReferrer);
-  nsCOMPtr<nsISupportsPriority> priorityChannel(do_QueryInterface(channel));
-  if (priorityChannel) {
-    priorityChannel->AdjustPriority(nsISupportsPriority::PRIORITY_HIGH);
-  }
-
   rv = NS_NewStreamLoader(getter_AddRefs(streamLoader), fontLoader);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  nsIDocument *document = ps->GetDocument();
-  mozilla::net::SeerLearn(aFontFaceSrc->mURI, document->GetDocumentURI(),
-                          nsINetworkSeer::LEARN_LOAD_SUBRESOURCE, loadGroup);
 
   bool inherits = false;
   rv = NS_URIChainHasFlags(aFontFaceSrc->mURI,
@@ -473,12 +463,12 @@ nsUserFontSet::UpdateRules(const nsTArray<nsFontFaceRuleContainer>& aRules)
     // even after the oldRules array is deleted.
     size_t count = oldRules.Length();
     for (size_t i = 0; i < count; ++i) {
-      gfxFontEntry* fe = oldRules[i].mFontEntry;
+      gfxFontEntry *fe = oldRules[i].mFontEntry;
       if (!fe->mIsProxy) {
         continue;
       }
-      gfxProxyFontEntry* proxy = static_cast<gfxProxyFontEntry*>(fe);
-      nsFontFaceLoader* loader = proxy->mLoader;
+      gfxProxyFontEntry *proxy = static_cast<gfxProxyFontEntry*>(fe);
+      nsFontFaceLoader *loader = proxy->mLoader;
       if (loader) {
         loader->Cancel();
         RemoveLoader(loader);
@@ -494,7 +484,7 @@ nsUserFontSet::UpdateRules(const nsTArray<nsFontFaceRuleContainer>& aRules)
 }
 
 void
-nsUserFontSet::InsertRule(nsCSSFontFaceRule* aRule, uint8_t aSheetType,
+nsUserFontSet::InsertRule(nsCSSFontFaceRule *aRule, uint8_t aSheetType,
                           nsTArray<FontFaceRuleRecord>& aOldRules,
                           bool& aFontSetModified)
 {
@@ -612,13 +602,13 @@ nsUserFontSet::InsertRule(nsCSSFontFaceRule* aRule, uint8_t aSheetType,
   aRule->GetDesc(eCSSFontDesc_Src, val);
   unit = val.GetUnit();
   if (unit == eCSSUnit_Array) {
-    nsCSSValue::Array* srcArr = val.GetArrayValue();
+    nsCSSValue::Array *srcArr = val.GetArrayValue();
     size_t numSrc = srcArr->Count();
     
     for (size_t i = 0; i < numSrc; i++) {
       val = srcArr->Item(i);
       unit = val.GetUnit();
-      gfxFontFaceSrc* face = srcArray.AppendElements(1);
+      gfxFontFaceSrc *face = srcArray.AppendElements(1);
       if (!face)
         return;
 
@@ -633,6 +623,7 @@ nsUserFontSet::InsertRule(nsCSSFontFaceRule* aRule, uint8_t aSheetType,
       case eCSSUnit_URL:
         face->mIsLocal = false;
         face->mURI = val.GetURLValue();
+        NS_ASSERTION(face->mURI, "null url in @font-face rule");
         face->mReferrer = val.GetURLStructValue()->mReferrer;
         face->mOriginPrincipal = val.GetURLStructValue()->mOriginPrincipal;
         NS_ASSERTION(face->mOriginPrincipal, "null origin principal in @font-face rule");
@@ -668,12 +659,6 @@ nsUserFontSet::InsertRule(nsCSSFontFaceRule* aRule, uint8_t aSheetType,
           }
           i++;
         }
-        if (!face->mURI) {
-          // if URI not valid, omit from src array
-          srcArray.RemoveElementAt(srcArray.Length() - 1);
-          NS_WARNING("null url in @font-face rule");
-          continue;
-        }
         break;
       default:
         NS_ASSERTION(unit == eCSSUnit_Local_Font || unit == eCSSUnit_URL,
@@ -701,9 +686,9 @@ nsUserFontSet::InsertRule(nsCSSFontFaceRule* aRule, uint8_t aSheetType,
 }
 
 void
-nsUserFontSet::ReplaceFontEntry(gfxMixedFontFamily* aFamily,
-                                gfxProxyFontEntry* aProxy,
-                                gfxFontEntry* aFontEntry)
+nsUserFontSet::ReplaceFontEntry(gfxMixedFontFamily *aFamily,
+                                gfxProxyFontEntry *aProxy,
+                                gfxFontEntry *aFontEntry)
 {
   // aProxy is being supplanted by the "real" font aFontEntry, so we need to
   // update any rules that refer to it. Note that there may be multiple rules
@@ -718,7 +703,7 @@ nsUserFontSet::ReplaceFontEntry(gfxMixedFontFamily* aFamily,
 }
 
 nsCSSFontFaceRule*
-nsUserFontSet::FindRuleForEntry(gfxFontEntry* aFontEntry)
+nsUserFontSet::FindRuleForEntry(gfxFontEntry *aFontEntry)
 {
   for (uint32_t i = 0; i < mRules.Length(); ++i) {
     if (mRules[i].mFontEntry == aFontEntry) {
@@ -729,9 +714,9 @@ nsUserFontSet::FindRuleForEntry(gfxFontEntry* aFontEntry)
 }
 
 nsresult
-nsUserFontSet::LogMessage(gfxMixedFontFamily* aFamily,
-                          gfxProxyFontEntry* aProxy,
-                          const char*        aMessage,
+nsUserFontSet::LogMessage(gfxMixedFontFamily *aFamily,
+                          gfxProxyFontEntry *aProxy,
+                          const char        *aMessage,
                           uint32_t          aFlags,
                           nsresult          aStatus)
 {
@@ -754,7 +739,7 @@ nsUserFontSet::LogMessage(gfxMixedFontFamily* aFamily,
   }
 
   char weightKeywordBuf[8]; // plenty to sprintf() a uint16_t
-  const char* weightKeyword;
+  const char *weightKeyword;
   const nsAFlatCString& weightKeywordString =
     nsCSSProps::ValueToKeyword(aProxy->Weight(),
                                nsCSSProps::kFontWeightKTable);
@@ -842,12 +827,12 @@ nsUserFontSet::LogMessage(gfxMixedFontFamily* aFamily,
 }
 
 nsresult
-nsUserFontSet::CheckFontLoad(const gfxFontFaceSrc* aFontFaceSrc,
-                             nsIPrincipal** aPrincipal,
-                             bool* aBypassCache)
+nsUserFontSet::CheckFontLoad(const gfxFontFaceSrc *aFontFaceSrc,
+                             nsIPrincipal **aPrincipal,
+                             bool *aBypassCache)
 {
   // check same-site origin
-  nsIPresShell* ps = mPresContext->PresShell();
+  nsIPresShell *ps = mPresContext->PresShell();
   if (!ps)
     return NS_ERROR_FAILURE;
 
@@ -876,13 +861,15 @@ nsUserFontSet::CheckFontLoad(const gfxFontFaceSrc* aFontFaceSrc,
   }
 
   *aBypassCache = false;
-
-  nsCOMPtr<nsIDocShell> docShell = ps->GetDocument()->GetDocShell();
-  if (docShell) {
-    uint32_t loadType;
-    if (NS_SUCCEEDED(docShell->GetLoadType(&loadType))) {
-      if ((loadType >> 16) & nsIWebNavigation::LOAD_FLAGS_BYPASS_CACHE) {
-        *aBypassCache = true;
+  nsCOMPtr<nsISupports> container = ps->GetDocument()->GetContainer();
+  if (container) {
+    nsCOMPtr<nsIDocShell> docShell = do_QueryInterface(container);
+    if (docShell) {
+      uint32_t loadType;
+      if (NS_SUCCEEDED(docShell->GetLoadType(&loadType))) {
+        if ((loadType >> 16) & nsIWebNavigation::LOAD_FLAGS_BYPASS_CACHE) {
+          *aBypassCache = true;
+        }
       }
     }
   }
@@ -891,10 +878,10 @@ nsUserFontSet::CheckFontLoad(const gfxFontFaceSrc* aFontFaceSrc,
 }
 
 nsresult
-nsUserFontSet::SyncLoadFontData(gfxProxyFontEntry* aFontToLoad,
-                                const gfxFontFaceSrc* aFontFaceSrc,
-                                uint8_t*& aBuffer,
-                                uint32_t& aBufferLength)
+nsUserFontSet::SyncLoadFontData(gfxProxyFontEntry *aFontToLoad,
+                                const gfxFontFaceSrc *aFontFaceSrc,
+                                uint8_t* &aBuffer,
+                                uint32_t &aBufferLength)
 {
   nsresult rv;
 
@@ -975,11 +962,16 @@ nsUserFontSet::SyncLoadFontData(gfxProxyFontEntry* aFontToLoad,
 bool
 nsUserFontSet::GetPrivateBrowsing()
 {
-  nsIPresShell* ps = mPresContext->PresShell();
+  nsIPresShell *ps = mPresContext->PresShell();
   if (!ps) {
     return false;
   }
 
-  nsCOMPtr<nsILoadContext> loadContext = ps->GetDocument()->GetLoadContext();
+  nsCOMPtr<nsISupports> container = ps->GetDocument()->GetContainer();
+  if (!container) {
+    return false;
+  }
+
+  nsCOMPtr<nsILoadContext> loadContext = do_QueryInterface(container);
   return loadContext && loadContext->UsePrivateBrowsing();
 }

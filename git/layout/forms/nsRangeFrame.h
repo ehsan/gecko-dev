@@ -8,12 +8,12 @@
 
 #include "mozilla/Attributes.h"
 #include "mozilla/Decimal.h"
-#include "mozilla/EventForwards.h"
 #include "nsContainerFrame.h"
 #include "nsIAnonymousContentCreator.h"
 #include "nsCOMPtr.h"
 
 class nsBaseContentList;
+class nsGUIEvent;
 
 class nsRangeFrame : public nsContainerFrame,
                      public nsIAnonymousContentCreator
@@ -23,8 +23,6 @@ class nsRangeFrame : public nsContainerFrame,
 
   nsRangeFrame(nsStyleContext* aContext);
   virtual ~nsRangeFrame();
-
-  typedef mozilla::dom::Element Element;
 
 public:
   NS_DECL_QUERYFRAME_TARGET(nsRangeFrame)
@@ -113,7 +111,7 @@ public:
    */
   bool ShouldUseNativeStyle() const;
 
-  mozilla::Decimal GetValueAtEventPoint(mozilla::WidgetGUIEvent* aEvent);
+  mozilla::Decimal GetValueAtEventPoint(nsGUIEvent* aEvent);
 
   /**
    * Helper that's used when the value of the range changes to reposition the
@@ -124,11 +122,9 @@ public:
    */
   void UpdateForValueChange();
 
-  virtual Element* GetPseudoElement(nsCSSPseudoElements::Type aType) MOZ_OVERRIDE;
-
 private:
 
-  nsresult MakeAnonymousDiv(Element** aResult,
+  nsresult MakeAnonymousDiv(nsIContent** aResult,
                             nsCSSPseudoElements::Type aPseudoType,
                             nsTArray<ContentInfo>& aElements);
 
@@ -147,7 +143,7 @@ private:
    * The div used to show the ::-moz-range-track pseudo-element.
    * @see nsRangeFrame::CreateAnonymousContent
    */
-  nsCOMPtr<Element> mTrackDiv;
+  nsCOMPtr<nsIContent> mTrackDiv;
 
   /**
    * The div used to show the ::-moz-range-progress pseudo-element, which is
@@ -155,13 +151,13 @@ private:
    * thumb's current position.
    * @see nsRangeFrame::CreateAnonymousContent
    */
-  nsCOMPtr<Element> mProgressDiv;
+  nsCOMPtr<nsIContent> mProgressDiv;
 
   /**
    * The div used to show the ::-moz-range-thumb pseudo-element.
    * @see nsRangeFrame::CreateAnonymousContent
    */
-  nsCOMPtr<Element> mThumbDiv;
+  nsCOMPtr<nsIContent> mThumbDiv;
 };
 
 #endif

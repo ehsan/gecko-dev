@@ -8,7 +8,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#pragma warning(disable: 4995)  // name was marked as #pragma deprecated
+#pragma warning(disable: 4995)  //  name was marked as #pragma deprecated
 
 #if (_MSC_VER >= 1310) && (_MSC_VER < 1400)
 // Reports the major and minor versions of the compiler.
@@ -18,7 +18,7 @@
 #pragma message(">> INFO: Windows Core Audio is not supported in VS 2003")
 #endif
 
-#include "webrtc/modules/audio_device/audio_device_config.h"
+#include "audio_device_config.h"
 
 #if defined(WEBRTC_WINDOWS_CORE_AUDIO_BUILD)
 #pragma message(">> INFO: WEBRTC_WINDOWS_CORE_AUDIO_BUILD is defined")
@@ -28,7 +28,7 @@
 
 #ifdef WEBRTC_WINDOWS_CORE_AUDIO_BUILD
 
-#include "webrtc/modules/audio_device/win/audio_device_core_win.h"
+#include "audio_device_core_win.h"
 
 #include <assert.h>
 #include <string.h>
@@ -36,20 +36,17 @@
 #include <windows.h>
 #include <comdef.h>
 #include <dmo.h>
-#include <Functiondiscoverykeys_devpkey.h>
+#include "Functiondiscoverykeys_devpkey.h"
 #include <mmsystem.h>
 #include <strsafe.h>
 #include <uuids.h>
 
-#include "webrtc/modules/audio_device/audio_device_utility.h"
-#include "webrtc/system_wrappers/interface/sleep.h"
-#include "webrtc/system_wrappers/interface/trace.h"
+#include "audio_device_utility.h"
+#include "system_wrappers/interface/sleep.h"
+#include "trace.h"
 
 // Macro that calls a COM method returning HRESULT value.
 #define EXIT_ON_ERROR(hres)    do { if (FAILED(hres)) goto Exit; } while(0)
-
-// Macro that continues to a COM error.
-#define CONTINUE_ON_ERROR(hres) do { if (FAILED(hres)) goto Next; } while(0)
 
 // Macro that releases a COM object if not NULL.
 #define SAFE_RELEASE(p)     do { if ((p)) { (p)->Release(); (p) = NULL; } } while(0)
@@ -3544,9 +3541,11 @@ DWORD AudioDeviceWindowsCore::DoRenderThread()
         case WAIT_OBJECT_0 + 1:     // _hRenderSamplesReadyEvent
             break;
         case WAIT_TIMEOUT:          // timeout notification
+            _ptrClientOut->Stop();
             WEBRTC_TRACE(kTraceWarning, kTraceAudioDevice, _id, "render event timed out after 0.5 seconds");
             goto Exit;
         default:                    // unexpected error
+            _ptrClientOut->Stop();
             WEBRTC_TRACE(kTraceWarning, kTraceAudioDevice, _id, "unknown wait termination on render side");
             goto Exit;
         }
@@ -4000,9 +3999,11 @@ DWORD AudioDeviceWindowsCore::DoCaptureThread()
         case WAIT_OBJECT_0 + 1:        // _hCaptureSamplesReadyEvent
             break;
         case WAIT_TIMEOUT:            // timeout notification
+            _ptrClientIn->Stop();
             WEBRTC_TRACE(kTraceWarning, kTraceAudioDevice, _id, "capture event timed out after 0.5 seconds");
             goto Exit;
         default:                    // unexpected error
+            _ptrClientIn->Stop();
             WEBRTC_TRACE(kTraceWarning, kTraceAudioDevice, _id, "unknown wait termination on capture side");
             goto Exit;
         }
@@ -4090,8 +4091,6 @@ DWORD AudioDeviceWindowsCore::DoCaptureThread()
                         _ptrAudioBuffer->SetVQEData(sndCardPlayDelay,
                                                     sndCardRecDelay,
                                                     0);
-
-                        _ptrAudioBuffer->SetTypingStatus(KeyPressed());
 
                         QueryPerformanceCounter(&t1);    // measure time: START
 
@@ -4936,13 +4935,13 @@ int32_t AudioDeviceWindowsCore::_EnumerateEndpointDevicesAll(EDataFlow dataFlow)
         hr = pCollection->Item(
                             i,
                             &pEndpoint);
-        CONTINUE_ON_ERROR(hr);
+        EXIT_ON_ERROR(hr);
 
         // use the IMMDevice interface of the specified endpoint device...
 
         // Get the endpoint ID string (uniquely identifies the device among all audio endpoint devices)
         hr = pEndpoint->GetId(&pwszID);
-        CONTINUE_ON_ERROR(hr);
+        EXIT_ON_ERROR(hr);
         WEBRTC_TRACE(kTraceInfo, kTraceAudioDevice, _id, "ID string    : %S", pwszID);
 
         // Retrieve an interface to the device's property store.
@@ -4950,7 +4949,7 @@ int32_t AudioDeviceWindowsCore::_EnumerateEndpointDevicesAll(EDataFlow dataFlow)
         hr = pEndpoint->OpenPropertyStore(
                           STGM_READ,
                           &pProps);
-        CONTINUE_ON_ERROR(hr);
+        EXIT_ON_ERROR(hr);
 
         // use the IPropertyStore interface...
 
@@ -4963,13 +4962,13 @@ int32_t AudioDeviceWindowsCore::_EnumerateEndpointDevicesAll(EDataFlow dataFlow)
         hr = pProps->GetValue(
                        PKEY_Device_FriendlyName,
                        &varName);
-        CONTINUE_ON_ERROR(hr);
+        EXIT_ON_ERROR(hr);
         WEBRTC_TRACE(kTraceInfo, kTraceAudioDevice, _id, "friendly name: \"%S\"", varName.pwszVal);
 
         // Get the endpoint's current device state
         DWORD dwState;
         hr = pEndpoint->GetState(&dwState);
-        CONTINUE_ON_ERROR(hr);
+        EXIT_ON_ERROR(hr);
         if (dwState & DEVICE_STATE_ACTIVE)
             WEBRTC_TRACE(kTraceInfo, kTraceAudioDevice, _id, "state (0x%x)  : *ACTIVE*", dwState);
         if (dwState & DEVICE_STATE_DISABLED)
@@ -4983,9 +4982,9 @@ int32_t AudioDeviceWindowsCore::_EnumerateEndpointDevicesAll(EDataFlow dataFlow)
         DWORD dwHwSupportMask = 0;
         hr = pEndpoint->Activate(__uuidof(IAudioEndpointVolume), CLSCTX_ALL,
                                NULL, (void**)&pEndpointVolume);
-        CONTINUE_ON_ERROR(hr);
+        EXIT_ON_ERROR(hr);
         hr = pEndpointVolume->QueryHardwareSupport(&dwHwSupportMask);
-        CONTINUE_ON_ERROR(hr);
+        EXIT_ON_ERROR(hr);
         if (dwHwSupportMask & ENDPOINT_HARDWARE_SUPPORT_VOLUME)
             // The audio endpoint device supports a hardware volume control
             WEBRTC_TRACE(kTraceInfo, kTraceAudioDevice, _id, "hwmask (0x%x) : HARDWARE_SUPPORT_VOLUME", dwHwSupportMask);
@@ -5000,7 +4999,7 @@ int32_t AudioDeviceWindowsCore::_EnumerateEndpointDevicesAll(EDataFlow dataFlow)
         UINT nChannelCount(0);
         hr = pEndpointVolume->GetChannelCount(
                                 &nChannelCount);
-        CONTINUE_ON_ERROR(hr);
+        EXIT_ON_ERROR(hr);
         WEBRTC_TRACE(kTraceInfo, kTraceAudioDevice, _id, "#channels    : %u", nChannelCount);
 
         if (dwHwSupportMask & ENDPOINT_HARDWARE_SUPPORT_VOLUME)
@@ -5013,7 +5012,7 @@ int32_t AudioDeviceWindowsCore::_EnumerateEndpointDevicesAll(EDataFlow dataFlow)
                                     &fLevelMinDB,
                                     &fLevelMaxDB,
                                     &fVolumeIncrementDB);
-            CONTINUE_ON_ERROR(hr);
+            EXIT_ON_ERROR(hr);
             WEBRTC_TRACE(kTraceInfo, kTraceAudioDevice, _id, "volume range : %4.2f (min), %4.2f (max), %4.2f (inc) [dB]",
                 fLevelMinDB, fLevelMaxDB, fVolumeIncrementDB);
 
@@ -5036,14 +5035,10 @@ int32_t AudioDeviceWindowsCore::_EnumerateEndpointDevicesAll(EDataFlow dataFlow)
             hr = pEndpointVolume->GetVolumeStepInfo(
                                     &nStep,
                                     &nStepCount);
-            CONTINUE_ON_ERROR(hr);
+            EXIT_ON_ERROR(hr);
             WEBRTC_TRACE(kTraceInfo, kTraceAudioDevice, _id, "volume steps : %d (nStep), %d (nStepCount)", nStep, nStepCount);
         }
-Next:
-        if (FAILED(hr)) {
-          WEBRTC_TRACE(kTraceInfo, kTraceAudioDevice, _id,
-                       "Error when logging device information");
-        }
+
         CoTaskMemFree(pwszID);
         pwszID = NULL;
         PropVariantClear(&varName);
@@ -5150,16 +5145,6 @@ char* AudioDeviceWindowsCore::WideToUTF8(const TCHAR* src) const {
 #endif
 }
 
-
-bool AudioDeviceWindowsCore::KeyPressed() const{
-
-  int key_down = 0;
-  for (int key = VK_SPACE; key < VK_NUMLOCK; key++) {
-    short res = GetAsyncKeyState(key);
-    key_down |= res & 0x1; // Get the LSB
-  }
-  return (key_down > 0);
-}
 }  // namespace webrtc
 
 #endif  // WEBRTC_WINDOWS_CORE_AUDIO_BUILD

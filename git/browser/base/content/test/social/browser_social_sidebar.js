@@ -10,7 +10,7 @@ function test() {
     origin: "https://example.com",
     sidebarURL: "https://example.com/browser/browser/base/content/test/social/social_sidebar.html",
     workerURL: "https://example.com/browser/browser/base/content/test/social/social_worker.js",
-    iconURL: "https://example.com/browser/browser/base/content/test/general/moz.png"
+    iconURL: "https://example.com/browser/browser/base/content/test/moz.png"
   };
   runSocialTestWithProvider(manifest, doTest);
 }
@@ -21,7 +21,7 @@ function doTest(finishcb) {
 
   let command = document.getElementById("Social:ToggleSidebar");
   let sidebar = document.getElementById("social-sidebar-box");
-  let browser = sidebar.lastChild;
+  let browser = sidebar.firstChild;
 
   function checkShown(shouldBeShown) {
     is(command.getAttribute("checked"), shouldBeShown ? "true" : "false",

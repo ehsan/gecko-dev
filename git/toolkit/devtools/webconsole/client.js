@@ -1,4 +1,4 @@
-/* -*- js2-basic-offset: 2; indent-tabs-mode: nil; -*- */
+/* -*- Mode: js2; js2-basic-offset: 2; indent-tabs-mode: nil; -*- */
 /* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -121,17 +121,14 @@ WebConsoleClient.prototype = {
    *        Cursor location inside the string. Index starts from 0.
    * @param function aOnResponse
    *        The function invoked when the response is received.
-   * @param string aFrameActor
-   *        The id of the frame actor that made the call.
    */
-  autocomplete: function WCC_autocomplete(aString, aCursor, aOnResponse, aFrameActor)
+  autocomplete: function WCC_autocomplete(aString, aCursor, aOnResponse)
   {
     let packet = {
       to: this._actor,
       type: "autocomplete",
       text: aString,
       cursor: aCursor,
-      frameActor: aFrameActor,
     };
     this._client.request(packet, aOnResponse);
   },
@@ -151,8 +148,8 @@ WebConsoleClient.prototype = {
   /**
    * Get Web Console-related preferences on the server.
    *
-   * @param array aPreferences
-   *        An array with the preferences you want to retrieve.
+   * @param object aPreferences
+   *        An object with the preferences you want to retrieve.
    * @param function [aOnResponse]
    *        Optional function to invoke when the response is received.
    */

@@ -6,14 +6,20 @@
 
 TEST_DIRS += ['test']
 
+MODULE = 'mediasniffer'
+
 EXPORTS += [
     'nsMediaSniffer.h',
 ]
 
-UNIFIED_SOURCES += [
-    'mp3sniff.c',
+CPP_SOURCES += [
     'nsMediaSniffer.cpp',
     'nsMediaSnifferModule.cpp',
 ]
 
-FINAL_LIBRARY = 'xul'
+CSRCS += [
+    'mp3sniff.c',
+]
+
+LIBXUL_LIBRARY = True
+

@@ -12,11 +12,10 @@
 #include "nsStyleSet.h"
 #include "nsCSSRules.h"
 #include "nsStyleAnimation.h"
+#include "nsSMILKeySpline.h"
 #include "nsEventDispatcher.h"
+#include "nsCSSFrameConstructor.h"
 #include "nsLayoutUtils.h"
-#include "nsIFrame.h"
-#include "nsIDocument.h"
-#include "ActiveLayerTracker.h"
 #include <math.h>
 
 using namespace mozilla;
@@ -403,8 +402,7 @@ ElementAnimations::CanPerformOnCompositorThread(CanAnimateFlags aFlags) const
       const AnimationProperty& prop = anim.mProperties[propIdx];
       if (!CanAnimatePropertyOnCompositor(mElement,
                                           prop.mProperty,
-                                          aFlags) ||
-          IsCompositorAnimationDisabledForFrame(frame)) {
+                                          aFlags)) {
         return false;
       }
       if (prop.mProperty == eCSSProperty_opacity) {
@@ -417,10 +415,10 @@ ElementAnimations::CanPerformOnCompositorThread(CanAnimateFlags aFlags) const
   // This animation can be done on the compositor.  Mark the frame as active, in
   // case we are able to throttle this animation.
   if (hasOpacity) {
-    ActiveLayerTracker::NotifyAnimated(frame, eCSSProperty_opacity);
+    frame->MarkLayersActive(nsChangeHint_UpdateOpacityLayer);
   }
   if (hasTransform) {
-    ActiveLayerTracker::NotifyAnimated(frame, eCSSProperty_transform);
+    frame->MarkLayersActive(nsChangeHint_UpdateTransformLayer);
   }
   return true;
 }
@@ -699,7 +697,9 @@ struct KeyframeDataComparator {
 
 class ResolvedStyleCache {
 public:
-  ResolvedStyleCache() : mCache(16) {}
+  ResolvedStyleCache() {
+    mCache.Init(16); // FIXME: make infallible!
+  }
   nsStyleContext* Get(nsPresContext *aPresContext,
                       nsStyleContext *aParentStyleContext,
                       nsCSSKeyframeRule *aKeyframe);
@@ -821,11 +821,7 @@ nsAnimationManager::BuildAnimations(nsStyleContext* aStyleContext,
       css::Declaration *decl = sortedKeyframes[kfIdx].mRule->Declaration();
       for (uint32_t propIdx = 0, propEnd = decl->Count();
            propIdx != propEnd; ++propIdx) {
-        nsCSSProperty prop = decl->GetPropertyAt(propIdx);
-        if (prop != eCSSPropertyExtra_variable) {
-          // CSS Variables are not animatable
-          properties.AddProperty(prop);
-        }
+        properties.AddProperty(decl->OrderValueAt(propIdx));
       }
     }
 
@@ -987,8 +983,7 @@ nsAnimationManager::GetAnimationRule(mozilla::dom::Element* aElement,
     return nullptr;
   }
 
-  NS_WARN_IF_FALSE(!ea->mNeedsRefreshes ||
-                   ea->mStyleRuleRefreshTime ==
+  NS_WARN_IF_FALSE(ea->mStyleRuleRefreshTime ==
                      mPresContext->RefreshDriver()->MostRecentRefresh(),
                    "should already have refreshed style rule");
 

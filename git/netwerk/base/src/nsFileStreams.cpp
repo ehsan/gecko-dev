@@ -19,11 +19,16 @@
 #include "private/pprio.h"
 
 #include "nsFileStreams.h"
+#include "nsXPIDLString.h"
+#include "prerror.h"
+#include "nsCRT.h"
 #include "nsIFile.h"
+#include "nsDirectoryIndexStream.h"
+#include "nsMimeTypes.h"
 #include "nsReadLine.h"
+#include "nsNetUtil.h"
 #include "nsIClassInfoImpl.h"
 #include "mozilla/ipc/InputStreamUtils.h"
-#include "nsNetCID.h"
 
 #define NS_NO_INPUT_BUFFERING 1 // see http://bugzilla.mozilla.org/show_bug.cgi?id=41067
 
@@ -365,7 +370,7 @@ nsFileStreamBase::DoPendingOpen()
 NS_IMPL_ADDREF_INHERITED(nsFileInputStream, nsFileStreamBase)
 NS_IMPL_RELEASE_INHERITED(nsFileInputStream, nsFileStreamBase)
 
-NS_IMPL_CLASSINFO(nsFileInputStream, nullptr, nsIClassInfo::THREADSAFE,
+NS_IMPL_CLASSINFO(nsFileInputStream, NULL, nsIClassInfo::THREADSAFE,
                   NS_LOCALFILEINPUTSTREAM_CID)
 
 NS_INTERFACE_MAP_BEGIN(nsFileInputStream)
@@ -616,7 +621,7 @@ nsFileInputStream::Deserialize(const InputStreamParams& aParams)
 NS_IMPL_ADDREF_INHERITED(nsPartialFileInputStream, nsFileStreamBase)
 NS_IMPL_RELEASE_INHERITED(nsPartialFileInputStream, nsFileStreamBase)
 
-NS_IMPL_CLASSINFO(nsPartialFileInputStream, nullptr, nsIClassInfo::THREADSAFE,
+NS_IMPL_CLASSINFO(nsPartialFileInputStream, NULL, nsIClassInfo::THREADSAFE,
                   NS_PARTIALLOCALFILEINPUTSTREAM_CID)
 
 // Don't forward to nsFileInputStream as we don't want to QI to
@@ -832,23 +837,23 @@ nsFileOutputStream::Init(nsIFile* file, int32_t ioFlags, int32_t perm,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// nsAtomicFileOutputStream
+// nsSafeFileOutputStream
 
-NS_IMPL_ISUPPORTS_INHERITED3(nsAtomicFileOutputStream,
+NS_IMPL_ISUPPORTS_INHERITED3(nsSafeFileOutputStream,
                              nsFileOutputStream,
                              nsISafeOutputStream,
                              nsIOutputStream,
                              nsIFileOutputStream)
 
 NS_IMETHODIMP
-nsAtomicFileOutputStream::Init(nsIFile* file, int32_t ioFlags, int32_t perm,
+nsSafeFileOutputStream::Init(nsIFile* file, int32_t ioFlags, int32_t perm,
                              int32_t behaviorFlags)
 {
     return nsFileOutputStream::Init(file, ioFlags, perm, behaviorFlags);
 }
 
 nsresult
-nsAtomicFileOutputStream::DoOpen()
+nsSafeFileOutputStream::DoOpen()
 {
     // Make sure mOpenParams.localFile will be empty if we bail somewhere in
     // this function
@@ -896,7 +901,7 @@ nsAtomicFileOutputStream::DoOpen()
 }
 
 NS_IMETHODIMP
-nsAtomicFileOutputStream::Close()
+nsSafeFileOutputStream::Close()
 {
     nsresult rv = nsFileOutputStream::Close();
 
@@ -911,8 +916,9 @@ nsAtomicFileOutputStream::Close()
 }
 
 NS_IMETHODIMP
-nsAtomicFileOutputStream::Finish()
+nsSafeFileOutputStream::Finish()
 {
+    Flush();
     nsresult rv = nsFileOutputStream::Close();
 
     // if there is no temp file, don't try to move it over the original target.
@@ -929,7 +935,7 @@ nsAtomicFileOutputStream::Finish()
             // temp file we gave out was actually a reference to the target file.
             // since we succeeded in writing to the temp file (and hence succeeded
             // in writing to the target file), there is nothing more to do.
-#ifdef DEBUG
+#ifdef DEBUG      
             bool equal;
             if (NS_FAILED(mTargetFile->Equals(mTempFile, &equal)) || !equal)
                 NS_ERROR("mTempFile not equal to mTargetFile");
@@ -958,7 +964,7 @@ nsAtomicFileOutputStream::Finish()
 }
 
 NS_IMETHODIMP
-nsAtomicFileOutputStream::Write(const char *buf, uint32_t count, uint32_t *result)
+nsSafeFileOutputStream::Write(const char *buf, uint32_t count, uint32_t *result)
 {
     nsresult rv = nsFileOutputStream::Write(buf, count, result);
     if (NS_SUCCEEDED(mWriteResult)) {
@@ -969,18 +975,8 @@ nsAtomicFileOutputStream::Write(const char *buf, uint32_t count, uint32_t *resul
 
         if (NS_FAILED(mWriteResult) && count > 0)
             NS_WARNING("writing to output stream failed! data may be lost");
-    }
+    } 
     return rv;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// nsSafeFileOutputStream
-
-NS_IMETHODIMP
-nsSafeFileOutputStream::Finish()
-{
-    (void) Flush();
-    return nsAtomicFileOutputStream::Finish();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -9,14 +9,11 @@
 
 #include "mozilla/HashFunctions.h"
 
-#include "jsalloc.h"
-
 #include "gc/Barrier.h"
 #include "gc/Rooting.h"
 #include "vm/CommonPropertyNames.h"
 
 class JSAtom;
-class JSAutoByteString;
 
 struct JSIdArray {
     int length;
@@ -89,13 +86,12 @@ struct AtomHasher
         size_t          length;
         const JSAtom    *atom; /* Optional. */
 
-        Lookup(const jschar *chars, size_t length) : chars(chars), length(length), atom(nullptr) {}
+        Lookup(const jschar *chars, size_t length) : chars(chars), length(length), atom(NULL) {}
         inline Lookup(const JSAtom *atom);
     };
 
     static HashNumber hash(const Lookup &l) { return mozilla::HashString(l.chars, l.length); }
     static inline bool match(const AtomStateEntry &entry, const Lookup &lookup);
-    static void rekey(AtomStateEntry &k, const AtomStateEntry& newKey) { k = newKey; }
 };
 
 typedef HashSet<AtomStateEntry, AtomHasher, SystemAllocPolicy> AtomSet;
@@ -108,7 +104,7 @@ extern bool
 AtomIsInterned(JSContext *cx, JSAtom *atom);
 
 /* Well-known predefined C strings. */
-#define DECLARE_PROTO_STR(name,code,init,clasp) extern const char js_##name##_str[];
+#define DECLARE_PROTO_STR(name,code,init) extern const char js_##name##_str[];
 JS_FOR_EACH_PROTOTYPE(DECLARE_PROTO_STR)
 #undef DECLARE_PROTO_STR
 
@@ -203,10 +199,12 @@ extern JSAtom *
 Atomize(ExclusiveContext *cx, const char *bytes, size_t length,
         js::InternBehavior ib = js::DoNotInternAtom);
 
+template <AllowGC allowGC>
 extern JSAtom *
 AtomizeChars(ExclusiveContext *cx, const jschar *chars, size_t length,
              js::InternBehavior ib = js::DoNotInternAtom);
 
+template <AllowGC allowGC>
 extern JSAtom *
 AtomizeString(ExclusiveContext *cx, JSString *str, js::InternBehavior ib = js::DoNotInternAtom);
 

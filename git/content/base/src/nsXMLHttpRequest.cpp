@@ -6,10 +6,11 @@
 
 #include "nsXMLHttpRequest.h"
 
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/dom/XMLHttpRequestUploadBinding.h"
 #include "mozilla/MemoryReporting.h"
+#include "mozilla/Util.h"
 #include "nsDOMBlobBuilder.h"
+#include "nsICharsetConverterManager.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMProgressEvent.h"
 #include "nsIJARChannel.h"
@@ -25,6 +26,7 @@
 #include "nsIUploadChannel2.h"
 #include "nsIDOMSerializer.h"
 #include "nsXPCOM.h"
+#include "nsGUIEvent.h"
 #include "nsIDOMEventListener.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIDOMWindow.h"
@@ -40,6 +42,7 @@
 #include "nsIContentPolicy.h"
 #include "nsContentPolicyUtils.h"
 #include "nsError.h"
+#include "nsLayoutStatics.h"
 #include "nsCrossSiteListenerProxy.h"
 #include "nsIHTMLDocument.h"
 #include "nsIStorageStream.h"
@@ -57,7 +60,6 @@
 #include "jsfriendapi.h"
 #include "GeckoProfiler.h"
 #include "mozilla/dom/EncodingUtils.h"
-#include "nsIUnicodeDecoder.h"
 #include "mozilla/dom/XMLHttpRequestBinding.h"
 #include "mozilla/Attributes.h"
 #include "nsIPermissionManager.h"
@@ -66,7 +68,6 @@
 #include "nsCharSeparatedTokenizer.h"
 #include "nsFormData.h"
 #include "nsStreamListenerWrapper.h"
-#include "xpcjsid.h"
 
 #include "nsWrapperCacheInlines.h"
 
@@ -247,6 +248,14 @@ NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 NS_IMPL_ADDREF_INHERITED(nsXHREventTarget, nsDOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(nsXHREventTarget, nsDOMEventTargetHelper)
 
+NS_IMPL_EVENT_HANDLER(nsXHREventTarget, loadstart)
+NS_IMPL_EVENT_HANDLER(nsXHREventTarget, progress)
+NS_IMPL_EVENT_HANDLER(nsXHREventTarget, abort)
+NS_IMPL_EVENT_HANDLER(nsXHREventTarget, error)
+NS_IMPL_EVENT_HANDLER(nsXHREventTarget, load)
+NS_IMPL_EVENT_HANDLER(nsXHREventTarget, timeout)
+NS_IMPL_EVENT_HANDLER(nsXHREventTarget, loadend)
+
 void
 nsXHREventTarget::DisconnectFromOwner()
 {
@@ -281,7 +290,7 @@ nsXMLHttpRequest::nsXMLHttpRequest()
     mProgressSinceLastProgressEvent(false),
     mRequestSentTime(0), mTimeoutMilliseconds(0),
     mErrorLoad(false), mWaitingForOnStopRequest(false),
-    mProgressTimerIsActive(false),
+    mProgressTimerIsActive(false), mProgressEventWasDelayed(false),
     mIsHtml(false),
     mWarnAboutSyncHtml(false),
     mLoadLengthComputable(false), mLoadTotal(0),
@@ -293,6 +302,10 @@ nsXMLHttpRequest::nsXMLHttpRequest()
     mResultArrayBuffer(nullptr),
     mXPCOMifier(nullptr)
 {
+  nsLayoutStatics::AddRef();
+
+  mAlreadySetHeaders.Init();
+
   SetIsDOMBinding();
 #ifdef DEBUG
   StaticAssertions();
@@ -313,13 +326,15 @@ nsXMLHttpRequest::~nsXMLHttpRequest()
 
   mResultJSON = JSVAL_VOID;
   mResultArrayBuffer = nullptr;
-  mozilla::DropJSObjects(this);
+  NS_DROP_JS_OBJECTS(this, nsXMLHttpRequest);
+
+  nsLayoutStatics::Release();
 }
 
 void
 nsXMLHttpRequest::RootJSResultObjects()
 {
-  mozilla::HoldJSObjects(this);
+  NS_HOLD_JS_OBJECTS(this, nsXMLHttpRequest);
 }
 
 /**
@@ -383,7 +398,7 @@ nsXMLHttpRequest::InitParameters(bool aAnon, bool aSystem)
 
   // Chrome is always allowed access, so do the permission check only
   // for non-chrome pages.
-  if (!IsSystemXHR() && aSystem) {
+  if (!IsSystemXHR()) {
     nsCOMPtr<nsIDocument> doc = window->GetExtantDoc();
     if (!doc) {
       return;
@@ -437,8 +452,7 @@ NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsXMLHttpRequest)
       tmp->mListenerManager->MarkForCC();
     }
     if (!isBlack && tmp->PreservingWrapper()) {
-      // This marks the wrapper black.
-      tmp->GetWrapper();
+      xpc_UnmarkGrayObject(tmp->GetWrapperPreserveColor());
     }
     return true;
   }
@@ -633,9 +647,13 @@ nsXMLHttpRequest::DetectCharset()
     mResponseCharset.AssignLiteral("UTF-8");
   }
 
-  mDecoder = EncodingUtils::DecoderForEncoding(mResponseCharset);
+  nsresult rv;
+  nsCOMPtr<nsICharsetConverterManager> ccm =
+    do_GetService(NS_CHARSETCONVERTERMANAGER_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  return NS_OK;
+  return ccm->GetUnicodeDecoderRaw(mResponseCharset.get(),
+                                   getter_AddRefs(mDecoder));
 }
 
 nsresult
@@ -720,7 +738,20 @@ nsXMLHttpRequest::GetResponseText(nsString& aResponseText, ErrorResult& aRv)
     mResponseCharset = mResponseXML->GetDocumentCharacterSet();
     mResponseText.Truncate();
     mResponseBodyDecodedPos = 0;
-    mDecoder = EncodingUtils::DecoderForEncoding(mResponseCharset);
+
+    nsresult rv;
+    nsCOMPtr<nsICharsetConverterManager> ccm =
+      do_GetService(NS_CHARSETCONVERTERMANAGER_CONTRACTID, &rv);
+    if (NS_FAILED(rv)) {
+      aRv.Throw(rv);
+      return;
+    }
+
+    aRv = ccm->GetUnicodeDecoderRaw(mResponseCharset.get(),
+                                    getter_AddRefs(mDecoder));
+    if (aRv.Failed()) {
+      return;
+    }
   }
 
   NS_ASSERTION(mResponseBodyDecodedPos < mResponseBody.Length(),
@@ -941,7 +972,7 @@ nsXMLHttpRequest::GetResponse(JSContext* aCx, ErrorResult& aRv)
     if (aRv.Failed()) {
       return JSVAL_NULL;
     }
-    JS::Rooted<JS::Value> result(aCx);
+    JS::Value result;
     if (!xpc::StringToJsval(aCx, str, &result)) {
       aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
       return JSVAL_NULL;
@@ -989,7 +1020,7 @@ nsXMLHttpRequest::GetResponse(JSContext* aCx, ErrorResult& aRv)
 
     JS::Rooted<JS::Value> result(aCx, JSVAL_NULL);
     JS::Rooted<JSObject*> scope(aCx, JS::CurrentGlobalOrNull(aCx));
-    aRv = nsContentUtils::WrapNative(aCx, scope, mResponseBlob, &result,
+    aRv = nsContentUtils::WrapNative(aCx, scope, mResponseBlob, result.address(),
                                      nullptr, true);
     return result;
   }
@@ -1001,7 +1032,7 @@ nsXMLHttpRequest::GetResponse(JSContext* aCx, ErrorResult& aRv)
 
     JS::Rooted<JSObject*> scope(aCx, JS::CurrentGlobalOrNull(aCx));
     JS::Rooted<JS::Value> result(aCx, JSVAL_NULL);
-    aRv = nsContentUtils::WrapNative(aCx, scope, mResponseXML, &result,
+    aRv = nsContentUtils::WrapNative(aCx, scope, mResponseXML, result.address(),
                                      nullptr, true);
     return result;
   }
@@ -2147,8 +2178,7 @@ nsXMLHttpRequest::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult
     NS_ASSERTION(!(mState & XML_HTTP_REQUEST_SYNCLOOPING),
       "We weren't supposed to support HTML parsing with XHR!");
     nsCOMPtr<EventTarget> eventTarget = do_QueryInterface(mResponseXML);
-    nsEventListenerManager* manager =
-      eventTarget->GetOrCreateListenerManager();
+    nsEventListenerManager* manager = eventTarget->GetListenerManager(true);
     manager->AddEventListenerByType(new nsXHRParseEndListener(this),
                                     NS_LITERAL_STRING("DOMContentLoaded"),
                                     dom::TrustedEventsAtSystemGroupBubble());
@@ -3635,7 +3665,7 @@ nsXMLHttpRequest::GetInterface(JSContext* aCx, nsIJSID* aIID, ErrorResult& aRv)
   JS::Rooted<JSObject*> wrapper(aCx, GetWrapper());
   JSAutoCompartment ac(aCx, wrapper);
   JS::Rooted<JSObject*> global(aCx, JS_GetGlobalForObject(aCx, wrapper));
-  aRv = nsContentUtils::WrapNative(aCx, global, result, iid, &v);
+  aRv = nsContentUtils::WrapNative(aCx, global, result, iid, v.address());
   return aRv.Failed() ? JSVAL_NULL : v;
 }
 
@@ -3727,6 +3757,7 @@ nsXMLHttpRequest::StartProgressEventTimer()
     mProgressNotifier = do_CreateInstance(NS_TIMER_CONTRACTID);
   }
   if (mProgressNotifier) {
+    mProgressEventWasDelayed = false;
     mProgressTimerIsActive = true;
     mProgressNotifier->Cancel();
     mProgressNotifier->InitWithCallback(this, NS_PROGRESS_EVENT_INTERVAL,
@@ -3801,120 +3832,3 @@ nsXMLHttpRequestXPCOMifier::GetInterface(const nsIID & aIID, void **aResult)
 
   return mXHR->GetInterface(aIID, aResult);
 }
-
-namespace mozilla {
-
-ArrayBufferBuilder::ArrayBufferBuilder()
-  : mRawContents(nullptr),
-    mDataPtr(nullptr),
-    mCapacity(0),
-    mLength(0)
-{
-}
-
-ArrayBufferBuilder::~ArrayBufferBuilder()
-{
-  reset();
-}
-
-void
-ArrayBufferBuilder::reset()
-{
-  if (mRawContents) {
-    JS_free(nullptr, mRawContents);
-  }
-  mRawContents = mDataPtr = nullptr;
-  mCapacity = mLength = 0;
-}
-
-bool
-ArrayBufferBuilder::setCapacity(uint32_t aNewCap)
-{
-  if (!JS_ReallocateArrayBufferContents(nullptr, aNewCap, &mRawContents, &mDataPtr)) {
-    return false;
-  }
-
-  mCapacity = aNewCap;
-  if (mLength > aNewCap) {
-    mLength = aNewCap;
-  }
-
-  return true;
-}
-
-bool
-ArrayBufferBuilder::append(const uint8_t *aNewData, uint32_t aDataLen,
-                           uint32_t aMaxGrowth)
-{
-  if (mLength + aDataLen > mCapacity) {
-    uint32_t newcap;
-    // Double while under aMaxGrowth or if not specified.
-    if (!aMaxGrowth || mCapacity < aMaxGrowth) {
-      newcap = mCapacity * 2;
-    } else {
-      newcap = mCapacity + aMaxGrowth;
-    }
-
-    // But make sure there's always enough to satisfy our request.
-    if (newcap < mLength + aDataLen) {
-      newcap = mLength + aDataLen;
-    }
-
-    // Did we overflow?
-    if (newcap < mCapacity) {
-      return false;
-    }
-
-    if (!setCapacity(newcap)) {
-      return false;
-    }
-  }
-
-  // Assert that the region isn't overlapping so we can memcpy.
-  MOZ_ASSERT(!areOverlappingRegions(aNewData, aDataLen, mDataPtr + mLength,
-                                    aDataLen));
-
-  memcpy(mDataPtr + mLength, aNewData, aDataLen);
-  mLength += aDataLen;
-
-  return true;
-}
-
-JSObject*
-ArrayBufferBuilder::getArrayBuffer(JSContext* aCx)
-{
-  // we need to check for mLength == 0, because nothing may have been
-  // added
-  if (mCapacity > mLength || mLength == 0) {
-    if (!setCapacity(mLength)) {
-      return nullptr;
-    }
-  }
-
-  JSObject* obj = JS_NewArrayBufferWithContents(aCx, mRawContents);
-  if (!obj) {
-    return nullptr;
-  }
-
-  mRawContents = mDataPtr = nullptr;
-  mLength = mCapacity = 0;
-
-  return obj;
-}
-
-/* static */ bool
-ArrayBufferBuilder::areOverlappingRegions(const uint8_t* aStart1,
-                                          uint32_t aLength1,
-                                          const uint8_t* aStart2,
-                                          uint32_t aLength2)
-{
-  const uint8_t* end1 = aStart1 + aLength1;
-  const uint8_t* end2 = aStart2 + aLength2;
-
-  const uint8_t* max_start = aStart1 > aStart2 ? aStart1 : aStart2;
-  const uint8_t* min_end   = end1 < end2 ? end1 : end2;
-
-  return max_start < min_end;
-}
-
-} // namespace mozilla

@@ -12,24 +12,12 @@
 #include "SurfaceStream.h"
 #include "SharedSurfaceANGLE.h"
 #include "gfxContext.h"
-#include "GLContext.h"
 
 using namespace mozilla::gl;
 using namespace mozilla::gfx;
 
 namespace mozilla {
 namespace layers {
-
-CanvasLayerD3D10::CanvasLayerD3D10(LayerManagerD3D10 *aManager)
-  : CanvasLayer(aManager, nullptr)
-  , LayerD3D10(aManager)
-  , mDataIsPremultiplied(false)
-  , mNeedsYFlip(false)
-  , mHasAlpha(true)
-{
-    mImplData = static_cast<LayerD3D10*>(this);
-    mForceReadback = Preferences::GetBool("webgl.force-layers-readback", false);
-}
 
 CanvasLayerD3D10::~CanvasLayerD3D10()
 {
@@ -93,14 +81,14 @@ CanvasLayerD3D10::Initialize(const Data& aData)
 
   mBounds.SetRect(0, 0, aData.mSize.width, aData.mSize.height);
 
-  if (mSurface && mSurface->GetType() == gfxSurfaceTypeD2D) {
+  if (mSurface && mSurface->GetType() == gfxASurface::SurfaceTypeD2D) {
     void *data = mSurface->GetData(&gKeyD3D10Texture);
     if (data) {
       mTexture = static_cast<ID3D10Texture2D*>(data);
       mIsD2DTexture = true;
       device()->CreateShaderResourceView(mTexture, nullptr, getter_AddRefs(mSRView));
       mHasAlpha =
-        mSurface->GetContentType() == GFX_CONTENT_COLOR_ALPHA;
+        mSurface->GetContentType() == gfxASurface::CONTENT_COLOR_ALPHA;
       return;
     }
   }
@@ -166,7 +154,7 @@ CanvasLayerD3D10::UpdateSurface()
               new gfxImageSurface((uint8_t*)map.pData,
                                   shareSurf->Size(),
                                   map.RowPitch,
-                                  gfxImageFormatARGB32);
+                                  gfxASurface::ImageFormatARGB32);
 
           nsRefPtr<gfxContext> ctx = new gfxContext(mapSurf);
           ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
@@ -204,7 +192,7 @@ CanvasLayerD3D10::UpdateSurface()
     dstSurface = new gfxImageSurface((unsigned char*)map.pData,
                                      gfxIntSize(mBounds.width, mBounds.height),
                                      map.RowPitch,
-                                     gfxImageFormatARGB32);
+                                     gfxASurface::ImageFormatARGB32);
     nsRefPtr<gfxContext> ctx = new gfxContext(dstSurface);
     ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
     ctx->SetSource(mSurface);
@@ -240,7 +228,7 @@ CanvasLayerD3D10::RenderLayer()
   shaderFlags |= mDataIsPremultiplied
                 ? SHADER_PREMUL : SHADER_NON_PREMUL | SHADER_RGBA;
   shaderFlags |= mHasAlpha ? SHADER_RGBA : SHADER_RGB;
-  shaderFlags |= mFilter == GraphicsFilter::FILTER_NEAREST
+  shaderFlags |= mFilter == gfxPattern::FILTER_NEAREST
                 ? SHADER_POINT : SHADER_LINEAR;
   ID3D10EffectTechnique* technique = SelectShader(shaderFlags);
 

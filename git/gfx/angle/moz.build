@@ -8,6 +8,8 @@
 if CONFIG['MOZ_ANGLE_RENDERER']:
     DIRS += ['src/libGLESv2', 'src/libEGL']
 
+MODULE = 'angle'
+
 EXPORTS.angle += [
     'include/GLSLANG/ShaderLang.h',
     'include/KHR/khrplatform.h',
@@ -18,7 +20,7 @@ EXPORTS.angle += [
 
 # Target: 'preprocessor'
 # src/compiler/preprocessor:
-UNIFIED_SOURCES += ['src/compiler/preprocessor/' + src for src in [
+CPP_SOURCES += [
     'DiagnosticsBase.cpp',
     'DirectiveHandlerBase.cpp',
     'DirectiveParser.cpp',
@@ -30,20 +32,19 @@ UNIFIED_SOURCES += ['src/compiler/preprocessor/' + src for src in [
     'Preprocessor.cpp',
     'Token.cpp',
     'Tokenizer.cpp',
-]]
+]
 
-# Target: 'translator_common'
-#   Requires: 'preprocessor'
 # src/compiler:
-UNIFIED_SOURCES += ['src/compiler/' + src for src in [
+CPP_SOURCES += [
     'BuiltInFunctionEmulator.cpp',
     'Compiler.cpp',
     'compiler_debug.cpp',
-    'CompilerUniform.cpp',
-    'DetectCallDepth.cpp',
+    'DetectRecursion.cpp',
     'Diagnostics.cpp',
     'DirectiveHandler.cpp',
     'ForLoopUnroll.cpp',
+    'glslang_lex.cpp',
+    'glslang_tab.cpp',
     'InfoSink.cpp',
     'Initialize.cpp',
     'InitializeDll.cpp',
@@ -57,77 +58,59 @@ UNIFIED_SOURCES += ['src/compiler/' + src for src in [
     'PoolAlloc.cpp',
     'QualifierAlive.cpp',
     'RemoveTree.cpp',
+    'spooky.cpp',
     'SymbolTable.cpp',
     'util.cpp',
     'ValidateLimitations.cpp',
     'VariableInfo.cpp',
     'VariablePacker.cpp',
-]]
-# The yacc source files need to be built separately.
-SOURCES += ['src/compiler/' + src for src in [
-    'glslang_lex.cpp',
-    'glslang_tab.cpp',
-]]
+]
 
 # src/compiler/depgraph:
-UNIFIED_SOURCES += ['src/compiler/depgraph/' + src for src in [
+CPP_SOURCES += [
     'DependencyGraph.cpp',
     'DependencyGraphBuilder.cpp',
     'DependencyGraphOutput.cpp',
     'DependencyGraphTraverse.cpp',
-]]
+]
 
 # src/compiler/timing:
-UNIFIED_SOURCES += ['src/compiler/timing/' + src for src in [
+CPP_SOURCES += [
     'RestrictFragmentShaderTiming.cpp',
     'RestrictVertexShaderTiming.cpp',
-]]
+]
 
 # src/third_party/compiler:
-UNIFIED_SOURCES += ['src/third_party/compiler/' + src for src in [
+CPP_SOURCES += [
     'ArrayBoundsClamper.cpp',
-]]
-
-# src/third_party/murmurhash:
-UNIFIED_SOURCES += ['src/third_party/murmurhash/' + src for src in [
-    'MurmurHash3.cpp',
-]]
+]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
-    UNIFIED_SOURCES += [
-        'src/compiler/ossource_win.cpp',
+    CPP_SOURCES += [
+        'ossource_win.cpp',
     ]
 else:
-    UNIFIED_SOURCES += [
-        'src/compiler/ossource_posix.cpp',
+    CPP_SOURCES += [
+        'ossource_posix.cpp',
     ]
 
 # Target: 'translator_glsl'
 #   Requires: 'translator_common'
 # src/compiler:
-UNIFIED_SOURCES += ['src/compiler/' + src for src in [
+CPP_SOURCES += [
     'CodeGenGLSL.cpp',
     'OutputESSL.cpp',
-    'OutputGLSL.cpp',
     'OutputGLSLBase.cpp',
+    'OutputGLSL.cpp',
     'ShaderLang.cpp',
     'TranslatorESSL.cpp',
     'TranslatorGLSL.cpp',
     'VersionGLSL.cpp',
-]]
-MSVC_ENABLE_PGO = True
-
-LOCAL_INCLUDES += [
-    'include',
-    'include/KHR',
-    'src',
 ]
 
-if CONFIG['GKMEDIAS_SHARED_LIBRARY']:
-    NO_VISIBILITY_FLAGS = True
+LIBRARY_NAME = 'angle'
 
-FINAL_LIBRARY = 'gkmedias'
+LIBXUL_LIBRARY = True
 
-DEFINES['ANGLE_DISABLE_TRACE'] = True
-DEFINES['ANGLE_COMPILE_OPTIMIZATION_LEVEL'] = 'D3DCOMPILE_OPTIMIZATION_LEVEL1'
-DEFINES['COMPILER_IMPLEMENTATION'] = True
+MSVC_ENABLE_PGO = True
+

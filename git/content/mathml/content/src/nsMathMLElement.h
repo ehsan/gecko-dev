@@ -7,11 +7,9 @@
 #define nsMathMLElement_h
 
 #include "mozilla/Attributes.h"
-#include "mozilla/dom/ElementInlines.h"
 #include "nsMappedAttributeElement.h"
 #include "nsIDOMElement.h"
 #include "Link.h"
-#include "mozilla/dom/DOMRect.h"
 
 class nsCSSValue;
 
@@ -80,7 +78,8 @@ public:
     return mIncrementScriptLevel;
   }
 
-  virtual bool IsFocusableInternal(int32_t* aTabIndex, bool aWithMouse) MOZ_OVERRIDE;
+  virtual bool IsFocusable(int32_t *aTabIndex = nullptr,
+                             bool aWithMouse = false) MOZ_OVERRIDE;
   virtual bool IsLink(nsIURI** aURI) const MOZ_OVERRIDE;
   virtual void GetLinkTarget(nsAString& aTarget) MOZ_OVERRIDE;
   virtual already_AddRefed<nsIURI> GetHrefURI() const MOZ_OVERRIDE;

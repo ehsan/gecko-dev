@@ -4,16 +4,21 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+MODULE = 'accessibility'
+
 EXPORTS.mozilla.a11y += [
     'AccessibleWrap.h',
     'HyperTextAccessibleWrap.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'AccessibleWrap.cpp',
     'ApplicationAccessibleWrap.cpp',
     'AtkSocketAccessible.cpp',
     'DocAccessibleWrap.cpp',
+    'Platform.cpp',
+    'RootAccessibleWrap.cpp',
+    'UtilInterface.cpp',
     'nsMaiHyperlink.cpp',
     'nsMaiInterfaceAction.cpp',
     'nsMaiInterfaceComponent.cpp',
@@ -26,18 +31,9 @@ SOURCES += [
     'nsMaiInterfaceTable.cpp',
     'nsMaiInterfaceText.cpp',
     'nsMaiInterfaceValue.cpp',
-    'Platform.cpp',
-    'RootAccessibleWrap.cpp',
-    'UtilInterface.cpp',
 ]
 
-LOCAL_INCLUDES += [
-    '../base',
-    '../generic',
-    '../html',
-    '../xpcom',
-    '../xul',
-    '/other-licenses/atk-1.0',
-]
+LIBRARY_NAME = 'accessibility_toolkit_s'
 
-FINAL_LIBRARY = 'xul'
+LIBXUL_LIBRARY = True
+

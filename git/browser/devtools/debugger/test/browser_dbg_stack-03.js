@@ -1,71 +1,71 @@
-/* Any copyright is dedicated to the Public Domain.
-   http://creativecommons.org/publicdomain/zero/1.0/ */
-
-/**
- * Test that stackframes are scrollable.
+/* vim:set ts=2 sw=2 sts=2 et: */
+/*
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-const TAB_URL = EXAMPLE_URL + "doc_recursion-stack.html";
-
-let gTab, gDebuggee, gPanel, gDebugger;
-let gFrames, gClassicFrames, gFramesScrollingInterval;
+var gPane = null;
+var gTab = null;
+var gDebuggee = null;
+var gDebugger = null;
 
 function test() {
-  initDebugger(TAB_URL).then(([aTab, aDebuggee, aPanel]) => {
+  debug_tab_pane(STACK_URL, function(aTab, aDebuggee, aPane) {
     gTab = aTab;
     gDebuggee = aDebuggee;
-    gPanel = aPanel;
-    gDebugger = gPanel.panelWin;
-    gFrames = gDebugger.DebuggerView.StackFrames;
-    gClassicFrames = gDebugger.DebuggerView.StackFramesClassicList;
+    gPane = aPane;
+    gDebugger = gPane.panelWin;
 
-    waitForSourceAndCaretAndScopes(gPanel, ".html", 26).then(performTest);
-
-    gDebuggee.gRecurseLimit = (gDebugger.gCallStackPageSize * 2) + 1;
-    gDebuggee.recurse();
+    testRecurse();
   });
 }
 
-function performTest() {
-  is(gDebugger.gThreadClient.state, "paused",
-    "Should only be getting stack frames while paused.");
-  is(gFrames.itemCount, gDebugger.gCallStackPageSize,
-    "Should have only the max limit of frames.");
-  is(gClassicFrames.itemCount, gDebugger.gCallStackPageSize,
-    "Should have only the max limit of frames in the mirrored view as well.")
+function testRecurse() {
+  gDebuggee.gRecurseLimit = (gDebugger.gCallStackPageSize * 2) + 1;
 
-  gDebugger.gThreadClient.addOneTimeListener("framesadded", () => {
-    is(gFrames.itemCount, gDebugger.gCallStackPageSize * 2,
-      "Should now have twice the max limit of frames.");
-    is(gClassicFrames.itemCount, gDebugger.gCallStackPageSize * 2,
-      "Should now have twice the max limit of frames in the mirrored view as well.");
+  gDebugger.DebuggerController.activeThread.addOneTimeListener("framesadded", function() {
+    Services.tm.currentThread.dispatch({ run: function() {
 
-    gDebugger.gThreadClient.addOneTimeListener("framesadded", () => {
-      is(gFrames.itemCount, gDebuggee.gRecurseLimit,
-        "Should have reached the recurse limit.");
-      is(gClassicFrames.itemCount, gDebuggee.gRecurseLimit,
-        "Should have reached the recurse limit in the mirrored view as well.");
+      let frames = gDebugger.DebuggerView.StackFrames.widget._list;
+      let pageSize = gDebugger.gCallStackPageSize;
+      let recurseLimit = gDebuggee.gRecurseLimit;
+      let childNodes = frames.childNodes;
 
-      gDebugger.gThreadClient.resume(() => {
-        window.clearInterval(gFramesScrollingInterval);
-        closeDebuggerAndFinish(gPanel);
+      is(frames.querySelectorAll(".dbg-stackframe").length, pageSize,
+        "Should have the max limit of frames.");
+
+      is(childNodes.length, frames.querySelectorAll(".dbg-stackframe").length,
+        "All children should be frames.");
+
+
+      gDebugger.DebuggerController.activeThread.addOneTimeListener("framesadded", function() {
+        is(frames.querySelectorAll(".dbg-stackframe").length, pageSize * 2,
+          "Should now have twice the max limit of frames.");
+
+        gDebugger.DebuggerController.activeThread.addOneTimeListener("framesadded", function() {
+          is(frames.querySelectorAll(".dbg-stackframe").length, recurseLimit,
+            "Should have reached the recurse limit.");
+
+          gDebugger.DebuggerController.activeThread.resume(function() {
+            window.clearInterval(scrollingInterval);
+            closeDebuggerAndFinish();
+          });
+        });
       });
-    });
+
+      let scrollingInterval = window.setInterval(function() {
+        frames.scrollByIndex(-1);
+      }, 100);
+    }}, 0);
   });
 
-  gFramesScrollingInterval = window.setInterval(() => {
-    gFrames.widget._list.scrollByIndex(-1);
-  }, 100);
+  gDebuggee.recurse();
 }
 
 registerCleanupFunction(function() {
-  window.clearInterval(gFramesScrollingInterval);
-  gFramesScrollingInterval = null;
-
+  removeTab(gTab);
+  gPane = null;
   gTab = null;
   gDebuggee = null;
-  gPanel = null;
   gDebugger = null;
-  gFrames = null;
-  gClassicFrames = null;
 });

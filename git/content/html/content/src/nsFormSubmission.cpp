@@ -4,6 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/Util.h"
+
 #include "nsFormSubmission.h"
 
 #include "nsCOMPtr.h"
@@ -25,6 +27,7 @@
 #include "nsIURL.h"
 #include "nsNetUtil.h"
 #include "nsLinebreakConverter.h"
+#include "nsICharsetConverterManager.h"
 #include "nsEscape.h"
 #include "nsUnicharUtils.h"
 #include "nsIMultiplexInputStream.h"
@@ -467,14 +470,6 @@ nsFSMultipartFormData::AddNameFilePair(const nsAString& aName,
 
       if (filename16.IsEmpty()) {
         filename16.AssignLiteral("blob");
-      } else {
-        nsAutoString filepath16;
-        rv = file->GetPath(filepath16);
-        NS_ENSURE_SUCCESS(rv, rv);
-        if (!filepath16.IsEmpty()) {
-          // File.path includes trailing "/"
-          filename16 = filepath16 + filename16;
-        }
       }
 
       rv = EncodeVal(filename16, filename, true);

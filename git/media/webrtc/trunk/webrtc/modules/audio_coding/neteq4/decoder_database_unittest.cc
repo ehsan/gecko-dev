@@ -17,9 +17,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-
 #include "webrtc/modules/audio_coding/neteq4/mock/mock_audio_decoder.h"
-#include "webrtc/test/testsupport/gtest_disable.h"
 
 namespace webrtc {
 
@@ -68,7 +66,7 @@ TEST(DecoderDatabase, GetRtpPayloadType) {
             db.GetRtpPayloadType(kDecoderISAC));  // iSAC is not registered.
 }
 
-TEST(DecoderDatabase, DISABLED_ON_ANDROID(GetDecoder)) {
+TEST(DecoderDatabase, GetDecoder) {
   DecoderDatabase db;
   const uint8_t kPayloadType = 0;
   EXPECT_EQ(DecoderDatabase::kOK,

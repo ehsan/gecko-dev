@@ -3,18 +3,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #include "nsSVGLength2.h"
-#include "mozilla/dom/SVGAnimatedLength.h"
-#include "mozilla/dom/SVGSVGElement.h"
-#include "nsContentUtils.h" // NS_ENSURE_FINITE
-#include "nsIFrame.h"
-#include "nsSMILFloatType.h"
-#include "nsSMILValue.h"
-#include "nsSVGAttrTearoffTable.h"
-#include "nsSVGIntegrationUtils.h"
+#include "prdtoa.h"
 #include "nsTextFormatter.h"
+#include "mozilla/dom/SVGSVGElement.h"
+#include "nsIFrame.h"
+#include "nsSVGIntegrationUtils.h"
+#include "nsSVGAttrTearoffTable.h"
+#include "nsContentUtils.h" // NS_ENSURE_FINITE
+#include "nsSMILValue.h"
+#include "nsSMILFloatType.h"
+#include "nsAttrValueInlines.h"
+#include "mozilla/dom/SVGAnimatedLength.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -112,7 +114,7 @@ GetValueString(nsAString &aValueAsString, float aValue, uint16_t aUnitType)
 {
   PRUnichar buf[24];
   nsTextFormatter::snprintf(buf, sizeof(buf)/sizeof(PRUnichar),
-                            MOZ_UTF16("%g"),
+                            NS_LITERAL_STRING("%g").get(),
                             (double)aValue);
   aValueAsString.Assign(buf);
 
@@ -121,22 +123,28 @@ GetValueString(nsAString &aValueAsString, float aValue, uint16_t aUnitType)
   aValueAsString.Append(unitString);
 }
 
-static bool
-GetValueFromString(const nsAString& aString,
-                   float& aValue,
-                   uint16_t* aUnitType)
+static nsresult
+GetValueFromString(const nsAString &aValueAsString,
+                   float *aValue,
+                   uint16_t *aUnitType)
 {
-  RangedPtr<const PRUnichar> iter =
-    SVGContentUtils::GetStartRangedPtr(aString);
-  const RangedPtr<const PRUnichar> end =
-    SVGContentUtils::GetEndRangedPtr(aString);
+  NS_ConvertUTF16toUTF8 value(aValueAsString);
+  const char *str = value.get();
 
-  if (!SVGContentUtils::ParseNumber(iter, end, aValue)) {
-    return false;
+  if (NS_IsAsciiWhitespace(*str))
+    return NS_ERROR_DOM_SYNTAX_ERR;
+  
+  char *rest;
+  *aValue = float(PR_strtod(str, &rest));
+  if (rest != str && NS_finite(*aValue)) {
+    *aUnitType = GetUnitTypeForString(
+      Substring(aValueAsString, rest - str));
+    if (IsValidUnitType(*aUnitType)) {
+      return NS_OK;
+    }
   }
-  const nsAString& units = Substring(iter.get(), end.get());
-  *aUnitType = GetUnitTypeForString(units);
-  return IsValidUnitType(*aUnitType);
+  
+  return NS_ERROR_DOM_SYNTAX_ERR;
 }
 
 static float
@@ -392,11 +400,12 @@ nsSVGLength2::SetBaseValueString(const nsAString &aValueAsString,
   float value;
   uint16_t unitType;
 
-  if (!GetValueFromString(aValueAsString, value, &unitType)) {
-    return NS_ERROR_DOM_SYNTAX_ERR;
+  nsresult rv = GetValueFromString(aValueAsString, &value, &unitType);
+  if (NS_FAILED(rv)) {
+    return rv;
   }
 
-  if (mIsBaseSet && mBaseVal == float(value) &&
+  if (mIsBaseSet && mBaseVal == value &&
       mSpecifiedUnitType == uint8_t(unitType)) {
     return NS_OK;
   }
@@ -495,8 +504,9 @@ nsSVGLength2::SMILLength::ValueFromString(const nsAString& aStr,
   float value;
   uint16_t unitType;
   
-  if (!GetValueFromString(aStr, value, &unitType)) {
-    return NS_ERROR_DOM_SYNTAX_ERR;
+  nsresult rv = GetValueFromString(aStr, &value, &unitType);
+  if (NS_FAILED(rv)) {
+    return rv;
   }
 
   nsSMILValue val(nsSMILFloatType::Singleton());

@@ -8,21 +8,20 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/voice_engine/test/auto_test/voe_standard_test.h"
+#include "voice_engine/test/auto_test/voe_standard_test.h"
 
 #include <stdio.h>
 #include <string.h>
 
-#include "webrtc/engine_configurations.h"
-#include "webrtc/system_wrappers/interface/event_wrapper.h"
-#include "webrtc/voice_engine/include/voe_neteq_stats.h"
-#include "webrtc/voice_engine/test/auto_test/automated_mode.h"
-#include "webrtc/voice_engine/test/auto_test/voe_cpu_test.h"
-#include "webrtc/voice_engine/test/auto_test/voe_extended_test.h"
-#include "webrtc/voice_engine/test/auto_test/voe_stress_test.h"
-#include "webrtc/voice_engine/test/auto_test/voe_test_defines.h"
-#include "webrtc/voice_engine/test/auto_test/voe_unit_test.h"
-#include "webrtc/voice_engine/voice_engine_defines.h"
+#include "engine_configurations.h"
+#include "system_wrappers/interface/event_wrapper.h"
+#include "voice_engine/include/voe_neteq_stats.h"
+#include "voice_engine/test/auto_test/automated_mode.h"
+#include "voice_engine/test/auto_test/voe_cpu_test.h"
+#include "voice_engine/test/auto_test/voe_extended_test.h"
+#include "voice_engine/test/auto_test/voe_stress_test.h"
+#include "voice_engine/test/auto_test/voe_unit_test.h"
+#include "voice_engine/voice_engine_defines.h"
 
 DEFINE_bool(include_timing_dependent_tests, true,
             "If true, we will include tests / parts of tests that are known "
@@ -257,7 +256,7 @@ VoETestManager::VoETestManager()
       voe_file_(0),
       voe_hardware_(0),
       voe_network_(0),
-#ifdef WEBRTC_VOICE_ENGINE_NETEQ_STATS_API
+#ifdef _TEST_NETEQ_STATS_
       voe_neteq_stats_(NULL),
 #endif
       voe_rtp_rtcp_(0),
@@ -323,7 +322,7 @@ void VoETestManager::GetInterfaces() {
 #ifdef _TEST_CALL_REPORT_
     voe_call_report_ = VoECallReport::GetInterface(voice_engine_);
 #endif
-#ifdef WEBRTC_VOICE_ENGINE_NETEQ_STATS_API
+#ifdef _TEST_NETEQ_STATS_
     voe_neteq_stats_ = VoENetEqStats::GetInterface(voice_engine_);
 #endif
   }
@@ -390,7 +389,7 @@ int VoETestManager::ReleaseInterfaces() {
     voe_call_report_ = NULL;
   }
 #endif
-#ifdef WEBRTC_VOICE_ENGINE_NETEQ_STATS_API
+#ifdef _TEST_NETEQ_STATS_
   if (voe_neteq_stats_) {
     voe_neteq_stats_->Release();
     voe_neteq_stats_ = NULL;
@@ -496,7 +495,7 @@ int run_auto_test(TestType test_type, ExtendedSelection ext_selection) {
         xtend.TestPassed("VolumeControl");
       }
       api_manager.GetExtendedMenuSelection(ext_selection);
-    }  // while (extendedSel != XSEL_None)
+    } // while (extendedSel != XSEL_None)
   } else if (test_type == Stress) {
     VoEStressTest stressTest(test_manager);
     result = stressTest.DoTest();
@@ -524,7 +523,7 @@ int run_auto_test(TestType test_type, ExtendedSelection ext_selection) {
 
   return 0;
 }
-}  // namespace voetest
+} // namespace voetest
 
 int RunInManualMode() {
   using namespace voetest;

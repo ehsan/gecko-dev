@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef mozilla_SyncRunnable_h
-#define mozilla_SyncRunnable_h
 
 #include "nsThreadUtils.h"
 #include "mozilla/Monitor.h"
@@ -35,19 +34,16 @@ public:
     , mMonitor("SyncRunnable")
   { }
 
-  void DispatchToThread(nsIEventTarget* thread,
-                        bool forceDispatch = false)
+  void DispatchToThread(nsIEventTarget* thread)
   {
     nsresult rv;
     bool on;
 
-    if (!forceDispatch) {
-      rv = thread->IsOnCurrentThread(&on);
-      MOZ_ASSERT(NS_SUCCEEDED(rv));
-      if (NS_SUCCEEDED(rv) && on) {
-        mRunnable->Run();
-        return;
-      }
+    rv = thread->IsOnCurrentThread(&on);
+    MOZ_ASSERT(NS_SUCCEEDED(rv));
+    if (NS_SUCCEEDED(rv) && on) {
+      mRunnable->Run();
+      return;
     }
 
     mozilla::MonitorAutoLock lock(mMonitor);
@@ -58,11 +54,10 @@ public:
   }
 
   static void DispatchToThread(nsIEventTarget* thread,
-                               nsIRunnable* r,
-                               bool forceDispatch = false)
+                               nsIRunnable* r)
   {
     nsRefPtr<SyncRunnable> s(new SyncRunnable(r));
-    s->DispatchToThread(thread, forceDispatch);
+    s->DispatchToThread(thread);
   }
 
 protected:

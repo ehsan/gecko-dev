@@ -137,9 +137,6 @@
 // The textfield of a spin control
 #define NS_THEME_SPINNER_TEXTFIELD                         75
 
-// For HTML's <input type=number>
-#define NS_THEME_NUMBER_INPUT                              76
-
 // A scrollbar.
 #define NS_THEME_SCROLLBAR                                 80
 
@@ -252,9 +249,8 @@
 #define NS_THEME_WIN_MEDIA_TOOLBOX                         222
 #define NS_THEME_WIN_BROWSER_TAB_BAR_TOOLBOX               223
 
-// Unified toolbar and titlebar elements on the Mac
+// Unified toolbar on the Mac
 #define NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR                   224
-#define NS_THEME_MOZ_MAC_FULLSCREEN_BUTTON                 226
 
 // Vista glass
 #define NS_THEME_WIN_BORDERLESS_GLASS                      229

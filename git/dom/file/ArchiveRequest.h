@@ -66,10 +66,10 @@ private:
                               JS::Value* aValue,
                               nsTArray<nsCOMPtr<nsIDOMFile> >& aFileList);
   nsresult GetFileResult(JSContext* aCx,
-                         JS::MutableHandle<JS::Value> aValue,
+                         JS::Value* aValue,
                          nsTArray<nsCOMPtr<nsIDOMFile> >& aFileList);
   nsresult GetFilesResult(JSContext* aCx,
-                          JS::MutableHandle<JS::Value> aValue,
+                          JS::Value* aValue,
                           nsTArray<nsCOMPtr<nsIDOMFile> >& aFileList);
 
 protected:

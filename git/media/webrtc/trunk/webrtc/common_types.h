@@ -8,10 +8,10 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#ifndef WEBRTC_COMMON_TYPES_H_
-#define WEBRTC_COMMON_TYPES_H_
+#ifndef WEBRTC_COMMON_TYPES_H
+#define WEBRTC_COMMON_TYPES_H
 
-#include "webrtc/typedefs.h"
+#include "typedefs.h"
 
 #if defined(_MSC_VER)
 // Disable "new behavior: elements of array will be default initialized"
@@ -33,19 +33,7 @@
 
 #define RTP_PAYLOAD_NAME_SIZE 32
 
-#if defined(WEBRTC_WIN)
-// Compares two strings without regard to case.
-#define STR_CASE_CMP(s1, s2) ::_stricmp(s1, s2)
-// Compares characters of two strings without regard to case.
-#define STR_NCASE_CMP(s1, s2, n) ::_strnicmp(s1, s2, n)
-#else
-#define STR_CASE_CMP(s1, s2) ::strcasecmp(s1, s2)
-#define STR_NCASE_CMP(s1, s2, n) ::strncasecmp(s1, s2, n)
-#endif
-
 namespace webrtc {
-
-class Config;
 
 class InStream
 {
@@ -237,7 +225,7 @@ struct CodecInst
     int plfreq;
     int pacsize;
     int channels;
-    int rate;  // bits/sec unlike {start,min,max}Bitrate elsewhere in this file!
+    int rate;
 };
 
 enum FrameType
@@ -278,23 +266,23 @@ enum VadModes                 // degree of bandwidth reduction
 struct NetworkStatistics           // NETEQ statistics
 {
     // current jitter buffer size in ms
-    uint16_t currentBufferSize;
+    WebRtc_UWord16 currentBufferSize;
     // preferred (optimal) buffer size in ms
-    uint16_t preferredBufferSize;
+    WebRtc_UWord16 preferredBufferSize;
     // adding extra delay due to "peaky jitter"
     bool jitterPeaksFound;
     // loss rate (network + late) in percent (in Q14)
-    uint16_t currentPacketLossRate;
+    WebRtc_UWord16 currentPacketLossRate;
     // late loss rate in percent (in Q14)
-    uint16_t currentDiscardRate;
+    WebRtc_UWord16 currentDiscardRate;
     // fraction (of original stream) of synthesized speech inserted through
     // expansion (in Q14)
-    uint16_t currentExpandRate;
+    WebRtc_UWord16 currentExpandRate;
     // fraction of synthesized speech inserted through pre-emptive expansion
     // (in Q14)
-    uint16_t currentPreemptiveRate;
+    WebRtc_UWord16 currentPreemptiveRate;
     // fraction of data removed through acceleration (in Q14)
-    uint16_t currentAccelerateRate;
+    WebRtc_UWord16 currentAccelerateRate;
     // clock-drift in parts-per-million (negative or positive)
     int32_t clockDriftPPM;
     // average packet waiting time in the jitter buffer (ms)
@@ -535,9 +523,9 @@ struct SimulcastStream
     unsigned short      width;
     unsigned short      height;
     unsigned char       numberOfTemporalLayers;
-    unsigned int        maxBitrate;  // kilobits/sec.
-    unsigned int        targetBitrate;  // kilobits/sec.
-    unsigned int        minBitrate;  // kilobits/sec.
+    unsigned int        maxBitrate;
+    unsigned int        targetBitrate;
+    unsigned int        minBitrate;
     unsigned int        qpMax; // minimum quality
 };
 
@@ -545,6 +533,11 @@ enum VideoCodecMode {
   kRealtimeVideo,
   kScreensharing
 };
+
+// When using an external encoder/decoder one may need to specify extra
+// options. This struct definition is left for the external implementation.
+// TODO(andresp): Support for multiple external encoder/decoders.
+struct ExtraCodecOptions;
 
 // Common video codec properties
 struct VideoCodec
@@ -556,9 +549,9 @@ struct VideoCodec
     unsigned short      width;
     unsigned short      height;
 
-    unsigned int        startBitrate;  // kilobits/sec.
-    unsigned int        maxBitrate;  // kilobits/sec.
-    unsigned int        minBitrate;  // kilobits/sec.
+    unsigned int        startBitrate;
+    unsigned int        maxBitrate;
+    unsigned int        minBitrate;
     unsigned char       maxFramerate;
 
     VideoCodecUnion     codecSpecific;
@@ -568,10 +561,7 @@ struct VideoCodec
     SimulcastStream     simulcastStream[kMaxSimulcastStreams];
 
     VideoCodecMode      mode;
-
-    // When using an external encoder/decoder this allows to pass
-    // extra options without requiring webrtc to be aware of them.
-    Config*  extra_options;
+    ExtraCodecOptions*  extra_options;
 };
 
 // Bandwidth over-use detector options.  These are used to drive
@@ -600,8 +590,5 @@ struct OverUseDetectorOptions {
   double initial_var_noise;
   double initial_threshold;
 };
-
 }  // namespace webrtc
-
-#endif  // WEBRTC_COMMON_TYPES_H_
-
+#endif  // WEBRTC_COMMON_TYPES_H

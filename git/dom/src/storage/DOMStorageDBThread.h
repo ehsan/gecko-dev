@@ -81,6 +81,13 @@ public:
 
   // Get the complete list of scopes having data
   virtual void GetScopesHavingData(InfallibleTArray<nsCString>* aScopes) = 0;
+
+  // Returns object keeping usage cache for the scope.
+  DOMStorageUsage* GetScopeUsage(const nsACString& aScope);
+
+protected:
+  // Keeps usage cache objects for eTLD+1 scopes we have touched.
+  nsClassHashtable<nsCStringHashKey, DOMStorageUsage> mUsages;
 };
 
 // The implementation of the the database engine, this directly works
@@ -150,7 +157,7 @@ public:
     friend class PendingOperations;
     OperationType mType;
     nsRefPtr<DOMStorageCacheBridge> mCache;
-    nsRefPtr<DOMStorageUsageBridge> mUsage;
+    DOMStorageUsageBridge* mUsage;
     nsString mKey;
     nsString mValue;
     nsCString mScope;

@@ -16,7 +16,6 @@
 #include "mozilla/dom/Element.h"
 #include "nsDebug.h"
 #include "nsStyleUtil.h"
-#include "nsIDocument.h"
 
 using namespace mozilla::dom;
 
@@ -394,8 +393,7 @@ nsSMILCSSValueType::ValueFromString(nsCSSProperty aPropID,
   }
 
   nsIDocument* doc = aTargetElement->GetCurrentDoc();
-  if (doc && !nsStyleUtil::CSPAllowsInlineStyle(nullptr,
-                                                doc->NodePrincipal(),
+  if (doc && !nsStyleUtil::CSPAllowsInlineStyle(doc->NodePrincipal(),
                                                 doc->GetDocumentURI(),
                                                 0, aString, nullptr)) {
     return;

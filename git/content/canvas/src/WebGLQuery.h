@@ -7,6 +7,7 @@
 #define WEBGLQUERY_H_
 
 #include "WebGLObjectModel.h"
+#include "WebGLContext.h"
 
 #include "nsWrapperCache.h"
 
@@ -15,10 +16,11 @@
 namespace mozilla {
 
 class WebGLQuery MOZ_FINAL
-    : public nsWrapperCache
+    : public nsISupports
     , public WebGLRefCountedObject<WebGLQuery>
     , public LinkedListElement<WebGLQuery>
     , public WebGLContextBoundObject
+    , public nsWrapperCache
 {
 // -----------------------------------------------------------------------------
 // PUBLIC
@@ -37,7 +39,10 @@ public:
     // -------------------------------------------------------------------------
     // MEMBER FUNCTIONS
 
-    bool IsActive() const;
+    bool IsActive() const
+    {
+        return mContext->GetActiveQueryByTarget(mType) == this;
+    }
 
     bool HasEverBeenActive()
     {
@@ -61,8 +66,8 @@ public:
     virtual JSObject* WrapObject(JSContext *cx,
                                  JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
 
-    NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(WebGLQuery)
-    NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(WebGLQuery)
+    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+    NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(WebGLQuery)
 
 
 // -----------------------------------------------------------------------------
@@ -71,8 +76,8 @@ private:
 
     // -------------------------------------------------------------------------
     // MEMBERS
-    GLuint mGLName;
-    GLenum mType;
+    WebGLuint mGLName;
+    WebGLenum mType;
 
     // -------------------------------------------------------------------------
     // FRIENDSHIPS

@@ -12,13 +12,12 @@
 #include "nsCOMPtr.h"
 #include "nsCOMArray.h"
 #include "nsIPluginTag.h"
+#include "nsNPAPIPluginInstance.h"
 #include "nsITimer.h"
-#include "nsString.h"
 
 class nsPluginHost;
 struct PRLibrary;
 struct nsPluginInfo;
-class nsNPAPIPlugin;
 
 // A linked-list of plugin information that is used for instantiating plugins
 // and reflecting plugin information into JavaScript.
@@ -98,7 +97,6 @@ private:
                 const char* const* aExtensions,
                 uint32_t aVariantCount);
   nsresult EnsureMembersAreUTF8();
-  void FixupVersion();
 };
 
 #endif // nsPluginTags_h_

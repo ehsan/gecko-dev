@@ -379,19 +379,8 @@ CssLogic.prototype = {
    */
   forEachSheet: function CssLogic_forEachSheet(aCallback, aScope)
   {
-    for each (let sheets in this._sheets) {
-      for (let i = 0; i < sheets.length; i ++) {
-        // We take this as an opportunity to clean dead sheets
-        try {
-          let sheet = sheets[i];
-          sheet.domSheet; // If accessing domSheet raises an exception, then the
-          // style sheet is a dead object
-          aCallback.call(aScope, sheet, i, sheets);
-        } catch (e) {
-          sheets.splice(i, 1);
-          i --;
-        }
-      }
+    for each (let sheet in this._sheets) {
+      sheet.forEach(aCallback, aScope);
     }
   },
 
@@ -730,7 +719,7 @@ CssLogic.getSelectors = function CssLogic_getSelectors(aDOMRule)
 CssLogic.l10n = function(aName) CssLogic._strings.GetStringFromName(aName);
 
 XPCOMUtils.defineLazyGetter(CssLogic, "_strings", function() Services.strings
-        .createBundle("chrome://global/locale/devtools/styleinspector.properties"));
+        .createBundle("chrome://browser/locale/devtools/styleinspector.properties"));
 
 /**
  * Is the given property sheet a content stylesheet?
@@ -1017,8 +1006,8 @@ CssSheet.prototype = {
   get ruleCount()
   {
     return this._ruleCount > -1 ?
-      this._ruleCount :
-      this.domSheet.cssRules.length;
+        this._ruleCount :
+        this.domSheet.cssRules.length;
   },
 
   /**
@@ -1126,7 +1115,7 @@ CssSheet.prototype = {
   toString: function CssSheet_toString()
   {
     return "CssSheet[" + this.shortSource + "]";
-  }
+  },
 };
 
 /**
@@ -1376,7 +1365,6 @@ CssSelector.prototype = {
       pseudos.add("first-letter");
       pseudos.add("first-line");
       pseudos.add("selection");
-      pseudos.add("-moz-color-swatch");
       pseudos.add("-moz-focus-inner");
       pseudos.add("-moz-focus-outer");
       pseudos.add("-moz-list-bullet");
@@ -1464,6 +1452,7 @@ CssPropertyInfo.prototype = {
         Services.console.logStringMessage(ex);
       }
     }
+
     return this._value;
   },
 
@@ -1612,8 +1601,9 @@ function CssSelectorInfo(aSelector, aProperty, aValue, aStatus)
 {
   this.selector = aSelector;
   this.property = aProperty;
-  this.status = aStatus;
   this.value = aValue;
+  this.status = aStatus;
+
   let priority = this.selector.cssRule.getPropertyPriority(this.property);
   this.important = (priority === "important");
 }

@@ -8,10 +8,11 @@ let prefs = Components.classes["@mozilla.org/preferences-service;1"].
       getService(Components.interfaces.nsIPrefBranch);
 
 Cu.import("resource://gre/modules/PageThumbs.jsm");
+Cu.import("resource:///modules/colorUtils.jsm");
 
 function TopSitesView(aGrid, aMaxSites) {
-  View.call(this, aGrid);
-
+  this._set = aGrid;
+  this._set.controller = this;
   this._topSitesMax = aMaxSites;
 
   // clean up state when the appbar closes
@@ -20,7 +21,11 @@ function TopSitesView(aGrid, aMaxSites) {
                 getService(Ci.nsINavHistoryService);
   history.addObserver(this, false);
 
+  PageThumbs.addExpirationFilter(this);
   Services.obs.addObserver(this, "Metro:RefreshTopsiteThumbnail", false);
+  Services.obs.addObserver(this, "metro_viewstate_changed", false);
+
+  this._adjustDOMforViewState();
 
   NewTabUtils.allPages.register(this);
   TopSites.prepareCache().then(function(){
@@ -38,11 +43,12 @@ TopSitesView.prototype = Util.extend(Object.create(View.prototype), {
 
   destruct: function destruct() {
     Services.obs.removeObserver(this, "Metro:RefreshTopsiteThumbnail");
+    Services.obs.removeObserver(this, "metro_viewstate_changed");
+    PageThumbs.removeExpirationFilter(this);
     NewTabUtils.allPages.unregister(this);
     if (StartUI.chromeWin) {
       StartUI.chromeWin.removeEventListener('MozAppbarDismissing', this, false);
     }
-    View.prototype.destruct.call(this);
   },
 
   handleItemClick: function tabview_handleItemClick(aItem) {
@@ -99,7 +105,7 @@ TopSitesView.prototype = Util.extend(Object.create(View.prototype), {
       case "pin":
         let pinIndices = [];
         Array.forEach(selectedTiles, function(aNode) {
-          pinIndices.push( Array.indexOf(aNode.control.items, aNode) );
+          pinIndices.push( Array.indexOf(aNode.control.children, aNode) );
           aNode.contextActions.delete('pin');
           aNode.contextActions.add('unpin');
         });
@@ -131,7 +137,6 @@ TopSitesView.prototype = Util.extend(Object.create(View.prototype), {
       case "MozAppbarDismissing":
         // clean up when the context appbar is dismissed - we don't remember selections
         this._lastSelectedSites = null;
-        break;
     }
   },
 
@@ -152,35 +157,26 @@ TopSitesView.prototype = Util.extend(Object.create(View.prototype), {
         // flush, recreate all
       this.isUpdating = true;
       // destroy and recreate all item nodes, skip calling arrangeItems
+      grid.clearAll(true);
       this.populateGrid();
     }
   },
 
   updateTile: function(aTileNode, aSite, aArrangeGrid) {
-    if (!(aSite && aSite.url)) {
-      throw new Error("Invalid Site object passed to TopSitesView updateTile");
-    }
     this._updateFavicon(aTileNode, Util.makeURI(aSite.url));
 
     Task.spawn(function() {
       let filepath = PageThumbsStorage.getFilePathForURL(aSite.url);
       if (yield OS.File.exists(filepath)) {
         aSite.backgroundImage = 'url("'+PageThumbs.getThumbnailURL(aSite.url)+'")';
-        // use the setter when available to update the backgroundImage value
-        if ('backgroundImage' in aTileNode &&
-            aTileNode.backgroundImage != aSite.backgroundImage) {
-          aTileNode.backgroundImage = aSite.backgroundImage;
-        } else {
-          // just update the attribute for when the node gets the binding applied
-          aTileNode.setAttribute("customImage", aSite.backgroundImage);
+        aTileNode.setAttribute("customImage", aSite.backgroundImage);
+        if (aTileNode.refresh) {
+          aTileNode.refresh()
         }
       }
     });
 
     aSite.applyToTileNode(aTileNode);
-    if (aTileNode.refresh) {
-      aTileNode.refresh();
-    }
     if (aArrangeGrid) {
       this._set.arrangeItems();
     }
@@ -190,15 +186,24 @@ TopSitesView.prototype = Util.extend(Object.create(View.prototype), {
     this.isUpdating = true;
 
     let sites = TopSites.getSites();
-    if (this._topSitesMax) {
-      sites = sites.slice(0, this._topSitesMax);
-    }
+    let length = Math.min(sites.length, this._topSitesMax || Infinity);
     let tileset = this._set;
-    tileset.clearAll(true);
 
-    for (let site of sites) {
-      let slot = tileset.nextSlot();
-      this.updateTile(slot, site);
+    // if we're updating with a collection that is smaller than previous
+    // remove any extra tiles
+    while (tileset.children.length > length) {
+      tileset.removeChild(tileset.children[tileset.children.length -1]);
+    }
+
+    for (let idx=0; idx < length; idx++) {
+      let isNew = !tileset.children[idx],
+          site = sites[idx];
+      let item = isNew ? tileset.createItemElement(site.title, site.url) : tileset.children[idx];
+
+      this.updateTile(item, site);
+      if (isNew) {
+        tileset.appendChild(item);
+      }
     }
     tileset.arrangeItems();
     this.isUpdating = false;
@@ -213,6 +218,10 @@ TopSitesView.prototype = Util.extend(Object.create(View.prototype), {
     }
   },
 
+  filterForThumbnailExpiration: function filterForThumbnailExpiration(aCallback) {
+    aCallback([item.getAttribute("value") for (item of this._set.children)]);
+  },
+
   isFirstRun: function isFirstRun() {
     return prefs.getBoolPref("browser.firstrun.show.localepicker");
   },
@@ -224,13 +233,6 @@ TopSitesView.prototype = Util.extend(Object.create(View.prototype), {
       aState = this._set.getAttribute("viewstate");
 
     View.prototype._adjustDOMforViewState.call(this, aState);
-
-    // Don't show thumbnails in snapped view.
-    if (aState == "snapped") {
-      document.getElementById("start-topsites-grid").removeAttribute("tiletype");
-    } else {
-      document.getElementById("start-topsites-grid").setAttribute("tiletype", "thumbnail");
-    }
 
     // propogate tiletype changes down to tile children
     let tileType = this._set.getAttribute("tiletype");
@@ -245,9 +247,12 @@ TopSitesView.prototype = Util.extend(Object.create(View.prototype), {
 
   // nsIObservers
   observe: function (aSubject, aTopic, aState) {
-    switch (aTopic) {
+    switch(aTopic) {
       case "Metro:RefreshTopsiteThumbnail":
         this.forceReloadOfThumbnail(aState);
+        break;
+      case "metro_viewstate_changed":
+        this.onViewStateChange(aState);
         break;
     }
   },
@@ -270,8 +275,7 @@ TopSitesView.prototype = Util.extend(Object.create(View.prototype), {
   },
 
   onClearHistory: function() {
-    if ('clearAll' in this._set)
-      this._set.clearAll();
+    this._set.clearAll();
   },
 
   onPageChanged: function(aURI, aWhat, aValue) {
@@ -300,7 +304,6 @@ let TopSitesStartView = {
       let topsitesVbox = document.getElementById("start-topsites");
       topsitesVbox.setAttribute("hidden", "true");
     }
-    this._grid.removeAttribute("fade");
   },
 
   uninit: function uninit() {

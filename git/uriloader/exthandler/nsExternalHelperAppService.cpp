@@ -11,11 +11,10 @@
 #include "base/basictypes.h"
 
 /* This must occur *after* base/basictypes.h to avoid typedefs conflicts. */
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/Base64.h"
+#include "mozilla/Util.h"
 
 #include "mozilla/dom/ContentChild.h"
-#include "mozilla/dom/TabChild.h"
 #include "nsXULAppAPI.h"
 
 #include "nsExternalHelperAppService.h"
@@ -70,6 +69,9 @@
 
 #ifdef XP_MACOSX
 #include "nsILocalFileMac.h"
+#ifndef __LP64__
+#include "nsIAppleFileDecoder.h"
+#endif
 #elif defined(XP_OS2)
 #include "nsILocalFileOS2.h"
 #endif
@@ -115,15 +117,6 @@
 
 #include "mozilla/Preferences.h"
 #include "mozilla/ipc/URIUtils.h"
-
-#ifdef MOZ_WIDGET_GONK
-#include "nsDeviceStorage.h"
-#endif
-
-#ifdef NECKO_PROTOCOL_rtsp
-#include "nsIScriptSecurityManager.h"
-#include "nsIMessageManager.h"
-#endif
 
 using namespace mozilla;
 using namespace mozilla::ipc;
@@ -337,32 +330,6 @@ static nsresult GetDownloadDirectory(nsIFile **_directory)
                                          getter_AddRefs(dir));
     NS_ENSURE_SUCCESS(rv, rv);
   }
-#elif defined(MOZ_WIDGET_GONK)
-  // On Gonk, store the files on the sdcard in the downloads directory.
-  // We need to check with the volume manager which storage point is
-  // available.
-
-  // Pick the default storage in case multiple (internal and external) ones
-  // are available.
-  nsString storageName;
-  nsDOMDeviceStorage::GetDefaultStorageName(NS_LITERAL_STRING("sdcard"),
-                                            storageName);
-  NS_ENSURE_TRUE(!storageName.IsEmpty(), NS_ERROR_FAILURE);
-
-  DeviceStorageFile dsf(NS_LITERAL_STRING("sdcard"),
-                        storageName,
-                        NS_LITERAL_STRING("downloads"));
-  NS_ENSURE_TRUE(dsf.mFile, NS_ERROR_FAILURE);
-  NS_ENSURE_TRUE(dsf.IsAvailable(), NS_ERROR_FAILURE);
-
-  bool alreadyThere;
-  nsresult rv = dsf.mFile->Exists(&alreadyThere);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (!alreadyThere) {
-    rv = dsf.mFile->Create(nsIFile::DIRECTORY_TYPE, 0770);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-  dir = dsf.mFile;
 #elif defined(ANDROID)
   // On mobile devices, we are avoiding exposing users to the file
   // system, and don't save downloads to temp directories
@@ -380,6 +347,9 @@ static nsresult GetDownloadDirectory(nsIFile **_directory)
   else {
     return NS_ERROR_FAILURE;
   }
+#elif defined(MOZ_PLATFORM_MAEMO)
+  nsresult rv = NS_GetSpecialDirectory(NS_UNIX_XDG_DOCUMENTS_DIR, getter_AddRefs(dir));
+  NS_ENSURE_SUCCESS(rv, rv);
 #elif defined(XP_WIN)
   // On metro we want to be able to search opened files and the temp directory
   // is exlcuded in searches.
@@ -446,6 +416,9 @@ static nsDefaultMimeTypeEntry defaultMimeEntries [] =
 #ifdef MOZ_WEBM
   { VIDEO_WEBM, "webm" },
   { AUDIO_WEBM, "webm" },
+#endif
+#ifdef MOZ_DASH
+  { APPLICATION_DASH, "mpd" },
 #endif
 #if defined(MOZ_GSTREAMER) || defined(MOZ_WMF)
   { VIDEO_MP4, "mp4" },
@@ -518,7 +491,6 @@ static nsExtraMimeTypeEntry extraMimeEntries [] =
   { TEXT_XUL, "xul", "XML-Based User Interface Language" },
   { TEXT_XML, "xml,xsl,xbl", "Extensible Markup Language" },
   { TEXT_CSS, "css", "Style Sheet" },
-  { TEXT_VCARD, "vcf,vcard", "Contact Information" },
   { VIDEO_OGG, "ogv", "Ogg Video" },
   { VIDEO_OGG, "ogg", "Ogg Video" },
   { APPLICATION_OGG, "ogg", "Ogg Video"},
@@ -529,6 +501,9 @@ static nsExtraMimeTypeEntry extraMimeEntries [] =
 #endif
   { VIDEO_WEBM, "webm", "Web Media Video" },
   { AUDIO_WEBM, "webm", "Web Media Audio" },
+#ifdef MOZ_DASH
+  { APPLICATION_DASH, "mpd", "DASH Media Presentation Description" },
+#endif
   { AUDIO_MP3, "mp3", "MPEG Audio" },
   { VIDEO_MP4, "mp4", "MPEG-4 Video" },
   { AUDIO_MP4, "m4a", "MPEG-4 Audio" },
@@ -587,81 +562,6 @@ nsExternalHelperAppService::~nsExternalHelperAppService()
 {
 }
 
-#ifdef NECKO_PROTOCOL_rtsp
-namespace {
-/**
- * A stack helper to clear the currently pending exception in a JS context.
- */
-class AutoClearPendingException {
-public:
-  AutoClearPendingException(JSContext* aCx) :
-    mCx(aCx) {
-  }
-  ~AutoClearPendingException() {
-    JS_ClearPendingException(mCx);
-  }
-private:
-  JSContext *mCx;
-};
-} // anonymous namespace
-
-/**
- * This function sends a message. This 'content-handler' message is handled in
- * b2g/chrome/content/shell.js where it starts an activity request that will
- * open the video app.
- */
-void nsExternalHelperAppService::LaunchVideoAppForRtsp(nsIURI* aURI)
-{
-  bool rv;
-
-  // Get a system principal.
-  nsCOMPtr<nsIScriptSecurityManager> securityManager =
-    do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID);
-  NS_ENSURE_TRUE_VOID(securityManager);
-
-  nsCOMPtr<nsIPrincipal> principal;
-  securityManager->GetSystemPrincipal(getter_AddRefs(principal));
-  NS_ENSURE_TRUE_VOID(principal);
-
-  // Construct the message in jsVal format.
-  AutoSafeJSContext cx;
-  AutoClearPendingException helper(cx);
-  JS::Rooted<JSObject*> msgObj(cx, JS_NewObject(cx, nullptr, nullptr, nullptr));
-  NS_ENSURE_TRUE_VOID(msgObj);
-  JS::Rooted<JS::Value> jsVal(cx);
-
-  // Set the "type" property of the message. This is a fake MIME type.
-  {
-    NS_NAMED_LITERAL_CSTRING(mimeType, "video/rtsp");
-    JSString *typeStr = JS_NewStringCopyN(cx, mimeType.get(), mimeType.Length());
-    NS_ENSURE_TRUE_VOID(typeStr);
-    jsVal.setString(typeStr);
-    rv = JS_SetProperty(cx, msgObj, "type", jsVal);
-    NS_ENSURE_TRUE_VOID(rv);
-  }
-  // Set the "url" and "title" properties of the message.
-  // They are the same in the case of RTSP streaming.
-  {
-    nsAutoCString spec;
-    aURI->GetSpec(spec);
-    JSString *urlStr = JS_NewStringCopyN(cx, spec.get(), spec.Length());
-    NS_ENSURE_TRUE_VOID(urlStr);
-    jsVal.setString(urlStr);
-    rv = JS_SetProperty(cx, msgObj, "url", jsVal);
-    NS_ENSURE_TRUE_VOID(rv);
-    rv = JS_SetProperty(cx, msgObj, "title", jsVal);
-  }
-  jsVal.setObject(*msgObj);
-
-  // Send the message.
-  nsCOMPtr<nsIMessageSender> cpmm =
-    do_GetService("@mozilla.org/childprocessmessagemanager;1");
-  NS_ENSURE_TRUE_VOID(cpmm);
-  cpmm->SendAsyncMessage(NS_LITERAL_STRING("content-handler"),
-    jsVal, JSVAL_NULL, principal, cx, 2);
-}
-#endif
-
 NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeContentType,
                                                     nsIRequest *aRequest,
                                                     nsIInterfaceRequestor *aWindowContext,
@@ -682,9 +582,6 @@ NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeConte
     channel->GetContentLength(&contentLength);
   }
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    nsCOMPtr<nsIDOMWindow> window = do_GetInterface(aWindowContext);
-    NS_ENSURE_STATE(window);
-
     // We need to get a hold of a ContentChild so that we can begin forwarding
     // this data to the parent.  In the HTTP case, this is unfortunate, since
     // we're actually passing data from parent->child->parent wastefully, but
@@ -715,8 +612,7 @@ NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeConte
       child->SendPExternalHelperAppConstructor(uriParams,
                                                nsCString(aMimeContentType),
                                                disp, aForceSave, contentLength,
-                                               referrerParams,
-                                               mozilla::dom::TabChild::GetFrom(window));
+                                               referrerParams);
     ExternalHelperAppChild *childListener = static_cast<ExternalHelperAppChild *>(pc);
 
     NS_ADDREF(*aStreamListener = childListener);
@@ -727,8 +623,9 @@ NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeConte
                                reason, aForceSave);
     if (!handler)
       return NS_ERROR_OUT_OF_MEMORY;
-
+    
     childListener->SetHandler(handler);
+
     return NS_OK;
   }
 
@@ -1002,18 +899,7 @@ nsExternalHelperAppService::LoadURI(nsIURI *aURI,
     return NS_OK; // explicitly denied
   }
 
-#ifdef NECKO_PROTOCOL_rtsp
-  // Handle rtsp protocol.
-  {
-    bool isRTSP = false;
-    rv = aURI->SchemeIs("rtsp", &isRTSP);
-    if (NS_SUCCEEDED(rv) && isRTSP) {
-      LaunchVideoAppForRtsp(aURI);
-      return NS_OK;
-    }
-  }
-#endif
-
+ 
   nsCOMPtr<nsIHandlerInfo> handler;
   rv = GetProtocolHandlerInfo(scheme, getter_AddRefs(handler));
   NS_ENSURE_SUCCESS(rv, rv);
@@ -1242,18 +1128,11 @@ nsExternalAppHandler::nsExternalAppHandler(nsIMIMEInfo * aMIMEInfo,
 
   // Remove unsafe bidi characters which might have spoofing implications (bug 511521).
   const PRUnichar unsafeBidiCharacters[] = {
-    PRUnichar(0x061c), // Arabic Letter Mark
-    PRUnichar(0x200e), // Left-to-Right Mark
-    PRUnichar(0x200f), // Right-to-Left Mark
     PRUnichar(0x202a), // Left-to-Right Embedding
     PRUnichar(0x202b), // Right-to-Left Embedding
     PRUnichar(0x202c), // Pop Directional Formatting
     PRUnichar(0x202d), // Left-to-Right Override
-    PRUnichar(0x202e), // Right-to-Left Override
-    PRUnichar(0x2066), // Left-to-Right Isolate
-    PRUnichar(0x2067), // Right-to-Left Isolate
-    PRUnichar(0x2068), // First Strong Isolate
-    PRUnichar(0x2069)  // Pop Directional Isolate
+    PRUnichar(0x202e)  // Right-to-Left Override
   };
   for (uint32_t i = 0; i < ArrayLength(unsafeBidiCharacters); ++i) {
     mSuggestedFileName.ReplaceChar(unsafeBidiCharacters[i], '_');
@@ -1463,7 +1342,7 @@ nsresult nsExternalAppHandler::SetUpTempFile(nsIChannel * aChannel)
   rv = mTempFile->Append(NS_ConvertUTF8toUTF16(tempLeafName));
   // make this file unique!!!
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = mTempFile->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0644);
+  rv = mTempFile->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0600);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Now save the temp leaf name, minus the ".part" bit, so we can use it later.
@@ -1842,7 +1721,7 @@ void nsExternalAppHandler::SendStatusChange(ErrorType type, nsresult rv, nsIRequ
                 // We don't have a listener.  Simply show the alert ourselves.
                 nsCOMPtr<nsIPrompt> prompter(do_GetInterface(mWindowContext));
                 nsXPIDLString title;
-                bundle->FormatStringFromName(MOZ_UTF16("title"),
+                bundle->FormatStringFromName(NS_LITERAL_STRING("title").get(),
                                              strings,
                                              1,
                                              getter_Copies(title));
@@ -1932,55 +1811,63 @@ NS_IMETHODIMP
 nsExternalAppHandler::OnSaveComplete(nsIBackgroundFileSaver *aSaver,
                                      nsresult aStatus)
 {
-  if (!mCanceled) {
-    // Save the hash
-    (void)mSaver->GetSha256Hash(mHash);
-    // Free the reference that the saver keeps on us, even if we couldn't get
-    // the hash.
-    mSaver = nullptr;
-  
-    if (NS_FAILED(aStatus)) {
-      nsAutoString path;
-      mTempFile->GetPath(path);
-      SendStatusChange(kWriteError, aStatus, nullptr, path);
-      if (!mCanceled)
-        Cancel(aStatus);
-      return NS_OK;
-    }
+  if (mCanceled)
+    return NS_OK;
+
+  // Save the hash
+  nsresult rv = mSaver->GetSha256Hash(mHash);
+  // Free the reference that the saver keeps on us, even if we couldn't get the
+  // hash.
+  mSaver = nullptr;
+
+  if (NS_FAILED(aStatus)) {
+    nsAutoString path;
+    mTempFile->GetPath(path);
+    SendStatusChange(kWriteError, aStatus, nullptr, path);
+    if (!mCanceled)
+      Cancel(aStatus);
+    return NS_OK;
   }
 
   // Notify the transfer object that we are done if the user has chosen an
   // action. If the user hasn't chosen an action, the progress listener
   // (nsITransfer) will be notified in CreateTransfer.
   if (mTransfer) {
-    NotifyTransfer(aStatus);
+    rv = NotifyTransfer();
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   return NS_OK;
 }
 
-void nsExternalAppHandler::NotifyTransfer(nsresult aStatus)
+nsresult nsExternalAppHandler::NotifyTransfer()
 {
   MOZ_ASSERT(NS_IsMainThread(), "Must notify on main thread");
+  MOZ_ASSERT(!mCanceled, "Can't notify if canceled or action "
+             "hasn't been chosen");
   MOZ_ASSERT(mTransfer, "We must have an nsITransfer");
 
   LOG(("Notifying progress listener"));
 
-  if (NS_SUCCEEDED(aStatus)) {
-    (void)mTransfer->SetSha256Hash(mHash);
-    (void)mTransfer->OnProgressChange64(nullptr, nullptr, mProgress,
-      mContentLength, mProgress, mContentLength);
-  }
+  nsresult rv = mTransfer->SetSha256Hash(mHash);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  (void)mTransfer->OnStateChange(nullptr, nullptr,
+  rv = mTransfer->OnProgressChange64(nullptr, nullptr, mProgress,
+    mContentLength, mProgress, mContentLength);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = mTransfer->OnStateChange(nullptr, nullptr,
     nsIWebProgressListener::STATE_STOP |
     nsIWebProgressListener::STATE_IS_REQUEST |
-    nsIWebProgressListener::STATE_IS_NETWORK, aStatus);
+    nsIWebProgressListener::STATE_IS_NETWORK, NS_OK);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // This nsITransfer object holds a reference to us (we are its observer), so
   // we need to release the reference to break a reference cycle (and therefore
-  // to prevent leaking).  We do this even if the previous calls failed.
+  // to prevent leaking)
   mTransfer = nullptr;
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP nsExternalAppHandler::GetMIMEInfo(nsIMIMEInfo ** aMIMEInfo)
@@ -2078,7 +1965,7 @@ nsresult nsExternalAppHandler::CreateTransfer()
   // processing the url. If that's the case then mStopRequestIssued will be
   // true and OnSaveComplete has been called.
   if (mStopRequestIssued && !mSaver && mTransfer) {
-    NotifyTransfer(NS_OK);
+    return NotifyTransfer();
   }
 
   return rv;
@@ -2289,7 +2176,7 @@ NS_IMETHODIMP nsExternalAppHandler::LaunchWithApplication(nsIFile * aApplication
   fileToUse->Append(mSuggestedFileName);  
 #endif
 
-  nsresult rv = fileToUse->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0644);
+  nsresult rv = fileToUse->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0600);
   if(NS_SUCCEEDED(rv))
   {
     mFinalFileDestination = do_QueryInterface(fileToUse);
@@ -2315,31 +2202,17 @@ NS_IMETHODIMP nsExternalAppHandler::LaunchWithApplication(nsIFile * aApplication
 NS_IMETHODIMP nsExternalAppHandler::Cancel(nsresult aReason)
 {
   NS_ENSURE_ARG(NS_FAILED(aReason));
+  // XXX should not ignore the reason
 
-  if (mCanceled) {
-    return NS_OK;
-  }
   mCanceled = true;
-
   if (mSaver) {
-    // We are still writing to the target file.  Give the saver a chance to
-    // close the target file, then notify the transfer object if necessary in
-    // the OnSaveComplete callback.
     mSaver->Finish(aReason);
     mSaver = nullptr;
-  } else {
-    if (mStopRequestIssued && mTempFile) {
-      // This branch can only happen when the user cancels the helper app dialog
-      // when the request has completed. The temp file has to be removed here,
-      // because mSaver has been released at that time with the temp file left.
-      (void)mTempFile->Remove(false);
-    }
-
-    // Notify the transfer object that the download has been canceled, if the
-    // user has already chosen an action and we didn't notify already.
-    if (mTransfer) {
-      NotifyTransfer(aReason);
-    }
+  } else if (mStopRequestIssued && mTempFile) {
+    // This branch can only happen when the user cancels the helper app dialog
+    // when the request has completed. The temp file has to be removed here,
+    // because mSaver has been released at that time with the temp file left.
+    (void)mTempFile->Remove(false);
   }
 
   // Break our reference cycle with the helper app dialog (set up in
@@ -2351,6 +2224,7 @@ NS_IMETHODIMP nsExternalAppHandler::Cancel(nsresult aReason)
   // Release the listener, to break the reference cycle with it (we are the
   // observer of the listener).
   mDialogProgressListener = nullptr;
+  mTransfer = nullptr;
 
   return NS_OK;
 }

@@ -7,6 +7,7 @@
 #include "nsHashPropertyBag.h"
 #include "nsArray.h"
 #include "nsArrayEnumerator.h"
+#include "nsComponentManagerUtils.h"
 #include "nsIVariant.h"
 #include "nsIProperty.h"
 #include "nsVariant.h"
@@ -16,6 +17,12 @@ nsresult
 NS_NewHashPropertyBag(nsIWritablePropertyBag* *_retval)
 {
     nsRefPtr<nsHashPropertyBag> hpb = new nsHashPropertyBag();
+
+    nsresult rv = hpb->Init();
+    if (NS_FAILED(rv)) {
+        return rv;
+    }
+
     hpb.forget(_retval);
     return NS_OK;
 }
@@ -33,6 +40,13 @@ NS_INTERFACE_MAP_BEGIN(nsHashPropertyBag)
   NS_INTERFACE_MAP_ENTRY(nsIPropertyBag2)
   NS_INTERFACE_MAP_ENTRY(nsIWritablePropertyBag2)
 NS_INTERFACE_MAP_END
+
+nsresult
+nsHashPropertyBag::Init()
+{
+    mPropertyHash.Init();
+    return NS_OK;
+}
 
 NS_IMETHODIMP
 nsHashPropertyBag::HasKey(const nsAString& name, bool *aResult)
@@ -64,8 +78,7 @@ nsHashPropertyBag::GetProperty(const nsAString& name, nsIVariant* *_retval)
 NS_IMETHODIMP
 nsHashPropertyBag::SetProperty(const nsAString& name, nsIVariant *value)
 {
-    if (NS_WARN_IF(!value))
-        return NS_ERROR_INVALID_ARG;
+    NS_ENSURE_ARG_POINTER(value);
 
     mPropertyHash.Put(name, value);
 

@@ -21,16 +21,14 @@
 #include "nsIFormControlFrame.h"
 #include "nsIListControlFrame.h"
 #include "nsISelectControlFrame.h"
+#include "nsIDOMEventListener.h"
 #include "nsAutoPtr.h"
 #include "nsSelectsAreaFrame.h"
 
-// X.h defines KeyPress
-#ifdef KeyPress
-#undef KeyPress
-#endif
-
+class nsIContent;
 class nsIDOMHTMLSelectElement;
 class nsIDOMHTMLOptionsCollection;
+class nsIDOMHTMLOptionElement;
 class nsIComboboxControlFrame;
 class nsPresContext;
 class nsListEventListener;
@@ -59,7 +57,7 @@ public:
 
     // nsIFrame
   NS_IMETHOD HandleEvent(nsPresContext* aPresContext,
-                         mozilla::WidgetGUIEvent* aEvent,
+                         nsGUIEvent* aEvent,
                          nsEventStatus* aEventStatus) MOZ_OVERRIDE;
   
   NS_IMETHOD SetInitialChildList(ChildListID     aListID,

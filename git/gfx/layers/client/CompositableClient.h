@@ -8,7 +8,6 @@
 
 #include <stdint.h>                     // for uint64_t
 #include <vector>                       // for vector
-#include <map>                          // for map
 #include "mozilla/Assertions.h"         // for MOZ_CRASH
 #include "mozilla/RefPtr.h"             // for TemporaryRef, RefCounted
 #include "mozilla/gfx/Types.h"          // for SurfaceFormat
@@ -16,7 +15,6 @@
 #include "mozilla/layers/LayersTypes.h"  // for LayersBackend
 #include "mozilla/layers/PCompositableChild.h"  // for PCompositableChild
 #include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
-#include "gfxASurface.h"                // for gfxContentType
 
 namespace mozilla {
 namespace layers {
@@ -29,7 +27,6 @@ class ImageBridgeChild;
 class CompositableForwarder;
 class CompositableChild;
 class SurfaceDescriptor;
-class TextureClientData;
 
 /**
  * CompositableClient manages the texture-specific logic for composite layers,
@@ -69,7 +66,7 @@ class TextureClientData;
  * where we have a different way of interfacing with the textures - in terms of
  * drawing into the compositable and/or passing its contents to the compostior.
  */
-class CompositableClient : public AtomicRefCounted<CompositableClient>
+class CompositableClient : public RefCounted<CompositableClient>
 {
 public:
   CompositableClient(CompositableForwarder* aForwarder);
@@ -81,18 +78,13 @@ public:
   LayersBackend GetCompositorBackendType() const;
 
   TemporaryRef<DeprecatedTextureClient>
-  CreateDeprecatedTextureClient(DeprecatedTextureClientType aDeprecatedTextureClientType,
-                                gfxContentType aContentType = GFX_CONTENT_SENTINEL);
+  CreateDeprecatedTextureClient(DeprecatedTextureClientType aDeprecatedTextureClientType);
+
+  TemporaryRef<BufferTextureClient>
+  CreateBufferTextureClient(gfx::SurfaceFormat aFormat, TextureFlags aFlags);
 
   virtual TemporaryRef<BufferTextureClient>
-  CreateBufferTextureClient(gfx::SurfaceFormat aFormat,
-                            TextureFlags aFlags = TEXTURE_FLAGS_DEFAULT);
-
-  // If we return a non-null TextureClient, then AsTextureClientDrawTarget will
-  // always be non-null.
-  TemporaryRef<TextureClient>
-  CreateTextureClientForDrawing(gfx::SurfaceFormat aFormat,
-                                TextureFlags aTextureFlags);
+  CreateBufferTextureClient(gfx::SurfaceFormat aFormat);
 
   virtual void SetDescriptorFromReply(TextureIdentifier aTextureId,
                                       const SurfaceDescriptor& aDescriptor)
@@ -119,18 +111,21 @@ public:
 
   /**
    * This identifier is what lets us attach async compositables with a shadow
-   * layer. It is not used if the compositable is used with the regular shadow
+   * layer. It is not used if the compositable is used with the regulat shadow
    * layer forwarder.
-   *
-   * If this returns zero, it means the compositable is not async (it is used
-   * on the main thread).
    */
   uint64_t GetAsyncID() const;
 
   /**
    * Tells the Compositor to create a TextureHost for this TextureClient.
    */
-  virtual bool AddTextureClient(TextureClient* aClient);
+  virtual void AddTextureClient(TextureClient* aClient);
+
+  /**
+   * Tells the Compositor to delete the TextureHost corresponding to this
+   * TextureClient.
+   */
+  virtual void RemoveTextureClient(TextureClient* aClient);
 
   /**
    * A hook for the Compositable to execute whatever it held off for next transaction.
@@ -143,10 +138,11 @@ public:
   virtual void OnDetach() {}
 
 protected:
+  // The textures to destroy in the next transaction;
+  nsTArray<uint64_t> mTexturesToRemove;
+  uint64_t mNextTextureID;
   CompositableChild* mCompositableChild;
   CompositableForwarder* mForwarder;
-
-  friend class CompositableChild;
 };
 
 /**
@@ -178,12 +174,6 @@ public:
   CompositableClient* GetCompositableClient() const
   {
     return mCompositableClient;
-  }
-
-  virtual void ActorDestroy(ActorDestroyReason) MOZ_OVERRIDE {
-    if (mCompositableClient) {
-      mCompositableClient->mCompositableChild = nullptr;
-    }
   }
 
   void SetAsyncID(uint64_t aID) { mID = aID; }

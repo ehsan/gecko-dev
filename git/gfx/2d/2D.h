@@ -53,7 +53,6 @@ class SourceSurface;
 class DataSourceSurface;
 class DrawTarget;
 class DrawEventRecorder;
-class FilterNode;
 
 struct NativeSurface {
   NativeSurfaceType mType;
@@ -75,19 +74,23 @@ struct NativeFont {
  * mCompositionOp - The operator that indicates how the source and destination
  *                  patterns are blended.
  * mAntiAliasMode - The AntiAlias mode used for this drawing operation.
+ * mSnapping      - Whether this operation is snapped to pixel boundaries.
  */
 struct DrawOptions {
   DrawOptions(Float aAlpha = 1.0f,
               CompositionOp aCompositionOp = OP_OVER,
-              AntialiasMode aAntialiasMode = AA_DEFAULT)
+              AntialiasMode aAntialiasMode = AA_DEFAULT,
+              Snapping aSnapping = SNAP_NONE)
     : mAlpha(aAlpha)
     , mCompositionOp(aCompositionOp)
     , mAntialiasMode(aAntialiasMode)
+    , mSnapping(aSnapping)
   {}
 
   Float mAlpha;
   CompositionOp mCompositionOp : 8;
   AntialiasMode mAntialiasMode : 3;
+  Snapping mSnapping : 1;
 };
 
 /*
@@ -243,10 +246,8 @@ class RadialGradientPattern : public Pattern
 {
 public:
   /*
-   * aCenter1 Center of the inner (focal) circle.
-   * aCenter2 Center of the outer circle.
-   * aRadius1 Radius of the inner (focal) circle.
-   * aRadius2 Radius of the outer circle.
+   * aBegin Start of the linear gradient
+   * aEnd End of the linear gradient
    * aStops GradientStops object for this gradient, this should match the
    *        backend type of the draw target this pattern will be used with.
    * aMatrix A matrix that transforms the pattern into user space
@@ -357,11 +358,7 @@ public:
    */
   virtual void MarkDirty() {}
 
-  /*
-   * Returns a DataSourceSurface with the same data as this one, but
-   * guaranteed to have surface->GetType() == SURFACE_DATA.
-   */
-  virtual TemporaryRef<DataSourceSurface> GetDataSurface();
+  virtual TemporaryRef<DataSourceSurface> GetDataSurface() { RefPtr<DataSourceSurface> temp = this; return temp.forget(); }
 };
 
 /* This is an abstract object that accepts path segments. */
@@ -398,7 +395,6 @@ public:
 };
 
 class PathBuilder;
-class FlattenedPath;
 
 /* The path class is used to create (sets of) figures of any shape that can be
  * filled or stroked to a DrawTarget
@@ -406,7 +402,7 @@ class FlattenedPath;
 class Path : public RefCounted<Path>
 {
 public:
-  virtual ~Path();
+  virtual ~Path() {}
   
   virtual BackendType GetBackendType() const = 0;
 
@@ -446,26 +442,10 @@ public:
   virtual Rect GetStrokedBounds(const StrokeOptions &aStrokeOptions,
                                 const Matrix &aTransform = Matrix()) const = 0;
 
-  /* Take the contents of this path and stream it to another sink, this works
-   * regardless of the backend that might be used for the destination sink.
-   */
-  virtual void StreamToSink(PathSink *aSink) const = 0;
-
   /* This gets the fillrule this path's builder was created with. This is not
    * mutable.
    */
   virtual FillRule GetFillRule() const = 0;
-
-  virtual Float ComputeLength();
-
-  virtual Point ComputePointAtLength(Float aLength,
-                                     Point* aTangent = nullptr);
-
-protected:
-  Path();
-  void EnsureFlattenedPath();
-
-  RefPtr<FlattenedPath> mFlattenedPath;
 };
 
 /* The PathBuilder class allows path creation. Once finish is called on the
@@ -523,7 +503,7 @@ public:
    * implementation in some backends, and more efficient implementation in
    * others.
    */
-  virtual void CopyGlyphsToBuilder(const GlyphBuffer &aBuffer, PathBuilder *aBuilder, BackendType aBackendType, const Matrix *aTransformHint = nullptr) = 0;
+  virtual void CopyGlyphsToBuilder(const GlyphBuffer &aBuffer, PathBuilder *aBuilder) = 0;
 
   virtual bool GetFontFileData(FontFileDataOutput, void *) { return false; }
 
@@ -591,15 +571,6 @@ public:
   virtual TemporaryRef<SourceSurface> Snapshot() = 0;
   virtual IntSize GetSize() = 0;
 
-  /**
-   * If possible returns the bits to this DrawTarget for direct manipulation. While
-   * the bits is locked any modifications to this DrawTarget is forbidden.
-   * Release takes the original data pointer for safety.
-   */
-  virtual bool LockBits(uint8_t** aData, IntSize* aSize,
-                        int32_t* aStride, SurfaceFormat* aFormat) { return false; }
-  virtual void ReleaseBits(uint8_t* aData) {}
-
   /* Ensure that the DrawTarget backend has flushed all drawing operations to
    * this draw target. This must be called before using the backing surface of
    * this draw target outside of GFX 2D code.
@@ -622,19 +593,6 @@ public:
                            const Rect &aSource,
                            const DrawSurfaceOptions &aSurfOptions = DrawSurfaceOptions(),
                            const DrawOptions &aOptions = DrawOptions()) = 0;
-
-  /*
-   * Draw the output of a FilterNode to the DrawTarget.
-   *
-   * aNode FilterNode to draw
-   * aSourceRect Source rectangle in FilterNode space to draw
-   * aDestPoint Destination point on the DrawTarget to draw the
-   *            SourceRectangle of the filter output to
-   */
-  virtual void DrawFilter(FilterNode *aNode,
-                          const Rect &aSourceRect,
-                          const Point &aDestPoint,
-                          const DrawOptions &aOptions = DrawOptions()) = 0;
 
   /*
    * Blend a surface to the draw target with a shadow. The shadow is drawn as a
@@ -677,19 +635,6 @@ public:
   virtual void CopySurface(SourceSurface *aSurface,
                            const IntRect &aSourceRect,
                            const IntPoint &aDestination) = 0;
-
-  /*
-   * Same as CopySurface, except uses itself as the source.
-   *
-   * Some backends may be able to optimize this better
-   * than just taking a snapshot and using CopySurface.
-   */
-  virtual void CopyRect(const IntRect &aSourceRect,
-                        const IntPoint &aDestination)
-  {
-    RefPtr<SourceSurface> source = Snapshot();
-    CopySurface(source, aSourceRect, aDestination);
-  }
 
   /*
    * Fill a rectangle on the DrawTarget with a certain source pattern.
@@ -821,9 +766,9 @@ public:
                                                                   SurfaceFormat aFormat) const = 0;
 
   /*
-   * Create a SourceSurface optimized for use with this DrawTarget from an
-   * arbitrary SourceSurface type supported by this backend. This may return
-   * aSourceSurface or some other existing surface.
+   * Create a SourceSurface optimized for use with this DrawTarget from
+   * an arbitrary other SourceSurface. This may return aSourceSurface or some
+   * other existing surface.
    */
   virtual TemporaryRef<SourceSurface> OptimizeSourceSurface(SourceSurface *aSurface) const = 0;
 
@@ -880,14 +825,6 @@ public:
                         uint32_t aNumStops,
                         ExtendMode aExtendMode = EXTEND_CLAMP) const = 0;
 
-  /*
-   * Create a FilterNode object that can be used to apply a filter to various
-   * inputs.
-   *
-   * aType Type of filter node to be created.
-   */
-  virtual TemporaryRef<FilterNode> CreateFilter(FilterType aType) = 0;
-
   const Matrix &GetTransform() const { return mTransform; }
 
   /*
@@ -926,7 +863,7 @@ public:
     return mOpaqueRect;
   }
 
-  virtual void SetPermitSubpixelAA(bool aPermitSubpixelAA) {
+  void SetPermitSubpixelAA(bool aPermitSubpixelAA) {
     mPermitSubpixelAA = aPermitSubpixelAA;
   }
 
@@ -970,10 +907,6 @@ public:
   static bool HasSSE2();
 
   static TemporaryRef<DrawTarget> CreateDrawTargetForCairoSurface(cairo_surface_t* aSurface, const IntSize& aSize);
-
-  static TemporaryRef<SourceSurface>
-    CreateSourceSurfaceForCairoSurface(cairo_surface_t* aSurface,
-                                       SurfaceFormat aFormat);
 
   static TemporaryRef<DrawTarget>
     CreateDrawTarget(BackendType aBackend, const IntSize &aSize, SurfaceFormat aFormat);
@@ -1036,12 +969,7 @@ public:
                                                       GrGLInterface* aGrGLInterface,
                                                       const IntSize &aSize,
                                                       SurfaceFormat aFormat);
-
-  static void
-    SetGlobalSkiaCacheLimits(int aCount, int aSizeInBytes);
 #endif
-
-  static void PurgeAllCaches();
 
 #if defined(USE_SKIA) && defined(MOZ_ENABLE_FREETYPE)
   static TemporaryRef<GlyphRenderingOptions>
@@ -1086,6 +1014,63 @@ private:
 
   static DrawEventRecorder *mRecorder;
 };
+
+#ifdef XP_MACOSX
+/* This is a helper class that let's you borrow a CGContextRef from a
+ * DrawTargetCG. This is used for drawing themed widgets.
+ *
+ * Callers should check the cg member after constructing the object
+ * to see if it succeeded. The DrawTarget should not be used while
+ * the context is borrowed. */
+class BorrowedCGContext
+{
+public:
+  BorrowedCGContext()
+    : cg(nullptr)
+    , mDT(nullptr)
+  { }
+
+  BorrowedCGContext(DrawTarget *aDT)
+    : mDT(aDT)
+  {
+    cg = BorrowCGContextFromDrawTarget(aDT);
+  }
+
+  // We can optionally Init after construction in
+  // case we don't know what the DT will be at construction
+  // time.
+  CGContextRef Init(DrawTarget *aDT)
+  {
+    MOZ_ASSERT(!mDT, "Can't initialize twice!");
+    mDT = aDT;
+    cg = BorrowCGContextFromDrawTarget(aDT);
+    return cg;
+  }
+
+  // The caller needs to call Finish if cg is non-null when
+  // they are done with the context. This is currently explicit
+  // instead of happening implicitly in the destructor to make
+  // what's happening in the caller more clear. It also
+  // let's you resume using the DrawTarget in the same scope.
+  void Finish()
+  {
+    if (cg) {
+      ReturnCGContextToDrawTarget(mDT, cg);
+      cg = nullptr;
+    }
+  }
+
+  ~BorrowedCGContext() {
+    MOZ_ASSERT(!cg);
+  }
+
+  CGContextRef cg;
+private:
+  static CGContextRef BorrowCGContextFromDrawTarget(DrawTarget *aDT);
+  static void ReturnCGContextToDrawTarget(DrawTarget *aDT, CGContextRef cg);
+  DrawTarget *mDT;
+};
+#endif
 
 }
 }

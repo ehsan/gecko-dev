@@ -3,6 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "./../mozilla-config.h"        // for MOZ_X11
 #include "BasicLayersImpl.h"            // for FillWithMask, etc
 #include "ImageContainer.h"             // for AutoLockImage, etc
 #include "ImageLayers.h"                // for ImageLayer
@@ -12,6 +13,7 @@
 #include "gfxASurface.h"                // for gfxASurface, etc
 #include "gfxContext.h"                 // for gfxContext
 #include "gfxPattern.h"                 // for gfxPattern, etc
+#include "gfxPoint.h"                   // for gfxIntSize
 #include "gfxUtils.h"                   // for gfxUtils
 #ifdef MOZ_X11
 #include "gfxXlibSurface.h"             // for gfxXlibSurface
@@ -24,7 +26,6 @@
 #include "nsRect.h"                     // for nsIntRect
 #include "nsRegion.h"                   // for nsIntRegion
 #include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
-#include "mozilla/gfx/Point.h"          // for IntSize
 
 using namespace mozilla::gfx;
 
@@ -69,7 +70,7 @@ protected:
                           float aOpacity,
                           Layer* aMaskLayer);
 
-  gfx::IntSize mSize;
+  gfxIntSize mSize;
 };
 
 void
@@ -94,7 +95,7 @@ BasicImageLayer::GetAndPaintCurrentImage(gfxContext* aContext,
   nsRefPtr<gfxASurface> surface;
   AutoLockImage autoLock(mContainer, getter_AddRefs(surface));
   Image *image = autoLock.GetImage();
-  gfx::IntSize size = mSize = autoLock.GetSize();
+  gfxIntSize size = mSize = autoLock.GetSize();
 
   if (!surface || surface->CairoStatus()) {
     return nullptr;
@@ -110,9 +111,7 @@ BasicImageLayer::GetAndPaintCurrentImage(gfxContext* aContext,
   // The visible region can extend outside the image, so just draw
   // within the image bounds.
   if (aContext) {
-    gfxContext::GraphicsOperator mixBlendMode = GetEffectiveMixBlendMode();
-    AutoSetOperator setOptimizedOperator(aContext, mixBlendMode != gfxContext::OPERATOR_OVER ? mixBlendMode : GetOperator());
-
+    AutoSetOperator setOperator(aContext, GetOperator());
     PaintContext(pat,
                  nsIntRegion(nsIntRect(0, 0, size.width, size.height)),
                  aOpacity, aContext, aMaskLayer);
@@ -139,7 +138,7 @@ PaintContext(gfxPattern* aPattern,
   // correctness and use NONE.
   if (aContext->IsCairo()) {
     nsRefPtr<gfxASurface> target = aContext->CurrentSurface();
-    if (target->GetType() == gfxSurfaceTypeXlib &&
+    if (target->GetType() == gfxASurface::SurfaceTypeXlib &&
         static_cast<gfxXlibSurface*>(target.get())->IsPadSlow()) {
       extend = gfxPattern::EXTEND_NONE;
     }
@@ -166,7 +165,7 @@ BasicImageLayer::GetAsSurface(gfxASurface** aSurface,
     return false;
   }
 
-  gfx::IntSize dontCare;
+  gfxIntSize dontCare;
   nsRefPtr<gfxASurface> surface = mContainer->GetCurrentAsSurface(&dontCare);
   *aSurface = surface.forget().get();
   return true;

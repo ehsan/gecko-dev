@@ -4,7 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-[Pref="dom.telephony.enabled"]
 interface TelephonyCallGroup : EventTarget {
   readonly attribute CallsList calls;
 
@@ -25,11 +24,16 @@ interface TelephonyCallGroup : EventTarget {
 
   readonly attribute DOMString state;
 
+  [SetterThrows]
   attribute EventHandler onstatechange;
+  [SetterThrows]
   attribute EventHandler onconnected;
+  [SetterThrows]
   attribute EventHandler onholding;
+  [SetterThrows]
   attribute EventHandler onheld;
+  [SetterThrows]
   attribute EventHandler onresuming;
+  [SetterThrows]
   attribute EventHandler oncallschanged;
-  attribute EventHandler onerror;
 };

@@ -26,12 +26,7 @@ var StartUI = {
     document.getElementById("bcast_preciseInput").setAttribute("input",
       this.chromeWin.InputSourceHelper.isPrecise ? "precise" : "imprecise");
 
-    // NOTE: location.search doesn't work for about: pages
-    if (location.href.indexOf("?firstrun") > 0) {
-      document.loadOverlay("chrome://browser/content/FirstRunOverlay.xul", null);
-    }
-
-    this._adjustDOMforViewState(this.chromeWin.ContentAreaObserver.viewstate);
+    this._adjustDOMforViewState();
 
     TopSitesStartView.init();
     BookmarksStartView.init();
@@ -40,9 +35,6 @@ var StartUI = {
 
     this.chromeWin.addEventListener("MozPrecisePointer", this, true);
     this.chromeWin.addEventListener("MozImprecisePointer", this, true);
-    this.chromeWin.addEventListener("MozAfterPaint", this, true);
-    this.chromeWin.Elements.panelUI.addEventListener("ToolPanelHidden", this, false);
-
     Services.obs.addObserver(this, "metro_viewstate_changed", false);
   },
 
@@ -70,8 +62,11 @@ var StartUI = {
   onClick: function onClick(aEvent) {
     // If someone clicks / taps in empty grid space, take away
     // focus from the nav bar edit so the soft keyboard will hide.
-    this.chromeWin.BrowserUI.blurNavBar();
-
+    if (this.chromeWin.BrowserUI.blurNavBar()) {
+      // Advanced notice to CAO, so we can shuffle the nav bar in advance
+      // of the keyboard transition.
+      this.chromeWin.ContentAreaObserver.navBarWillBlur();
+    }
     if (aEvent.button == 0) {
       this.chromeWin.ContextUI.dismissTabs();
     }
@@ -87,10 +82,6 @@ var StartUI = {
       expandedSection.removeAttribute("expanded")
 
     section.setAttribute("expanded", "true");
-  },
-
-  _adjustDOMforViewState: function(aState) {
-    document.getElementById("bcast_windowState").setAttribute("viewstate", aState);
   },
 
   handleEvent: function handleEvent(aEvent) {
@@ -115,15 +106,33 @@ var StartUI = {
         aEvent.preventDefault();
         aEvent.stopPropagation();
         break;
-      case "ToolPanelHidden":
-        // After opening panel UI (console) set disableZoom again.
-        this.chromeWin.addEventListener("MozAfterPaint", this, true);
-        break;
+    }
+  },
 
-      case "MozAfterPaint":
-        this._disableZoom();
-        this.chromeWin.removeEventListener("MozAfterPaint", this, true);
-        break;
+  _adjustDOMforViewState: function(aState) {
+    let currViewState = aState;
+    if (!currViewState && this.chromeWin.MetroUtils.immersive) {
+      switch (this.chromeWin.MetroUtils.snappedState) {
+        case Ci.nsIWinMetroUtils.fullScreenLandscape:
+          currViewState = "landscape";
+          break;
+        case Ci.nsIWinMetroUtils.fullScreenPortrait:
+          currViewState = "portrait";
+          break;
+        case Ci.nsIWinMetroUtils.filled:
+          currViewState = "filled";
+          break;
+        case Ci.nsIWinMetroUtils.snapped:
+          currViewState = "snapped";
+          break;
+      }
+    }
+
+    document.getElementById("bcast_windowState").setAttribute("viewstate", currViewState);
+    if (currViewState == "snapped") {
+      document.getElementById("start-topsites-grid").removeAttribute("tiletype");
+    } else {
+      document.getElementById("start-topsites-grid").setAttribute("tiletype", "thumbnail");
     }
   },
 
@@ -133,24 +142,5 @@ var StartUI = {
         this._adjustDOMforViewState(aData);
         break;
     }
-  },
-
-  _disableZoom: function() {
-    let utils = Util.getWindowUtils(window);
-    let viewId;
-    try {
-      viewId = utils.getViewId(document.documentElement);
-    } catch(e) {
-      return;
-    }
-
-    let presShellId = {};
-    utils.getPresShellId(presShellId);
-
-    let notificationData = [
-      presShellId.value,
-      viewId].join(",");
-
-    Services.obs.notifyObservers(null, "apzc-disable-zoom", notificationData);
   }
 };

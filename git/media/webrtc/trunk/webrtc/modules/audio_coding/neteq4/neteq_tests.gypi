@@ -15,7 +15,7 @@
         'NetEq4',
         'NetEq4TestTools',
         '<(webrtc_root)/test/test.gyp:test_support_main',
-        '<(DEPTH)/third_party/gflags/gflags.gyp:gflags',
+        '<(DEPTH)/third_party/google-gflags/google-gflags.gyp:google-gflags',
       ],
       'sources': [
         'tools/neteq_rtpplay.cc',
@@ -36,7 +36,7 @@
         'iLBC',
         'iSAC',
         'CNG',
-        '<(webrtc_root)/common_audio/common_audio.gyp:common_audio',
+        '<(webrtc_root)/common_audio/common_audio.gyp:vad',
       ],
       'defines': [
         'CODEC_ILBC',
@@ -134,20 +134,6 @@
       ],
       'sources': [
         'test/rtp_to_text.cc',
-      ],
-    },
-
-    {
-      'target_name': 'neteq4_speed_test',
-      'type': 'executable',
-      'dependencies': [
-        'NetEq4',
-        'neteq_unittest_tools',
-        'PCM16B',
-        '<(DEPTH)/third_party/gflags/gflags.gyp:gflags',
-      ],
-      'sources': [
-        'test/neteq_speed_test.cc',
       ],
     },
 

@@ -1,5 +1,4 @@
 #include "gdb-tests.h"
-#include "jsapi.h"
 
 FRAGMENT(jsid, simple) {
   JS::Rooted<JSString *> string(cx, JS_NewStringCopyZ(cx, "moon"));

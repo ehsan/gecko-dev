@@ -5,11 +5,10 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 XPIDL_SOURCES += [
-    'nsIDomainPolicy.idl',
     'nsIPrincipal.idl',
     'nsIScriptSecurityManager.idl',
     'nsISecurityCheckedComponent.idl',
 ]
 
-XPIDL_MODULE = 'caps'
+MODULE = 'caps'
 

@@ -5,7 +5,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "js/OldDebugAPI.h"
+#include "jsdbgapi.h"
+
 #include "jsapi-tests/tests.h"
 
 const char code[] =
@@ -22,15 +23,22 @@ catch (e)          \n\
 }\n\
 //@ sourceMappingURL=http://example.com/path/to/source-map.json";
 
+
+static bool
+CharsMatch(const jschar *p, const char *q) {
+    while (*q) {
+        if (*p++ != *q++)
+            return false;
+    }
+    return true;
+}
+
 // Bug 670958 - fix JS_GetScriptLineExtent, among others
 BEGIN_TEST(testScriptInfo)
 {
     unsigned startLine = 1000;
 
-    JS::CompileOptions options(cx);
-    options.setFileAndLine(__FILE__, startLine);
-    JS::RootedScript script(cx, JS_CompileScript(cx, global, code, strlen(code),
-                                                 options));
+    JS::RootedScript script(cx, JS_CompileScript(cx, global, code, strlen(code), __FILE__, startLine));
 
     CHECK(script);
 
@@ -43,15 +51,6 @@ BEGIN_TEST(testScriptInfo)
     CHECK(sourceMap);
     CHECK(CharsMatch(sourceMap, "http://example.com/path/to/source-map.json"));
 
-    return true;
-}
-static bool
-CharsMatch(const jschar *p, const char *q)
-{
-    while (*q) {
-        if (*p++ != *q++)
-            return false;
-    }
     return true;
 }
 END_TEST(testScriptInfo)

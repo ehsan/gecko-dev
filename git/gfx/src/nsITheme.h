@@ -29,12 +29,10 @@ class nsIWidget;
 // IID for the nsITheme interface
 // {b0f3efe9-0bd4-4f6b-8daa-0ec7f6006822}
  #define NS_ITHEME_IID     \
-{ 0x3ca584e6, 0xdcd6, 0x485b, \
-  { 0x88, 0x8c, 0xe3, 0x47, 0x3d, 0xe4, 0xd9, 0x58 } }
+{ 0xb0f3efe9, 0x0bd4, 0x4f6b, { 0x8d, 0xaa, 0x0e, 0xc7, 0xf6, 0x00, 0x68, 0x22 } }
 // {D930E29B-6909-44e5-AB4B-AF10D6923705}
 #define NS_THEMERENDERER_CID \
-{ 0x9020805b, 0x14a3, 0x4125, \
-  { 0xa5, 0x63, 0x4a, 0x8c, 0x5d, 0xe0, 0xa9, 0xa3 } }
+{ 0xd930e29b, 0x6909, 0x44e5, { 0xab, 0x4b, 0xaf, 0x10, 0xd6, 0x92, 0x37, 0x5 } }
 
 /**
  * nsITheme is a service that provides platform-specific native
@@ -136,9 +134,6 @@ public:
 
   NS_IMETHOD ThemeChanged()=0;
 
-  virtual bool WidgetAppearanceDependsOnWindowFocus(uint8_t aWidgetType)
-  { return false; }
-
   /**
    * Can the nsITheme implementation handle this widget?
    */
@@ -157,12 +152,6 @@ public:
     * Should we insert a dropmarker inside of combobox button?
    */
   virtual bool ThemeNeedsComboboxDropmarker()=0;
-
-  /**
-   * Should we hide scrollbars?
-   */
-  virtual bool ShouldHideScrollbars()
-  { return false; }
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsITheme, NS_ITHEME_IID)

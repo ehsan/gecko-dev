@@ -213,7 +213,7 @@ class ReftestServer:
         self._process = self._automation.Process([xpcshell] + args, env = env)
         pid = self._process.pid
         if pid < 0:
-            print "TEST-UNEXPECTED-FAIL | remotereftests.py | Error starting server."
+            print "Error starting server."
             return 2
         self._automation.log.info("INFO | remotereftests.py | Server pid: %d", pid)
 
@@ -233,7 +233,7 @@ class ReftestServer:
             time.sleep(1)
             i += 1
         else:
-            print "TEST-UNEXPECTED-FAIL | remotereftests.py | Timed out while waiting for server startup."
+            print "Timed out while waiting for server startup."
             self.stop()
             return 1
 
@@ -368,10 +368,11 @@ class RemoteReftest(RefTest):
         prefs["extensions.getAddons.search.url"] = "http://127.0.0.1:8888/extensions-dummy/repositorySearchURL"
         # Make sure that opening the plugins check page won't hit the network
         prefs["plugins.update.url"] = "http://127.0.0.1:8888/plugins-dummy/updateCheckURL"
-        prefs["layout.css.devPixelsPerPx"] = "1.0"
 
-        # Disable skia-gl: see bug 907351
-        prefs["gfx.canvas.azure.accelerated"] = False
+        # Workaround for jsreftests.
+        if options.enablePrivilege:
+            prefs["capability.principal.codebase.p2.granted"] = "UniversalXPConnect"
+            prefs["capability.principal.codebase.p2.id"] = "http://%s:%s" % (options.remoteWebServer, options.httpPort)
 
         # Set the extra prefs.
         profile.set_preferences(prefs)
@@ -442,7 +443,7 @@ def main(args):
         else:
             dm = droid.DroidSUT(options.deviceIP, options.devicePort, deviceRoot=options.remoteTestRoot)
     except devicemanager.DMError:
-        print "Automation Error: exception while initializing devicemanager.  Most likely the device is not in a testable state."
+        print "Error: exception while initializing devicemanager.  Most likely the device is not in a testable state."
         return 1
 
     automation.setDeviceManager(dm)

@@ -6,11 +6,14 @@
 
 #include "jit/EdgeCaseAnalysis.h"
 
+#include "jit/Ion.h"
+#include "jit/IonBuilder.h"
+#include "jit/IonSpewer.h"
 #include "jit/MIR.h"
 #include "jit/MIRGraph.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 EdgeCaseAnalysis::EdgeCaseAnalysis(MIRGenerator *mir, MIRGraph &graph)
   : mir(mir), graph(graph)
@@ -30,7 +33,6 @@ EdgeCaseAnalysis::analyzeLate()
             iter->setId(nextId++);
             iter->analyzeEdgeCasesForward();
         }
-        block->lastIns()->setId(nextId++);
     }
 
     for (PostorderIterator block(graph.poBegin()); block != graph.poEnd(); block++) {

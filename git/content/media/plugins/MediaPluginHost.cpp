@@ -14,15 +14,8 @@
 #include "nsIGfxInfo.h"
 #include "gfxCrashReporterUtils.h"
 #include "prmem.h"
-#include "prlink.h"
-#include "MediaResourceServer.h"
-#include "nsServiceManagerUtils.h"
 
 #include "MPAPI.h"
-
-#if defined(ANDROID) && !defined(MOZ_WIDGET_GONK)
-#include "nsIPropertyBag2.h"
-#endif
 
 #if defined(ANDROID) || defined(MOZ_WIDGET_GONK)
 #include "android/log.h"
@@ -34,15 +27,46 @@
 using namespace MPAPI;
 
 Decoder::Decoder() :
-  mResource(nullptr), mPrivate(nullptr)
+  mResource(NULL), mPrivate(NULL)
 {
 }
 
 namespace mozilla {
 
-static char* GetResource(Decoder *aDecoder)
+static MediaResource *GetResource(Decoder *aDecoder)
 {
-  return static_cast<char*>(aDecoder->mResource);
+  return reinterpret_cast<MediaResource *>(aDecoder->mResource);
+}
+
+static bool Read(Decoder *aDecoder, char *aBuffer, int64_t aOffset, uint32_t aCount, uint32_t* aBytes)
+{
+  MediaResource *resource = GetResource(aDecoder);
+  if (aOffset != resource->Tell()) {
+    nsresult rv = resource->Seek(nsISeekableStream::NS_SEEK_SET, aOffset);
+    if (NS_FAILED(rv)) {
+      return false;
+    }
+  }
+  nsresult rv = resource->Read(aBuffer, aCount, aBytes);
+  if (NS_FAILED(rv)) {
+    return false;
+  }
+  return true;
+}
+
+static uint64_t GetLength(Decoder *aDecoder)
+{
+  return GetResource(aDecoder)->GetLength();
+}
+
+static void SetMetaDataReadMode(Decoder *aDecoder)
+{
+  GetResource(aDecoder)->SetReadMode(MediaCacheStream::MODE_METADATA);
+}
+
+static void SetPlaybackReadMode(Decoder *aDecoder)
+{
+  GetResource(aDecoder)->SetReadMode(MediaCacheStream::MODE_PLAYBACK);
 }
 
 class GetIntPrefEvent : public nsRunnable {
@@ -68,10 +92,10 @@ static bool GetIntPref(const char* aPref, int32_t* aResult)
 }
 
 static PluginHost sPluginHost = {
-  nullptr,
-  nullptr,
-  nullptr,
-  nullptr,
+  Read,
+  GetLength,
+  SetMetaDataReadMode,
+  SetPlaybackReadMode,
   GetIntPref
 };
 
@@ -113,6 +137,9 @@ static bool IsOmxSupported()
 // nullptr is returned if Omx decoding is not supported on the device,
 static const char* GetOmxLibraryName()
 {
+  if (!IsOmxSupported())
+    return nullptr;
+
 #if defined(ANDROID) && !defined(MOZ_WIDGET_GONK)
   nsCOMPtr<nsIPropertyBag2> infoService = do_GetService("@mozilla.org/system-info;1");
   NS_ASSERTION(infoService, "Could not find a system info service");
@@ -141,18 +168,19 @@ static const char* GetOmxLibraryName()
     ALOG("Android Manufacturer is: %s", NS_LossyConvertUTF16toASCII(manufacturer).get());
   }
 
-  nsAutoString hardware;
-  rv = infoService->GetPropertyAsAString(NS_LITERAL_STRING("hardware"), hardware);
-  if (NS_SUCCEEDED(rv)) {
-    ALOG("Android Hardware is: %s", NS_LossyConvertUTF16toASCII(hardware).get());
+  if (version >= 16 && manufacturer.Find("HTC") == 0) {
+    return "libomxpluginjb-htc.so";
   }
-#endif
-
-  if (!IsOmxSupported())
-    return nullptr;
-
-#if defined(ANDROID) && !defined(MOZ_WIDGET_GONK)
-  if (version == 13 || version == 12 || version == 11) {
+  else if (version == 15 &&
+      (device.Find("LT28", false) == 0 ||
+       device.Find("LT26", false) == 0 ||
+       device.Find("LT22", false) == 0 ||
+       device.Find("IS12", false) == 0 ||
+       device.Find("MT27", false) == 0)) {
+    // Sony Ericsson devices running ICS
+    return "libomxpluginsony.so";
+  }
+  else if (version == 13 || version == 12 || version == 11) {
     return "libomxpluginhc.so";
   }
   else if (version == 10 && release_version >= NS_LITERAL_STRING("2.3.6")) {
@@ -193,13 +221,11 @@ static const char* GetOmxLibraryName()
 MediaPluginHost::MediaPluginHost() {
   MOZ_COUNT_CTOR(MediaPluginHost);
 
-  mResourceServer = MediaResourceServer::Start();
-
   const char* name = GetOmxLibraryName();
   ALOG("Loading OMX Plugin: %s", name ? name : "nullptr");
   if (name) {
     char *path = PR_GetLibraryFilePathname("libxul.so", (PRFuncPtr) GetOmxLibraryName);
-    PRLibrary *lib = nullptr;
+    PRLibrary *lib = NULL;
     if (path) {
       nsAutoCString libpath(path);
       PR_Free(path);
@@ -224,7 +250,6 @@ MediaPluginHost::MediaPluginHost() {
 }
 
 MediaPluginHost::~MediaPluginHost() {
-  mResourceServer->Stop();
   MOZ_COUNT_DTOR(MediaPluginHost);
 }
 
@@ -252,6 +277,7 @@ MPAPI::Decoder *MediaPluginHost::CreateDecoder(MediaResource *aResource, const n
   if (!decoder) {
     return nullptr;
   }
+  decoder->mResource = aResource;
 
   const char *chars;
   size_t len = NS_CStringGetData(aMimeType, &chars, nullptr);
@@ -261,12 +287,6 @@ MPAPI::Decoder *MediaPluginHost::CreateDecoder(MediaResource *aResource, const n
     if (!plugin->CanDecode(chars, len, &codecs)) {
       continue;
     }
-
-    nsCString url;
-    nsresult rv = mResourceServer->AddResource(aResource, url);
-    if (NS_FAILED (rv)) continue;
-
-    decoder->mResource = strdup(url.get());
     if (plugin->CreateDecoder(&sPluginHost, decoder, chars, len)) {
       aResource->AddRef();
       return decoder.forget();
@@ -279,12 +299,11 @@ MPAPI::Decoder *MediaPluginHost::CreateDecoder(MediaResource *aResource, const n
 void MediaPluginHost::DestroyDecoder(Decoder *aDecoder)
 {
   aDecoder->DestroyDecoder(aDecoder);
-  char* resource = GetResource(aDecoder);
+  MediaResource* resource = GetResource(aDecoder);
   if (resource) {
     // resource *shouldn't* be null, but check anyway just in case the plugin
     // decoder does something stupid.
-    mResourceServer->RemoveResource(nsCString(resource));
-    free(resource);
+    resource->Release();
   }
   delete aDecoder;
 }

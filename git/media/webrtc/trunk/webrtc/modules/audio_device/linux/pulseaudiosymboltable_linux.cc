@@ -25,11 +25,11 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "webrtc/modules/audio_device/linux/pulseaudiosymboltable_linux.h"
+#include "pulseaudiosymboltable_linux.h"
 
 namespace webrtc_adm_linux_pulse {
 
-#if defined(__OpenBSD__) || defined(WEBRTC_GONK)
+#ifdef __OpenBSD__
 LATE_BINDING_SYMBOL_TABLE_DEFINE_BEGIN(PulseAudioSymbolTable, "libpulse.so")
 #else
 LATE_BINDING_SYMBOL_TABLE_DEFINE_BEGIN(PulseAudioSymbolTable, "libpulse.so.0")

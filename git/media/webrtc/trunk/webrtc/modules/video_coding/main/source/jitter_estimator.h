@@ -11,11 +11,17 @@
 #ifndef WEBRTC_MODULES_VIDEO_CODING_JITTER_ESTIMATOR_H_
 #define WEBRTC_MODULES_VIDEO_CODING_JITTER_ESTIMATOR_H_
 
-#include "webrtc/modules/video_coding/main/source/rtt_filter.h"
-#include "webrtc/typedefs.h"
+#include "typedefs.h"
+#include "rtt_filter.h"
 
 namespace webrtc
 {
+
+enum VCMJitterEstimateMode
+{
+    kMaxEstimate,
+    kLastEstimate,
+};
 
 class VCMJitterEstimator
 {
@@ -57,6 +63,11 @@ public:
     void UpdateRtt(uint32_t rttMs);
 
     void UpdateMaxFrameSize(uint32_t frameSizeBytes);
+
+    // Set a max filter on the jitter estimate by setting an initial
+    // non-zero delay. When set to zero (default), the last jitter
+    // estimate will be used.
+    void SetMaxJitterEstimate(uint32_t initial_delay_ms);
 
     // A constant describing the delay from the jitter buffer
     // to the delay on the receiving side which is not accounted
@@ -144,11 +155,13 @@ private:
     uint32_t        _nackCount;            // Keeps track of the number of nacks received,
                                                  // but never goes above _nackLimit
     VCMRttFilter          _rttFilter;
+    VCMJitterEstimateMode _jitterEstimateMode;
+    int                   _maxJitterEstimateMs;
 
     enum { kStartupDelaySamples = 30 };
     enum { kFsAccuStartupSamples = 5 };
 };
 
-}  // namespace webrtc
+} // namespace webrtc
 
 #endif // WEBRTC_MODULES_VIDEO_CODING_JITTER_ESTIMATOR_H_

@@ -30,7 +30,8 @@
 #include "hb-private.hh"
 
 #include "hb-ot-map-private.hh"
-#include "hb-ot-layout-private.hh"
+
+
 
 
 
@@ -66,7 +67,7 @@ struct hb_ot_shape_planner_t
   hb_ot_map_builder_t map;
 
   hb_ot_shape_planner_t (const hb_shape_plan_t *master_plan) :
-			 face (master_plan->face_unsafe),
+			 face (master_plan->face),
 			 props (master_plan->props),
 			 shaper (NULL),
 			 map (face, &props) {}

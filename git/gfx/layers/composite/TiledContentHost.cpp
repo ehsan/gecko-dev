@@ -28,7 +28,7 @@ void
 TiledLayerBufferComposite::Upload(const BasicTiledLayerBuffer* aMainMemoryTiledBuffer,
                                   const nsIntRegion& aNewValidRegion,
                                   const nsIntRegion& aInvalidateRegion,
-                                  const CSSToScreenScale& aResolution)
+                                  const gfxSize& aResolution)
 {
 #ifdef GFX_TILEDLAYER_PREF_WARNINGS
   printf_stderr("Upload %i, %i, %i, %i\n", aInvalidateRegion.GetBounds().x, aInvalidateRegion.GetBounds().y, aInvalidateRegion.GetBounds().width, aInvalidateRegion.GetBounds().height);
@@ -80,13 +80,13 @@ TiledContentHost::PaintedTiledLayerBuffer(ISurfaceAllocator* aAllocator,
                                           const SurfaceDescriptorTiles& aTiledDescriptor)
 {
   if (aTiledDescriptor.resolution() < 1) {
-    mLowPrecisionMainMemoryTiledBuffer = BasicTiledLayerBuffer::OpenDescriptor(aAllocator, aTiledDescriptor, nullptr);
+    mLowPrecisionMainMemoryTiledBuffer = BasicTiledLayerBuffer::OpenDescriptor(aAllocator, aTiledDescriptor);
     mLowPrecisionRegionToUpload.Or(mLowPrecisionRegionToUpload,
                                    mLowPrecisionMainMemoryTiledBuffer.GetPaintedRegion());
     mLowPrecisionMainMemoryTiledBuffer.ClearPaintedRegion();
     mPendingLowPrecisionUpload = true;
   } else {
-    mMainMemoryTiledBuffer = BasicTiledLayerBuffer::OpenDescriptor(aAllocator, aTiledDescriptor, nullptr);
+    mMainMemoryTiledBuffer = BasicTiledLayerBuffer::OpenDescriptor(aAllocator, aTiledDescriptor);
     mRegionToUpload.Or(mRegionToUpload, mMainMemoryTiledBuffer.GetPaintedRegion());
     mMainMemoryTiledBuffer.ClearPaintedRegion();
     mPendingUpload = true;
@@ -146,6 +146,7 @@ void
 TiledContentHost::Composite(EffectChain& aEffectChain,
                             float aOpacity,
                             const gfx::Matrix4x4& aTransform,
+                            const gfx::Point& aOffset,
                             const gfx::Filter& aFilter,
                             const gfx::Rect& aClipRect,
                             const nsIntRegion* aVisibleRegion /* = nullptr */,
@@ -163,8 +164,8 @@ TiledContentHost::Composite(EffectChain& aEffectChain,
 
   RenderLayerBuffer(mLowPrecisionVideoMemoryTiledBuffer,
                     mLowPrecisionVideoMemoryTiledBuffer.GetValidRegion(), aEffectChain, aOpacity,
-                    aFilter, aClipRect, aLayerProperties->mValidRegion, visibleRect, aTransform);
-  RenderLayerBuffer(mVideoMemoryTiledBuffer, aLayerProperties->mValidRegion, aEffectChain, aOpacity,
+                    aOffset, aFilter, aClipRect, aLayerProperties->mValidRegion, visibleRect, aTransform);
+  RenderLayerBuffer(mVideoMemoryTiledBuffer, aLayerProperties->mValidRegion, aEffectChain, aOpacity, aOffset,
                     aFilter, aClipRect, nsIntRegion(), visibleRect, aTransform);
 }
 
@@ -174,6 +175,7 @@ TiledContentHost::RenderTile(const TiledTexture& aTile,
                              EffectChain& aEffectChain,
                              float aOpacity,
                              const gfx::Matrix4x4& aTransform,
+                             const gfx::Point& aOffset,
                              const gfx::Filter& aFilter,
                              const gfx::Rect& aClipRect,
                              const nsIntRegion& aScreenRegion,
@@ -184,10 +186,6 @@ TiledContentHost::RenderTile(const TiledTexture& aTile,
 
   RefPtr<TexturedEffect> effect =
     CreateTexturedEffect(aTile.mDeprecatedTextureHost, aFilter);
-  if (!effect) {
-    return;
-  }
-
   if (aTile.mDeprecatedTextureHost->Lock()) {
     aEffectChain.mPrimaryEffect = effect;
   } else {
@@ -204,9 +202,9 @@ TiledContentHost::RenderTile(const TiledTexture& aTile,
                                   textureRect.y / aTextureBounds.height,
                                   textureRect.width / aTextureBounds.width,
                                   textureRect.height / aTextureBounds.height);
-    mCompositor->DrawQuad(graphicsRect, aClipRect, aEffectChain, aOpacity, aTransform);
+    mCompositor->DrawQuad(graphicsRect, aClipRect, aEffectChain, aOpacity, aTransform, aOffset);
     mCompositor->DrawDiagnostics(DIAGNOSTIC_CONTENT|DIAGNOSTIC_TILE,
-                                 graphicsRect, aClipRect, aTransform);
+                                 graphicsRect, aClipRect, aTransform, aOffset);
   }
 
   aTile.mDeprecatedTextureHost->Unlock();
@@ -217,6 +215,7 @@ TiledContentHost::RenderLayerBuffer(TiledLayerBufferComposite& aLayerBuffer,
                                     const nsIntRegion& aValidRegion,
                                     EffectChain& aEffectChain,
                                     float aOpacity,
+                                    const gfx::Point& aOffset,
                                     const gfx::Filter& aFilter,
                                     const gfx::Rect& aClipRect,
                                     const nsIntRegion& aMaskRegion,
@@ -228,13 +227,14 @@ TiledContentHost::RenderLayerBuffer(TiledLayerBufferComposite& aLayerBuffer,
     return;
   }
   float resolution = aLayerBuffer.GetResolution();
-  gfx::Size layerScale(1, 1);
+  gfxSize layerScale(1, 1);
   // We assume that the current frame resolution is the one used in our primary
   // layer buffer. Compensate for a changing frame resolution.
   if (aLayerBuffer.GetFrameResolution() != mVideoMemoryTiledBuffer.GetFrameResolution()) {
-    const CSSToScreenScale& layerResolution = aLayerBuffer.GetFrameResolution();
-    const CSSToScreenScale& localResolution = mVideoMemoryTiledBuffer.GetFrameResolution();
-    layerScale.width = layerScale.height = layerResolution.scale / localResolution.scale;
+    const gfxSize& layerResolution = aLayerBuffer.GetFrameResolution();
+    const gfxSize& localResolution = mVideoMemoryTiledBuffer.GetFrameResolution();
+    layerScale.width = layerResolution.width / localResolution.width;
+    layerScale.height = layerResolution.height / localResolution.height;
     aVisibleRect.ScaleRoundOut(layerScale.width, layerScale.height);
   }
   aTransform.Scale(1/(resolution * layerScale.width),
@@ -276,7 +276,7 @@ TiledContentHost::RenderLayerBuffer(TiledLayerBufferComposite& aLayerBuffer,
           nsIntPoint tileOffset((x - tileStartX) * resolution,
                                 (y - tileStartY) * resolution);
           uint32_t tileSize = aLayerBuffer.GetTileLength();
-          RenderTile(tileTexture, aEffectChain, aOpacity, aTransform, aFilter, aClipRect, tileDrawRegion,
+          RenderTile(tileTexture, aEffectChain, aOpacity, aTransform, aOffset, aFilter, aClipRect, tileDrawRegion,
                      tileOffset, nsIntSize(tileSize, tileSize));
         }
       }
@@ -289,7 +289,7 @@ TiledContentHost::RenderLayerBuffer(TiledLayerBufferComposite& aLayerBuffer,
   gfx::Rect rect(aVisibleRect.x, aVisibleRect.y,
                  aVisibleRect.width, aVisibleRect.height);
   GetCompositor()->DrawDiagnostics(DIAGNOSTIC_CONTENT,
-                                   rect, aClipRect, aTransform);
+                                   rect, aClipRect, aTransform, aOffset);
 }
 
 void
@@ -300,8 +300,7 @@ TiledTexture::Validate(gfxReusableSurfaceWrapper* aReusableSurface, Compositor* 
     // convert placeholder tile to a real tile
     mDeprecatedTextureHost = DeprecatedTextureHost::CreateDeprecatedTextureHost(SurfaceDescriptor::Tnull_t,
                                                   TEXTURE_HOST_TILED,
-                                                  flags,
-                                                  nullptr);
+                                                  flags);
     mDeprecatedTextureHost->SetCompositor(aCompositor);
     flags |= TEXTURE_NEW_TILE;
   }
@@ -309,6 +308,7 @@ TiledTexture::Validate(gfxReusableSurfaceWrapper* aReusableSurface, Compositor* 
   mDeprecatedTextureHost->Update(aReusableSurface, flags, gfx::IntSize(aSize, aSize));
 }
 
+#ifdef MOZ_LAYERS_HAVE_LOG
 void
 TiledContentHost::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
@@ -316,6 +316,7 @@ TiledContentHost::PrintInfo(nsACString& aTo, const char* aPrefix)
   aTo += nsPrintfCString("TiledContentHost (0x%p)", this);
 
 }
+#endif
 
 #ifdef MOZ_DUMP_PAINTING
 void
@@ -330,16 +331,16 @@ TiledContentHost::Dump(FILE* aFile,
   TiledLayerBufferComposite::Iterator it = mVideoMemoryTiledBuffer.TilesBegin();
   TiledLayerBufferComposite::Iterator stop = mVideoMemoryTiledBuffer.TilesEnd();
   if (aDumpHtml) {
-    fprintf_stderr(aFile, "<ul>");
+    fprintf(aFile, "<ul>");
   }
   for (;it != stop; ++it) {
-    fprintf_stderr(aFile, "%s", aPrefix);
-    fprintf_stderr(aFile, aDumpHtml ? "<li> <a href=" : "Tile ");
+    fprintf(aFile, "%s", aPrefix);
+    fprintf(aFile, aDumpHtml ? "<li> <a href=" : "Tile ");
     DumpDeprecatedTextureHost(aFile, it->mDeprecatedTextureHost);
-    fprintf_stderr(aFile, aDumpHtml ? " >Tile</a></li>" : " ");
+    fprintf(aFile, aDumpHtml ? " >Tile</a></li>" : " ");
   }
     if (aDumpHtml) {
-    fprintf_stderr(aFile, "</ul>");
+    fprintf(aFile, "</ul>");
   }
 }
 #endif

@@ -4,14 +4,15 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "SmsFilter.h"
+#include "nsIDOMClassInfo.h"
+#include "Constants.h"
+#include "nsError.h"
+#include "Constants.h"
 #include "jsapi.h"
 #include "jsfriendapi.h" // For js_DateGetMsecSinceEpoch.
 #include "js/Utility.h"
-#include "mozilla/dom/mobilemessage/Constants.h" // For MessageType
-#include "nsDOMString.h"
-#include "nsError.h"
-#include "nsIDOMClassInfo.h"
 #include "nsJSUtils.h"
+#include "nsDOMString.h"
 
 using namespace mozilla::dom::mobilemessage;
 

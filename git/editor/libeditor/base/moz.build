@@ -6,7 +6,9 @@
 
 TEST_DIRS += ['tests']
 
-UNIFIED_SOURCES += [
+MODULE = 'editor'
+
+CPP_SOURCES += [
     'ChangeAttributeTxn.cpp',
     'ChangeCSSInlineStyleTxn.cpp',
     'CreateElementTxn.cpp',
@@ -19,6 +21,9 @@ UNIFIED_SOURCES += [
     'InsertElementTxn.cpp',
     'InsertTextTxn.cpp',
     'JoinElementTxn.cpp',
+    'PlaceholderTxn.cpp',
+    'SetDocTitleTxn.cpp',
+    'SplitElementTxn.cpp',
     'nsEditor.cpp',
     'nsEditorCommands.cpp',
     'nsEditorController.cpp',
@@ -26,20 +31,11 @@ UNIFIED_SOURCES += [
     'nsEditorUtils.cpp',
     'nsSelectionState.cpp',
     'nsStyleSheetTxns.cpp',
-    'PlaceholderTxn.cpp',
-    'SetDocTitleTxn.cpp',
-    'SplitElementTxn.cpp',
 ]
+
+LIBRARY_NAME = 'editorbase_s'
 
 FAIL_ON_WARNINGS = True
 
-LOCAL_INCLUDES += [
-    '../text',
-    '/content/base/src',
-    '/content/events/src',
-    '/editor/txmgr/src',
-    '/extensions/spellcheck/src',
-    '/layout/style',
-]
+LIBXUL_LIBRARY = True
 
-FINAL_LIBRARY = 'gklayout'

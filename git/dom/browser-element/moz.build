@@ -8,11 +8,13 @@ TEST_DIRS += ['mochitest']
 
 XPIDL_MODULE = 'dom_browserelement'
 
+MODULE = 'dom'
+
 EXPORTS.mozilla += [
     'BrowserElementParent.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'BrowserElementParent.cpp',
 ]
 
@@ -28,19 +30,5 @@ EXTRA_JS_MODULES += [
 
 FAIL_ON_WARNINGS = True
 
-LOCAL_INCLUDES += [
-    '../bluetooth',
-    '/content/html/content/src',
-]
-
-include('/ipc/chromium/chromium-config.mozbuild')
-
-FINAL_LIBRARY = 'gklayout'
-
-LOCAL_INCLUDES += [
-    '/content/base/src',
-    '/dom/',
-    '/dom/base',
-    '/dom/ipc',
-]
+LIBXUL_LIBRARY = True
 

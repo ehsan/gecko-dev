@@ -11,7 +11,7 @@ const Cu = Components.utils;
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 
-this.EXPORTED_SYMBOLS = ["ContactService"];
+this.EXPORTED_SYMBOLS = [];
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
@@ -22,6 +22,8 @@ XPCOMUtils.defineLazyServiceGetter(this, "ppmm",
                                    "@mozilla.org/parentprocessmessagemanager;1",
                                    "nsIMessageListenerManager");
 
+let myGlobal = this;
+
 let ContactService = {
   init: function() {
     if (DEBUG) debug("Init");
@@ -31,13 +33,15 @@ let ContactService = {
                       "child-process-shutdown", "Contacts:GetRevision",
                       "Contacts:GetCount"];
     this._children = [];
-    this._cursors = new Map();
+    this._cursors = {};
     this._messages.forEach(function(msgName) {
       ppmm.addMessageListener(msgName, this);
     }.bind(this));
 
+    var idbManager = Components.classes["@mozilla.org/dom/indexeddb/manager;1"].getService(Ci.nsIIndexedDatabaseManager);
+    idbManager.initWindowless(myGlobal);
     this._db = new ContactDB();
-    this._db.init();
+    this._db.init(myGlobal);
 
     this.configureSubstringMatching();
 
@@ -47,6 +51,7 @@ let ContactService = {
 
   observe: function(aSubject, aTopic, aData) {
     if (aTopic === 'profile-before-change') {
+      myGlobal = null;
       this._messages.forEach(function(msgName) {
         ppmm.removeMessageListener(msgName, this);
       }.bind(this));
@@ -120,21 +125,18 @@ let ContactService = {
         if (!this.assertPermission(aMessage, "contacts-read")) {
           return null;
         }
-        let cursorList = this._cursors.get(mm);
-        if (!cursorList) {
-          cursorList = [];
-          this._cursors.set(mm, cursorList);
+        if (!this._cursors[mm]) {
+          this._cursors[mm] = [];
         }
-        cursorList.push(msg.cursorId);
+        this._cursors[mm].push(msg.cursorId);
 
         this._db.getAll(
           function(aContacts) {
             try {
               mm.sendAsyncMessage("Contacts:GetAll:Next", {cursorId: msg.cursorId, contacts: aContacts});
               if (aContacts === null) {
-                let cursorList = this._cursors.get(mm);
-                let index = cursorList.indexOf(msg.cursorId);
-                cursorList.splice(index, 1);
+                let index = this._cursors[mm].indexOf(msg.cursorId);
+                this._cursors[mm].splice(index, 1);
               }
             } catch (e) {
               if (DEBUG) debug("Child is dead, DB should stop sending contacts");
@@ -243,12 +245,11 @@ let ContactService = {
           if (DEBUG) debug("Unregister index: " + index);
           this._children.splice(index, 1);
         }
-        cursorList = this._cursors.get(mm);
-        if (cursorList) {
-          for (let id of cursorList) {
+        if (this._cursors[mm]) {
+          for (let id of this._cursors[mm]) {
             this._db.clearDispatcher(id);
           }
-          this._cursors.delete(mm);
+          delete this._cursors[mm];
         }
         break;
       default:

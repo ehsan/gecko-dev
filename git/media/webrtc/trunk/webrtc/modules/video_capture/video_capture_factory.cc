@@ -8,9 +8,8 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/video_capture/include/video_capture_factory.h"
-
-#include "webrtc/modules/video_capture/video_capture_impl.h"
+#include "video_capture_factory.h"
+#include "video_capture_impl.h"
 
 namespace webrtc
 {
@@ -30,4 +29,4 @@ VideoCaptureModule::DeviceInfo* VideoCaptureFactory::CreateDeviceInfo(
   return videocapturemodule::VideoCaptureImpl::CreateDeviceInfo(id);
 }
 
-}  // namespace webrtc
+} // namespace webrtc

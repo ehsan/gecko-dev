@@ -4,7 +4,6 @@
 
 #include "mozilla/dom/DOMImplementation.h"
 
-#include "mozilla/ContentEvents.h"
 #include "mozilla/dom/DOMImplementationBinding.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsContentUtils.h"

@@ -7,6 +7,7 @@
 #define nsMathMLmrowFrame_h___
 
 #include "mozilla/Attributes.h"
+#include "nsCOMPtr.h"
 #include "nsMathMLContainerFrame.h"
 
 //

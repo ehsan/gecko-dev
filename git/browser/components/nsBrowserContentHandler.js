@@ -452,10 +452,8 @@ nsBrowserContentHandler.prototype = {
     var chromeParam = cmdLine.handleFlagWithParam("chrome", false);
     if (chromeParam) {
 
-      // Handle old preference dialog URLs.
-      if (chromeParam == "chrome://browser/content/pref/pref.xul" ||
-          (Services.prefs.getBoolPref("browser.preferences.inContent") &&
-           chromeParam == "chrome://browser/content/preferences/preferences.xul")) {
+      // Handle the old preference dialog URL separately (bug 285416)
+      if (chromeParam == "chrome://browser/content/pref/pref.xul") {
         openPreferences();
         cmdLine.preventDefault = true;
       } else try {
@@ -549,7 +547,7 @@ nsBrowserContentHandler.prototype = {
     }
 
     var overridePage = "";
-    var willRestoreSession = false;
+    var haveUpdateSession = false;
     try {
       // Read the old value of homepage_override.mstone before
       // needHomepageOverride updates it, so that we can later add it to the
@@ -568,15 +566,11 @@ nsBrowserContentHandler.prototype = {
             overridePage = Services.urlFormatter.formatURLPref("startup.homepage_welcome_url");
             break;
           case OVERRIDE_NEW_MSTONE:
-            // Check whether we will restore a session. If we will, we assume
-            // that this is an "update" session. This does not take crashes
-            // into account because that requires waiting for the session file
-            // to be read. If a crash occurs after updating, before restarting,
-            // we may open the startPage in addition to restoring the session.
+            // Check whether we have a session to restore. If we do, we assume
+            // that this is an "update" session.
             var ss = Components.classes["@mozilla.org/browser/sessionstartup;1"]
                                .getService(Components.interfaces.nsISessionStartup);
-            willRestoreSession = ss.isAutomaticRestoreEnabled();
-
+            haveUpdateSession = ss.doRestore();
             overridePage = Services.urlFormatter.formatURLPref("startup.homepage_override_url");
             if (prefb.prefHasUserValue("app.update.postupdate"))
               overridePage = getPostUpdateOverridePage(overridePage);
@@ -604,7 +598,7 @@ nsBrowserContentHandler.prototype = {
       startPage = "";
 
     // Only show the startPage if we're not restoring an update session.
-    if (overridePage && startPage && !willRestoreSession)
+    if (overridePage && startPage && !haveUpdateSession)
       return overridePage + "|" + startPage;
 
     return overridePage || startPage || "about:blank";

@@ -21,7 +21,7 @@ namespace layers {
 // D3D10 doesn't need all these yet.
 bool
 ISurfaceAllocator::PlatformAllocSurfaceDescriptor(const gfxIntSize&,
-                                                  gfxContentType,
+                                                  gfxASurface::gfxContentType,
                                                   uint32_t,
                                                   SurfaceDescriptor*)
 {
@@ -86,6 +86,14 @@ bool
 ISurfaceAllocator::PlatformDestroySharedSurface(SurfaceDescriptor*)
 {
   return false;
+}
+
+/*static*/ already_AddRefed<TextureImage>
+LayerManagerComposite::OpenDescriptorForDirectTexturing(GLContext*,
+                                                        const SurfaceDescriptor&,
+                                                        GLenum)
+{
+  return nullptr;
 }
 
 /*static*/ bool

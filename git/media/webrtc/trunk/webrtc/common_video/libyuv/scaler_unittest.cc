@@ -11,11 +11,10 @@
 #include <math.h>
 #include <string.h>
 
-#include "testing/gtest/include/gtest/gtest.h"
-#include "webrtc/common_video/libyuv/include/scaler.h"
-#include "webrtc/system_wrappers/interface/tick_util.h"
-#include "webrtc/test/testsupport/fileutils.h"
-#include "webrtc/test/testsupport/gtest_disable.h"
+#include "common_video/libyuv/include/scaler.h"
+#include "gtest/gtest.h"
+#include "system_wrappers/interface/tick_util.h"
+#include "testsupport/fileutils.h"
 
 namespace webrtc {
 
@@ -29,6 +28,9 @@ class TestScaler : public ::testing::Test {
                      FILE* source_file, std::string out_name,
                      int src_width, int src_height,
                      int dst_width, int dst_height);
+
+  // TODO(mikhal): add a sequence reader to libyuv.
+
   // Computes the sequence average PSNR between an input sequence in
   // |input_file| and an output sequence with filename |out_name|. |width| and
   // |height| are the frame sizes of both sequences.
@@ -115,7 +117,7 @@ TEST_F(TestScaler, ScaleSendingBufferTooSmall) {
 }
 
 //TODO (mikhal): Converge the test into one function that accepts the method.
-TEST_F(TestScaler, DISABLED_ON_ANDROID(PointScaleTest)) {
+TEST_F(TestScaler, PointScaleTest) {
   double avg_psnr;
   FILE* source_file2;
   ScaleMethod method = kScalePoint;
@@ -160,7 +162,7 @@ TEST_F(TestScaler, DISABLED_ON_ANDROID(PointScaleTest)) {
                 source_file_, out_name,
                 width_, height_,
                 400, 300);
-  // Down-sample to odd size frame and scale back up.
+  // Dowsample to odd size frame and scale back up.
   out_name = webrtc::test::OutputPath() + "LibYuvTest_PointScale_282_231.yuv";
   ScaleSequence(method,
                 source_file_, out_name,
@@ -178,9 +180,9 @@ TEST_F(TestScaler, DISABLED_ON_ANDROID(PointScaleTest)) {
       "original size: %f \n", width_, height_, 282, 231, avg_psnr);
   // Average PSNR for lower bound in assert is ~0.1dB lower than the actual
   // average PSNR under same conditions.
-  ASSERT_GT(avg_psnr, 25.8);
+  ASSERT_GT(avg_psnr, 27.8);
   ASSERT_EQ(0, fclose(source_file2));
-  // Up-sample to odd size frame and scale back down.
+  // Upsample to odd size frame and scale back down.
   out_name = webrtc::test::OutputPath() + "LibYuvTest_PointScale_699_531.yuv";
   ScaleSequence(method,
                 source_file_, out_name,
@@ -202,7 +204,7 @@ TEST_F(TestScaler, DISABLED_ON_ANDROID(PointScaleTest)) {
   ASSERT_EQ(0, fclose(source_file2));
 }
 
-TEST_F(TestScaler, DISABLED_ON_ANDROID(BiLinearScaleTest)) {
+TEST_F(TestScaler, BiLinearScaleTest) {
   double avg_psnr;
   FILE* source_file2;
   ScaleMethod method = kScaleBilinear;
@@ -212,7 +214,7 @@ TEST_F(TestScaler, DISABLED_ON_ANDROID(BiLinearScaleTest)) {
                 source_file_, out_name,
                 width_, height_,
                 width_ / 2, height_ / 2);
-  // Up-sample back up and check PSNR.
+  // Upsample back up and check PSNR.
   source_file2 = fopen(out_name.c_str(), "rb");
   out_name = webrtc::test::OutputPath() + "LibYuvTest_BilinearScale_352_288_"
       "upfrom_176_144.yuv";
@@ -252,7 +254,7 @@ TEST_F(TestScaler, DISABLED_ON_ANDROID(BiLinearScaleTest)) {
                 source_file_, out_name,
                 width_, height_,
                 400, 300);
-  // Down-sample to odd size frame and scale back up.
+  // Downsample to odd size frame and scale back up.
   out_name = webrtc::test::OutputPath() +
       "LibYuvTest_BilinearScale_282_231.yuv";
   ScaleSequence(method,
@@ -296,7 +298,7 @@ TEST_F(TestScaler, DISABLED_ON_ANDROID(BiLinearScaleTest)) {
   ASSERT_EQ(0, fclose(source_file2));
 }
 
-TEST_F(TestScaler, DISABLED_ON_ANDROID(BoxScaleTest)) {
+TEST_F(TestScaler, BoxScaleTest) {
   double avg_psnr;
   FILE* source_file2;
   ScaleMethod method = kScaleBox;
@@ -306,7 +308,7 @@ TEST_F(TestScaler, DISABLED_ON_ANDROID(BoxScaleTest)) {
                 source_file_, out_name,
                 width_, height_,
                 width_ / 2, height_ / 2);
-  // Up-sample back up and check PSNR.
+  // Upsample back up and check PSNR.
   source_file2 = fopen(out_name.c_str(), "rb");
   out_name = webrtc::test::OutputPath() + "LibYuvTest_BoxScale_352_288_"
       "upfrom_176_144.yuv";
@@ -341,7 +343,7 @@ TEST_F(TestScaler, DISABLED_ON_ANDROID(BoxScaleTest)) {
                 source_file_, out_name,
                 width_, height_,
                 400, 300);
-  // Down-sample to odd size frame and scale back up.
+  // Downsample to odd size frame and scale back up.
   out_name = webrtc::test::OutputPath() + "LibYuvTest_BoxScale_282_231.yuv";
   ScaleSequence(method,
                 source_file_, out_name,
@@ -361,7 +363,7 @@ TEST_F(TestScaler, DISABLED_ON_ANDROID(BoxScaleTest)) {
   // average PSNR under same conditions.
   ASSERT_GT(avg_psnr, 29.7);
   ASSERT_EQ(0, fclose(source_file2));
-  // Up-sample to odd size frame and scale back down.
+  // Upsample to odd size frame and scale back down.
   out_name = webrtc::test::OutputPath() + "LibYuvTest_BoxScale_699_531.yuv";
   ScaleSequence(method,
                 source_file_, out_name,
@@ -398,7 +400,6 @@ double TestScaler::ComputeAvgSequencePSNR(FILE* input_file,
 
   int frame_count = 0;
   double avg_psnr = 0;
-  I420VideoFrame in_frame, out_frame;
   while (feof(input_file) == 0) {
     if ((size_t)required_size !=
         fread(input_buffer, 1, required_size, input_file)) {
@@ -409,9 +410,7 @@ double TestScaler::ComputeAvgSequencePSNR(FILE* input_file,
       break;
     }
     frame_count++;
-    ConvertFromI420(in_frame, kI420, 0, input_buffer);
-    ConvertFromI420(out_frame, kI420, 0, output_buffer);
-    double psnr = I420PSNR(&in_frame, &out_frame);
+    double psnr = I420PSNR(input_buffer, output_buffer, width, height);
     avg_psnr += psnr;
   }
   avg_psnr = avg_psnr / frame_count;

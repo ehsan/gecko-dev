@@ -55,17 +55,17 @@ class SimulatedClock : public Clock {
 
   // Return a timestamp in milliseconds relative to some arbitrary source; the
   // source is fixed for this clock.
-  virtual int64_t TimeInMilliseconds() OVERRIDE;
+  virtual int64_t TimeInMilliseconds();
 
   // Return a timestamp in microseconds relative to some arbitrary source; the
   // source is fixed for this clock.
-  virtual int64_t TimeInMicroseconds() OVERRIDE;
+  virtual int64_t TimeInMicroseconds();
 
   // Retrieve an NTP absolute timestamp in milliseconds.
-  virtual void CurrentNtp(uint32_t& seconds, uint32_t& fractions) OVERRIDE;
+  virtual void CurrentNtp(uint32_t& seconds, uint32_t& fractions);
 
   // Converts an NTP timestamp to a millisecond timestamp.
-  virtual int64_t CurrentNtpInMilliseconds() OVERRIDE;
+  virtual int64_t CurrentNtpInMilliseconds();
 
   // Advance the simulated clock with a given number of milliseconds or
   // microseconds.

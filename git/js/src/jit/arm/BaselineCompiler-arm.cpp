@@ -7,9 +7,9 @@
 #include "jit/arm/BaselineCompiler-arm.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
-BaselineCompilerARM::BaselineCompilerARM(JSContext *cx, TempAllocator &alloc, HandleScript script)
-  : BaselineCompilerShared(cx, alloc, script)
+BaselineCompilerARM::BaselineCompilerARM(JSContext *cx, HandleScript script)
+  : BaselineCompilerShared(cx, script)
 {
 }

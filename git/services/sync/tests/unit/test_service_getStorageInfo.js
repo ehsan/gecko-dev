@@ -12,8 +12,8 @@ let collections = {steam:  65.11328,
                    diesel: 2.25488281};
 
 function run_test() {
-  Log.repository.getLogger("Sync.Service").level = Log.Level.Trace;
-  Log.repository.getLogger("Sync.StorageRequest").level = Log.Level.Trace;
+  Log4Moz.repository.getLogger("Sync.Service").level = Log4Moz.Level.Trace;
+  Log4Moz.repository.getLogger("Sync.StorageRequest").level = Log4Moz.Level.Trace;
   initTestLogging();
 
   setBasicCredentials("johndoe", "ilovejane");
@@ -83,6 +83,7 @@ add_test(function test_invalid_json() {
 
   let request = Service.getStorageInfo(INFO_COLLECTIONS, function (error, info) {
     do_check_eq(error.name, "SyntaxError");
+    do_check_eq(error.message, "JSON.parse: unexpected character");
     do_check_eq(info, null);
     server.stop(run_next_test);
   });

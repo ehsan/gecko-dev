@@ -13,7 +13,7 @@ XPIDL_SOURCES += [
     'nsIRelativeFilePref.idl',
 ]
 
-XPIDL_MODULE = 'pref'
+MODULE = 'pref'
 
 EXPORTS.mozilla += [
     'Preferences.h',

@@ -12,15 +12,10 @@ var SelectionHandler = {
   TYPE_CURSOR: 1,
   TYPE_SELECTION: 2,
 
-  SELECT_ALL: 0,
-  SELECT_AT_POINT: 1,
-
   // Keeps track of data about the dimensions of the selection. Coordinates
   // stored here are relative to the _contentWindow window.
   _cache: null,
   _activeType: 0, // TYPE_NONE
-  _ignoreSelectionChanges: false, // True while user drags text selection handles
-  _ignoreCompositionChanges: false, // Persist caret during IME composition updates
 
   // The window that holds the selection (can be a sub-frame)
   get _contentWindow() {
@@ -52,23 +47,21 @@ var SelectionHandler = {
 
   _addObservers: function sh_addObservers() {
     Services.obs.addObserver(this, "Gesture:SingleTap", false);
+    Services.obs.addObserver(this, "Window:Resize", false);
     Services.obs.addObserver(this, "Tab:Selected", false);
     Services.obs.addObserver(this, "after-viewport-change", false);
     Services.obs.addObserver(this, "TextSelection:Move", false);
     Services.obs.addObserver(this, "TextSelection:Position", false);
-    Services.obs.addObserver(this, "TextSelection:End", false);
-    Services.obs.addObserver(this, "TextSelection:Action", false);
     BrowserApp.deck.addEventListener("compositionend", this, false);
   },
 
   _removeObservers: function sh_removeObservers() {
     Services.obs.removeObserver(this, "Gesture:SingleTap");
+    Services.obs.removeObserver(this, "Window:Resize");
     Services.obs.removeObserver(this, "Tab:Selected");
     Services.obs.removeObserver(this, "after-viewport-change");
     Services.obs.removeObserver(this, "TextSelection:Move");
     Services.obs.removeObserver(this, "TextSelection:Position");
-    Services.obs.removeObserver(this, "TextSelection:End");
-    Services.obs.removeObserver(this, "TextSelection:Action");
     BrowserApp.deck.removeEventListener("compositionend", this);
   },
 
@@ -84,22 +77,22 @@ var SelectionHandler = {
         } else if (this._activeType == this.TYPE_CURSOR) {
           // attachCaret() is called in the "Gesture:SingleTap" handler in BrowserEventHandler
           // We're guaranteed to call this first, because this observer was added last
-          this._deactivate();
+          this._closeSelection();
         }
         break;
       }
       case "Tab:Selected":
-      case "TextSelection:End":
         this._closeSelection();
         break;
-      case "TextSelection:Action":
-        for (let type in this.actions) {
-          if (this.actions[type].id == aData) {
-            this.actions[type].action(this._targetElement);
-            break;
-          }
+
+      case "Window:Resize": {
+        if (this._activeType == this.TYPE_SELECTION) {
+          // Knowing when the page is done drawing is hard, so let's just cancel
+          // the selection when the window changes. We should fix this later.
+          this._closeSelection();
         }
         break;
+      }
       case "after-viewport-change": {
         if (this._activeType == this.TYPE_SELECTION) {
           // Update the cache after the viewport changes (e.g. panning, zooming).
@@ -109,14 +102,9 @@ var SelectionHandler = {
       }
       case "TextSelection:Move": {
         let data = JSON.parse(aData);
-        if (this._activeType == this.TYPE_SELECTION) {
-          // Ignore selectionChange notifications when handle movement starts
-          this._ignoreSelectionChanges = true;
+        if (this._activeType == this.TYPE_SELECTION)
           this._moveSelection(data.handleType == this.HANDLE_TYPE_START, data.x, data.y);
-        } else if (this._activeType == this.TYPE_CURSOR) {
-          // Ignore IMM composition notifications when caret movement starts
-          this._ignoreCompositionChanges = true;
-
+        else if (this._activeType == this.TYPE_CURSOR) {
           // Send a click event to the text box, which positions the caret
           this._sendMouseEvents(data.x, data.y);
 
@@ -127,8 +115,6 @@ var SelectionHandler = {
       }
       case "TextSelection:Position": {
         if (this._activeType == this.TYPE_SELECTION) {
-          // Ignore selectionChange notifications when handle movement starts
-          this._ignoreSelectionChanges = true;
           // Check to see if the handles should be reversed.
           let isStartHandle = JSON.parse(aData).handleType == this.HANDLE_TYPE_START;
           let selectionReversed = this._updateCacheForSelection(isStartHandle);
@@ -140,12 +126,6 @@ var SelectionHandler = {
             selection.collapse(selection.focusNode, selection.focusOffset);
             selection.extend(anchorNode, anchorOffset);
           }
-          // Act on selectionChange notifications after handle movement ends
-          this._ignoreSelectionChanges = false;
-
-        } else if (this._activeType == this.TYPE_CURSOR) {
-          // Act on IMM composition notifications after caret movement ends
-          this._ignoreCompositionChanges = false;
         }
         this._positionHandles();
         break;
@@ -171,9 +151,8 @@ var SelectionHandler = {
         break;
 
       case "compositionend":
-        // compositionend messages normally terminate caret display
-        if (this._activeType == this.TYPE_CURSOR && !this._ignoreCompositionChanges) {
-          this._deactivate();
+        if (this._activeType == this.TYPE_CURSOR) {
+          this._closeSelection();
         }
         break;
     }
@@ -200,11 +179,6 @@ var SelectionHandler = {
   },
 
   notifySelectionChanged: function sh_notifySelectionChanged(aDocument, aSelection, aReason) {
-    // Ignore selectionChange notifications during handle movements
-    if (this._ignoreSelectionChanges) {
-      return;
-    }
-
     // If the selection was collapsed to Start or to End, always close it
     if ((aReason & Ci.nsISelectionListener.COLLAPSETOSTART_REASON) ||
         (aReason & Ci.nsISelectionListener.COLLAPSETOEND_REASON)) {
@@ -223,45 +197,32 @@ var SelectionHandler = {
    * the "Select Word" context menu item. Initializes SelectionHandler,
    * starts a selection, and positions the text selection handles.
    *
-   * @param aOptions list of options describing how to start selection
-   *                 Options include:
-   *                   mode - SELECT_ALL to select everything in the target
-   *                          element, or SELECT_AT_POINT to select a word.
-   *                   x    - The x-coordinate for SELECT_AT_POINT.
-   *                   y    - The y-coordinate for SELECT_AT_POINT.
+   * @param aX, aY tap location in client coordinates.
    */
-  startSelection: function sh_startSelection(aElement, aOptions = { mode: SelectionHandler.SELECT_ALL }) {
+  startSelection: function sh_startSelection(aElement, aX, aY) {
     // Clear out any existing active selection
     this._closeSelection();
 
     this._initTargetInfo(aElement);
+    this._activeType = this.TYPE_SELECTION;
 
     // Clear any existing selection from the document
     this._contentWindow.getSelection().removeAllRanges();
 
-    if (aOptions.mode == this.SELECT_ALL) {
-      this._getSelectionController().selectAll();
-    } else if (aOptions.mode == this.SELECT_AT_POINT) {
-      if (!this._domWinUtils.selectAtPoint(aOptions.x, aOptions.y, Ci.nsIDOMWindowUtils.SELECT_WORDNOSPACE)) {
-        this._deactivate();
-        return false;
-      }
-    } else {
-      Services.console.logStringMessage("Invalid selection mode " + aOptions.mode);
-      this._deactivate();
-      return false;
+    if (!this._domWinUtils.selectAtPoint(aX, aY, Ci.nsIDOMWindowUtils.SELECT_WORDNOSPACE)) {
+      this._closeSelection();
+      return;
     }
 
     let selection = this._getSelection();
     // If the range didn't have any text, let's bail
-    if (!selection || selection.rangeCount == 0 || selection.getRangeAt(0).collapsed) {
-      this._deactivate();
-      return false;
+    if (!selection || selection.rangeCount == 0) {
+      this._closeSelection();
+      return;
     }
 
     // Add a listener to end the selection if it's removed programatically
     selection.QueryInterface(Ci.nsISelectionPrivate).addSelectionListener(this);
-    this._activeType = this.TYPE_SELECTION;
 
     // Initialize the cache
     this._cache = { start: {}, end: {}};
@@ -270,174 +231,37 @@ var SelectionHandler = {
     let scroll = this._getScrollPos();
     // Figure out the distance between the selection and the click
     let positions = this._getHandlePositions(scroll);
+    let clickX = scroll.X + aX;
+    let clickY = scroll.Y + aY;
+    let distance = 0;
 
-    if (aOptions.mode == this.SELECT_AT_POINT && !this._selectionNearClick(scroll.X + aOptions.x,
-                                                                      scroll.Y + aOptions.y,
-                                                                      positions)) {
-        this._closeSelection();
-        return false;
+    // Check if the click was in the bounding box of the selection handles
+    if (positions[0].left < clickX && clickX < positions[1].left
+        && positions[0].top < clickY && clickY < positions[1].top) {
+      distance = 0;
+    } else {
+      // If it was outside, check the distance to the center of the selection
+      let selectposX = (positions[0].left + positions[1].left) / 2;
+      let selectposY = (positions[0].top + positions[1].top) / 2;
+
+      let dx = Math.abs(selectposX - clickX);
+      let dy = Math.abs(selectposY - clickY);
+      distance = dx + dy;
+    }
+
+    let maxSelectionDistance = Services.prefs.getIntPref("browser.ui.selection.distance");
+    // Do not select text far away from where the user clicked
+    if (distance > maxSelectionDistance) {
+      this._closeSelection();
+      return;
     }
 
     this._positionHandles(positions);
-    this._sendMessage("TextSelection:ShowHandles", [this.HANDLE_TYPE_START, this.HANDLE_TYPE_END], aOptions.x, aOptions.y);
-    return true;
-  },
-
-  /* Return true if the current selection (given by aPositions) is near to where the coordinates passed in */
-  _selectionNearClick: function(aX, aY, aPositions) {
-      let distance = 0;
-
-      // Check if the click was in the bounding box of the selection handles
-      if (aPositions[0].left < aX && aX < aPositions[1].left
-          && aPositions[0].top < aY && aY < aPositions[1].top) {
-        distance = 0;
-      } else {
-        // If it was outside, check the distance to the center of the selection
-        let selectposX = (aPositions[0].left + aPositions[1].left) / 2;
-        let selectposY = (aPositions[0].top + aPositions[1].top) / 2;
-
-        let dx = Math.abs(selectposX - aX);
-        let dy = Math.abs(selectposY - aY);
-        distance = dx + dy;
-      }
-
-      let maxSelectionDistance = Services.prefs.getIntPref("browser.ui.selection.distance");
-      return (distance < maxSelectionDistance);
-  },
-
-  /* Reads a value from an action. If the action defines the value as a function, will return the result of calling
-     the function. Otherwise, will return the value itself. If the value isn't defined for this action, will return a default */
-  _getValue: function(obj, name, defaultValue) {
-    if (!(name in obj))
-      return defaultValue;
-
-    if (typeof obj[name] == "function")
-      return obj[name](this._targetElement);
-
-    return obj[name];
-  },
-
-  _sendMessage: function(type, handles, aX, aY) {
-    let actions = [];
-    for (let type in this.actions) {
-      let action = this.actions[type];
-      if (action.selector.matches(this._targetElement, aX, aY)) {
-        let a = {
-          id: action.id,
-          label: this._getValue(action, "label", ""),
-          icon: this._getValue(action, "icon", "drawable://ic_status_logo"),
-          showAsAction: this._getValue(action, "showAsAction", true),
-          order: this._getValue(action, "order", 0)
-        };
-        actions.push(a);
-      }
-    }
-
-    actions.sort((a, b) => b.order - a.order);
 
     sendMessageToJava({
-      type: type,
-      handles: handles,
-      actions: actions,
+      type: "TextSelection:ShowHandles",
+      handles: [this.HANDLE_TYPE_START, this.HANDLE_TYPE_END]
     });
-  },
-
-  _updateMenu: function() {
-    this._sendMessage("TextSelection:Update");
-  },
-
-  addAction: function(action) {
-    if (!action.id)
-      action.id = uuidgen.generateUUID().toString()
-
-    if (this.actions[action.id])
-      throw "Action with id " + action.id + " already added";
-
-    this.actions[action.id] = action;
-    return action.id;
-  },
-
-  removeAction: function(id) {
-    delete this.actions[id];
-  },
-
-  actions: {
-    SELECT_ALL: {
-      label: Strings.browser.GetStringFromName("contextmenu.selectAll"),
-      id: "selectall_action",
-      icon: "drawable://select_all",
-      action: function(aElement) {
-        SelectionHandler.selectAll(aElement);
-      },
-      selector: ClipboardHelper.selectAllContext,
-      order: 1,
-    },
-
-    CUT: {
-      label: Strings.browser.GetStringFromName("contextmenu.cut"),
-      id: "cut_action",
-      icon: "drawable://cut",
-      action: function(aElement) {
-        let start = aElement.selectionStart;
-        let end   = aElement.selectionEnd;
-
-        SelectionHandler.copySelection();
-        aElement.value = aElement.value.substring(0, start) + aElement.value.substring(end)
-
-        // copySelection closes the selection. Show a caret where we just cut the text.
-        SelectionHandler.attachCaret(aElement);
-      },
-      order: 1,
-      selector: ClipboardHelper.cutContext,
-    },
-
-    COPY: {
-      label: Strings.browser.GetStringFromName("contextmenu.copy"),
-      id: "copy_action",
-      icon: "drawable://copy",
-      action: function() {
-        SelectionHandler.copySelection();
-      },
-      order: 1,
-      selector: ClipboardHelper.getCopyContext(false)
-    },
-
-    PASTE: {
-      label: Strings.browser.GetStringFromName("contextmenu.paste"),
-      id: "paste_action",
-      icon: "drawable://paste",
-      action: function(aElement) {
-        ClipboardHelper.paste(aElement);
-        SelectionHandler._positionHandles();
-        SelectionHandler._updateMenu();
-      },
-      order: 1,
-      selector: ClipboardHelper.pasteContext,
-    },
-
-    SHARE: {
-      label: Strings.browser.GetStringFromName("contextmenu.share"),
-      id: "share_action",
-      icon: "drawable://ic_menu_share",
-      action: function() {
-        SelectionHandler.shareSelection();
-      },
-      selector: ClipboardHelper.shareContext,
-    },
-
-    SEARCH: {
-      label: function() {
-        return Strings.browser.formatStringFromName("contextmenu.search", [Services.search.defaultEngine.name], 1);
-      },
-      id: "search_action",
-      icon: "drawable://ic_url_bar_search",
-      action: function() {
-        SelectionHandler.searchSelection();
-        SelectionHandler._closeSelection();
-      },
-      selector: ClipboardHelper.searchWithContext,
-    },
-
   },
 
   /*
@@ -447,21 +271,18 @@ var SelectionHandler = {
    * @param aX, aY tap location in client coordinates.
    */
   attachCaret: function sh_attachCaret(aElement) {
-    // See if its an input element, and it isn't disabled, nor handled by Android native dialog
-    if (aElement.disabled ||
-        InputWidgetHelper.hasInputWidget(aElement) ||
-        !((aElement instanceof HTMLInputElement && aElement.mozIsTextField(false)) ||
-          (aElement instanceof HTMLTextAreaElement)))
-      return;
     this._initTargetInfo(aElement);
 
     this._contentWindow.addEventListener("keydown", this, false);
-    this._contentWindow.addEventListener("blur", this, true);
+    this._contentWindow.addEventListener("blur", this, false);
 
     this._activeType = this.TYPE_CURSOR;
     this._positionHandles();
 
-    this._sendMessage("TextSelection:ShowHandles", [this.HANDLE_TYPE_MIDDLE]);
+    sendMessageToJava({
+      type: "TextSelection:ShowHandles",
+      handles: [this.HANDLE_TYPE_MIDDLE]
+    });
   },
 
   _initTargetInfo: function sh_initTargetInfo(aElement) {
@@ -489,15 +310,9 @@ var SelectionHandler = {
       return "";
 
     let selection = this._getSelection();
-    if (!selection)
-      return "";
-
-    if (this._targetElement instanceof Ci.nsIDOMHTMLTextAreaElement) {
-      return selection.QueryInterface(Ci.nsISelectionPrivate).
-        toStringWithFormat("text/plain", Ci.nsIDocumentEncoder.OutputPreformatted | Ci.nsIDocumentEncoder.OutputRaw, 0);
-    }
-
-    return selection.toString().trim();
+    if (selection)
+      return selection.toString().trim();
+    return "";
   },
 
   _getSelectionController: function sh_getSelectionController() {
@@ -512,19 +327,18 @@ var SelectionHandler = {
   },
 
   // Used by the contextmenu "matches" functions in ClipboardHelper
-  isSelectionActive: function sh_isSelectionActive() {
-    return (this._activeType == this.TYPE_SELECTION);
+  shouldShowContextMenu: function sh_shouldShowContextMenu(aX, aY) {
+    return (this._activeType == this.TYPE_SELECTION) && this._pointInSelection(aX, aY);
   },
 
-  selectAll: function sh_selectAll(aElement) {
-    if (this._activeType != this.TYPE_SELECTION) {
-      this.startSelection(aElement, { mode : this.SELECT_ALL });
-    } else {
-      let selectionController = this._getSelectionController();
-      selectionController.selectAll();
-      this._updateCacheForSelection();
-      this._positionHandles();
-    }
+  selectAll: function sh_selectAll(aElement, aX, aY) {
+    if (this._activeType != this.TYPE_SELECTION)
+      this.startSelection(aElement, aX, aY);
+
+    let selectionController = this._getSelectionController();
+    selectionController.selectAll();
+    this._updateCacheForSelection();
+    this._positionHandles();
   },
 
   /*
@@ -654,12 +468,7 @@ var SelectionHandler = {
     let selectedText = this._getSelectedText();
     if (selectedText.length) {
       let req = Services.search.defaultEngine.getSubmission(selectedText);
-      let parent = BrowserApp.selectedTab;
-      let isPrivate = PrivateBrowsingUtils.isWindowPrivate(parent.browser.contentWindow);
-      // Set current tab as parent of new tab, and set new tab as private if the parent is.
-      BrowserApp.addTab(req.uri.spec, {parentId: parent.id,
-                                       selected: true,
-                                       isPrivate: isPrivate});
+      BrowserApp.selectOrOpenTab(req.uri.spec);
     }
     this._closeSelection();
   },
@@ -672,25 +481,16 @@ var SelectionHandler = {
     if (this._activeType == this.TYPE_NONE)
       return;
 
-    if (this._activeType == this.TYPE_SELECTION)
-      this._clearSelection();
-
-    this._deactivate();
-  },
-
-  _clearSelection: function sh_clearSelection() {
-    let selection = this._getSelection();
-    if (selection) {
-      // Remove our listener before we clear the selection
-      selection.QueryInterface(Ci.nsISelectionPrivate).removeSelectionListener(this);
-      // Clear selection without clearing the anchorNode or focusNode
-      if (selection.rangeCount != 0) {
+    if (this._activeType == this.TYPE_SELECTION) {
+      let selection = this._getSelection();
+      if (selection) {
+        // Remove our listener before we clear the selection
+        selection.QueryInterface(Ci.nsISelectionPrivate).removeSelectionListener(this);
+        // Clear selection without clearing the anchorNode or focusNode
         selection.collapseToStart();
       }
     }
-  },
 
-  _deactivate: function sh_deactivate() {
     this._activeType = this.TYPE_NONE;
 
     sendMessageToJava({ type: "TextSelection:HideHandles" });
@@ -703,8 +503,6 @@ var SelectionHandler = {
     this._targetElement = null;
     this._isRTL = false;
     this._cache = null;
-    this._ignoreSelectionChanges = false;
-    this._ignoreCompositionChanges = false;
   },
 
   _getViewOffset: function sh_getViewOffset() {

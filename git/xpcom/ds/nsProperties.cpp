@@ -4,6 +4,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsProperties.h"
+#include "nsString.h"
+#include "nsCRT.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,8 +17,7 @@ NS_INTERFACE_MAP_END
 NS_IMETHODIMP
 nsProperties::Get(const char* prop, const nsIID & uuid, void* *result)
 {
-    if (NS_WARN_IF(!prop))
-        return NS_ERROR_INVALID_ARG;
+    NS_ENSURE_ARG(prop);
 
     nsCOMPtr<nsISupports> value;
     if (!nsProperties_HashBase::Get(prop, getter_AddRefs(value))) {
@@ -28,8 +29,7 @@ nsProperties::Get(const char* prop, const nsIID & uuid, void* *result)
 NS_IMETHODIMP
 nsProperties::Set(const char* prop, nsISupports* value)
 {
-    if (NS_WARN_IF(!prop))
-        return NS_ERROR_INVALID_ARG;
+    NS_ENSURE_ARG(prop);
     Put(prop, value);
     return NS_OK;
 }
@@ -37,8 +37,7 @@ nsProperties::Set(const char* prop, nsISupports* value)
 NS_IMETHODIMP
 nsProperties::Undefine(const char* prop)
 {
-    if (NS_WARN_IF(!prop))
-        return NS_ERROR_INVALID_ARG;
+    NS_ENSURE_ARG(prop);
 
     nsCOMPtr<nsISupports> value;
     if (!nsProperties_HashBase::Get(prop, getter_AddRefs(value)))
@@ -51,8 +50,7 @@ nsProperties::Undefine(const char* prop)
 NS_IMETHODIMP
 nsProperties::Has(const char* prop, bool *result)
 {
-    if (NS_WARN_IF(!prop))
-        return NS_ERROR_INVALID_ARG;
+    NS_ENSURE_ARG(prop);
 
     nsCOMPtr<nsISupports> value;
     *result = nsProperties_HashBase::Get(prop,
@@ -86,11 +84,12 @@ GetKeysEnumerate(const char *key, nsISupports* data,
 NS_IMETHODIMP 
 nsProperties::GetKeys(uint32_t *count, char ***keys)
 {
-    if (NS_WARN_IF(!count) || NS_WARN_IF(!keys))
-        return NS_ERROR_INVALID_ARG;
+    NS_ENSURE_ARG(count);
+    NS_ENSURE_ARG(keys);
 
     uint32_t n = Count();
     char ** k = (char **) nsMemory::Alloc(n * sizeof(char *));
+    NS_ENSURE_TRUE(k, NS_ERROR_OUT_OF_MEMORY);
 
     GetKeysEnumData gked;
     gked.keys = k;

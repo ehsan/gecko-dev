@@ -8,13 +8,12 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include <stdio.h>
-#include <string.h>
-
+#include <cstdio>
 #include <algorithm>
+#include <cstring>
 
-#include "webrtc/system_wrappers/interface/sort.h"
-#include "webrtc/system_wrappers/interface/tick_util.h"
+#include "sort.h"
+#include "tick_util.h"
 
 // Excellent work polluting the global namespace Visual Studio...
 #undef max

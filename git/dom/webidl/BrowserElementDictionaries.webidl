@@ -22,8 +22,3 @@ dictionary OpenWindowEventDetail {
   DOMString features = "";
   Node? frameElement = null;
 };
-
-dictionary DOMWindowResizeEventDetail {
-  long width = 0;
-  long height = 0;
-};

@@ -10,6 +10,9 @@
 #include "nsHttp.h"
 #include "nsHttpHandler.h"
 #include "nsHttpChannel.h"
+#include "nsHttpConnection.h"
+#include "nsHttpResponseHead.h"
+#include "nsHttpTransaction.h"
 #include "nsHttpAuthCache.h"
 #include "nsStandardURL.h"
 #include "nsIDOMConnection.h"
@@ -18,9 +21,12 @@
 #include "nsIMozNavigatorNetwork.h"
 #include "nsINetworkProperties.h"
 #include "nsIHttpChannel.h"
+#include "nsIURL.h"
 #include "nsIStandardURL.h"
-#include "LoadContextInfo.h"
+#include "nsICacheService.h"
+#include "nsICategoryManager.h"
 #include "nsCategoryManagerUtils.h"
+#include "nsICacheService.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 #include "nsIPrefLocalizedString.h"
@@ -30,22 +36,20 @@
 #include "nsCOMPtr.h"
 #include "nsNetCID.h"
 #include "prprf.h"
+#include "nsReadableUtils.h"
+#include "nsQuickSort.h"
 #include "nsNetUtil.h"
+#include "nsIOService.h"
 #include "nsAsyncRedirectVerifyHelper.h"
 #include "nsSocketTransportService2.h"
 #include "nsAlgorithm.h"
 #include "ASpdySession.h"
 #include "mozIApplicationClearPrivateDataParams.h"
+#include "nsICancelable.h"
 #include "EventTokenBucket.h"
 #include "Tickler.h"
+
 #include "nsIXULAppInfo.h"
-#include "nsICacheSession.h"
-#include "nsICookieService.h"
-#include "nsIObserverService.h"
-#include "nsISiteSecurityService.h"
-#include "nsIStreamConverterService.h"
-#include "nsITimer.h"
-#include "nsCRT.h"
 
 #include "mozilla/net/NeckoChild.h"
 #include "mozilla/Telemetry.h"
@@ -60,16 +64,11 @@
 
 #if defined(XP_MACOSX)
 #include <CoreServices/CoreServices.h>
-#include "nsCocoaFeatures.h"
 #endif
 
 #if defined(XP_OS2)
 #define INCL_DOSMISC
 #include <os2.h>
-#endif
-
-#if defined(MOZ_WIDGET_GONK)
-#include "nsINetworkManager.h"
 #endif
 
 //-----------------------------------------------------------------------------
@@ -82,6 +81,12 @@ using namespace mozilla::net;
 // defined by the socket transport service while active
 extern PRThread *gSocketThread;
 #endif
+
+static NS_DEFINE_CID(kIOServiceCID, NS_IOSERVICE_CID);
+static NS_DEFINE_CID(kStreamConverterServiceCID, NS_STREAMCONVERTERSERVICE_CID);
+static NS_DEFINE_CID(kCookieServiceCID, NS_COOKIESERVICE_CID);
+static NS_DEFINE_CID(kCacheServiceCID, NS_CACHESERVICE_CID);
+static NS_DEFINE_CID(kSocketProviderServiceCID, NS_SOCKETPROVIDERSERVICE_CID);
 
 #define UA_PREF_PREFIX          "general.useragent."
 #ifdef XP_WIN
@@ -144,9 +149,6 @@ nsHttpHandler::nsHttpHandler()
     , mProxyHttpVersion(NS_HTTP_VERSION_1_1)
     , mCapabilities(NS_HTTP_ALLOW_KEEPALIVE)
     , mReferrerLevel(0xff) // by default we always send a referrer
-    , mSpoofReferrerSource(false)
-    , mReferrerTrimmingPolicy(0)
-    , mReferrerXOriginPolicy(0)
     , mFastFallbackToIPv4(false)
     , mProxyPipelining(true)
     , mIdleTimeout(PR_SecondsToInterval(10))
@@ -186,8 +188,8 @@ nsHttpHandler::nsHttpHandler()
     , mAllowExperiments(true)
     , mHandlerActive(false)
     , mEnableSpdy(false)
+    , mSpdyV2(true)
     , mSpdyV3(true)
-    , mSpdyV31(true)
     , mCoalesceSpdy(true)
     , mSpdyPersistentSettings(false)
     , mAllowSpdyPush(true)
@@ -203,13 +205,7 @@ nsHttpHandler::nsHttpHandler()
     , mRequestTokenBucketMinParallelism(6)
     , mRequestTokenBucketHz(100)
     , mRequestTokenBucketBurst(32)
-    , mCriticalRequestPrioritization(true)
-    , mEthernetBytesRead(0)
-    , mEthernetBytesWritten(0)
-    , mCellBytesRead(0)
-    , mCellBytesWritten(0)
-    , mNetworkTypeKnown(false)
-    , mNetworkTypeWasEthernet(true)
+    , mCritialRequestPrioritization(true)
 {
 #if defined(PR_LOGGING)
     gHttpLog = PR_NewLogModule("nsHttp");
@@ -356,6 +352,7 @@ nsHttpHandler::Init()
         mObserverService->AddObserver(this, "net:prune-dead-connections", true);
         mObserverService->AddObserver(this, "net:failed-to-process-uri-content", true);
         mObserverService->AddObserver(this, "last-pb-context-exited", true);
+        mObserverService->AddObserver(this, "webapps-clear-data", true);
     }
 
     MakeNewRequestTokenBucket();
@@ -677,13 +674,15 @@ nsHttpHandler::InitUserAgentComponents()
     "Windows"
 #elif defined(XP_MACOSX)
     "Macintosh"
+#elif defined(MOZ_PLATFORM_MAEMO)
+    "Maemo"
 #elif defined(MOZ_X11)
     "X11"
 #endif
     );
 #endif
 
-#if defined(ANDROID) || defined(MOZ_B2G)
+#if defined(ANDROID) || defined(MOZ_PLATFORM_MAEMO) || defined(MOZ_B2G)
     nsCOMPtr<nsIPropertyBag2> infoService = do_GetService("@mozilla.org/system-info;1");
     MOZ_ASSERT(infoService, "Could not find a system info service");
 
@@ -712,10 +711,7 @@ nsHttpHandler::InitUserAgentComponents()
 
 #elif defined(XP_WIN)
     OSVERSIONINFO info = { sizeof(OSVERSIONINFO) };
-#pragma warning(push)
-#pragma warning(disable:4996)
     if (GetVersionEx(&info)) {
-#pragma warning(pop)
         const char *format;
 #if defined _M_IA64
         format = WNT_BASE W64_PREFIX "; IA64";
@@ -744,9 +740,11 @@ nsHttpHandler::InitUserAgentComponents()
 #elif defined(__i386__) || defined(__x86_64__)
     mOscpu.AssignLiteral("Intel Mac OS X");
 #endif
-    SInt32 majorVersion = nsCocoaFeatures::OSXVersionMajor();
-    SInt32 minorVersion = nsCocoaFeatures::OSXVersionMinor();
-    mOscpu += nsPrintfCString(" %d.%d", majorVersion, minorVersion);
+    SInt32 majorVersion, minorVersion;
+    if ((::Gestalt(gestaltSystemVersionMajor, &majorVersion) == noErr) &&
+        (::Gestalt(gestaltSystemVersionMinor, &minorVersion) == noErr)) {
+        mOscpu += nsPrintfCString(" %d.%d", majorVersion, minorVersion);
+    }
 #elif defined (XP_UNIX)
     struct utsname name;
 
@@ -899,24 +897,6 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
         rv = prefs->GetIntPref(HTTP_PREF("sendRefererHeader"), &val);
         if (NS_SUCCEEDED(rv))
             mReferrerLevel = (uint8_t) clamped(val, 0, 0xff);
-    }
-
-    if (PREF_CHANGED(HTTP_PREF("referer.spoofSource"))) {
-        rv = prefs->GetBoolPref(HTTP_PREF("referer.spoofSource"), &cVar);
-        if (NS_SUCCEEDED(rv))
-            mSpoofReferrerSource = cVar;
-    }
-
-    if (PREF_CHANGED(HTTP_PREF("referer.trimmingPolicy"))) {
-        rv = prefs->GetIntPref(HTTP_PREF("referer.trimmingPolicy"), &val);
-        if (NS_SUCCEEDED(rv))
-            mReferrerTrimmingPolicy = (uint8_t) clamped(val, 0, 0xff);
-    }
-
-    if (PREF_CHANGED(HTTP_PREF("referer.XOriginPolicy"))) {
-        rv = prefs->GetIntPref(HTTP_PREF("referer.XOriginPolicy"), &val);
-        if (NS_SUCCEEDED(rv))
-            mReferrerXOriginPolicy = (uint8_t) clamped(val, 0, 0xff);
     }
 
     if (PREF_CHANGED(HTTP_PREF("redirection-limit"))) {
@@ -1144,16 +1124,16 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
             mEnableSpdy = cVar;
     }
 
+    if (PREF_CHANGED(HTTP_PREF("spdy.enabled.v2"))) {
+        rv = prefs->GetBoolPref(HTTP_PREF("spdy.enabled.v2"), &cVar);
+        if (NS_SUCCEEDED(rv))
+            mSpdyV2 = cVar;
+    }
+
     if (PREF_CHANGED(HTTP_PREF("spdy.enabled.v3"))) {
         rv = prefs->GetBoolPref(HTTP_PREF("spdy.enabled.v3"), &cVar);
         if (NS_SUCCEEDED(rv))
             mSpdyV3 = cVar;
-    }
-
-    if (PREF_CHANGED(HTTP_PREF("spdy.enabled.v3-1"))) {
-        rv = prefs->GetBoolPref(HTTP_PREF("spdy.enabled.v3-1"), &cVar);
-        if (NS_SUCCEEDED(rv))
-            mSpdyV31 = cVar;
     }
 
     if (PREF_CHANGED(HTTP_PREF("spdy.coalesce-hostnames"))) {
@@ -1255,7 +1235,7 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
     if (PREF_CHANGED(HTTP_PREF("rendering-critical-requests-prioritization"))) {
         rv = prefs->GetBoolPref(HTTP_PREF("rendering-critical-requests-prioritization"), &cVar);
         if (NS_SUCCEEDED(rv))
-            mCriticalRequestPrioritization = cVar;
+            mCritialRequestPrioritization = cVar;
     }
 
     // on transition of network.http.diagnostics to true print
@@ -1535,14 +1515,13 @@ nsHttpHandler::SetAcceptEncodings(const char *aAcceptEncodings)
 // nsHttpHandler::nsISupports
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS7(nsHttpHandler,
+NS_IMPL_ISUPPORTS6(nsHttpHandler,
                    nsIHttpProtocolHandler,
                    nsIProxiedProtocolHandler,
                    nsIProtocolHandler,
                    nsIObserver,
                    nsISupportsWeakReference,
-                   nsISpeculativeConnect,
-                   nsIHttpDataUsage)
+                   nsISpeculativeConnect)
 
 //-----------------------------------------------------------------------------
 // nsHttpHandler::nsIProtocolHandler
@@ -1744,6 +1723,29 @@ nsHttpHandler::GetCacheSessionNameForStoragePolicy(
 // nsHttpHandler::nsIObserver
 //-----------------------------------------------------------------------------
 
+static void
+EvictCacheSession(nsCacheStoragePolicy aPolicy,
+                  bool aPrivateBrowsing,
+                  uint32_t aAppId,
+                  bool aInBrowser)
+{
+    nsAutoCString clientId;
+    nsHttpHandler::GetCacheSessionNameForStoragePolicy(aPolicy,
+                                                       aPrivateBrowsing,
+                                                       aAppId, aInBrowser,
+                                                       clientId);
+    nsCOMPtr<nsICacheService> serv =
+        do_GetService(NS_CACHESERVICE_CONTRACTID);
+    nsCOMPtr<nsICacheSession> session;
+    nsresult rv = serv->CreateSession(clientId.get(),
+                                      nsICache::STORE_ANYWHERE,
+                                      nsICache::STREAM_BASED,
+                                      getter_AddRefs(session));
+    if (NS_SUCCEEDED(rv) && session) {
+        session->EvictEntries();
+    }
+}
+
 NS_IMETHODIMP
 nsHttpHandler::Observe(nsISupports *subject,
                        const char *topic,
@@ -1796,6 +1798,45 @@ nsHttpHandler::Observe(nsISupports *subject,
     else if (strcmp(topic, "last-pb-context-exited") == 0) {
         mPrivateAuthCache.ClearAll();
     }
+    else if (strcmp(topic, "webapps-clear-data") == 0) {
+        nsCOMPtr<mozIApplicationClearPrivateDataParams> params =
+                do_QueryInterface(subject);
+        if (!params) {
+            NS_ERROR("'webapps-clear-data' notification's subject should be a mozIApplicationClearPrivateDataParams");
+            return NS_ERROR_UNEXPECTED;
+        }
+
+        uint32_t appId;
+        bool browserOnly;
+        nsresult rv = params->GetAppId(&appId);
+        NS_ENSURE_SUCCESS(rv, rv);
+        rv = params->GetBrowserOnly(&browserOnly);
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        MOZ_ASSERT(appId != NECKO_UNKNOWN_APP_ID);
+
+        // Now we ensure that all unique session name combinations are cleared.
+        struct {
+            nsCacheStoragePolicy policy;
+            bool privateBrowsing;
+        } policies[] = { {nsICache::STORE_OFFLINE, false},
+                         {nsICache::STORE_IN_MEMORY, false},
+                         {nsICache::STORE_IN_MEMORY, true},
+                         {nsICache::STORE_ON_DISK, false} };
+
+        for (uint32_t i = 0; i < NS_ARRAY_LENGTH(policies); i++) {
+            EvictCacheSession(policies[i].policy,
+                              policies[i].privateBrowsing,
+                              appId, browserOnly);
+
+            if (!browserOnly) {
+                EvictCacheSession(policies[i].policy,
+                                  policies[i].privateBrowsing,
+                                  appId, true);
+            }
+        }
+
+    }
 
     return NS_OK;
 }
@@ -1806,9 +1847,6 @@ NS_IMETHODIMP
 nsHttpHandler::SpeculativeConnect(nsIURI *aURI,
                                   nsIInterfaceRequestor *aCallbacks)
 {
-    if (!mHandlerActive)
-        return NS_OK;
-
     nsISiteSecurityService* sss = gHttpHandler->GetSSService();
     bool isStsHost = false;
     if (!sss)
@@ -1866,248 +1904,45 @@ nsHttpHandler::SpeculativeConnect(nsIURI *aURI,
     return SpeculativeConnect(ci, aCallbacks);
 }
 
-// nsIHttpDataUsage
-
-NS_IMETHODIMP
-nsHttpHandler::GetEthernetBytesRead(uint64_t *aEthernetBytesRead)
-{
-    MOZ_ASSERT(NS_IsMainThread());
-    *aEthernetBytesRead = mEthernetBytesRead;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHttpHandler::GetEthernetBytesWritten(uint64_t *aEthernetBytesWritten)
-{
-    MOZ_ASSERT(NS_IsMainThread());
-    *aEthernetBytesWritten = mEthernetBytesWritten;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHttpHandler::GetCellBytesRead(uint64_t *aCellBytesRead)
-{
-    MOZ_ASSERT(NS_IsMainThread());
-    *aCellBytesRead = mCellBytesRead;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHttpHandler::GetCellBytesWritten(uint64_t *aCellBytesWritten)
-{
-    MOZ_ASSERT(NS_IsMainThread());
-    *aCellBytesWritten = mCellBytesWritten;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHttpHandler::ResetHttpDataUsage()
-{
-    MOZ_ASSERT(NS_IsMainThread());
-    mEthernetBytesRead = mEthernetBytesWritten = 0;
-    mCellBytesRead = mCellBytesWritten = 0;
-    return NS_OK;
-}
-
-class DataUsageEvent : public nsRunnable
-{
-public:
-    explicit DataUsageEvent(nsIInterfaceRequestor *cb,
-                            uint64_t bytesRead,
-                            uint64_t bytesWritten)
-        : mCB(cb), mRead(bytesRead), mWritten(bytesWritten) { }
-    
-  NS_IMETHOD Run() MOZ_OVERRIDE
-  {
-    MOZ_ASSERT(NS_IsMainThread());
-    if (gHttpHandler)
-        gHttpHandler->UpdateDataUsage(mCB, mRead, mWritten);
-    return NS_OK;
-  }
-
-private:
-  ~DataUsageEvent() { }
-  nsCOMPtr<nsIInterfaceRequestor> mCB;
-  uint64_t mRead;
-  uint64_t mWritten;
-};
-
-void
-nsHttpHandler::UpdateDataUsage(nsIInterfaceRequestor *cb,
-                               uint64_t bytesRead, uint64_t bytesWritten)
-{
-    if (!IsTelemetryEnabled())
-        return;
-
-    if (!NS_IsMainThread()) {
-        nsRefPtr<nsIRunnable> event = new DataUsageEvent(cb, bytesRead, bytesWritten);
-        NS_DispatchToMainThread(event);
-        return;
-    }
-    
-    bool isEthernet = true;
-
-    if (NS_FAILED(GetNetworkEthernetInfo(cb, &isEthernet))) {
-        // without a window it is hard for android to determine the network type
-        // so on failures we will just use the last value
-        if (!mNetworkTypeKnown)
-            return;
-        isEthernet = mNetworkTypeWasEthernet;
-    }
-
-    if (isEthernet) {
-        mEthernetBytesRead += bytesRead;
-        mEthernetBytesWritten += bytesWritten;
-    } else {
-        mCellBytesRead += bytesRead;
-        mCellBytesWritten += bytesWritten;
-    }
-}
-
-nsresult
-nsHttpHandler::GetNetworkEthernetInfo(nsIInterfaceRequestor *cb,
-                                      bool *aEthernet)
-{
-    NS_ENSURE_ARG_POINTER(aEthernet);
-
-    nsresult rv = GetNetworkEthernetInfoInner(cb, aEthernet);
-    if (NS_SUCCEEDED(rv)) {
-        mNetworkTypeKnown = true;
-        mNetworkTypeWasEthernet = *aEthernet;
-    }
-    return rv;
-}
-
-// aEthernet and aGateway are required out parameters
-// on b2g and desktop gateway cannot be determined yet and
-// this function returns ERROR_NOT_IMPLEMENTED.
-nsresult
-nsHttpHandler::GetNetworkInfo(nsIInterfaceRequestor *cb,
-                              bool *aEthernet,
-                              uint32_t *aGateway)
-{
-    NS_ENSURE_ARG_POINTER(aEthernet);
-    NS_ENSURE_ARG_POINTER(aGateway);
-
-    nsresult rv = GetNetworkInfoInner(cb, aEthernet, aGateway);
-    if (NS_SUCCEEDED(rv)) {
-        mNetworkTypeKnown = true;
-        mNetworkTypeWasEthernet = *aEthernet;
-    }
-    return rv;
-}
-
-nsresult
-nsHttpHandler::GetNetworkInfoInner(nsIInterfaceRequestor *cb,
-                                   bool *aEthernet,
-                                   uint32_t *aGateway)
-{
-    NS_ENSURE_ARG_POINTER(aEthernet);
-    NS_ENSURE_ARG_POINTER(aGateway);
-
-    *aGateway = 0;
-    *aEthernet = true;
-    
-#if defined(MOZ_WIDGET_GONK)
-    // b2g only allows you to ask for ethernet or not right now.
-    return NS_ERROR_NOT_IMPLEMENTED;
-#endif
-
-#if defined(ANDROID)
-    if (!cb)
-        return NS_ERROR_FAILURE;
-
-    nsCOMPtr<nsIDOMWindow> domWindow;
-    cb->GetInterface(NS_GET_IID(nsIDOMWindow), getter_AddRefs(domWindow));
-    if (!domWindow)
-        return NS_ERROR_FAILURE;
-
-    nsCOMPtr<nsIDOMNavigator> domNavigator;
-    domWindow->GetNavigator(getter_AddRefs(domNavigator));
-    nsCOMPtr<nsIMozNavigatorNetwork> networkNavigator =
-        do_QueryInterface(domNavigator);
-    if (!networkNavigator)
-        return NS_ERROR_FAILURE;
-
-    nsCOMPtr<nsIDOMMozConnection> mozConnection;
-    networkNavigator->GetMozConnection(getter_AddRefs(mozConnection));
-    nsCOMPtr<nsINetworkProperties> networkProperties =
-        do_QueryInterface(mozConnection);
-    if (!networkProperties)
-        return NS_ERROR_FAILURE;
-
-    nsresult rv;
-    rv = networkProperties->GetDhcpGateway(aGateway);
-    if (NS_FAILED(rv))
-        return rv;
-
-    return networkProperties->GetIsWifi(aEthernet);
-#endif
-
-    // desktop does not currently know about the gateway
-    return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-nsresult
-nsHttpHandler::GetNetworkEthernetInfoInner(nsIInterfaceRequestor *cb,
-                                           bool *aEthernet)
-{
-    *aEthernet = true;
-    
-#if defined(MOZ_WIDGET_GONK)
-    int32_t networkType;
-    nsCOMPtr<nsINetworkManager> networkManager = 
-        do_GetService("@mozilla.org/network/manager;1");
-    if (!networkManager)
-        return NS_ERROR_FAILURE;
-    if (NS_FAILED(networkManager->GetPreferredNetworkType(&networkType)))
-        return NS_ERROR_FAILURE;
-    *aEthernet = networkType == nsINetworkInterface::NETWORK_TYPE_WIFI;
-    return NS_OK;
-#endif
-
-#if defined(ANDROID)
-    if (!cb)
-        return NS_ERROR_FAILURE;
-
-    nsCOMPtr<nsIDOMWindow> domWindow;
-    cb->GetInterface(NS_GET_IID(nsIDOMWindow), getter_AddRefs(domWindow));
-    if (!domWindow)
-        return NS_ERROR_FAILURE;
-
-    nsCOMPtr<nsIDOMNavigator> domNavigator;
-    domWindow->GetNavigator(getter_AddRefs(domNavigator));
-    nsCOMPtr<nsIMozNavigatorNetwork> networkNavigator =
-        do_QueryInterface(domNavigator);
-    if (!networkNavigator)
-        return NS_ERROR_FAILURE;
-
-    nsCOMPtr<nsIDOMMozConnection> mozConnection;
-    networkNavigator->GetMozConnection(getter_AddRefs(mozConnection));
-    nsCOMPtr<nsINetworkProperties> networkProperties =
-        do_QueryInterface(mozConnection);
-    if (!networkProperties)
-        return NS_ERROR_FAILURE;
-
-    return networkProperties->GetIsWifi(aEthernet);
-#endif
-
-    // desktop assumes never on cell data
-    *aEthernet = true;
-    return NS_OK;
-}
-
 void
 nsHttpHandler::TickleWifi(nsIInterfaceRequestor *cb)
 {
     if (!cb || !mWifiTickler)
         return;
 
+    // If B2G requires a similar mechanism nsINetworkManager, currently only avail
+    // on B2G, contains the necessary information on wifi and gateway
+
+    nsCOMPtr<nsIDOMWindow> domWindow;
+    cb->GetInterface(NS_GET_IID(nsIDOMWindow), getter_AddRefs(domWindow));
+    if (!domWindow)
+        return;
+
+    nsCOMPtr<nsIDOMNavigator> domNavigator;
+    domWindow->GetNavigator(getter_AddRefs(domNavigator));
+    nsCOMPtr<nsIMozNavigatorNetwork> networkNavigator =
+        do_QueryInterface(domNavigator);
+    if (!networkNavigator)
+        return;
+
+    nsCOMPtr<nsIDOMMozConnection> mozConnection;
+    networkNavigator->GetMozConnection(getter_AddRefs(mozConnection));
+    nsCOMPtr<nsINetworkProperties> networkProperties =
+        do_QueryInterface(mozConnection);
+    if (!networkProperties)
+        return;
+
     uint32_t gwAddress;
     bool isWifi;
+    nsresult rv;
 
-    nsresult rv = GetNetworkInfo(cb, &isWifi, &gwAddress);
-    if (NS_FAILED(rv) || !gwAddress || !isWifi)
+    rv = networkProperties->GetDhcpGateway(&gwAddress);
+    if (NS_SUCCEEDED(rv))
+        rv = networkProperties->GetIsWifi(&isWifi);
+    if (NS_FAILED(rv))
+        return;
+
+    if (!gwAddress || !isWifi)
         return;
 
     mWifiTickler->SetIPV4Address(gwAddress);

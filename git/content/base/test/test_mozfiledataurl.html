@@ -209,8 +209,10 @@ function getFile(name) {
     basePath = xhr.responseText;
   }
 
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
   var fileList = document.getElementById('fileList');
-  SpecialPowers.wrap(fileList).value = basePath + name;
+  fileList.value = basePath + name;
 
   return fileList.files[0];
 }

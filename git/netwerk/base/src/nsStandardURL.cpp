@@ -7,6 +7,8 @@
 #include "IPCMessageUtils.h"
 
 #include "nsStandardURL.h"
+#include "nsDependentSubstring.h"
+#include "nsReadableUtils.h"
 #include "nsCRT.h"
 #include "nsEscape.h"
 #include "nsIFile.h"
@@ -16,11 +18,11 @@
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 #include "nsIIDNService.h"
+#include "nsNetUtil.h"
 #include "prlog.h"
 #include "nsAutoPtr.h"
 #include "nsIProgrammingLanguage.h"
-#include "nsIURLParser.h"
-#include "nsNetCID.h"
+#include "nsVoidArray.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/ipc/URIUtils.h"
 #include <algorithm>
@@ -46,7 +48,6 @@ static PRLogModuleInfo *gStandardURLLog;
 // The Chromium code defines its own LOG macro which we don't want
 #undef LOG
 #define LOG(args)     PR_LOG(gStandardURLLog, PR_LOG_DEBUG, args)
-#undef LOG_ENABLED
 #define LOG_ENABLED() PR_LOG_TEST(gStandardURLLog, PR_LOG_DEBUG)
 
 //----------------------------------------------------------------------------
@@ -836,19 +837,19 @@ nsStandardURL::AppendToSubstring(uint32_t pos,
 {
     // Verify pos and length are within boundaries
     if (pos > mSpec.Length())
-        return nullptr;
+        return NULL;
     if (len < 0)
-        return nullptr;
+        return NULL;
     if ((uint32_t)len > (mSpec.Length() - pos))
-        return nullptr;
+        return NULL;
     if (!tail)
-        return nullptr;
+        return NULL;
 
     uint32_t tailLen = strlen(tail);
 
     // Check for int overflow for proposed length of combined string
     if (UINT32_MAX - ((uint32_t)len + 1) < tailLen)
-        return nullptr;
+        return NULL;
 
     char *result = (char *) NS_Alloc(len + tailLen + 1);
     if (result) {
@@ -1408,39 +1409,13 @@ nsStandardURL::SetPassword(const nsACString &input)
 }
 
 NS_IMETHODIMP
-nsStandardURL::SetHostPort(const nsACString &aValue)
+nsStandardURL::SetHostPort(const nsACString &value)
 {
     ENSURE_MUTABLE();
 
-  // We cannot simply call nsIURI::SetHost because that would treat the name as
-  // an IPv6 address (like http:://[server:443]/).  We also cannot call
-  // nsIURI::SetHostPort because that isn't implemented.  Sadfaces.
-
-  // First set the hostname.
-  nsACString::const_iterator start, end;
-  aValue.BeginReading(start);
-  aValue.EndReading(end);
-  nsACString::const_iterator iter(start);
-  FindCharInReadable(':', iter, end);
-
-  nsresult rv = SetHost(Substring(start, iter));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Also set the port if needed.
-  if (iter != end) {
-    iter++;
-    if (iter != end) {
-      nsCString portStr(Substring(iter, end));
-      nsresult rv;
-      int32_t port = portStr.ToInteger(&rv);
-      if (NS_SUCCEEDED(rv)) {
-        rv = SetPort(port);
-        NS_ENSURE_SUCCESS(rv, rv);
-      }
-    }
-  }
-
-  return NS_OK;
+    // XXX needs implementation!!
+    NS_NOTREACHED("not implemented");
+    return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP

@@ -10,25 +10,18 @@
   'variables': {
     'neteq_dependencies': [
       'G711',
+      'G722',
       'PCM16B',
+      'iLBC',
+      'iSAC',
+      'iSACFix',
       'CNG',
-      '<(webrtc_root)/common_audio/common_audio.gyp:common_audio',
+      '<(webrtc_root)/common_audio/common_audio.gyp:signal_processing',
+      '<(webrtc_root)/common_audio/common_audio.gyp:vad',
       '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:system_wrappers',
     ],
     'neteq_defines': [],
     'conditions': [
-      ['include_g722==1', {
-        'neteq_dependencies': ['G722'],
-        'neteq_defines': ['WEBRTC_CODEC_G722',],
-      }],
-      ['include_ilbc==1', {
-        'neteq_dependencies': ['iLBC'],
-        'neteq_defines': ['WEBRTC_CODEC_ILBC',],
-      }],
-      ['include_isac==1', {
-        'neteq_dependencies': ['iSAC', 'iSACFix',],
-        'neteq_defines': ['WEBRTC_CODEC_ISAC', 'WEBRTC_CODEC_ISACFIX',],
-      }],
       ['include_opus==1', {
         'neteq_dependencies': ['webrtc_opus',],
         'neteq_defines': ['WEBRTC_CODEC_OPUS',],
@@ -120,6 +113,10 @@
         'time_stretch.cc',
         'time_stretch.h',
       ],
+      # Disable warnings to enable Win64 build, issue 1323.
+      'msvs_disabled_warnings': [
+        4267,  # size_t to int truncation.
+      ],
     },
   ], # targets
   'conditions': [
@@ -128,14 +125,13 @@
       'targets': [
         {
           'target_name': 'audio_decoder_unittests',
-          'type': '<(gtest_target_type)',
+          'type': 'executable',
           'dependencies': [
             '<@(neteq_dependencies)',
             '<(DEPTH)/testing/gtest.gyp:gtest',
-            '<(webrtc_root)/common_audio/common_audio.gyp:common_audio',
+            '<(webrtc_root)/common_audio/common_audio.gyp:resampler',
             '<(webrtc_root)/test/test.gyp:test_support_main',
           ],
-# FIX for include_isac/etc
           'defines': [
             'AUDIO_DECODER_UNITTEST',
             'WEBRTC_CODEC_G722',
@@ -152,14 +148,9 @@
             'audio_decoder.cc',
             'interface/audio_decoder.h',
           ],
-          'conditions': [
-            # TODO(henrike): remove build_with_chromium==1 when the bots are
-            # using Chromium's buildbots.
-            ['build_with_chromium==1 and OS=="android" and gtest_target_type=="shared_library"', {
-              'dependencies': [
-                '<(DEPTH)/testing/android/native_test.gyp:native_test_native_code',
-              ],
-            }],
+          # Disable warnings to enable Win64 build, issue 1323.
+          'msvs_disabled_warnings': [
+            4267,  # size_t to int truncation.
           ],
         }, # audio_decoder_unittests
 
@@ -180,48 +171,17 @@
             'tools',
           ],
           'sources': [
-            'tools/audio_loop.cc',
-            'tools/audio_loop.h',
             'tools/input_audio_file.cc',
             'tools/input_audio_file.h',
             'tools/rtp_generator.cc',
             'tools/rtp_generator.h',
           ],
+          # Disable warnings to enable Win64 build, issue 1323.
+          'msvs_disabled_warnings': [
+            4267,  # size_t to int truncation.
+          ],
         }, # neteq_unittest_tools
       ], # targets
-      'conditions': [
-        # TODO(henrike): remove build_with_chromium==1 when the bots are using
-        # Chromium's buildbots.
-        ['build_with_chromium==1 and OS=="android" and gtest_target_type=="shared_library"', {
-          'targets': [
-            {
-              'target_name': 'audio_decoder_unittests_apk_target',
-              'type': 'none',
-              'dependencies': [
-                '<(apk_tests_path):audio_decoder_unittests_apk',
-              ],
-            },
-          ],
-        }],
-        ['test_isolation_mode != "noop"', {
-          'targets': [
-            {
-              'target_name': 'audio_decoder_unittests_run',
-              'type': 'none',
-              'dependencies': [
-                '<(import_isolate_path):import_isolate_gypi',
-                'audio_decoder_unittests',
-              ],
-              'includes': [
-                'audio_decoder_unittests.isolate',
-              ],
-              'sources': [
-                'audio_decoder_unittests.isolate',
-              ],
-            },
-          ],
-        }],
-      ],
     }], # include_tests
   ], # conditions
 }

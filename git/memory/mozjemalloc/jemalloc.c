@@ -299,7 +299,7 @@ typedef unsigned char uint8_t;
 typedef unsigned uint32_t;
 typedef unsigned long long uint64_t;
 typedef unsigned long long uintmax_t;
-#if defined(_WIN64)
+#if defined(MOZ_MEMORY_SIZEOF_PTR_2POW) && (MOZ_MEMORY_SIZEOF_PTR_2POW == 3)
 typedef long long ssize_t;
 #else
 typedef long ssize_t;
@@ -469,8 +469,8 @@ static const bool isthreaded = true;
 
 /* Minimum alignment of non-tiny allocations is 2^QUANTUM_2POW_MIN bytes. */
 #  define QUANTUM_2POW_MIN      4
-#if defined(_WIN64) || defined(__LP64__)
-#  define SIZEOF_PTR_2POW       3
+#ifdef MOZ_MEMORY_SIZEOF_PTR_2POW
+#  define SIZEOF_PTR_2POW		MOZ_MEMORY_SIZEOF_PTR_2POW
 #else
 #  define SIZEOF_PTR_2POW       2
 #endif
@@ -4147,6 +4147,12 @@ arena_malloc_small(arena_t *arena, size_t size, bool zero)
 	} else
 		memset(ret, 0, size);
 
+#ifdef MOZ_TEMP_INVESTIGATION
+	if (size == 72) {
+		memset(ret, 0xe5, size);
+	}
+#endif
+
 	return (ret);
 }
 
@@ -4502,6 +4508,11 @@ arena_dalloc_small(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 #ifdef MALLOC_FILL
 	if (opt_junk)
 		memset(ptr, 0x5a, size);
+#endif
+#ifdef MOZ_TEMP_INVESTIGATION
+	if (size == 72) {
+		memset(ptr, 0x75, size);
+	}
 #endif
 
 	arena_run_reg_dalloc(run, bin, ptr, size);

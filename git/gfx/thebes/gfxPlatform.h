@@ -8,15 +8,17 @@
 
 #include "prlog.h"
 #include "nsTArray.h"
-#include "nsString.h"
-#include "nsCOMPtr.h"
-#include "nsAutoPtr.h"
+#include "nsStringGlue.h"
+#include "nsIObserver.h"
 
 #include "gfxTypes.h"
-#include "nsRect.h"
+#include "gfxASurface.h"
+#include "gfxColor.h"
 
 #include "qcms.h"
 
+#include "mozilla/gfx/2D.h"
+#include "gfx2DGlue.h"
 #include "mozilla/RefPtr.h"
 #include "GfxInfoCollector.h"
 
@@ -26,7 +28,6 @@
 #undef OS2EMX_PLAIN_CHAR
 #endif
 
-class gfxASurface;
 class gfxImageSurface;
 class gfxFont;
 class gfxFontGroup;
@@ -38,18 +39,10 @@ class gfxPlatformFontList;
 class gfxTextRun;
 class nsIURI;
 class nsIAtom;
-class nsIObserver;
-struct gfxRGBA;
 
 namespace mozilla {
 namespace gl {
 class GLContext;
-}
-namespace gfx {
-class DrawTarget;
-class SourceSurface;
-class ScaledFont;
-class DrawEventRecorder;
 }
 }
 
@@ -117,15 +110,15 @@ enum eGfxLog {
     // dump text runs, font matching, system fallback for chrome
     eGfxLog_textrunui        = 3,
     // dump cmap coverage data as they are loaded
-    eGfxLog_cmapdata         = 4,
-    // text perf data
-    eGfxLog_textperf         = 5
+    eGfxLog_cmapdata         = 4
 };
 
 // when searching through pref langs, max number of pref langs
 const uint32_t kMaxLenPrefLangList = 32;
 
 #define UNINITIALIZED_VALUE  (-1)
+
+typedef gfxASurface::gfxImageFormat gfxImageFormat;
 
 inline const char*
 GetBackendName(mozilla::gfx::BackendType aBackend)
@@ -172,7 +165,7 @@ public:
      * and image format.
      */
     virtual already_AddRefed<gfxASurface> CreateOffscreenSurface(const gfxIntSize& size,
-                                                                 gfxContentType contentType) = 0;
+                                                                 gfxASurface::gfxContentType contentType) = 0;
 
     /**
      * Create an offscreen surface of the given dimensions and image format which
@@ -184,10 +177,10 @@ public:
      */
     virtual already_AddRefed<gfxASurface>
       CreateOffscreenImageSurface(const gfxIntSize& aSize,
-                                  gfxContentType aContentType);
+                                  gfxASurface::gfxContentType aContentType);
 
     virtual already_AddRefed<gfxASurface> OptimizeImage(gfxImageSurface *aSurface,
-                                                        gfxImageFormat format);
+                                                        gfxASurface::gfxImageFormat format);
 
     /**
      * Beware that these methods may return DrawTargets which are not fully supported
@@ -279,8 +272,6 @@ public:
     }
 
     virtual bool UseAcceleratedSkiaCanvas();
-
-    virtual void InitializeSkiaCaches();
 
     void GetAzureBackendInfo(mozilla::widget::InfoObject &aObj) {
       aObj.DefineProperty("AzureCanvasBackend", GetBackendName(mPreferredCanvasBackend));
@@ -413,16 +404,6 @@ public:
     bool OpenTypeSVGEnabled();
 
     /**
-     * Max character length of words in the word cache
-     */
-    uint32_t WordCacheCharLimit();
-
-    /**
-     * Max number of entries in word cache
-     */
-    uint32_t WordCacheMaxEntries();
-
-    /**
      * Whether to use the SIL Graphite rendering engine
      * (for fonts that include Graphite tables)
      */
@@ -491,6 +472,10 @@ public:
     // Retrieve the resolution that a low precision buffer should render at.
     static float GetLowPrecisionResolution();
 
+    // Retain some invalid tiles when the valid region of a layer changes and
+    // excludes previously valid tiles.
+    static bool UseReusableTileStore();
+
     static bool OffMainThreadCompositingEnabled();
 
     /** Use gfxPlatform::GetPref* methods instead of direct calls to Preferences
@@ -505,9 +490,6 @@ public:
     static bool GetPrefLayersPreferD3D9();
     static bool CanUseDirect3D9();
     static int  GetPrefLayoutFrameRate();
-    static bool GetPrefLayersDump();
-    static bool GetPrefLayersScrollGraph();
-    static bool GetPrefLayersEnableTiles();
 
     static bool OffMainThreadCompositionRequired();
 
@@ -579,14 +561,13 @@ public:
      * for measuring text etc as if they will be rendered to the screen
      */
     gfxASurface* ScreenReferenceSurface() { return mScreenReferenceSurface; }
-    mozilla::gfx::DrawTarget* ScreenReferenceDrawTarget() { return mScreenReferenceDrawTarget; }
 
-    virtual mozilla::gfx::SurfaceFormat Optimal2DFormatForContent(gfxContentType aContent);
+    virtual mozilla::gfx::SurfaceFormat Optimal2DFormatForContent(gfxASurface::gfxContentType aContent);
 
-    virtual gfxImageFormat OptimalFormatForContent(gfxContentType aContent);
+    virtual gfxImageFormat OptimalFormatForContent(gfxASurface::gfxContentType aContent);
 
     virtual gfxImageFormat GetOffscreenFormat()
-    { return gfxImageFormatRGB24; }
+    { return gfxASurface::ImageFormatRGB24; }
 
     /**
      * Returns a logger if one is available and logging is enabled
@@ -644,8 +625,7 @@ protected:
      * The backend used is determined by aBackendBitmask and the order specified
      * by the gfx.canvas.azure.backends pref.
      */
-    void InitBackendPrefs(uint32_t aCanvasBitmask, mozilla::gfx::BackendType aCanvasDefault,
-                          uint32_t aContentBitmask, mozilla::gfx::BackendType aContentDefault);
+    void InitBackendPrefs(uint32_t aCanvasBitmask, uint32_t aContentBitmask);
 
     /**
      * returns the first backend named in the pref gfx.canvas.azure.backends
@@ -660,12 +640,15 @@ protected:
     static mozilla::gfx::BackendType GetContentBackendPref(uint32_t &aBackendBitmask);
 
     /**
-     * Will return the first backend named in aBackendPrefName
+     * If aEnabledPrefName is non-null, checks the aEnabledPrefName pref and
+     * returns BACKEND_NONE if the pref is not enabled.
+     * Otherwise it will return the first backend named in aBackendPrefName
      * allowed by aBackendBitmask, a bitmask of backend types.
      * It also modifies aBackendBitmask to only include backends that are
      * allowed given the prefs.
      */
-    static mozilla::gfx::BackendType GetBackendPref(const char* aBackendPrefName,
+    static mozilla::gfx::BackendType GetBackendPref(const char* aEnabledPrefName,
+                                                    const char* aBackendPrefName,
                                                     uint32_t &aBackendBitmask);
     /**
      * Decode the backend enumberation from a string.
@@ -689,12 +672,6 @@ protected:
     // which scripts should be shaped with harfbuzz
     int32_t mUseHarfBuzzScripts;
 
-    // max character limit for words in word cache
-    int32_t mWordCacheCharLimit;
-
-    // max number of entries in word cache
-    int32_t mWordCacheMaxEntries;
-
 private:
     /**
      * Start up Thebes.
@@ -703,19 +680,17 @@ private:
 
     static void CreateCMSOutputProfile();
 
-    friend void RecordingPrefChanged(const char *aPrefName, void *aClosure);
+    friend int RecordingPrefChanged(const char *aPrefName, void *aClosure);
 
     virtual qcms_profile* GetPlatformCMSOutputProfile();
 
     virtual bool SupportsOffMainThreadCompositing() { return true; }
 
     nsRefPtr<gfxASurface> mScreenReferenceSurface;
-    mozilla::RefPtr<mozilla::gfx::DrawTarget> mScreenReferenceDrawTarget;
     nsTArray<uint32_t> mCJKPrefLangs;
     nsCOMPtr<nsIObserver> mSRGBOverrideObserver;
     nsCOMPtr<nsIObserver> mFontPrefsObserver;
     nsCOMPtr<nsIObserver> mOrientationSyncPrefsObserver;
-    nsCOMPtr<nsIObserver> mMemoryPressureObserver;
 
     // The preferred draw target backend to use for canvas
     mozilla::gfx::BackendType mPreferredCanvasBackend;

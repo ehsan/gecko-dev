@@ -70,8 +70,7 @@ private:
   // Disallow copy constructor
   nsUrlClassifierDBService(nsUrlClassifierDBService&);
 
-  nsresult LookupURI(nsIPrincipal* aPrincipal,
-                     nsIUrlClassifierCallback* c,
+  nsresult LookupURI(nsIPrincipal* aPrincipal, nsIUrlClassifierCallback* c,
                      bool forceCheck, bool *didCheck);
 
   // Close db connection and join the background thread if it exists.
@@ -101,7 +100,7 @@ private:
   bool mInUpdate;
 
   // The list of tables that can use the default hash completer object.
-  nsTArray<nsCString> mGethashTables;
+  nsTArray<nsCString> mGethashWhitelist;
 
   // Thread that we do the updates on.
   static nsIThread* gDbBackgroundThread;

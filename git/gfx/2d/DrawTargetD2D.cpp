@@ -15,11 +15,6 @@
 #include "Tools.h"
 #include <algorithm>
 #include "mozilla/Constants.h"
-#include "FilterNodeSoftware.h"
-
-#ifdef USE_D2D1_1
-#include "FilterNodeD2D1.h"
-#endif
 
 #include <dwrite.h>
 
@@ -90,7 +85,9 @@ public:
     }
     mDT->mDevice->CopyResource(tmpTexture, mDT->mTexture);
 
-    D2D1_BITMAP_PROPERTIES props = D2D1::BitmapProperties(D2DPixelFormat(format));
+    D2D1_BITMAP_PROPERTIES props =
+      D2D1::BitmapProperties(D2D1::PixelFormat(DXGIFormat(format),
+                             AlphaMode(format)));
 
     RefPtr<IDXGISurface> surf;
 
@@ -309,7 +306,7 @@ DrawTargetD2D::GetBitmapForSurface(SourceSurface *aSurface,
                             (uint32_t)aSource.x * BytesPerPixel(srcSurf->GetFormat());
 
       D2D1_BITMAP_PROPERTIES props =
-        D2D1::BitmapProperties(D2DPixelFormat(srcSurf->GetFormat()));
+        D2D1::BitmapProperties(D2D1::PixelFormat(DXGIFormat(srcSurf->GetFormat()), AlphaMode(srcSurf->GetFormat())));
       mRT->CreateBitmap(D2D1::SizeU(UINT32(aSource.width), UINT32(aSource.height)), data, stride, props, byRef(bitmap));
 
       // subtract the integer part leaving the fractional part
@@ -347,46 +344,6 @@ DrawTargetD2D::DrawSurface(SourceSurface *aSurface,
   rt->DrawBitmap(bitmap, D2DRect(aDest), aOptions.mAlpha, D2DFilter(aSurfOptions.mFilter), D2DRect(srcRect));
 
   FinalizeRTForOperation(aOptions.mCompositionOp, ColorPattern(Color()), aDest);
-}
-
-void
-DrawTargetD2D::DrawFilter(FilterNode *aNode,
-                          const Rect &aSourceRect,
-                          const Point &aDestPoint,
-                          const DrawOptions &aOptions)
-{
-#ifdef USE_D2D1_1
-  RefPtr<ID2D1DeviceContext> dc;
-  HRESULT hr;
-  
-  hr = mRT->QueryInterface((ID2D1DeviceContext**)byRef(dc));
-
-  if (SUCCEEDED(hr) && aNode->GetBackendType() == FILTER_BACKEND_DIRECT2D1_1) {
-    ID2D1RenderTarget *rt = GetRTForOperation(aOptions.mCompositionOp, ColorPattern(Color()));
-  
-    PrepareForDrawing(rt);
-
-    rt->SetAntialiasMode(D2DAAMode(aOptions.mAntialiasMode));
-    hr = rt->QueryInterface((ID2D1DeviceContext**)byRef(dc));
-
-    if (SUCCEEDED(hr)) {
-      dc->DrawImage(static_cast<FilterNodeD2D1*>(aNode)->OutputEffect(), D2DPoint(aDestPoint), D2DRect(aSourceRect));
-
-      Rect destRect = aSourceRect;
-      destRect.MoveBy(aDestPoint);
-      FinalizeRTForOperation(aOptions.mCompositionOp, ColorPattern(Color()), destRect);
-      return;
-    }
-  }
-#endif
-
-  if (aNode->GetBackendType() != FILTER_BACKEND_SOFTWARE) {
-    gfxWarning() << "Invalid filter backend passed to DrawTargetD2D!";
-    return;
-  }
-
-  FilterNodeSoftware* filter = static_cast<FilterNodeSoftware*>(aNode);
-  filter->Draw(this, aSourceRect, aDestPoint, aOptions);
 }
 
 void
@@ -764,37 +721,27 @@ void
 DrawTargetD2D::ClearRect(const Rect &aRect)
 {
   MarkChanged();
-  PushClipRect(aRect);
 
+  FlushTransformToRT();
   PopAllClips();
 
   AutoSaveRestoreClippedOut restoreClippedOut(this);
 
-  D2D1_RECT_F clipRect;
-  bool isPixelAligned;
-  bool pushedClip = false;
-  if (mTransform.IsRectilinear() &&
-      GetDeviceSpaceClipRect(clipRect, isPixelAligned)) {
-    if (mTransformDirty ||
-        !mTransform.IsIdentity()) {
-      mRT->SetTransform(D2D1::IdentityMatrix());
-      mTransformDirty = true;
-    }
+  restoreClippedOut.Save();
 
-    mRT->PushAxisAlignedClip(clipRect, isPixelAligned ? D2D1_ANTIALIAS_MODE_ALIASED : D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
-    pushedClip = true;
-  } else {
-    FlushTransformToRT();
-    restoreClippedOut.Save();
+  bool needsClip = false;
+
+  needsClip = aRect.x > 0 || aRect.y > 0 ||
+              aRect.XMost() < mSize.width ||
+              aRect.YMost() < mSize.height;
+
+  if (needsClip) {
+    mRT->PushAxisAlignedClip(D2DRect(aRect), D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
   }
-
   mRT->Clear(D2D1::ColorF(0, 0.0f));
-
-  if (pushedClip) {
+  if (needsClip) {
     mRT->PopAxisAlignedClip();
   }
-
-  PopClip();
   return;
 }
 
@@ -816,22 +763,33 @@ DrawTargetD2D::CopySurface(SourceSurface *aSurface,
   mRT->Clear(D2D1::ColorF(0, 0.0f));
   mRT->PopAxisAlignedClip();
 
-  RefPtr<ID2D1Bitmap> bitmap = GetBitmapForSurface(aSurface, srcRect);
+  RefPtr<ID2D1Bitmap> bitmap;
+
+  switch (aSurface->GetType()) {
+  case SURFACE_D2D1_BITMAP:
+    {
+      SourceSurfaceD2D *srcSurf = static_cast<SourceSurfaceD2D*>(aSurface);
+      bitmap = srcSurf->GetBitmap();
+    }
+    break;
+  case SURFACE_D2D1_DRAWTARGET:
+    {
+      SourceSurfaceD2DTarget *srcSurf = static_cast<SourceSurfaceD2DTarget*>(aSurface);
+      bitmap = srcSurf->GetBitmap(mRT);
+      AddDependencyOnSource(srcSurf);
+    }
+    break;
+  default:
+    return;
+  }
+
   if (!bitmap) {
     return;
   }
 
-  if (aSurface->GetFormat() == FORMAT_A8) {
-    RefPtr<ID2D1SolidColorBrush> brush;
-    mRT->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::White),
-                               D2D1::BrushProperties(), byRef(brush));
-    mRT->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
-    mRT->FillOpacityMask(bitmap, brush, D2D1_OPACITY_MASK_CONTENT_GRAPHICS);
-  } else {
-    mRT->DrawBitmap(bitmap, D2DRect(dstRect), 1.0f,
-            D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
-            D2DRect(srcRect));
-  }
+  mRT->DrawBitmap(bitmap, D2DRect(dstRect), 1.0f,
+                  D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
+                  D2DRect(srcRect));
 }
 
 void
@@ -1274,20 +1232,6 @@ DrawTargetD2D::CreateGradientStops(GradientStop *rawStops, uint32_t aNumStops, E
   }
 
   return new GradientStopsD2D(stopCollection);
-}
-
-TemporaryRef<FilterNode>
-DrawTargetD2D::CreateFilter(FilterType aType)
-{
-#ifdef USE_D2D1_1
-  RefPtr<ID2D1DeviceContext> dc;
-  HRESULT hr = mRT->QueryInterface((ID2D1DeviceContext**)byRef(dc));
-
-  if (SUCCEEDED(hr)) {
-    return FilterNodeD2D1::Create(this, dc, aType);
-  }
-#endif
-  return FilterNodeSoftware::Create(aType);
 }
 
 void*
@@ -1791,38 +1735,7 @@ IntersectRect(const D2D1_RECT_F& aRect1, const D2D1_RECT_F& aRect2)
   result.top = max(aRect1.top, aRect2.top);
   result.right = min(aRect1.right, aRect2.right);
   result.bottom = min(aRect1.bottom, aRect2.bottom);
-
-  result.right = max(result.right, result.left);
-  result.bottom = max(result.bottom, result.top);
-
   return result;
-}
-
-bool
-DrawTargetD2D::GetDeviceSpaceClipRect(D2D1_RECT_F& aClipRect, bool& aIsPixelAligned)
-{
-  if (!mPushedClips.size()) {
-    return false;
-  }
-
-  std::vector<DrawTargetD2D::PushedClip>::iterator iter = mPushedClips.begin();
-  if (iter->mPath) {
-    return false;
-  }
-  aClipRect = iter->mBounds;
-  aIsPixelAligned = iter->mIsPixelAligned;
-
-  iter++;
-  for (;iter != mPushedClips.end(); iter++) {
-    if (iter->mPath) {
-      return false;
-    }
-    aClipRect = IntersectRect(aClipRect, iter->mBounds);
-    if (!iter->mIsPixelAligned) {
-      aIsPixelAligned = false;
-    }
-  }
-  return true;
 }
 
 TemporaryRef<ID2D1Geometry>

@@ -18,7 +18,7 @@
 #include "nsXULAppAPI.h"
 
 
-static nsFastStartup* sFastStartup = nullptr;
+static nsFastStartup* sFastStartup = NULL;
 
 void
 GeckoThread::run()
@@ -46,13 +46,16 @@ void nsFastStartup::painted()
 MozGraphicsView*
 nsFastStartup::GetStartupGraphicsView(QWidget* parentWidget, IMozQWidget* aTopChild)
 {
-  MozGraphicsView* view = nullptr;
+  MozGraphicsView* view = NULL;
   if (sFastStartup && sFastStartup->mGraphicsView) {
     view = sFastStartup->mGraphicsView;
   } else {
     view = new MozGraphicsView(parentWidget);
     Qt::WindowFlags flags = Qt::Widget;
     view->setWindowFlags(flags);
+#if MOZ_PLATFORM_MAEMO == 6
+    view->setViewport(new QGLWidget());
+#endif
   }
   view->SetTopLevel(aTopChild, parentWidget);
 
@@ -110,12 +113,16 @@ nsFastStartup::CreateFastStartup(int& argc, char ** argv,
           this, SLOT(symbolsLoadingFinished(bool)));
   mThread->SetLoader(aFunc, execPath);
   // Create Static UI widget and view
-  IMozQWidget* fakeWidget = new MozQWidgetFast(nullptr, nullptr);
-  mGraphicsView = GetStartupGraphicsView(nullptr, fakeWidget);
+  IMozQWidget* fakeWidget = new MozQWidgetFast(NULL, NULL);
+  mGraphicsView = GetStartupGraphicsView(NULL, fakeWidget);
   mFakeWidget = fakeWidget;
 
   mThread->start();
+#ifdef MOZ_PLATFORM_MAEMO
+  mGraphicsView->showFullScreen();
+#else
   mGraphicsView->showNormal();
+#endif
 
   // Start native loop in order to get view opened and painted once
   // Will block CreateFastStartup function and

@@ -29,6 +29,8 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.Reader;
 import java.io.StringReader;
+import java.security.GeneralSecurityException;
+import java.security.MessageDigest;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -46,8 +48,12 @@ public final class ANRReporter extends BroadcastReceiver
     private static final int TRACES_LINE_SIZE = 100;
     // Size of block to use when processing traces.txt
     private static final int TRACES_BLOCK_SIZE = 2000;
-    private static final String TRACES_CHARSET = "utf-8";
-    private static final String PING_CHARSET = "utf-8";
+    // we use us-ascii here because when telemetry calculates checksum
+    // for the ping file, it lossily converts utf-16 to ascii. therefore,
+    // we have to treat characters in the traces file as ascii rather than
+    // say utf-8. otherwise, we will get a wrong checksum
+    private static final String TRACES_CHARSET = "us-ascii";
+    private static final String PING_CHARSET = "us-ascii";
 
     private static final ANRReporter sInstance = new ANRReporter();
     private static int sRegisteredCount;
@@ -260,11 +266,11 @@ public final class ANRReporter extends BroadcastReceiver
     /*
         a saved telemetry ping file consists of JSON in the following format,
             {
-                "reason": "android-anr-report",
                 "slug": "<uuid-string>",
-                "payload": <json-object>
+                "payload": "<escaped-json-data-string>",
+                "checksum": "<base64-sha-256-string>"
             }
-        for Android ANR, our JSON payload should look like,
+        for Android ANR, our unescaped JSON payload should look like,
             {
                 "ver": 1,
                 "simpleMeasurements": {
@@ -281,27 +287,32 @@ public final class ANRReporter extends BroadcastReceiver
     */
 
     private static int writePingPayload(OutputStream ping,
+                                        MessageDigest checksum,
                                         String payload) throws IOException {
+
         byte [] data = payload.getBytes(PING_CHARSET);
-        ping.write(data);
-        return data.length;
+        checksum.update(data);
+
+        data = JSONObject.quote(payload).getBytes(PING_CHARSET);
+        // first and last bytes are quotes inserted by JSONObject.quote; discard them
+        ping.write(data, 1, data.length - 2);
+        return data.length - 2;
     }
 
-    private static void fillPingHeader(OutputStream ping, String slug)
+    private static void fillPingHeader(OutputStream ping, MessageDigest checksum, String slug)
             throws IOException {
 
         // ping file header
         byte [] data = ("{" +
-            "\"reason\":\"android-anr-report\"," +
             "\"slug\":" + JSONObject.quote(slug) + "," +
-            "\"payload\":").getBytes(PING_CHARSET);
+            "\"payload\":\"").getBytes(PING_CHARSET);
         ping.write(data);
         if (DEBUG) {
             Log.d(LOGTAG, "wrote ping header, size = " + String.valueOf(data.length));
         }
 
         // payload start
-        int size = writePingPayload(ping, ("{" +
+        int size = writePingPayload(ping, checksum, ("{" +
             "\"ver\":1," +
             "\"simpleMeasurements\":{" +
                 "\"uptime\":" + String.valueOf(getUptimeMins()) +
@@ -381,9 +392,9 @@ public final class ANRReporter extends BroadcastReceiver
         return 0;
     }
 
-    // Copy the content of reader to ping;
+    // Copy the content of reader to ping and update checksum;
     // copying stops when endPattern is found in the input stream
-    private static int fillPingBlock(OutputStream ping,
+    private static int fillPingBlock(OutputStream ping, MessageDigest checksum,
                                      Reader reader, String endPattern)
             throws IOException {
 
@@ -398,7 +409,7 @@ public final class ANRReporter extends BroadcastReceiver
                 stringBlock = stringBlock.substring(0, endIndex);
             }
             String quoted = JSONObject.quote(stringBlock);
-            total += writePingPayload(ping, quoted.substring(1, quoted.length() - 1));
+            total += writePingPayload(ping, checksum, quoted.substring(1, quoted.length() - 1));
             if (endIndex > 0) {
                 // End pattern already found; return now
                 break;
@@ -407,13 +418,13 @@ public final class ANRReporter extends BroadcastReceiver
         return total;
     }
 
-    private static void fillPingFooter(OutputStream ping,
+    private static void fillPingFooter(OutputStream ping, MessageDigest checksum,
                                        boolean haveNativeStack)
             throws IOException {
 
         // We are at the end of ANR data
 
-        int total = writePingPayload(ping, ("\"," +
+        int total = writePingPayload(ping, checksum, ("\"," +
                 "\"androidLogcat\":\""));
 
         try {
@@ -424,7 +435,7 @@ public final class ANRReporter extends BroadcastReceiver
                 .start();
             try {
                 Reader procOut = new InputStreamReader(proc.getInputStream(), TRACES_CHARSET);
-                int size = fillPingBlock(ping, procOut, null);
+                int size = fillPingBlock(ping, checksum, procOut, null);
                 if (DEBUG) {
                     Log.d(LOGTAG, "wrote logcat, size = " + String.valueOf(size));
                 }
@@ -437,20 +448,25 @@ public final class ANRReporter extends BroadcastReceiver
         }
 
         if (haveNativeStack) {
-            total += writePingPayload(ping, ("\"," +
-                    "\"androidNativeStack\":"));
+            total += writePingPayload(ping, checksum, ("\"," +
+                    "\"androidNativeStack\":\""));
 
             String nativeStack = String.valueOf(getNativeStack());
-            int size = writePingPayload(ping, nativeStack);
+            int size = fillPingBlock(ping, checksum, new StringReader(nativeStack), null);
             if (DEBUG) {
                 Log.d(LOGTAG, "wrote native stack, size = " + String.valueOf(size));
             }
-            total += size + writePingPayload(ping, "}");
-        } else {
-            total += writePingPayload(ping, "\"}");
         }
 
+        total += writePingPayload(ping, checksum, "\"}");
+
+        String base64Checksum = Base64.encodeToString(checksum.digest(), Base64.NO_WRAP);
+        if (DEBUG) {
+            Log.d(LOGTAG, "checksum: " + base64Checksum);
+        }
         byte [] data = (
+                "\"," +
+                "\"checksum\":" + JSONObject.quote(base64Checksum) +
             "}").getBytes(PING_CHARSET);
         ping.write(data);
         if (DEBUG) {
@@ -465,7 +481,8 @@ public final class ANRReporter extends BroadcastReceiver
             OutputStream ping = new BufferedOutputStream(
                 new FileOutputStream(pingFile), TRACES_BLOCK_SIZE);
             try {
-                fillPingHeader(ping, pingFile.getName());
+                MessageDigest checksum = MessageDigest.getInstance("SHA-256");
+                fillPingHeader(ping, checksum, pingFile.getName());
                 // Traces file has the format
                 //    ----- pid xxx at xxx -----
                 //    Cmd line: org.mozilla.xxx
@@ -477,11 +494,11 @@ public final class ANRReporter extends BroadcastReceiver
                 //    ...
                 // If we end the stack dump at the first end marker,
                 // only Fennec stacks will be dumped
-                int size = fillPingBlock(ping, traces, "\n----- end");
+                int size = fillPingBlock(ping, checksum, traces, "\n----- end");
                 if (DEBUG) {
                     Log.d(LOGTAG, "wrote traces, size = " + String.valueOf(size));
                 }
-                fillPingFooter(ping, haveNativeStack);
+                fillPingFooter(ping, checksum, haveNativeStack);
                 if (DEBUG) {
                     Log.d(LOGTAG, "finished creating ping file");
                 }
@@ -492,6 +509,8 @@ public final class ANRReporter extends BroadcastReceiver
                     releaseNativeStack();
                 }
             }
+        } catch (GeneralSecurityException e) {
+            Log.w(LOGTAG, e);
         } catch (IOException e) {
             Log.w(LOGTAG, e);
         }

@@ -47,11 +47,6 @@ function run_test()
 
   if (Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime)
         .processType == Ci.nsIXULRuntime.PROCESS_TYPE_DEFAULT) {
-    // XPCShell does not get a profile by default. The geolocation service
-    // depends on the settings service which uses IndexedDB and IndexedDB
-    // needs a place where it can store databases.
-    do_get_profile();
-
     httpserver = new HttpServer();
     httpserver.registerPathHandler("/geo", geoHandler);
     httpserver.start(-1);
@@ -59,7 +54,7 @@ function run_test()
     prefs.setBoolPref("geo.wifi.scan", false);
     prefs.setCharPref("geo.wifi.uri", "http://localhost:" +
                       httpserver.identity.primaryPort + "/geo");
-    prefs.setBoolPref("dom.testing.ignore_ipc_principal", true);
+    prefs.setBoolPref("geo.testing.ignore_ipc_principal", true);
   }
 
   geolocation = Cc["@mozilla.org/geolocation;1"].getService(Ci.nsISupports);

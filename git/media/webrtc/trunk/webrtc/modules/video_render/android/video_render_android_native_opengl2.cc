@@ -8,18 +8,18 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/video_render/android/video_render_android_native_opengl2.h"
-#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
-#include "webrtc/system_wrappers/interface/tick_util.h"
+#include "video_render_android_native_opengl2.h"
+#include "critical_section_wrapper.h"
+#include "tick_util.h"
 
 #ifdef ANDROID_LOG
-#include <android/log.h>
 #include <stdio.h>
+#include <android/log.h>
 
 #undef WEBRTC_TRACE
 #define WEBRTC_TRACE(a,b,c,...)  __android_log_print(ANDROID_LOG_DEBUG, "*WEBRTC*", __VA_ARGS__)
 #else
-#include "webrtc/system_wrappers/interface/trace.h"
+#include "trace.h"
 #endif
 
 namespace webrtc {
@@ -419,9 +419,7 @@ void JNICALL AndroidNativeOpenGl2Channel::DrawNativeStatic(
 }
 
 void AndroidNativeOpenGl2Channel::DrawNative() {
-  _renderCritSect.Enter();
   _openGLRenderer.Render(_bufferToRender);
-  _renderCritSect.Leave();
 }
 
 /*
@@ -447,4 +445,4 @@ jint AndroidNativeOpenGl2Channel::CreateOpenGLNative(
   return _openGLRenderer.Setup(width, height);
 }
 
-}  // namespace webrtc
+}  //namespace webrtc

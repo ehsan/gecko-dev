@@ -15,17 +15,13 @@
 // It also uses the static UdpSocketManager object.
 // The most important property of these tests is that they do not leak memory.
 
-#include "testing/gtest/include/gtest/gtest.h"
-#include "webrtc/system_wrappers/interface/trace.h"
-#include "webrtc/test/channel_transport/udp_socket_manager_wrapper.h"
+#include "gtest/gtest.h"
 #include "webrtc/test/channel_transport/udp_socket_wrapper.h"
+#include "webrtc/test/channel_transport/udp_socket_manager_wrapper.h"
+#include "webrtc/system_wrappers/interface/trace.h"
 
 namespace webrtc {
 namespace test {
-
-// Disable for TSan v2, see
-// https://code.google.com/p/webrtc/issues/detail?id=2334 for details.
-#if !defined(THREAD_SANITIZER)
 
 TEST(UdpSocketManager, CreateCallsInitAndDoesNotLeakMemory) {
   int32_t id = 42;
@@ -83,8 +79,6 @@ TEST(UdpSocketManager, UnremovedSocketsGetCollectedAtManagerDeletion) {
   UdpSocketManager::Return();
 #endif
 }
-
-#endif // if !defined(THREAD_SANITIZER)
 
 }  // namespace test
 }  // namespace webrtc

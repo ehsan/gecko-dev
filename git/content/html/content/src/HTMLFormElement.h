@@ -28,8 +28,14 @@ class nsIURI;
 
 namespace mozilla {
 namespace dom {
-class HTMLFormControlsCollection;
 class HTMLImageElement;
+}
+}
+
+namespace mozilla {
+namespace dom {
+
+class nsFormControlList;
 
 class HTMLFormElement MOZ_FINAL : public nsGenericHTMLElement,
                                   public nsIDOMHTMLFormElement,
@@ -37,17 +43,13 @@ class HTMLFormElement MOZ_FINAL : public nsGenericHTMLElement,
                                   public nsIForm,
                                   public nsIRadioGroupContainer
 {
-  friend class HTMLFormControlsCollection;
+  friend class nsFormControlList;
 
 public:
   HTMLFormElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~HTMLFormElement();
 
   nsresult Init();
-
-  enum {
-    FORM_CONTROL_LIST_HASHTABLE_SIZE = 16
-  };
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -216,12 +218,11 @@ public:
                                  const nsAString& aName);
 
    /**
-    * Returns true if implicit submission of this form is disabled. For more
-    * on implicit submission see:
+    * Return whether there is one and only one input text control.
     *
-    * http://www.whatwg.org/specs/web-apps/current-work/multipage/association-of-controls-and-forms.html#implicit-submission
+    * @return Whether there is exactly one input text control.
     */
-  bool ImplicitSubmissionIsDisabled() const;
+  bool HasSingleTextControl() const;
 
   /**
    * Check whether a given nsIFormControl is the default submit
@@ -393,15 +394,6 @@ public:
 
   void GetSupportedNames(nsTArray<nsString >& aRetval);
 
-  static int32_t
-  CompareFormControlPosition(Element* aElement1, Element* aElement2,
-                             const nsIContent* aForm);
-#ifdef DEBUG
-  static void
-  AssertDocumentOrder(const nsTArray<nsGenericHTMLFormElement*>& aControls,
-                      nsIContent* aForm);
-#endif
-
   js::ExpandoAndGeneration mExpandoAndGeneration;
 
 protected:
@@ -446,7 +438,7 @@ protected:
     nsRefPtr<HTMLFormElement> mForm;
   };
 
-  nsresult DoSubmitOrReset(WidgetEvent* aEvent,
+  nsresult DoSubmitOrReset(nsEvent* aEvent,
                            int32_t aMessage);
   nsresult DoReset();
 
@@ -464,7 +456,7 @@ protected:
    * @param aPresContext the presentation context
    * @param aEvent the DOM event that was passed to us for the submit
    */
-  nsresult DoSubmit(WidgetEvent* aEvent);
+  nsresult DoSubmit(nsEvent* aEvent);
 
   /**
    * Prepare the submission object (called by DoSubmit)
@@ -473,7 +465,7 @@ protected:
    * @param aEvent the DOM event that was passed to us for the submit
    */
   nsresult BuildSubmission(nsFormSubmission** aFormSubmission,
-                           WidgetEvent* aEvent);
+                           nsEvent* aEvent);
   /**
    * Perform the submission (called by DoSubmit and FlushPendingSubmission)
    *
@@ -546,7 +538,7 @@ protected:
   // Data members
   //
   /** The list of controls (form.elements as well as stuff not in elements) */
-  nsRefPtr<HTMLFormControlsCollection> mControls;
+  nsRefPtr<nsFormControlList> mControls;
   /** The currently selected radio button of each group */
   nsRefPtrHashtable<nsStringCaseInsensitiveHashKey, HTMLInputElement> mSelectedRadioButtons;
   /** The number of required radio button of each group */

@@ -195,12 +195,6 @@ public:
   virtual bool
   DeallocPGrallocBufferChild(PGrallocBufferChild* actor) MOZ_OVERRIDE;
 
-  virtual PTextureChild*
-  AllocPTextureChild() MOZ_OVERRIDE;
-
-  virtual bool
-  DeallocPTextureChild(PTextureChild* actor) MOZ_OVERRIDE;
-
   /**
    * Allocate a gralloc SurfaceDescriptor remotely.
    */
@@ -243,22 +237,25 @@ public:
   TemporaryRef<ImageClient> CreateImageClientNow(CompositableType aType);
 
   static void DispatchReleaseImageClient(ImageClient* aClient);
-  static void DispatchReleaseTextureClient(TextureClient* aClient);
   static void DispatchImageClientUpdate(ImageClient* aClient, ImageContainer* aContainer);
 
-  /**
-   * Flush all Images sent to CompositableHost.
-   */
-  static void FlushAllImages(ImageClient* aClient, ImageContainer* aContainer, bool aExceptFront);
-
-  /**
-   * Must be called on the ImageBridgeChild's thread.
-   */
-  static void FlushAllImagesNow(ImageClient* aClient, ImageContainer* aContainer, bool aExceptFront);
 
   // CompositableForwarder
 
   virtual void Connect(CompositableClient* aCompositable) MOZ_OVERRIDE;
+
+  /**
+   * See CompositableForwarder::AddTexture
+   */
+  virtual void AddTexture(CompositableClient* aCompositable,
+                          TextureClient* aClient) MOZ_OVERRIDE;
+
+  /**
+   * See CompositableForwarder::RemoveTexture
+   */
+  virtual void RemoveTexture(CompositableClient* aCompositable,
+                             uint64_t aTextureID,
+                             TextureFlags aFlags) MOZ_OVERRIDE;
 
   /**
    * See CompositableForwarder::UpdatedTexture
@@ -272,8 +269,6 @@ public:
    */
   virtual void UseTexture(CompositableClient* aCompositable,
                           TextureClient* aClient) MOZ_OVERRIDE;
-
-  virtual void RemoveTexture(TextureClient* aTexture) MOZ_OVERRIDE;
 
   virtual void PaintedTiledLayerBuffer(CompositableClient* aCompositable,
                                        const SurfaceDescriptorTiles& aTileLayerDescriptor) MOZ_OVERRIDE
@@ -354,8 +349,8 @@ public:
    * call on the ImageBridgeChild thread.
    */
   virtual bool AllocUnsafeShmem(size_t aSize,
-                                mozilla::ipc::SharedMemory::SharedMemoryType aType,
-                                mozilla::ipc::Shmem* aShmem) MOZ_OVERRIDE;
+                                ipc::SharedMemory::SharedMemoryType aType,
+                                ipc::Shmem* aShmem) MOZ_OVERRIDE;
   /**
    * See ISurfaceAllocator.h
    * Can be used from any thread.
@@ -363,17 +358,15 @@ public:
    * call on the ImageBridgeChild thread.
    */
   virtual bool AllocShmem(size_t aSize,
-                          mozilla::ipc::SharedMemory::SharedMemoryType aType,
-                          mozilla::ipc::Shmem* aShmem) MOZ_OVERRIDE;
+                          ipc::SharedMemory::SharedMemoryType aType,
+                          ipc::Shmem* aShmem) MOZ_OVERRIDE;
   /**
    * See ISurfaceAllocator.h
    * Can be used from any thread.
    * If used outside the ImageBridgeChild thread, it will proxy a synchronous
    * call on the ImageBridgeChild thread.
    */
-  virtual void DeallocShmem(mozilla::ipc::Shmem& aShmem);
-
-  virtual PTextureChild* CreateEmptyTextureChild() MOZ_OVERRIDE;
+  virtual void DeallocShmem(ipc::Shmem& aShmem);
 
 protected:
   ImageBridgeChild();

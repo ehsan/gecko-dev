@@ -15,7 +15,7 @@ let connection;
 let voice;
 let network;
 ifr.onload = function() {
-  connection = ifr.contentWindow.navigator.mozMobileConnections[0];
+  connection = ifr.contentWindow.navigator.mozMobileConnection;
   ok(connection instanceof ifr.contentWindow.MozMobileConnection,
      "connection is instanceof " + connection.constructor);
 

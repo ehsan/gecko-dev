@@ -8,12 +8,11 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include <math.h>
-
+#include <cmath>
 #include <numeric>
 #include <vector>
 
-#include "webrtc/voice_engine/test/auto_test/fixtures/after_streaming_fixture.h"
+#include "voice_engine/test/auto_test/fixtures/after_streaming_fixture.h"
 
 #ifdef WEBRTC_IOS
   const int kMinimumReasonableDelayEstimateMs = 30;
@@ -67,7 +66,7 @@ class VideoSyncTest : public AfterStreamingFixture {
     for (; start != end; ++start) {
       variance += (*start - mean) * (*start - mean) / (num_elements - 1);
     }
-    return sqrt(variance);
+    return std::sqrt(variance);
   }
 };
 

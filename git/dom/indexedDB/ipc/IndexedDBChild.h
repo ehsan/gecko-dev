@@ -19,6 +19,8 @@
 #include "mozilla/dom/indexedDB/PIndexedDBRequestChild.h"
 #include "mozilla/dom/indexedDB/PIndexedDBTransactionChild.h"
 
+class nsIAtom;
+
 BEGIN_INDEXEDDB_NAMESPACE
 
 class AsyncConnectionHelper;
@@ -63,18 +65,14 @@ protected:
   ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
 
   virtual PIndexedDBDatabaseChild*
-  AllocPIndexedDBDatabaseChild(const nsString& aName, const uint64_t& aVersion,
-                               const PersistenceType& aPersistenceType)
+  AllocPIndexedDBDatabaseChild(const nsString& aName, const uint64_t& aVersion)
                                MOZ_OVERRIDE;
 
   virtual bool
   DeallocPIndexedDBDatabaseChild(PIndexedDBDatabaseChild* aActor) MOZ_OVERRIDE;
 
   virtual PIndexedDBDeleteDatabaseRequestChild*
-  AllocPIndexedDBDeleteDatabaseRequestChild(
-                                        const nsString& aName,
-                                        const PersistenceType& aPersistenceType)
-                                        MOZ_OVERRIDE;
+  AllocPIndexedDBDeleteDatabaseRequestChild(const nsString& aName) MOZ_OVERRIDE;
 
   virtual bool
   DeallocPIndexedDBDeleteDatabaseRequestChild(
@@ -413,12 +411,12 @@ class IndexedDBDeleteDatabaseRequestChild :
 {
   nsRefPtr<IDBFactory> mFactory;
   nsRefPtr<IDBOpenDBRequest> mOpenRequest;
-  nsCString mDatabaseId;
+  nsCOMPtr<nsIAtom> mDatabaseId;
 
 public:
   IndexedDBDeleteDatabaseRequestChild(IDBFactory* aFactory,
                                       IDBOpenDBRequest* aOpenRequest,
-                                      const nsACString& aDatabaseId);
+                                      nsIAtom* aDatabaseId);
   virtual ~IndexedDBDeleteDatabaseRequestChild();
 
 protected:

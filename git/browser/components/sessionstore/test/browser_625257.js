@@ -21,7 +21,12 @@ let {Task, Promise} = Scope;
 const URI_TO_LOAD = "about:mozilla";
 
 function waitForLoadStarted(aTab) {
-  return promiseContentMessage(aTab.linkedBrowser, "SessionStore:loadStart");
+  let deferred = Promise.defer();
+  waitForContentMessage(aTab.linkedBrowser,
+    "SessionStore:loadStart",
+    1000,
+    deferred.resolve);
+  return deferred.promise;
 }
 
 function waitForTabLoaded(aTab) {
@@ -53,10 +58,12 @@ function test() {
       ss.getBrowserState();
 
       is(gBrowser.tabs[1], tab, "newly created tab should exist by now");
+      ok(tab.linkedBrowser.__SS_data, "newly created tab should be in save state");
 
       // Start a load and interrupt it by closing the tab
       tab.linkedBrowser.loadURI(URI_TO_LOAD);
-      yield waitForLoadStarted(tab);
+      let loaded = yield waitForLoadStarted(tab);
+      ok(loaded, "Load started");
 
       let tabClosing = waitForTabClosed();
       gBrowser.removeTab(tab);

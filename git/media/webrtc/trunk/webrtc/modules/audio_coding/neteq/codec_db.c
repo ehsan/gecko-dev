@@ -217,15 +217,6 @@ int WebRtcNetEQ_DbAdd(CodecDbInst_t *inst, enum WebRtcNetEQDecoder codec,
         /* find the appropriate insert position in CNG payload vector */
         switch (codec_fs)
         {
-            case 8000:
-            CNGpos = 0;
-            /*
-             * The 8 kHz CNG payload type is the one associated with the regular codec DB
-             * should override any other setting.
-             * Overwrite if this isn't the first CNG
-             */
-            overwriteCNGcodec = !insertCNGcodec;
-            break;
 #ifdef NETEQ_WIDEBAND
             case 16000:
             CNGpos = 1;
@@ -241,9 +232,15 @@ int WebRtcNetEQ_DbAdd(CodecDbInst_t *inst, enum WebRtcNetEQDecoder codec,
             CNGpos = 3;
             break;
 #endif
-            default:
-            /* If we get to this point, the inserted codec is not supported */
-            return CODEC_DB_UNSUPPORTED_CODEC;
+            default: /* 8000 Hz case */
+                CNGpos = 0;
+                /*
+                 * The 8 kHz CNG payload type is the one associated with the regular codec DB
+                 * should override any other setting.
+                 * Overwrite if this isn't the first CNG
+                 */
+                overwriteCNGcodec = !insertCNGcodec;
+                break;
         }
 
         /* insert CNG payload type */

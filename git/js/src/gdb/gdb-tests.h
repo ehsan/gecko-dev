@@ -20,7 +20,7 @@
 // (So the .cpp files are two steps removed from being anything one would
 // actually run.)
 
-#include "NamespaceImports.h"
+#include "jsapi.h"
 
 void breakpoint();
 

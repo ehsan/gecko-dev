@@ -14,7 +14,6 @@
 #include "CustomElf.h"
 #include "Mappable.h"
 #include "Logging.h"
-#include <inttypes.h>
 
 #if defined(ANDROID)
 #include <sys/syscall.h>
@@ -32,11 +31,6 @@ inline int sigaltstack(const stack_t *ss, stack_t *oss) {
 } /* extern "C" */
 #endif /* __ANDROID_API__ */
 #endif /* ANDROID */
-
-#ifdef __ARM_EABI__
-extern "C" const void *
-__gnu_Unwind_Find_exidx(void *pc, int *pcount) __attribute__((weak));
-#endif
 
 using namespace mozilla;
 
@@ -57,7 +51,7 @@ const char *
 __wrap_dlerror(void)
 {
   const char *error = ElfLoader::Singleton.lastError;
-  ElfLoader::Singleton.lastError = nullptr;
+  ElfLoader::Singleton.lastError = NULL;
   return error;
 }
 
@@ -66,7 +60,7 @@ __wrap_dlsym(void *handle, const char *symbol)
 {
   if (!handle) {
     ElfLoader::Singleton.lastError = "dlsym(NULL, sym) unsupported";
-    return nullptr;
+    return NULL;
   }
   if (handle != RTLD_DEFAULT && handle != RTLD_NEXT) {
     LibHandle *h = reinterpret_cast<LibHandle *>(handle);
@@ -107,7 +101,7 @@ __wrap_dl_iterate_phdr(dl_phdr_cb callback, void *data)
     dl_phdr_info info;
     info.dlpi_addr = reinterpret_cast<Elf::Addr>(it->l_addr);
     info.dlpi_name = it->l_name;
-    info.dlpi_phdr = nullptr;
+    info.dlpi_phdr = NULL;
     info.dlpi_phnum = 0;
 
     // Assuming l_addr points to Elf headers (in most cases, this is true),
@@ -130,20 +124,6 @@ __wrap_dl_iterate_phdr(dl_phdr_cb callback, void *data)
   return 0;
 }
 
-#ifdef __ARM_EABI__
-const void *
-__wrap___gnu_Unwind_Find_exidx(void *pc, int *pcount)
-{
-  RefPtr<LibHandle> handle = ElfLoader::Singleton.GetHandleByPtr(pc);
-  if (handle)
-    return handle->FindExidx(pcount);
-  if (__gnu_Unwind_Find_exidx)
-    return __gnu_Unwind_Find_exidx(pc, pcount);
-  *pcount = 0;
-  return nullptr;
-}
-#endif
-
 /**
  * faulty.lib public API
  */
@@ -159,7 +139,7 @@ MFBT_API void *
 __dl_mmap(void *handle, void *addr, size_t length, off_t offset)
 {
   if (!handle)
-    return nullptr;
+    return NULL;
   return reinterpret_cast<LibHandle *>(handle)->MappableMMap(addr, length,
                                                              offset);
 }
@@ -170,12 +150,6 @@ __dl_munmap(void *handle, void *addr, size_t length)
   if (!handle)
     return;
   return reinterpret_cast<LibHandle *>(handle)->MappableMUnmap(addr, length);
-}
-
-MFBT_API bool
-IsSignalHandlingBroken()
-{
-  return ElfLoader::Singleton.isSignalHandlingBroken();
 }
 
 namespace {
@@ -205,7 +179,7 @@ LibHandle::~LibHandle()
 const char *
 LibHandle::GetName() const
 {
-  return path ? LeafName(path) : nullptr;
+  return path ? LeafName(path) : NULL;
 }
 
 size_t
@@ -251,8 +225,8 @@ SystemElf::Load(const char *path, int flags)
   /* The Android linker returns a handle when the file name matches an
    * already loaded library, even when the full path doesn't exist */
   if (path && path[0] == '/' && (access(path, F_OK) == -1)){
-    DEBUG_LOG("dlopen(\"%s\", 0x%x) = %p", path, flags, (void *)nullptr);
-    return nullptr;
+    DEBUG_LOG("dlopen(\"%s\", 0x%x) = %p", path, flags, (void *)NULL);
+    return NULL;
   }
 
   void *handle = dlopen(path, flags);
@@ -263,7 +237,7 @@ SystemElf::Load(const char *path, int flags)
     ElfLoader::Singleton.Register(elf);
     return elf;
   }
-  return nullptr;
+  return NULL;
 }
 
 SystemElf::~SystemElf()
@@ -290,7 +264,7 @@ SystemElf::GetMappable() const
 {
   const char *path = GetPath();
   if (!path)
-    return nullptr;
+    return NULL;
 #ifdef ANDROID
   /* On Android, if we don't have the full path, try in /system/lib */
   const char *name = LeafName(path);
@@ -304,17 +278,6 @@ SystemElf::GetMappable() const
 
   return MappableFile::Create(path);
 }
-
-#ifdef __ARM_EABI__
-const void *
-SystemElf::FindExidx(int *pcount) const
-{
-  /* TODO: properly implement when ElfLoader::GetHandleByPtr
-     does return SystemElf handles */
-  *pcount = 0;
-  return nullptr;
-}
-#endif
 
 /**
  * ElfLoader
@@ -331,9 +294,9 @@ ElfLoader::Load(const char *path, int flags, LibHandle *parent)
 
   RefPtr<LibHandle> handle;
 
-  /* Handle dlopen(nullptr) directly. */
+  /* Handle dlopen(NULL) directly. */
   if (!path) {
-    handle = SystemElf::Load(nullptr, flags);
+    handle = SystemElf::Load(NULL, flags);
     return handle;
   }
 
@@ -352,7 +315,7 @@ ElfLoader::Load(const char *path, int flags, LibHandle *parent)
         return *it;
   }
 
-  char *abs_path = nullptr;
+  char *abs_path = NULL;
   const char *requested_path = path;
 
   /* When the path is not absolute and the library is being loaded for
@@ -398,14 +361,14 @@ ElfLoader::GetHandleByPtr(void *addr)
     if ((*it)->Contains(addr))
       return *it;
   }
-  return nullptr;
+  return NULL;
 }
 
 Mappable *
 ElfLoader::GetMappableFromPath(const char *path)
 {
   const char *name = LeafName(path);
-  Mappable *mappable = nullptr;
+  Mappable *mappable = NULL;
   RefPtr<Zip> zip;
   const char *subpath;
   if ((subpath = strchr(path, '!'))) {
@@ -557,11 +520,11 @@ ElfLoader::DestructorCaller::Call()
     DEBUG_LOG("ElfLoader::DestructorCaller::Call(%p, %p, %p)",
               FunctionPtr(destructor), object, dso_handle);
     destructor(object);
-    destructor = nullptr;
+    destructor = NULL;
   }
 }
 
-ElfLoader::DebuggerHelper::DebuggerHelper(): dbg(nullptr)
+ElfLoader::DebuggerHelper::DebuggerHelper(): dbg(NULL)
 {
   /* Find ELF auxiliary vectors.
    *
@@ -572,22 +535,22 @@ ElfLoader::DebuggerHelper::DebuggerHelper(): dbg(nullptr)
    *   argv[1] (likewise)
    *   ...
    *   argv[argc - 1] (likewise)
-   *   nullptr
+   *   NULL
    *   envp[0] (pointer into environment strings defined below)
    *   envp[1] (likewise)
    *   ...
    *   envp[n] (likewise)
-   *   nullptr
+   *   NULL
    *   ... (more NULLs on some platforms such as Android 4.3)
    *   auxv[0] (first ELF auxiliary vector)
    *   auxv[1] (second ELF auxiliary vector)
    *   ...
    *   auxv[p] (last ELF auxiliary vector)
-   *   (AT_NULL, nullptr)
+   *   (AT_NULL, NULL)
    *   padding
    *   argv strings, separated with '\0'
    *   environment strings, separated with '\0'
-   *   nullptr
+   *   NULL
    *
    * What we are after are the auxv values defined by the following struct.
    */
@@ -636,7 +599,7 @@ ElfLoader::DebuggerHelper::DebuggerHelper(): dbg(nullptr)
    * AT_PHNUM, which gives us the the location and size of the ELF program
    * headers. */
   Array<Elf::Phdr> phdrs;
-  char *base = nullptr;
+  char *base = NULL;
   while (auxv->type) {
     if (auxv->type == AT_PHDR) {
       phdrs.Init(reinterpret_cast<Elf::Phdr*>(auxv->value));
@@ -810,7 +773,7 @@ ElfLoader::DebuggerHelper::Add(ElfLoader::link_map *map)
     return;
   dbg->r_state = r_debug::RT_ADD;
   dbg->r_brk();
-  map->l_prev = nullptr;
+  map->l_prev = NULL;
   map->l_next = dbg->r_map;
   if (!firstAdded) {
     firstAdded = map;
@@ -939,133 +902,39 @@ Divert(T func, T new_func)
 }
 #endif
 
-namespace {
-
-/* Clock that only accounts for time spent in the current process. */
-static uint64_t ProcessTimeStamp_Now()
-{
-  struct timespec ts;
-  int rv = clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts);
-
-  if (rv != 0) {
-    return 0;
-  }
-
-  uint64_t baseNs = (uint64_t)ts.tv_sec * 1000000000;
-  return baseNs + (uint64_t)ts.tv_nsec;
-}
-
-}
-
-/* Data structure used to pass data to the temporary signal handler,
- * as well as triggering a test crash. */
-struct TmpData {
-  volatile int crash_int;
-  volatile uint64_t crash_timestamp;
-};
-
 SEGVHandler::SEGVHandler()
-: registeredHandler(false), signalHandlingBroken(false)
-, signalHandlingSlow(false)
+: registeredHandler(false)
 {
-  /* Initialize oldStack.ss_flags to an invalid value when used to set
-   * an alternative stack, meaning we haven't got information about the
-   * original alternative stack and thus don't mean to restore it */
-  oldStack.ss_flags = SS_ONSTACK;
   if (!Divert(sigaction, __wrap_sigaction))
     return;
-
-  /* Get the current segfault signal handler. */
-  sys_sigaction(SIGSEGV, nullptr, &this->action);
-
-  /* Some devices don't provide useful information to their SIGSEGV handlers,
-   * making it impossible for on-demand decompression to work. To check if
-   * we're on such a device, setup a temporary handler and deliberately
-   * trigger a segfault. The handler will set signalHandlingBroken if the
-   * provided information is bogus.
-   * Some other devices have a kernel option enabled that makes SIGSEGV handler
-   * have an overhead so high that it affects how on-demand decompression
-   * performs. The handler will also set signalHandlingSlow if the triggered
-   * SIGSEGV took too much time. */
-  struct sigaction action;
-  action.sa_sigaction = &SEGVHandler::test_handler;
-  sigemptyset(&action.sa_mask);
-  action.sa_flags = SA_SIGINFO | SA_NODEFER;
-  action.sa_restorer = nullptr;
-  if (sys_sigaction(SIGSEGV, &action, nullptr))
-    return;
-  stackPtr.Assign(MemoryRange::mmap(nullptr, PageSize(),
-                                    PROT_READ | PROT_WRITE,
-                                    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
-  if (stackPtr.get() == MAP_FAILED)
-    return;
-
-  TmpData *data = reinterpret_cast<TmpData*>(stackPtr.get());
-  data->crash_timestamp = ProcessTimeStamp_Now();
-  mprotect(stackPtr, stackPtr.GetLength(), PROT_NONE);
-  data->crash_int = 123;
-  stackPtr.Assign(MAP_FAILED, 0);
-  if (signalHandlingBroken || signalHandlingSlow) {
-    /* Restore the original segfault signal handler. */
-    sys_sigaction(SIGSEGV, &this->action, nullptr);
-    return;
-  }
-
   /* Setup an alternative stack if the already existing one is not big
    * enough, or if there is none. */
-  if (sigaltstack(nullptr, &oldStack) == 0) {
-    if (oldStack.ss_flags == SS_ONSTACK)
-      oldStack.ss_flags = 0;
-    if (!oldStack.ss_sp || oldStack.ss_size < stackSize) {
-      stackPtr.Assign(MemoryRange::mmap(nullptr, stackSize,
-                                        PROT_READ | PROT_WRITE,
-                                        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
-      if (stackPtr.get() == MAP_FAILED)
-        return;
-      stack_t stack;
-      stack.ss_sp = stackPtr;
-      stack.ss_size = stackSize;
-      stack.ss_flags = 0;
-      if (sigaltstack(&stack, nullptr) != 0)
-        return;
-    }
+  if (sigaltstack(NULL, &oldStack) == -1 || !oldStack.ss_sp ||
+      oldStack.ss_size < stackSize) {
+    stackPtr.Assign(MemoryRange::mmap(NULL, stackSize, PROT_READ | PROT_WRITE,
+                                      MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
+    stack_t stack;
+    stack.ss_sp = stackPtr;
+    stack.ss_size = stackSize;
+    stack.ss_flags = 0;
+    sigaltstack(&stack, NULL);
   }
   /* Register our own handler, and store the already registered one in
    * SEGVHandler's struct sigaction member */
+  struct sigaction action;
   action.sa_sigaction = &SEGVHandler::handler;
+  sigemptyset(&action.sa_mask);
   action.sa_flags = SA_SIGINFO | SA_NODEFER | SA_ONSTACK;
-  registeredHandler = !sys_sigaction(SIGSEGV, &action, nullptr);
+  action.sa_restorer = NULL;
+  registeredHandler = !sys_sigaction(SIGSEGV, &action, &this->action);
 }
 
 SEGVHandler::~SEGVHandler()
 {
   /* Restore alternative stack for signals */
-  if (oldStack.ss_flags != SS_ONSTACK)
-    sigaltstack(&oldStack, nullptr);
+  sigaltstack(&oldStack, NULL);
   /* Restore original signal handler */
-  if (registeredHandler)
-    sys_sigaction(SIGSEGV, &this->action, nullptr);
-}
-
-/* Test handler for a deliberately triggered SIGSEGV that determines whether
- * useful information is provided to signal handlers, particularly whether
- * si_addr is filled in properly, and whether the segfault handler is called
- * quickly enough. */
-void SEGVHandler::test_handler(int signum, siginfo_t *info, void *context)
-{
-  SEGVHandler &that = ElfLoader::Singleton;
-  if (signum != SIGSEGV ||
-      info == nullptr || info->si_addr != that.stackPtr.get())
-    that.signalHandlingBroken = true;
-  mprotect(that.stackPtr, that.stackPtr.GetLength(), PROT_READ | PROT_WRITE);
-  TmpData *data = reinterpret_cast<TmpData*>(that.stackPtr.get());
-  uint64_t latency = ProcessTimeStamp_Now() - data->crash_timestamp;
-  DEBUG_LOG("SEGVHandler latency: %" PRIu64, latency);
-  /* See bug 886736 for timings on different devices, 150 µs is reasonably above
-   * the latency on "working" devices and seems to be reasonably fast to incur
-   * a huge overhead to on-demand decompression. */
-  if (latency > 150000)
-    that.signalHandlingSlow = true;
+  sys_sigaction(SIGSEGV, &this->action, NULL);
 }
 
 /* TODO: "properly" handle signal masks and flags */
@@ -1096,7 +965,7 @@ void SEGVHandler::handler(int signum, siginfo_t *info, void *context)
   } else if (that.action.sa_handler == SIG_DFL) {
     DEBUG_LOG("Redispatching to default handler");
     /* Reset the handler to the default one, and trigger it. */
-    sys_sigaction(signum, &that.action, nullptr);
+    sys_sigaction(signum, &that.action, NULL);
     raise(signum);
   } else if (that.action.sa_handler != SIG_IGN) {
     DEBUG_LOG("Redispatching to registered handler @%p",

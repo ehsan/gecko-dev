@@ -24,7 +24,22 @@ namespace dom {
 // buffers.
 static const float MAX_LATENCY_S = 0.5;
 
-NS_IMPL_ISUPPORTS_INHERITED0(ScriptProcessorNode, AudioNode)
+NS_IMPL_CYCLE_COLLECTION_CLASS(ScriptProcessorNode)
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(ScriptProcessorNode)
+  if (tmp->Context()) {
+    tmp->Context()->UnregisterScriptProcessorNode(tmp);
+  }
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END_INHERITED(AudioNode)
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(ScriptProcessorNode, AudioNode)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(ScriptProcessorNode)
+NS_INTERFACE_MAP_END_INHERITING(AudioNode)
+
+NS_IMPL_ADDREF_INHERITED(ScriptProcessorNode, AudioNode)
+NS_IMPL_RELEASE_INHERITED(ScriptProcessorNode, AudioNode)
 
 // This class manages a queue of output buffers shared between
 // the main thread and the Media Stream Graph thread.
@@ -67,13 +82,6 @@ private:
       return front;
     }
 
-    // Empties the buffer queue.
-    void Clear()
-    {
-      mMutex.AssertCurrentThreadOwns();
-      mBufferList.clear();
-    }
-
   private:
     typedef std::deque<AudioChunk> BufferList;
 
@@ -90,7 +98,6 @@ public:
     : mOutputQueue("SharedBuffers::outputQueue")
     , mDelaySoFar(TRACK_TICKS_MAX)
     , mSampleRate(aSampleRate)
-    , mLatency(0.0)
     , mDroppingBuffers(false)
   {
   }
@@ -111,24 +118,15 @@ public:
       // interval will be very short. |latency - bufferDuration| will be
       // negative, effectively moving back mLatency to a smaller and smaller
       // value, until it crosses zero, at which point we stop dropping buffers
-      // and resume normal operation. This does not work if at the same time,
-      // the MSG thread was also slowed down, so if the latency on the MSG
-      // thread is normal, and we are still dropping buffers, and mLatency is
-      // still more than twice the duration of a buffer, we reset it and stop
-      // dropping buffers.
+      // and resume normal operation.
       float latency = (now - mLastEventTime).ToSeconds();
       float bufferDuration = aBufferSize / mSampleRate;
       mLatency += latency - bufferDuration;
       mLastEventTime = now;
-      if (mLatency > MAX_LATENCY_S ||
-          (mDroppingBuffers && mLatency > 0.0 &&
-           fabs(latency - bufferDuration) < bufferDuration)) {
+      if (mLatency > MAX_LATENCY_S || (mDroppingBuffers && mLatency > 0.0)) {
         mDroppingBuffers = true;
         return;
       } else {
-        if (mDroppingBuffers) {
-          mLatency = 0;
-        }
         mDroppingBuffers = false;
       }
     }
@@ -183,18 +181,6 @@ public:
     return mDelaySoFar == TRACK_TICKS_MAX ? 0 : mDelaySoFar;
   }
 
-  void Reset()
-  {
-    MOZ_ASSERT(!NS_IsMainThread());
-    mDelaySoFar = TRACK_TICKS_MAX;
-    mLatency = 0.0f;
-    {
-      MutexAutoLock lock(mOutputQueue.Lock());
-      mOutputQueue.Clear();
-    }
-    mLastEventTime = TimeStamp();
-  }
-
 private:
   OutputQueue mOutputQueue;
   // How much delay we've seen so far.  This measures the amount of delay
@@ -227,11 +213,10 @@ public:
     , mSource(nullptr)
     , mDestination(static_cast<AudioNodeStream*> (aDestination->Stream()))
     , mBufferSize(aBufferSize)
+    , mDefaultNumberOfInputChannels(aNumberOfInputChannels)
     , mInputWriteIndex(0)
     , mSeenNonSilenceInput(false)
   {
-    mInputChannels.SetLength(aNumberOfInputChannels);
-    AllocateInputBlock();
   }
 
   void SetSourceStream(AudioNodeStream* aSource)
@@ -252,17 +237,7 @@ public:
       return;
     }
 
-    // This node is not connected to anything. Per spec, we don't fire the
-    // onaudioprocess event. We also want to clear out the input and output
-    // buffer queue, and output a null buffer.
-    if (!(aStream->ConsumerCount() ||
-          aStream->AsProcessedStream()->InputPortCount())) {
-      aOutput->SetNull(WEBAUDIO_BLOCK_SIZE);
-      mSharedBuffers->Reset();
-      mSeenNonSilenceInput = false;
-      mInputWriteIndex = 0;
-      return;
-    }
+    EnsureInputChannels(aInput.mChannelData.Length());
 
     // First, record our input buffer
     for (uint32_t i = 0; i < mInputChannels.Length(); ++i) {
@@ -272,7 +247,6 @@ public:
       } else {
         mSeenNonSilenceInput = true;
         MOZ_ASSERT(aInput.GetDuration() == WEBAUDIO_BLOCK_SIZE, "sanity check");
-        MOZ_ASSERT(aInput.mChannelData.Length() == mInputChannels.Length());
         AudioBlockCopyChannelWithScale(static_cast<const float*>(aInput.mChannelData[i]),
                                        aInput.mVolume,
                                        mInputChannels[i] + mInputWriteIndex);
@@ -298,6 +272,25 @@ private:
   {
     for (unsigned i = 0; i < mInputChannels.Length(); ++i) {
       if (!mInputChannels[i]) {
+        mInputChannels[i] = new float[mBufferSize];
+      }
+    }
+  }
+
+  void EnsureInputChannels(uint32_t aNumberOfChannels)
+  {
+    if (aNumberOfChannels == 0) {
+      aNumberOfChannels = mDefaultNumberOfInputChannels;
+    }
+    if (mInputChannels.Length() == 0) {
+      mInputChannels.SetLength(aNumberOfChannels);
+      AllocateInputBlock();
+    } else if (aNumberOfChannels < mInputChannels.Length()) {
+      mInputChannels.SetLength(aNumberOfChannels);
+    } else if (aNumberOfChannels > mInputChannels.Length()) {
+      uint32_t oldLength = mInputChannels.Length();
+      mInputChannels.SetLength(aNumberOfChannels);
+      for (uint32_t i = oldLength; i < aNumberOfChannels; ++i) {
         mInputChannels[i] = new float[mBufferSize];
       }
     }
@@ -418,6 +411,7 @@ private:
   AudioNodeStream* mDestination;
   InputChannels mInputChannels;
   const uint32_t mBufferSize;
+  const uint32_t mDefaultNumberOfInputChannels;
   // The write index into the current input buffer
   uint32_t mInputWriteIndex;
   bool mSeenNonSilenceInput;
@@ -449,6 +443,9 @@ ScriptProcessorNode::ScriptProcessorNode(AudioContext* aContext,
 
 ScriptProcessorNode::~ScriptProcessorNode()
 {
+  if (Context()) {
+    Context()->UnregisterScriptProcessorNode(this);
+  }
 }
 
 JSObject*

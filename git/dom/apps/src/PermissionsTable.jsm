@@ -228,8 +228,7 @@ this.PermissionsTable =  { geolocation: {
                              substitute: [
                                "indexedDB-unlimited",
                                "offline-app",
-                               "pin-app",
-                               "default-persistent-storage"
+                               "pin-app"
                              ]
                            },
                            "background-sensors": {
@@ -282,43 +281,12 @@ this.PermissionsTable =  { geolocation: {
                              privileged: DENY_ACTION,
                              certified: ALLOW_ACTION
                            },
-                           "input": {
-                             app: DENY_ACTION,
-                             privileged: ALLOW_ACTION,
-                             certified: ALLOW_ACTION
-                           },
-                           "input-manage": {
+                           "keyboard": {
                              app: DENY_ACTION,
                              privileged: DENY_ACTION,
                              certified: ALLOW_ACTION
                            },
                            "wappush": {
-                             app: DENY_ACTION,
-                             privileged: DENY_ACTION,
-                             certified: ALLOW_ACTION
-                           },
-                           "audio-capture": {
-                             app: PROMPT_ACTION,
-                             privileged: PROMPT_ACTION,
-                             certified: PROMPT_ACTION
-                           },
-                           "nfc": {
-                             app: DENY_ACTION,
-                             privileged: DENY_ACTION,
-                             certified: ALLOW_ACTION,
-                             access: ["read", "write"]
-                           },
-                           "nfc-manager": {
-                             app: DENY_ACTION,
-                             privileged: DENY_ACTION,
-                             certified: ALLOW_ACTION
-                           },
-                           "speaker-control": {
-                             app: DENY_ACTION,
-                             privileged: ALLOW_ACTION,
-                             certified: ALLOW_ACTION
-                           },
-                           "downloads": {
                              app: DENY_ACTION,
                              privileged: DENY_ACTION,
                              certified: ALLOW_ACTION

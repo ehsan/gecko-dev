@@ -26,7 +26,6 @@ public:
   MobileMessageThread(const uint64_t aId,
                       const nsTArray<nsString>& aParticipants,
                       const uint64_t aTimestamp,
-                      const nsString& aLastMessageSubject,
                       const nsString& aBody,
                       const uint64_t aUnreadCount,
                       mobilemessage::MessageType aLastMessageType);
@@ -36,7 +35,6 @@ public:
   static nsresult Create(const uint64_t aId,
                          const JS::Value& aParticipants,
                          const JS::Value& aTimestamp,
-                         const nsAString& aLastMessageSubject,
                          const nsAString& aBody,
                          const uint64_t aUnreadCount,
                          const nsAString& aLastMessageType,

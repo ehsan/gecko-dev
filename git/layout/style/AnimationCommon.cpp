@@ -6,6 +6,7 @@
 #include "gfxPlatform.h"
 #include "AnimationCommon.h"
 #include "nsRuleData.h"
+#include "nsCSSFrameConstructor.h"
 #include "nsCSSValue.h"
 #include "nsStyleContext.h"
 #include "nsIFrame.h"
@@ -15,6 +16,7 @@
 #include "FrameLayerBuilder.h"
 #include "nsDisplayList.h"
 #include "mozilla/MemoryReporting.h"
+#include "mozilla/Preferences.h"
 #include "RestyleManager.h"
 
 using namespace mozilla::layers;
@@ -76,12 +78,6 @@ NS_IMPL_ISUPPORTS1(CommonAnimationManager, nsIStyleRuleProcessor)
 
 nsRestyleHint
 CommonAnimationManager::HasStateDependentStyle(StateRuleProcessorData* aData)
-{
-  return nsRestyleHint(0);
-}
-
-nsRestyleHint
-CommonAnimationManager::HasStateDependentStyle(PseudoElementStateRuleProcessorData* aData)
 {
   return nsRestyleHint(0);
 }
@@ -292,13 +288,6 @@ CommonElementAnimationData::CanAnimatePropertyOnCompositor(const dom::Element *a
                          (aProperty == eCSSProperty_opacity) ||
                          (aFlags & CanAnimate_AllowPartial);
   return enabled && propertyAllowed;
-}
-
-/* static */ bool
-CommonElementAnimationData::IsCompositorAnimationDisabledForFrame(nsIFrame* aFrame)
-{
-  void* prop = aFrame->Properties().Get(nsIFrame::RefusedAsyncAnimation());
-  return bool(reinterpret_cast<intptr_t>(prop));
 }
 
 /* static */ void

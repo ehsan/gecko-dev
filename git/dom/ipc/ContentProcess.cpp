@@ -37,5 +37,5 @@ ContentProcess::CleanUp()
     mXREEmbed.Stop();
 }
 
-} // namespace dom
+} // namespace tabs
 } // namespace mozilla

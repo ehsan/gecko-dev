@@ -46,7 +46,7 @@ this.TouchAdapter = {
   SYNTH_ID: -1,
 
   start: function TouchAdapter_start() {
-    Logger.debug('TouchAdapter.start');
+    Logger.info('TouchAdapter.start');
 
     this._touchPoints = {};
     this._dwellTimeout = 0;
@@ -64,7 +64,7 @@ this.TouchAdapter = {
   },
 
   stop: function TouchAdapter_stop() {
-    Logger.debug('TouchAdapter.stop');
+    Logger.info('TouchAdapter.stop');
 
     let target = Utils.win;
 
@@ -392,8 +392,6 @@ TouchPoint.prototype = {
         return {type: 'tap', x: this.startX, y: this.startY};
       } else if (!this.done && duration == TouchAdapter.DWELL_THRESHOLD) {
         return {type: 'dwell', x: this.startX, y: this.startY};
-      } else if (this.done && duration > TouchAdapter.DWELL_THRESHOLD) {
-        return {type: 'dwellend', x: this.startX, y: this.startY};
       }
     }
 
@@ -430,10 +428,10 @@ TouchPoint.prototype = {
     }
 
     // To be considered an explore...
-    if (duration > TouchAdapter.SWIPE_MAX_DURATION &&
+    if (!this.done &&
+        duration > TouchAdapter.SWIPE_MAX_DURATION &&
         (this.distanceTraveled / this.dpi) > TouchAdapter.TAP_MAX_RADIUS) {
-      return {type: this.done ? 'exploreend' : 'explore',
-              x: this.x, y: this.y};
+      return {type: 'explore', x: this.x, y: this.y};
     }
 
     return null;

@@ -3,11 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-[Pref="dom.gamepad.enabled"]
-interface GamepadButton {
-  readonly    attribute boolean pressed;
-  readonly    attribute double  value;
-};
+interface nsIVariant;
 
 [Pref="dom.gamepad.enabled"]
 interface Gamepad {
@@ -35,15 +31,15 @@ interface Gamepad {
 
   /**
    * The current state of all buttons on the device, an
-   * array of GamepadButton.
+   * array of doubles.
    */
-  [Pure, Cached, Frozen]
-  readonly attribute sequence<GamepadButton> buttons;
+  [Throws]
+  readonly attribute nsIVariant buttons;
 
   /**
    * The current position of all axes on the device, an
    * array of doubles.
    */
-  [Pure, Cached, Frozen]
-  readonly attribute sequence<double> axes;
+  [Throws]
+  readonly attribute nsIVariant axes;
 };

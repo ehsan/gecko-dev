@@ -108,19 +108,6 @@ add_task(function test_indexExists_not_created()
   do_check_false(msc.indexExists("foo"));
 });
 
-add_task(function test_temp_tableExists_and_indexExists()
-{
-  var msc = getOpenedDatabase();
-  msc.executeSimpleSQL("CREATE TEMP TABLE test_temp(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT)");
-  do_check_true(msc.tableExists("test_temp"));
-
-  msc.executeSimpleSQL("CREATE INDEX test_temp_ind ON test_temp (name)");
-  do_check_true(msc.indexExists("test_temp_ind"));
-
-  msc.executeSimpleSQL("DROP INDEX test_temp_ind");
-  msc.executeSimpleSQL("DROP TABLE test_temp");
-});
-
 add_task(function test_createTable_not_created()
 {
   var msc = getOpenedDatabase();
@@ -302,33 +289,8 @@ add_task(function test_asyncClose_succeeds_with_finalized_async_statement()
   stmt.executeAsync();
   stmt.finalize();
 
+  let deferred = Promise.defer();
   yield asyncClose(getOpenedDatabase());
-  // Reset gDBConn so that later tests will get a new connection object.
-  gDBConn = null;
-});
-
-add_task(function test_close_then_release_statement() {
-  // Testing the behavior in presence of a bad client that finalizes
-  // statements after the database has been closed (typically by
-  // letting the gc finalize the statement).
-  let db = getOpenedDatabase();
-  let stmt = createStatement("SELECT * FROM test -- test_close_then_release_statement");
-  db.close();
-  stmt.finalize(); // Finalize too late - this should not crash
-
-  // Reset gDBConn so that later tests will get a new connection object.
-  gDBConn = null;
-});
-
-add_task(function test_asyncClose_then_release_statement() {
-  // Testing the behavior in presence of a bad client that finalizes
-  // statements after the database has been async closed (typically by
-  // letting the gc finalize the statement).
-  let db = getOpenedDatabase();
-  let stmt = createStatement("SELECT * FROM test -- test_asyncClose_then_release_statement");
-  yield asyncClose(db);
-  stmt.finalize(); // Finalize too late - this should not crash
-
   // Reset gDBConn so that later tests will get a new connection object.
   gDBConn = null;
 });
@@ -397,7 +359,7 @@ function standardAsyncTest(promisedDB, name, shouldInit = false) {
   }
 
   // Generate a name to insert and fetch back
-  name = "worker bee " + Math.random() + " (" + name + ")";
+  let name = "worker bee " + Math.random() + " (" + name + ")";
 
   let stmt = adb.createAsyncStatement("INSERT INTO test (name) VALUES (:name)");
   stmt.params.name = name;

@@ -21,7 +21,6 @@
 
 #include "nsIFrame.h"
 #include "nsFrameManagerBase.h"
-#include "nsIContent.h"
 
 namespace mozilla {
 /**

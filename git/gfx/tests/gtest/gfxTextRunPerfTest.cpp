@@ -5,7 +5,7 @@
 
 #include "gtest/gtest.h"
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #include "nsCOMPtr.h"
 #include "nsTArray.h"
@@ -41,7 +41,7 @@ MakeContext ()
 
     surface = gfxPlatform::GetPlatform()->
         CreateOffscreenSurface(gfxIntSize(size, size),
-                               gfxASurface::ContentFromFormat(gfxImageFormatRGB24));
+                               gfxASurface::ContentFromFormat(gfxASurface::ImageFormatRGB24));
     nsRefPtr<gfxContext> ctx = new gfxContext(surface);
     return ctx.forget();
 }

@@ -13,7 +13,9 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/MemoryReporting.h"
 
+#include "nsCOMPtr.h"
 #include "nsDataHashtable.h"
+#include "nsIStyleSheet.h"
 #include "nsIStyleRuleProcessor.h"
 
 struct MiscContainer;
@@ -34,7 +36,6 @@ public:
   virtual void RulesMatching(XULTreeRuleProcessorData* aData) MOZ_OVERRIDE;
 #endif
   virtual nsRestyleHint HasStateDependentStyle(StateRuleProcessorData* aData) MOZ_OVERRIDE;
-  virtual nsRestyleHint HasStateDependentStyle(PseudoElementStateRuleProcessorData* aData) MOZ_OVERRIDE;
   virtual bool HasDocumentStateDependentStyle(StateRuleProcessorData* aData) MOZ_OVERRIDE;
   virtual nsRestyleHint
     HasAttributeDependentStyle(AttributeRuleProcessorData* aData) MOZ_OVERRIDE;

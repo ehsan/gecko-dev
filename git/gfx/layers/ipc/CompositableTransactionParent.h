@@ -11,7 +11,7 @@
 #include <vector>                       // for vector
 #include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
 #include "mozilla/layers/ISurfaceAllocator.h"  // for ISurfaceAllocator
-#include "mozilla/layers/LayersMessages.h"  // for EditReply, etc
+#include "mozilla/layers/LayerTransaction.h"  // for EditReply, etc
 
 namespace mozilla {
 namespace layers {
@@ -31,12 +31,6 @@ protected:
   bool ReceiveCompositableUpdate(const CompositableOperation& aEdit,
                                  EditReplyVector& replyv);
   bool IsOnCompositorSide() const MOZ_OVERRIDE { return true; }
-
-  /**
-   * Return true if this protocol is asynchronous with respect to the content
-   * thread (ImageBridge for instance).
-   */
-  virtual bool IsAsync() const { return false; }
 };
 
 } // namespace

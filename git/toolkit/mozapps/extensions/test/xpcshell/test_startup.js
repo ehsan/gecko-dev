@@ -132,9 +132,12 @@ function run_test() {
   check_startup_changes(AddonManager.STARTUP_CHANGE_DISABLED, []);
   check_startup_changes(AddonManager.STARTUP_CHANGE_ENABLED, []);
 
-  do_check_false(gExtensionsJSON.exists());
+  let file = gProfD.clone();
+  file.append("extensions.json");
+  do_check_false(file.exists());
 
-  do_check_false(gExtensionsINI.exists());
+  file.leafName = "extensions.ini";
+  do_check_false(file.exists());
 
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
                                "addon2@tests.mozilla.org",
@@ -187,8 +190,10 @@ function run_test_1() {
   check_startup_changes(AddonManager.STARTUP_CHANGE_ENABLED, []);
   do_check_true(gCachePurged);
 
-  do_print("Checking for " + gExtensionsINI.path);
-  do_check_true(gExtensionsINI.exists());
+  let file = gProfD.clone();
+  file.append = "extensions.ini";
+  do_print("Checking for " + file.path);
+  do_check_true(file.exists());
 
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
                                "addon2@tests.mozilla.org",
@@ -297,7 +302,9 @@ function run_test_2() {
   check_startup_changes(AddonManager.STARTUP_CHANGE_ENABLED, []);
   do_check_true(gCachePurged);
 
-  do_check_true(gExtensionsINI.exists());
+  var file = gProfD.clone();
+  file.append("extensions.ini");
+  do_check_true(file.exists());
 
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
                                "addon2@tests.mozilla.org",

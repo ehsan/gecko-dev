@@ -7,11 +7,6 @@
 
 %{ C++
 #include "jspubtd.h"
-
-// windows.h #defines CreateEvent
-#ifdef CreateEvent
-#undef CreateEvent
-#endif
 %}
 
 interface nsIDOMNodeIterator;

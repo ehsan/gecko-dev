@@ -3,9 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsSMILRepeatCount_h
-#define nsSMILRepeatCount_h
-
 #include "nsDebug.h"
 #include <math.h>
 
@@ -27,11 +24,7 @@ public:
   explicit nsSMILRepeatCount(double aCount)
     : mCount(kNotSet) { SetCount(aCount); }
 
-  operator double() const {
-    MOZ_ASSERT(IsDefinite(),
-      "Converting indefinite or unset repeat count to double");
-    return mCount;
-  }
+  operator double() const { return mCount; }
   bool IsDefinite() const {
     return mCount != kNotSet && mCount != kIndefinite;
   }
@@ -57,5 +50,3 @@ private:
 
   double  mCount;
 };
-
-#endif

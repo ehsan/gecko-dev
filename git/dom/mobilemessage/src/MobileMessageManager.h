@@ -35,10 +35,8 @@ private:
    * Internal Send() method used to send one message.
    */
   nsresult Send(JSContext* aCx, JS::Handle<JSObject*> aGlobal,
-                uint32_t aServiceId,
                 JS::Handle<JSString*> aNumber,
-                const nsAString& aMessage,
-                JS::Value* aRequest);
+                const nsAString& aMessage, JS::Value* aRequest);
 
   nsresult DispatchTrustedSmsEventToSelf(const char* aTopic,
                                          const nsAString& aEventName,
@@ -47,8 +45,8 @@ private:
   /**
    * Helper to get message ID from SMS/MMS Message object
    */
-  nsresult GetMessageId(JSContext* aCx, const JS::Value& aMessage,
-                        int32_t* aId);
+  nsresult GetMessageId(AutoPushJSContext &aCx, const JS::Value &aMessage,
+                        int32_t &aId);
 };
 
 } // namespace dom

@@ -10,11 +10,13 @@ XPIDL_SOURCES += [
 
 XPIDL_MODULE = 'necko_about'
 
+MODULE = 'necko'
+
 EXPORTS += [
     'nsAboutProtocolUtils.h',
 ]
 
-UNIFIED_SOURCES += [
+CPP_SOURCES += [
     'nsAboutBlank.cpp',
     'nsAboutBloat.cpp',
     'nsAboutCache.cpp',
@@ -24,10 +26,5 @@ UNIFIED_SOURCES += [
 
 FAIL_ON_WARNINGS = True
 
-include('/ipc/chromium/chromium-config.mozbuild')
+LIBXUL_LIBRARY = True
 
-FINAL_LIBRARY = 'necko'
-
-LOCAL_INCLUDES += [
-    '../../base/src',
-]

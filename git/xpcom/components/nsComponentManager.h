@@ -11,7 +11,6 @@
 #include "xpcom-private.h"
 #include "nsIComponentManager.h"
 #include "nsIComponentRegistrar.h"
-#include "nsIMemoryReporter.h"
 #include "nsIServiceManager.h"
 #include "nsIFile.h"
 #include "mozilla/MemoryReporting.h"
@@ -40,6 +39,7 @@
 
 struct nsFactoryEntry;
 class nsIServiceManager;
+class nsIMemoryReporter;
 struct PRThread;
 
 #define NS_COMPONENTMANAGER_CID                      \
@@ -119,8 +119,7 @@ typedef mozilla::BaseAutoLock<SafeMutex> SafeMutexAutoLock;
 typedef mozilla::BaseAutoUnlock<SafeMutex> SafeMutexAutoUnlock;
 
 class nsComponentManagerImpl MOZ_FINAL
-    : public mozilla::MemoryUniReporter
-    , public nsIComponentManager
+    : public nsIComponentManager
     , public nsIServiceManager
     , public nsSupportsWeakReference
     , public nsIComponentRegistrar
@@ -212,9 +211,9 @@ public:
         { }
 
         KnownModule(mozilla::FileLocation &aFile)
-            : mModule(nullptr)
+            : mModule(NULL)
             , mFile(aFile)
-            , mLoader(nullptr)
+            , mLoader(NULL)
             , mLoaded(false)
             , mFailed(false)
         { }
@@ -313,11 +312,12 @@ public:
 
     nsTArray<PendingServiceInfo> mPendingServices;
 
-    int64_t Amount() MOZ_OVERRIDE;
     size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
 
 private:
     ~nsComponentManagerImpl();
+
+    nsIMemoryReporter* mReporter;
 };
 
 

@@ -8,6 +8,7 @@
 #define XPC_WRAPPER_H 1
 
 #include "xpcprivate.h"
+#include "xpcpublic.h"
 #include "jswrapper.h"
 
 class nsIScriptSecurityManager;

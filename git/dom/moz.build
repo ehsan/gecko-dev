@@ -11,6 +11,7 @@ interfaces = [
     'html',
     'events',
     'devicestorage',
+    'contacts',
     'settings',
     'stylesheets',
     'sidebar',
@@ -45,12 +46,9 @@ PARALLEL_DIRS += [
     'contacts',
     'phonenumberutils',
     'alarm',
-    'datastore',
     'devicestorage',
     'encoding',
     'file',
-    'fmradio',
-    'asmjscache',
     'media',
     'messages',
     'power',
@@ -73,27 +71,23 @@ PARALLEL_DIRS += [
     'camera',
     'audiochannel',
     'promise',
-    'telephony',
-    'inputmethod',
-    'webidl',
+    'wappush'
 ]
 
 if CONFIG['OS_ARCH'] == 'WINNT':
     PARALLEL_DIRS += ['plugins/ipc/hangui']
 
-if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
-    PARALLEL_DIRS += [
-        'speakermanager',
-        'wifi',
-    ]
-
 if CONFIG['MOZ_B2G_RIL']:
     PARALLEL_DIRS += [
+        'telephony',
+        'wifi',
         'icc',
         'cellbroadcast',
         'voicemail',
-        'wappush',
     ]
+
+if CONFIG['MOZ_B2G_FM']:
+    PARALLEL_DIRS += ['fm']
 
 if CONFIG['MOZ_PAY']:
     PARALLEL_DIRS += ['payment']
@@ -101,17 +95,16 @@ if CONFIG['MOZ_PAY']:
 if CONFIG['MOZ_GAMEPAD']:
     PARALLEL_DIRS += ['gamepad']
 
-if CONFIG['MOZ_NFC']:
-    PARALLEL_DIRS += ['nfc']
-
-if CONFIG['MOZ_B2G']:
-    PARALLEL_DIRS += ['downloads']
-
+# bindings/test is here, because it needs to build after bindings/, and
+# we build subdirectories before ourselves.
 TEST_DIRS += [
     'tests',
     'imptests',
+    'bindings/test',
 ]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] in ('gtk2', 'cocoa', 'windows', 'android', 'qt', 'os2'):
     TEST_DIRS += ['plugins/test']
+
+MODULE = 'dom'
 

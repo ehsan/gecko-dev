@@ -59,9 +59,9 @@ typedef Scoped<ScopedCloseFDTraits> ScopedClose;
 struct ScopedClosePRFDTraits
 {
   typedef PRFileDesc* type;
-  static type empty() { return nullptr; }
+  static type empty() { return NULL; }
   static void release(type fd) {
-    if (fd != nullptr) {
+    if (fd != NULL) {
       PR_Close(fd);
     }
   }

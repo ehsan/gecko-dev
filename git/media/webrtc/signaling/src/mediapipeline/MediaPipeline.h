@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -84,6 +83,7 @@ class MediaPipeline : public sigslot::has_slots<> {
         rtcp_state_(MP_CONNECTING),
         main_thread_(main_thread),
         sts_thread_(sts_thread),
+        transport_(new PipelineTransport(this)),
         rtp_send_srtp_(),
         rtcp_send_srtp_(),
         rtp_recv_srtp_(),
@@ -92,11 +92,9 @@ class MediaPipeline : public sigslot::has_slots<> {
         rtcp_packets_sent_(0),
         rtp_packets_received_(0),
         rtcp_packets_received_(0),
-        rtp_bytes_sent_(0),
-        rtp_bytes_received_(0),
         pc_(pc),
         description_() {
-      // To indicate rtcp-mux rtcp_transport should be nullptr.
+      // To indicate rtcp-mux rtcp_transport should be NULL.
       // Therefore it's an error to send in the same flow for
       // both rtp and rtcp.
       MOZ_ASSERT(rtp_transport_ != rtcp_transport_);
@@ -104,8 +102,6 @@ class MediaPipeline : public sigslot::has_slots<> {
       if (!rtcp_transport_) {
         rtcp_transport_ = rtp_transport;
       }
-      // PipelineTransport() will access this->sts_thread_; moved here for safety
-      transport_ = new PipelineTransport(this);
   }
 
   virtual ~MediaPipeline();
@@ -125,20 +121,17 @@ class MediaPipeline : public sigslot::has_slots<> {
   virtual nsresult Init();
 
   virtual Direction direction() const { return direction_; }
-  virtual TrackID trackid() const { return track_id_; }
 
   bool IsDoingRtcpMux() const {
     return (rtp_transport_ == rtcp_transport_);
   }
 
-  int32_t rtp_packets_sent() const { return rtp_packets_sent_; }
-  int64_t rtp_bytes_sent() const { return rtp_bytes_sent_; }
-  int32_t rtcp_packets_sent() const { return rtcp_packets_sent_; }
-  int32_t rtp_packets_received() const { return rtp_packets_received_; }
-  int64_t rtp_bytes_received() const { return rtp_bytes_received_; }
-  int32_t rtcp_packets_received() const { return rtcp_packets_received_; }
+  int rtp_packets_sent() const { return rtp_packets_sent_; }
+  int rtcp_packets_sent() const { return rtcp_packets_sent_; }
+  int rtp_packets_received() const { return rtp_packets_received_; }
+  int rtcp_packets_received() const { return rtcp_packets_received_; }
 
-  MediaSessionConduit *Conduit() const { return conduit_; }
+  MediaSessionConduit *Conduit() { return conduit_; }
 
   // Thread counting
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(MediaPipeline)
@@ -152,9 +145,9 @@ class MediaPipeline : public sigslot::has_slots<> {
     // Implement the TransportInterface functions
     PipelineTransport(MediaPipeline *pipeline)
         : pipeline_(pipeline),
-          sts_thread_(pipeline->sts_thread_) {}
+	  sts_thread_(pipeline->sts_thread_) {}
 
-    void Detach() { pipeline_ = nullptr; }
+    void Detach() { pipeline_ = NULL; }
     MediaPipeline *pipeline() const { return pipeline_; }
 
     virtual nsresult SendRtpPacket(const void* data, int len);
@@ -172,9 +165,9 @@ class MediaPipeline : public sigslot::has_slots<> {
   virtual nsresult TransportFailed_s(TransportFlow *flow);  // The transport is down
   virtual nsresult TransportReady_s(TransportFlow *flow);   // The transport is ready
 
-  void increment_rtp_packets_sent(int bytes);
+  void increment_rtp_packets_sent();
   void increment_rtcp_packets_sent();
-  void increment_rtp_packets_received(int bytes);
+  void increment_rtp_packets_received();
   void increment_rtcp_packets_received();
 
   virtual nsresult SendPacket(TransportFlow *flow, const void* data, int len);
@@ -190,12 +183,12 @@ class MediaPipeline : public sigslot::has_slots<> {
 
   Direction direction_;
   RefPtr<MediaStream> stream_;  // A pointer to the stream we are servicing.
-                                // Written on the main thread.
-                                // Used on STS and MediaStreamGraph threads.
+  		      		// Written on the main thread.
+  		      		// Used on STS and MediaStreamGraph threads.
   TrackID track_id_;            // The track on the stream.
                                 // Written and used as the stream_;
   RefPtr<MediaSessionConduit> conduit_;  // Our conduit. Written on the main
-                                         // thread. Read on STS thread.
+  			      		 // thread. Read on STS thread.
 
   // The transport objects. Read/written on STS thread.
   RefPtr<TransportFlow> rtp_transport_;
@@ -221,12 +214,10 @@ class MediaPipeline : public sigslot::has_slots<> {
   // Written only on STS thread. May be read on other
   // threads but since there is no mutex, the values
   // will only be approximate.
-  int32_t rtp_packets_sent_;
-  int32_t rtcp_packets_sent_;
-  int32_t rtp_packets_received_;
-  int32_t rtcp_packets_received_;
-  int64_t rtp_bytes_sent_;
-  int64_t rtp_bytes_received_;
+  int rtp_packets_sent_;
+  int rtcp_packets_sent_;
+  int rtp_packets_received_;
+  int rtcp_packets_received_;
 
   // Written on Init. Read on STS thread.
   std::string pc_;
@@ -309,7 +300,7 @@ private:
 // and transmitting to the network.
 class MediaPipelineTransmit : public MediaPipeline {
  public:
-  // Set rtcp_transport to nullptr to use rtcp-mux
+  // Set rtcp_transport to NULL to use rtcp-mux
   MediaPipelineTransmit(const std::string& pc,
                         nsCOMPtr<nsIEventTarget> main_thread,
                         nsCOMPtr<nsIEventTarget> sts_thread,
@@ -349,14 +340,10 @@ class MediaPipelineTransmit : public MediaPipeline {
       : conduit_(conduit),
         active_(false),
         direct_connect_(false),
+        last_img_(-1),
         samples_10ms_buffer_(nullptr),
         buffer_current_(0),
-        samplenum_10ms_(0)
-#ifdef MOZILLA_INTERNAL_API
-        , last_img_(-1)
-#endif // MOZILLA_INTERNAL_API
-    {
-    }
+        samplenum_10ms_(0) {}
 
     ~PipelineListener()
     {
@@ -398,14 +385,16 @@ class MediaPipelineTransmit : public MediaPipeline {
                  const MediaSegment& media);
 
     virtual void ProcessAudioChunk(AudioSessionConduit *conduit,
-                                   TrackRate rate, AudioChunk& chunk);
+				   TrackRate rate, AudioChunk& chunk);
 #ifdef MOZILLA_INTERNAL_API
     virtual void ProcessVideoChunk(VideoSessionConduit *conduit,
-                                   TrackRate rate, VideoChunk& chunk);
+				   TrackRate rate, VideoChunk& chunk);
 #endif
     RefPtr<MediaSessionConduit> conduit_;
     volatile bool active_;
     bool direct_connect_;
+
+    int32_t last_img_; // serial number of last Image
 
     // These vars handle breaking audio samples into exact 10ms chunks:
     // The buffer of 10ms audio samples that we will send once full
@@ -415,10 +404,6 @@ class MediaPipelineTransmit : public MediaPipeline {
     int64_t buffer_current_;
     // The number of samples in a 10ms audio chunk.
     int64_t samplenum_10ms_;
-
-#ifdef MOZILLA_INTERNAL_API
-    int32_t last_img_; // serial number of last Image
-#endif // MOZILLA_INTERNAL_API
   };
 
  private:
@@ -431,7 +416,7 @@ class MediaPipelineTransmit : public MediaPipeline {
 // rendering video.
 class MediaPipelineReceive : public MediaPipeline {
  public:
-  // Set rtcp_transport to nullptr to use rtcp-mux
+  // Set rtcp_transport to NULL to use rtcp-mux
   MediaPipelineReceive(const std::string& pc,
                        nsCOMPtr<nsIEventTarget> main_thread,
                        nsCOMPtr<nsIEventTarget> sts_thread,
@@ -532,7 +517,7 @@ class MediaPipelineReceiveVideo : public MediaPipelineReceive {
       MediaPipelineReceive(pc, main_thread, sts_thread,
                            stream, track_id, conduit, rtp_transport,
                            rtcp_transport),
-      renderer_(new PipelineRenderer(MOZ_THIS_IN_INITIALIZER_LIST())),
+      renderer_(new PipelineRenderer(this)),
       listener_(new PipelineListener(stream->AsSourceStream(), track_id)) {
   }
 
@@ -558,7 +543,7 @@ class MediaPipelineReceiveVideo : public MediaPipelineReceive {
     PipelineRenderer(MediaPipelineReceiveVideo *pipeline) :
       pipeline_(pipeline) {}
 
-    void Detach() { pipeline_ = nullptr; }
+    void Detach() { pipeline_ = NULL; }
 
     // Implement VideoRenderer
     virtual void FrameSizeChange(unsigned int width,

@@ -4,23 +4,17 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+MODULE = 'docshell'
+
 EXPORTS += [
     'nsDocShellCID.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'nsDocShellModule.cpp',
 ]
 
-LOCAL_INCLUDES += [
-    '../base',
-    '../shistory/src/',
-    '/uriloader/base',
-    '/uriloader/exthandler',
-    '/uriloader/prefetch',
-    ]
+LIBRARY_NAME = 'docshell'
 
-if CONFIG["MOZ_WIDGET_TOOLKIT"] == "cocoa":
-    LOCAL_INCLUDES += ['/uriloader/exthandler/mac']
+LIBXUL_LIBRARY = True
 
-FINAL_LIBRARY = 'xul'

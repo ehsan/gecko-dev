@@ -10,8 +10,17 @@
 #include "vm/ScopeObject.h"
 
 #include "jsinferinlines.h"
+#include "jsobjinlines.h"
 
 namespace js {
+
+inline void
+ScopeObject::setEnclosingScope(HandleObject obj)
+{
+    JS_ASSERT_IF(obj->is<CallObject>() || obj->is<DeclEnvObject>() || obj->is<BlockObject>(),
+                 obj->isDelegate());
+    setFixedSlot(SCOPE_CHAIN_SLOT, ObjectValue(*obj));
+}
 
 inline void
 ScopeObject::setAliasedVar(JSContext *cx, ScopeCoordinate sc, PropertyName *name, const Value &v)
@@ -19,13 +28,12 @@ ScopeObject::setAliasedVar(JSContext *cx, ScopeCoordinate sc, PropertyName *name
     JS_ASSERT(is<CallObject>() || is<ClonedBlockObject>());
     JS_STATIC_ASSERT(CallObject::RESERVED_SLOTS == BlockObject::RESERVED_SLOTS);
 
-    setSlot(sc.slot, v);
+    // name may be null for non-singletons, whose types do not need to be tracked.
+    JS_ASSERT_IF(hasSingletonType(), name);
 
-    // name may be null if we don't need to track side effects on the object.
-    if (hasSingletonType() && !hasLazyType()) {
-        JS_ASSERT(name);
+    setSlot(sc.slot, v);
+    if (hasSingletonType())
         types::AddTypePropertyId(cx, this, NameToId(name), v);
-    }
 }
 
 inline void
@@ -37,74 +45,61 @@ CallObject::setAliasedVar(JSContext *cx, AliasedFormalIter fi, PropertyName *nam
         types::AddTypePropertyId(cx, this, NameToId(name), v);
 }
 
-template <AllowGC allowGC>
-inline bool
-StaticScopeIter<allowGC>::done() const
-{
-    return !obj;
-}
-
-template <AllowGC allowGC>
 inline void
-StaticScopeIter<allowGC>::operator++(int)
+BlockObject::setSlotValue(unsigned i, const Value &v)
 {
-    if (obj->template is<StaticBlockObject>()) {
-        obj = obj->template as<StaticBlockObject>().enclosingStaticScope();
-    } else if (onNamedLambda || !obj->template as<JSFunction>().isNamedLambda()) {
-        onNamedLambda = false;
-        obj = obj->template as<JSFunction>().nonLazyScript()->enclosingStaticScope();
-    } else {
-        onNamedLambda = true;
+    setSlot(RESERVED_SLOTS + i, v);
+}
+
+inline void
+StaticBlockObject::initPrevBlockChainFromParser(StaticBlockObject *prev)
+{
+    setReservedSlot(SCOPE_CHAIN_SLOT, ObjectOrNullValue(prev));
+}
+
+inline void
+StaticBlockObject::resetPrevBlockChainFromParser()
+{
+    setReservedSlot(SCOPE_CHAIN_SLOT, UndefinedValue());
+}
+
+inline void
+StaticBlockObject::initEnclosingStaticScope(JSObject *obj)
+{
+    JS_ASSERT(getReservedSlot(SCOPE_CHAIN_SLOT).isUndefined());
+    setReservedSlot(SCOPE_CHAIN_SLOT, ObjectOrNullValue(obj));
+}
+
+inline void
+StaticBlockObject::setStackDepth(uint32_t depth)
+{
+    JS_ASSERT(getReservedSlot(DEPTH_SLOT).isUndefined());
+    initReservedSlot(DEPTH_SLOT, PrivateUint32Value(depth));
+}
+
+inline void
+StaticBlockObject::setDefinitionParseNode(unsigned i, frontend::Definition *def)
+{
+    JS_ASSERT(slotValue(i).isUndefined());
+    setSlotValue(i, PrivateValue(def));
+}
+
+inline void
+StaticBlockObject::setAliased(unsigned i, bool aliased)
+{
+    JS_ASSERT_IF(i > 0, slotValue(i-1).isBoolean());
+    setSlotValue(i, BooleanValue(aliased));
+    if (aliased && !needsClone()) {
+        setSlotValue(0, MagicValue(JS_BLOCK_NEEDS_CLONE));
+        JS_ASSERT(needsClone());
     }
-    JS_ASSERT_IF(obj, obj->template is<StaticBlockObject>() || obj->template is<JSFunction>());
-    JS_ASSERT_IF(onNamedLambda, obj->template is<JSFunction>());
 }
 
-template <AllowGC allowGC>
-inline bool
-StaticScopeIter<allowGC>::hasDynamicScopeObject() const
+inline void
+ClonedBlockObject::setVar(unsigned i, const Value &v, MaybeCheckAliasing checkAliasing)
 {
-    return obj->template is<StaticBlockObject>()
-           ? obj->template as<StaticBlockObject>().needsClone()
-           : obj->template as<JSFunction>().isHeavyweight();
-}
-
-template <AllowGC allowGC>
-inline Shape *
-StaticScopeIter<allowGC>::scopeShape() const
-{
-    JS_ASSERT(hasDynamicScopeObject());
-    JS_ASSERT(type() != NAMED_LAMBDA);
-    if (type() == BLOCK) {
-        AutoThreadSafeAccess ts(&block());
-        return block().lastProperty();
-    }
-    return funScript()->callObjShape();
-}
-
-template <AllowGC allowGC>
-inline typename StaticScopeIter<allowGC>::Type
-StaticScopeIter<allowGC>::type() const
-{
-    if (onNamedLambda)
-        return NAMED_LAMBDA;
-    return obj->template is<StaticBlockObject>() ? BLOCK : FUNCTION;
-}
-
-template <AllowGC allowGC>
-inline StaticBlockObject &
-StaticScopeIter<allowGC>::block() const
-{
-    JS_ASSERT(type() == BLOCK);
-    return obj->template as<StaticBlockObject>();
-}
-
-template <AllowGC allowGC>
-inline JSScript *
-StaticScopeIter<allowGC>::funScript() const
-{
-    JS_ASSERT(type() == FUNCTION);
-    return obj->template as<JSFunction>().nonLazyScript();
+    JS_ASSERT_IF(checkAliasing, staticBlock().isAliased(i));
+    setSlotValue(i, v);
 }
 
 }  /* namespace js */

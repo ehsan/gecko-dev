@@ -3,8 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/ArrayUtils.h"
-#include "mozilla/MouseEvents.h"
+#include "mozilla/Util.h"
 #include "nsAString.h"
 #include "nsCOMPtr.h"
 #include "nsCRT.h"
@@ -14,6 +13,7 @@
 #include "nsEditor.h"
 #include "nsEditorUtils.h"
 #include "nsError.h"
+#include "nsGUIEvent.h"
 #include "nsIClipboard.h"
 #include "nsIContent.h"
 #include "nsIDOMDataTransfer.h"
@@ -182,8 +182,8 @@ nsresult nsPlaintextEditor::InsertFromDrop(nsIDOMEvent* aDropEvent)
     NS_ENSURE_TRUE(sourceNode, NS_ERROR_FAILURE);
   }
 
-  if (nsContentUtils::CheckForSubFrameDrop(dragSession,
-        aDropEvent->GetInternalNSEvent()->AsDragEvent())) {
+  nsDragEvent* dragEventInternal = static_cast<nsDragEvent *>(aDropEvent->GetInternalNSEvent());
+  if (nsContentUtils::CheckForSubFrameDrop(dragSession, dragEventInternal)) {
     // Don't allow drags from subframe documents with different origins than
     // the drop destination.
     if (srcdomdoc && !IsSafeToInsertData(srcdomdoc))
@@ -432,7 +432,8 @@ bool nsPlaintextEditor::IsSafeToInsertData(nsIDOMDocument* aSourceDoc)
 
   nsCOMPtr<nsIDocument> destdoc = GetDocument();
   NS_ASSERTION(destdoc, "Where is our destination doc?");
-  nsCOMPtr<nsIDocShellTreeItem> dsti = destdoc->GetDocShell();
+  nsCOMPtr<nsISupports> container = destdoc->GetContainer();
+  nsCOMPtr<nsIDocShellTreeItem> dsti = do_QueryInterface(container);
   nsCOMPtr<nsIDocShellTreeItem> root;
   if (dsti)
     dsti->GetRootTreeItem(getter_AddRefs(root));

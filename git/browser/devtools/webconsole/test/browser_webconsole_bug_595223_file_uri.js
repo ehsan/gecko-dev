@@ -8,29 +8,24 @@ const TEST_FILE = "test-network.html";
 function tabReload(aEvent) {
   browser.removeEventListener(aEvent.type, tabReload, true);
 
-  waitForMessages({
-    webconsole: hud,
-    messages: [{
-      text: "running network console logging tests",
-      category: CATEGORY_WEBDEV,
-      severity: SEVERITY_LOG,
-    },
+  outputNode = hud.outputNode;
+
+  waitForSuccess({
+    name: "console.log() message displayed",
+    validatorFn: function()
     {
-      text: "test-network.html",
-      category: CATEGORY_NETWORK,
-      severity: SEVERITY_LOG,
+      return outputNode.textContent
+             .indexOf("running network console logging tests") > -1;
     },
+    successFn: function()
     {
-      text: "test-image.png",
-      category: CATEGORY_NETWORK,
-      severity: SEVERITY_LOG,
+      findLogEntry("test-network.html");
+      findLogEntry("test-image.png");
+      findLogEntry("testscript.js");
+      finishTest();
     },
-    {
-      text: "testscript.js",
-      category: CATEGORY_NETWORK,
-      severity: SEVERITY_LOG,
-    }],
-  }).then(finishTest);
+    failureFn: finishTest,
+  });
 }
 
 function test() {

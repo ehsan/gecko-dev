@@ -14,7 +14,7 @@
   -moz-user-select: none;
 }
 
-.ruleview-header {
+.ruleview-rule-inheritance {
   border-top-width: 1px;
   border-bottom-width: 1px;
   border-top-style: solid;
@@ -22,7 +22,6 @@
   padding: 1px 4px;
   margin-top: 4px;
   -moz-user-select: none;
-  word-wrap: break-word;
 }
 
 .ruleview-rule-source:hover {
@@ -47,8 +46,7 @@
 .ruleview-warning {
   background: url("chrome://browser/skin/devtools/alerticon-warning.png");
   -moz-margin-start: 5px;
-  display: inline-block;
-  vertical-align: top;
+  vertical-align: middle;
   width: 13px;
   height: 12px;
 }
@@ -97,14 +95,6 @@
   -moz-margin-start: 35px;
 }
 
-.ruleview-colorswatch {
-  border-radius: 50%;
-  width: 1em;
-  height: 1em;
-  vertical-align: text-top;
-  -moz-margin-end: 5px;
-}
-
 .ruleview-overridden {
   text-decoration: line-through;
 }
@@ -116,7 +106,6 @@
 
 .ruleview-property {
   border-left: 2px solid transparent;
-  clear: right;
 }
 
 .ruleview-property  > * {
@@ -135,10 +124,6 @@
 .ruleview-namecontainer:hover > .ruleview-propertyname,
 .ruleview-propertycontainer:hover > .ruleview-propertyvalue {
   border-bottom-color: hsl(0,0%,50%);
-}
-
-.ruleview-selector {
-  word-wrap: break-word;
 }
 
 .ruleview-selector-separator, .ruleview-selector-unmatched {

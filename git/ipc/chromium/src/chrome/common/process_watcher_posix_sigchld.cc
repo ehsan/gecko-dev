@@ -115,8 +115,8 @@ private:
       WaitForChildExit();
     }
     else {
-      CHROMIUM_LOG(ERROR) << "Failed to deliver SIGKILL to " << process_ << "!"
-                          << "("<< errno << ").";
+      LOG(ERROR) << "Failed to deliver SIGKILL to " << process_ << "!"
+                 << "("<< errno << ").";
     }
     process_ = 0;
   }

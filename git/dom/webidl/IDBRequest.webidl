@@ -24,7 +24,9 @@ interface IDBRequest : EventTarget {
     readonly    attribute IDBTransaction?      transaction;
     readonly    attribute IDBRequestReadyState readyState;
 
+    [SetterThrows]
                 attribute EventHandler         onsuccess;
 
+    [SetterThrows]
                 attribute EventHandler         onerror;
 };

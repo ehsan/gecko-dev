@@ -13,7 +13,6 @@ const ADDON_DOWNGRADE                 = 8;
 
 // This verifies that bootstrappable add-ons can be used without restarts.
 Components.utils.import("resource://gre/modules/Services.jsm");
-Components.utils.import("resource://gre/modules/Promise.jsm");
 
 // Enable loading extensions from the user scopes
 Services.prefs.setIntPref("extensions.enabledScopes",
@@ -57,24 +56,6 @@ function waitForPref(aPref, aCallback) {
     do_execute_soon(aCallback);
   }
   Services.prefs.addObserver(aPref, prefChanged, false);
-}
-
-function promisePref(aPref) {
-  let deferred = Promise.defer();
-
-  waitForPref(aPref, deferred.resolve.bind(deferred));
-
-  return deferred.promise;
-}
-
-function promiseInstall(aFiles) {
-  let deferred = Promise.defer();
-
-  installAllFiles(aFiles, function() {
-    deferred.resolve();
-  });
-
-  return deferred.promise;
 }
 
 function getActiveVersion() {
@@ -167,7 +148,9 @@ function run_test() {
 
   do_check_false(gExtensionsJSON.exists());
 
-  do_check_false(gExtensionsINI.exists());
+  let file = gProfD.clone();
+  file.leafName = "extensions.ini";
+  do_check_false(file.exists());
 
   do_check_bootstrappedPref(run_test_1);
 }
@@ -221,7 +204,9 @@ function run_test_1() {
 }
 
 function check_test_1(installSyncGUID) {
-  do_check_false(gExtensionsINI.exists());
+  let file = gProfD.clone();
+  file.leafName = "extensions.ini";
+  do_check_false(file.exists());
 
   AddonManager.getAllInstalls(function(installs) {
     // There should be no active installs now since the install completed and
@@ -309,7 +294,9 @@ function run_test_3() {
   do_check_eq(getShutdownNewVersion(), 0);
   do_check_not_in_crash_annotation("bootstrap1@tests.mozilla.org", "1.0");
 
-  do_check_false(gExtensionsINI.exists());
+  let file = gProfD.clone();
+  file.append("extensions.ini");
+  do_check_false(file.exists());
 
   AddonManager.getAddonByID("bootstrap1@tests.mozilla.org", function(b1) {
     do_check_neq(b1, null);
@@ -1237,10 +1224,7 @@ function check_test_23() {
 function run_test_24() {
   resetPrefs();
   do_print("starting 24");
-
-  Promise.all([promisePref("bootstraptest2.active_version"),
-              promiseInstall([do_get_addon("test_bootstrap1_1"), do_get_addon("test_bootstrap2_1")])])
-         .then(function test_24_pref() {
+  waitForPref("bootstraptest2.active_version", function test_24_pref() {
     do_print("test 24 got prefs");
     do_check_eq(getInstalledVersion(), 1);
     do_check_eq(getActiveVersion(), 1);
@@ -1276,6 +1260,11 @@ function run_test_24() {
     do_check_eq(getActiveVersion2(), 1);
 
     run_test_25();
+  });
+
+  installAllFiles([do_get_addon("test_bootstrap1_1"), do_get_addon("test_bootstrap2_1")],
+                  function test_24_installed() {
+    do_print("test 24 installed");
   });
 }
 

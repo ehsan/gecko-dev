@@ -6,6 +6,8 @@
 
 #include "nsError.h"
 #include "nsIPresShell.h"
+#include "nsEvent.h"
+#include "nsGUIEvent.h"
 #include "nsEventDispatcher.h"
 #include "nsNodeUtils.h"
 #include "nsIFrame.h"

@@ -13,11 +13,19 @@
           xmlns="http://www.mozilla.org/xbl"
           xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 
-  <binding id="browser" extends="xul:browser" role="outerdoc">
+  <binding id="browser" extends="xul:browser">
     <content clickthrough="never">
       <children/>
     </content>
-    <implementation type="application/javascript" implements="nsIObserver, nsIDOMEventListener, nsIFrameRequestCallback">
+    <implementation type="application/javascript" implements="nsIAccessibleProvider, nsIObserver, nsIDOMEventListener, nsIFrameRequestCallback">
+      <property name="accessibleType" readonly="true">
+        <getter>
+          <![CDATA[
+            return Components.interfaces.nsIAccessibleProvider.OuterDoc;
+          ]]>
+        </getter>
+      </property>
+
       <property name="autoscrollEnabled">
         <getter>
           <![CDATA[
@@ -206,19 +214,6 @@
                 onget="return this.webNavigation.currentURI;"
                 readonly="true"/>
 
-      <!--
-        Used by session restore to ensure that currentURI is set so
-        that switch-to-tab works before the tab is fully
-        restored. This function also invokes onLocationChanged
-        listeners in tabbrowser.xml.
-      -->
-      <method name="_setCurrentURI">
-        <parameter name="aURI"/>
-        <body><![CDATA[
-          this.docShell.setCurrentURI(aURI);
-        ]]></body>
-      </method>
-
       <property name="documentURI"
                 onget="return this.contentDocument.documentURIObject;"
                 readonly="true"/>
@@ -229,18 +224,9 @@
 
       <field name="_docShell">null</field>
 
-      <property name="docShell" readonly="true">
-        <getter><![CDATA[
-          if (this._docShell)
-            return this._docShell;
-
-          let frameLoader = this.QueryInterface(Components.interfaces.nsIFrameLoaderOwner).frameLoader;
-          if (!frameLoader)
-            return null;
-          this._docShell = frameLoader.docShell;
-          return this._docShell;
-        ]]></getter>
-      </property>
+      <property name="docShell"
+                onget="return this._docShell || (this._docShell = this.boxObject.QueryInterface(Components.interfaces.nsIContainerBoxObject).docShell);"
+                readonly="true"/>
 
       <property name="docShellIsActive">
         <getter>
@@ -318,24 +304,11 @@
         </body>
       </method>
 
-      <field name="_finder">null</field>
-
-      <property name="finder" readonly="true">
-        <getter><![CDATA[
-          if (!this._finder) {
-            if (!this.docShell)
-              return null;
-
-            let Finder = Components.utils.import("resource://gre/modules/Finder.jsm", {}).Finder;
-            this._finder = new Finder(this.docShell);
-          }
-          return this._finder;
-        ]]></getter>
-      </property>
-
       <field name="_fastFind">null</field>
-      <property name="fastFind" readonly="true">
-        <getter><![CDATA[
+      <property name="fastFind"
+                readonly="true">
+        <getter>
+        <![CDATA[
           if (!this._fastFind) {
             if (!("@mozilla.org/typeaheadfind;1" in Components.classes))
               return null;
@@ -352,11 +325,9 @@
             this._fastFind.init(this.docShell);
           }
           return this._fastFind;
-        ]]></getter>
+        ]]>
+        </getter>
       </property>
-
-      <field name="_lastSearchString">null</field>
-      <field name="_lastSearchHighlight">false</field>
 
       <property name="webProgress"
                 readonly="true"
@@ -673,17 +644,8 @@
       </field>
 
       <property name="userTypedValue"
-                onget="return this._userTypedValue;">
-        <setter><![CDATA[
-          this.userTypedClear = 0;
-          this._userTypedValue = val;
-
-          let event = new CustomEvent("UserTypedValueChanged");
-          this.dispatchEvent(event);
-
-          return val;
-        ]]></setter>
-      </property>
+                onget="return this._userTypedValue;"
+                onset="this.userTypedClear = 0; return this._userTypedValue = val;"/>
 
       <field name="mFormFillAttached">
         false
@@ -716,14 +678,8 @@
                       Components.classes["@mozilla.org/browser/shistory;1"]
                                 .createInstance(Components.interfaces.nsISHistory);
               // enable global history if we weren't told otherwise
-              if (!this.hasAttribute("disableglobalhistory") && !this.isRemoteBrowser) {
-                try {
-                  this.docShell.useGlobalHistory = true;
-                } catch(ex) {
-                  // This can occur if the Places database is locked
-                  Components.utils.reportError("Error enabling browser global history: " + ex);
-                }
-              }
+              if (!this.hasAttribute("disableglobalhistory"))
+                this.docShell.useGlobalHistory = true;
             }
           }
           catch (e) {
@@ -892,6 +848,8 @@
               // Elements or non-html elements such as svg or Document nodes
               // also make sure to skip select elements that are not multiline
               if (!(this._scrollable instanceof HTMLElement) ||
+                  (this._scrollable instanceof HTMLHtmlElement) ||
+                  (this._scrollable instanceof HTMLBodyElement) ||
                   ((this._scrollable instanceof HTMLSelectElement) && !this._scrollable.multiple)) {
                 continue;
               }
@@ -905,14 +863,16 @@
               // we already discarded non-multiline selects so allow vertical
               // scroll for multiline ones directly without checking for a
               // overflow property
-              var scrollVert = this._scrollable.scrollTopMax &&
+              var scrollVert = this._scrollable.clientHeight > 0 &&
+                               this._scrollable.scrollHeight > this._scrollable.clientHeight &&
                                (this._scrollable instanceof HTMLSelectElement ||
                                 scrollingAllowed.indexOf(overflowy) >= 0);
 
               // do not allow horizontal scrolling for select elements, it leads
               // to visual artifacts and is not the expected behavior anyway
               if (!(this._scrollable instanceof HTMLSelectElement) &&
-                  this._scrollable.scrollLeftMax &&
+                  this._scrollable.clientWidth > 0 &&
+                  this._scrollable.scrollWidth > this._scrollable.clientWidth &&
                   scrollingAllowed.indexOf(overflowx) >= 0) {
                 this._autoScrollPopup.setAttribute("scrolldir", scrollVert ? "NSEW" : "EW");
                 break;
@@ -1154,10 +1114,6 @@
             ourFieldValues[field] = this[field];
             otherFieldValues[field] = aOtherBrowser[field];
           }
-
-          if (window.PopupNotifications)
-            PopupNotifications._swapBrowserNotifications(aOtherBrowser, this);
-
           this.QueryInterface(Components.interfaces.nsIFrameLoaderOwner)
               .swapFrameLoaders(aOtherBrowser);
 

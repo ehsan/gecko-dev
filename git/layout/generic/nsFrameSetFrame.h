@@ -19,6 +19,7 @@ struct nsHTMLReflowState;
 struct nsSize;
 class  nsIAtom;
 class  nsHTMLFramesetBorderFrame;
+class  nsGUIEvent;
 class  nsHTMLFramesetFrame;
 
 #define NO_COLOR 0xFFFFFFFA
@@ -88,8 +89,8 @@ public:
                         nsIntPoint& aCellIndex);
 
   NS_IMETHOD HandleEvent(nsPresContext* aPresContext, 
-                         mozilla::WidgetGUIEvent* aEvent,
-                         nsEventStatus* aEventStatus) MOZ_OVERRIDE;
+                         nsGUIEvent*     aEvent,
+                         nsEventStatus*  aEventStatus) MOZ_OVERRIDE;
 
   NS_IMETHOD GetCursor(const nsPoint&    aPoint,
                        nsIFrame::Cursor& aCursor) MOZ_OVERRIDE;
@@ -110,12 +111,12 @@ public:
 
   virtual bool IsLeaf() const MOZ_OVERRIDE;
   
-  void StartMouseDrag(nsPresContext* aPresContext,
-                      nsHTMLFramesetBorderFrame* aBorder,
-                      mozilla::WidgetGUIEvent* aEvent);
+  void StartMouseDrag(nsPresContext*            aPresContext, 
+                      nsHTMLFramesetBorderFrame* aBorder, 
+                      nsGUIEvent*                aEvent);
 
   void MouseDrag(nsPresContext* aPresContext, 
-                 mozilla::WidgetGUIEvent* aEvent);
+                 nsGUIEvent*     aEvent);
 
   void EndMouseDrag(nsPresContext* aPresContext);
 
@@ -185,7 +186,7 @@ protected:
   
   void SetBorderResize(nsHTMLFramesetBorderFrame* aBorderFrame);
 
-  static void FrameResizePrefCallback(const char* aPref, void* aClosure);
+  static int FrameResizePrefCallback(const char* aPref, void* aClosure);
 
   nsFramesetDrag   mDrag;
   nsBorderColor    mEdgeColors;

@@ -5,14 +5,14 @@
 
 package org.mozilla.gecko.home;
 
+import org.mozilla.gecko.AnimatedHeightLayout;
+import org.mozilla.gecko.FlowLayout;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.home.BrowserSearch.OnEditSuggestionListener;
 import org.mozilla.gecko.home.BrowserSearch.OnSearchListener;
 import org.mozilla.gecko.home.HomePager.OnUrlOpenListener;
 import org.mozilla.gecko.util.StringUtils;
-import org.mozilla.gecko.widget.AnimatedHeightLayout;
 import org.mozilla.gecko.widget.FaviconView;
-import org.mozilla.gecko.widget.FlowLayout;
 
 import android.content.Context;
 import android.util.AttributeSet;
@@ -82,7 +82,7 @@ class SearchEngineRow extends AnimatedHeightLayout {
                         mUrlOpenListener.onUrlOpen(suggestion, EnumSet.noneOf(OnUrlOpenListener.Flags.class));
                     }
                 } else if (mSearchListener != null) {
-                    mSearchListener.onSearch(mSearchEngine, suggestion);
+                    mSearchListener.onSearch(mSearchEngine.name, suggestion);
                 }
             }
         };
@@ -111,6 +111,31 @@ class SearchEngineRow extends AnimatedHeightLayout {
         mUserEnteredView.setOnClickListener(mClickListener);
 
         mUserEnteredTextView = (TextView) findViewById(R.id.suggestion_text);
+
+        // Handle clicks on this row that don't happen on individual suggestion views.
+        setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // Don't do anything if we are showing suggestions.
+                if (mSearchEngine.suggestions.size() > 0) {
+                    return;
+                }
+
+                // Otherwise, perform a search for the user entered term.
+                String searchTerm = getSuggestionTextFromView(mUserEnteredView);
+                if (mSearchListener != null) {
+                    mSearchListener.onSearch(mSearchEngine.name, searchTerm);
+                }
+            }
+        });
+
+        // Intercept long clicks to avoid trying to show a context menu.
+        setOnLongClickListener(new OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View v) {
+                return true;
+            }
+        });
     }
 
     private void setDescriptionOnSuggestion(View v, String suggestion) {
@@ -127,16 +152,6 @@ class SearchEngineRow extends AnimatedHeightLayout {
         final TextView suggestionText = (TextView) v.findViewById(R.id.suggestion_text);
         suggestionText.setText(suggestion);
         setDescriptionOnSuggestion(suggestionText, suggestion);
-    }
-
-    /**
-     * Perform a search for the user-entered term.
-     */
-    public void performUserEnteredSearch() {
-        String searchTerm = getSuggestionTextFromView(mUserEnteredView);
-        if (mSearchListener != null) {
-            mSearchListener.onSearch(mSearchEngine, searchTerm);
-        }
     }
 
     public void setSearchTerm(String searchTerm) {
@@ -162,25 +177,25 @@ class SearchEngineRow extends AnimatedHeightLayout {
     }
 
     public void updateFromSearchEngine(SearchEngine searchEngine, boolean animate) {
-        // Update search engine reference.
+        // Update search engine reference
         mSearchEngine = searchEngine;
 
-        // Set the search engine icon (e.g., Google) for the row.
-        mIconView.updateAndScaleImage(mSearchEngine.getIcon(), mSearchEngine.getEngineIdentifier());
+        // Set the search engine icon (e.g., Google) for the row
+        mIconView.updateImage(mSearchEngine.icon, mSearchEngine.name);
 
-        // Set the initial content description.
+        // Set the initial content description
         setDescriptionOnSuggestion(mUserEnteredTextView, mUserEnteredTextView.getText().toString());
 
-        // Add additional suggestions given by this engine.
+        // Add additional suggestions given by this engine
         final int recycledSuggestionCount = mSuggestionView.getChildCount();
+        final int suggestionCount = mSearchEngine.suggestions.size();
 
-        int suggestionCounter = 0;
-        for (String suggestion : mSearchEngine.getSuggestions()) {
+        for (int i = 0; i < suggestionCount; i++) {
             final View suggestionItem;
 
-            // Reuse suggestion views from recycled view, if possible.
-            if (suggestionCounter + 1 < recycledSuggestionCount) {
-                suggestionItem = mSuggestionView.getChildAt(suggestionCounter + 1);
+            // Reuse suggestion views from recycled view, if possible
+            if (i + 1 < recycledSuggestionCount) {
+                suggestionItem = mSuggestionView.getChildAt(i + 1);
                 suggestionItem.setVisibility(View.VISIBLE);
             } else {
                 suggestionItem = mInflater.inflate(R.layout.suggestion_item, null);
@@ -195,24 +210,23 @@ class SearchEngineRow extends AnimatedHeightLayout {
                 mSuggestionView.addView(suggestionItem);
             }
 
+            final String suggestion = mSearchEngine.suggestions.get(i);
             setSuggestionOnView(suggestionItem, suggestion);
 
             if (animate) {
                 AlphaAnimation anim = new AlphaAnimation(0, 1);
                 anim.setDuration(ANIMATION_DURATION);
-                anim.setStartOffset(suggestionCounter * ANIMATION_DURATION);
+                anim.setStartOffset(i * ANIMATION_DURATION);
                 suggestionItem.startAnimation(anim);
             }
-
-            ++suggestionCounter;
         }
 
-        // Hide extra suggestions that have been recycled.
-        for (int i = suggestionCounter + 1; i < recycledSuggestionCount; ++i) {
+        // Hide extra suggestions that have been recycled
+        for (int i = suggestionCount + 1; i < recycledSuggestionCount; i++) {
             mSuggestionView.getChildAt(i).setVisibility(View.GONE);
         }
 
-        // Make sure mSelectedView is still valid.
+        // Make sure mSelectedView is still valid
         if (mSelectedView >= mSuggestionView.getChildCount()) {
             mSelectedView = mSuggestionView.getChildCount() - 1;
         }

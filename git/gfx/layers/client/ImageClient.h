@@ -60,12 +60,7 @@ public:
   virtual void UpdatePictureRect(nsIntRect aPictureRect);
 
   virtual already_AddRefed<Image> CreateImage(const uint32_t *aFormats,
-                                              uint32_t aNumFormats) = 0;
-
-  /**
-   * Synchronously remove all the textures used by the image client.
-   */
-  virtual void FlushAllImages(bool aExceptFront) {}
+                                              uint32_t aNumFormats);
 
 protected:
   ImageClient(CompositableForwarder* aFwd, CompositableType aType);
@@ -89,19 +84,12 @@ public:
 
   virtual void OnDetach() MOZ_OVERRIDE;
 
-  virtual bool AddTextureClient(TextureClient* aTexture) MOZ_OVERRIDE;
+  virtual void AddTextureClient(TextureClient* aTexture) MOZ_OVERRIDE;
 
   virtual TemporaryRef<BufferTextureClient>
-  CreateBufferTextureClient(gfx::SurfaceFormat aFormat,
-                            TextureFlags aFlags = TEXTURE_FLAGS_DEFAULT) MOZ_OVERRIDE;
+  CreateBufferTextureClient(gfx::SurfaceFormat aFormat) MOZ_OVERRIDE;
 
   virtual TextureInfo GetTextureInfo() const MOZ_OVERRIDE;
-
-  virtual already_AddRefed<Image> CreateImage(const uint32_t *aFormats,
-                                              uint32_t aNumFormats) MOZ_OVERRIDE;
-
-  virtual void FlushAllImages(bool aExceptFront) MOZ_OVERRIDE;
-
 protected:
   RefPtr<TextureClient> mFrontBuffer;
   // Some layers may want to enforce some flags to all their textures
@@ -122,8 +110,6 @@ public:
   virtual bool UpdateImage(ImageContainer* aContainer, uint32_t aContentFlags);
 
   virtual void OnDetach() MOZ_OVERRIDE;
-
-  virtual void FlushAllImages(bool aExceptFront) MOZ_OVERRIDE;
 
 protected:
   RefPtr<TextureClient> mBackBuffer;
@@ -166,9 +152,6 @@ public:
     return mTextureInfo;
   }
 
-  virtual already_AddRefed<Image> CreateImage(const uint32_t *aFormats,
-                                              uint32_t aNumFormats) MOZ_OVERRIDE;
-
 private:
   RefPtr<DeprecatedTextureClient> mDeprecatedTextureClient;
   TextureInfo mTextureInfo;
@@ -201,13 +184,6 @@ public:
   virtual void SetIPDLActor(CompositableChild* aChild) MOZ_OVERRIDE
   {
     MOZ_ASSERT(!aChild, "ImageClientBridge should not have IPDL actor");
-  }
-
-  virtual already_AddRefed<Image> CreateImage(const uint32_t *aFormats,
-                                              uint32_t aNumFormats) MOZ_OVERRIDE
-  {
-    NS_WARNING("Should not create an image through an ImageClientBridge");
-    return nullptr;
   }
 
 protected:

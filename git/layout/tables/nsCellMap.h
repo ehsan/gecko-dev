@@ -9,6 +9,7 @@
 #include "celldata.h"
 #include "nsTArray.h"
 #include "nsTArray.h"
+#include "nsRect.h"
 #include "nsCOMPtr.h"
 #include "nsAlgorithm.h"
 #include "nsAutoPtr.h"
@@ -24,7 +25,6 @@ class nsTableFrame;
 class nsCellMap;
 class nsPresContext;
 class nsCellMapColumnIterator;
-struct nsIntRect;
 
 struct nsColInfo
 {
@@ -214,7 +214,7 @@ public:
                        nscoord       aSize,
                        bool          aChanged);
 
-  void SetBCBorderCorner(::Corner    aCorner,
+  void SetBCBorderCorner(Corner      aCorner,
                          nsCellMap&  aCellMap,
                          uint32_t    aCellMapStart,
                          uint32_t    aYPos,

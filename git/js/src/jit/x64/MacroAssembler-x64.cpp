@@ -9,11 +9,10 @@
 #include "jit/Bailouts.h"
 #include "jit/BaselineFrame.h"
 #include "jit/IonFrames.h"
-#include "jit/JitCompartment.h"
 #include "jit/MoveEmitter.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 void
 MacroAssemblerX64::loadConstantDouble(double d, const FloatRegister &dest)
@@ -28,7 +27,7 @@ MacroAssemblerX64::loadConstantDouble(double d, const FloatRegister &dest)
     }
     size_t doubleIndex;
     if (DoubleMap::AddPtr p = doubleMap_.lookupForAdd(d)) {
-        doubleIndex = p->value();
+        doubleIndex = p->value;
     } else {
         doubleIndex = doubles_.length();
         enoughMemory_ &= doubles_.append(Double(d));
@@ -50,54 +49,17 @@ MacroAssemblerX64::loadConstantDouble(double d, const FloatRegister &dest)
 }
 
 void
-MacroAssemblerX64::loadConstantFloat32(float f, const FloatRegister &dest)
-{
-    if (maybeInlineFloat(f, dest))
-        return;
-
-    if (!floatMap_.initialized()) {
-        enoughMemory_ &= floatMap_.init();
-        if (!enoughMemory_)
-            return;
-    }
-    size_t floatIndex;
-    if (FloatMap::AddPtr p = floatMap_.lookupForAdd(f)) {
-        floatIndex = p->value();
-    } else {
-        floatIndex = floats_.length();
-        enoughMemory_ &= floats_.append(Float(f));
-        enoughMemory_ &= floatMap_.add(p, f, floatIndex);
-        if (!enoughMemory_)
-            return;
-    }
-    Float &flt = floats_[floatIndex];
-    JS_ASSERT(!flt.uses.bound());
-
-    // See comment in loadConstantDouble
-    JmpSrc j = masm.movss_ripr(dest.code());
-    JmpSrc prev = JmpSrc(flt.uses.use(j.offset()));
-    masm.setNextJump(j, prev);
-}
-
-void
 MacroAssemblerX64::finish()
 {
     JS_STATIC_ASSERT(CodeAlignment >= sizeof(double));
 
-    if (!doubles_.empty() || !floats_.empty())
+    if (!doubles_.empty())
         masm.align(sizeof(double));
 
     for (size_t i = 0; i < doubles_.length(); i++) {
         Double &dbl = doubles_[i];
         bind(&dbl.uses);
         masm.doubleConstant(dbl.value);
-    }
-
-    // No need to align on sizeof(float) as we are aligned on sizeof(double);
-    for (size_t i = 0; i < floats_.length(); i++) {
-        Float &flt = floats_[i];
-        bind(&flt.uses);
-        masm.floatConstant(flt.value);
     }
 
     MacroAssemblerX86Shared::finish();
@@ -134,12 +96,10 @@ MacroAssemblerX64::setupUnalignedABICall(uint32_t args, const Register &scratch)
 }
 
 void
-MacroAssemblerX64::passABIArg(const MoveOperand &from, MoveOp::Type type)
+MacroAssemblerX64::passABIArg(const MoveOperand &from)
 {
     MoveOperand to;
-    switch (type) {
-      case MoveOp::FLOAT32:
-      case MoveOp::DOUBLE: {
+    if (from.isDouble()) {
         FloatRegister dest;
         if (GetFloatArgReg(passedIntArgs_, passedFloatArgs_++, &dest)) {
             if (from.isFloatReg() && from.floatReg() == dest) {
@@ -149,15 +109,10 @@ MacroAssemblerX64::passABIArg(const MoveOperand &from, MoveOp::Type type)
             to = MoveOperand(dest);
         } else {
             to = MoveOperand(StackPointer, stackForCall_);
-            switch (type) {
-              case MoveOp::FLOAT32: stackForCall_ += sizeof(float);  break;
-              case MoveOp::DOUBLE:  stackForCall_ += sizeof(double); break;
-              default: MOZ_ASSUME_UNREACHABLE("Unexpected float register class argument type");
-            }
+            stackForCall_ += sizeof(double);
         }
-        break;
-      }
-      case MoveOp::GENERAL: {
+        enoughMemory_ = moveResolver_.addMove(from, to, Move::DOUBLE);
+    } else {
         Register dest;
         if (GetIntArgReg(passedIntArgs_++, passedFloatArgs_, &dest)) {
             if (from.isGeneralReg() && from.reg() == dest) {
@@ -169,25 +124,20 @@ MacroAssemblerX64::passABIArg(const MoveOperand &from, MoveOp::Type type)
             to = MoveOperand(StackPointer, stackForCall_);
             stackForCall_ += sizeof(int64_t);
         }
-        break;
-      }
-      default:
-        MOZ_ASSUME_UNREACHABLE("Unexpected argument type");
+        enoughMemory_ = moveResolver_.addMove(from, to, Move::GENERAL);
     }
-
-    enoughMemory_ = moveResolver_.addMove(from, to, type);
 }
 
 void
 MacroAssemblerX64::passABIArg(const Register &reg)
 {
-    passABIArg(MoveOperand(reg), MoveOp::GENERAL);
+    passABIArg(MoveOperand(reg));
 }
 
 void
-MacroAssemblerX64::passABIArg(const FloatRegister &reg, MoveOp::Type type)
+MacroAssemblerX64::passABIArg(const FloatRegister &reg)
 {
-    passABIArg(MoveOperand(reg), type);
+    passABIArg(MoveOperand(reg));
 }
 
 void
@@ -198,7 +148,7 @@ MacroAssemblerX64::callWithABIPre(uint32_t *stackAdjust)
 
     if (dynamicAlignment_) {
         *stackAdjust = stackForCall_
-                     + ComputeByteAlignment(stackForCall_ + sizeof(intptr_t),
+                     + ComputeByteAlignment(stackForCall_ + STACK_SLOT_SIZE,
                                             StackAlignment);
     } else {
         *stackAdjust = stackForCall_
@@ -231,7 +181,7 @@ MacroAssemblerX64::callWithABIPre(uint32_t *stackAdjust)
 }
 
 void
-MacroAssemblerX64::callWithABIPost(uint32_t stackAdjust, MoveOp::Type result)
+MacroAssemblerX64::callWithABIPost(uint32_t stackAdjust, Result result)
 {
     freeStack(stackAdjust);
     if (dynamicAlignment_)
@@ -242,20 +192,11 @@ MacroAssemblerX64::callWithABIPost(uint32_t stackAdjust, MoveOp::Type result)
 }
 
 void
-MacroAssemblerX64::callWithABI(void *fun, MoveOp::Type result)
+MacroAssemblerX64::callWithABI(void *fun, Result result)
 {
     uint32_t stackAdjust;
     callWithABIPre(&stackAdjust);
-    call(ImmPtr(fun));
-    callWithABIPost(stackAdjust, result);
-}
-
-void
-MacroAssemblerX64::callWithABI(AsmJSImmPtr imm, MoveOp::Type result)
-{
-    uint32_t stackAdjust;
-    callWithABIPre(&stackAdjust);
-    call(imm);
+    call(ImmWord(fun));
     callWithABIPost(stackAdjust, result);
 }
 
@@ -271,12 +212,12 @@ IsIntArgReg(Register reg)
 }
 
 void
-MacroAssemblerX64::callWithABI(Address fun, MoveOp::Type result)
+MacroAssemblerX64::callWithABI(Address fun, Result result)
 {
     if (IsIntArgReg(fun.base)) {
         // Callee register may be clobbered for an argument. Move the callee to
         // r10, a volatile, non-argument register.
-        moveResolver_.addMove(MoveOperand(fun.base), MoveOperand(r10), MoveOp::GENERAL);
+        moveResolver_.addMove(MoveOperand(fun.base), MoveOperand(r10), Move::GENERAL);
         fun.base = r10;
     }
 
@@ -300,7 +241,7 @@ MacroAssemblerX64::handleFailureWithHandler(void *handler)
     passABIArg(rax);
     callWithABI(handler);
 
-    JitCode *excTail = GetIonContext()->runtime->jitRuntime()->getExceptionTail();
+    IonCode *excTail = GetIonContext()->runtime->ionRuntime()->getExceptionTail();
     jmp(excTail);
 }
 
@@ -326,15 +267,15 @@ MacroAssemblerX64::handleFailureWithHandlerTail()
     // and return from the entry frame.
     bind(&entryFrame);
     moveValue(MagicValue(JS_ION_ERROR), JSReturnOperand);
-    loadPtr(Address(rsp, offsetof(ResumeFromException, stackPointer)), rsp);
+    movq(Operand(rsp, offsetof(ResumeFromException, stackPointer)), rsp);
     ret();
 
     // If we found a catch handler, this must be a baseline frame. Restore state
     // and jump to the catch block.
     bind(&catch_);
-    loadPtr(Address(rsp, offsetof(ResumeFromException, target)), rax);
-    loadPtr(Address(rsp, offsetof(ResumeFromException, framePointer)), rbp);
-    loadPtr(Address(rsp, offsetof(ResumeFromException, stackPointer)), rsp);
+    movq(Operand(rsp, offsetof(ResumeFromException, target)), rax);
+    movq(Operand(rsp, offsetof(ResumeFromException, framePointer)), rbp);
+    movq(Operand(rsp, offsetof(ResumeFromException, stackPointer)), rsp);
     jmp(Operand(rax));
 
     // If we found a finally block, this must be a baseline frame. Push
@@ -342,11 +283,11 @@ MacroAssemblerX64::handleFailureWithHandlerTail()
     // exception.
     bind(&finally);
     ValueOperand exception = ValueOperand(rcx);
-    loadValue(Address(esp, offsetof(ResumeFromException, exception)), exception);
+    loadValue(Operand(esp, offsetof(ResumeFromException, exception)), exception);
 
-    loadPtr(Address(rsp, offsetof(ResumeFromException, target)), rax);
-    loadPtr(Address(rsp, offsetof(ResumeFromException, framePointer)), rbp);
-    loadPtr(Address(rsp, offsetof(ResumeFromException, stackPointer)), rsp);
+    movq(Operand(rsp, offsetof(ResumeFromException, target)), rax);
+    movq(Operand(rsp, offsetof(ResumeFromException, framePointer)), rbp);
+    movq(Operand(rsp, offsetof(ResumeFromException, stackPointer)), rsp);
 
     pushValue(BooleanValue(true));
     pushValue(exception);
@@ -354,8 +295,8 @@ MacroAssemblerX64::handleFailureWithHandlerTail()
 
     // Only used in debug mode. Return BaselineFrame->returnValue() to the caller.
     bind(&return_);
-    loadPtr(Address(rsp, offsetof(ResumeFromException, framePointer)), rbp);
-    loadPtr(Address(rsp, offsetof(ResumeFromException, stackPointer)), rsp);
+    movq(Operand(rsp, offsetof(ResumeFromException, framePointer)), rbp);
+    movq(Operand(rsp, offsetof(ResumeFromException, stackPointer)), rsp);
     loadValue(Address(rbp, BaselineFrame::reverseOffsetOfReturnValue()), JSReturnOperand);
     movq(rbp, rsp);
     pop(rbp);
@@ -364,8 +305,8 @@ MacroAssemblerX64::handleFailureWithHandlerTail()
     // If we are bailing out to baseline to handle an exception, jump to
     // the bailout tail stub.
     bind(&bailout);
-    loadPtr(Address(esp, offsetof(ResumeFromException, bailoutInfo)), r9);
-    mov(ImmWord(BAILOUT_RETURN_OK), rax);
+    movq(Operand(esp, offsetof(ResumeFromException, bailoutInfo)), r9);
+    movl(Imm32(BAILOUT_RETURN_OK), rax);
     jmp(Operand(rsp, offsetof(ResumeFromException, target)));
 }
 
@@ -373,14 +314,6 @@ Assembler::Condition
 MacroAssemblerX64::testNegativeZero(const FloatRegister &reg, const Register &scratch)
 {
     movq(reg, scratch);
-    cmpq(scratch, Imm32(1));
-    return Overflow;
-}
-
-Assembler::Condition
-MacroAssemblerX64::testNegativeZeroFloat32(const FloatRegister &reg, const Register &scratch)
-{
-    movd(reg, scratch);
-    cmpl(scratch, Imm32(1));
+    subq(Imm32(1), scratch);
     return Overflow;
 }

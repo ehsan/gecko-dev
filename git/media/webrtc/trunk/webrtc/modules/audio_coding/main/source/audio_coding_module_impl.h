@@ -11,11 +11,8 @@
 #ifndef WEBRTC_MODULES_AUDIO_CODING_MAIN_SOURCE_AUDIO_CODING_MODULE_IMPL_H_
 #define WEBRTC_MODULES_AUDIO_CODING_MAIN_SOURCE_AUDIO_CODING_MODULE_IMPL_H_
 
-#include <vector>
-
 #include "webrtc/common_types.h"
 #include "webrtc/engine_configurations.h"
-#include "webrtc/modules/audio_coding/main/interface/audio_coding_module.h"
 #include "webrtc/modules/audio_coding/main/source/acm_codec_database.h"
 #include "webrtc/modules/audio_coding/main/source/acm_neteq.h"
 #include "webrtc/modules/audio_coding/main/source/acm_resampler.h"
@@ -23,22 +20,15 @@
 
 namespace webrtc {
 
-struct WebRtcACMAudioBuff;
-struct WebRtcACMCodecParams;
-class CriticalSectionWrapper;
-class RWLockWrapper;
-class Clock;
-
-namespace acm1 {
-
 class ACMDTMFDetection;
 class ACMGenericCodec;
-class Nack;
+class CriticalSectionWrapper;
+class RWLockWrapper;
 
 class AudioCodingModuleImpl : public AudioCodingModule {
  public:
   // Constructor
-  AudioCodingModuleImpl(const int32_t id, Clock* clock);
+  explicit AudioCodingModuleImpl(const int32_t id);
 
   // Destructor
   ~AudioCodingModuleImpl();
@@ -94,10 +84,22 @@ class AudioCodingModuleImpl : public AudioCodingModule {
 
   // Register a transport callback which will be
   // called to deliver the encoded buffers.
-  int32_t RegisterTransportCallback(AudioPacketizationCallback* transport);
+  int32_t RegisterTransportCallback(
+      AudioPacketizationCallback* transport);
+
+  // Used by the module to deliver messages to the codec module/application
+  // AVT(DTMF).
+  int32_t RegisterIncomingMessagesCallback(
+      AudioCodingFeedback* incoming_message, const ACMCountries cpt);
 
   // Add 10 ms of raw (PCM) audio data to the encoder.
   int32_t Add10MsData(const AudioFrame& audio_frame);
+
+  // Set background noise mode for NetEQ, on, off or fade.
+  int32_t SetBackgroundNoiseMode(const ACMBackgroundNoiseMode mode);
+
+  // Get current background noise mode.
+  int32_t BackgroundNoiseMode(ACMBackgroundNoiseMode* mode);
 
   /////////////////////////////////////////
   // (FEC) Forward Error Correction
@@ -115,13 +117,20 @@ class AudioCodingModuleImpl : public AudioCodingModule {
   //   (CNG) Comfort Noise Generation
   //
 
-  int32_t SetVAD(bool enable_dtx = true,
-                 bool enable_vad = false,
-                 ACMVADMode mode = VADNormal);
+  int32_t SetVAD(const bool enable_dtx = true,
+                 const bool enable_vad = false,
+                 const ACMVADMode mode = VADNormal);
 
-  int32_t VAD(bool* dtx_enabled, bool* vad_enabled, ACMVADMode* mode) const;
+  int32_t VAD(bool* dtx_enabled, bool* vad_enabled,
+              ACMVADMode* mode) const;
 
   int32_t RegisterVADCallback(ACMVADCallback* vad_callback);
+
+  // Get VAD aggressiveness on the incoming stream.
+  ACMVADMode ReceiveVADMode() const;
+
+  // Configure VAD aggressiveness on the incoming stream.
+  int16_t SetReceiveVADMode(const ACMVADMode mode);
 
   /////////////////////////////////////////
   //   Receiver
@@ -158,20 +167,8 @@ class AudioCodingModuleImpl : public AudioCodingModule {
                           const uint8_t payload_type,
                           const uint32_t timestamp = 0);
 
-  // NetEq minimum playout delay (used for lip-sync). The actual target delay
-  // is the max of |time_ms| and the required delay dictated by the channel.
-  int SetMinimumPlayoutDelay(int time_ms);
-
-  // NetEq maximum playout delay. The actual target delay is the min of
-  // |time_ms| and the required delay dictated by the channel.
-  int SetMaximumPlayoutDelay(int time_ms);
-
-  // The shortest latency, in milliseconds, required by jitter buffer. This
-  // is computed based on inter-arrival times and playout mode of NetEq. The
-  // actual delay is the maximum of least-required-delay and the minimum-delay
-  // specified by SetMinumumPlayoutDelay() API.
-  //
-  int LeastRequiredDelayMs() const ;
+  // Minimum playout delay (used for lip-sync).
+  int32_t SetMinimumPlayoutDelay(const int32_t time_ms);
 
   // Configure Dtmf playout status i.e on/off playout the incoming outband Dtmf
   // tone.
@@ -203,7 +200,7 @@ class AudioCodingModuleImpl : public AudioCodingModule {
   //   Statistics
   //
 
-  int32_t NetworkStatistics(ACMNetworkStatistics* statistics);
+  int32_t NetworkStatistics(ACMNetworkStatistics* statistics) const;
 
   void DestructEncoderInst(void* inst);
 
@@ -226,18 +223,16 @@ class AudioCodingModuleImpl : public AudioCodingModule {
 
   int32_t IsInternalDTXReplacedWithWebRtc(bool* uses_webrtc_dtx);
 
-  int SetISACMaxRate(int max_bit_per_sec);
+  int32_t SetISACMaxRate(const uint32_t max_bit_per_sec);
 
-  int SetISACMaxPayloadSize(int max_size_bytes);
+  int32_t SetISACMaxPayloadSize(const uint16_t max_size_bytes);
 
   int32_t ConfigISACBandwidthEstimator(
-      int frame_size_ms,
-      int rate_bit_per_sec,
-      bool enforce_frame_size = false);
+      const uint8_t frame_size_ms,
+      const uint16_t rate_bit_per_sec,
+      const bool enforce_frame_size = false);
 
-  int UnregisterReceiveCodec(uint8_t payload_type);
-
-  std::vector<uint16_t> GetNackList(int round_trip_time_ms) const;
+  int32_t UnregisterReceiveCodec(const int16_t payload_type);
 
  protected:
   void UnregisterSendCodec();
@@ -295,12 +290,6 @@ class AudioCodingModuleImpl : public AudioCodingModule {
   //   0: if delay set successfully.
   int SetInitialPlayoutDelay(int delay_ms);
 
-  // Enable NACK and set the maximum size of the NACK list.
-  int EnableNack(size_t max_nack_list_size);
-
-  // Disable NACK.
-  void DisableNack();
-
  private:
   // Change required states after starting to receive the codec corresponding
   // to |index|.
@@ -334,12 +323,6 @@ class AudioCodingModuleImpl : public AudioCodingModule {
   // section.
   void UpdateBufferingSafe(const WebRtcRTPHeader& rtp_info,
                            int payload_len_bytes);
-
-  //
-  // Return the timestamp of current time, computed according to sampling rate
-  // of the codec identified by |codec_id|.
-  //
-  uint32_t NowTimestamp(int codec_id);
 
   AudioPacketizationCallback* packetization_callback_;
   int32_t id_;
@@ -435,13 +418,7 @@ class AudioCodingModuleImpl : public AudioCodingModule {
   uint32_t last_ssrc_;
   bool last_packet_was_sync_;
   int64_t last_receive_timestamp_;
-
-  Clock* clock_;
-  scoped_ptr<Nack> nack_;
-  bool nack_enabled_;
 };
-
-}  // namespace acm1
 
 }  // namespace webrtc
 

@@ -30,7 +30,6 @@
 #include "mozilla/dom/Element.h"
 #include "xpcpublic.h"
 #include "nsObserverService.h"
-#include "nsFocusManager.h"
 
 using namespace mozilla::dom;
 
@@ -145,7 +144,7 @@ MarkMessageManagers()
           continue;
         }
         static_cast<nsInProcessTabChildGlobal*>(et)->MarkForCC();
-        nsEventListenerManager* elm = et->GetExistingListenerManager();
+        nsEventListenerManager* elm = et->GetListenerManager(false);
         if (elm) {
           elm->MarkForCC();
         }
@@ -189,13 +188,13 @@ MarkContentViewer(nsIContentViewer* aViewer, bool aCleanupJS,
       doc->GetMarkedCCGeneration() != nsCCUncollectableMarker::sGeneration) {
     doc->MarkUncollectableForCCGeneration(nsCCUncollectableMarker::sGeneration);
     if (aCleanupJS) {
-      nsEventListenerManager* elm = doc->GetExistingListenerManager();
+      nsEventListenerManager* elm = doc->GetListenerManager(false);
       if (elm) {
         elm->MarkForCC();
       }
       nsCOMPtr<EventTarget> win = do_QueryInterface(doc->GetInnerWindow());
       if (win) {
-        elm = win->GetExistingListenerManager();
+        elm = win->GetListenerManager(false);
         if (elm) {
           elm->MarkForCC();
         }
@@ -209,16 +208,6 @@ MarkContentViewer(nsIContentViewer* aViewer, bool aCleanupJS,
       // that it has the right generation. 
       doc->PropertyTable(DOM_USER_DATA)->
         EnumerateAll(MarkUserData, &nsCCUncollectableMarker::sGeneration);
-    }
-  }
-  if (doc) {
-    nsPIDOMWindow* inner = doc->GetInnerWindow();
-    if (inner) {
-      inner->MarkUncollectableForCCGeneration(nsCCUncollectableMarker::sGeneration);
-    }
-    nsPIDOMWindow* outer = doc->GetWindow();
-    if (outer) {
-      outer->MarkUncollectableForCCGeneration(nsCCUncollectableMarker::sGeneration);
     }
   }
 }
@@ -274,8 +263,9 @@ MarkDocShell(nsIDocShellTreeNode* aNode, bool aCleanupJS, bool aPrepareForCC)
     int32_t i, historyCount;
     history->GetCount(&historyCount);
     for (i = 0; i < historyCount; ++i) {
-      nsCOMPtr<nsISHEntry> shEntry;
-      history->GetEntryAtIndex(i, false, getter_AddRefs(shEntry));
+      nsCOMPtr<nsIHistoryEntry> historyEntry;
+      history->GetEntryAtIndex(i, false, getter_AddRefs(historyEntry));
+      nsCOMPtr<nsISHEntry> shEntry = do_QueryInterface(historyEntry);
 
       MarkSHEntry(shEntry, aCleanupJS, aPrepareForCC);
     }
@@ -346,8 +336,6 @@ nsCCUncollectableMarker::Observe(nsISupports* aSubject, const char* aTopic,
   if (!++sGeneration) {
     ++sGeneration;
   }
-
-  nsFocusManager::MarkUncollectableForCCGeneration(sGeneration);
 
   nsresult rv;
 

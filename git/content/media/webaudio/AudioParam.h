@@ -15,7 +15,8 @@
 #include "AudioNode.h"
 #include "mozilla/dom/TypedArray.h"
 #include "WebAudioUtils.h"
-#include "js/TypeDecls.h"
+
+struct JSContext;
 
 namespace mozilla {
 

@@ -1,3 +1,5 @@
+const Cc = Components.classes;
+
 function makeURL(spec) {
   return Cc["@mozilla.org/network/io-service;1"].
            getService(Components.interfaces.nsIIOService).

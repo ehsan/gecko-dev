@@ -11,11 +11,10 @@
 #include "jit/x86/Assembler-x86.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class OutOfLineLoadTypedArrayOutOfBounds;
 class OutOfLineTruncate;
-class OutOfLineTruncateFloat32;
 
 class CodeGeneratorX86 : public CodeGeneratorX86Shared
 {
@@ -29,18 +28,10 @@ class CodeGeneratorX86 : public CodeGeneratorX86Shared
     ValueOperand ToOutValue(LInstruction *ins);
     ValueOperand ToTempValue(LInstruction *ins, size_t pos);
 
-    template<typename T>
-    bool loadAndNoteViewTypeElement(ArrayBufferView::ViewType vt, const T &srcAddr,
+    void loadViewTypeElement(ArrayBufferView::ViewType vt, const Address &srcAddr,
                              const LDefinition *out);
-    template<typename T>
-    void loadViewTypeElement(ArrayBufferView::ViewType vt, const T &srcAddr,
-                                       const LDefinition *out);
-    template<typename T>
-    bool storeAndNoteViewTypeElement(ArrayBufferView::ViewType vt, const LAllocation *value,
-                              const T &dstAddr);
-    template<typename T>
     void storeViewTypeElement(ArrayBufferView::ViewType vt, const LAllocation *value,
-                                        const T &dstAddr);
+                              const Address &dstAddr);
     void storeElementTyped(const LAllocation *value, MIRType valueType, MIRType elementType,
                            const Register &elements, const LAllocation *index);
 
@@ -49,9 +40,10 @@ class CodeGeneratorX86 : public CodeGeneratorX86Shared
 
   public:
     bool visitBox(LBox *box);
-    bool visitBoxFloatingPoint(LBoxFloatingPoint *box);
+    bool visitBoxDouble(LBoxDouble *box);
     bool visitUnbox(LUnbox *unbox);
     bool visitValue(LValue *value);
+    bool visitOsrValue(LOsrValue *value);
     bool visitLoadSlotV(LLoadSlotV *load);
     bool visitLoadSlotT(LLoadSlotT *load);
     bool visitStoreSlotT(LStoreSlotT *store);
@@ -62,10 +54,8 @@ class CodeGeneratorX86 : public CodeGeneratorX86Shared
     bool visitCompareBAndBranch(LCompareBAndBranch *lir);
     bool visitCompareV(LCompareV *lir);
     bool visitCompareVAndBranch(LCompareVAndBranch *lir);
-    bool visitAsmJSUInt32ToDouble(LAsmJSUInt32ToDouble *lir);
-    bool visitAsmJSUInt32ToFloat32(LAsmJSUInt32ToFloat32 *lir);
+    bool visitUInt32ToDouble(LUInt32ToDouble *lir);
     bool visitTruncateDToInt32(LTruncateDToInt32 *ins);
-    bool visitTruncateFToInt32(LTruncateFToInt32 *ins);
     bool visitLoadTypedArrayElementStatic(LLoadTypedArrayElementStatic *ins);
     bool visitStoreTypedArrayElementStatic(LStoreTypedArrayElementStatic *ins);
     bool visitAsmJSLoadHeap(LAsmJSLoadHeap *ins);
@@ -77,14 +67,13 @@ class CodeGeneratorX86 : public CodeGeneratorX86Shared
 
     bool visitOutOfLineLoadTypedArrayOutOfBounds(OutOfLineLoadTypedArrayOutOfBounds *ool);
     bool visitOutOfLineTruncate(OutOfLineTruncate *ool);
-    bool visitOutOfLineTruncateFloat32(OutOfLineTruncateFloat32 *ool);
 
     void postAsmJSCall(LAsmJSCall *lir);
 };
 
 typedef CodeGeneratorX86 CodeGeneratorSpecific;
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_x86_CodeGenerator_x86_h */

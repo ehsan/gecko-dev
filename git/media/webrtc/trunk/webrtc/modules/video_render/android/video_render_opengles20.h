@@ -11,7 +11,7 @@
 #ifndef WEBRTC_MODULES_VIDEO_RENDER_MAIN_SOURCE_ANDROID_VIDEO_RENDER_OPENGLES20_H_
 #define WEBRTC_MODULES_VIDEO_RENDER_MAIN_SOURCE_ANDROID_VIDEO_RENDER_OPENGLES20_H_
 
-#include "webrtc/modules/video_render/include/video_render_defines.h"
+#include "video_render_defines.h"
 
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
@@ -41,6 +41,7 @@ class VideoRenderOpenGles20 {
   int32_t _id;
   GLuint _textureIds[3]; // Texture id of Y,U and V texture.
   GLuint _program;
+  GLuint _vPositionHandle;
   GLsizei _textureWidth;
   GLsizei _textureHeight;
 

@@ -8,9 +8,10 @@
 
 #include "jit/LIR.h"
 #include "jit/MIR.h"
+#include "jit/MIRGraph.h"
 
 using namespace js;
-using namespace jit;
+using namespace ion;
 
 bool
 LIRGeneratorShared::visitConstant(MConstant *ins)
@@ -18,13 +19,13 @@ LIRGeneratorShared::visitConstant(MConstant *ins)
     const Value &v = ins->value();
     switch (ins->type()) {
       case MIRType_Boolean:
-        return define(new(alloc()) LInteger(v.toBoolean()), ins);
+        return define(new LInteger(v.toBoolean()), ins);
       case MIRType_Int32:
-        return define(new(alloc()) LInteger(v.toInt32()), ins);
+        return define(new LInteger(v.toInt32()), ins);
       case MIRType_String:
-        return define(new(alloc()) LPointer(v.toString()), ins);
+        return define(new LPointer(v.toString()), ins);
       case MIRType_Object:
-        return define(new(alloc()) LPointer(&v.toObject()), ins);
+        return define(new LPointer(&v.toObject()), ins);
       default:
         // Constants of special types (undefined, null) should never flow into
         // here directly. Operations blindly consuming them require a Box.
@@ -62,11 +63,11 @@ LIRGeneratorShared::buildSnapshot(LInstruction *ins, MResumePoint *rp, BailoutKi
 {
     LSnapshot *snapshot = LSnapshot::New(gen, rp, kind);
     if (!snapshot)
-        return nullptr;
+        return NULL;
 
     FlattenedMResumePointIter iter(rp);
     if (!iter.init())
-        return nullptr;
+        return NULL;
 
     size_t i = 0;
     for (MResumePoint **it = iter.begin(), **end = iter.end(); it != end; ++it) {
@@ -120,11 +121,11 @@ LIRGeneratorShared::buildSnapshot(LInstruction *ins, MResumePoint *rp, BailoutKi
 {
     LSnapshot *snapshot = LSnapshot::New(gen, rp, kind);
     if (!snapshot)
-        return nullptr;
+        return NULL;
 
     FlattenedMResumePointIter iter(rp);
     if (!iter.init())
-        return nullptr;
+        return NULL;
 
     size_t i = 0;
     for (MResumePoint **it = iter.begin(), **end = iter.end(); it != end; ++it) {
@@ -183,14 +184,14 @@ LIRGeneratorShared::assignSafepoint(LInstruction *ins, MInstruction *mir)
     JS_ASSERT(!osiPoint_);
     JS_ASSERT(!ins->safepoint());
 
-    ins->initSafepoint(alloc());
+    ins->initSafepoint();
 
     MResumePoint *mrp = mir->resumePoint() ? mir->resumePoint() : lastResumePoint_;
     LSnapshot *postSnapshot = buildSnapshot(ins, mrp, Bailout_Normal);
     if (!postSnapshot)
         return false;
 
-    osiPoint_ = new(alloc()) LOsiPoint(ins->safepoint(), postSnapshot);
+    osiPoint_ = new LOsiPoint(ins->safepoint(), postSnapshot);
 
     return lirGraph_.noteNeedsSafepoint(ins);
 }

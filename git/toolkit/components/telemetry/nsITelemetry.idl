@@ -12,7 +12,7 @@ interface nsIFetchTelemetryDataCallback : nsISupports
   void complete();
 };
 
-[scriptable, uuid(cb97b7b4-dce6-45fa-be6a-47e436a9aef9)]
+[scriptable, uuid(e70ba4cc-7ccd-41fe-a75c-e4042233a8cb)]
 interface nsITelemetry : nsISupports
 {
   /**
@@ -100,23 +100,6 @@ interface nsITelemetry : nsISupports
   readonly attribute jsval chromeHangs;
 
   /*
-   * An array of thread hang stats,
-   *   [<thread>, <thread>, ...]
-   * <thread> represents a single thread,
-   *   {"name": "<name>",
-   *    "activity": <time>,
-   *    "hangs": [<hang>, <hang>, ...]}
-   * <time> represents a histogram of time intervals in milliseconds,
-   *   with the same format as histogramSnapshots
-   * <hang> represents a particular hang,
-   *   {"stack": <stack>, "histogram": <time>}
-   * <stack> represents the hang's stack,
-   *   ["<frame_0>", "<frame_1>", ...]
-   */
-  [implicit_jscontext]
-  readonly attribute jsval threadHangStats;
-
-  /*
    * An object with two fields: memoryMap and stacks.
    * * memoryMap is a list of loaded libraries.
    * * stacks is a list of stacks. Each stack is a list of pairs of the form
@@ -129,11 +112,12 @@ interface nsITelemetry : nsISupports
   readonly attribute jsval lateWrites;
 
   /**
-   * Returns an array whose values are the names of histograms defined
-   * in Histograms.json.
+   * An object whose properties are the names of histograms defined in
+   * TelemetryHistograms.h and whose corresponding values are the textual
+   * comments associated with said histograms.
    */
-  void registeredHistograms(out uint32_t count,
-                            [retval, array, size_is(count)] out string histograms);
+  [implicit_jscontext]
+  readonly attribute jsval registeredHistograms;
 
   /** 
    * Create and return a histogram.  Parameters:

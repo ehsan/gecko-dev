@@ -91,14 +91,13 @@ enum cork_state {
 
 static void
 sink_info_callback(pa_context * context, const pa_sink_info * info, int eol, void * u)
-{
+ {
   cubeb * ctx = u;
    if (!eol) {
     ctx->default_sink_info = malloc(sizeof(pa_sink_info));
     memcpy(ctx->default_sink_info, info, sizeof(pa_sink_info));
-  }
-  WRAP(pa_threaded_mainloop_signal)(ctx->mainloop, 0);
-}
+   }
+ }
 
 static void
 server_info_callback(pa_context * context, const pa_server_info * info, void * u)
@@ -344,7 +343,6 @@ pulse_init(cubeb ** context, char const * context_name)
 
   ctx->mainloop = WRAP(pa_threaded_mainloop_new)();
   ctx->context = WRAP(pa_context_new)(WRAP(pa_threaded_mainloop_get_api)(ctx->mainloop), context_name);
-  ctx->default_sink_info = NULL;
 
   WRAP(pa_context_set_state_callback)(ctx->context, context_state_callback, ctx);
   WRAP(pa_threaded_mainloop_start)(ctx->mainloop);
@@ -381,29 +379,6 @@ pulse_get_max_channel_count(cubeb * ctx, uint32_t * max_channels)
   }
 
   *max_channels = ctx->default_sink_info->channel_map.channels;
-
-  return CUBEB_OK;
-}
-
-static int
-pulse_get_preferred_sample_rate(cubeb * ctx, uint32_t * rate)
-{
-  WRAP(pa_threaded_mainloop_lock)(ctx->mainloop);
-  while (!ctx->default_sink_info) {
-    WRAP(pa_threaded_mainloop_wait)(ctx->mainloop);
-  }
-  WRAP(pa_threaded_mainloop_unlock)(ctx->mainloop);
-
-  *rate = ctx->default_sink_info->sample_spec.rate;
-
-  return CUBEB_OK;
-}
-
-static int
-pulse_get_min_latency(cubeb * ctx, cubeb_stream_params params, uint32_t * latency_ms)
-{
-  // According to PulseAudio developers, this is a safe minimum.
-  *latency_ms = 40;
 
   return CUBEB_OK;
 }
@@ -452,6 +427,7 @@ pulse_stream_init(cubeb * context, cubeb_stream ** stream, char const * stream_n
   cubeb_stream * stm;
   pa_operation * o;
   pa_buffer_attr battr;
+  pa_channel_map map;
   int r;
 
   assert(context);
@@ -478,6 +454,9 @@ pulse_stream_init(cubeb * context, cubeb_stream ** stream, char const * stream_n
   ss.rate = stream_params.rate;
   ss.channels = stream_params.channels;
 
+  /* XXX check that this does the right thing for Vorbis and WaveEx */
+  WRAP(pa_channel_map_init_auto)(&map, ss.channels, PA_CHANNEL_MAP_DEFAULT);
+
   stm = calloc(1, sizeof(*stm));
   assert(stm);
 
@@ -496,11 +475,7 @@ pulse_stream_init(cubeb * context, cubeb_stream ** stream, char const * stream_n
   battr.fragsize = -1;
 
   WRAP(pa_threaded_mainloop_lock)(stm->context->mainloop);
-  stm->stream = WRAP(pa_stream_new)(stm->context->context, stream_name, &ss, NULL);
-  if (!stm->stream) {
-    pulse_stream_destroy(stm);
-    return CUBEB_ERROR;
-  }
+  stm->stream = WRAP(pa_stream_new)(stm->context->context, stream_name, &ss, &map);
   WRAP(pa_stream_set_state_callback)(stm->stream, stream_state_callback, stm);
   WRAP(pa_stream_set_write_callback)(stm->stream, stream_request_callback, stm);
   WRAP(pa_stream_connect_playback)(stm->stream, NULL, &battr,
@@ -593,37 +568,14 @@ pulse_stream_get_position(cubeb_stream * stm, uint64_t * position)
   return CUBEB_OK;
 }
 
-int
-pulse_stream_get_latency(cubeb_stream * stm, uint32_t * latency)
-{
-  pa_usec_t r_usec;
-  int negative, r;
-
-  if (!stm) {
-    return CUBEB_ERROR;
-  }
-
-  r = WRAP(pa_stream_get_latency)(stm->stream, &r_usec, &negative);
-  assert(!negative);
-  if (r) {
-    return CUBEB_ERROR;
-  }
-
-  *latency = r_usec * stm->sample_spec.rate / PA_USEC_PER_SEC;
-  return CUBEB_OK;
-}
-
 static struct cubeb_ops const pulse_ops = {
   .init = pulse_init,
   .get_backend_id = pulse_get_backend_id,
   .get_max_channel_count = pulse_get_max_channel_count,
-  .get_min_latency = pulse_get_min_latency,
-  .get_preferred_sample_rate = pulse_get_preferred_sample_rate,
   .destroy = pulse_destroy,
   .stream_init = pulse_stream_init,
   .stream_destroy = pulse_stream_destroy,
   .stream_start = pulse_stream_start,
   .stream_stop = pulse_stream_stop,
-  .stream_get_position = pulse_stream_get_position,
-  .stream_get_latency = pulse_stream_get_latency
+  .stream_get_position = pulse_stream_get_position
 };

@@ -12,37 +12,20 @@
 #define jsexn_h
 
 #include "jsapi.h"
-#include "NamespaceImports.h"
 
-namespace js {
-class ErrorObject;
-}
+/*
+ * Initialize the exception constructor/prototype hierarchy.
+ */
+extern JSObject *
+js_InitExceptionClasses(JSContext *cx, js::HandleObject obj);
 
 /*
  * Given a JSErrorReport, check to see if there is an exception associated with
  * the error number.  If there is, then create an appropriate exception object,
  * set it as the pending exception, and set the JSREPORT_EXCEPTION flag on the
  * error report.  Exception-aware host error reporters should probably ignore
- * error reports so flagged.
- *
- * Return true if cx->throwing and cx->exception were set.
- *
- * This means that:
- *
- *   - If the error is successfully converted to an exception and stored in
- *     cx->exception, the return value is true. This is the "normal", happiest
- *     case for the caller.
- *
- *   - If we try to convert, but fail with OOM or some other error that ends up
- *     setting cx->throwing to true and setting cx->exception, then we also
- *     return true (because callers want to treat that case the same way).
- *     The original error described by *reportp typically won't be reported
- *     anywhere; instead OOM is reported.
- *
- *   - If *reportp is just a warning, or the error code is unrecognized, or if
- *     we decided to do nothing in order to avoid recursion, then return
- *     false. In those cases, this error is just being swept under the rug
- *     unless the caller decides to call CallErrorReporter explicitly.
+ * error reports so flagged.  Returns true if an associated exception is
+ * found and set, false otherwise.
  */
 extern bool
 js_ErrorToException(JSContext *cx, const char *message, JSErrorReport *reportp,
@@ -71,7 +54,7 @@ extern JSErrorReport *
 js_ErrorFromException(jsval exn);
 
 extern const JSErrorFormatString *
-js_GetLocalizedErrorMessage(js::ExclusiveContext *cx, void *userRef, const char *locale,
+js_GetLocalizedErrorMessage(JSContext* cx, void *userRef, const char *locale,
                             const unsigned errorNumber);
 
 /*
@@ -80,17 +63,17 @@ js_GetLocalizedErrorMessage(js::ExclusiveContext *cx, void *userRef, const char 
  * cx must be in the same compartment as scope. errobj may be in a different
  * compartment, but it must be an Error object (not a wrapper of one) and it
  * must not be one of the prototype objects created by js_InitExceptionClasses
- * (errobj->getPrivate() must not be nullptr).
+ * (errobj->getPrivate() must not be NULL).
  */
 extern JSObject *
-js_CopyErrorObject(JSContext *cx, JS::Handle<js::ErrorObject*> errobj, js::HandleObject scope);
+js_CopyErrorObject(JSContext *cx, js::HandleObject errobj, js::HandleObject scope);
 
-static inline JSProtoKey
-GetExceptionProtoKey(JSExnType exn)
+static JS_INLINE JSProtoKey
+GetExceptionProtoKey(int exn)
 {
     JS_ASSERT(JSEXN_ERR <= exn);
     JS_ASSERT(exn < JSEXN_LIMIT);
-    return JSProtoKey(JSProto_Error + int(exn));
+    return JSProtoKey(JSProto_Error + exn);
 }
 
 #endif /* jsexn_h */

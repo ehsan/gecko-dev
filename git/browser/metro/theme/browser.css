@@ -29,12 +29,12 @@
 #tabs-container {
   background: @panel_dark_color@ @panel_dark_background@;
   padding: 0;
-  -moz-padding-start: @metro_spacing_normal@;
+  -moz-padding-start: @metro_spacing_xnormal@;
   width: 100%;
 }
 
 #tabs {
-  -moz-padding-start: 0;
+  -moz-padding-start: @metro_spacing_large@;
 }
 
 #tabs .tabs-list {
@@ -46,22 +46,17 @@
   overflow: auto;
 }
 
-#tabs[input="precise"] > .tabs-scrollbox > .scrollbutton-up {
-  visibility: visible !important;
-}
-#tabs[input="imprecise"] > .tabs-scrollbox > .scrollbutton-up {
-  visibility: hidden !important;
-  pointer-events: none;
+#tabs > .tabs-scrollbox > .arrowscrollbox-scrollbox {
+  overflow: hidden;
 }
 
+#tabs[input="imprecise"] > .tabs-scrollbox > .scrollbutton-up,
 #tabs[input="imprecise"] > .tabs-scrollbox > .scrollbutton-down {
   visibility: collapse !important;
 }
-
 #tabs > .tabs-scrollbox > .scrollbutton-up {
   list-style-image: url("images/tab-arrows.png") !important;
   -moz-image-region: rect(15px 58px 63px 14px) !important;
-  padding-right: 13px;
 }
 #tabs > .tabs-scrollbox > .scrollbutton-up:hover {
   -moz-image-region: rect(14px 102px 62px 58px) !important;
@@ -76,7 +71,6 @@
 #tabs > .tabs-scrollbox > .scrollbutton-down {
   list-style-image: url("images/tab-arrows.png") !important;
   -moz-image-region: rect(73px 58px 121px 14px) !important;
-  padding-left: 16px;
 }
 #tabs > .tabs-scrollbox > .scrollbutton-down:hover {
   -moz-image-region: rect(72px 102px 120px 58px) !important;
@@ -188,25 +182,15 @@ documenttab[selected] .documenttab-selection {
   list-style-image: url(chrome://browser/skin/images/newtab-default.png);
 
   /* Add some extra padding for a larger target */
-  padding: 18px 20px 30px 20px;
+  padding: 18px 25px 30px;
 }
 
 /* Start UI ----------------------------------------------------------------- */
-
-#content-viewport[startpage] browser {
-  padding-bottom: @toolbar_height@;
-}
 
 #startui-page {
   overflow-x: scroll;
   overflow-y: hidden;
   height: 100%;
-}
-
-#startui-page[viewstate="snapped"],
-#startui-page[viewstate="portrait"] {
-  overflow-x: hidden;
-  overflow-y: scroll;
 }
 
 #startui-body {
@@ -215,38 +199,63 @@ documenttab[selected] .documenttab-selection {
 }
 
 #start-container {
+  display: -moz-box;
+  min-width: @grid_double_column_width@;
   height: 100%;
+  width: 100%;
 }
 
-#urlbar-autocomplete[viewstate="snapped"],
-#urlbar-autocomplete[viewstate="portrait"]{
-  -moz-box-orient: vertical;
+#start-topsites {
+  /* allot space for 3 tile columns for the topsites grid */
+  min-width: calc(3 * @grid_double_column_width@);
+}
+
+#content-viewport[startpage] browser {
+  padding-bottom: @toolbar_height@;
 }
 
 #start-container[viewstate="snapped"],
 #start-container[viewstate="portrait"] {
-  width: 100%;
-  max-width: 100%; /* ensure page doesn't expand, messing up @media rules */
-  height: auto;
+  -moz-box-orient: vertical;
 }
 
-#start-container[viewstate="snapped"] .meta-section:not([expanded]) > richgrid {
+/*Formatting for the limited horizontal space of snapped*/
+#start-autocomplete[viewstate="snapped"] .richgrid-item-content {
+  -moz-box-orient: horizontal;
+}
+
+#start-container,
+#start-autocomplete {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+#start-container[viewstate="snapped"] > .meta-section {
+  margin: 0 @metro_spacing_xnormal@;
+  min-width: @grid_double_column_width@;
+}
+
+#start-container[viewstate="snapped"] richgrid {
   visibility: collapse;
 }
 
-#autocomplete-overlay {
-  display: none;
-  background-color: black;
-  opacity: .3;
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+#start-container[viewstate="snapped"] .meta-section[expanded] > richgrid {
+  visibility: visible;
 }
 
-#stack[autocomplete] > #page > #content-viewport > #autocomplete-overlay {
-  display: -moz-box;
+#start-container[viewstate="snapped"] {
+  padding-top: 0;
+}
+
+#start-container[viewstate="snapped"] .meta-section-title,
+#start-container[viewstate="snapped"] richgrid {
+  margin-top: @metro_spacing_xnormal@;
+  padding: 0;
+}
+
+#start-container:not([viewstate="snapped"]) .meta-section-title.narrow-title,
+#start-container[viewstate="snapped"] .meta-section-title.wide-title {
+  display: none;
 }
 
 /* Browser Content Areas ==================================================== */
@@ -263,6 +272,11 @@ documenttab[selected] .documenttab-selection {
   transition-duration: 0s;
   transition-delay:    0s;
   transition-property: padding-bottom;
+}
+#browsers[findbar] browser {
+  /* delay setting padding-bottom until the findbar has transitioned in */
+  transition-delay:    @metro_animation_duration@;
+  padding-bottom: @findbar_height@;
 }
 /* Selection overlay and monocles */
 #page,
@@ -334,6 +348,10 @@ documenttab[selected] .documenttab-selection {
   min-width: @scroller_minimum@;
 }
 
+#browsers[input="imprecise"] browser {
+  overflow: hidden;
+}
+
 /* overlay buttons */
 
 .overlay-button {
@@ -378,7 +396,6 @@ documenttab[selected] .documenttab-selection {
   background-position: left 6px center;
 }
 
-#stack[viewstate="snapped"] > .overlay-button,
 #stack[keyboardVisible] > .overlay-button,
 #stack[autocomplete] > .overlay-button,
 #stack[fullscreen] > .overlay-button,
@@ -451,6 +468,28 @@ documenttab[selected] .documenttab-selection {
   visibility: hidden;
 }
 
+.circularprogressindicator-progressRing {
+  visibility: visible;
+  margin: 0 @toolbar_horizontal_spacing@;
+  pointer-events:none;
+  position: absolute;
+}
+.circularprogressindicator-progressTrack {
+  visibility: visible;
+  margin: 0 @toolbar_horizontal_spacing@;
+  pointer-events: none;
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  background-repeat: no-repeat;
+  background-size: 40px 40px;
+  background-image: url(chrome://browser/skin/images/progresscircle-bg.png);
+}
+.circularprogressindicator-progressRing:not([progress]),
+.circularprogressindicator-progressTrack:not([progress]) {
+  visibility: hidden;
+}
+
 /* Progress meter ---------------------------------------------------------- */
 
 #progress-container {
@@ -462,9 +501,6 @@ documenttab[selected] .documenttab-selection {
   background-color: hsla(210,5%,80%,1);
   box-shadow: 0 1px 0 hsla(210,5%,50%,.1) inset;
   -moz-user-focus: ignore;
-}
-#progress-container[startpage] {
-  visibility: collapse;
 }
 
 #progress-control {
@@ -493,22 +529,6 @@ documenttab[selected] .documenttab-selection {
   background-color: @panel_light_color@;
 }
 
-#urlbar-autocomplete {
-  padding-top: 0;
-}
-
-#toolbar {
-  padding: 0 @toolbar_horizontal_padding@;
-}
-
-#toolbar[viewstate="snapped"] {
-  padding: 0 @toolbar_snapped_horizontal_padding@;
-}
-
-#toolbar[viewstate="snapped"] > toolbarbutton {
-  margin: 0 @toolbar_snapped_horizontal_spacing@;
-}
-
 /* Combined back/forward buttons */
 
 #back-button {
@@ -531,7 +551,7 @@ documenttab[selected] .documenttab-selection {
 }
 
 #forward-button[disabled] {
-  -moz-margin-start: -@forward_spacing@ !important;
+  -moz-margin-start: -@forward_spacing@;
   visibility: hidden;
   opacity: 0;
   pointer-events: none;
@@ -585,14 +605,6 @@ documenttab[selected] .documenttab-selection {
   list-style-image: url("chrome://browser/skin/images/identity-icons-https-ev.png");
 }
 
-#toolbar[startpage] > #urlbar:not([autocomplete]) > #identity-box > #identity-icon {
-  list-style-image: url("chrome://browser/skin/images/icons-identity-firefox.png");
-}
-
-#urlbar[autocomplete] > #identity-box > #identity-icon {
-  list-style-image: url("chrome://browser/skin/images/icon-autocomplete-search.png");
-}
-
 /* Main URL textbox */
 #urlbar-edit {
   margin: 0 !important;
@@ -601,6 +613,11 @@ documenttab[selected] .documenttab-selection {
   border-radius: 0;
   border: 0 none !important;
   padding: 0 !important;
+}
+
+#urlbar-edit > hbox > .textbox-input-box > .textbox-input::-moz-selection {
+  color: white;
+  background-color: @metro_orange@;
 }
 
 #urlbar-edit > hbox > .textbox-input-box > .textbox-input:invalid {
@@ -666,14 +683,6 @@ documenttab[selected] .documenttab-selection {
   #stop-button {
     list-style-image: url(chrome://browser/skin/images/urlbar-stop@1.4x.png);
   }
-
-  #toolbar[startpage] > #urlbar:not([autocomplete]) > #identity-box > #identity-icon {
-    list-style-image: url("chrome://browser/skin/images/icons-identity-firefox@1.4x.png");
-  }
-
-  #urlbar[autocomplete] > #identity-box > #identity-icon {
-    list-style-image: url("chrome://browser/skin/images/icon-autocomplete-search@1.4x.png");
-  }
 }
 
 @media (min-resolution: @min_res_180pc@) {
@@ -700,14 +709,6 @@ documenttab[selected] .documenttab-selection {
   #stop-button {
     list-style-image: url(chrome://browser/skin/images/urlbar-stop@1.8x.png);
   }
-
-  #toolbar[startpage] > #urlbar:not([autocomplete]) > #identity-box > #identity-icon {
-    list-style-image: url("chrome://browser/skin/images/icons-identity-firefox@1.8x.png");
-  }
-
-  #urlbar[autocomplete] > #identity-box > #identity-icon {
-    list-style-image: url("chrome://browser/skin/images/icon-autocomplete-search@1.8x.png");
-  }
 }
 
 /* navbar edit button: one button out of three - when editing: go, when !editing,
@@ -723,10 +724,13 @@ documenttab[selected] .documenttab-selection {
   visibility: visible;
 }
 
+#toolbar[viewstate="snapped"] > #urlbar ~ toolbarbutton {
+  visibility: collapse;
+}
+
 /* Contextual toolbar controls */
 
 #toolbar-context-autocomplete,
-.hide-on-start,
 #toolbar-context-page {
   transition-property: opacity, visibility;
   transition-duration: @forward_transition_length@;
@@ -734,7 +738,7 @@ documenttab[selected] .documenttab-selection {
 }
 
 #toolbar-contextual:not([autocomplete]) #toolbar-context-autocomplete,
-#toolbar-contextual[startpage] .hide-on-start,
+#toolbar-contextual[startpage] #toolbar-context-page,
 #toolbar-contextual[autocomplete] #toolbar-context-page {
   opacity: 0;
   visibility: hidden;
@@ -745,12 +749,15 @@ documenttab[selected] .documenttab-selection {
   visibility: collapse;
 }
 
-#download-progress:not([progress]) {
-  visibility: collapse;
+.circularprogressindicator-progressButton {
+  margin: 0 @toolbar_horizontal_spacing@;
+  -moz-image-region: rect(0px, 40px, 40px, 0px) !important;
 }
-
-#download-progress {
-  list-style-image: url(chrome://browser/skin/images/navbar-download.png);
+.circularprogressindicator-progressButton:hover {
+  -moz-image-region: rect(40px, 40px, 80px, 0px) !important;
+}
+.circularprogressindicator-progressButton:active {
+  -moz-image-region: rect(80px, 40px, 120px, 0px) !important;
 }
 
 #pin-button {
@@ -766,10 +773,6 @@ documenttab[selected] .documenttab-selection {
 }
 
 @media (min-resolution: @min_res_140pc@) {
-  #download-progress {
-    list-style-image: url(chrome://browser/skin/images/navbar-download@1.4x.png);
-  }
-
   #pin-button {
     list-style-image: url(chrome://browser/skin/images/navbar-pin@1.4x.png);
   }
@@ -784,10 +787,6 @@ documenttab[selected] .documenttab-selection {
 }
 
 @media (min-resolution: @min_res_180pc@) {
-  #download-progress {
-    list-style-image: url(chrome://browser/skin/images/navbar-download@1.8x.png);
-  }
-
   #pin-button {
     list-style-image: url(chrome://browser/skin/images/navbar-pin@1.8x.png);
   }
@@ -839,6 +838,20 @@ documenttab[selected] .documenttab-selection {
   #panel-close-button {
     list-style-image: url(chrome://browser/skin/images/navbar-back@1.8x.png);
   }
+}
+
+#panel-view-switcher {
+  border: 0 none !important;
+  color: #000 !important;
+  background: transparent;
+  padding: 0;
+  font-size: @metro_font_xlarge@;
+  font-weight: 100;
+  margin: 0;
+}
+
+#panel-container[viewstate="snapped"] #panel-view-switcher {
+  font-size: @metro_font_large@;
 }
 
 #panel-items {
@@ -963,79 +976,50 @@ documenttab[selected] .documenttab-selection {
 }
 
 #pin-selected-button {
-  list-style-image: url(chrome://browser/skin/images/navbar-contextual-pin.png);
+  -moz-image-region: rect(0px, 240px, 40px, 200px) !important;
 }
-
+#pin-selected-button:hover {
+  -moz-image-region: rect(40px, 240px, 80px, 200px) !important;
+}
+#pin-selected-button:active {
+  -moz-image-region: rect(80px, 240px, 120px, 200px) !important;
+}
 #unpin-selected-button {
-  list-style-image: url(chrome://browser/skin/images/navbar-contextual-unpin.png);
+  -moz-image-region: rect(0px, 280px, 40px, 240px) !important;
 }
-
-#hide-selected-button {
-  list-style-image: url(chrome://browser/skin/images/navbar-contextual-hide.png);
+#unpin-selected-button:hover {
+  -moz-image-region: rect(40px, 280px, 80px, 240px) !important;
 }
-
+#unpin-selected-button:active {
+  -moz-image-region: rect(80px, 280px, 120px, 240px) !important;
+}
 #delete-selected-button {
-  list-style-image: url(chrome://browser/skin/images/navbar-contextual-delete.png);
+  -moz-image-region: rect(0px, 480px, 40px, 440px) !important;
 }
-
+#delete-selected-button:hover {
+  -moz-image-region: rect(40px, 480px, 80px, 440px) !important;
+}
+#delete-selected-button:active {
+  -moz-image-region: rect(80px, 480px, 120px, 440px) !important;
+}
 #clear-selected-button {
-  list-style-image: url(chrome://browser/skin/images/navbar-contextual-clear.png);
+  -moz-image-region: rect(0px, 520px, 40px, 480px) !important;
+}
+#clear-selected-button:hover {
+  -moz-image-region: rect(40px, 520px, 80px, 480px) !important;
+}
+#clear-selected-button:active {
+  -moz-image-region: rect(80px, 520px, 120px, 480px) !important;
 }
 
 #restore-selected-button {
-  list-style-image: url(chrome://browser/skin/images/navbar-contextual-restore.png);
+  -moz-image-region: rect(0px, 560px, 40px, 520px) !important;
 }
-
-@media (min-resolution: @min_res_140pc@) {
-  #pin-selected-button {
-    list-style-image: url(chrome://browser/skin/images/navbar-contextual-pin@1.4x.png);
-  }
-
-  #unpin-selected-button {
-    list-style-image: url(chrome://browser/skin/images/navbar-contextual-unpin@1.4x.png);
-  }
-
-  #hide-selected-button {
-    list-style-image: url(chrome://browser/skin/images/navbar-contextual-hide@1.4x.png);
-  }
-
-  #delete-selected-button {
-    list-style-image: url(chrome://browser/skin/images/navbar-contextual-delete@1.4x.png);
-  }
-
-  #clear-selected-button {
-    list-style-image: url(chrome://browser/skin/images/navbar-contextual-clear@1.4x.png);
-  }
-
-  #restore-selected-button {
-    list-style-image: url(chrome://browser/skin/images/navbar-contextual-restore@1.4x.png);
-  }
+#restore-selected-button:hover {
+  -moz-image-region: rect(40px, 560px, 80px, 520px) !important;
 }
-
-@media (min-resolution: @min_res_180pc@) {
-  #pin-selected-button {
-    list-style-image: url(chrome://browser/skin/images/navbar-contextual-pin@1.8x.png);
-  }
-
-  #unpin-selected-button {
-    list-style-image: url(chrome://browser/skin/images/navbar-contextual-unpin@1.8x.png);
-  }
-
-  #hide-selected-button {
-    list-style-image: url(chrome://browser/skin/images/navbar-contextual-hide@1.8x.png);
-  }
-
-  #delete-selected-button {
-    list-style-image: url(chrome://browser/skin/images/navbar-contextual-delete@1.8x.png);
-  }
-
-  #clear-selected-button {
-    list-style-image: url(chrome://browser/skin/images/navbar-contextual-clear@1.8x.png);
-  }
-
-  #restore-selected-button {
-    list-style-image: url(chrome://browser/skin/images/navbar-contextual-restore@1.8x.png);
-  }
+#restore-selected-button:active {
+  -moz-image-region: rect(80px, 560px, 120px, 520px) !important;
 }
 
 /* Download notifications ======================================================= */
@@ -1173,32 +1157,23 @@ flyoutpanel > settings:first-child {
 
 /* About flyout pane ------------------------------------------------------- */
 
-/* Colors are defined in /browser/branding/<dir>/content/metro-about.css */
-
 #about-flyoutpanel {
-  background-image: url('chrome://branding/content/metro-about-footer.png');
+  background-image:url('chrome://browser/skin/images/about-footer.png');
   background-repeat: no-repeat;
   background-attachment: fixed;
   background-position: right bottom;
 }
 
-#about-flyoutpanel .text-link {
-  color: inherit;
-}
-
-#about-flyoutpanel > .flyoutpanel-wrapper > .flyoutpanel-header,
-#about-flyoutpanel > .flyoutpanel-wrapper > .flyoutpanel-contents {
-  background-color: inherit;
-  border: none;
-}
-
-#about-policy-label {
-  padding: 1.5em @metro_spacing_large@;
-  margin: 1em -@metro_spacing_large@;
+#about-product-label {
+ font-weight: bold;
 }
 
 #about-version-label {
  margin-top: 11pt;
+}
+
+#about-policy-label {
+ margin-top: 24pt;
 }
 
 #currentChannel {

@@ -8,11 +8,11 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/rtp_rtcp/source/rtcp_utility.h"
+#include "rtcp_utility.h"
 
-#include <assert.h>
-#include <math.h>   // ceil
-#include <string.h> // memcpy
+#include <cstring> // memcpy
+#include <cmath>   // ceil
+#include <cassert>
 
 namespace webrtc {
 // RTCPParserV2 : currently read only
@@ -1524,4 +1524,4 @@ RTCPUtility::RTCPPacketIterator::Current()
 
     return &_header;
 }
-}  // namespace webrtc
+} // namespace webrtc

@@ -11,12 +11,12 @@ struct JSRuntime;
 
 #ifdef XP_MACOSX
 # include <mach/mach.h>
-# include "jslock.h"
+# include <pthread.h>
 #endif
 
 namespace js {
 
-// Returns whether signal handlers for asm.js and for JitRuntime access
+// Returns whether signal handlers for asm.js and for IonRuntime access
 // violations have been installed.
 bool
 EnsureAsmJSSignalHandlersInstalled(JSRuntime *rt);
@@ -36,7 +36,7 @@ TriggerOperationCallbackForAsmJSCode(JSRuntime *rt);
 class AsmJSMachExceptionHandler
 {
     bool installed_;
-    PRThread *thread_;
+    pthread_t thread_;
     mach_port_t port_;
 
     void uninstall();

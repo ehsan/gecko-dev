@@ -59,6 +59,7 @@
 #include "nsUnicharUtils.h"
 #include "nsIContent.h"
 #include "nsEventListenerManager.h"
+#include "nsGUIEvent.h"
 #include "nsRange.h"
 #include "nsContentUtils.h"
 #include "nsEditor.h"
@@ -625,7 +626,6 @@ nsresult mozInlineSpellChecker::Cleanup(bool aDestroyingFrames)
   }
 
   mEditor = nullptr;
-  mFullSpellCheckScheduled = false;
 
   return rv;
 }

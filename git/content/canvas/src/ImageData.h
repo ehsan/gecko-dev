@@ -14,7 +14,7 @@
 
 #include "nsCycleCollectionParticipant.h"
 #include "nsTraceRefcnt.h"
-#include "js/GCAPI.h"
+#include "xpcpublic.h"
 
 namespace mozilla {
 namespace dom {
@@ -48,13 +48,13 @@ public:
   {
     return mHeight;
   }
-  JSObject* Data(JSContext* cx) const
+  JSObject* Data(JSContext* cx, JS::Handle<JSObject*> /* unused */) const
   {
     return GetDataObject();
   }
   JSObject* GetDataObject() const
   {
-    JS::ExposeObjectToActiveJS(mData);
+    xpc_UnmarkGrayObject(mData);
     return mData;
   }
 

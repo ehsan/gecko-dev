@@ -12,6 +12,14 @@
 #include "nsTextFragment.h"
 #include <algorithm>
 
+// XXX TODO implement transform of backslash to yen that nsTextTransform does
+// when requested by PresContext->LanguageSpecificTransformType(). Do it with
+// a new factory type that just munges the input stream. But first, check
+// that we really still need this, it's only enabled via a hidden pref
+// which defaults false...
+
+#define UNICODE_ZWSP 0x200B
+  
 static bool IsDiscardable(PRUnichar ch, uint32_t* aFlags)
 {
   // Unlike IS_DISCARDABLE, we don't discard \r. \r will be ignored by gfxTextRun
@@ -21,7 +29,11 @@ static bool IsDiscardable(PRUnichar ch, uint32_t* aFlags)
     *aFlags |= nsTextFrameUtils::TEXT_HAS_SHY;
     return true;
   }
-  return IsBidiControl(ch);
+  if ((ch & 0xFF00) != 0x2000) {
+    // Not a Bidi control character
+    return false;
+  }
+  return IS_BIDI_CONTROL_CHAR(ch);
 }
 
 static bool IsDiscardable(uint8_t ch, uint32_t* aFlags)

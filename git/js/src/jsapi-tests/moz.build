@@ -6,7 +6,7 @@
 
 PROGRAM = 'jsapi-tests'
 
-UNIFIED_SOURCES += [
+CPP_SOURCES += [
     'selfTest.cpp',
     'testAddPropertyPropcache.cpp',
     'testArgumentsObject.cpp',
@@ -34,44 +34,36 @@ UNIFIED_SOURCES += [
     'testGCExactRooting.cpp',
     'testGCFinalizeCallback.cpp',
     'testGCOutOfMemory.cpp',
-    'testGCStoreBufferRemoval.cpp',
+    'testGetPropertyDefault.cpp',
     'testHashTable.cpp',
     'testHashTableInit.cpp',
     'testIndexToString.cpp',
-    'testIntern.cpp',
     'testIntString.cpp',
     'testIntTypesABI.cpp',
+    'testIntern.cpp',
     'testJSEvaluateScript.cpp',
     'testLookup.cpp',
     'testLooselyEqual.cpp',
     'testNewObject.cpp',
-    'testNullRoot.cpp',
-    'testObjectEmulatingUndefined.cpp',
     'testOOM.cpp',
+    'testObjectEmulatingUndefined.cpp',
     'testOps.cpp',
     'testOriginPrincipals.cpp',
     'testParseJSON.cpp',
-    'testPersistentRooted.cpp',
     'testProfileStrings.cpp',
     'testPropCache.cpp',
     'testRegExp.cpp',
     'testResolveRecursion.cpp',
-    'tests.cpp',
     'testSameValue.cpp',
     'testScriptInfo.cpp',
     'testScriptObject.cpp',
     'testSetProperty.cpp',
     'testSourcePolicy.cpp',
     'testStringBuffer.cpp',
-    'testStructuredClone.cpp',
     'testToIntWidth.cpp',
     'testTrap.cpp',
     'testTypedArrays.cpp',
     'testUTF8.cpp',
     'testXDR.cpp',
+    'tests.cpp',
 ]
-
-DEFINES['EXPORT_JS_API'] = True
-# Building against js_static requires that we declare mfbt sybols "exported"
-# on its behalf.
-DEFINES['IMPL_MFBT'] = True

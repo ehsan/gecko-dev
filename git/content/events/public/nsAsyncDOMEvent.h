@@ -34,7 +34,7 @@ public:
     : mEventNode(aEventNode), mEvent(aEvent), mDispatchChromeOnly(false)
   { }
 
-  nsAsyncDOMEvent(nsINode* aEventNode, mozilla::WidgetEvent& aEvent);
+  nsAsyncDOMEvent(nsINode *aEventNode, nsEvent &aEvent);
 
   NS_IMETHOD Run() MOZ_OVERRIDE;
   nsresult PostDOMEvent();

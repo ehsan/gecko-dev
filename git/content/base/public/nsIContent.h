@@ -7,7 +7,7 @@
 
 #include "mozilla/Attributes.h"
 #include "nsCaseTreatment.h" // for enum, cannot be forward-declared
-#include "nsINode.h"
+#include "nsIDocument.h"
 
 // Forward declarations
 class nsAString;
@@ -21,9 +21,6 @@ class nsIFrame;
 class nsXBLBinding;
 
 namespace mozilla {
-namespace dom {
-class ShadowRoot;
-} // namespace dom
 namespace widget {
 struct IMEState;
 } // namespace widget
@@ -37,8 +34,8 @@ enum nsLinkState {
 
 // IID for the nsIContent interface
 #define NS_ICONTENT_IID \
-{ 0x4b05faf2, 0x12e0, 0x4f56, \
-  { 0xb5, 0x2e, 0x3e, 0xb6, 0xad, 0x9c, 0x6e, 0xbe } }
+{ 0x976f4cd1, 0xbdfc, 0x4a1e, \
+  { 0x82, 0x46, 0x1c, 0x13, 0x9c, 0xd3, 0x73, 0x7f } }
 
 /**
  * A node of content in a document's content model. This interface
@@ -173,7 +170,7 @@ public:
   bool IsRootOfNativeAnonymousSubtree() const
   {
     NS_ASSERTION(!HasFlag(NODE_IS_NATIVE_ANONYMOUS_ROOT) ||
-                 (HasFlag(NODE_IS_ANONYMOUS_ROOT) &&
+                 (HasFlag(NODE_IS_ANONYMOUS) &&
                   HasFlag(NODE_IS_IN_ANONYMOUS_SUBTREE)),
                  "Some flags seem to be missing!");
     return HasFlag(NODE_IS_NATIVE_ANONYMOUS_ROOT);
@@ -189,9 +186,9 @@ public:
    * Makes this content anonymous
    * @see nsIAnonymousContentCreator
    */
-  void SetIsNativeAnonymousRoot()
+  void SetNativeAnonymous()
   {
-    SetFlags(NODE_IS_ANONYMOUS_ROOT | NODE_IS_IN_ANONYMOUS_SUBTREE |
+    SetFlags(NODE_IS_ANONYMOUS | NODE_IS_IN_ANONYMOUS_SUBTREE |
              NODE_IS_NATIVE_ANONYMOUS_ROOT);
   }
 
@@ -213,7 +210,7 @@ public:
                  "to binding parent");
     NS_ASSERTION(!GetParent() ||
                  ((GetBindingParent() == GetParent()) ==
-                  HasFlag(NODE_IS_ANONYMOUS_ROOT)) ||
+                  HasFlag(NODE_IS_ANONYMOUS)) ||
                  // Unfortunately default content for XBL insertion points is
                  // anonymous content that is bound with the parent of the
                  // insertion point as the parent but the bound element for the
@@ -221,10 +218,10 @@ public:
                  // the assert a bit here.
                  (GetBindingParent() &&
                   (GetBindingParent() == GetParent()->GetBindingParent()) ==
-                  HasFlag(NODE_IS_ANONYMOUS_ROOT)),
+                  HasFlag(NODE_IS_ANONYMOUS)),
                  "For nodes with parent, flag and GetBindingParent() check "
                  "should match");
-    return HasFlag(NODE_IS_ANONYMOUS_ROOT);
+    return HasFlag(NODE_IS_ANONYMOUS);
   }
 
   /**
@@ -246,7 +243,10 @@ public:
    * Return true iff this node is in an HTML document (in the HTML5 sense of
    * the term, i.e. not in an XHTML/XML document).
    */
-  inline bool IsInHTMLDocument() const;
+  inline bool IsInHTMLDocument() const
+  {
+    return OwnerDoc()->IsHTML();
+  }
 
   /**
    * Get the namespace that this element's tag is defined in
@@ -294,11 +294,6 @@ public:
   inline bool IsXUL() const
   {
     return IsInNamespace(kNameSpaceID_XUL);
-  }
-
-  inline bool IsXUL(nsIAtom* aTag) const
-  {
-    return mNodeInfo->Equals(aTag, kNameSpaceID_XUL);
   }
 
   inline bool IsMathML() const
@@ -560,8 +555,12 @@ public:
    *         > 0 can be tabbed to in the order specified by this value
    * @return whether the content is focusable via mouse, kbd or script.
    */
-  bool IsFocusable(int32_t* aTabIndex = nullptr, bool aWithMouse = false);
-  virtual bool IsFocusableInternal(int32_t* aTabIndex, bool aWithMouse);
+  virtual bool IsFocusable(int32_t *aTabIndex = nullptr, bool aWithMouse = false)
+  {
+    if (aTabIndex) 
+      *aTabIndex = -1; // Default, not tabbable
+    return false;
+  }
 
   /**
    * The method focuses (or activates) element that accesskey is bound to. It is
@@ -627,30 +626,6 @@ public:
    */
   virtual void SetXBLBinding(nsXBLBinding* aBinding,
                              nsBindingManager* aOldBindingManager = nullptr) = 0;
-
-  /**
-   * Sets the ShadowRoot binding for this element. The contents of the
-   * binding is rendered in place of this node's children.
-   *
-   * @param aShadowRoot The ShadowRoot to be bound to this element.
-   */
-  virtual void SetShadowRoot(mozilla::dom::ShadowRoot* aShadowRoot) = 0;
-
-  /**
-   * Gets the ShadowRoot binding for this element.
-   *
-   * @return The ShadowRoot currently bound to this element.
-   */
-  virtual mozilla::dom::ShadowRoot *GetShadowRoot() const = 0;
-
-  /**
-   * Gets the root of the node tree for this content if it is in a shadow tree.
-   * This method is called |GetContainingShadow| instead of |GetRootShadowRoot|
-   * to avoid confusion with |GetShadowRoot|.
-   *
-   * @return The ShadowRoot that is the root of the node tree.
-   */
-  virtual mozilla::dom::ShadowRoot *GetContainingShadow() const = 0;
 
   /**
    * Gets the insertion parent element of the XBL binding.

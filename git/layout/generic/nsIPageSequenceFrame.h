@@ -6,7 +6,7 @@
 #define nsIPageSequenceFrame_h___
 
 #include "nsQueryFrame.h"
-#include "nsCoord.h"
+#include "nsRect.h"
 
 class nsPresContext;
 class nsIPrintSettings;
@@ -27,7 +27,7 @@ public:
    *
    * @param   aPrintOptions options for printing
    * @param   aStatusCallback interface that the client provides to receive
-   *            progress notifications. Can be nullptr
+   *            progress notifications. Can be NULL
    * @return  NS_OK if successful
    *          NS_ERROR_ABORT if the client cancels printing using the callback
    *            interface

@@ -4,7 +4,7 @@
 
 loadRelativeToScript('utility.js');
 loadRelativeToScript('annotations.js');
-loadRelativeToScript('CFG.js');
+loadRelativeToScript('suppressedPoints.js');
 
 var sourceRoot = (environment['SOURCE'] || '') + '/'
 
@@ -236,13 +236,24 @@ function edgeCanGC(edge)
         var field = callee.Exp[0].Field;
         var csuName = field.FieldCSU.Type.Name;
         var fullFieldName = csuName + "." + field.Name[0];
-        if (fieldCallCannotGC(csuName, fullFieldName))
-            return null;
-        return (fullFieldName in suppressedFunctions) ? null : fullFieldName;
+        return fieldCallCannotGC(csuName, fullFieldName) ? null : fullFieldName;
     }
     assert(callee.Exp[0].Kind == "Var");
     var calleeName = callee.Exp[0].Variable.Name[0];
     return indirectCallCannotGC(functionName, calleeName) ? null : "*" + calleeName;
+}
+
+function computePredecessors(body)
+{
+    body.predecessors = [];
+    if (!("PEdge" in body))
+        return;
+    for (var edge of body.PEdge) {
+        var target = edge.Index[1];
+        if (!(target in body.predecessors))
+            body.predecessors[target] = [];
+        body.predecessors[target].push(edge);
+    }
 }
 
 function variableUseFollowsGC(suppressed, variable, worklist)
@@ -558,16 +569,14 @@ for (var nameIndex = start; nameIndex <= end; nameIndex++) {
     var name = xdb.read_key(nameIndex);
     var functionName = name.readString();
     var data = xdb.read_entry(name);
-    xdb.free_string(name);
-    var json = data.readString();
-    xdb.free_string(data);
-    functionBodies = JSON.parse(json);
+    functionBodies = JSON.parse(data.readString());
 
     for (var body of functionBodies)
         body.suppressed = [];
-    for (var body of functionBodies) {
-        for (var [pbody, id] of allRAIIGuardedCallPoints(body, isSuppressConstructor))
-            pbody.suppressed[id] = true;
-    }
+    for (var body of functionBodies)
+        computeSuppressedPoints(body);
     processBodies(functionName);
+
+    xdb.free_string(name);
+    xdb.free_string(data);
 }

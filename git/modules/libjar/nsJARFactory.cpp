@@ -28,36 +28,33 @@ NS_DEFINE_NAMED_CID(NS_JARPROTOCOLHANDLER_CID);
 NS_DEFINE_NAMED_CID(NS_JARURI_CID);
 
 static const mozilla::Module::CIDEntry kJARCIDs[] = {
-    { &kNS_ZIPREADER_CID, false, nullptr, nsJARConstructor },
-    { &kNS_ZIPREADERCACHE_CID, false, nullptr, nsZipReaderCacheConstructor },
-    { &kNS_JARPROTOCOLHANDLER_CID, false, nullptr, nsJARProtocolHandlerConstructor },
-    { &kNS_JARURI_CID, false, nullptr, nsJARURIConstructor },
-    { nullptr }
+    { &kNS_ZIPREADER_CID, false, NULL, nsJARConstructor },
+    { &kNS_ZIPREADERCACHE_CID, false, NULL, nsZipReaderCacheConstructor },
+    { &kNS_JARPROTOCOLHANDLER_CID, false, NULL, nsJARProtocolHandlerConstructor },
+    { &kNS_JARURI_CID, false, NULL, nsJARURIConstructor },
+    { NULL }
 };
 
 static const mozilla::Module::ContractIDEntry kJARContracts[] = {
     { "@mozilla.org/libjar/zip-reader;1", &kNS_ZIPREADER_CID },
     { "@mozilla.org/libjar/zip-reader-cache;1", &kNS_ZIPREADERCACHE_CID },
     { NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "jar", &kNS_JARPROTOCOLHANDLER_CID },
-    { nullptr }
+    { NULL }
 };
 
 // Jar module shutdown hook
 static void nsJarShutdown()
 {
-    // Make sure to not null out gJarHandler here, because we may have
-    // still-live nsJARChannels that will want to release it.
-    nsJARProtocolHandler *handler = gJarHandler;
-    NS_IF_RELEASE(handler);
+    NS_IF_RELEASE(gJarHandler);
 }
 
 static const mozilla::Module kJARModule = {
     mozilla::Module::kVersion,
     kJARCIDs,
     kJARContracts,
-    nullptr,
-    nullptr,
-    nullptr,
+    NULL,
+    NULL,
+    NULL,
     nsJarShutdown
 };
 

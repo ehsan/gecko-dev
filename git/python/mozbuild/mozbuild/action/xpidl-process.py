@@ -24,7 +24,7 @@ from mozbuild.pythonutil import iter_modules_in_path
 from mozbuild.util import FileAvoidWrite
 
 
-def process(input_dir, inc_paths, cache_dir, header_dir, xpt_dir, deps_dir, module, stems):
+def process(input_dir, cache_dir, header_dir, xpt_dir, deps_dir, module, stems):
     p = IDLParser(outputdir=cache_dir)
 
     xpts = {}
@@ -40,7 +40,7 @@ def process(input_dir, inc_paths, cache_dir, header_dir, xpt_dir, deps_dir, modu
         idl_data = open(path).read()
 
         idl = p.parse(idl_data, filename=path)
-        idl.resolve([input_dir] + inc_paths, p)
+        idl.resolve([input_dir], p)
 
         header_path = os.path.join(header_dir, '%s.h' % stem)
         deps_path = os.path.join(deps_dir, '%s.pp' % stem)
@@ -65,7 +65,7 @@ def process(input_dir, inc_paths, cache_dir, header_dir, xpt_dir, deps_dir, modu
         mk.dump(fh)
 
 
-def main(argv):
+if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--cache-dir',
         help='Directory in which to find or write cached lexer data.')
@@ -81,12 +81,7 @@ def main(argv):
         help='Final module name to use for linked output xpt file.')
     parser.add_argument('idls', nargs='+',
         help='Source .idl file(s). Specified as stems only.')
-    parser.add_argument('-I', dest='incpath', action='append', default=[],
-        help='Extra directories where to look for included .idl files.')
 
-    args = parser.parse_args(argv)
-    process(args.inputdir, args.incpath, args.cache_dir, args.headerdir,
-        args.xptdir, args.depsdir, args.module, args.idls)
-
-if __name__ == '__main__':
-    main(sys.argv[1:])
+    args = parser.parse_args()
+    process(args.inputdir, args.cache_dir, args.headerdir, args.xptdir,
+        args.depsdir, args.module, args.idls)

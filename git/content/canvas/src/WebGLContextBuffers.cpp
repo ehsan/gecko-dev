@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "WebGLContext.h"
-#include "GLContext.h"
 #include "WebGLBuffer.h"
 #include "WebGLVertexArray.h"
 
@@ -12,9 +11,9 @@ using namespace mozilla;
 using namespace mozilla::dom;
 
 void
-WebGLContext::BindBuffer(GLenum target, WebGLBuffer *buffer)
+WebGLContext::BindBuffer(WebGLenum target, WebGLBuffer *buffer)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     if (!ValidateObjectAllowDeletedOrNull("bindBuffer", buffer))
@@ -47,9 +46,9 @@ WebGLContext::BindBuffer(GLenum target, WebGLBuffer *buffer)
 }
 
 void
-WebGLContext::BindBufferBase(GLenum target, GLuint index, WebGLBuffer* buffer)
+WebGLContext::BindBufferBase(WebGLenum target, WebGLuint index, WebGLBuffer* buffer)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     if (!ValidateObjectAllowDeletedOrNull("bindBufferBase", buffer))
@@ -88,10 +87,10 @@ WebGLContext::BindBufferBase(GLenum target, GLuint index, WebGLBuffer* buffer)
 }
 
 void
-WebGLContext::BindBufferRange(GLenum target, GLuint index, WebGLBuffer* buffer,
+WebGLContext::BindBufferRange(WebGLenum target, WebGLuint index, WebGLBuffer* buffer,
                               WebGLintptr offset, WebGLsizeiptr size)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     if (!ValidateObjectAllowDeletedOrNull("bindBufferRange", buffer))
@@ -114,12 +113,6 @@ WebGLContext::BindBufferRange(GLenum target, GLuint index, WebGLBuffer* buffer,
         } else if (target != buffer->Target()) {
             return ErrorInvalidOperation("bindBuffer: buffer already bound to a different target");
         }
-        CheckedInt<WebGLsizeiptr> checked_neededByteLength = CheckedInt<WebGLsizeiptr>(offset) + size;
-        if (!checked_neededByteLength.isValid() ||
-            checked_neededByteLength.value() > buffer->ByteLength())
-        {
-            return ErrorInvalidValue("bindBufferRange: invalid range");
-        }
     }
 
     WebGLRefPtr<WebGLBuffer>* bufferSlot = GetBufferSlotByTarget(target, "bindBuffer");
@@ -135,10 +128,10 @@ WebGLContext::BindBufferRange(GLenum target, GLuint index, WebGLBuffer* buffer,
 }
 
 void
-WebGLContext::BufferData(GLenum target, WebGLsizeiptr size,
-                         GLenum usage)
+WebGLContext::BufferData(WebGLenum target, WebGLsizeiptr size,
+                         WebGLenum usage)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     WebGLRefPtr<WebGLBuffer>* bufferSlot = GetBufferSlotByTarget(target, "bufferData");
@@ -152,10 +145,6 @@ WebGLContext::BufferData(GLenum target, WebGLsizeiptr size,
 
     if (!ValidateBufferUsageEnum(usage, "bufferData: usage"))
         return;
-
-    // careful: WebGLsizeiptr is always 64-bit, but GLsizeiptr is like intptr_t.
-    if (!CheckedInt<GLsizeiptr>(size).isValid())
-        return ErrorOutOfMemory("bufferData: bad size");
 
     WebGLBuffer* boundBuffer = bufferSlot->get();
 
@@ -184,11 +173,11 @@ WebGLContext::BufferData(GLenum target, WebGLsizeiptr size,
 }
 
 void
-WebGLContext::BufferData(GLenum target,
+WebGLContext::BufferData(WebGLenum target,
                          const Nullable<ArrayBuffer> &maybeData,
-                         GLenum usage)
+                         WebGLenum usage)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     if (maybeData.IsNull()) {
@@ -203,10 +192,6 @@ WebGLContext::BufferData(GLenum target,
     }
 
     const ArrayBuffer& data = maybeData.Value();
-
-    // careful: data.Length() could conceivably be any size_t, but GLsizeiptr is like intptr_t.
-    if (!CheckedInt<GLsizeiptr>(data.Length()).isValid())
-        return ErrorOutOfMemory("bufferData: bad size");
 
     if (!ValidateBufferUsageEnum(usage, "bufferData: usage"))
         return;
@@ -233,10 +218,10 @@ WebGLContext::BufferData(GLenum target,
 }
 
 void
-WebGLContext::BufferData(GLenum target, const ArrayBufferView& data,
-                         GLenum usage)
+WebGLContext::BufferData(WebGLenum target, const ArrayBufferView& data,
+                         WebGLenum usage)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     WebGLRefPtr<WebGLBuffer>* bufferSlot = GetBufferSlotByTarget(target, "bufferSubData");
@@ -252,10 +237,6 @@ WebGLContext::BufferData(GLenum target, const ArrayBufferView& data,
 
     if (!boundBuffer)
         return ErrorInvalidOperation("bufferData: no buffer bound!");
-
-    // careful: data.Length() could conceivably be any size_t, but GLsizeiptr is like intptr_t.
-    if (!CheckedInt<GLsizeiptr>(data.Length()).isValid())
-        return ErrorOutOfMemory("bufferData: bad size");
 
     InvalidateBufferFetching();
     MakeContextCurrent();
@@ -276,7 +257,7 @@ void
 WebGLContext::BufferSubData(GLenum target, WebGLsizeiptr byteOffset,
                             const Nullable<ArrayBuffer> &maybeData)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     if (maybeData.IsNull()) {
@@ -300,7 +281,7 @@ WebGLContext::BufferSubData(GLenum target, WebGLsizeiptr byteOffset,
     if (!boundBuffer)
         return ErrorInvalidOperation("bufferData: no buffer bound!");
 
-    CheckedInt<WebGLsizeiptr> checked_neededByteLength = CheckedInt<WebGLsizeiptr>(byteOffset) + data.Length();
+    CheckedUint32 checked_neededByteLength = CheckedUint32(byteOffset) + data.Length();
     if (!checked_neededByteLength.isValid())
         return ErrorInvalidValue("bufferSubData: integer overflow computing the needed byte length");
 
@@ -316,10 +297,10 @@ WebGLContext::BufferSubData(GLenum target, WebGLsizeiptr byteOffset,
 }
 
 void
-WebGLContext::BufferSubData(GLenum target, WebGLsizeiptr byteOffset,
+WebGLContext::BufferSubData(WebGLenum target, WebGLsizeiptr byteOffset,
                             const ArrayBufferView& data)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     WebGLRefPtr<WebGLBuffer>* bufferSlot = GetBufferSlotByTarget(target, "bufferSubData");
@@ -336,7 +317,7 @@ WebGLContext::BufferSubData(GLenum target, WebGLsizeiptr byteOffset,
     if (!boundBuffer)
         return ErrorInvalidOperation("bufferSubData: no buffer bound!");
 
-    CheckedInt<WebGLsizeiptr> checked_neededByteLength = CheckedInt<WebGLsizeiptr>(byteOffset) + data.Length();
+    CheckedUint32 checked_neededByteLength = CheckedUint32(byteOffset) + data.Length();
     if (!checked_neededByteLength.isValid())
         return ErrorInvalidValue("bufferSubData: integer overflow computing the needed byte length");
 
@@ -353,7 +334,7 @@ WebGLContext::BufferSubData(GLenum target, WebGLsizeiptr byteOffset,
 already_AddRefed<WebGLBuffer>
 WebGLContext::CreateBuffer()
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return nullptr;
 
     nsRefPtr<WebGLBuffer> globj = new WebGLBuffer(this);
@@ -363,7 +344,7 @@ WebGLContext::CreateBuffer()
 void
 WebGLContext::DeleteBuffer(WebGLBuffer *buffer)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     if (!ValidateObjectAllowDeletedOrNull("deleteBuffer", buffer))
@@ -383,8 +364,8 @@ WebGLContext::DeleteBuffer(WebGLBuffer *buffer)
     }
 
     for (int32_t i = 0; i < mGLMaxVertexAttribs; i++) {
-        if (mBoundVertexArray->HasAttrib(i) && mBoundVertexArray->mAttribs[i].buf == buffer)
-            mBoundVertexArray->mAttribs[i].buf = nullptr;
+        if (mBoundVertexArray->mAttribBuffers[i].buf == buffer)
+            mBoundVertexArray->mAttribBuffers[i].buf = nullptr;
     }
 
     buffer->RequestDelete();
@@ -393,7 +374,7 @@ WebGLContext::DeleteBuffer(WebGLBuffer *buffer)
 bool
 WebGLContext::IsBuffer(WebGLBuffer *buffer)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return false;
 
     return ValidateObjectAllowDeleted("isBuffer", buffer) &&
@@ -402,7 +383,7 @@ WebGLContext::IsBuffer(WebGLBuffer *buffer)
 }
 
 bool
-WebGLContext::ValidateBufferUsageEnum(GLenum target, const char *infos)
+WebGLContext::ValidateBufferUsageEnum(WebGLenum target, const char *infos)
 {
     switch (target) {
         case LOCAL_GL_STREAM_DRAW:
@@ -458,40 +439,4 @@ WebGLContext::GetBufferSlotByTargetIndexed(GLenum target, GLuint index, const ch
 
     ErrorInvalidEnum("%s: target: invalid enum value 0x%x", infos, target);
     return nullptr;
-}
-
-GLenum
-WebGLContext::CheckedBufferData(GLenum target,
-                                GLsizeiptr size,
-                                const GLvoid *data,
-                                GLenum usage)
-{
-#ifdef XP_MACOSX
-    // bug 790879
-    if (gl->WorkAroundDriverBugs() &&
-        int64_t(size) > INT32_MAX) // the cast avoids a potential always-true warning on 32bit
-    {
-        GenerateWarning("Rejecting valid bufferData call with size %lu to avoid a Mac bug", size);
-        return LOCAL_GL_INVALID_VALUE;
-    }
-#endif
-    WebGLBuffer *boundBuffer = nullptr;
-    if (target == LOCAL_GL_ARRAY_BUFFER) {
-        boundBuffer = mBoundArrayBuffer;
-    } else if (target == LOCAL_GL_ELEMENT_ARRAY_BUFFER) {
-        boundBuffer = mBoundVertexArray->mBoundElementArrayBuffer;
-    }
-    MOZ_ASSERT(boundBuffer != nullptr, "no buffer bound for this target");
-
-    bool sizeChanges = uint32_t(size) != boundBuffer->ByteLength();
-    if (sizeChanges) {
-        UpdateWebGLErrorAndClearGLError();
-        gl->fBufferData(target, size, data, usage);
-        GLenum error = LOCAL_GL_NO_ERROR;
-        UpdateWebGLErrorAndClearGLError(&error);
-        return error;
-    } else {
-        gl->fBufferData(target, size, data, usage);
-        return LOCAL_GL_NO_ERROR;
-    }
 }

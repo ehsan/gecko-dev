@@ -2,7 +2,7 @@
  * Script.prototype.sourceStart and Script.prototype.sourceLength should both be
  * a number.
  */
-let g = newGlobal();
+let g = newGlobal('new-compartment');
 let dbg = new Debugger(g);
 
 var count = 0;

@@ -8,9 +8,9 @@ XPIDL_SOURCES += [
     'nsIIconURI.idl',
 ]
 
-XPIDL_MODULE = 'imgicon'
+MODULE = 'imgicon'
 
-UNIFIED_SOURCES += [
+CPP_SOURCES += [
     'nsIconModule.cpp',
     'nsIconProtocolHandler.cpp',
     'nsIconURI.cpp',
@@ -20,26 +20,5 @@ LIBRARY_NAME = 'imgicon'
 
 FAIL_ON_WARNINGS = True
 
-FINAL_LIBRARY = 'xul'
+LIBXUL_LIBRARY = True
 
-platform = None
-
-if CONFIG['MOZ_WIDGET_GTK']:
-    platform = 'gtk'
-
-if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'qt':
-    platform = 'qt'
-
-if CONFIG['OS_ARCH'] == 'WINNT':
-    platform = 'win'
-elif CONFIG['OS_ARCH'] == 'OS2':
-    platform = 'os2'
-
-if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
-    platform = 'mac'
-
-if CONFIG['OS_TARGET'] == 'Android':
-    platform = 'android'
-
-if platform:
-    LOCAL_INCLUDES += [platform]

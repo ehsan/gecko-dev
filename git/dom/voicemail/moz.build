@@ -5,6 +5,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 XPIDL_SOURCES += [
+    'nsIDOMMozVoicemail.idl',
     'nsIDOMMozVoicemailEvent.idl',
     'nsIDOMMozVoicemailStatus.idl',
     'nsIVoicemailProvider.idl',
@@ -12,18 +13,17 @@ XPIDL_SOURCES += [
 
 XPIDL_MODULE = 'dom_voicemail'
 
+MODULE = 'dom'
+
 EXPORTS.mozilla.dom += [
     'Voicemail.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'Voicemail.cpp',
 ]
 
 FAIL_ON_WARNINGS = True
 
-LOCAL_INCLUDES += [
-    '../base',
-]
+LIBXUL_LIBRARY = True
 
-FINAL_LIBRARY = 'gklayout'

@@ -11,6 +11,60 @@
 
 #include "vm/ScopeObject.h"
 
+inline void
+JSFunction::initAtom(JSAtom *atom)
+{
+    atom_.init(atom);
+}
+
+inline void
+JSFunction::setGuessedAtom(JSAtom *atom)
+{
+    JS_ASSERT(atom_ == NULL);
+    JS_ASSERT(atom != NULL);
+    JS_ASSERT(!hasGuessedAtom());
+    atom_ = atom;
+    flags |= HAS_GUESSED_ATOM;
+}
+
+inline void
+JSFunction::setEnvironment(JSObject *obj)
+{
+    JS_ASSERT(isInterpreted());
+    *(js::HeapPtrObject *)&u.i.env_ = obj;
+}
+
+inline void
+JSFunction::initEnvironment(JSObject *obj)
+{
+    JS_ASSERT(isInterpreted());
+    ((js::HeapPtrObject *)&u.i.env_)->init(obj);
+}
+
+inline void
+JSFunction::initializeExtended()
+{
+    JS_ASSERT(isExtended());
+
+    JS_ASSERT(mozilla::ArrayLength(toExtended()->extendedSlots) == 2);
+    toExtended()->extendedSlots[0].init(js::UndefinedValue());
+    toExtended()->extendedSlots[1].init(js::UndefinedValue());
+}
+
+inline void
+JSFunction::initExtendedSlot(size_t which, const js::Value &val)
+{
+    JS_ASSERT(which < mozilla::ArrayLength(toExtended()->extendedSlots));
+    toExtended()->extendedSlots[which].init(val);
+}
+
+inline void
+JSFunction::setExtendedSlot(size_t which, const js::Value &val)
+{
+    JS_ASSERT(which < mozilla::ArrayLength(toExtended()->extendedSlots));
+    toExtended()->extendedSlots[which] = val;
+}
+
 namespace js {
 
 inline const char *
@@ -26,7 +80,7 @@ static inline JSObject *
 SkipScopeParent(JSObject *parent)
 {
     if (!parent)
-        return nullptr;
+        return NULL;
     while (parent->is<ScopeObject>())
         parent = &parent->as<ScopeObject>().enclosingScope();
     return parent;
@@ -44,9 +98,9 @@ CanReuseFunctionForClone(JSContext *cx, HandleFunction fun)
         lazy->setHasBeenCloned();
     } else {
         JSScript *script = fun->nonLazyScript();
-        if (script->hasBeenCloned())
+        if (script->hasBeenCloned)
             return false;
-        script->setHasBeenCloned();
+        script->hasBeenCloned = true;
     }
     return true;
 }
@@ -70,7 +124,7 @@ CloneFunctionObjectIfNotSingleton(JSContext *cx, HandleFunction fun, HandleObjec
     if (CanReuseFunctionForClone(cx, fun)) {
         RootedObject obj(cx, SkipScopeParent(parent));
         if (!JSObject::setParent(cx, fun, obj))
-            return nullptr;
+            return NULL;
         fun->setEnvironment(parent);
         return fun;
     }
@@ -86,5 +140,48 @@ CloneFunctionObjectIfNotSingleton(JSContext *cx, HandleFunction fun, HandleObjec
 }
 
 } /* namespace js */
+
+inline JSScript *
+JSFunction::existingScript()
+{
+    JS_ASSERT(isInterpreted());
+    if (isInterpretedLazy()) {
+        js::LazyScript *lazy = lazyScript();
+        JSScript *script = lazy->maybeScript();
+        JS_ASSERT(script);
+
+        if (zone()->needsBarrier())
+            js::LazyScript::writeBarrierPre(lazy);
+
+        flags &= ~INTERPRETED_LAZY;
+        flags |= INTERPRETED;
+        initScript(script);
+    }
+    JS_ASSERT(hasScript());
+    return u.i.s.script_;
+}
+
+inline void
+JSFunction::setScript(JSScript *script_)
+{
+    JS_ASSERT(isInterpreted());
+    mutableScript() = script_;
+}
+
+inline void
+JSFunction::initScript(JSScript *script_)
+{
+    JS_ASSERT(isInterpreted());
+    mutableScript().init(script_);
+}
+
+inline JSObject *
+JSFunction::getBoundFunctionTarget() const
+{
+    JS_ASSERT(isBoundFunction());
+
+    /* Bound functions abuse |parent| to store their target function. */
+    return getParent();
+}
 
 #endif /* jsfuninlines_h */

@@ -12,14 +12,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "gflags/gflags.h"
+#include "google/gflags.h"
 #include "webrtc/modules/video_coding/main/interface/video_coding.h"
+#include "webrtc/modules/video_coding/main/test/receiver_tests.h"
+#include "webrtc/modules/video_coding/main/test/normal_test.h"
 #include "webrtc/modules/video_coding/main/test/codec_database_test.h"
 #include "webrtc/modules/video_coding/main/test/generic_codec_test.h"
 #include "webrtc/modules/video_coding/main/test/media_opt_test.h"
-#include "webrtc/modules/video_coding/main/test/normal_test.h"
 #include "webrtc/modules/video_coding/main/test/quality_modes_test.h"
-#include "webrtc/modules/video_coding/main/test/receiver_tests.h"
 #include "webrtc/modules/video_coding/main/test/test_util.h"
 #include "webrtc/test/testsupport/fileutils.h"
 
@@ -97,6 +97,8 @@ int main(int argc, char **argv) {
     case 0:
       ret = NormalTest::RunTest(args);
       ret |= CodecDataBaseTest::RunTest(args);
+      ret |= ReceiverTimingTests(args);
+      ret |= JitterBufferTest(args);
       break;
     case 1:
       ret = NormalTest::RunTest(args);
@@ -114,6 +116,9 @@ int main(int argc, char **argv) {
       // 0- normal, 1-Release test(50 runs) 2- from file
       ret = MediaOptTest::RunTest(0, args);
       break;
+    case 6:
+      ret = ReceiverTimingTests(args);
+      break;
     case 7:
       ret = RtpPlay(args);
       break;
@@ -121,6 +126,12 @@ int main(int argc, char **argv) {
       ret = RtpPlayMT(args);
       break;
     case 9:
+      ret = JitterBufferTest(args);
+      break;
+    case 10:
+      ret = DecodeFromStorageTest(args);
+      break;
+    case 11:
       qualityModeTest(args);
       break;
     default:

@@ -7,6 +7,21 @@
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 
+const EVENT_VIRTUALCURSOR_CHANGED = Ci.nsIAccessibleEvent.EVENT_VIRTUALCURSOR_CHANGED;
+const EVENT_STATE_CHANGE = Ci.nsIAccessibleEvent.EVENT_STATE_CHANGE;
+const EVENT_SCROLLING_START = Ci.nsIAccessibleEvent.EVENT_SCROLLING_START;
+const EVENT_TEXT_CARET_MOVED = Ci.nsIAccessibleEvent.EVENT_TEXT_CARET_MOVED;
+const EVENT_TEXT_INSERTED = Ci.nsIAccessibleEvent.EVENT_TEXT_INSERTED;
+const EVENT_TEXT_REMOVED = Ci.nsIAccessibleEvent.EVENT_TEXT_REMOVED;
+const EVENT_FOCUS = Ci.nsIAccessibleEvent.EVENT_FOCUS;
+const EVENT_SHOW = Ci.nsIAccessibleEvent.EVENT_SHOW;
+const EVENT_HIDE = Ci.nsIAccessibleEvent.EVENT_HIDE;
+
+const ROLE_INTERNAL_FRAME = Ci.nsIAccessibleRole.ROLE_INTERNAL_FRAME;
+const ROLE_DOCUMENT = Ci.nsIAccessibleRole.ROLE_DOCUMENT;
+const ROLE_CHROME_WINDOW = Ci.nsIAccessibleRole.ROLE_CHROME_WINDOW;
+const ROLE_TEXT_LEAF = Ci.nsIAccessibleRole.ROLE_TEXT_LEAF;
+
 const TEXT_NODE = 3;
 
 Cu.import('resource://gre/modules/XPCOMUtils.jsm');
@@ -20,10 +35,6 @@ XPCOMUtils.defineLazyModuleGetter(this, 'Presentation',
   'resource://gre/modules/accessibility/Presentation.jsm');
 XPCOMUtils.defineLazyModuleGetter(this, 'TraversalRules',
   'resource://gre/modules/accessibility/TraversalRules.jsm');
-XPCOMUtils.defineLazyModuleGetter(this, 'Roles',
-  'resource://gre/modules/accessibility/Constants.jsm');
-XPCOMUtils.defineLazyModuleGetter(this, 'Events',
-  'resource://gre/modules/accessibility/Constants.jsm');
 
 this.EXPORTED_SYMBOLS = ['EventManager'];
 
@@ -46,7 +57,7 @@ this.EventManager.prototype = {
   start: function start() {
     try {
       if (!this._started) {
-        Logger.debug('EventManager.start');
+        Logger.info('EventManager.start', Utils.MozBuildApp);
 
         this._started = true;
 
@@ -57,6 +68,8 @@ this.EventManager.prototype = {
            Ci.nsIWebProgress.NOTIFY_LOCATION));
         this.addEventListener('scroll', this, true);
         this.addEventListener('resize', this, true);
+        // XXX: Ideally this would be an a11y event. Bug #742280.
+        this.addEventListener('DOMActivate', this, true);
       }
       this.present(Presentation.tabStateChanged(null, 'newtab'));
 
@@ -71,12 +84,14 @@ this.EventManager.prototype = {
     if (!this._started) {
       return;
     }
-    Logger.debug('EventManager.stop');
+    Logger.info('EventManager.stop', Utils.MozBuildApp);
     AccessibilityEventObserver.removeListener(this);
     try {
       this.webProgress.removeProgressListener(this);
       this.removeEventListener('scroll', this, true);
       this.removeEventListener('resize', this, true);
+      // XXX: Ideally this would be an a11y event. Bug #742280.
+      this.removeEventListener('DOMActivate', this, true);
     } catch (x) {
       // contentScope is dead.
     } finally {
@@ -87,6 +102,21 @@ this.EventManager.prototype = {
   handleEvent: function handleEvent(aEvent) {
     try {
       switch (aEvent.type) {
+      case 'DOMActivate':
+      {
+        let activatedAcc =
+          Utils.AccRetrieval.getAccessibleFor(aEvent.originalTarget);
+        let [state, extState] = Utils.getStates(activatedAcc);
+
+        // Checkable objects will have a state changed event that we will use
+        // instead of this hackish DOMActivate. We will also know the true
+        // action that was taken.
+        if (state & Ci.nsIAccessibleStates.STATE_CHECKABLE)
+          return;
+
+        this.present(Presentation.actionInvoked(activatedAcc, 'click'));
+        break;
+      }
       case 'scroll':
       case 'resize':
       {
@@ -114,7 +144,7 @@ this.EventManager.prototype = {
 
     // Don't bother with non-content events in firefox.
     if (Utils.MozBuildApp == 'browser' &&
-        aEvent.eventType != Events.VIRTUALCURSOR_CHANGED &&
+        aEvent.eventType != EVENT_VIRTUALCURSOR_CHANGED &&
         // XXX Bug 442005 results in DocAccessible::getDocType returning
         // NS_ERROR_FAILURE. Checking for aEvent.accessibleDocument.docType ==
         // 'window' does not currently work.
@@ -124,12 +154,12 @@ this.EventManager.prototype = {
     }
 
     switch (aEvent.eventType) {
-      case Events.VIRTUALCURSOR_CHANGED:
+      case EVENT_VIRTUALCURSOR_CHANGED:
       {
         let pivot = aEvent.accessible.
           QueryInterface(Ci.nsIAccessibleDocument).virtualCursor;
         let position = pivot.position;
-        if (position && position.role == Roles.INTERNAL_FRAME)
+        if (position && position.role == ROLE_INTERNAL_FRAME)
           break;
         let event = aEvent.
           QueryInterface(Ci.nsIAccessibleVirtualCursorChangeEvent);
@@ -144,7 +174,7 @@ this.EventManager.prototype = {
 
         break;
       }
-      case Events.STATE_CHANGE:
+      case EVENT_STATE_CHANGE:
       {
         let event = aEvent.QueryInterface(Ci.nsIAccessibleStateChangeEvent);
         if (event.state == Ci.nsIAccessibleStates.STATE_CHECKED &&
@@ -153,21 +183,16 @@ this.EventManager.prototype = {
             Presentation.
               actionInvoked(aEvent.accessible,
                             event.isEnabled ? 'check' : 'uncheck'));
-        } else if (event.state == Ci.nsIAccessibleStates.STATE_SELECTED) {
-          this.present(
-            Presentation.
-              actionInvoked(aEvent.accessible,
-                            event.isEnabled ? 'select' : 'unselect'));
         }
         break;
       }
-      case Events.SCROLLING_START:
+      case EVENT_SCROLLING_START:
       {
         let vc = Utils.getVirtualCursor(aEvent.accessibleDocument);
         vc.moveNext(TraversalRules.Simple, aEvent.accessible, true);
         break;
       }
-      case Events.TEXT_CARET_MOVED:
+      case EVENT_TEXT_CARET_MOVED:
       {
         let acc = aEvent.accessible;
         let characterCount = acc.
@@ -203,7 +228,7 @@ this.EventManager.prototype = {
         this.editState = editState;
         break;
       }
-      case Events.SHOW:
+      case EVENT_SHOW:
       {
         let {liveRegion, isPolite} = this._handleLiveRegion(aEvent,
           ['additions', 'all']);
@@ -212,14 +237,14 @@ this.EventManager.prototype = {
           break;
         }
         // Show for text is handled by the EVENT_TEXT_INSERTED handler.
-        if (aEvent.accessible.role === Roles.TEXT_LEAF) {
+        if (aEvent.accessible.role === ROLE_TEXT_LEAF) {
           break;
         }
-        this._dequeueLiveEvent(Events.HIDE, liveRegion);
+        this._dequeueLiveEvent(EVENT_HIDE, liveRegion);
         this.present(Presentation.liveRegion(liveRegion, isPolite, false));
         break;
       }
-      case Events.HIDE:
+      case EVENT_HIDE:
       {
         let {liveRegion, isPolite} = this._handleLiveRegion(
           aEvent.QueryInterface(Ci.nsIAccessibleHideEvent),
@@ -229,14 +254,14 @@ this.EventManager.prototype = {
           break;
         }
         // Hide for text is handled by the EVENT_TEXT_REMOVED handler.
-        if (aEvent.accessible.role === Roles.TEXT_LEAF) {
+        if (aEvent.accessible.role === ROLE_TEXT_LEAF) {
           break;
         }
-        this._queueLiveEvent(Events.HIDE, liveRegion, isPolite);
+        this._queueLiveEvent(EVENT_HIDE, liveRegion, isPolite);
         break;
       }
-      case Events.TEXT_INSERTED:
-      case Events.TEXT_REMOVED:
+      case EVENT_TEXT_INSERTED:
+      case EVENT_TEXT_REMOVED:
       {
         let {liveRegion, isPolite} = this._handleLiveRegion(aEvent,
           ['text', 'all']);
@@ -247,12 +272,12 @@ this.EventManager.prototype = {
         }
         break;
       }
-      case Events.FOCUS:
+      case EVENT_FOCUS:
       {
         // Put vc where the focus is at
         let acc = aEvent.accessible;
         let doc = aEvent.accessibleDocument;
-        if (acc.role != Roles.DOCUMENT && doc.role != Roles.CHROME_WINDOW) {
+        if (acc.role != ROLE_DOCUMENT && doc.role != ROLE_CHROME_WINDOW) {
           let vc = Utils.getVirtualCursor(doc);
           vc.moveNext(TraversalRules.Simple, acc, true);
         }
@@ -284,11 +309,11 @@ this.EventManager.prototype = {
       return;
     }
     if (aLiveRegion) {
-      if (aEvent.eventType === Events.TEXT_REMOVED) {
-        this._queueLiveEvent(Events.TEXT_REMOVED, aLiveRegion, aIsPolite,
+      if (aEvent.eventType === EVENT_TEXT_REMOVED) {
+        this._queueLiveEvent(EVENT_TEXT_REMOVED, aLiveRegion, aIsPolite,
           modifiedText);
       } else {
-        this._dequeueLiveEvent(Events.TEXT_REMOVED, aLiveRegion);
+        this._dequeueLiveEvent(EVENT_TEXT_REMOVED, aLiveRegion);
         this.present(Presentation.liveRegion(aLiveRegion, aIsPolite, false,
           modifiedText));
       }

@@ -17,9 +17,7 @@
 %define urlbar_edit_height 36px
 
 %define toolbar_vertical_spacing 5px
-%define toolbar_horizontal_spacing 17px
-%define toolbar_horizontal_padding 21px
-%define toolbar_snapped_horizontal_padding 10px
+%define toolbar_horizontal_spacing 20px
 %define toolbar_snapped_horizontal_spacing 10px
 
 % XXX Per UX mockups, this should be 68px, but we need to make this
@@ -40,7 +38,6 @@
 %define grid_double_column_width 262px
 %define grid_row_height 86px
 %define grid_double_row_height 172px
-%define grid_search_width 86px
 
 %define compactgrid_column_width 62px
 %define compactgrid_row_height 62px
@@ -68,8 +65,7 @@
 %define metro_font_snormal 14px
 %define metro_font_normal 15px
 %define metro_font_large 25px
-%define metro_font_xlarge 35px
-%define metro_font_xxlarge 45px
+%define metro_font_xlarge 45px
 
 %define font_normal 16px
 %define font_snormal 15px
@@ -79,7 +75,6 @@
 %define touch_row 47px
 %define touch_button_small 37px
 %define touch_action_minwidth 133px
-%define touch_action_snapped_minwidth 80px
 
 %define margin_large 16px
 %define margin_xnormal 7px
@@ -102,12 +97,9 @@
 %define metro_animation_duration 550ms
 %define metro_animation_easing cubic-bezier(0.1, 0.9, 0.2, 1)
 
-% duration and easing function to approximately match system keyboard
-% as animation cant be in lock-step with system OSK animation, some mismatch is inevitable
-% so we match velocity/cadence but delay to bring appbars in a tad after OSK
-%define appbar_keyboard_slideup_duration 420ms
-%define appbar_keyboard_slideup_delay 90ms
-%define appbar_keyboard_slideup_easing cubic-bezier(0, 1, 0.4, 0.96)
+% this is meant to be slower than the system keyboard such
+% that the bars slide up after the keyboard is in place.
+%define appbar_keyboard_slideup_duration 750ms
 
 % minimum resolution cutoffs for displaying 1.4x and 1.8x versions of icons
 % XXX currently, there's some weirdness with the dppx unit, as documented in

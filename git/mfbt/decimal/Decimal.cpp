@@ -34,8 +34,6 @@
 #include <algorithm>
 #include <float.h>
 
-using namespace moz_decimal_utils;
-
 namespace WebCore {
 
 namespace DecimalPrivate {

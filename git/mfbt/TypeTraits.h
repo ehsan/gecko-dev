@@ -63,9 +63,6 @@ template<> struct IsIntegralHelper<long long>          : TrueType {};
 template<> struct IsIntegralHelper<unsigned long long> : TrueType {};
 template<> struct IsIntegralHelper<bool>               : TrueType {};
 template<> struct IsIntegralHelper<wchar_t>            : TrueType {};
-#ifdef MOZ_CHAR16_IS_NOT_WCHAR
-template<> struct IsIntegralHelper<char16_t>           : TrueType {};
-#endif
 
 } /* namespace detail */
 
@@ -129,23 +126,6 @@ struct IsPointer : FalseType {};
 
 template<typename T>
 struct IsPointer<T*> : TrueType {};
-
-/**
- * IsLvalueReference determines whether a type is an lvalue reference.
- *
- * mozilla::IsLvalueReference<struct S*>::value is false;
- * mozilla::IsLvalueReference<int**>::value is false;
- * mozilla::IsLvalueReference<void (*)(void)>::value is false;
- * mozilla::IsLvalueReference<int>::value is false;
- * mozilla::IsLvalueReference<struct S>::value is false;
- * mozilla::IsLvalueReference<struct S*&>::value is true;
- * mozilla::IsLvalueReference<struct S&&>::value is false.
- */
-template<typename T>
-struct IsLvalueReference : FalseType {};
-
-template<typename T>
-struct IsLvalueReference<T&> : TrueType {};
 
 namespace detail {
 
@@ -238,9 +218,6 @@ template<> struct IsPod<bool>               : TrueType {};
 template<> struct IsPod<float>              : TrueType {};
 template<> struct IsPod<double>             : TrueType {};
 template<> struct IsPod<wchar_t>            : TrueType {};
-#ifdef MOZ_CHAR16_IS_NOT_WCHAR
-template<> struct IsPod<char16_t>           : TrueType {};
-#endif
 template<typename T> struct IsPod<T*>       : TrueType {};
 
 namespace detail {
@@ -500,32 +477,6 @@ struct RemoveCV
 };
 
 /* 20.9.7.2 Reference modifications [meta.trans.ref] */
-
-/**
- * Converts reference types to the underlying types.
- *
- * mozilla::RemoveReference<T>::Type is T;
- * mozilla::RemoveReference<T&>::Type is T;
- * mozilla::RemoveReference<T&&>::Type is T;
- */
-
-template<typename T>
-struct RemoveReference
-{
-    typedef T Type;
-};
-
-template<typename T>
-struct RemoveReference<T&>
-{
-    typedef T Type;
-};
-
-template<typename T>
-struct RemoveReference<T&&>
-{
-    typedef T Type;
-};
 
 /* 20.9.7.3 Sign modifications [meta.trans.sign] */
 

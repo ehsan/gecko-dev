@@ -4,7 +4,9 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-UNIFIED_SOURCES += [
+MODULE = 'universalchardet_s'
+
+CPP_SOURCES += [
     'CharDistribution.cpp',
     'JpCntx.cpp',
     'LangBulgarianModel.cpp',
@@ -15,21 +17,24 @@ UNIFIED_SOURCES += [
     'LangThaiModel.cpp',
     'nsBig5Prober.cpp',
     'nsCharSetProber.cpp',
-    'nsEscCharsetProber.cpp',
-    'nsEscSM.cpp',
     'nsEUCJPProber.cpp',
     'nsEUCKRProber.cpp',
     'nsEUCTWProber.cpp',
+    'nsEscCharsetProber.cpp',
+    'nsEscSM.cpp',
     'nsGB2312Prober.cpp',
     'nsHebrewProber.cpp',
     'nsLatin1Prober.cpp',
     'nsMBCSGroupProber.cpp',
     'nsMBCSSM.cpp',
-    'nsSBCharSetProber.cpp',
     'nsSBCSGroupProber.cpp',
+    'nsSBCharSetProber.cpp',
     'nsSJISProber.cpp',
-    'nsUniversalDetector.cpp',
     'nsUTF8Prober.cpp',
+    'nsUniversalDetector.cpp',
 ]
 
-FINAL_LIBRARY = 'universalchardet'
+LIBRARY_NAME = 'universalchardet_s'
+
+LIBXUL_LIBRARY = True
+

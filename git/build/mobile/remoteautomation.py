@@ -11,12 +11,10 @@ import subprocess
 
 from automation import Automation
 from devicemanager import NetworkTools, DMError
-import mozcrash
 
 # signatures for logcat messages that we don't care about much
 fennecLogcatFilters = [ "The character encoding of the HTML document was not declared",
-                        "Use of Mutation Events is deprecated. Use MutationObserver instead.",
-                        "Unexpected value from nativeGetEnabledTags: 0" ]
+                           "Use of Mutation Events is deprecated. Use MutationObserver instead." ]
 
 class RemoteAutomation(Automation):
     _devicemanager = None
@@ -48,23 +46,19 @@ class RemoteAutomation(Automation):
         self._remoteLog = logfile
 
     # Set up what we need for the remote environment
-    def environment(self, env=None, xrePath=None, crashreporter=True, debugger=False, dmdPath=None):
+    def environment(self, env = None, xrePath = None, crashreporter = True):
         # Because we are running remote, we don't want to mimic the local env
         # so no copying of os.environ
         if env is None:
             env = {}
 
-        if dmdPath:
-            env['DMD'] = '1'
-            env['MOZ_REPLACE_MALLOC_LIB'] = os.path.join(dmdPath, 'libdmd.so')
-
         # Except for the mochitest results table hiding option, which isn't
         # passed to runtestsremote.py as an actual option, but through the
-        # MOZ_HIDE_RESULTS_TABLE environment variable.
+        # MOZ_CRASHREPORTER_DISABLE environment variable.
         if 'MOZ_HIDE_RESULTS_TABLE' in os.environ:
             env['MOZ_HIDE_RESULTS_TABLE'] = os.environ['MOZ_HIDE_RESULTS_TABLE']
 
-        if crashreporter and not debugger:
+        if crashreporter:
             env['MOZ_CRASHREPORTER_NO_REPORT'] = '1'
             env['MOZ_CRASHREPORTER'] = '1'
         else:
@@ -91,6 +85,36 @@ class RemoteAutomation(Automation):
             proc.kill()
 
         return status
+
+    def checkForJavaException(self, logcat):
+        found_exception = False
+        for i, line in enumerate(logcat):
+            if "REPORTING UNCAUGHT EXCEPTION" in line or "FATAL EXCEPTION" in line:
+                # Strip away the date, time, logcat tag and pid from the next two lines and
+                # concatenate the remainder to form a concise summary of the exception. 
+                #
+                # For example:
+                #
+                # 01-30 20:15:41.937 E/GeckoAppShell( 1703): >>> REPORTING UNCAUGHT EXCEPTION FROM THREAD 9 ("GeckoBackgroundThread")
+                # 01-30 20:15:41.937 E/GeckoAppShell( 1703): java.lang.NullPointerException
+                # 01-30 20:15:41.937 E/GeckoAppShell( 1703): 	at org.mozilla.gecko.GeckoApp$21.run(GeckoApp.java:1833)
+                # 01-30 20:15:41.937 E/GeckoAppShell( 1703): 	at android.os.Handler.handleCallback(Handler.java:587)
+                # 01-30 20:15:41.937 E/GeckoAppShell( 1703): 	at android.os.Handler.dispatchMessage(Handler.java:92)
+                # 01-30 20:15:41.937 E/GeckoAppShell( 1703): 	at android.os.Looper.loop(Looper.java:123)
+                # 01-30 20:15:41.937 E/GeckoAppShell( 1703): 	at org.mozilla.gecko.util.GeckoBackgroundThread.run(GeckoBackgroundThread.java:31)
+                #
+                #   -> java.lang.NullPointerException at org.mozilla.gecko.GeckoApp$21.run(GeckoApp.java:1833)
+                found_exception = True
+                logre = re.compile(r".*\): \t?(.*)")
+                m = logre.search(logcat[i+1])
+                if m and m.group(1):
+                    top_frame = m.group(1)
+                m = logre.search(logcat[i+2])
+                if m and m.group(1):
+                    top_frame = top_frame + m.group(1)
+                print "PROCESS-CRASH | java-exception | %s" % top_frame
+                break
+        return found_exception
 
     def deleteANRs(self):
         # delete ANR traces.txt file; usually need root permissions
@@ -120,7 +144,7 @@ class RemoteAutomation(Automation):
         self.checkForANRs()
 
         logcat = self._devicemanager.getLogcat(filterOutRegexps=fennecLogcatFilters)
-        javaException = mozcrash.check_for_java_exception(logcat)
+        javaException = self.checkForJavaException(logcat)
         if javaException:
             return True
 

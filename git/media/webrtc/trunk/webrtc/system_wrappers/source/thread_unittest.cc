@@ -10,7 +10,7 @@
 
 #include "webrtc/system_wrappers/interface/thread_wrapper.h"
 
-#include "testing/gtest/include/gtest/gtest.h"
+#include "gtest/gtest.h"
 #include "webrtc/system_wrappers/interface/scoped_ptr.h"
 
 namespace webrtc {
@@ -19,10 +19,6 @@ namespace webrtc {
 bool NullRunFunction(void* obj) {
   return true;
 }
-
-// Disable for TSan v2, see
-// https://code.google.com/p/webrtc/issues/detail?id=2259 for details.
-#if !defined(THREAD_SANITIZER)
 
 TEST(ThreadTest, StartStop) {
   ThreadWrapper* thread = ThreadWrapper::CreateThread(&NullRunFunction, NULL);
@@ -53,7 +49,5 @@ TEST(ThreadTest, RunFunctionIsCalled) {
   EXPECT_TRUE(flag);
   delete thread;
 }
-
-#endif // if !defined(THREAD_SANITIZER)
 
 }  // namespace webrtc

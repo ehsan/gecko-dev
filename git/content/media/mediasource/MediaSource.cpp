@@ -6,27 +6,11 @@
 
 #include "MediaSource.h"
 
-#include "AsyncEventRunner.h"
-#include "DecoderTraits.h"
+#include "mozilla/dom/HTMLMediaElement.h"
+#include "MediaSourceInputAdapter.h"
 #include "SourceBuffer.h"
 #include "SourceBufferList.h"
-#include "mozilla/ErrorResult.h"
-#include "mozilla/FloatingPoint.h"
-#include "mozilla/dom/BindingDeclarations.h"
-#include "mozilla/dom/HTMLMediaElement.h"
-#include "mozilla/mozalloc.h"
 #include "nsContentTypeParser.h"
-#include "nsDebug.h"
-#include "nsError.h"
-#include "nsIEventTarget.h"
-#include "nsIRunnable.h"
-#include "nsPIDOMWindow.h"
-#include "nsStringGlue.h"
-#include "nsThreadUtils.h"
-#include "prlog.h"
-
-struct JSContext;
-class JSObject;
 
 #ifdef PR_LOGGING
 PRLogModuleInfo* gMediaSourceLog;
@@ -35,12 +19,16 @@ PRLogModuleInfo* gMediaSourceLog;
 #define LOG(type, msg)
 #endif
 
-// Arbitrary limit.
-static const unsigned int MAX_SOURCE_BUFFERS = 16;
-
 namespace mozilla {
-
 namespace dom {
+
+already_AddRefed<nsIInputStream>
+MediaSource::CreateInternalStream()
+{
+  nsRefPtr<MediaSourceInputAdapter> adapter = new MediaSourceInputAdapter(this);
+  mAdapters.AppendElement(adapter);
+  return adapter.forget();
+}
 
 /* static */ already_AddRefed<MediaSource>
 MediaSource::Constructor(const GlobalObject& aGlobal,
@@ -106,7 +94,8 @@ MediaSource::AddSourceBuffer(const nsAString& aType, ErrorResult& aRv)
   if (!IsTypeSupportedInternal(aType, aRv)) {
     return nullptr;
   }
-  if (mSourceBuffers->Length() >= MAX_SOURCE_BUFFERS) {
+  // TODO: Temporary limit until multiple decoders are supported.  Bug 881512.
+  if (mSourceBuffers->Length() >= 1) {
     aRv.Throw(NS_ERROR_DOM_QUOTA_EXCEEDED_ERR);
     return nullptr;
   }
@@ -114,17 +103,10 @@ MediaSource::AddSourceBuffer(const nsAString& aType, ErrorResult& aRv)
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return nullptr;
   }
-  nsContentTypeParser parser(aType);
-  nsAutoString mimeType;
-  nsresult rv = parser.GetType(mimeType);
-  if (NS_FAILED(rv)) {
-    aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
-    return nullptr;
-  }
-  nsRefPtr<SourceBuffer> sourceBuffer = new SourceBuffer(this, NS_ConvertUTF16toUTF8(mimeType));
+  mContentType = aType;
+  nsRefPtr<SourceBuffer> sourceBuffer = new SourceBuffer(this);
   mSourceBuffers->Append(sourceBuffer);
-  LOG(PR_LOG_DEBUG, ("%p AddSourceBuffer(Type=%s) -> %p", this,
-                     NS_ConvertUTF16toUTF8(mimeType).get(), sourceBuffer.get()));
+  sourceBuffer->Attach();
   return sourceBuffer.forget();
 }
 
@@ -154,6 +136,7 @@ MediaSource::RemoveSourceBuffer(SourceBuffer& aSourceBuffer, ErrorResult& aRv)
     mActiveSourceBuffers->Remove(sourceBuffer);
   }
   mSourceBuffers->Remove(sourceBuffer);
+  sourceBuffer->Detach();
   // TODO: Free all resources associated with sourceBuffer
 }
 
@@ -176,37 +159,49 @@ MediaSource::IsTypeSupported(const GlobalObject& aGlobal,
   return IsTypeSupportedInternal(aType, unused);
 }
 
-bool
-MediaSource::Attach(MediaSourceDecoder* aDecoder)
+void
+MediaSource::AppendData(const uint8_t* aData, uint32_t aLength, ErrorResult& aRv)
 {
-  LOG(PR_LOG_DEBUG, ("%p Attaching decoder %p owner %p", this, aDecoder, aDecoder->GetOwner()));
-  MOZ_ASSERT(aDecoder);
+  MonitorAutoLock mon(mMonitor);
+  LOG(PR_LOG_DEBUG, ("%p Append(ArrayBuffer=%u) mData=%u", this, aLength, mData.Length()));
+  mData.AppendElements(aData, aLength);
+  NotifyListeners();
+}
+
+bool
+MediaSource::AttachElement(HTMLMediaElement* aElement)
+{
+  LOG(PR_LOG_DEBUG, ("%p Attaching element %p", this, aElement));
+  MOZ_ASSERT(aElement);
+  mElement = aElement;
   if (mReadyState != MediaSourceReadyState::Closed) {
     return false;
   }
-  mDecoder = aDecoder;
-  mDecoder->AttachMediaSource(this);
   SetReadyState(MediaSourceReadyState::Open);
   return true;
 }
 
 void
-MediaSource::Detach()
+MediaSource::DetachElement()
 {
-  LOG(PR_LOG_DEBUG, ("%p Detaching decoder %p owner %p", this, mDecoder.get(), mDecoder->GetOwner()));
-  MOZ_ASSERT(mDecoder);
-  mDecoder->DetachMediaSource();
-  mDecoder = nullptr;
+  LOG(PR_LOG_DEBUG, ("%p Detaching element %p", this, mElement.get()));
+  MOZ_ASSERT(mElement);
+  mElement = nullptr;
   mDuration = UnspecifiedNaN();
   mActiveSourceBuffers->Clear();
-  mSourceBuffers->Clear();
+  mSourceBuffers->DetachAndClear();
   SetReadyState(MediaSourceReadyState::Closed);
+
+  for (uint32_t i = 0; i < mAdapters.Length(); ++i) {
+    mAdapters[i]->Close();
+  }
+  mAdapters.Clear();
 }
 
 MediaSource::MediaSource(nsPIDOMWindow* aWindow)
   : nsDOMEventTargetHelper(aWindow)
   , mDuration(UnspecifiedNaN())
-  , mDecoder(nullptr)
+  , mMonitor("mozilla::dom::MediaSource::mMonitor")
   , mReadyState(MediaSourceReadyState::Closed)
 {
   mSourceBuffers = new SourceBufferList(this);
@@ -223,31 +218,43 @@ void
 MediaSource::SetReadyState(MediaSourceReadyState aState)
 {
   MOZ_ASSERT(aState != mReadyState);
+  MonitorAutoLock mon(mMonitor);
 
-  MediaSourceReadyState oldState = mReadyState;
-  mReadyState = aState;
+  NotifyListeners();
 
-  if (mReadyState == MediaSourceReadyState::Open &&
-      (oldState == MediaSourceReadyState::Closed ||
-       oldState == MediaSourceReadyState::Ended)) {
+  if ((mReadyState == MediaSourceReadyState::Closed ||
+       mReadyState == MediaSourceReadyState::Ended) &&
+      aState == MediaSourceReadyState::Open) {
+    mReadyState = aState;
     QueueAsyncSimpleEvent("sourceopen");
     return;
   }
 
-  if (mReadyState == MediaSourceReadyState::Ended &&
-      oldState == MediaSourceReadyState::Open) {
+  if (mReadyState == MediaSourceReadyState::Open &&
+      aState == MediaSourceReadyState::Ended) {
+    mReadyState = aState;
     QueueAsyncSimpleEvent("sourceended");
     return;
   }
 
-  if (mReadyState == MediaSourceReadyState::Closed &&
-      (oldState == MediaSourceReadyState::Open ||
-       oldState == MediaSourceReadyState::Ended)) {
+  if ((mReadyState == MediaSourceReadyState::Open ||
+       mReadyState == MediaSourceReadyState::Ended) &&
+      aState == MediaSourceReadyState::Closed) {
+    mReadyState = aState;
     QueueAsyncSimpleEvent("sourceclose");
     return;
   }
 
   NS_WARNING("Invalid MediaSource readyState transition");
+}
+
+void
+MediaSource::GetBuffered(TimeRanges* aRanges)
+{
+  if (mActiveSourceBuffers->Length() == 0) {
+    return;
+  }
+  // TODO: Implement intersection computation.
 }
 
 void
@@ -261,8 +268,16 @@ void
 MediaSource::QueueAsyncSimpleEvent(const char* aName)
 {
   LOG(PR_LOG_DEBUG, ("%p Queuing event %s to MediaSource", this, aName));
-  nsCOMPtr<nsIRunnable> event = new AsyncEventRunner<MediaSource>(this, aName);
+  nsCOMPtr<nsIRunnable> event = new AsyncEventRunnner<MediaSource>(this, aName);
   NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
+}
+
+void
+MediaSource::NotifyListeners()
+{
+  for (uint32_t i = 0; i < mAdapters.Length(); ++i) {
+    mAdapters[i]->NotifyListener();
+  }
 }
 
 void
@@ -287,7 +302,6 @@ void
 MediaSource::EndOfStreamInternal(const Optional<MediaSourceEndOfStreamError>& aError, ErrorResult& aRv)
 {
   SetReadyState(MediaSourceReadyState::Ended);
-  mSourceBuffers->Ended();
   if (!aError.WasPassed()) {
     // TODO:
     // Run duration change algorithm.
@@ -314,12 +328,11 @@ MediaSource::EndOfStreamInternal(const Optional<MediaSourceEndOfStreamError>& aE
   }
 }
 
-static const char* const gMediaSourceTypes[6] = {
+static const char* const gMediaSourceTypes[5] = {
   "video/webm",
   "audio/webm",
   "video/mp4",
   "audio/mp4",
-  "audio/mpeg",
   nullptr
 };
 
@@ -371,8 +384,8 @@ MediaSource::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
   return MediaSourceBinding::Wrap(aCx, aScope, this);
 }
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_2(MediaSource, nsDOMEventTargetHelper,
-                                     mSourceBuffers, mActiveSourceBuffers)
+NS_IMPL_CYCLE_COLLECTION_INHERITED_4(MediaSource, nsDOMEventTargetHelper,
+                                     mSourceBuffers, mActiveSourceBuffers, mAdapters, mElement)
 
 NS_IMPL_ADDREF_INHERITED(MediaSource, nsDOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(MediaSource, nsDOMEventTargetHelper)
@@ -382,5 +395,4 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(MediaSource)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 
 } // namespace dom
-
 } // namespace mozilla

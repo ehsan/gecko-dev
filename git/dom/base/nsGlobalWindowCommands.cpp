@@ -11,8 +11,8 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsCRT.h"
 #include "nsString.h"
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/Preferences.h"
+#include "mozilla/Util.h"
 
 #include "nsIControllerCommandTable.h"
 #include "nsICommandParams.h"
@@ -27,8 +27,8 @@
 #include "nsFocusManager.h"
 #include "nsCopySupport.h"
 #include "nsIClipboard.h"
+#include "nsGUIEvent.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/BasicEvents.h"
 
 #include "nsIClipboardDragDropHooks.h"
 #include "nsIClipboardDragDropHookList.h"

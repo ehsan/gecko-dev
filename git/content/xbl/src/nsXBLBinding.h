@@ -15,7 +15,6 @@
 #include "nsTArray.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsISupportsImpl.h"
-#include "js/TypeDecls.h"
 
 class nsXBLPrototypeBinding;
 class nsIContent;
@@ -26,13 +25,14 @@ class nsIScriptContext;
 namespace mozilla {
 namespace dom {
 
-class ShadowRoot;
 class XBLChildrenElement;
 
-} // namespace dom
-} // namespace mozilla
+}
+}
 
 class nsAnonymousContentList;
+struct JSContext;
+class JSObject;
 
 // *********************************************************************/
 // The XBLBinding class
@@ -41,7 +41,6 @@ class nsXBLBinding
 {
 public:
   nsXBLBinding(nsXBLPrototypeBinding* aProtoBinding);
-  nsXBLBinding(mozilla::dom::ShadowRoot* aShadowRoot, nsXBLPrototypeBinding* aProtoBinding);
   ~nsXBLBinding();
 
   /**
@@ -58,11 +57,11 @@ public:
 
   NS_DECL_CYCLE_COLLECTION_NATIVE_CLASS(nsXBLBinding)
 
-  nsXBLPrototypeBinding* PrototypeBinding() const { return mPrototypeBinding; }
+  nsXBLPrototypeBinding* PrototypeBinding() { return mPrototypeBinding; }
   nsIContent* GetAnonymousContent() { return mContent.get(); }
   nsXBLBinding* GetBindingWithContent();
 
-  nsXBLBinding* GetBaseBinding() const { return mNextBinding; }
+  nsXBLBinding* GetBaseBinding() { return mNextBinding; }
   void SetBaseBinding(nsXBLBinding *aBinding);
 
   nsIContent* GetBoundElement() { return mBoundElement; }
@@ -81,8 +80,7 @@ public:
    * May only be called when XBL code is being run in a separate scope, because
    * otherwise we don't have untainted data with which to do a proper lookup.
    */
-  bool LookupMember(JSContext* aCx, JS::Handle<jsid> aId,
-                    JS::MutableHandle<JSPropertyDescriptor> aDesc);
+  bool LookupMember(JSContext* aCx, JS::HandleId aId, JS::MutableHandle<JSPropertyDescriptor> aDesc);
 
   /*
    * Determines whether the binding has a field with the given name.
@@ -94,8 +92,7 @@ protected:
   /*
    * Internal version. Requires that aCx is in appropriate xbl scope.
    */
-  bool LookupMemberInternal(JSContext* aCx, nsString& aName,
-                            JS::Handle<jsid> aNameAsId,
+  bool LookupMemberInternal(JSContext* aCx, nsString& aName, JS::HandleId aNameAsId,
                             JS::MutableHandle<JSPropertyDescriptor> aDesc,
                             JS::Handle<JSObject*> aXBLScope);
 
@@ -141,7 +138,7 @@ public:
                                 JS::MutableHandle<JSObject*> aClassObject,
                                 bool* aNew);
 
-  bool AllowScripts();
+  bool AllowScripts();  // XXX make const
 
   mozilla::dom::XBLChildrenElement* FindInsertionPointFor(nsIContent* aChild);
 
@@ -166,7 +163,6 @@ public:
 protected:
 
   bool mMarkedForDeath;
-  bool mUsingXBLScope;
 
   nsXBLPrototypeBinding* mPrototypeBinding; // Weak, but we're holding a ref to the docinfo
   nsCOMPtr<nsIContent> mContent; // Strong. Our anonymous content stays around with us.

@@ -6,12 +6,16 @@
 // HttpLog.h should generally be included first
 #include "HttpLog.h"
 
+#include "nsHttp.h"
 #include "nsHttpPipeline.h"
 #include "nsHttpHandler.h"
 #include "nsIOService.h"
+#include "nsIRequest.h"
 #include "nsISocketTransport.h"
+#include "nsIStringStream.h"
 #include "nsIPipe.h"
 #include "nsCOMPtr.h"
+#include "nsComponentManagerUtils.h"
 #include <algorithm>
 
 #ifdef DEBUG
@@ -556,17 +560,6 @@ nsHttpPipeline::Caps()
         trans = Response(0);
 
     return trans ? trans->Caps() : 0;
-}
-
-void
-nsHttpPipeline::SetDNSWasRefreshed()
-{
-    nsAHttpTransaction *trans = Request(0);
-    if (!trans)
-        trans = Response(0);
-
-    if (trans)
-      trans->SetDNSWasRefreshed();
 }
 
 uint64_t

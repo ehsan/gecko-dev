@@ -17,7 +17,7 @@ class SpeechRecognitionError : public nsDOMEvent
 public:
   SpeechRecognitionError(mozilla::dom::EventTarget* aOwner,
                          nsPresContext* aPresContext,
-                         WidgetEvent* aEvent);
+                         nsEvent* aEvent);
   virtual ~SpeechRecognitionError();
 
   static already_AddRefed<SpeechRecognitionError>

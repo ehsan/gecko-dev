@@ -1,7 +1,3 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 "use strict";
 
 const Cc = Components.classes;
@@ -74,13 +70,7 @@ this.SelectContentHelper.prototype = {
   receiveMessage: function(message) {
     switch (message.name) {
       case "Forms:SelectDropDownItem":
-        if (this.element.selectedIndex != message.data.value) {
-          this.element.selectedIndex = message.data.value;
-
-          let event = this.element.ownerDocument.createEvent("Events");
-          event.initEvent("change", true, true);
-          this.element.dispatchEvent(event);
-        }
+        this.element.selectedIndex = message.data.value;
 
         //intentional fall-through
       case "Forms:DismissedDropDown":

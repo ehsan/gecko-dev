@@ -34,10 +34,7 @@
 #endif
 
 #ifdef HAVE_GLIB
-# include <glib.h>
-# if !GLIB_CHECK_VERSION (2, 22, 0)
-#  define g_mapped_file_unref g_mapped_file_free
-# endif
+#include <glib.h>
 #endif
 #include <stdlib.h>
 #include <stdio.h>
@@ -117,7 +114,7 @@ main (int argc, char **argv)
     hb_buffer_serialize_glyphs (buf, 0, hb_buffer_get_length (buf),
 				out, sizeof (out), NULL,
 				font, HB_BUFFER_SERIALIZE_FORMAT_JSON,
-				HB_BUFFER_SERIALIZE_FLAG_DEFAULT);
+				HB_BUFFER_SERIALIZE_FLAGS_DEFAULT);
     puts (out);
   }
 

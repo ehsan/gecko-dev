@@ -16,13 +16,6 @@
 
 #define PEERCONNECTION_CONTRACTID "@mozilla.org/peerconnection;1"
 
-#include "stun_udp_socket_filter.h"
-
-NS_DEFINE_NAMED_CID(NS_STUN_UDP_SOCKET_FILTER_HANDLER_CID)
-
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsStunUDPSocketFilterHandler)
-
-
 namespace sipcc
 {
 // Factory defined in sipcc::, defines sipcc::PeerConnectionImplConstructor
@@ -33,15 +26,13 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(PeerConnectionImpl)
 NS_DEFINE_NAMED_CID(PEERCONNECTION_CID);
 
 static const mozilla::Module::CIDEntry kCIDs[] = {
-  { &kPEERCONNECTION_CID, false, nullptr, sipcc::PeerConnectionImplConstructor },
-  { &kNS_STUN_UDP_SOCKET_FILTER_HANDLER_CID, false, nullptr, nsStunUDPSocketFilterHandlerConstructor },
-  { nullptr }
+  { &kPEERCONNECTION_CID, false, NULL, sipcc::PeerConnectionImplConstructor },
+  { NULL }
 };
 
 static const mozilla::Module::ContractIDEntry kContracts[] = {
   { PEERCONNECTION_CONTRACTID, &kPEERCONNECTION_CID },
-  { NS_STUN_UDP_SOCKET_FILTER_HANDLER_CONTRACTID, &kNS_STUN_UDP_SOCKET_FILTER_HANDLER_CID },
-  { nullptr }
+  { NULL }
 };
 
 static const mozilla::Module kModule = {

@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -9,16 +8,13 @@
 #ifndef nsStyleSheetService_h_
 #define nsStyleSheetService_h_
 
-#include "nsCOMArray.h"
-#include "nsCOMPtr.h"
-#include "nsIMemoryReporter.h"
 #include "nsIStyleSheetService.h"
+#include "nsCOMArray.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/MemoryReporting.h"
 
-class nsICategoryManager;
-class nsIMemoryReporter;
 class nsISimpleEnumerator;
+class nsICategoryManager;
 class nsIStyleSheet;
 
 #define NS_STYLESHEETSERVICE_CID \
@@ -27,9 +23,9 @@ class nsIStyleSheet;
 #define NS_STYLESHEETSERVICE_CONTRACTID \
   "@mozilla.org/content/style-sheet-service;1"
 
-class nsStyleSheetService MOZ_FINAL
-  : public mozilla::MemoryUniReporter
-  , public nsIStyleSheetService
+class nsIMemoryReporter;
+
+class nsStyleSheetService MOZ_FINAL : public nsIStyleSheetService
 {
  public:
   nsStyleSheetService() NS_HIDDEN;
@@ -44,12 +40,10 @@ class nsStyleSheetService MOZ_FINAL
   nsCOMArray<nsIStyleSheet>* UserStyleSheets() { return &mSheets[USER_SHEET]; }
   nsCOMArray<nsIStyleSheet>* AuthorStyleSheets() { return &mSheets[AUTHOR_SHEET]; }
 
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  static size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
 
   static nsStyleSheetService *GetInstance();
   static nsStyleSheetService *gInstance;
-
-  int64_t Amount() MOZ_OVERRIDE;
 
  private:
 
@@ -66,7 +60,11 @@ class nsStyleSheetService MOZ_FINAL
   NS_HIDDEN_(nsresult) LoadAndRegisterSheetInternal(nsIURI *aSheetURI,
                                                     uint32_t aSheetType);
 
+  size_t SizeOfIncludingThisHelper(mozilla::MallocSizeOf aMallocSizeOf) const;
+
   nsCOMArray<nsIStyleSheet> mSheets[3];
+
+  nsIMemoryReporter* mReporter;
 };
 
 #endif

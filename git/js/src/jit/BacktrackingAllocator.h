@@ -19,7 +19,7 @@
 // http://blog.llvm.org/2011/09/greedy-register-allocation-in-llvm-30.html
 
 namespace js {
-namespace jit {
+namespace ion {
 
 // Information about a group of registers. Registers may be grouped together
 // when (a) all of their lifetimes are disjoint, (b) they are of the same type
@@ -36,8 +36,8 @@ struct VirtualRegisterGroup : public TempObject
     // Spill location to be shared by registers in the group.
     LAllocation spill;
 
-    explicit VirtualRegisterGroup(TempAllocator &alloc)
-      : registers(alloc), allocation(LUse(0, LUse::ANY)), spill(LUse(0, LUse::ANY))
+    VirtualRegisterGroup()
+      : allocation(LUse(0, LUse::ANY)), spill(LUse(0, LUse::ANY))
     {}
 
     uint32_t canonicalReg() {
@@ -67,9 +67,6 @@ class BacktrackingVirtualRegister : public VirtualRegister
     VirtualRegisterGroup *group_;
 
   public:
-    explicit BacktrackingVirtualRegister(TempAllocator &alloc)
-      : VirtualRegister(alloc)
-    {}
     void setMustCopyInput() {
         mustCopyInput_ = true;
     }
@@ -78,11 +75,10 @@ class BacktrackingVirtualRegister : public VirtualRegister
     }
 
     void setCanonicalSpill(LAllocation alloc) {
-        JS_ASSERT(!alloc.isUse());
         canonicalSpill_ = alloc;
     }
     const LAllocation *canonicalSpill() const {
-        return canonicalSpill_.isUse() ? nullptr : &canonicalSpill_;
+        return canonicalSpill_.isUse() ? NULL : &canonicalSpill_;
     }
 
     void setCanonicalSpillExclude(CodePosition pos) {
@@ -104,12 +100,7 @@ class BacktrackingVirtualRegister : public VirtualRegister
     }
 };
 
-// A sequence of code positions, for tellings BacktrackingAllocator::splitAt
-// where to split.
-typedef js::Vector<CodePosition, 4, SystemAllocPolicy> SplitPositionVector;
-
-class BacktrackingAllocator
-  : private LiveRangeAllocator<BacktrackingVirtualRegister, /* forLSRA = */ false>
+class BacktrackingAllocator : public LiveRangeAllocator<BacktrackingVirtualRegister>
 {
     // Priority queue element: either an interval or group of intervals and the
     // associated priority.
@@ -119,11 +110,11 @@ class BacktrackingAllocator
         VirtualRegisterGroup *group;
 
         QueueItem(LiveInterval *interval, size_t priority)
-          : interval(interval), group(nullptr), priority_(priority)
+          : interval(interval), group(NULL), priority_(priority)
         {}
 
         QueueItem(VirtualRegisterGroup *group, size_t priority)
-          : interval(nullptr), group(group), priority_(priority)
+          : interval(NULL), group(group), priority_(priority)
         {}
 
         static size_t priority(const QueueItem &v) {
@@ -142,7 +133,7 @@ class BacktrackingAllocator
         const LiveInterval::Range *range;
 
         AllocatedRange()
-          : interval(nullptr), range(nullptr)
+          : interval(NULL), range(NULL)
         {}
 
         AllocatedRange(LiveInterval *interval, const LiveInterval::Range *range)
@@ -178,7 +169,7 @@ class BacktrackingAllocator
 
   public:
     BacktrackingAllocator(MIRGenerator *mir, LIRGenerator *lir, LIRGraph &graph)
-      : LiveRangeAllocator<BacktrackingVirtualRegister, /* forLSRA = */ false>(mir, lir, graph)
+      : LiveRangeAllocator<BacktrackingVirtualRegister>(mir, lir, graph, /* forLSRA = */ false)
     { }
 
     bool go();
@@ -192,8 +183,6 @@ class BacktrackingAllocator
     bool tryGroupRegisters(uint32_t vreg0, uint32_t vreg1);
     bool tryGroupReusedRegister(uint32_t def, uint32_t use);
     bool groupAndQueueRegisters();
-    bool tryAllocateFixed(LiveInterval *interval, bool *success, bool *pfixed, LiveInterval **pconflicting);
-    bool tryAllocateNonFixed(LiveInterval *interval, bool *success, bool *pfixed, LiveInterval **pconflicting);
     bool processInterval(LiveInterval *interval);
     bool processGroup(VirtualRegisterGroup *group);
     bool setIntervalRequirement(LiveInterval *interval);
@@ -202,16 +191,15 @@ class BacktrackingAllocator
     bool tryAllocateGroupRegister(PhysicalRegister &r, VirtualRegisterGroup *group,
                                   bool *psuccess, bool *pfixed, LiveInterval **pconflicting);
     bool evictInterval(LiveInterval *interval);
-    void distributeUses(LiveInterval *interval, const LiveIntervalVector &newIntervals);
+    bool distributeUses(LiveInterval *interval, const LiveIntervalVector &newIntervals);
     bool split(LiveInterval *interval, const LiveIntervalVector &newIntervals);
     bool requeueIntervals(const LiveIntervalVector &newIntervals);
     void spill(LiveInterval *interval);
 
-    bool isReusedInput(LUse *use, LInstruction *ins, bool considerCopy);
-    bool isRegisterUse(LUse *use, LInstruction *ins, bool considerCopy = false);
+    bool isReusedInput(LUse *use, LInstruction *ins, bool considerCopy = false);
+    bool isRegisterUse(LUse *use, LInstruction *ins);
     bool isRegisterDefinition(LiveInterval *interval);
     bool addLiveInterval(LiveIntervalVector &intervals, uint32_t vreg,
-                         LiveInterval *spillInterval,
                          CodePosition from, CodePosition to);
 
     bool resolveControlFlow();
@@ -226,7 +214,7 @@ class BacktrackingAllocator
 
     bool minimalDef(const LiveInterval *interval, LInstruction *ins);
     bool minimalUse(const LiveInterval *interval, LInstruction *ins);
-    bool minimalInterval(const LiveInterval *interval, bool *pfixed = nullptr);
+    bool minimalInterval(const LiveInterval *interval, bool *pfixed = NULL);
 
     // Heuristic methods.
 
@@ -237,16 +225,13 @@ class BacktrackingAllocator
     size_t computeSpillWeight(const VirtualRegisterGroup *group);
 
     bool chooseIntervalSplit(LiveInterval *interval);
-
-    bool splitAt(LiveInterval *interval,
-                 const SplitPositionVector &splitPositions);
     bool trySplitAcrossHotcode(LiveInterval *interval, bool *success);
     bool trySplitAfterLastRegisterUse(LiveInterval *interval, bool *success);
     bool splitAtAllRegisterUses(LiveInterval *interval);
     bool splitAcrossCalls(LiveInterval *interval);
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_BacktrackingAllocator_h */

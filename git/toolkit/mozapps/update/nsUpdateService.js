@@ -118,7 +118,6 @@ const STATE_PENDING         = "pending";
 const STATE_PENDING_SVC     = "pending-service";
 const STATE_APPLYING        = "applying";
 const STATE_APPLIED         = "applied";
-const STATE_APPLIED_OS      = "applied-os";
 const STATE_APPLIED_SVC     = "applied-service";
 const STATE_SUCCEEDED       = "succeeded";
 const STATE_DOWNLOAD_FAILED = "download-failed";
@@ -156,8 +155,6 @@ const FOTA_UNKNOWN_ERROR                            = 45;
 const WRITE_ERROR_SHARING_VIOLATION_SIGNALED        = 46;
 const WRITE_ERROR_SHARING_VIOLATION_NOPROCESSFORPID = 47;
 const WRITE_ERROR_SHARING_VIOLATION_NOPID           = 48;
-const FOTA_FILE_OPERATION_ERROR                     = 49;
-const FOTA_RECOVERY_ERROR                           = 50;
 
 const CERT_ATTR_CHECK_FAILED_NO_UPDATE  = 100;
 const CERT_ATTR_CHECK_FAILED_HAS_UPDATE = 101;
@@ -750,10 +747,24 @@ function getCanStageUpdates() {
   return canStageUpdatesSession;
 }
 
+XPCOMUtils.defineLazyGetter(this, "gIsMetro", function aus_gIsMetro() {
+#ifdef XP_WIN
+#ifdef MOZ_METRO
+  try {
+    let metroUtils = Cc["@mozilla.org/windows-metroutils;1"].
+                    createInstance(Ci.nsIWinMetroUtils);
+    return metroUtils && metroUtils.immersive;
+  } catch (e) {}
+#endif
+#endif
+
+  return false;
+});
+
 XPCOMUtils.defineLazyGetter(this, "gMetroUpdatesEnabled", function aus_gMetroUpdatesEnabled() {
 #ifdef XP_WIN
 #ifdef MOZ_METRO
-  if (Services.metro && Services.metro.immersive) {
+  if (gIsMetro) {
     let metroUpdate = getPref("getBoolPref", PREF_APP_UPDATE_METRO_ENABLED, true);
     if (!metroUpdate) {
       LOG("gMetroUpdatesEnabled - unable to automatically check for metro " +
@@ -972,7 +983,7 @@ function getUpdatesDirInApplyToDir() {
 #endif
   dir.append(DIR_UPDATES);
   if (!dir.exists()) {
-    dir.create(Ci.nsILocalFile.DIRECTORY_TYPE, FileUtils.PERMS_DIRECTORY);
+    dir.create(Ci.nsILocalFile.DIRECTORY_TYPE, 0755);
   }
   return dir;
 }
@@ -1421,8 +1432,6 @@ function readStringFromFile(file) {
 function handleUpdateFailure(update, errorCode) {
   update.errorCode = parseInt(errorCode);
   if (update.errorCode == FOTA_GENERAL_ERROR ||
-      update.errorCode == FOTA_FILE_OPERATION_ERROR ||
-      update.errorCode == FOTA_RECOVERY_ERROR ||
       update.errorCode == FOTA_UNKNOWN_ERROR) {
     // In the case of FOTA update errors, don't reset the state to pending. This
     // causes the FOTA update path to try again, which is not necessarily what
@@ -2079,17 +2088,7 @@ UpdateService.prototype = {
    * notify the user of install success.
    */
   _postUpdateProcessing: function AUS__postUpdateProcessing() {
-    // canCheckForUpdates will return false when metro-only updates are disabled
-    // from within metro.  In that case we still want _postUpdateProcessing to
-    // run.  gMetroUpdatesEnabled returns true on non Windows 8 platforms.
-    // We want _postUpdateProcessing to run so that it will update the history
-    // XML. Without updating the history XML, the about flyout will continue to
-    // have the "Restart to Apply Update" button (history xml indicates update
-    // is applied).
-    // TODO: I think this whole if-block should be removed since updates can
-    // always be applied via the about dialog, we should be running post update
-    // in those cases.
-    if (!this.canCheckForUpdates && gMetroUpdatesEnabled) {
+    if (!this.canCheckForUpdates) {
       LOG("UpdateService:_postUpdateProcessing - unable to check for " +
           "updates... returning early");
       return;
@@ -2176,13 +2175,7 @@ UpdateService.prototype = {
     }
 
 #ifdef MOZ_WIDGET_GONK
-    // The update is only applied but not selected to be installed
     if (status == STATE_APPLIED && update && update.isOSUpdate) {
-      LOG("UpdateService:_postUpdateProcessing - update staged as applied found");
-      return;
-    }
-
-    if (status == STATE_APPLIED_OS && update && update.isOSUpdate) {
       // In gonk, we need to check for OS update status after startup, since
       // the recovery partition won't write to update.status for us
       var recoveryService = Cc["@mozilla.org/recovery-service;1"].
@@ -2812,7 +2805,7 @@ UpdateService.prototype = {
       LOG("UpdateService:_selectAndInstallUpdate - prompting because the " +
           "update snippet specified showPrompt");
       this._showPrompt(update);
-      if (!Services.metro || !Services.metro.immersive) {
+      if (!gIsMetro) {
         this._backgroundUpdateCheckCodePing(PING_BGUC_SHOWPROMPT_SNIPPET);
         return;
       }
@@ -2822,7 +2815,7 @@ UpdateService.prototype = {
       LOG("UpdateService:_selectAndInstallUpdate - prompting because silent " +
           "install is disabled");
       this._showPrompt(update);
-      if (!Services.metro || !Services.metro.immersive) {
+      if (!gIsMetro) {
         this._backgroundUpdateCheckCodePing(PING_BGUC_SHOWPROMPT_PREF);
         return;
       }
@@ -3148,52 +3141,6 @@ UpdateService.prototype = {
    */
   get isDownloading() {
     return this._downloader && this._downloader.isBusy;
-  },
-
-  /**
-   * See nsIUpdateService.idl
-   */
-  applyOsUpdate: function AUS_applyOsUpdate(aUpdate) {
-    if (!aUpdate.isOSUpdate || aUpdate.state != STATE_APPLIED) {
-      aUpdate.statusText = "fota-state-error";
-      throw Cr.NS_ERROR_FAILURE;
-    }
-
-    let osApplyToDir;
-    try {
-      aUpdate.QueryInterface(Ci.nsIWritablePropertyBag);
-      osApplyToDir = aUpdate.getProperty("osApplyToDir");
-    } catch (e) {}
-
-    if (!osApplyToDir) {
-      LOG("UpdateService:applyOsUpdate - Error: osApplyToDir is not defined" +
-          "in the nsIUpdate!");
-      handleUpdateFailure(aUpdate, FOTA_FILE_OPERATION_ERROR);
-      return;
-    }
-
-    let updateFile = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
-    updateFile.initWithPath(osApplyToDir + "/update.zip");
-    if (!updateFile.exists()) {
-      LOG("UpdateService:applyOsUpdate - Error: OS update is not found at " +
-          updateFile.path);
-      handleUpdateFailure(aUpdate, FOTA_FILE_OPERATION_ERROR);
-      return;
-    }
-
-    writeStatusFile(getUpdatesDir(), aUpdate.state = STATE_APPLIED_OS);
-    LOG("UpdateService:applyOsUpdate - Rebooting into recovery to apply " +
-        "FOTA update: " + updateFile.path);
-    try {
-      let recoveryService = Cc["@mozilla.org/recovery-service;1"]
-                            .getService(Ci.nsIRecoveryService);
-      recoveryService.installFotaUpdate(updateFile.path);
-    } catch (e) {
-      LOG("UpdateService:applyOsUpdate - Error: Couldn't reboot into recovery" +
-          " to apply FOTA update " + updateFile.path);
-      writeStatusFile(getUpdatesDir(), aUpdate.state = STATE_APPLIED);
-      handleUpdateFailure(aUpdate, FOTA_RECOVERY_ERROR);
-    }
   },
 
   classID: UPDATESERVICE_CID,
@@ -4005,9 +3952,6 @@ Downloader.prototype = {
       case STATE_APPLYING:
         LOG("Downloader:_selectPatch - resuming interrupted apply");
         return selectedPatch;
-      case STATE_APPLIED:
-        LOG("Downloader:_selectPatch - already downloaded and staged");
-        return null;
 #else
       case STATE_PENDING_SVC:
       case STATE_PENDING:
@@ -4693,8 +4637,6 @@ UpdatePrompt.prototype = {
          update.errorCode == WRITE_ERROR_CALLBACK_APP ||
          update.errorCode == FILESYSTEM_MOUNT_READWRITE_ERROR ||
          update.errorCode == FOTA_GENERAL_ERROR ||
-         update.errorCode == FOTA_FILE_OPERATION_ERROR ||
-         update.errorCode == FOTA_RECOVERY_ERROR ||
          update.errorCode == FOTA_UNKNOWN_ERROR)) {
       var title = gUpdateBundle.GetStringFromName("updaterIOErrorTitle");
       var text = gUpdateBundle.formatStringFromName("updaterIOErrorMsg",

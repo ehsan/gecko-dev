@@ -32,9 +32,9 @@
 #include "nsIScrollableFrame.h"
 #include "mozilla/dom/Attr.h"
 #include "nsISMILAttr.h"
-#include "mozilla/dom/DOMRect.h"
+#include "nsClientRect.h"
+#include "nsEvent.h"
 #include "nsAttrValue.h"
-#include "mozilla/EventForwards.h"
 #include "mozilla/dom/BindingDeclarations.h"
 #include "Units.h"
 
@@ -50,6 +50,8 @@ class nsEventListenerManager;
 class nsIScrollableFrame;
 class nsAttrValueOrString;
 class ContentUnbinder;
+class nsClientRect;
+class nsClientRectList;
 class nsContentList;
 class nsDOMTokenList;
 struct nsRect;
@@ -108,13 +110,11 @@ namespace dom {
 
 class Link;
 class UndoManager;
-class DOMRect;
-class DOMRectList;
 
 // IID for the dom::Element interface
 #define NS_ELEMENT_IID \
-{ 0xf7c18f0f, 0xa8fd, 0x4a95, \
-  { 0x91, 0x72, 0xd3, 0xa7, 0x4a, 0xb8, 0xc4, 0xbe } }
+{ 0xec962aa7, 0x53ee, 0x46ff, \
+  { 0x90, 0x34, 0x68, 0xea, 0x79, 0x9d, 0x7d, 0xf7 } }
 
 class Element : public FragmentOrElement
 {
@@ -385,17 +385,16 @@ private:
   // Style state computed from element's state and style locks.
   nsEventStates StyleStateFromLocks() const;
 
-protected:
   // Methods for the ESM to manage state bits.  These will handle
   // setting up script blockers when they notify, so no need to do it
   // in the callers unless desired.
-  virtual void AddStates(nsEventStates aStates) {
+  void AddStates(nsEventStates aStates) {
     NS_PRECONDITION(!aStates.HasAtLeastOneOfStates(INTRINSIC_STATES),
                     "Should only be adding ESM-managed states here");
     AddStatesSilently(aStates);
     NotifyStateChange(aStates);
   }
-  virtual void RemoveStates(nsEventStates aStates) {
+  void RemoveStates(nsEventStates aStates) {
     NS_PRECONDITION(!aStates.HasAtLeastOneOfStates(INTRINSIC_STATES),
                     "Should only be removing ESM-managed states here");
     RemoveStatesSilently(aStates);
@@ -539,8 +538,6 @@ protected:
   }
 
 public:
-  bool HasAttrs() const { return mAttrsAndChildren.HasAttrs(); }
-
   inline bool GetAttr(const nsAString& aName, DOMString& aResult) const
   {
     MOZ_ASSERT(aResult.HasStringBuffer() && aResult.StringBufferLength() == 0,
@@ -636,7 +633,10 @@ public:
     }
   }
   void MozRequestFullScreen();
-  inline void MozRequestPointerLock();
+  void MozRequestPointerLock()
+  {
+    OwnerDoc()->RequestPointerLock(this);
+  }
   Attr* GetAttributeNode(const nsAString& aName);
   already_AddRefed<Attr> SetAttributeNode(Attr& aNewAttr,
                                           ErrorResult& aError);
@@ -647,15 +647,8 @@ public:
   already_AddRefed<Attr> SetAttributeNodeNS(Attr& aNewAttr,
                                             ErrorResult& aError);
 
-  already_AddRefed<DOMRectList> GetClientRects();
-  already_AddRefed<DOMRect> GetBoundingClientRect();
-
-  already_AddRefed<ShadowRoot> CreateShadowRoot(ErrorResult& aError);
-
-  void ScrollIntoView()
-  {
-    ScrollIntoView(true);
-  }
+  already_AddRefed<nsClientRectList> GetClientRects();
+  already_AddRefed<nsClientRect> GetBoundingClientRect();
   void ScrollIntoView(bool aTop);
   int32_t ScrollTop()
   {
@@ -683,11 +676,6 @@ public:
                                         sf->GetScrollPositionCSSPixels().y));
     }
   }
-  /* Scrolls without flushing the layout.
-   * aDx is the x offset, aDy the y offset in CSS pixels.
-   * Returns true if we actually scrolled.
-   */
-  bool ScrollByNoFlush(int32_t aDx, int32_t aDy);
   int32_t ScrollWidth();
   int32_t ScrollHeight();
   int32_t ClientTop()
@@ -735,9 +723,9 @@ public:
   {
   }
 
-  NS_IMETHOD GetInnerHTML(nsAString& aInnerHTML);
+  virtual void GetInnerHTML(nsAString& aInnerHTML, ErrorResult& aError);
   virtual void SetInnerHTML(const nsAString& aInnerHTML, ErrorResult& aError);
-  void GetOuterHTML(nsAString& aOuterHTML);
+  void GetOuterHTML(nsAString& aOuterHTML, ErrorResult& aError);
   void SetOuterHTML(const nsAString& aOuterHTML, ErrorResult& aError);
   void InsertAdjacentHTML(const nsAString& aPosition, const nsAString& aText,
                           ErrorResult& aError);
@@ -773,10 +761,10 @@ public:
    *                    will be respected.
    */
   static nsresult DispatchClickEvent(nsPresContext* aPresContext,
-                                     WidgetInputEvent* aSourceEvent,
+                                     nsInputEvent* aSourceEvent,
                                      nsIContent* aTarget,
                                      bool aFullDispatch,
-                                     const EventFlags* aFlags,
+                                     const widget::EventFlags* aFlags,
                                      nsEventStatus* aStatus);
 
   /**
@@ -788,7 +776,7 @@ public:
    */
   using nsIContent::DispatchEvent;
   static nsresult DispatchEvent(nsPresContext* aPresContext,
-                                WidgetEvent* aEvent,
+                                nsEvent* aEvent,
                                 nsIContent* aTarget,
                                 bool aFullDispatch,
                                 nsEventStatus* aStatus);
@@ -1077,14 +1065,37 @@ protected:
   Attr* GetAttributeNodeNSInternal(const nsAString& aNamespaceURI,
                                    const nsAString& aLocalName);
 
-  inline void RegisterFreezableElement();
-  inline void UnregisterFreezableElement();
+  void RegisterFreezableElement() {
+    OwnerDoc()->RegisterFreezableElement(this);
+  }
+  void UnregisterFreezableElement() {
+    OwnerDoc()->UnregisterFreezableElement(this);
+  }
 
   /**
    * Add/remove this element to the documents id cache
    */
-  void AddToIdTable(nsIAtom* aId);
-  void RemoveFromIdTable();
+  void AddToIdTable(nsIAtom* aId) {
+    NS_ASSERTION(HasID(), "Node doesn't have an ID?");
+    nsIDocument* doc = GetCurrentDoc();
+    if (doc && (!IsInAnonymousSubtree() || doc->IsXUL())) {
+      doc->AddToIdTable(this, aId);
+    }
+  }
+  void RemoveFromIdTable() {
+    if (HasID()) {
+      nsIDocument* doc = GetCurrentDoc();
+      if (doc) {
+        nsIAtom* id = DoGetID();
+        // id can be null during mutation events evilness. Also, XUL elements
+        // loose their proto attributes during cc-unlink, so this can happen
+        // during cc-unlink too.
+        if (id) {
+          doc->RemoveFromIdTable(this, DoGetID());
+        }
+      }
+    }
+  }
 
   /**
    * Functions to carry out event default actions for links of all types
@@ -1131,8 +1142,9 @@ private:
    */
   nsRect GetClientAreaRect();
 
-  nsIScrollableFrame* GetScrollFrame(nsIFrame **aStyledFrame = nullptr,
-                                     bool aFlushLayout = true);
+  nsIScrollableFrame* GetScrollFrame(nsIFrame **aStyledFrame = nullptr);
+
+  nsresult GetMarkup(bool aIncludeSelf, nsAString& aMarkup);
 
   // Data members
   nsEventStates mState;
@@ -1194,7 +1206,7 @@ inline const mozilla::dom::Element* nsINode::AsElement() const
 
 inline bool nsINode::HasAttributes() const
 {
-  return IsElement() && AsElement()->HasAttrs();
+  return IsElement() && AsElement()->GetAttrCount() > 0;
 }
 
 /**
@@ -1472,6 +1484,24 @@ NS_IMETHOD MozRemove() MOZ_FINAL                                              \
 {                                                                             \
   nsINode::Remove();                                                          \
   return NS_OK;                                                               \
+}                                                                             \
+NS_IMETHOD GetOnmouseenter(JSContext* cx, JS::Value* aOnmouseenter) MOZ_FINAL \
+{                                                                             \
+  return Element::GetOnmouseenter(cx, aOnmouseenter);                         \
+}                                                                             \
+NS_IMETHOD SetOnmouseenter(JSContext* cx,                                     \
+                           const JS::Value& aOnmouseenter) MOZ_FINAL          \
+{                                                                             \
+  return Element::SetOnmouseenter(cx, aOnmouseenter);                         \
+}                                                                             \
+NS_IMETHOD GetOnmouseleave(JSContext* cx, JS::Value* aOnmouseleave) MOZ_FINAL \
+{                                                                             \
+  return Element::GetOnmouseleave(cx, aOnmouseleave);                         \
+}                                                                             \
+NS_IMETHOD SetOnmouseleave(JSContext* cx,                                     \
+                           const JS::Value& aOnmouseleave) MOZ_FINAL          \
+{                                                                             \
+  return Element::SetOnmouseleave(cx, aOnmouseleave);                         \
 }                                                                             \
 NS_IMETHOD GetClientRects(nsIDOMClientRectList** _retval) MOZ_FINAL           \
 {                                                                             \

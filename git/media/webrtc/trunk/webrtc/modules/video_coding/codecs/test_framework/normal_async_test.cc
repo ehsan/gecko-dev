@@ -8,19 +8,19 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/video_coding/codecs/test_framework/normal_async_test.h"
+#include "normal_async_test.h"
 
 #include <assert.h>
+#include <string.h>
 #include <queue>
 #include <sstream>
-#include <string.h>
 #include <vector>
 
-#include "testing/gtest/include/gtest/gtest.h"
-#include "webrtc/common_video/libyuv/include/webrtc_libyuv.h"
-#include "webrtc/system_wrappers/interface/tick_util.h"
-#include "webrtc/test/testsupport/fileutils.h"
-#include "webrtc/typedefs.h"
+#include "common_video/libyuv/include/webrtc_libyuv.h"
+#include "gtest/gtest.h"
+#include "tick_util.h"
+#include "testsupport/fileutils.h"
+#include "typedefs.h"
 
 using namespace webrtc;
 

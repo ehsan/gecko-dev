@@ -15,28 +15,20 @@ XPIDL_SOURCES += [
     'nsIUrlListManager.idl',
 ]
 
-XPIDL_MODULE = 'url-classifier'
+MODULE = 'url-classifier'
 
-UNIFIED_SOURCES += [
+CPP_SOURCES += [
     'ChunkSet.cpp',
     'Classifier.cpp',
+    'HashStore.cpp',
     'LookupCache.cpp',
+    'ProtocolParser.cpp',
     'nsCheckSummedOutputStream.cpp',
     'nsUrlClassifierDBService.cpp',
-    'nsUrlClassifierProxies.cpp',
-    'nsUrlClassifierUtils.cpp',
-    'ProtocolParser.cpp',
-]
-
-# define conflicting LOG() macros
-SOURCES += [
     'nsUrlClassifierPrefixSet.cpp',
+    'nsUrlClassifierProxies.cpp',
     'nsUrlClassifierStreamUpdater.cpp',
-]
-
-# contains variables that conflict with LookupCache.cpp
-SOURCES += [
-    'HashStore.cpp',
+    'nsUrlClassifierUtils.cpp',
 ]
 
 EXTRA_COMPONENTS += [
@@ -50,18 +42,15 @@ EXTRA_PP_COMPONENTS += [
     'nsUrlClassifierListManager.js',
 ]
 
+LIBRARY_NAME = 'urlclassifier_s'
+
 EXTRA_JS_MODULES += [
     'SafeBrowsing.jsm',
 ]
 
-EXPORTS += [
-    'Entries.h',
-    'LookupCache.h',
-    'nsUrlClassifierPrefixSet.h',
-]
-
 FAIL_ON_WARNINGS = True
+
+LIBXUL_LIBRARY = True
 
 MSVC_ENABLE_PGO = True
 
-FINAL_LIBRARY = 'toolkitcomps'

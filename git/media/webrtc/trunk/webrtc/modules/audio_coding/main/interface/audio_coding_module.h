@@ -8,10 +8,8 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#ifndef WEBRTC_MODULES_AUDIO_CODING_MAIN_INTERFACE_AUDIO_CODING_MODULE_H_
-#define WEBRTC_MODULES_AUDIO_CODING_MAIN_INTERFACE_AUDIO_CODING_MODULE_H_
-
-#include <vector>
+#ifndef WEBRTC_MODULES_AUDIO_CODING_MAIN_INTERFACE_AUDIO_CODING_MODULE_H
+#define WEBRTC_MODULES_AUDIO_CODING_MAIN_INTERFACE_AUDIO_CODING_MODULE_H
 
 #include "webrtc/common_types.h"
 #include "webrtc/modules/audio_coding/main/interface/audio_coding_module_typedefs.h"
@@ -25,9 +23,8 @@ struct CodecInst;
 struct WebRtcRTPHeader;
 class AudioFrame;
 class RTPFragmentationHeader;
-class Clock;
 
-#define WEBRTC_10MS_PCM_AUDIO 960  // 16 bits super wideband 48 kHz
+#define WEBRTC_10MS_PCM_AUDIO 960 // 16 bits super wideband 48 kHz
 
 // Callback class used for sending data ready to be packetized
 class AudioPacketizationCallback {
@@ -66,28 +63,25 @@ class ACMVQMonCallback {
   virtual ~ACMVQMonCallback() {}
 
   virtual int32_t NetEqStatistics(
-      const int32_t id,  // current ACM id
-      const uint16_t MIUsValid,  // valid voice duration in ms
-      const uint16_t MIUsReplaced,  // concealed voice duration in ms
-      const uint8_t eventFlags,  // concealed voice flags
-      const uint16_t delayMS) = 0;  // average delay in ms
+      const int32_t id, // current ACM id
+      const uint16_t MIUsValid, // valid voice duration in ms
+      const uint16_t MIUsReplaced, // concealed voice duration in ms
+      const uint8_t eventFlags, // concealed voice flags
+      const uint16_t delayMS) = 0; // average delay in ms
 };
 
 class AudioCodingModule: public Module {
  protected:
   AudioCodingModule() {}
+  virtual ~AudioCodingModule() {}
 
  public:
   ///////////////////////////////////////////////////////////////////////////
-  // Creation and destruction of a ACM.
+  // Creation and destruction of a ACM
   //
-  // The second method is used for testing where a simulated clock can be
-  // injected into ACM. ACM will take the ownership of the object clock and
-  // delete it when destroyed.
-  //
-  static AudioCodingModule* Create(int id);
-  static AudioCodingModule* Create(int id, Clock* clock);
-  virtual ~AudioCodingModule() {};
+  static AudioCodingModule* Create(const int32_t id);
+
+  static void Destroy(AudioCodingModule* module);
 
   ///////////////////////////////////////////////////////////////////////////
   //   Utility functions
@@ -100,7 +94,7 @@ class AudioCodingModule: public Module {
   // Return value:
   //   number of supported codecs.
   ///
-  static int NumberOfCodecs();
+  static uint8_t NumberOfCodecs();
 
   ///////////////////////////////////////////////////////////////////////////
   // int32_t Codec()
@@ -117,7 +111,7 @@ class AudioCodingModule: public Module {
   //   -1 if the list number (list_id) is invalid.
   //    0 if succeeded.
   //
-  static int Codec(int list_id, CodecInst* codec);
+  static int32_t Codec(uint8_t list_id, CodecInst* codec);
 
   ///////////////////////////////////////////////////////////////////////////
   // int32_t Codec()
@@ -138,7 +132,7 @@ class AudioCodingModule: public Module {
   //   -1 if no codec matches the given parameters.
   //    0 if succeeded.
   //
-  static int Codec(const char* payload_name, CodecInst* codec,
+  static int32_t Codec(const char* payload_name, CodecInst* codec,
                        int sampling_freq_hz, int channels);
 
   ///////////////////////////////////////////////////////////////////////////
@@ -157,7 +151,7 @@ class AudioCodingModule: public Module {
   //   if the codec is found, the index of the codec in the list,
   //   -1 if the codec is not found.
   //
-  static int Codec(const char* payload_name, int sampling_freq_hz,
+  static int32_t Codec(const char* payload_name, int sampling_freq_hz,
                              int channels);
 
   ///////////////////////////////////////////////////////////////////////////
@@ -579,8 +573,8 @@ class AudioCodingModule: public Module {
   //   -1 if fails to unregister.
   //    0 if the given codec is successfully unregistered.
   //
-  virtual int UnregisterReceiveCodec(
-      uint8_t payload_type) = 0;
+  virtual int32_t UnregisterReceiveCodec(
+      const int16_t payload_type) = 0;
 
   ///////////////////////////////////////////////////////////////////////////
   // int32_t ReceiveCodec()
@@ -645,9 +639,8 @@ class AudioCodingModule: public Module {
                                         const uint32_t timestamp = 0) = 0;
 
   ///////////////////////////////////////////////////////////////////////////
-  // int SetMinimumPlayoutDelay()
-  // Set a minimum for the playout delay, used for lip-sync. NetEq maintains
-  // such a delay unless channel condition yields to a higher delay.
+  // int32_t SetMinimumPlayoutDelay()
+  // Set Minimum playout delay, used for lip-sync.
   //
   // Input:
   //   -time_ms            : minimum delay in milliseconds.
@@ -656,28 +649,30 @@ class AudioCodingModule: public Module {
   //   -1 if failed to set the delay,
   //    0 if the minimum delay is set.
   //
-  virtual int SetMinimumPlayoutDelay(int time_ms) = 0;
+  virtual int32_t SetMinimumPlayoutDelay(const int32_t time_ms) = 0;
 
   ///////////////////////////////////////////////////////////////////////////
-  // int SetMaximumPlayoutDelay()
-  // Set a maximum for the playout delay
+  // int32_t RegisterIncomingMessagesCallback()
+  // Used by the module to deliver messages to the codec module/application
+  // when a DTMF tone is detected, as well as when it stopped.
   //
-  // Input:
-  //   -time_ms            : maximum delay in milliseconds.
+  // Inputs:
+  //   -in_message_callback: pointer to callback function which will be called
+  //                         if DTMF is detected.
+  //   -cpt                : enables CPT (Call Progress Tone) detection for the
+  //                         specified country. c.f. definition of ACMCountries
+  //                         in audio_coding_module_typedefs.h for valid
+  //                         entries. The default value disables CPT
+  //                         detection.
   //
   // Return value:
-  //   -1 if failed to set the delay,
-  //    0 if the maximum delay is set.
+  //   -1 if the message callback could not be registered
+  //    0 if registration is successful.
   //
-  virtual int SetMaximumPlayoutDelay(int time_ms) = 0;
-
-  //
-  // The shortest latency, in milliseconds, required by jitter buffer. This
-  // is computed based on inter-arrival times and playout mode of NetEq. The
-  // actual delay is the maximum of least-required-delay and the minimum-delay
-  // specified by SetMinumumPlayoutDelay() API.
-  //
-  virtual int LeastRequiredDelayMs() const = 0;
+  virtual int32_t
+      RegisterIncomingMessagesCallback(
+          AudioCodingFeedback* in_message_callback,
+          const ACMCountries cpt = ACMDisableCountryDetection) = 0;
 
   ///////////////////////////////////////////////////////////////////////////
   // int32_t SetDtmfPlayoutStatus()
@@ -703,6 +698,39 @@ class AudioCodingModule: public Module {
   //   false if playout of Dtmf tones is disabled.
   //
   virtual bool DtmfPlayoutStatus() const = 0;
+
+  ///////////////////////////////////////////////////////////////////////////
+  // int32_t SetBackgroundNoiseMode()
+  // Sets the mode of the background noise playout in an event of long
+  // packet loss burst. For the valid modes see the declaration of
+  // ACMBackgroundNoiseMode in audio_coding_module_typedefs.h.
+  //
+  // Input:
+  //   -mode               : the mode for the background noise playout.
+  //
+  // Return value:
+  //   -1 if failed to set the mode.
+  //    0 if succeeded in setting the mode.
+  //
+  virtual int32_t SetBackgroundNoiseMode(
+      const ACMBackgroundNoiseMode mode) = 0;
+
+  ///////////////////////////////////////////////////////////////////////////
+  // int32_t BackgroundNoiseMode()
+  // Call this method to get the mode of the background noise playout.
+  // Playout of background noise is a result of a long packet loss burst.
+  // See ACMBackgroundNoiseMode in audio_coding_module_typedefs.h for
+  // possible modes.
+  //
+  // Output:
+  //   -mode             : a reference to ACMBackgroundNoiseMode enumerator.
+  //
+  // Return value:
+  //    0 if the output is a valid mode.
+  //   -1 if ACM failed to output a valid mode.
+  //
+  // TODO(tlegrand): Change function to return the mode.
+  virtual int32_t BackgroundNoiseMode(ACMBackgroundNoiseMode* mode) = 0;
 
   ///////////////////////////////////////////////////////////////////////////
   // int32_t PlayoutTimestamp()
@@ -777,8 +805,8 @@ class AudioCodingModule: public Module {
   //
   // Input:
   //   -desired_freq_hz    : the desired sampling frequency, in Hertz, of the
-  //                         output audio. If set to -1, the function returns
-  //                         the audio at the current sampling frequency.
+  //                         output audio. If set to -1, the function returns the
+  //                         audio at the current sampling frequency.
   //
   // Output:
   //   -audio_frame        : output audio frame which contains raw audio data
@@ -792,6 +820,39 @@ class AudioCodingModule: public Module {
   //
   virtual int32_t PlayoutData10Ms(int32_t desired_freq_hz,
                                         AudioFrame* audio_frame) = 0;
+
+  ///////////////////////////////////////////////////////////////////////////
+  //   (CNG) Comfort Noise Generation
+  //   Generate comfort noise when receiving DTX packets
+  //
+
+  ///////////////////////////////////////////////////////////////////////////
+  // int16_t SetReceiveVADMode()
+  // Configure VAD aggressiveness on the incoming stream.
+  //
+  // Input:
+  //   -mode               : aggressiveness of the VAD on incoming stream.
+  //                         See audio_coding_module_typedefs.h for the
+  //                         definition of ACMVADMode, and possible
+  //                         values for aggressiveness.
+  //
+  // Return value:
+  //   -1 if fails to set the mode,
+  //    0 if the mode is set successfully.
+  //
+  virtual int16_t SetReceiveVADMode(const ACMVADMode mode) = 0;
+
+  ///////////////////////////////////////////////////////////////////////////
+  // ACMVADMode ReceiveVADMode()
+  // Get VAD aggressiveness on the incoming stream.
+  //
+  // Return value:
+  //   aggressiveness of VAD, running on the incoming stream. A more
+  //   aggressive mode means more audio frames will be labeled as in-active.
+  //   See audio_coding_module_typedefs.h for the definition of
+  //   ACMVADMode.
+  //
+  virtual ACMVADMode ReceiveVADMode() const = 0;
 
   ///////////////////////////////////////////////////////////////////////////
   //   Codec specific
@@ -812,7 +873,8 @@ class AudioCodingModule: public Module {
   //   -1 if failed to set the maximum rate.
   //    0 if the maximum rate is set successfully.
   //
-  virtual int SetISACMaxRate(int max_rate_bps) = 0;
+  virtual int32_t SetISACMaxRate(
+      const uint32_t max_rate_bps) = 0;
 
   ///////////////////////////////////////////////////////////////////////////
   // int32_t SetISACMaxPayloadSize()
@@ -829,7 +891,8 @@ class AudioCodingModule: public Module {
   //   -1 if failed to set the maximum  payload-size.
   //    0 if the given length is set successfully.
   //
-  virtual int SetISACMaxPayloadSize(int max_payload_len_bytes) = 0;
+  virtual int32_t SetISACMaxPayloadSize(
+      const uint16_t max_payload_len_bytes) = 0;
 
   ///////////////////////////////////////////////////////////////////////////
   // int32_t ConfigISACBandwidthEstimator()
@@ -856,9 +919,9 @@ class AudioCodingModule: public Module {
   //    0 if the configuration was successfully applied.
   //
   virtual int32_t ConfigISACBandwidthEstimator(
-      int init_frame_size_ms,
-      int init_rate_bps,
-      bool enforce_frame_size = false) = 0;
+      const uint8_t init_frame_size_ms,
+      const uint16_t init_rate_bps,
+      const bool enforce_frame_size = false) = 0;
 
   ///////////////////////////////////////////////////////////////////////////
   //   statistics
@@ -866,8 +929,7 @@ class AudioCodingModule: public Module {
 
   ///////////////////////////////////////////////////////////////////////////
   // int32_t  NetworkStatistics()
-  // Get network statistics. Note that the internal statistics of NetEq are
-  // reset by this call.
+  // Get network statistics.
   //
   // Input:
   //   -network_statistics : a structure that contains network statistics.
@@ -877,15 +939,14 @@ class AudioCodingModule: public Module {
   //    0 if statistics are set successfully.
   //
   virtual int32_t NetworkStatistics(
-      ACMNetworkStatistics* network_statistics) = 0;
+      ACMNetworkStatistics* network_statistics) const = 0;
 
   //
   // Set an initial delay for playout.
   // An initial delay yields ACM playout silence until equivalent of |delay_ms|
   // audio payload is accumulated in NetEq jitter. Thereafter, ACM pulls audio
-  // from NetEq in its regular fashion, and the given delay is maintained
-  // through out the call, unless channel conditions yield to a higher jitter
-  // buffer delay.
+  // from NetEq in its regular fashion, and the given delay is maintained as
+  // "minimum playout delay."
   //
   // Input:
   //   -delay_ms           : delay in milliseconds.
@@ -895,49 +956,8 @@ class AudioCodingModule: public Module {
   //    0 if delay is set successfully.
   //
   virtual int SetInitialPlayoutDelay(int delay_ms) = 0;
-
-  //
-  // Enable NACK and set the maximum size of the NACK list. If NACK is already
-  // enable then the maximum NACK list size is modified accordingly.
-  //
-  // If the sequence number of last received packet is N, the sequence numbers
-  // of NACK list are in the range of [N - |max_nack_list_size|, N).
-  //
-  // |max_nack_list_size| should be positive (none zero) and less than or
-  // equal to |Nack::kNackListSizeLimit|. Otherwise, No change is applied and -1
-  // is returned. 0 is returned at success.
-  //
-  virtual int EnableNack(size_t max_nack_list_size) = 0;
-
-  // Disable NACK.
-  virtual void DisableNack() = 0;
-
-  //
-  // Get a list of packets to be retransmitted. |round_trip_time_ms| is an
-  // estimate of the round-trip-time (in milliseconds). Missing packets which
-  // will be playout in a shorter time than the round-trip-time (with respect
-  // to the time this API is called) will not be included in the list.
-  //
-  // Negative |round_trip_time_ms| results is an error message and empty list
-  // is returned.
-  //
-  virtual std::vector<uint16_t> GetNackList(int round_trip_time_ms) const = 0;
-};
-
-struct AudioCodingModuleFactory {
-  AudioCodingModuleFactory() {}
-  virtual ~AudioCodingModuleFactory() {}
-
-  virtual AudioCodingModule* Create(int id) const;
-};
-
-struct NewAudioCodingModuleFactory : AudioCodingModuleFactory {
-  NewAudioCodingModuleFactory() {}
-  virtual ~NewAudioCodingModuleFactory() {}
-
-  virtual AudioCodingModule* Create(int id) const;
 };
 
 }  // namespace webrtc
 
-#endif  // WEBRTC_MODULES_AUDIO_CODING_MAIN_INTERFACE_AUDIO_CODING_MODULE_H_
+#endif  // WEBRTC_MODULES_AUDIO_CODING_MAIN_INTERFACE_AUDIO_CODING_MODULE_H

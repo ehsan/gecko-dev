@@ -3,19 +3,18 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import os, posixpath, shlex, shutil, subprocess, sys, traceback
+import os, posixpath, shlex, subprocess, sys, traceback
 
 def add_libdir_to_path():
     from os.path import dirname, exists, join, realpath
     js_src_dir = dirname(dirname(realpath(sys.argv[0])))
     assert exists(join(js_src_dir,'jsapi.h'))
-    sys.path.insert(0, join(js_src_dir, 'lib'))
-    sys.path.insert(0, join(js_src_dir, 'tests', 'lib'))
+    sys.path.append(join(js_src_dir, 'lib'))
+    sys.path.append(join(js_src_dir, 'tests', 'lib'))
 
 add_libdir_to_path()
 
 import jittests
-from tests import TBPL_FLAGS
 
 def main(argv):
 
@@ -64,13 +63,13 @@ def main(argv):
                   help='Run all tests with valgrind, if valgrind is in $PATH.')
     op.add_option('--jitflags', dest='jitflags', default='',
                   help='Example: --jitflags=m,mn to run each test with "-m" and "-m -n" [default="%default"]. ' +
-                       'Long flags, such as "--ion-eager", should be set using --args.')
+                       'Long flags, such as "--no-jm", should be set using --args.')
     op.add_option('--avoid-stdio', dest='avoid_stdio', action='store_true',
                   help='Use js-shell file indirection instead of piping stdio.')
     op.add_option('--write-failure-output', dest='write_failure_output', action='store_true',
                   help='With --write-failures=FILE, additionally write the output of failed tests to [FILE]')
     op.add_option('--ion', dest='ion', action='store_true',
-                  help='Run tests once with --ion-eager and once with --baseline-eager (ignores --jitflags)')
+                  help='Run tests once with --ion-eager and once with --no-jm (ignores --jitflags)')
     op.add_option('--tbpl', dest='tbpl', action='store_true',
                   help='Run tests with all IonMonkey option combinations (ignores --jitflags)')
     op.add_option('-j', '--worker-count', dest='max_jobs', type=int, default=max_jobs_default,
@@ -83,9 +82,6 @@ def main(argv):
     op.add_option('--devicePort', action='store',
                   type=int, dest='device_port', default=20701,
                   help='port of remote device to test')
-    op.add_option('--deviceSerial', action='store',
-                  type='string', dest='device_serial', default=None,
-                  help='ADB device serial number of remote device to test')
     op.add_option('--deviceTransport', action='store',
                   type='string', dest='device_transport', default='sut',
                   help='The transport to use to communicate with device: [adb|sut]; default=sut')
@@ -162,13 +158,22 @@ def main(argv):
     job_list = []
     if options.tbpl:
         # Running all bits would take forever. Instead, we test a few interesting combinations.
+        flags = [
+            [], # no flags, normal baseline and ion
+            ['--ion-eager'], # implies --baseline-eager
+            ['--ion-eager', '--ion-check-range-analysis'],
+            ['--baseline-eager'],
+            ['--baseline-eager', '--no-ti', '--no-fpu'],
+            ['--no-baseline', '--no-ion'],
+            ['--no-baseline', '--no-ion', '--no-ti'],
+        ]
         for test in test_list:
-            for variant in TBPL_FLAGS:
+            for variant in flags:
                 new_test = test.copy()
                 new_test.jitflags.extend(variant)
                 job_list.append(new_test)
     elif options.ion:
-        flags = [['--baseline-eager'], ['--ion-eager', '--ion-parallel-compile=off']]
+        flags = [['--baseline-eager'], ['--ion-eager']]
         for test in test_list:
             for variant in flags:
                 new_test = test.copy()
@@ -185,20 +190,9 @@ def main(argv):
     prefix = [os.path.abspath(args[0])] + shlex.split(options.shell_args)
     prolog = os.path.join(jittests.LIB_DIR, 'prolog.js')
     if options.remote:
-        prolog = posixpath.join(options.remote_test_root, 'jit-tests', 'jit-tests', 'lib', 'prolog.js')
+        prolog = posixpath.join(options.remote_test_root, 'jit-tests/lib/prolog.js')
 
     prefix += ['-f', prolog]
-
-    # Avoid racing on the cache by having the js shell create a new cache
-    # subdir for each process. The js shell takes care of deleting these
-    # subdirs when the process exits.
-    if options.max_jobs > 1 and jittests.HAVE_MULTIPROCESSING:
-        prefix += ['--js-cache-per-process']
-
-    # Clean up any remnants from previous crashes etc
-    shutil.rmtree(jittests.JS_CACHE_DIR, ignore_errors=True)
-    os.mkdir(jittests.JS_CACHE_DIR)
-
     if options.debug:
         if len(job_list) > 1:
             print 'Multiple tests match command line arguments, debugger can only run one'

@@ -65,8 +65,7 @@ nsINIParser::Init(nsIFile* aFile)
 #ifdef XP_WIN
     nsAutoString path;
     nsresult rv = aFile->GetPath(path);
-    if (NS_WARN_IF(NS_FAILED(rv)))
-      return rv;
+    NS_ENSURE_SUCCESS(rv, rv);
 
     fd = _wfopen(path.get(), READ_BINARYMODE);
 #else
@@ -102,6 +101,8 @@ static const char kRBracket[] = "]";
 nsresult
 nsINIParser::InitFromFILE(FILE *fd)
 {
+    mSections.Init();
+
     /* get file size */
     if (fseek(fd, 0, SEEK_END) != 0)
         return NS_ERROR_FAILURE;
@@ -149,10 +150,10 @@ nsINIParser::InitFromFILE(FILE *fd)
                                    0,
                                    reinterpret_cast<LPWSTR>(buffer),
                                    -1,
-                                   nullptr,
+                                   NULL,
                                    0,
-                                   nullptr,
-                                   nullptr);
+                                   NULL,
+                                   NULL);
         if (0 == flen) {
             return NS_ERROR_FAILURE;
         }
@@ -164,8 +165,8 @@ nsINIParser::InitFromFILE(FILE *fd)
                                      -1,
                                      utf8Buffer,
                                      flen,
-                                     nullptr,
-                                     nullptr)) {
+                                     NULL,
+                                     NULL)) {
             return NS_ERROR_FAILURE;
         }
         mFileContents = utf8Buffer.forget();

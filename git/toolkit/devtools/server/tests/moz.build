@@ -6,4 +6,6 @@
 
 DIRS += ['mochitest']
 
+MODULE = 'test_debugger'
+
 XPCSHELL_TESTS_MANIFESTS += ['unit/xpcshell.ini']

@@ -7,3 +7,5 @@
 PARALLEL_DIRS += ['public', 'src']
 TEST_DIRS += ['test']
 
+MODULE = 'xul'
+

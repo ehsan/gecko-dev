@@ -5,8 +5,7 @@
  */
 
 [JSImplementation="@mozilla.org/b2g-inputmethod;1",
- NavigatorProperty="mozInputMethod",
- Func="Navigator::HasInputMethodSupport"]
+ NavigatorProperty="mozInputMethod"]
 interface MozInputMethod : EventTarget {
   // Input Method Manager contain a few global methods expose to apps
   readonly attribute MozInputMethodManager mgmt;
@@ -24,16 +23,11 @@ interface MozInputMethod : EventTarget {
   // allow to mutate.  this attribute should be null when there is no
   // text field currently focused.
   readonly attribute MozInputContext? inputcontext;
-
-  [ChromeOnly]
-  // Activate or decactive current input method window.
-  void setActive(boolean isActive);
 };
 
 // Manages the list of IMEs, enables/disables IME and switches to an
 // IME.
-[JSImplementation="@mozilla.org/b2g-imm;1",
- Pref="dom.mozInputMethod.enabled"]
+[JSImplementation="@mozilla.org/b2g-imm;1"]
 interface MozInputMethodManager {
   // Ask the OS to show a list of available IMEs for users to switch from.
   // OS should ignore this request if the app is currently not the active one.
@@ -61,37 +55,37 @@ interface MozInputMethodManager {
 // It also hosts the methods available to the keyboard app to mutate the input field represented.
 // An "input context" gets void when the app is no longer allowed to interact with the text field,
 // e.g., the text field does no longer exist, the app is being switched to background, and etc.
-[JSImplementation="@mozilla.org/b2g-inputcontext;1",
- Pref="dom.mozInputMethod.enabled"]
+[JSImplementation="@mozilla.org/b2g-inputcontext;1"]
 interface MozInputContext: EventTarget {
    // The tag name of input field, which is enum of "input", "textarea", or "contenteditable"
-   readonly attribute DOMString? type;
+   readonly attribute DOMString type;
+
    // The type of the input field, which is enum of text, number, password, url, search, email, and so on.
    // See http://www.whatwg.org/specs/web-apps/current-work/multipage/states-of-the-type-attribute.html#states-of-the-type-attribute
-   readonly attribute DOMString? inputType;
+   readonly attribute DOMString inputType;
+
    /*
     * The inputmode string, representing the input mode.
     * See http://www.whatwg.org/specs/web-apps/current-work/multipage/association-of-controls-and-forms.html#input-modalities:-the-inputmode-attribute
     */
-   readonly attribute DOMString? inputMode;
+   readonly attribute DOMString inputMode;
+
    /*
     * The primary language for the input field.
     * It is the value of HTMLElement.lang.
     * See http://www.whatwg.org/specs/web-apps/current-work/multipage/elements.html#htmlelement
     */
-   readonly attribute DOMString? lang;
+   readonly attribute DOMString lang;
+
    /*
     * Get the whole text content of the input field.
     * @return DOMString
     */
    Promise getText(optional long offset, optional long length);
+
    // The start and stop position of the selection.
    readonly attribute long selectionStart;
    readonly attribute long selectionEnd;
-
-   // The start and stop position of the selection.
-   readonly attribute DOMString? textBeforeCursor;
-   readonly attribute DOMString? textAfterCursor;
 
     /*
      * Set the selection range of the the editable text.
@@ -157,59 +151,24 @@ interface MozInputContext: EventTarget {
     Promise sendKey(long keyCode, long charCode, long modifiers);
 
     /*
-     * Set current composing text. This method will start composition or update
-     * composition if it has started. The composition will be started right
-     * before the cursor position and any selected text will be replaced by the
-     * composing text. When the composition is started, calling this method can
-     * update the text and move cursor winthin the range of the composing text.
-     * @param text The new composition text to show.
-     * @param cursor The new cursor position relative to the start of the
-     * composition text. The cursor should be positioned within the composition
-     * text. This means the value should be >= 0 and <= the length of
-     * composition text. Defaults to the lenght of composition text, i.e., the
-     * cursor will be positioned after the composition text.
-     * @param clauses The array of composition clause information. If not set,
-     * only one clause is supported.
+     * Set current composition. It will start or update composition.
+     * @param cursor Position in the text of the cursor.
      *
-     * The composing text, which is shown with underlined style to distinguish
-     * from the existing text, is used to compose non-ASCII characters from
-     * keystrokes, e.g. Pinyin or Hiragana. The composing text is the
-     * intermediate text to help input complex character and is not committed to
-     * current input field. Therefore if any text operation other than
-     * composition is performed, the composition will automatically end. Same
-     * apply when the inputContext is lost during an unfinished composition
-     * session.
-     *
-     * To finish composition and commit text to current input field, an IME
-     * should call |endComposition|.
+     * The API implementation should automatically ends the composition
+     * session (with event and confirm the current composition) if
+     * endComposition is never called. Same apply when the inputContext is lost
+     * during a unfinished composition session.
      */
-    Promise setComposition(DOMString text, optional long cursor,
-                           optional sequence<CompositionClauseParameters> clauses);
+    Promise setComposition(DOMString text, long cursor);
 
     /*
-     * End composition, clear the composing text and commit given text to
-     * current input field. The text will be committed before the cursor
-     * position.
-     * @param text The text to commited before cursor position. If empty string
-     * is given, no text will be committed.
+     * End composition and actually commit the text. (was |commitText(text, offset, length)|)
+     * Ending the composition with an empty string will not send any text.
+     * Note that if composition always ends automatically (with the current composition committed)
+     * if the composition did not explicitly with |endComposition()| but was interrupted with
+     * |sendKey()|, |setSelectionRange()|, user moving the cursor, or remove the focus, etc.
      *
-     * Note that composition always ends automatically with nothing to commit if
-     * the composition does not explicitly end by calling |endComposition|, but
-     * is interrupted by |sendKey|, |setSelectionRange|,
-     * |replaceSurroundingText|, |deleteSurroundingText|, user moving the
-     * cursor, changing the focus, etc.
+     * @param text The text
      */
-    Promise endComposition(optional DOMString text);
-};
-
-enum CompositionClauseSelectionType {
-  "raw-input",
-  "selected-raw-text",
-  "converted-text",
-  "selected-converted-text"
-};
-
-dictionary CompositionClauseParameters {
-  DOMString selectionType = "raw-input";
-  long length;
+    Promise endComposition(DOMString text);
 };

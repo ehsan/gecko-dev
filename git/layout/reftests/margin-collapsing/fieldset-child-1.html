@@ -2,28 +2,32 @@
 <html>
 <head>
 <style type="text/css">
-.separator {
+#separator-top {
  height: 20px;
  background-color: green;
 }
 fieldset {
- margin: 0;
+ background-color: blue;
+ margin: 10px 0;
  padding: 0;
  border: none;
- background-color: lightgreen;
 }
-#child {
+#margin-child {
  height: 40px;
- margin: 20px 0;
+ background-color: green;
+ margin: 20px;
+}
+#separator-bottom {
+ height: 20px;
  background-color: green;
 }
 </style>
 </head>
 <body>
-<div class="separator"></div>
+<div id="separator-top"></div>
 <fieldset>
- <div id="child"></div>
+ <div id="margin-child"></div>
 </fieldset>
-<div class="separator"></div>
+<div id="separator-bottom"></div>
 </body>
 </html>

@@ -12,34 +12,16 @@ const PREF_EM_CHECK_UPDATE_SECURITY   = "extensions.checkUpdateSecurity";
 const PREF_EM_STRICT_COMPATIBILITY    = "extensions.strictCompatibility";
 const PREF_EM_MIN_COMPAT_APP_VERSION      = "extensions.minCompatibleAppVersion";
 const PREF_EM_MIN_COMPAT_PLATFORM_VERSION = "extensions.minCompatiblePlatformVersion";
-const PREF_GETADDONS_BYIDS               = "extensions.getAddons.get.url";
-const PREF_GETADDONS_BYIDS_PERFORMANCE   = "extensions.getAddons.getWithPerformance.url";
 
 // Forcibly end the test if it runs longer than 15 minutes
 const TIMEOUT_MS = 900000;
 
+Components.utils.import("resource://gre/modules/AddonManager.jsm");
 Components.utils.import("resource://gre/modules/AddonRepository.jsm");
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/FileUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
 Components.utils.import("resource://gre/modules/NetUtil.jsm");
-
-// We need some internal bits of AddonManager
-let AMscope = Components.utils.import("resource://gre/modules/AddonManager.jsm");
-let AddonManager = AMscope.AddonManager;
-let AddonManagerInternal = AMscope.AddonManagerInternal;
-// Mock out AddonManager's reference to the AsyncShutdown module so we can shut
-// down AddonManager from the test
-let MockAsyncShutdown = {
-  hook: null,
-  profileBeforeChange: {
-    addBlocker: function(aName, aBlocker) {
-      do_print("Mock profileBeforeChange blocker for '" + aName + "'");
-      MockAsyncShutdown.hook = aBlocker;
-    }
-  }
-};
-AMscope.AsyncShutdown = MockAsyncShutdown;
 
 var gInternalManager = null;
 var gAppInfo = null;
@@ -379,8 +361,10 @@ function startupManager(aAppChanged) {
     do_throw("Test attempt to startup manager that was already started.");
 
   if (aAppChanged || aAppChanged === undefined) {
-    if (gExtensionsINI.exists())
-      gExtensionsINI.remove(true);
+    var file = gProfD.clone();
+    file.append("extensions.ini");
+    if (file.exists())
+      file.remove(true);
   }
 
   gInternalManager = AM_Cc["@mozilla.org/addons/integration;1"].
@@ -416,21 +400,29 @@ function shutdownManager() {
   if (!gInternalManager)
     return;
 
-  let shutdownDone = false;
+  let xpiShutdown = false;
+  Services.obs.addObserver({
+    observe: function(aSubject, aTopic, aData) {
+      xpiShutdown = true;
+      gXPISaveError = aData;
+      Services.obs.removeObserver(this, "xpi-provider-shutdown");
+    }
+  }, "xpi-provider-shutdown", false);
+
+  let repositoryShutdown = false;
+  Services.obs.addObserver({
+    observe: function(aSubject, aTopic, aData) {
+      repositoryShutdown = true;
+      Services.obs.removeObserver(this, "addon-repository-shutdown");
+    }
+  }, "addon-repository-shutdown", false);
 
   Services.obs.notifyObservers(null, "quit-application-granted", null);
-  MockAsyncShutdown.hook().then(
-    () => shutdownDone = true,
-    err => shutdownDone = true);
-
-  let thr = Services.tm.mainThread;
-
-  // Wait until we observe the shutdown notifications
-  while (!shutdownDone) {
-    thr.processNextEvent(true);
-  }
-
+  let scope = Components.utils.import("resource://gre/modules/AddonManager.jsm");
+  scope.AddonManagerInternal.shutdown();
   gInternalManager = null;
+
+  AddonRepository.shutdown();
 
   // Load the add-ons list as it was after application shutdown
   loadAddonsList();
@@ -438,13 +430,17 @@ function shutdownManager() {
   // Clear any crash report annotations
   gAppInfo.annotations = {};
 
+  let thr = Services.tm.mainThread;
+
+  // Wait until we observe the shutdown notifications
+  while (!repositoryShutdown || !xpiShutdown) {
+    thr.processNextEvent(true);
+  }
+
   // Force the XPIProvider provider to reload to better
   // simulate real-world usage.
-  let XPIscope = Components.utils.import("resource://gre/modules/XPIProvider.jsm");
-  // This would be cleaner if I could get it as the rejection reason from
-  // the AddonManagerInternal.shutdown() promise
-  gXPISaveError = XPIscope.XPIProvider._shutdownError;
-  AddonManagerPrivate.unregisterProvider(XPIscope.XPIProvider);
+  scope = Components.utils.import("resource://gre/modules/XPIProvider.jsm");
+  AddonManagerPrivate.unregisterProvider(scope.XPIProvider);
   Components.utils.unload("resource://gre/modules/XPIProvider.jsm");
 }
 
@@ -473,12 +469,14 @@ function loadAddonsList() {
     themes: []
   };
 
-  if (!gExtensionsINI.exists())
+  var file = gProfD.clone();
+  file.append("extensions.ini");
+  if (!file.exists())
     return;
 
   var factory = AM_Cc["@mozilla.org/xpcom/ini-parser-factory;1"].
                 getService(AM_Ci.nsIINIParserFactory);
-  var parser = factory.createINIParser(gExtensionsINI);
+  var parser = factory.createINIParser(file);
   gAddonsList.extensions = readDirectories("ExtensionDirs");
   gAddonsList.themes = readDirectories("ThemeDirs");
 }
@@ -1102,24 +1100,16 @@ if ("nsIWindowsRegKey" in AM_Ci) {
   var MockRegistry = {
     LOCAL_MACHINE: {},
     CURRENT_USER: {},
-    CLASSES_ROOT: {},
-
-    getRoot: function(aRoot) {
-      switch (aRoot) {
-      case AM_Ci.nsIWindowsRegKey.ROOT_KEY_LOCAL_MACHINE:
-        return MockRegistry.LOCAL_MACHINE;
-      case AM_Ci.nsIWindowsRegKey.ROOT_KEY_CURRENT_USER:
-        return MockRegistry.CURRENT_USER;
-      case AM_Ci.nsIWindowsRegKey.ROOT_KEY_CLASSES_ROOT:
-        return MockRegistry.CLASSES_ROOT;
-      default:
-        do_throw("Unknown root " + aRootKey);
-        return null;
-      }
-    },
 
     setValue: function(aRoot, aPath, aName, aValue) {
-      let rootKey = MockRegistry.getRoot(aRoot);
+      switch (aRoot) {
+      case AM_Ci.nsIWindowsRegKey.ROOT_KEY_LOCAL_MACHINE:
+        var rootKey = MockRegistry.LOCAL_MACHINE;
+        break
+      case AM_Ci.nsIWindowsRegKey.ROOT_KEY_CURRENT_USER:
+        rootKey = MockRegistry.CURRENT_USER;
+        break
+      }
 
       if (!(aPath in rootKey)) {
         rootKey[aPath] = [];
@@ -1161,7 +1151,14 @@ if ("nsIWindowsRegKey" in AM_Ci) {
 
     // --- Overridden nsIWindowsRegKey interface functions ---
     open: function(aRootKey, aRelPath, aMode) {
-      let rootKey = MockRegistry.getRoot(aRootKey);
+      switch (aRootKey) {
+      case AM_Ci.nsIWindowsRegKey.ROOT_KEY_LOCAL_MACHINE:
+        var rootKey = MockRegistry.LOCAL_MACHINE;
+        break
+      case AM_Ci.nsIWindowsRegKey.ROOT_KEY_CURRENT_USER:
+        rootKey = MockRegistry.CURRENT_USER;
+        break
+      }
 
       if (!(aRelPath in rootKey))
         rootKey[aRelPath] = [];
@@ -1211,14 +1208,6 @@ if ("nsIWindowsRegKey" in AM_Ci) {
 
 // Get the profile directory for tests to use.
 const gProfD = do_get_profile();
-
-const EXTENSIONS_DB = "extensions.json";
-let gExtensionsJSON = gProfD.clone();
-gExtensionsJSON.append(EXTENSIONS_DB);
-
-const EXTENSIONS_INI = "extensions.ini";
-let gExtensionsINI = gProfD.clone();
-gExtensionsINI.append(EXTENSIONS_INI);
 
 // Enable more extensive EM logging
 Services.prefs.setBoolPref("extensions.logging.enabled", true);
@@ -1405,6 +1394,10 @@ function do_exception_wrap(func) {
   };
 }
 
+const EXTENSIONS_DB = "extensions.json";
+let gExtensionsJSON = gProfD.clone();
+gExtensionsJSON.append(EXTENSIONS_DB);
+
 /**
  * Change the schema version of the JSON extensions database
  */
@@ -1415,9 +1408,9 @@ function changeXPIDBVersion(aNewVersion) {
 }
 
 /**
- * Load a file into a string
+ * Raw load of a JSON file
  */
-function loadFile(aFile) {
+function loadJSON(aFile) {
   let data = "";
   let fstream = Components.classes["@mozilla.org/network/file-input-stream;1"].
           createInstance(Components.interfaces.nsIFileInputStream);
@@ -1433,14 +1426,6 @@ function loadFile(aFile) {
     } while (read != 0);
   }
   cstream.close();
-  return data;
-}
-
-/**
- * Raw load of a JSON file
- */
-function loadJSON(aFile) {
-  let data = loadFile(aFile);
   do_print("Loaded JSON file " + aFile.path);
   return(JSON.parse(data));
 }

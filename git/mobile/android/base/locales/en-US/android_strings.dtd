@@ -178,13 +178,10 @@ size. -->
 <!ENTITY datareporting_wifi_title "&vendorShortName; location services">
 <!ENTITY datareporting_wifi_summary "Help improve geolocation services for the Open Web by letting &brandShortName; collect and send anonymous cellular tower data">
 
-<!-- Localization note (pref_update_autodownload2) : This should mention downloading
-     specifically, since the pref only prevents automatic downloads and not the
-     actual notification that an update is available. -->
-<!ENTITY pref_update_autodownload2 "Download updates automatically">
+<!ENTITY pref_update_autodownload "Automatic updates">
 <!ENTITY pref_update_autodownload_wifi "Only over Wi-Fi">
-<!ENTITY pref_update_autodownload_never "Never">
-<!ENTITY pref_update_autodownload_always "Always">
+<!ENTITY pref_update_autodownload_disabled "Disabled">
+<!ENTITY pref_update_autodownload_enabled "Enabled">
 
 <!ENTITY quit "Quit">
 
@@ -228,19 +225,17 @@ size. -->
 <!ENTITY contextmenu_edit_bookmark "Edit">
 <!ENTITY contextmenu_subscribe "Subscribe to Page">
 <!ENTITY contextmenu_site_settings "Edit Site Settings">
-<!ENTITY contextmenu_top_sites_edit "Edit">
-<!ENTITY contextmenu_top_sites_pin "Pin Site">
-<!ENTITY contextmenu_top_sites_unpin "Unpin Site">
-<!ENTITY contextmenu_add_search_engine "Add a Search Engine">
+<!ENTITY contextmenu_top_bookmarks_edit "Edit">
+<!ENTITY contextmenu_top_bookmarks_pin "Pin Site">
+<!ENTITY contextmenu_top_bookmarks_unpin "Unpin Site">
 
 <!ENTITY pref_titlebar_mode "Title bar">
 <!ENTITY pref_titlebar_mode_title "Show page title">
 <!ENTITY pref_titlebar_mode_url "Show page address">
 
-<!ENTITY pref_dynamic_toolbar "Hide title bar when scrolling">
-
 <!ENTITY history_removed "Page removed">
 
+<!ENTITY bookmark_add "Add a bookmark">
 <!ENTITY bookmark_edit_title "Edit Bookmark">
 <!ENTITY bookmark_edit_name "Name">
 <!ENTITY bookmark_edit_location "Location">
@@ -275,29 +270,22 @@ size. -->
 <!ENTITY button_set "Set">
 <!ENTITY button_clear "Clear">
 
-<!ENTITY home_top_sites_title "Top Sites">
-<!-- Localization note (home_top_sites_add): This string is used as placeholder
-     text underneath empty thumbnails in the Top Sites page on about:home. -->
-<!ENTITY home_top_sites_add "Add a site">
-
 <!ENTITY home_history_title "History">
-<!ENTITY home_bookmarks_empty "Bookmarks you save show up here.">
 <!ENTITY home_last_tabs_title "Tabs from last time">
 <!ENTITY home_last_tabs_open "Open all tabs from last time">
 <!ENTITY home_last_tabs_empty "Your recent tabs show up here.">
 <!ENTITY home_most_recent_title "Most recent">
 <!ENTITY home_most_recent_empty "Websites you visited most recently show up here.">
+<!ENTITY home_most_visited_title "Most visited">
 <!ENTITY home_reading_list_empty "Articles you save for later show up here.">
 <!-- Localization note (home_reading_list_hint): The "TIP" string is synonymous to "hint", "clue", etc. This string is displayed
      as an advisory message on how to add content to the reading list when the reading list empty.
      The "&#37;I" in the string will be replaced by a small image of the icon described, and can be moved to wherever
      it is applicable. Please keep the spacing around the "&#37;I" string. -->
 <!ENTITY home_reading_list_hint "TIP: Save articles to your reading list by long pressing the &#37;I icon when it appears in the title bar.">
-<!-- Localization note (home_reading_list_hint_accessible): This string is used
-     as alternate text for accessibility. It is not visible in the UI. -->
-<!ENTITY home_reading_list_hint_accessible "TIP: Save articles to your reading list by long pressing the reader mode button when it appears in the title bar.">
 
-<!ENTITY pin_site_dialog_hint "Enter a search keyword">
+<!ENTITY home_most_visited_empty "Websites you visit most frequently show up here.">
+<!ENTITY pin_bookmark_dialog_hint "Enter a search keyword">
 
 <!ENTITY filepicker_title "Choose File">
 <!ENTITY filepicker_audio_title "Choose or record a sound">
@@ -377,8 +365,3 @@ just addresses the organization to follow, e.g. "This site is run by " -->
 
 <!ENTITY exit_guest_session_title "&brandShortName; will now restart">
 <!ENTITY exit_guest_session_text "The browsing data from this session will be deleted.">
-
-<!-- These are only used for accessiblity for the done and overflow-menu buttons in the actionbar.
-     They are never shown to users -->
-<!ENTITY actionbar_menu "Menu">
-<!ENTITY actionbar_done "Done">

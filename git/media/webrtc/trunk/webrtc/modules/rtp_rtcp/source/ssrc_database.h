@@ -12,11 +12,11 @@
 #define WEBRTC_MODULES_RTP_RTCP_SOURCE_SSRC_DATABASE_H_
 
 #ifndef WEBRTC_NO_STL
-#include <map>
+    #include <map>
 #endif
 
-#include "webrtc/system_wrappers/interface/static_instance.h"
-#include "webrtc/typedefs.h"
+#include "system_wrappers/interface/static_instance.h"
+#include "typedefs.h"
 
 namespace webrtc {
 class CriticalSectionWrapper;
@@ -57,6 +57,6 @@ private:
 
     CriticalSectionWrapper* _critSect;
 };
-}  // namespace webrtc
+} // namespace webrtc
 
 #endif // WEBRTC_MODULES_RTP_RTCP_SOURCE_SSRC_DATABASE_H_

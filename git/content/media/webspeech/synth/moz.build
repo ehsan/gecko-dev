@@ -4,6 +4,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 if CONFIG['MOZ_WEBSPEECH']:
+    MODULE = 'content'
 
     TEST_DIRS += ['test', 'ipc/test']
 
@@ -17,28 +18,25 @@ if CONFIG['MOZ_WEBSPEECH']:
 
     EXPORTS.mozilla.dom += [
         'EnableSpeechSynthesisCheck.h',
+        'SpeechSynthesis.h',
+        'SpeechSynthesisUtterance.h',
+        'SpeechSynthesisVoice.h',
         'ipc/SpeechSynthesisChild.h',
         'ipc/SpeechSynthesisParent.h',
         'nsSpeechTask.h',
         'nsSynthVoiceRegistry.h',
-        'SpeechSynthesis.h',
-        'SpeechSynthesisUtterance.h',
-        'SpeechSynthesisVoice.h',
     ]
 
-    UNIFIED_SOURCES += [
+    CPP_SOURCES += [
         'EnableSpeechSynthesisCheck.cpp',
-        'ipc/SpeechSynthesisChild.cpp',
-        'ipc/SpeechSynthesisParent.cpp',
-        'nsSpeechTask.cpp',
-        'nsSynthVoiceRegistry.cpp',
         'SpeechSynthesis.cpp',
+        'SpeechSynthesisChild.cpp',
+        'SpeechSynthesisParent.cpp',
         'SpeechSynthesisUtterance.cpp',
         'SpeechSynthesisVoice.cpp',
+        'nsSpeechTask.cpp',
+        'nsSynthVoiceRegistry.cpp',
     ]
-
-    if CONFIG['MOZ_SYNTH_PICO']:
-        PARALLEL_DIRS = ['pico']
 
 IPDL_SOURCES += [
     'ipc/PSpeechSynthesis.ipdl',
@@ -47,9 +45,5 @@ IPDL_SOURCES += [
 
 FAIL_ON_WARNINGS = True
 
-include('/ipc/chromium/chromium-config.mozbuild')
+LIBXUL_LIBRARY = True
 
-FINAL_LIBRARY = 'gklayout'
-LOCAL_INCLUDES += [
-    'ipc',
-]

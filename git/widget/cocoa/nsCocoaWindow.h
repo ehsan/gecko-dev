@@ -47,7 +47,7 @@ typedef NSInteger NSWindowAnimationBehavior;
 #endif
 
 typedef struct _nsCocoaWindowList {
-  _nsCocoaWindowList() : prev(nullptr), window(nullptr) {}
+  _nsCocoaWindowList() : prev(NULL), window(NULL) {}
   struct _nsCocoaWindowList *prev;
   nsCocoaWindow *window; // Weak
 } nsCocoaWindowList;
@@ -76,9 +76,6 @@ typedef struct _nsCocoaWindowList {
   float mDPI;
 
   NSTrackingArea* mTrackingArea;
-
-  BOOL mBeingShown;
-  BOOL mDrawTitle;
 }
 
 - (void)importState:(NSDictionary*)aState;
@@ -98,15 +95,9 @@ typedef struct _nsCocoaWindowList {
 - (void)updateTrackingArea;
 - (NSView*)trackingAreaView;
 
-- (void)setBeingShown:(BOOL)aValue;
-- (BOOL)isVisibleOrBeingShown;
-
 - (ChildView*)mainChildView;
 
 - (NSArray*)titlebarControls;
-
-- (void)setWantsTitleDrawn:(BOOL)aDrawTitle;
-- (BOOL)wantsTitleDrawn;
 
 @end
 
@@ -129,11 +120,6 @@ typedef struct _nsCocoaWindowList {
 // Present in the same form on OS X since at least OS X 10.5.
 - (NSRect)contentRectForFrameRect:(NSRect)windowFrame styleMask:(NSUInteger)windowStyle;
 - (NSRect)frameRectForContentRect:(NSRect)windowContentRect styleMask:(NSUInteger)windowStyle;
-
-// Present since at least OS X 10.5.  The OS calls this method on NSWindow
-// (and its subclasses) to find out which NSFrameView subclass to instantiate
-// to create its "frame view".
-+ (Class)frameViewClassForStyleMask:(NSUInteger)styleMask;
 
 @end
 
@@ -202,8 +188,6 @@ typedef struct _nsCocoaWindowList {
   CGFloat mUnifiedToolbarHeight;
   NSColor *mBackgroundColor;
   NSView *mTitlebarView; // strong
-  NSRect mWindowButtonsRect;
-  NSRect mFullScreenButtonRect;
 }
 // Pass nil here to get the default appearance.
 - (void)setTitlebarColor:(NSColor*)aColor forActiveWindow:(BOOL)aActive;
@@ -214,10 +198,6 @@ typedef struct _nsCocoaWindowList {
 - (void)setTitlebarNeedsDisplayInRect:(NSRect)aRect sync:(BOOL)aSync;
 - (void)setTitlebarNeedsDisplayInRect:(NSRect)aRect;
 - (void)setDrawsContentsIntoWindowFrame:(BOOL)aState;
-- (void)placeWindowButtons:(NSRect)aRect;
-- (void)placeFullScreenButton:(NSRect)aRect;
-- (NSPoint)windowButtonsPositionWithDefaultPosition:(NSPoint)aDefaultPosition;
-- (NSPoint)fullScreenButtonPositionWithDefaultPosition:(NSPoint)aDefaultPosition;
 @end
 
 class nsCocoaWindow : public nsBaseWidget, public nsPIWidgetCocoa
@@ -287,8 +267,7 @@ public:
                                           LayersBackend aBackendHint = mozilla::layers::LAYERS_NONE,
                                           LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
                                           bool* aAllowRetaining = nullptr);
-    NS_IMETHOD DispatchEvent(mozilla::WidgetGUIEvent* aEvent,
-                             nsEventStatus& aStatus);
+    NS_IMETHOD DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus) ;
     NS_IMETHOD CaptureRollupEvents(nsIRollupListener * aListener, bool aDoCapture);
     NS_IMETHOD GetAttention(int32_t aCycleCount);
     virtual bool HasPendingInputEvent();
@@ -298,8 +277,6 @@ public:
     virtual void SetShowsToolbarButton(bool aShow);
     virtual void SetShowsFullScreenButton(bool aShow);
     virtual void SetWindowAnimationType(WindowAnimationType aType);
-    virtual void SetDrawsTitle(bool aDrawTitle);
-    NS_IMETHOD SetNonClientMargins(nsIntMargin &margins);
     NS_IMETHOD SetWindowTitlebarColor(nscolor aColor, bool aActive);
     virtual void SetDrawsInTitlebar(bool aState);
     virtual nsresult SynthesizeNativeMouseEvent(nsIntPoint aPoint,

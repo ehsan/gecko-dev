@@ -352,10 +352,8 @@ class TestRILCodeQuality(MarionetteTestCase):
     def test_RadioInterfaceLayer(self):
         self._check('RadioInterfaceLayer.js')
 
-    # Bug 936504. Disable the test for 'ril_worker.js'. It sometimes runs very
-    # slow and causes the timeout fail on try server.
-    #def test_ril_worker(self):
-    #    self._check('ril_worker.js')
+    def test_ril_worker(self):
+        self._check('ril_worker.js')
 
     def test_ril_consts(self):
         self._check('ril_consts.js')

@@ -43,22 +43,23 @@ interface SVGSVGElement : SVGGraphicsElement {
   // boolean checkIntersection(SVGElement element, SVGRect rect);
   // boolean checkEnclosure(SVGElement element, SVGRect rect);
   void deselectAll();
-  [NewObject]
+  [Creator]
   SVGNumber createSVGNumber();
-  [NewObject]
+  [Creator]
   SVGLength createSVGLength();
-  [NewObject]
+  [Creator]
   SVGAngle createSVGAngle();
-  [NewObject]
+  [Creator]
   SVGPoint createSVGPoint();
-  [NewObject]
+  [Creator]
   SVGMatrix createSVGMatrix();
-  [NewObject]
+  [Creator]
   SVGRect createSVGRect();
-  [NewObject]
+  [Creator]
   SVGTransform createSVGTransform();
-  [NewObject]
+  [Creator]
   SVGTransform createSVGTransformFromMatrix(SVGMatrix matrix);
+  [Throws]
   Element? getElementById(DOMString elementId);
 };
 

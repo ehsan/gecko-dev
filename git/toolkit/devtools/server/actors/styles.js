@@ -5,15 +5,12 @@
 "use strict";
 
 const {Cc, Ci} = require("chrome");
-const promise = require("sdk/core/promise");
 const protocol = require("devtools/server/protocol");
 const {Arg, Option, method, RetVal, types} = protocol;
 const events = require("sdk/event/core");
 const object = require("sdk/util/object");
 const { Class } = require("sdk/core/heritage");
-const { StyleSheetActor } = require("devtools/server/actors/stylesheets");
 
-loader.lazyImporter(this, "Services", "resource://gre/modules/Services.jsm");
 loader.lazyGetter(this, "CssLogic", () => require("devtools/styleinspector/css-logic").CssLogic);
 loader.lazyGetter(this, "DOMUtils", () => Cc["@mozilla.org/inspector/dom-utils;1"].getService(Ci.inIDOMUtils));
 
@@ -22,9 +19,6 @@ loader.lazyGetter(this, "DOMUtils", () => Cc["@mozilla.org/inspector/dom-utils;1
 // but no associated rule) we fake a rule with the following style id.
 const ELEMENT_STYLE = 100;
 exports.ELEMENT_STYLE = ELEMENT_STYLE;
-
-const PSEUDO_ELEMENTS = [":first-line", ":first-letter", ":before", ":after", ":-moz-selection"];
-exports.PSEUDO_ELEMENTS = PSEUDO_ELEMENTS;
 
 // Predeclare the domnode actor type for use in requests.
 types.addActorType("domnode");
@@ -106,7 +100,7 @@ var PageStyleActor = protocol.ActorClass({
     if (this.refMap.has(sheet)) {
       return this.refMap.get(sheet);
     }
-    let actor = new StyleSheetActor(sheet, this, this.walker.rootWin);
+    let actor = StyleSheetActor(this, sheet);
     this.manage(actor);
     this.refMap.set(sheet, actor);
 
@@ -138,11 +132,12 @@ var PageStyleActor = protocol.ActorClass({
    *   }
    */
   getComputed: method(function(node, options) {
+    let win = node.rawNode.ownerDocument.defaultView;
     let ret = Object.create(null);
 
     this.cssLogic.sourceFilter = options.filter || CssLogic.FILTER.UA;
     this.cssLogic.highlight(node.rawNode);
-    let computed = this.cssLogic._computedStyle || [];
+    let computed = this.cssLogic._computedStyle;
 
     Array.prototype.forEach.call(computed, name => {
       let matched = undefined;
@@ -234,7 +229,6 @@ var PageStyleActor = protocol.ActorClass({
         rule: rule,
         sourceText: this.getSelectorSource(selectorInfo, node.rawNode),
         selector: selectorInfo.selector.text,
-        name: selectorInfo.property,
         value: selectorInfo.value,
         status: selectorInfo.status
       });
@@ -246,7 +240,7 @@ var PageStyleActor = protocol.ActorClass({
       matched: matched,
       rules: [...rules],
       sheets: [...sheets],
-    };
+    }
   }, {
     request: {
       node: Arg(0, "domnode"),
@@ -255,7 +249,7 @@ var PageStyleActor = protocol.ActorClass({
     },
     response: RetVal(types.addDictType("matchedselectorresponse", {
       rules: "array:domstylerule",
-      sheets: "array:stylesheet",
+      sheets: "array:domsheet",
       matched: "array:matchedselector"
     }))
   }),
@@ -341,7 +335,7 @@ var PageStyleActor = protocol.ActorClass({
     response: RetVal(types.addDictType("appliedStylesReturn", {
       entries: "array:appliedstyle",
       rules: "array:domstylerule",
-      sheets: "array:stylesheet"
+      sheets: "array:domsheet"
     }))
   }),
 
@@ -366,46 +360,36 @@ var PageStyleActor = protocol.ActorClass({
       });
     }
 
-    let pseudoElements = inherited ? [null] : [null, ...PSEUDO_ELEMENTS];
-    for (let pseudo of pseudoElements) {
+    // Get the styles that apply to the element.
+    let domRules = DOMUtils.getCSSStyleRules(element);
 
-      // Get the styles that apply to the element.
-      let domRules = DOMUtils.getCSSStyleRules(element, pseudo);
+    // getCSSStyleRules returns ordered from least-specific to
+    // most-specific.
+    for (let i = domRules.Count() - 1; i >= 0; i--) {
+      let domRule = domRules.GetElementAt(i);
 
-      if (!domRules) {
+      let isSystem = !CssLogic.isContentStylesheet(domRule.parentStyleSheet);
+
+      if (isSystem && options.filter != CssLogic.FILTER.UA) {
         continue;
       }
 
-      // getCSSStyleRules returns ordered from least-specific to
-      // most-specific.
-      for (let i = domRules.Count() - 1; i >= 0; i--) {
-        let domRule = domRules.GetElementAt(i);
-
-        let isSystem = !CssLogic.isContentStylesheet(domRule.parentStyleSheet);
-
-        if (isSystem && options.filter != CssLogic.FILTER.UA) {
+      if (inherited) {
+        // Don't include inherited rules if none of its properties
+        // are inheritable.
+        let hasInherited = Array.prototype.some.call(domRule.style, prop => {
+          return DOMUtils.isInheritedProperty(prop);
+        });
+        if (!hasInherited) {
           continue;
         }
-
-        if (inherited) {
-          // Don't include inherited rules if none of its properties
-          // are inheritable.
-          let hasInherited = Array.prototype.some.call(domRule.style, prop => {
-            return DOMUtils.isInheritedProperty(prop);
-          });
-          if (!hasInherited) {
-            continue;
-          }
-        }
-
-        let ruleActor = this._styleRef(domRule);
-        rules.push({
-          rule: ruleActor,
-          inherited: inherited,
-          pseudoElement: pseudo
-        });
       }
 
+      let ruleActor = this._styleRef(domRule);
+      rules.push({
+        rule: ruleActor,
+        inherited: inherited,
+      });
     }
   },
 
@@ -437,80 +421,7 @@ var PageStyleActor = protocol.ActorClass({
         }
       }
     }
-  },
-
-  getLayout: method(function(node, options) {
-    this.cssLogic.highlight(node.rawNode);
-
-    let layout = {};
-
-    // First, we update the first part of the layout view, with
-    // the size of the element.
-
-    let clientRect = node.rawNode.getBoundingClientRect();
-    layout.width = Math.round(clientRect.width);
-    layout.height = Math.round(clientRect.height);
-
-    // We compute and update the values of margins & co.
-    let style = node.rawNode.ownerDocument.defaultView.getComputedStyle(node.rawNode);
-    for (let prop of [
-      "position",
-      "margin-top",
-      "margin-right",
-      "margin-bottom",
-      "margin-left",
-      "padding-top",
-      "padding-right",
-      "padding-bottom",
-      "padding-left",
-      "border-top-width",
-      "border-right-width",
-      "border-bottom-width",
-      "border-left-width"
-    ]) {
-      layout[prop] = style.getPropertyValue(prop);
-    }
-
-    if (options.autoMargins) {
-      layout.autoMargins = this.processMargins(this.cssLogic);
-    }
-
-    for (let i in this.map) {
-      let property = this.map[i].property;
-      this.map[i].value = parseInt(style.getPropertyValue(property));
-    }
-
-
-    if (options.margins) {
-      layout.margins = this.processMargins(cssLogic);
-    }
-
-    return layout;
-  }, {
-    request: {
-      node: Arg(0, "domnode"),
-      autoMargins: Option(1, "boolean")
-    },
-    response: RetVal("json")
-  }),
-
-  /**
-   * Find 'auto' margin properties.
-   */
-  processMargins: function(cssLogic) {
-    let margins = {};
-
-    for (let prop of ["top", "bottom", "left", "right"]) {
-      let info = cssLogic.getPropertyInfo("margin-" + prop);
-      let selectors = info.matchedSelectors;
-      if (selectors && selectors.length > 0 && selectors[0].value == "auto") {
-        margins[prop] = "auto";
-      }
-    }
-
-    return margins;
-  },
-
+  }
 });
 exports.PageStyleActor = PageStyleActor;
 
@@ -548,6 +459,65 @@ var PageStyleFront = protocol.FrontClass(PageStyleActor, {
   })
 });
 
+/**
+ * Actor representing an nsIDOMCSSStyleSheet.
+ */
+var StyleSheetActor = protocol.ActorClass({
+  typeName: "domsheet",
+
+  initialize: function(pageStyle, sheet) {
+    protocol.Front.prototype.initialize.call(this);
+    this.pageStyle = pageStyle;
+    this.rawSheet = sheet;
+  },
+
+  get conn() this.pageStyle.conn,
+
+  form: function(detail) {
+    if (detail === "actorid") {
+      return this.actorID;
+    }
+
+    return {
+      actor: this.actorID,
+
+      // href stores the uri of the sheet
+      href: this.rawSheet.href,
+
+      // nodeHref stores the URI of the document that
+      // included the sheet.
+      nodeHref: this.rawSheet.ownerNode ? this.rawSheet.ownerNode.ownerDocument.location.href : undefined,
+
+      system: !CssLogic.isContentStylesheet(this.rawSheet),
+      disabled: this.rawSheet.disabled ? true : undefined
+    }
+  }
+});
+
+/**
+ * Front for the StyleSheetActor.
+ */
+var StyleSheetFront = protocol.FrontClass(StyleSheetActor, {
+  initialize: function(conn, form, ctx, detail) {
+    protocol.Front.prototype.initialize.call(this, conn, form, ctx, detail);
+  },
+
+  form: function(form, detail) {
+    if (detail === "actorid") {
+      this.actorID = form;
+      return;
+    }
+    this.actorID = form.actorID;
+    this._form = form;
+  },
+
+  get href() this._form.href,
+  get nodeHref() this._form.nodeHref,
+  get disabled() !!this._form.disabled,
+  get isSystem() this._form.system
+});
+
+
 // Predeclare the domstylerule actor type
 types.addActorType("domstylerule");
 
@@ -571,7 +541,6 @@ var StyleRuleActor = protocol.ActorClass({
       this.rawRule = item;
       if (this.rawRule instanceof Ci.nsIDOMCSSStyleRule && this.rawRule.parentStyleSheet) {
         this.line = DOMUtils.getRuleLine(this.rawRule);
-        this.column = DOMUtils.getRuleColumn(this.rawRule);
       }
     } else {
       // Fake a rule
@@ -601,7 +570,6 @@ var StyleRuleActor = protocol.ActorClass({
       actor: this.actorID,
       type: this.type,
       line: this.line || undefined,
-      column: this.column
     };
 
     if (this.rawRule.parentRule) {
@@ -657,40 +625,13 @@ var StyleRuleActor = protocol.ActorClass({
    * @returns the rule with updated properties
    */
   modifyProperties: method(function(modifications) {
-    let validProps = new Map();
-
-    // Use a fresh element for each call to this function to prevent side effects
-    // that pop up based on property values that were already set on the element.
-
-    let document;
-    if (this.rawNode) {
-      document = this.rawNode.ownerDocument;
-    } else {
-      let parentStyleSheet = this.rawRule.parentStyleSheet;
-      while (parentStyleSheet.ownerRule &&
-          parentStyleSheet.ownerRule instanceof Ci.nsIDOMCSSImportRule) {
-        parentStyleSheet = parentStyleSheet.ownerRule.parentStyleSheet;
-      }
-
-      if (parentStyleSheet.ownerNode instanceof Ci.nsIDOMHTMLDocument) {
-        document = parentStyleSheet.ownerNode;
-      } else {
-        document = parentStyleSheet.ownerNode.ownerDocument;
-      }
-    }
-
-    let tempElement = document.createElement("div");
-
     for (let mod of modifications) {
       if (mod.type === "set") {
-        tempElement.style.setProperty(mod.name, mod.value, mod.priority || "");
-        this.rawStyle.setProperty(mod.name,
-          tempElement.style.getPropertyValue(mod.name), mod.priority || "");
+        this.rawStyle.setProperty(mod.name, mod.value, mod.priority || "");
       } else if (mod.type === "remove") {
         this.rawStyle.removeProperty(mod.name);
       }
     }
-
     return this;
   }, {
     request: { modifications: Arg(0, "array:json") },
@@ -731,7 +672,6 @@ var StyleRuleFront = protocol.FrontClass(StyleRuleActor, {
 
   get type() this._form.type,
   get line() this._form.line || -1,
-  get column() this._form.column || -1,
   get cssText() {
     return this._form.cssText;
   },
@@ -769,46 +709,7 @@ var StyleRuleFront = protocol.FrontClass(StyleRuleActor, {
       return this._form.href;
     }
     let sheet = this.parentStyleSheet;
-    return sheet.href;
-  },
-
-  get nodeHref() {
-    let sheet = this.parentStyleSheet;
-    return sheet ? sheet.nodeHref : "";
-  },
-
-  get location()
-  {
-    return {
-      href: this.href,
-      line: this.line,
-      column: this.column
-    };
-  },
-
-  getOriginalLocation: function()
-  {
-    if (this._originalLocation) {
-      return promise.resolve(this._originalLocation);
-    }
-
-    let parentSheet = this.parentStyleSheet;
-    if (!parentSheet) {
-      return promise.resolve(this.location);
-    }
-    return parentSheet.getOriginalLocation(this.line, this.column)
-      .then(({ source, line, column }) => {
-        let location = {
-          href: source,
-          line: line,
-          column: column
-        }
-        if (!source) {
-          location.href = this.href;
-        }
-        this._originalLocation = location;
-        return location;
-      })
+    return sheet.href || sheet.nodeHref;
   },
 
   // Only used for testing, please keep it that way.

@@ -15,6 +15,7 @@
 
 class nsIPrincipal;
 class nsIDocument;
+class nsIURI;
 
 namespace mozilla {
 namespace css {
@@ -137,12 +138,6 @@ protected:
   // Prop-id based version of RemoveProperty.  Note that this does not
   // return the old value; it just does a straight removal.
   nsresult RemoveProperty(const nsCSSProperty aPropID);
-
-  void GetCustomPropertyValue(const nsAString& aPropertyName, nsAString& aValue);
-  nsresult RemoveCustomProperty(const nsAString& aPropertyName);
-  nsresult ParseCustomPropertyValue(const nsAString& aPropertyName,
-                                    const nsAString& aPropValue,
-                                    bool aIsImportant);
 
 protected:
   virtual ~nsDOMCSSDeclaration();

@@ -11,18 +11,15 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 
-const require = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools.require;
-const Editor  = require("devtools/sourceeditor/editor");
-const promise = require("sdk/core/promise");
-const {CssLogic} = require("devtools/styleinspector/css-logic");
-
+let promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js").Promise;
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/FileUtils.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");
 Cu.import("resource:///modules/devtools/shared/event-emitter.js");
+Cu.import("resource:///modules/source-editor.jsm");
 Cu.import("resource:///modules/devtools/StyleEditorUtil.jsm");
 
-const LOAD_ERROR = "error-load";
+
 const SAVE_ERROR = "error-save";
 
 // max update frequency in ms (avoid potential typing lag and/or flicker)
@@ -34,12 +31,12 @@ const UPDATE_STYLESHEET_THROTTLE_DELAY = 500;
  * object.
  *
  * Emits events:
+ *   'source-load': The source of the stylesheet has been fetched
  *   'property-change': A property on the underlying stylesheet has changed
  *   'source-editor-load': The source editor for this editor has been loaded
  *   'error': An error has occured
  *
- * @param {StyleSheet|OriginalSource}  styleSheet
- *        Stylesheet or original source to show
+ * @param {StyleSheet}  styleSheet
  * @param {DOMWindow}  win
  *        panel window for style editor
  * @param {nsIFile}  file
@@ -59,19 +56,10 @@ function StyleSheetEditor(styleSheet, win, file, isNew) {
 
   this.errorMessage = null;
 
-  let readOnly = false;
-  if (styleSheet.isOriginalSource) {
-    // live-preview won't work with sources that need compilation
-    readOnly = true;
-  }
-
   this._state = {   // state to use when inputElement attaches
     text: "",
-    selection: {
-      start: {line: 0, ch: 0},
-      end: {line: 0, ch: 0}
-    },
-    readOnly: readOnly,
+    selection: {start: 0, end: 0},
+    readOnly: false,
     topIndex: 0,              // the first visible line
   };
 
@@ -81,21 +69,30 @@ function StyleSheetEditor(styleSheet, win, file, isNew) {
     this._styleSheetFilePath = this.styleSheet.href;
   }
 
+  this._onSourceLoad = this._onSourceLoad.bind(this);
   this._onPropertyChange = this._onPropertyChange.bind(this);
   this._onError = this._onError.bind(this);
 
   this._focusOnSourceEditorReady = false;
 
+  this.styleSheet.once("source-load", this._onSourceLoad);
   this.styleSheet.on("property-change", this._onPropertyChange);
   this.styleSheet.on("error", this._onError);
 }
 
 StyleSheetEditor.prototype = {
   /**
+   * This editor's source editor
+   */
+  get sourceEditor() {
+    return this._sourceEditor;
+  },
+
+  /**
    * Whether there are unsaved changes in the editor
    */
   get unsaved() {
-    return this.sourceEditor && !this.sourceEditor.isClean();
+    return this._sourceEditor && this._sourceEditor.dirty;
   },
 
   /**
@@ -112,23 +109,37 @@ StyleSheetEditor.prototype = {
    * @return string
    */
   get friendlyName() {
-    if (this.savedFile) {
+    if (this.savedFile) { // reuse the saved filename if any
       return this.savedFile.leafName;
     }
 
     if (this._isNew) {
-      let index = this.styleSheet.styleSheetIndex + 1;
+      let index = this.styleSheet.styleSheetIndex + 1; // 0-indexing only works for devs
       return _("newStyleSheet", index);
     }
 
     if (!this.styleSheet.href) {
-      let index = this.styleSheet.styleSheetIndex + 1;
+      let index = this.styleSheet.styleSheetIndex + 1; // 0-indexing only works for devs
       return _("inlineStyleSheet", index);
     }
 
     if (!this._friendlyName) {
       let sheetURI = this.styleSheet.href;
-      this._friendlyName = CssLogic.shortSource({ href: sheetURI });
+      let contentURI = this.styleSheet.debuggee.baseURI;
+      let contentURIScheme = contentURI.scheme;
+      let contentURILeafIndex = contentURI.specIgnoringRef.lastIndexOf("/");
+      contentURI = contentURI.specIgnoringRef;
+
+      // get content base URI without leaf name (if any)
+      if (contentURILeafIndex > contentURIScheme.length) {
+        contentURI = contentURI.substring(0, contentURILeafIndex + 1);
+      }
+
+      // avoid verbose repetition of absolute URI when the style sheet URI
+      // is relative to the content URI
+      this._friendlyName = (sheetURI.indexOf(contentURI) == 0)
+                           ? sheetURI.substring(contentURI.length)
+                           : sheetURI;
       try {
         this._friendlyName = decodeURI(this._friendlyName);
       } catch (ex) {
@@ -140,17 +151,22 @@ StyleSheetEditor.prototype = {
   /**
    * Start fetching the full text source for this editor's sheet.
    */
-  fetchSource: function(callback) {
-    this.styleSheet.getText().then((longStr) => {
-      longStr.string().then((source) => {
-        this._state.text = prettifyCSS(source);
-        this.sourceLoaded = true;
+  fetchSource: function() {
+    this.styleSheet.fetchSource();
+  },
 
-        callback(source);
-      });
-    }, e => {
-      this.emit("error", LOAD_ERROR, this.styleSheet.href);
-    })
+  /**
+   * Handle source fetched event. Forward source-load event.
+   *
+   * @param  {string} event
+   *         Event type
+   * @param  {string} source
+   *         Full-text source of the stylesheet
+   */
+  _onSourceLoad: function(event, source) {
+    this._state.text = prettifyCSS(source);
+    this.sourceLoaded = true;
+    this.emit("source-load");
   },
 
   /**
@@ -161,8 +177,8 @@ StyleSheetEditor.prototype = {
    * @param  {string} property
    *         Property that has changed on sheet
    */
-  _onPropertyChange: function(property, value) {
-    this.emit("property-change", property, value);
+  _onPropertyChange: function(event, property) {
+    this.emit("property-change", property);
   },
 
   /**
@@ -184,37 +200,38 @@ StyleSheetEditor.prototype = {
   load: function(inputElement) {
     this._inputElement = inputElement;
 
+    let sourceEditor = new SourceEditor();
     let config = {
-      value: this._state.text,
-      lineNumbers: true,
-      mode: Editor.modes.css,
+      initialText: this._state.text,
+      showLineNumbers: true,
+      mode: SourceEditor.MODES.CSS,
       readOnly: this._state.readOnly,
-      autoCloseBrackets: "{}()[]",
-      extraKeys: this._getKeyBindings(),
-      contextMenu: "sourceEditorContextMenu"
+      keys: this._getKeyBindings()
     };
-    let sourceEditor = new Editor(config);
 
-    sourceEditor.appendTo(inputElement).then(() => {
-      sourceEditor.on("change", () => {
+    sourceEditor.init(inputElement, config, function onSourceEditorReady() {
+      setupBracketCompletion(sourceEditor);
+      sourceEditor.addEventListener(SourceEditor.EVENTS.TEXT_CHANGED,
+                                    function onTextChanged(event) {
         this.updateStyleSheet();
-      });
+      }.bind(this));
 
-      this.sourceEditor = sourceEditor;
+      this._sourceEditor = sourceEditor;
 
       if (this._focusOnSourceEditorReady) {
         this._focusOnSourceEditorReady = false;
         sourceEditor.focus();
       }
 
-      sourceEditor.setFirstVisibleLine(this._state.topIndex);
+      sourceEditor.setTopIndex(this._state.topIndex);
       sourceEditor.setSelection(this._state.selection.start,
                                 this._state.selection.end);
 
       this.emit("source-editor-load");
-    });
+    }.bind(this));
 
-    sourceEditor.on("dirty-change", this._onPropertyChange);
+    sourceEditor.addEventListener(SourceEditor.EVENTS.DIRTY_CHANGED,
+                                  this._onPropertyChange);
   },
 
   /**
@@ -229,7 +246,7 @@ StyleSheetEditor.prototype = {
     if (this.sourceEditor) {
       return promise.resolve(this);
     }
-    this.on("source-editor-load", () => {
+    this.on("source-editor-load", (event) => {
       deferred.resolve(this);
     });
     return deferred.promise;
@@ -251,7 +268,7 @@ StyleSheetEditor.prototype = {
    */
   onShow: function() {
     if (this._sourceEditor) {
-      this._sourceEditor.setFirstVisibleLine(this._state.topIndex);
+      this._sourceEditor.setTopIndex(this._state.topIndex);
     }
     this.focus();
   },
@@ -300,7 +317,7 @@ StyleSheetEditor.prototype = {
       this._state.text = this.sourceEditor.getText();
     }
 
-    this.styleSheet.update(this._state.text, true);
+    this.styleSheet.update(this._state.text);
   },
 
   /**
@@ -353,9 +370,7 @@ StyleSheetEditor.prototype = {
         if (callback) {
           callback(returnFile);
         }
-        this.sourceEditor.setClean();
-
-        this.emit("property-change");
+        this.sourceEditor.dirty = false;
       }.bind(this));
     };
 
@@ -363,21 +378,34 @@ StyleSheetEditor.prototype = {
   },
 
   /**
-    * Retrieve custom key bindings objects as expected by Editor.
-    * Editor action names are not displayed to the user.
+    * Retrieve custom key bindings objects as expected by SourceEditor.
+    * SourceEditor action names are not displayed to the user.
     *
     * @return {array} key binding objects for the source editor
     */
   _getKeyBindings: function() {
-    let bindings = {};
+    let bindings = [];
 
-    bindings[Editor.accel(_("saveStyleSheet.commandkey"))] = () => {
-      this.saveToFile(this.savedFile);
-    };
+    bindings.push({
+      action: "StyleEditor.save",
+      code: _("saveStyleSheet.commandkey"),
+      accel: true,
+      callback: function save() {
+        this.saveToFile(this.savedFile);
+        return true;
+      }.bind(this)
+    });
 
-    bindings["Shift-" + Editor.accel(_("saveStyleSheet.commandkey"))] = () => {
-      this.saveToFile();
-    };
+    bindings.push({
+      action: "StyleEditor.saveAs",
+      code: _("saveStyleSheet.commandkey"),
+      accel: true,
+      shift: true,
+      callback: function saveAs() {
+        this.saveToFile();
+        return true;
+      }.bind(this)
+    });
 
     return bindings;
   },
@@ -386,6 +414,7 @@ StyleSheetEditor.prototype = {
    * Clean up for this editor.
    */
   destroy: function() {
+    this.styleSheet.off("source-load", this._onSourceLoad);
     this.styleSheet.off("property-change", this._onPropertyChange);
     this.styleSheet.off("error", this._onError);
   }
@@ -396,6 +425,18 @@ const TAB_CHARS = "\t";
 
 const OS = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
 const LINE_SEPARATOR = OS === "WINNT" ? "\r\n" : "\n";
+
+/**
+  * Return string that repeats text for aCount times.
+  *
+  * @param string text
+  * @param number aCount
+  * @return string
+  */
+function repeat(text, aCount)
+{
+  return (new Array(aCount + 1)).join(text);
+}
 
 /**
  * Prettify minified CSS text.
@@ -428,7 +469,7 @@ function prettifyCSS(text)
           parts.push(indent + text.substring(partStart, i));
           partStart = i;
         }
-        indent = TAB_CHARS.repeat(--indentLevel);
+        indent = repeat(TAB_CHARS, --indentLevel);
         /* fallthrough */
       case ";":
       case "{":
@@ -452,9 +493,58 @@ function prettifyCSS(text)
     }
 
     if (c == "{") {
-      indent = TAB_CHARS.repeat(++indentLevel);
+      indent = repeat(TAB_CHARS, ++indentLevel);
     }
   }
   return parts.join(LINE_SEPARATOR);
+}
+
+
+/**
+ * Set up bracket completion on a given SourceEditor.
+ * This automatically closes the following CSS brackets: "{", "(", "["
+ *
+ * @param SourceEditor sourceEditor
+ */
+function setupBracketCompletion(sourceEditor)
+{
+  let editorElement = sourceEditor.editorElement;
+  let pairs = {
+    123: { // {
+      closeString: "}",
+      closeKeyCode: Ci.nsIDOMKeyEvent.DOM_VK_CLOSE_BRACKET
+    },
+    40: { // (
+      closeString: ")",
+      closeKeyCode: Ci.nsIDOMKeyEvent.DOM_VK_0
+    },
+    91: { // [
+      closeString: "]",
+      closeKeyCode: Ci.nsIDOMKeyEvent.DOM_VK_CLOSE_BRACKET
+    },
+  };
+
+  editorElement.addEventListener("keypress", function onKeyPress(event) {
+    let pair = pairs[event.charCode];
+    if (!pair || event.ctrlKey || event.metaKey ||
+        event.accelKey || event.altKey) {
+      return true;
+    }
+
+    // We detected an open bracket, sending closing character
+    let keyCode = pair.closeKeyCode;
+    let charCode = pair.closeString.charCodeAt(0);
+    let modifiers = 0;
+    let utils = editorElement.ownerDocument.defaultView.
+                  QueryInterface(Ci.nsIInterfaceRequestor).
+                  getInterface(Ci.nsIDOMWindowUtils);
+                  
+    if (utils.sendKeyEvent("keydown", keyCode, 0, modifiers)) {
+      utils.sendKeyEvent("keypress", 0, charCode, modifiers);
+    }
+    utils.sendKeyEvent("keyup", keyCode, 0, modifiers);
+    // and rewind caret
+    sourceEditor.setCaretOffset(sourceEditor.getCaretOffset() - 1);
+  }, false);
 }
 

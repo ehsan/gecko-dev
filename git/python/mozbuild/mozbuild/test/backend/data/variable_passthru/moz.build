@@ -2,7 +2,11 @@
 # Any copyright is dedicated to the Public Domain.
 # http://creativecommons.org/publicdomain/zero/1.0/
 
-SOURCES += ['bar.s', 'foo.asm']
+MODULE = 'module_name'
+
+ASFILES = ['bar.s', 'foo.asm']
+
+DEFINES = ['-Dbar', '-Dfoo']
 
 EXTRA_COMPONENTS = ['bar.js', 'foo.js']
 EXTRA_PP_COMPONENTS = ['bar.pp.js', 'foo.pp.js']
@@ -12,24 +16,30 @@ EXTRA_PP_JS_MODULES = ['bar.pp.jsm', 'foo.pp.jsm']
 
 CPP_UNIT_TESTS = ['foo.cpp']
 
-HOST_SOURCES += ['bar.cpp', 'foo.cpp']
-HOST_SOURCES += ['bar.c', 'foo.c']
+GTEST_C_SOURCES = ['test1.c', 'test2.c']
+GTEST_CMM_SOURCES = ['test1.mm', 'test2.mm']
+GTEST_CPP_SOURCES = ['test1.cpp', 'test2.cpp']
+
+HOST_CPPSRCS = ['bar.cpp', 'foo.cpp']
+HOST_CSRCS = ['bar.c', 'foo.c']
 
 HOST_LIBRARY_NAME = 'host_bar'
 
+LIBRARY_NAME = 'lib_name'
 LIBS = ['bar.lib', 'foo.lib']
-
-OS_LIBS = ['foo.so', '-l123', 'bar.a']
 
 SDK_LIBRARY = ['bar.sdk', 'foo.sdk']
 
-SOURCES += ['bar.c', 'foo.c']
+SHARED_LIBRARY_LIBS += ['bar.sll', 'foo.sll']
 
-SOURCES += ['bar.mm', 'foo.mm']
+SIMPLE_PROGRAMS = ['bar.x', 'foo.x']
 
-SOURCES += ['baz.S', 'foo.S']
+CSRCS += ['bar.c', 'foo.c']
+
+CMMSRCS = ['bar.mm', 'foo.mm']
+
+SSRCS = ['bar.S', 'foo.S']
 
 FAIL_ON_WARNINGS = True
 LIBXUL_LIBRARY = True
 MSVC_ENABLE_PGO = True
-NO_VISIBILITY_FLAGS = True

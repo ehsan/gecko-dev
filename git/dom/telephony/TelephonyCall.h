@@ -7,26 +7,24 @@
 #ifndef mozilla_dom_telephony_telephonycall_h__
 #define mozilla_dom_telephony_telephonycall_h__
 
-#include "mozilla/dom/telephony/TelephonyCommon.h"
+#include "TelephonyCommon.h"
 
 #include "mozilla/dom/DOMError.h"
 
 class nsPIDOMWindow;
 
-namespace mozilla {
-namespace dom {
+BEGIN_TELEPHONY_NAMESPACE
 
 class TelephonyCall MOZ_FINAL : public nsDOMEventTargetHelper
 {
   nsRefPtr<Telephony> mTelephony;
   nsRefPtr<TelephonyCallGroup> mGroup;
 
-  uint32_t mServiceId;
   nsString mNumber;
   nsString mSecondNumber;
   nsString mState;
   bool mEmergency;
-  nsRefPtr<DOMError> mError;
+  nsRefPtr<mozilla::dom::DOMError> mError;
 
   uint32_t mCallIndex;
   uint16_t mCallState;
@@ -108,21 +106,14 @@ public:
   IMPL_EVENT_HANDLER(groupchange)
 
   static already_AddRefed<TelephonyCall>
-  Create(Telephony* aTelephony, uint32_t aServiceId,
-         const nsAString& aNumber, uint16_t aCallState,
-         uint32_t aCallIndex = telephony::kOutgoingPlaceholderCallIndex,
+  Create(Telephony* aTelephony, const nsAString& aNumber, uint16_t aCallState,
+         uint32_t aCallIndex = kOutgoingPlaceholderCallIndex,
          bool aEmergency = false, bool aIsConference = false);
 
   void
   ChangeState(uint16_t aCallState)
   {
     ChangeStateInternal(aCallState, true);
-  }
-
-  uint32_t
-  ServiceId() const
-  {
-    return mServiceId;
   }
 
   uint32_t
@@ -134,7 +125,7 @@ public:
   void
   UpdateCallIndex(uint32_t aCallIndex)
   {
-    NS_ASSERTION(mCallIndex == telephony::kOutgoingPlaceholderCallIndex,
+    NS_ASSERTION(mCallIndex == kOutgoingPlaceholderCallIndex,
                  "Call index should not be set!");
     mCallIndex = aCallIndex;
   }
@@ -182,7 +173,6 @@ private:
                     TelephonyCall* aCall);
 };
 
-} // namespace dom
-} // namespace mozilla
+END_TELEPHONY_NAMESPACE
 
 #endif // mozilla_dom_telephony_telephonycall_h__

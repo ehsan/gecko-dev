@@ -68,20 +68,12 @@ void
 PathBuilderCG::Arc(const Point &aOrigin, Float aRadius, Float aStartAngle,
                  Float aEndAngle, bool aAntiClockwise)
 {
-  // Core Graphic's initial coordinate system is y-axis up, whereas Moz2D's is
-  // y-axis down. Core Graphics therefore considers "clockwise" to mean "sweep
-  // in the direction of decreasing angle" whereas Moz2D considers it to mean
-  // "sweep in the direction of increasing angle". In other words if this
-  // Moz2D method is instructed to sweep anti-clockwise we need to tell
-  // CGPathAddArc to sweep clockwise, and vice versa. Hence why we pass the
-  // value of aAntiClockwise directly to CGPathAddArc's "clockwise" bool
-  // parameter.
   CGPathAddArc(mCGPath, nullptr,
                aOrigin.x, aOrigin.y,
                aRadius,
                aStartAngle,
                aEndAngle,
-               aAntiClockwise);
+               !aAntiClockwise);
 }
 
 Point
@@ -173,54 +165,6 @@ PathCG::TransformedCopyToBuilder(const Matrix &aTransform, FillRule aFillRule) c
   return builder;
 }
 
-static void
-StreamPathToSinkApplierFunc(void *vinfo, const CGPathElement *element)
-{
-  PathSink *sink = reinterpret_cast<PathSink*>(vinfo);
-  switch (element->type) {
-    case kCGPathElementMoveToPoint:
-      {
-        CGPoint pt = element->points[0];
-        sink->MoveTo(CGPointToPoint(pt));
-        break;
-      }
-    case kCGPathElementAddLineToPoint:
-      {
-        CGPoint pt = element->points[0];
-        sink->LineTo(CGPointToPoint(pt));
-        break;
-      }
-    case kCGPathElementAddQuadCurveToPoint:
-      {
-        CGPoint cpt = element->points[0];
-        CGPoint pt  = element->points[1];
-        sink->QuadraticBezierTo(CGPointToPoint(cpt),
-                                CGPointToPoint(pt));
-        break;
-      }
-    case kCGPathElementAddCurveToPoint:
-      {
-        CGPoint cpt1 = element->points[0];
-        CGPoint cpt2 = element->points[1];
-        CGPoint pt   = element->points[2];
-        sink->BezierTo(CGPointToPoint(cpt1),
-                       CGPointToPoint(cpt2),
-                       CGPointToPoint(pt));
-        break;
-      }
-    case kCGPathElementCloseSubpath:
-      {
-        sink->Close();
-        break;
-      }
-  }
-}
-
-void
-PathCG::StreamToSink(PathSink *aSink) const
-{
-  CGPathApply(mPath, aSink, StreamPathToSinkApplierFunc);
-}
 
 bool
 PathCG::ContainsPoint(const Point &aPoint, const Matrix &aTransform) const
@@ -297,8 +241,7 @@ PathCG::GetBounds(const Matrix &aTransform) const
 {
   //XXX: are these bounds tight enough
   Rect bounds = CGRectToRect(CGPathGetBoundingBox(mPath));
-
-  //XXX: currently this returns the bounds of the transformed bounds
+  //XXX: curretnly this returns the bounds of the transformed bounds
   // this is strictly looser than the bounds of the transformed path
   return aTransform.TransformBounds(bounds);
 }
@@ -322,10 +265,6 @@ PathCG::GetStrokedBounds(const StrokeOptions &aStrokeOptions,
   Rect bounds = CGRectToRect(CGContextGetPathBoundingBox(cg));
 
   CGContextRestoreGState(cg);
-
-  if (!bounds.IsFinite()) {
-    return Rect();
-  }
 
   return aTransform.TransformBounds(bounds);
 }

@@ -2,14 +2,14 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import mozinfo
-import moznetwork
 import optparse
 import os
 import tempfile
 
+from automation import Automation
 from automationutils import addCommonOptions, isURL
 from mozprofile import DEFAULT_PORTS
+import moznetwork
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -145,20 +145,6 @@ class MochitestOptions(optparse.OptionParser):
           "help": "start in the given directory's tests",
           "default": "",
         }],
-        [["--start-at"],
-        { "action": "store",
-          "type": "string",
-          "dest": "startAt",
-          "help": "skip over tests until reaching the given test",
-          "default": "",
-        }],
-        [["--end-at"],
-        { "action": "store",
-          "type": "string",
-          "dest": "endAt",
-          "help": "don't run any tests after the given one",
-          "default": "",
-        }],
         [["--browser-chrome"],
         { "action": "store_true",
           "dest": "browserChrome",
@@ -274,8 +260,9 @@ class MochitestOptions(optparse.OptionParser):
         [["--run-until-failure"],
         { "action": "store_true",
           "dest": "runUntilFailure",
-          "help": "Run tests repeatedly and stops on the first time a test fails. "
-                "Default cap is 30 runs, which can be overwritten with the --repeat parameter.",
+          "help": "Run a test repeatedly and stops on the first time the test fails. "
+                "Only available when running a single test. Default cap is 30 runs, "
+                "which can be overwritten with the --repeat parameter.",
           "default": False,
         }],
         [["--run-only-tests"],
@@ -333,58 +320,21 @@ class MochitestOptions(optparse.OptionParser):
           "metavar": "PREF=VALUE",
           "help": "defines an extra user preference",
         }],
-        [["--jsdebugger"],
-        { "action": "store_true",
-          "default": False,
-          "dest": "jsdebugger",
-          "help": "open the browser debugger",
-        }],
-        [["--debug-on-failure"],
-        { "action": "store_true",
-          "default": False,
-          "dest": "debugOnFailure",
-          "help": "breaks execution and enters the JS debugger on a test failure. Should be used together with --jsdebugger."
-        }],
-        [["--e10s"],
-        { "action": "store_true",
-          "default": False,
-          "dest": "e10s",
-          "help": "Run tests with electrolysis preferences and test filtering enabled.",
-        }],
-        [["--dmd-path"],
-         { "action": "store",
-           "default": None,
-           "dest": "dmdPath",
-           "help": "Specifies the path to the directory containing the shared library for DMD.",
-        }],
-        [["--dump-output-directory"],
-         { "action": "store",
-           "default": None,
-           "dest": "dumpOutputDirectory",
-           "help": "Specifies the directory in which to place dumped memory reports.",
-        }],
-        [["--dump-about-memory-after-test"],
-         { "action": "store_true",
-           "default": False,
-           "dest": "dumpAboutMemoryAfterTest",
-           "help": "Produce an about:memory dump after each test in the directory specified "
-                  "by --dump-output-directory."
-        }],
-        [["--dump-dmd-after-test"],
-         { "action": "store_true",
-           "default": False,
-           "dest": "dumpDMDAfterTest",
-           "help": "Produce a DMD dump after each test in the directory specified "
-                  "by --dump-output-directory."
-        }],
     ]
 
-    def __init__(self, **kwargs):
-
+    def __init__(self, automation=None, **kwargs):
+        self._automation = automation or Automation()
         optparse.OptionParser.__init__(self, **kwargs)
-        for option, value in self.mochitest_options:
-            self.add_option(*option, **value)
-        addCommonOptions(self)
+        defaults = {}
+
+        # we want to pass down everything from self._automation.__all__
+        addCommonOptions(self, defaults=dict(zip(self._automation.__all__,
+                 [getattr(self._automation, x) for x in self._automation.__all__])))
+
+        for option in self.mochitest_options:
+            self.add_option(*option[0], **option[1])
+
+        self.set_defaults(**defaults)
         self.set_usage(self.__doc__)
 
     def verifyOptions(self, options, mochitest):
@@ -418,8 +368,6 @@ class MochitestOptions(optparse.OptionParser):
         options.xrePath = mochitest.getFullPath(options.xrePath)
         options.profilePath = mochitest.getFullPath(options.profilePath)
         options.app = mochitest.getFullPath(options.app)
-        if options.dmdPath is not None:
-            options.dmdPath = mochitest.getFullPath(options.dmdPath)
 
         if not os.path.exists(options.app):
             msg = """\
@@ -437,18 +385,13 @@ class MochitestOptions(optparse.OptionParser):
         if options.symbolsPath and not isURL(options.symbolsPath):
             options.symbolsPath = mochitest.getFullPath(options.symbolsPath)
 
-        # Set server information on the options object
-        options.webServer = '127.0.0.1'
-        options.httpPort = DEFAULT_PORTS['http']
-        options.sslPort = DEFAULT_PORTS['https']
-        #        options.webSocketPort = DEFAULT_PORTS['ws']
-        options.webSocketPort = str(9988) # <- http://hg.mozilla.org/mozilla-central/file/b871dfb2186f/build/automation.py.in#l30
-        # The default websocket port is incorrect in mozprofile; it is
-        # set to the SSL proxy setting. See:
-        # see https://bugzilla.mozilla.org/show_bug.cgi?id=916517
+        options.webServer = self._automation.DEFAULT_WEB_SERVER
+        options.httpPort = self._automation.DEFAULT_HTTP_PORT
+        options.sslPort = self._automation.DEFAULT_SSL_PORT
+        options.webSocketPort = self._automation.DEFAULT_WEBSOCKET_PORT
 
         if options.vmwareRecording:
-            if not mozinfo.isWin:
+            if not self._automation.IS_WIN32:
                 self.error("use-vmware-recording is only supported on Windows.")
             mochitest.vmwareHelperPath = os.path.join(
                 options.utilityPath, VMWARE_RECORDING_HELPER_BASENAME + ".dll")
@@ -471,18 +414,6 @@ class MochitestOptions(optparse.OptionParser):
 
         if options.webapprtContent and options.webapprtChrome:
             self.error("Only one of --webapprt-content and --webapprt-chrome may be given.")
-
-        if options.jsdebugger:
-            options.extraPrefs += [
-                "devtools.debugger.remote-enabled=true",
-                "devtools.debugger.chrome-enabled=true",
-                "devtools.chrome.enabled=true",
-                "devtools.debugger.prompt-connection=false"
-            ]
-            options.autorun = False
-
-        if options.debugOnFailure and not options.jsdebugger:
-          self.error("--debug-on-failure should be used together with --jsdebugger.")
 
         # Try to guess the testing modules directory.
         # This somewhat grotesque hack allows the buildbot machines to find the
@@ -513,7 +444,7 @@ class MochitestOptions(optparse.OptionParser):
                 options.testingModulesDir += '/'
 
         if options.immersiveMode:
-            if not mozinfo.isWin:
+            if not self._automation.IS_WIN32:
                 self.error("immersive is only supported on Windows 8 and up.")
             mochitest.immersiveHelperPath = os.path.join(
                 options.utilityPath, "metrotestharness.exe")
@@ -522,16 +453,10 @@ class MochitestOptions(optparse.OptionParser):
                            mochitest.immersiveHelperPath)
 
         if options.runUntilFailure:
+            if not os.path.isfile(os.path.join(mochitest.oldcwd, os.path.dirname(__file__), mochitest.getTestRoot(options), options.testPath)):
+                self.error("--run-until-failure can only be used together with --test-path specifying a single test.")
             if not options.repeat:
                 options.repeat = 29
-
-        if options.dumpOutputDirectory is None:
-            options.dumpOutputDirectory = tempfile.gettempdir()
-
-        if options.dumpAboutMemoryAfterTest or options.dumpDMDAfterTest:
-            if not os.path.isdir(options.dumpOutputDirectory):
-                self.error('--dump-output-directory not a directory: %s' %
-                           options.dumpOutputDirectory)
 
         return options
 

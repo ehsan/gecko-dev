@@ -10,7 +10,7 @@
 #include "jit/shared/Lowering-shared.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class LIRGeneratorX86Shared : public LIRGeneratorShared
 {
@@ -37,19 +37,19 @@ class LIRGeneratorX86Shared : public LIRGeneratorShared
                                  MDefinition *lhs, MDefinition *rhs);
     bool visitConstant(MConstant *ins);
     bool visitAsmJSNeg(MAsmJSNeg *ins);
+    bool visitAsmJSUDiv(MAsmJSUDiv *ins);
+    bool visitAsmJSUMod(MAsmJSUMod *ins);
     bool lowerMulI(MMul *mul, MDefinition *lhs, MDefinition *rhs);
     bool lowerDivI(MDiv *div);
     bool lowerModI(MMod *mod);
-    bool lowerUDiv(MDiv *div);
-    bool lowerUMod(MMod *mod);
+    bool lowerUDiv(MInstruction *div);
+    bool lowerUMod(MInstruction *mod);
     bool lowerUrshD(MUrsh *mir);
     bool lowerConstantDouble(double d, MInstruction *ins);
-    bool lowerConstantFloat32(float d, MInstruction *ins);
     bool lowerTruncateDToInt32(MTruncateToInt32 *ins);
-    bool lowerTruncateFToInt32(MTruncateToInt32 *ins);
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_shared_Lowering_x86_shared_h */

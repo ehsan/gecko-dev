@@ -13,10 +13,20 @@
 
 #include "jsobjinlines.h"
 
+#include "vm/RegExpObject-inl.h"
+#include "vm/RegExpStatics-inl.h"
+
 using namespace js;
 using namespace js::types;
 
 using mozilla::ArrayLength;
+
+static inline bool
+DefinePropertyHelper(JSContext *cx, HandleObject obj, Handle<PropertyName*> name, HandleValue v)
+{
+    return !!baseops::DefineProperty(cx, obj, name, v,
+                                     JS_PropertyStub, JS_StrictPropertyStub, JSPROP_ENUMERATE);
+}
 
 bool
 js::CreateRegExpMatchResult(JSContext *cx, HandleString input_, const jschar *chars, size_t length,
@@ -62,38 +72,22 @@ js::CreateRegExpMatchResult(JSContext *cx, HandleString input_, const jschar *ch
         }
     }
 
-    /* Get the templateObject that defines the shape and type of the output object */
-    JSObject *templateObject = cx->compartment()->regExps.getOrCreateMatchResultTemplateObject(cx);
-    if (!templateObject)
-        return false;
-
     /* Copy the rooted vector into the array object. */
-    RootedObject arr(cx, NewDenseCopiedArrayWithTemplate(cx, elements.length(), elements.begin(),
-                                                         templateObject));
-    if (!arr)
+    RootedObject array(cx, NewDenseCopiedArray(cx, elements.length(), elements.begin()));
+    if (!array)
         return false;
 
-    /* Set the |index| property. (TemplateObject positions it in slot 0) */
+    /* Set the |index| property. */
     RootedValue index(cx, Int32Value(matches[0].start));
-    arr->nativeSetSlot(0, index);
+    if (!DefinePropertyHelper(cx, array, cx->names().index, index))
+        return false;
 
-    /* Set the |input| property. (TemplateObject positions it in slot 1) */
+    /* Set the |input| property. */
     RootedValue inputVal(cx, StringValue(input));
-    arr->nativeSetSlot(1, inputVal);
-
-#ifdef DEBUG
-    RootedValue test(cx);
-    RootedId id(cx, NameToId(cx->names().index));
-    if (!baseops::GetProperty(cx, arr, id, &test))
+    if (!DefinePropertyHelper(cx, array, cx->names().input, inputVal))
         return false;
-    JS_ASSERT(test == index);
-    id = NameToId(cx->names().input);
-    if (!baseops::GetProperty(cx, arr, id, &test))
-        return false;
-    JS_ASSERT(test == inputVal);
-#endif
 
-    rval.setObject(*arr);
+    rval.setObject(*array);
     return true;
 }
 
@@ -183,15 +177,15 @@ EscapeNakedForwardSlashes(JSContext *cx, HandleAtom unescaped)
             if (sb.empty()) {
                 /* This is the first one we've seen, copy everything up to this point. */
                 if (!sb.reserve(oldLen + 1))
-                    return nullptr;
+                    return NULL;
                 sb.infallibleAppend(oldChars, size_t(it - oldChars));
             }
             if (!sb.append('\\'))
-                return nullptr;
+                return NULL;
         }
 
         if (!sb.empty() && !sb.append(*it))
-            return nullptr;
+            return NULL;
     }
 
     return sb.empty() ? (JSAtom *)unescaped : sb.finishAtom();
@@ -236,7 +230,7 @@ CompileRegExpObject(JSContext *cx, RegExpObjectBuilder &builder, CallArgs args)
         RootedObject sourceObj(cx, &sourceValue.toObject());
 
         if (args.hasDefined(1)) {
-            JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_NEWREGEXP_FLAGGED);
+            JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_NEWREGEXP_FLAGGED);
             return false;
         }
 
@@ -275,7 +269,11 @@ CompileRegExpObject(JSContext *cx, RegExpObjectBuilder &builder, CallArgs args)
         source = cx->runtime()->emptyString;
     } else {
         /* Coerce to string and compile. */
-        source = ToAtom<CanGC>(cx, sourceValue);
+        JSString *str = ToString<CanGC>(cx, sourceValue);
+        if (!str)
+            return false;
+
+        source = AtomizeString<CanGC>(cx, str);
         if (!source)
             return false;
     }
@@ -294,7 +292,7 @@ CompileRegExpObject(JSContext *cx, RegExpObjectBuilder &builder, CallArgs args)
     if (!escapedSourceStr)
         return false;
 
-    if (!js::RegExpShared::checkSyntax(cx, nullptr, escapedSourceStr))
+    if (!js::RegExpShared::checkSyntax(cx, NULL, escapedSourceStr))
         return false;
 
     RegExpStatics *res = cx->global()->getRegExpStatics();
@@ -397,92 +395,98 @@ static const JSFunctionSpec regexp_methods[] = {
 
 #define DEFINE_STATIC_GETTER(name, code)                                        \
     static bool                                                                 \
-    name(JSContext *cx, unsigned argc, Value *vp)                               \
+    name(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp)   \
     {                                                                           \
-        CallArgs args = CallArgsFromVp(argc, vp);                               \
         RegExpStatics *res = cx->global()->getRegExpStatics();                  \
         code;                                                                   \
     }
 
-DEFINE_STATIC_GETTER(static_input_getter,        return res->createPendingInput(cx, args.rval()))
-DEFINE_STATIC_GETTER(static_multiline_getter,    args.rval().setBoolean(res->multiline());
+DEFINE_STATIC_GETTER(static_input_getter,        return res->createPendingInput(cx, vp))
+DEFINE_STATIC_GETTER(static_multiline_getter,    vp.setBoolean(res->multiline());
                                                  return true)
-DEFINE_STATIC_GETTER(static_lastMatch_getter,    return res->createLastMatch(cx, args.rval()))
-DEFINE_STATIC_GETTER(static_lastParen_getter,    return res->createLastParen(cx, args.rval()))
-DEFINE_STATIC_GETTER(static_leftContext_getter,  return res->createLeftContext(cx, args.rval()))
-DEFINE_STATIC_GETTER(static_rightContext_getter, return res->createRightContext(cx, args.rval()))
+DEFINE_STATIC_GETTER(static_lastMatch_getter,    return res->createLastMatch(cx, vp))
+DEFINE_STATIC_GETTER(static_lastParen_getter,    return res->createLastParen(cx, vp))
+DEFINE_STATIC_GETTER(static_leftContext_getter,  return res->createLeftContext(cx, vp))
+DEFINE_STATIC_GETTER(static_rightContext_getter, return res->createRightContext(cx, vp))
 
-DEFINE_STATIC_GETTER(static_paren1_getter,       return res->createParen(cx, 1, args.rval()))
-DEFINE_STATIC_GETTER(static_paren2_getter,       return res->createParen(cx, 2, args.rval()))
-DEFINE_STATIC_GETTER(static_paren3_getter,       return res->createParen(cx, 3, args.rval()))
-DEFINE_STATIC_GETTER(static_paren4_getter,       return res->createParen(cx, 4, args.rval()))
-DEFINE_STATIC_GETTER(static_paren5_getter,       return res->createParen(cx, 5, args.rval()))
-DEFINE_STATIC_GETTER(static_paren6_getter,       return res->createParen(cx, 6, args.rval()))
-DEFINE_STATIC_GETTER(static_paren7_getter,       return res->createParen(cx, 7, args.rval()))
-DEFINE_STATIC_GETTER(static_paren8_getter,       return res->createParen(cx, 8, args.rval()))
-DEFINE_STATIC_GETTER(static_paren9_getter,       return res->createParen(cx, 9, args.rval()))
+DEFINE_STATIC_GETTER(static_paren1_getter,       return res->createParen(cx, 1, vp))
+DEFINE_STATIC_GETTER(static_paren2_getter,       return res->createParen(cx, 2, vp))
+DEFINE_STATIC_GETTER(static_paren3_getter,       return res->createParen(cx, 3, vp))
+DEFINE_STATIC_GETTER(static_paren4_getter,       return res->createParen(cx, 4, vp))
+DEFINE_STATIC_GETTER(static_paren5_getter,       return res->createParen(cx, 5, vp))
+DEFINE_STATIC_GETTER(static_paren6_getter,       return res->createParen(cx, 6, vp))
+DEFINE_STATIC_GETTER(static_paren7_getter,       return res->createParen(cx, 7, vp))
+DEFINE_STATIC_GETTER(static_paren8_getter,       return res->createParen(cx, 8, vp))
+DEFINE_STATIC_GETTER(static_paren9_getter,       return res->createParen(cx, 9, vp))
 
 #define DEFINE_STATIC_SETTER(name, code)                                        \
     static bool                                                                 \
-    name(JSContext *cx, unsigned argc, Value *vp)                               \
+    name(JSContext *cx, HandleObject obj, HandleId id, bool strict, MutableHandleValue vp)\
     {                                                                           \
         RegExpStatics *res = cx->global()->getRegExpStatics();                  \
         code;                                                                   \
         return true;                                                            \
     }
 
-static bool
-static_input_setter(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    RegExpStatics *res = cx->global()->getRegExpStatics();
+DEFINE_STATIC_SETTER(static_input_setter,
+                     if (!JSVAL_IS_STRING(vp) && !JS_ConvertValue(cx, vp, JSTYPE_STRING, vp.address()))
+                         return false;
+                     res->setPendingInput(JSVAL_TO_STRING(vp)))
+DEFINE_STATIC_SETTER(static_multiline_setter,
+                     if (!JSVAL_IS_BOOLEAN(vp) && !JS_ConvertValue(cx, vp, JSTYPE_BOOLEAN, vp.address()))
+                         return false;
+                     res->setMultiline(cx, !!JSVAL_TO_BOOLEAN(vp)))
 
-    RootedString str(cx, ToString<CanGC>(cx, args.get(0)));
-    if (!str)
-        return false;
+const uint8_t REGEXP_STATIC_PROP_ATTRS    = JSPROP_PERMANENT | JSPROP_SHARED | JSPROP_ENUMERATE;
+const uint8_t RO_REGEXP_STATIC_PROP_ATTRS = REGEXP_STATIC_PROP_ATTRS | JSPROP_READONLY;
 
-    res->setPendingInput(str);
-    args.rval().setString(str);
-    return true;
-}
-
-static bool
-static_multiline_setter(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    RegExpStatics *res = cx->global()->getRegExpStatics();
-
-    bool b = ToBoolean(args.get(0));
-    res->setMultiline(cx, b);
-    args.rval().setBoolean(b);
-    return true;
-}
+const uint8_t HIDDEN_PROP_ATTRS = JSPROP_PERMANENT | JSPROP_SHARED;
+const uint8_t RO_HIDDEN_PROP_ATTRS = HIDDEN_PROP_ATTRS | JSPROP_READONLY;
 
 static const JSPropertySpec regexp_static_props[] = {
-    JS_PSGS("input", static_input_getter, static_input_setter,
-            JSPROP_PERMANENT | JSPROP_ENUMERATE),
-    JS_PSGS("multiline", static_multiline_getter, static_multiline_setter,
-            JSPROP_PERMANENT | JSPROP_ENUMERATE),
-    JS_PSG("lastMatch", static_lastMatch_getter, JSPROP_PERMANENT | JSPROP_ENUMERATE),
-    JS_PSG("lastParen", static_lastParen_getter, JSPROP_PERMANENT | JSPROP_ENUMERATE),
-    JS_PSG("leftContext",  static_leftContext_getter, JSPROP_PERMANENT | JSPROP_ENUMERATE),
-    JS_PSG("rightContext", static_rightContext_getter, JSPROP_PERMANENT | JSPROP_ENUMERATE),
-    JS_PSG("$1", static_paren1_getter, JSPROP_PERMANENT | JSPROP_ENUMERATE),
-    JS_PSG("$2", static_paren2_getter, JSPROP_PERMANENT | JSPROP_ENUMERATE),
-    JS_PSG("$3", static_paren3_getter, JSPROP_PERMANENT | JSPROP_ENUMERATE),
-    JS_PSG("$4", static_paren4_getter, JSPROP_PERMANENT | JSPROP_ENUMERATE),
-    JS_PSG("$5", static_paren5_getter, JSPROP_PERMANENT | JSPROP_ENUMERATE),
-    JS_PSG("$6", static_paren6_getter, JSPROP_PERMANENT | JSPROP_ENUMERATE),
-    JS_PSG("$7", static_paren7_getter, JSPROP_PERMANENT | JSPROP_ENUMERATE),
-    JS_PSG("$8", static_paren8_getter, JSPROP_PERMANENT | JSPROP_ENUMERATE),
-    JS_PSG("$9", static_paren9_getter, JSPROP_PERMANENT | JSPROP_ENUMERATE),
-    JS_PSGS("$_", static_input_getter, static_input_setter, JSPROP_PERMANENT),
-    JS_PSGS("$*", static_multiline_getter, static_multiline_setter, JSPROP_PERMANENT),
-    JS_PSG("$&", static_lastMatch_getter, JSPROP_PERMANENT),
-    JS_PSG("$+", static_lastParen_getter, JSPROP_PERMANENT),
-    JS_PSG("$`", static_leftContext_getter, JSPROP_PERMANENT),
-    JS_PSG("$'", static_rightContext_getter, JSPROP_PERMANENT),
-    JS_PS_END
+    {"input",        0, REGEXP_STATIC_PROP_ATTRS,    JSOP_WRAPPER(static_input_getter),
+                                                     JSOP_WRAPPER(static_input_setter)},
+    {"multiline",    0, REGEXP_STATIC_PROP_ATTRS,    JSOP_WRAPPER(static_multiline_getter),
+                                                     JSOP_WRAPPER(static_multiline_setter)},
+    {"lastMatch",    0, RO_REGEXP_STATIC_PROP_ATTRS, JSOP_WRAPPER(static_lastMatch_getter),
+                                                     JSOP_NULLWRAPPER},
+    {"lastParen",    0, RO_REGEXP_STATIC_PROP_ATTRS, JSOP_WRAPPER(static_lastParen_getter),
+                                                     JSOP_NULLWRAPPER},
+    {"leftContext",  0, RO_REGEXP_STATIC_PROP_ATTRS, JSOP_WRAPPER(static_leftContext_getter),
+                                                     JSOP_NULLWRAPPER},
+    {"rightContext", 0, RO_REGEXP_STATIC_PROP_ATTRS, JSOP_WRAPPER(static_rightContext_getter),
+                                                     JSOP_NULLWRAPPER},
+    {"$1",           0, RO_REGEXP_STATIC_PROP_ATTRS, JSOP_WRAPPER(static_paren1_getter),
+                                                     JSOP_NULLWRAPPER},
+    {"$2",           0, RO_REGEXP_STATIC_PROP_ATTRS, JSOP_WRAPPER(static_paren2_getter),
+                                                     JSOP_NULLWRAPPER},
+    {"$3",           0, RO_REGEXP_STATIC_PROP_ATTRS, JSOP_WRAPPER(static_paren3_getter),
+                                                     JSOP_NULLWRAPPER},
+    {"$4",           0, RO_REGEXP_STATIC_PROP_ATTRS, JSOP_WRAPPER(static_paren4_getter),
+                                                     JSOP_NULLWRAPPER},
+    {"$5",           0, RO_REGEXP_STATIC_PROP_ATTRS, JSOP_WRAPPER(static_paren5_getter),
+                                                     JSOP_NULLWRAPPER},
+    {"$6",           0, RO_REGEXP_STATIC_PROP_ATTRS, JSOP_WRAPPER(static_paren6_getter),
+                                                     JSOP_NULLWRAPPER},
+    {"$7",           0, RO_REGEXP_STATIC_PROP_ATTRS, JSOP_WRAPPER(static_paren7_getter),
+                                                     JSOP_NULLWRAPPER},
+    {"$8",           0, RO_REGEXP_STATIC_PROP_ATTRS, JSOP_WRAPPER(static_paren8_getter),
+                                                     JSOP_NULLWRAPPER},
+    {"$9",           0, RO_REGEXP_STATIC_PROP_ATTRS, JSOP_WRAPPER(static_paren9_getter),
+                                                     JSOP_NULLWRAPPER},
+    {"$_",           0, HIDDEN_PROP_ATTRS,           JSOP_WRAPPER(static_input_getter),
+                                                     JSOP_WRAPPER(static_input_setter)},
+    {"$*",           0, HIDDEN_PROP_ATTRS,           JSOP_WRAPPER(static_multiline_getter),
+                                                     JSOP_WRAPPER(static_multiline_setter)},
+    {"$&",           0, RO_HIDDEN_PROP_ATTRS,        JSOP_WRAPPER(static_lastMatch_getter),
+                                                     JSOP_NULLWRAPPER},
+    {"$+",           0, RO_HIDDEN_PROP_ATTRS,        JSOP_WRAPPER(static_lastParen_getter),
+                                                     JSOP_NULLWRAPPER},
+    {"$`",           0, RO_HIDDEN_PROP_ATTRS,        JSOP_WRAPPER(static_leftContext_getter),
+                                                     JSOP_NULLWRAPPER},
+    {"$'",           0, RO_HIDDEN_PROP_ATTRS,        JSOP_WRAPPER(static_rightContext_getter),
+                                                     JSOP_NULLWRAPPER},
+    {0,0,0,JSOP_NULLWRAPPER,JSOP_NULLWRAPPER}
 };
 
 JSObject *
@@ -494,31 +498,31 @@ js_InitRegExpClass(JSContext *cx, HandleObject obj)
 
     RootedObject proto(cx, global->createBlankPrototype(cx, &RegExpObject::class_));
     if (!proto)
-        return nullptr;
-    proto->setPrivate(nullptr);
+        return NULL;
+    proto->setPrivate(NULL);
 
     HandlePropertyName empty = cx->names().empty;
     RegExpObjectBuilder builder(cx, &proto->as<RegExpObject>());
     if (!builder.build(empty, RegExpFlag(0)))
-        return nullptr;
+        return NULL;
 
-    if (!DefinePropertiesAndBrand(cx, proto, nullptr, regexp_methods))
-        return nullptr;
+    if (!DefinePropertiesAndBrand(cx, proto, NULL, regexp_methods))
+        return NULL;
 
     RootedFunction ctor(cx);
     ctor = global->createConstructor(cx, regexp_construct, cx->names().RegExp, 2);
     if (!ctor)
-        return nullptr;
+        return NULL;
 
     if (!LinkConstructorAndPrototype(cx, ctor, proto))
-        return nullptr;
+        return NULL;
 
     /* Add static properties to the RegExp constructor. */
     if (!JS_DefineProperties(cx, ctor, regexp_static_props))
-        return nullptr;
+        return NULL;
 
     if (!DefineConstructorAndPrototype(cx, global, JSProto_RegExp, ctor, proto))
-        return nullptr;
+        return NULL;
 
     return proto;
 }
@@ -536,7 +540,7 @@ js::ExecuteRegExp(JSContext *cx, HandleObject regexp, HandleString string,
 
     RegExpStatics *res = (staticsUpdate == UpdateRegExpStatics)
                          ? cx->global()->getRegExpStatics()
-                         : nullptr;
+                         : NULL;
 
     /* Step 3. */
     Rooted<JSLinearString*> input(cx, string->ensureLinear(cx));

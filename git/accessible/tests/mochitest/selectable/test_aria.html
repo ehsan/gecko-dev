@@ -27,10 +27,10 @@
 
       testSelectableSelection(acc, []);
 
-      acc.selectAll();
+      acc.selectAllSelection();
       testSelectableSelection(acc, aSelectableChildren);
 
-      acc.unselectAll();
+      acc.clearSelection();
       testSelectableSelection(acc, []);
     }
 
@@ -64,13 +64,13 @@
       testSelectableSelection(id, [ ]);
 
       select = getAccessible(id, [nsIAccessibleSelectable]);
-      select.addItemToSelection(0);
+      select.addChildToSelection(0);
       testSelectableSelection(id, [ "listbox2_item1" ]);
-      select.removeItemFromSelection(0);
+      select.removeChildFromSelection(0);
       testSelectableSelection(id, [ ]);
-      select.selectAll();
+      select.selectAllSelection();
       testSelectableSelection(id, [ "listbox2_item1", "listbox2_item2" ]);
-      select.unselectAll();
+      select.clearSelection();
       testSelectableSelection(id, [ ]);
       
       //////////////////////////////////////////////////////////////////////////

@@ -31,6 +31,8 @@ function checkContextMenuPositionRange(aElement, aMinLeft, aMaxLeft, aMinTop, aM
 gTests.push({
   desc: "text context menu",
   run: function test() {
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
     info(chromeRoot + "browser_context_menu_tests_02.html");
     yield addTab(chromeRoot + "browser_context_menu_tests_02.html");
 
@@ -98,11 +100,9 @@ gTests.push({
                                       "context-copy-link"]);
 
     promise = waitForEvent(document, "popuphidden");
-    win.scrollBy(0, 1);
-    let hidden = yield promise;
-    ok(hidden && !(hidden instanceof Error), "scrolling hides the context menu");
+    ContextMenuUI.hide();
+    yield promise;
     win.getSelection().removeAllRanges();
-    win.scrollBy(0, -1);
 
     ////////////////////////////////////////////////////////////
     // Context menu in content on a link
@@ -308,6 +308,8 @@ gTests.push({
 gTests.push({
   desc: "checks for context menu positioning when browser shifts",
   run: function test() {
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
     info(chromeRoot + "browser_context_menu_tests_02.html");
     yield addTab(chromeRoot + "browser_context_menu_tests_02.html");
 

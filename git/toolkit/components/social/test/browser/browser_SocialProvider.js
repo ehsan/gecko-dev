@@ -62,7 +62,8 @@ let tests = {
     };
     SocialService.addProvider(manifest, function (provider2) {
       ok(provider.enabled, "provider is initially enabled");
-      ok(provider2.enabled, "provider2 is initially enabled");
+      ok(!provider2.enabled, "provider2 is not initially enabled");
+      provider2.enabled = true;
       let port = provider.getWorkerPort();
       let port2 = provider2.getWorkerPort();
       ok(port, "have port for provider");

@@ -5,18 +5,18 @@
 
 #include "mozilla/dom/EventTarget.h"
 #include "nsEventListenerManager.h"
-#include "nsThreadUtils.h"
+
 
 namespace mozilla {
 namespace dom {
 
 void
 EventTarget::RemoveEventListener(const nsAString& aType,
-                                 EventListener* aListener,
+                                 nsIDOMEventListener* aListener,
                                  bool aUseCapture,
                                  ErrorResult& aRv)
 {
-  nsEventListenerManager* elm = GetExistingListenerManager();
+  nsEventListenerManager* elm = GetListenerManager(false);
   if (elm) {
     elm->RemoveEventListener(aType, aListener, aUseCapture);
   }
@@ -25,34 +25,32 @@ EventTarget::RemoveEventListener(const nsAString& aType,
 EventHandlerNonNull*
 EventTarget::GetEventHandler(nsIAtom* aType, const nsAString& aTypeString)
 {
-  nsEventListenerManager* elm = GetExistingListenerManager();
+  nsEventListenerManager* elm = GetListenerManager(false);
   return elm ? elm->GetEventHandler(aType, aTypeString) : nullptr;
 }
 
 void
 EventTarget::SetEventHandler(const nsAString& aType,
                              EventHandlerNonNull* aHandler,
-                             ErrorResult& aRv)
+                             ErrorResult& rv)
 {
-  if (!StringBeginsWith(aType, NS_LITERAL_STRING("on"))) {
-    aRv.Throw(NS_ERROR_INVALID_ARG);
-    return;
-  }
   if (NS_IsMainThread()) {
     nsCOMPtr<nsIAtom> type = do_GetAtom(aType);
-    SetEventHandler(type, EmptyString(), aHandler);
-    return;
+    return SetEventHandler(type, EmptyString(), aHandler, rv);
   }
-  SetEventHandler(nullptr,
-                  Substring(aType, 2), // Remove "on"
-                  aHandler);
+  return SetEventHandler(nullptr,
+                         Substring(aType, 2), // Remove "on"
+                         aHandler, rv);
 }
 
 void
 EventTarget::SetEventHandler(nsIAtom* aType, const nsAString& aTypeString,
-                             EventHandlerNonNull* aHandler)
+                             EventHandlerNonNull* aHandler,
+                             ErrorResult& rv)
 {
-  GetOrCreateListenerManager()->SetEventHandler(aType, aTypeString, aHandler);
+  rv = GetListenerManager(true)->SetEventHandler(aType,
+                                                 aTypeString,
+                                                 aHandler);
 }
 
 } // namespace dom

@@ -15,7 +15,7 @@
 #include "jit/RangeAnalysis.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 JSONSpewer::~JSONSpewer()
 {
@@ -185,7 +185,7 @@ JSONSpewer::beginFunction(JSScript *script)
 
     beginObject();
     if (script)
-        stringProperty("name", "%s:%d", script->filename(), script->lineno());
+        stringProperty("name", "%s:%d", script->filename(), script->lineno);
     else
         stringProperty("name", "asm.js compilation");
     beginListProperty("passes");
@@ -266,7 +266,7 @@ JSONSpewer::spewMDef(MDefinition *def)
     if (def->isAdd() || def->isSub() || def->isMod() || def->isMul() || def->isDiv())
         isTruncated = static_cast<MBinaryArithInstruction*>(def)->isTruncated();
 
-    if (def->type() != MIRType_None && def->range()) {
+    if (def->range()) {
         Sprinter sp(GetIonContext()->cx);
         sp.init();
         def->range()->print(sp);
@@ -344,7 +344,7 @@ JSONSpewer::spewLIns(LInstruction *ins)
 
     property("opcode");
     fprintf(fp_, "\"");
-    ins->dump(fp_);
+    ins->print(fp_);
     fprintf(fp_, "\"");
 
     beginListProperty("defs");
@@ -403,11 +403,10 @@ JSONSpewer::spewIntervals(LinearScanAllocator *regalloc)
         LBlock *lir = regalloc->graph.getBlock(bno);
         for (LInstructionIterator ins = lir->begin(); ins != lir->end(); ins++) {
             for (size_t k = 0; k < ins->numDefs(); k++) {
-                uint32_t id = ins->getDef(k)->virtualRegister();
-                VirtualRegister *vreg = &regalloc->vregs[id];
+                VirtualRegister *vreg = &regalloc->vregs[ins->getDef(k)->virtualRegister()];
 
                 beginObject();
-                integerProperty("vreg", id);
+                integerProperty("vreg", vreg->id());
                 beginListProperty("intervals");
 
                 for (size_t i = 0; i < vreg->numIntervals(); i++) {
@@ -475,6 +474,6 @@ JSONSpewer::finish()
     fprintf(fp_, "\n");
 
     fclose(fp_);
-    fp_ = nullptr;
+    fp_ = NULL;
 }
 

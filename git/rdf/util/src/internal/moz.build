@@ -4,8 +4,11 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-include('../objs.mozbuild')
+MODULE = 'rdfutil'
 
-SOURCES += rdf_util_src_cppsrcs
+CPP_SOURCES += [
+    '$(RDF_UTIL_SRC_LCPPSRCS)',
+]
 
-FINAL_LIBRARY = 'xul'
+LIBRARY_NAME = 'rdfutil_s'
+

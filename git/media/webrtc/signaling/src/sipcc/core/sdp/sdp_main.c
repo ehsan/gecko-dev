@@ -50,8 +50,6 @@ const sdp_attrarray_t sdp_attr[SDP_MAX_ATTR_TYPES] =
      sdp_parse_attr_simple_u32, sdp_build_attr_simple_u32 },
     {"fmtp", sizeof("fmtp"),
      sdp_parse_attr_fmtp, sdp_build_attr_fmtp },
-    {"sctpmap", sizeof("sctpmap"),
-     sdp_parse_attr_sctpmap, sdp_build_attr_sctpmap },
     {"framing", sizeof("framing"),
      sdp_parse_attr_simple_string, sdp_build_attr_simple_string },
     {"inactive", sizeof("inactive"),
@@ -171,11 +169,7 @@ const sdp_attrarray_t sdp_attr[SDP_MAX_ATTR_TYPES] =
     {"maxptime", sizeof("maxptime"),
       sdp_parse_attr_simple_u32, sdp_build_attr_simple_u32},
     {"rtcp-fb", sizeof("rtcp-fb"),
-      sdp_parse_attr_rtcp_fb, sdp_build_attr_rtcp_fb},
-    {"setup", sizeof("setup"),
-      sdp_parse_attr_setup, sdp_build_attr_setup},
-    {"connection", sizeof("connection"),
-      sdp_parse_attr_connection, sdp_build_attr_connection},
+      sdp_parse_attr_rtcp_fb, sdp_build_attr_rtcp_fb}
 };
 
 /* Note: These *must* be in the same order as the enum types. */
@@ -401,7 +395,9 @@ const sdp_namearray_t sdp_fmtp_codec_param[SDP_MAX_FMTP_PARAM] =
     {"useinbandfec",                    sizeof("useinbandfec")}, /* 46 */
     {"maxcodedaudiobandwidth",          sizeof("maxcodedaudiobandwidth")}, /* 47 */
     {"cbr",                             sizeof("cbr")}, /* 48 */
-    {"max-fr",                          sizeof("max-fr")} /* 49 */
+    {"streams",                         sizeof("streams")}, /* 49 */
+    {"protocol",                        sizeof("protocol")} /* 50 */
+
 } ;
 
 /* Note: These *must* be in the same order as the enum type. */
@@ -487,21 +483,6 @@ const sdp_namearray_t sdp_rtcp_fb_ccm_type_val[SDP_MAX_RTCP_FB_CCM] =
     SDP_NAME("vbcm")
 };
 
-/* Maintain the same order as defined in typedef sdp_setup_type_e */
-const sdp_namearray_t sdp_setup_type_val[SDP_MAX_SETUP] =
-{
-    SDP_NAME("active"),
-    SDP_NAME("passive"),
-    SDP_NAME("actpass"),
-    SDP_NAME("holdconn")
-};
-
-/* Maintain the same order as defined in typedef sdp_connection_type_e */
-const sdp_namearray_t sdp_connection_type_val[SDP_MAX_CONNECTION] =
-{
-    SDP_NAME("new"),
-    SDP_NAME("existing")
-};
 
 /*  Maintain same order as defined in typedef sdp_srtp_crypto_suite_t */
 const sdp_srtp_crypto_suite_list sdp_srtp_crypto_suite_array[SDP_SRTP_MAX_NUM_CRYPTO_SUITES] =

@@ -5,7 +5,6 @@
 
 #include "mozilla/DebugOnly.h"
 
-#include "mozilla/BasicEvents.h"
 #include "mozilla/dom/SVGAnimationElement.h"
 #include "nsSMILTimedElement.h"
 #include "nsAttrValueInlines.h"
@@ -16,6 +15,7 @@
 #include "nsSMILParserUtils.h"
 #include "nsSMILTimeContainer.h"
 #include "nsGkAtoms.h"
+#include "nsGUIEvent.h"
 #include "nsEventDispatcher.h"
 #include "nsReadableUtils.h"
 #include "nsMathUtils.h"
@@ -92,7 +92,7 @@ namespace
 
     NS_IMETHOD Run()
     {
-      InternalUIEvent event(true, mMsg, mDetail);
+      nsUIEvent event(true, mMsg, mDetail);
       event.eventStructType = NS_SMIL_TIME_EVENT;
 
       nsPresContext* context = nullptr;
@@ -112,9 +112,8 @@ namespace
 //----------------------------------------------------------------------
 // Helper class: AutoIntervalUpdateBatcher
 
-// Stack-based helper class to set the mDeferIntervalUpdates flag on an
-// nsSMILTimedElement and perform the UpdateCurrentInterval when the object is
-// destroyed.
+// RAII helper to set the mDeferIntervalUpdates flag on an nsSMILTimedElement
+// and perform the UpdateCurrentInterval when the object is destroyed.
 //
 // If several of these objects are allocated on the stack, the update will not
 // be performed until the last object for a given nsSMILTimedElement is
@@ -145,31 +144,6 @@ public:
 private:
   nsSMILTimedElement& mTimedElement;
   bool mDidSetFlag;
-};
-
-//----------------------------------------------------------------------
-// Helper class: AutoIntervalUpdater
-
-// Stack-based helper class to call UpdateCurrentInterval when it is destroyed
-// which helps avoid bugs where we forget to call UpdateCurrentInterval in the
-// case of early returns (e.g. due to parse errors).
-//
-// This can be safely used in conjunction with AutoIntervalUpdateBatcher; any
-// calls to UpdateCurrentInterval made by this class will simply be deferred if
-// there is an AutoIntervalUpdateBatcher on the stack.
-class MOZ_STACK_CLASS nsSMILTimedElement::AutoIntervalUpdater
-{
-public:
-  AutoIntervalUpdater(nsSMILTimedElement& aTimedElement)
-    : mTimedElement(aTimedElement) { }
-
-  ~AutoIntervalUpdater()
-  {
-    mTimedElement.UpdateCurrentInterval();
-  }
-
-private:
-  nsSMILTimedElement& mTimedElement;
 };
 
 //----------------------------------------------------------------------
@@ -258,6 +232,7 @@ nsSMILTimedElement::nsSMILTimedElement()
   mSimpleDur.SetIndefinite();
   mMin.SetMillis(0L);
   mMax.SetIndefinite();
+  mTimeDependents.Init();
 }
 
 nsSMILTimedElement::~nsSMILTimedElement()
@@ -693,32 +668,19 @@ nsSMILTimedElement::DoSampleAt(nsSMILTime aContainerTime, bool aEndOnly)
           NS_ASSERTION(aContainerTime >= beginTime,
                        "Sample time should not precede current interval");
           nsSMILTime activeTime = aContainerTime - beginTime;
-
-          // The 'min' attribute can cause the active interval to be longer than
-          // the 'repeating interval'.
-          // In that extended period we apply the fill mode.
-          if (GetRepeatDuration() <= nsSMILTimeValue(activeTime)) {
-            if (mClient && mClient->IsActive()) {
-              mClient->Inactivate(mFillMode == FILL_FREEZE);
-            }
-            SampleFillValue();
-          } else {
-            SampleSimpleTime(activeTime);
-
-            // We register our repeat times as milestones (except when we're
-            // seeking) so we should get a sample at exactly the time we repeat.
-            // (And even when we are seeking we want to update
-            // mCurrentRepeatIteration so we do that first before testing the
-            // seek state.)
-            uint32_t prevRepeatIteration = mCurrentRepeatIteration;
-            if (
-              ActiveTimeToSimpleTime(activeTime, mCurrentRepeatIteration)==0 &&
+          SampleSimpleTime(activeTime);
+          // We register our repeat times as milestones (except when we're
+          // seeking) so we should get a sample at exactly the time we repeat.
+          // (And even when we are seeking we want to update
+          // mCurrentRepeatIteration so we do that first before testing the seek
+          // state.)
+          uint32_t prevRepeatIteration = mCurrentRepeatIteration;
+          if (ActiveTimeToSimpleTime(activeTime, mCurrentRepeatIteration)==0 &&
               mCurrentRepeatIteration != prevRepeatIteration &&
               mCurrentRepeatIteration &&
               mSeekState == SEEK_NOT_SEEKING) {
-              FireTimeEventAsync(NS_SMIL_REPEAT,
-                            static_cast<int32_t>(mCurrentRepeatIteration));
-            }
+            FireTimeEventAsync(NS_SMIL_REPEAT,
+                          static_cast<int32_t>(mCurrentRepeatIteration));
           }
         }
       }
@@ -944,29 +906,37 @@ nsSMILTimedElement::UnsetEndSpec(RemovalTestFunction aRemove)
 nsresult
 nsSMILTimedElement::SetSimpleDuration(const nsAString& aDurSpec)
 {
-  // Update the current interval before returning
-  AutoIntervalUpdater updater(*this);
-
   nsSMILTimeValue duration;
-  const nsAString& dur = nsSMILParserUtils::TrimWhitespace(aDurSpec);
+  bool isMedia;
+  nsresult rv;
 
+  rv = nsSMILParserUtils::ParseClockValue(aDurSpec, &duration,
+          nsSMILParserUtils::kClockValueAllowIndefinite, &isMedia);
+
+  if (NS_FAILED(rv)) {
+    mSimpleDur.SetIndefinite();
+    return NS_ERROR_FAILURE;
+  }
+
+  if (duration.IsDefinite() && duration.GetMillis() == 0L) {
+    mSimpleDur.SetIndefinite();
+    return NS_ERROR_FAILURE;
+  }
+
+  //
   // SVG-specific: "For SVG's animation elements, if "media" is specified, the
   // attribute will be ignored." (SVG 1.1, section 19.2.6)
-  if (dur.EqualsLiteral("media") || dur.EqualsLiteral("indefinite")) {
+  //
+  if (isMedia)
     duration.SetIndefinite();
-  } else {
-    if (!nsSMILParserUtils::ParseClockValue(dur, &duration) ||
-        duration.GetMillis() == 0L) {
-      mSimpleDur.SetIndefinite();
-      return NS_ERROR_FAILURE;
-    }
-  }
+
   // mSimpleDur should never be unresolved. ParseClockValue will either set
-  // duration to resolved or will return false.
+  // duration to resolved/indefinite/media or will return a failure code.
   NS_ABORT_IF_FALSE(duration.IsResolved(),
     "Setting unresolved simple duration");
 
   mSimpleDur = duration;
+  UpdateCurrentInterval();
 
   return NS_OK;
 }
@@ -981,24 +951,28 @@ nsSMILTimedElement::UnsetSimpleDuration()
 nsresult
 nsSMILTimedElement::SetMin(const nsAString& aMinSpec)
 {
-  // Update the current interval before returning
-  AutoIntervalUpdater updater(*this);
-
   nsSMILTimeValue duration;
-  const nsAString& min = nsSMILParserUtils::TrimWhitespace(aMinSpec);
+  bool isMedia;
+  nsresult rv;
 
-  if (min.EqualsLiteral("media")) {
+  rv = nsSMILParserUtils::ParseClockValue(aMinSpec, &duration, 0, &isMedia);
+
+  if (isMedia) {
     duration.SetMillis(0L);
-  } else {
-    if (!nsSMILParserUtils::ParseClockValue(min, &duration)) {
-      mMin.SetMillis(0L);
-      return NS_ERROR_FAILURE;
-    }
   }
 
-  NS_ABORT_IF_FALSE(duration.GetMillis() >= 0L, "Invalid duration");
+  if (NS_FAILED(rv) || !duration.IsDefinite()) {
+    mMin.SetMillis(0L);
+    return NS_ERROR_FAILURE;
+  }
+
+  if (duration.GetMillis() < 0L) {
+    mMin.SetMillis(0L);
+    return NS_ERROR_FAILURE;
+  }
 
   mMin = duration;
+  UpdateCurrentInterval();
 
   return NS_OK;
 }
@@ -1013,24 +987,28 @@ nsSMILTimedElement::UnsetMin()
 nsresult
 nsSMILTimedElement::SetMax(const nsAString& aMaxSpec)
 {
-  // Update the current interval before returning
-  AutoIntervalUpdater updater(*this);
-
   nsSMILTimeValue duration;
-  const nsAString& max = nsSMILParserUtils::TrimWhitespace(aMaxSpec);
+  bool isMedia;
+  nsresult rv;
 
-  if (max.EqualsLiteral("media") || max.EqualsLiteral("indefinite")) {
+  rv = nsSMILParserUtils::ParseClockValue(aMaxSpec, &duration,
+          nsSMILParserUtils::kClockValueAllowIndefinite, &isMedia);
+
+  if (isMedia)
     duration.SetIndefinite();
-  } else {
-    if (!nsSMILParserUtils::ParseClockValue(max, &duration) ||
-        duration.GetMillis() == 0L) {
-      mMax.SetIndefinite();
-      return NS_ERROR_FAILURE;
-    }
-    NS_ABORT_IF_FALSE(duration.GetMillis() > 0L, "Invalid duration");
+
+  if (NS_FAILED(rv) || !duration.IsResolved()) {
+    mMax.SetIndefinite();
+    return NS_ERROR_FAILURE;
+  }
+
+  if (duration.IsDefinite() && duration.GetMillis() <= 0L) {
+    mMax.SetIndefinite();
+    return NS_ERROR_FAILURE;
   }
 
   mMax = duration;
+  UpdateCurrentInterval();
 
   return NS_OK;
 }
@@ -1065,17 +1043,19 @@ nsSMILTimedElement::UnsetRestart()
 nsresult
 nsSMILTimedElement::SetRepeatCount(const nsAString& aRepeatCountSpec)
 {
-  // Update the current interval before returning
-  AutoIntervalUpdater updater(*this);
-
   nsSMILRepeatCount newRepeatCount;
+  nsresult rv =
+    nsSMILParserUtils::ParseRepeatCount(aRepeatCountSpec, newRepeatCount);
 
-  if (nsSMILParserUtils::ParseRepeatCount(aRepeatCountSpec, newRepeatCount)) {
+  if (NS_SUCCEEDED(rv)) {
     mRepeatCount = newRepeatCount;
-    return NS_OK;
+  } else {
+    mRepeatCount.Unset();
   }
-  mRepeatCount.Unset();
-  return NS_ERROR_FAILURE;
+
+  UpdateCurrentInterval();
+
+  return rv;
 }
 
 void
@@ -1088,24 +1068,19 @@ nsSMILTimedElement::UnsetRepeatCount()
 nsresult
 nsSMILTimedElement::SetRepeatDur(const nsAString& aRepeatDurSpec)
 {
-  // Update the current interval before returning
-  AutoIntervalUpdater updater(*this);
-
+  nsresult rv;
   nsSMILTimeValue duration;
 
-  const nsAString& repeatDur =
-    nsSMILParserUtils::TrimWhitespace(aRepeatDurSpec);
+  rv = nsSMILParserUtils::ParseClockValue(aRepeatDurSpec, &duration,
+          nsSMILParserUtils::kClockValueAllowIndefinite);
 
-  if (repeatDur.EqualsLiteral("indefinite")) {
-    duration.SetIndefinite();
-  } else {
-    if (!nsSMILParserUtils::ParseClockValue(repeatDur, &duration)) {
-      mRepeatDur.SetUnresolved();
-      return NS_ERROR_FAILURE;
-    }
+  if (NS_FAILED(rv) || !duration.IsResolved()) {
+    mRepeatDur.SetUnresolved();
+    return NS_ERROR_FAILURE;
   }
 
   mRepeatDur = duration;
+  UpdateCurrentInterval();
 
   return NS_OK;
 }
@@ -1129,8 +1104,12 @@ nsSMILTimedElement::SetFillMode(const nsAString& aFillModeSpec)
             ? nsSMILFillMode(temp.GetEnumValue())
             : FILL_REMOVE;
 
-  // Update fill mode of client
-  if (mFillMode != previousFillMode && HasClientInFillRange()) {
+  // Check if we're in a fill-able state: i.e. we've played at least one
+  // interval and are now between intervals or at the end of all intervals
+  bool isFillable = HasPlayed() &&
+    (mElementState == STATE_WAITING || mElementState == STATE_POSTACTIVE);
+
+  if (mClient && mFillMode != previousFillMode && isFillable) {
     mClient->Inactivate(mFillMode == FILL_FREEZE);
     SampleFillValue();
   }
@@ -1143,9 +1122,9 @@ nsSMILTimedElement::UnsetFillMode()
 {
   uint16_t previousFillMode = mFillMode;
   mFillMode = FILL_REMOVE;
-  if (previousFillMode == FILL_FREEZE && HasClientInFillRange()) {
+  if ((mElementState == STATE_WAITING || mElementState == STATE_POSTACTIVE) &&
+      previousFillMode == FILL_FREEZE && mClient && HasPlayed())
     mClient->Inactivate(false);
-  }
 }
 
 void
@@ -1844,7 +1823,11 @@ nsSMILTimedElement::CalcActiveEnd(const nsSMILTimeValue& aBegin,
   NS_ABORT_IF_FALSE(aBegin.IsDefinite(),
     "Indefinite or unresolved begin time in CalcActiveEnd");
 
-  result = GetRepeatDuration();
+  if (mRepeatDur.IsIndefinite()) {
+    result.SetIndefinite();
+  } else {
+    result = GetRepeatDuration();
+  }
 
   if (aEnd.IsDefinite()) {
     nsSMILTime activeDur = aEnd.GetMillis() - aBegin.GetMillis();
@@ -1869,25 +1852,29 @@ nsSMILTimedElement::CalcActiveEnd(const nsSMILTimeValue& aBegin,
 nsSMILTimeValue
 nsSMILTimedElement::GetRepeatDuration() const
 {
-  nsSMILTimeValue multipliedDuration;
-  if (mRepeatCount.IsDefinite() && mSimpleDur.IsDefinite()) {
-    multipliedDuration.SetMillis(
-      nsSMILTime(mRepeatCount * double(mSimpleDur.GetMillis())));
+  nsSMILTimeValue result;
+
+  if (mRepeatCount.IsDefinite() && mRepeatDur.IsDefinite()) {
+    if (mSimpleDur.IsDefinite()) {
+      nsSMILTime activeDur =
+        nsSMILTime(mRepeatCount * double(mSimpleDur.GetMillis()));
+      result.SetMillis(std::min(activeDur, mRepeatDur.GetMillis()));
+    } else {
+      result = mRepeatDur;
+    }
+  } else if (mRepeatCount.IsDefinite() && mSimpleDur.IsDefinite()) {
+    nsSMILTime activeDur =
+      nsSMILTime(mRepeatCount * double(mSimpleDur.GetMillis()));
+    result.SetMillis(activeDur);
+  } else if (mRepeatDur.IsDefinite()) {
+    result = mRepeatDur;
+  } else if (mRepeatCount.IsIndefinite()) {
+    result.SetIndefinite();
   } else {
-    multipliedDuration.SetIndefinite();
+    result = mSimpleDur;
   }
 
-  nsSMILTimeValue repeatDuration;
-
-  if (mRepeatDur.IsResolved()) {
-    repeatDuration = std::min(multipliedDuration, mRepeatDur);
-  } else if (mRepeatCount.IsSet()) {
-    repeatDuration = multipliedDuration;
-  } else {
-    repeatDuration = mSimpleDur;
-  }
-
-  return repeatDuration;
+  return result;
 }
 
 nsSMILTimeValue
@@ -1906,7 +1893,8 @@ nsSMILTimedElement::ApplyMinAndMax(const nsSMILTimeValue& aDuration) const
   if (aDuration > mMax) {
     result = mMax;
   } else if (aDuration < mMin) {
-    result = mMin;
+    nsSMILTimeValue repeatDur = GetRepeatDuration();
+    result = mMin > repeatDur ? repeatDur : mMin;
   } else {
     result = aDuration;
   }
@@ -2100,35 +2088,16 @@ nsSMILTimedElement::SampleFillValue()
   if (mFillMode != FILL_FREEZE || !mClient)
     return;
 
-  nsSMILTime activeTime;
+  const nsSMILInterval* prevInterval = GetPreviousInterval();
+  NS_ABORT_IF_FALSE(prevInterval,
+      "Attempting to sample fill value but there is no previous interval");
+  NS_ABORT_IF_FALSE(prevInterval->End()->Time().IsDefinite() &&
+      prevInterval->End()->IsFixedTime(),
+      "Attempting to sample fill value but the endpoint of the previous "
+      "interval is not resolved and fixed");
 
-  if (mElementState == STATE_WAITING || mElementState == STATE_POSTACTIVE) {
-    const nsSMILInterval* prevInterval = GetPreviousInterval();
-    NS_ABORT_IF_FALSE(prevInterval,
-        "Attempting to sample fill value but there is no previous interval");
-    NS_ABORT_IF_FALSE(prevInterval->End()->Time().IsDefinite() &&
-        prevInterval->End()->IsFixedTime(),
-        "Attempting to sample fill value but the endpoint of the previous "
-        "interval is not resolved and fixed");
-
-    activeTime = prevInterval->End()->Time().GetMillis() -
-                 prevInterval->Begin()->Time().GetMillis();
-
-    // If the interval's repeat duration was shorter than its active duration,
-    // use the end of the repeat duration to determine the frozen animation's
-    // state.
-    nsSMILTimeValue repeatDuration = GetRepeatDuration();
-    if (repeatDuration.IsDefinite()) {
-      activeTime = std::min(repeatDuration.GetMillis(), activeTime);
-    }
-  } else if (mElementState == STATE_ACTIVE) {
-    // If we are being asked to sample the fill value while active we *must*
-    // have a repeat duration shorter than the active duration so use that.
-    MOZ_ASSERT(GetRepeatDuration().IsDefinite(),
-        "Attempting to sample fill value of an active animation with "
-        "an indefinite repeat duration");
-    activeTime = GetRepeatDuration().GetMillis();
-  }
+  nsSMILTime activeTime = prevInterval->End()->Time().GetMillis() -
+                          prevInterval->Begin()->Time().GetMillis();
 
   uint32_t repeatIteration;
   nsSMILTime simpleTime =
@@ -2224,13 +2193,8 @@ nsSMILTimedElement::GetNextMilestone(nsSMILMilestone& aNextMilestone) const
       // Work out what comes next: the interval end or the next repeat iteration
       nsSMILTimeValue nextRepeat;
       if (mSeekState == SEEK_NOT_SEEKING && mSimpleDur.IsDefinite()) {
-        nsSMILTime nextRepeatActiveTime =
-          (mCurrentRepeatIteration + 1) * mSimpleDur.GetMillis();
-        // Check that the repeat fits within the repeat duration
-        if (nsSMILTimeValue(nextRepeatActiveTime) < GetRepeatDuration()) {
-          nextRepeat.SetMillis(mCurrentInterval->Begin()->Time().GetMillis() +
-                               nextRepeatActiveTime);
-        }
+        nextRepeat.SetMillis(mCurrentInterval->Begin()->Time().GetMillis() +
+            (mCurrentRepeatIteration + 1) * mSimpleDur.GetMillis());
       }
       nsSMILTimeValue nextMilestone =
         std::min(mCurrentInterval->End()->Time(), nextRepeat);
@@ -2337,15 +2301,6 @@ nsSMILTimedElement::GetPreviousInterval() const
   return mOldIntervals.IsEmpty()
     ? nullptr
     : mOldIntervals[mOldIntervals.Length()-1].get();
-}
-
-bool
-nsSMILTimedElement::HasClientInFillRange() const
-{
-  // Returns true if we have a client that is in the range where it will fill
-  return mClient &&
-         ((mElementState != STATE_ACTIVE && HasPlayed()) ||
-          (mElementState == STATE_ACTIVE && !mClient->IsActive()));
 }
 
 bool

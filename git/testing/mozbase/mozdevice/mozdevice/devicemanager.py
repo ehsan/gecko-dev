@@ -175,7 +175,7 @@ class DeviceManager(object):
         """
 
     @abstractmethod
-    def pushDir(self, localDirname, remoteDirname, retryLimit=1, timeout=None):
+    def pushDir(self, localDirname, remoteDirname, retryLimit=1):
         """
         Push local directory from host to remote directory on the device,
         """
@@ -419,13 +419,10 @@ class DeviceManager(object):
 
 
     @abstractmethod
-    def killProcess(self, processName, sig=None):
+    def killProcess(self, processName, forceKill=False):
         """
-        Kills the process named processName. If sig is not None, process is
-        killed with the specified signal.
-
-        :param processName: path or name of the process to kill
-        :param sig: signal to pass into the kill command (optional)
+        Kills the process named processName. If forceKill is True, process is
+        killed regardless of state.
         """
 
     @abstractmethod

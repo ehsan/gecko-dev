@@ -35,16 +35,9 @@ function ArrayIndexOf(searchElement/*, fromIndex*/) {
     }
 
     /* Step 9. */
-    if (IsPackedArray(O)) {
-        for (; k < len; k++) {
-            if (O[k] === searchElement)
-                return k;
-        }
-    } else {
-        for (; k < len; k++) {
-            if (k in O && O[k] === searchElement)
-                return k;
-        }
+    for (; k < len; k++) {
+        if (k in O && O[k] === searchElement)
+            return k;
     }
 
     /* Step 10. */
@@ -83,16 +76,9 @@ function ArrayLastIndexOf(searchElement/*, fromIndex*/) {
         k = n;
 
     /* Step 8. */
-    if (IsPackedArray(O)) {
-        for (; k >= 0; k--) {
-            if (O[k] === searchElement)
-                return k;
-        }
-    } else {
-        for (; k >= 0; k--) {
-            if (k in O && O[k] === searchElement)
-                return k;
-        }
+    for (; k >= 0; k--) {
+        if (k in O && O[k] === searchElement)
+            return k;
     }
 
     /* Step 9. */
@@ -305,21 +291,17 @@ function ArrayReduce(callbackfn/*, initialValue*/) {
         /* Step 5. */
         if (len === 0)
             ThrowError(JSMSG_EMPTY_ARRAY_REDUCE);
-        if (IsPackedArray(O)) {
-            accumulator = O[k++];
-        } else {
-            var kPresent = false;
-            for (; k < len; k++) {
-                if (k in O) {
-                    accumulator = O[k];
-                    kPresent = true;
-                    k++;
-                    break;
-                }
+        var kPresent = false;
+        for (; k < len; k++) {
+            if (k in O) {
+                accumulator = O[k];
+                kPresent = true;
+                k++;
+                break;
             }
-            if (!kPresent)
-              ThrowError(JSMSG_EMPTY_ARRAY_REDUCE);
         }
+        if (!kPresent)
+            ThrowError(JSMSG_EMPTY_ARRAY_REDUCE);
     }
 
     /* Step 9. */
@@ -372,21 +354,17 @@ function ArrayReduceRight(callbackfn/*, initialValue*/) {
         /* Step 5. */
         if (len === 0)
             ThrowError(JSMSG_EMPTY_ARRAY_REDUCE);
-        if (IsPackedArray(O)) {
-            accumulator = O[k--];
-        } else {
-            var kPresent = false;
-            for (; k >= 0; k--) {
-                if (k in O) {
-                    accumulator = O[k];
-                    kPresent = true;
-                    k--;
-                    break;
-                }
+        var kPresent = false;
+        for (; k >= 0; k--) {
+            if (k in O) {
+                accumulator = O[k];
+                kPresent = true;
+                k--;
+                break;
             }
-            if (!kPresent)
-                ThrowError(JSMSG_EMPTY_ARRAY_REDUCE);
         }
+        if (!kPresent)
+            ThrowError(JSMSG_EMPTY_ARRAY_REDUCE);
     }
 
     /* Step 9. */
@@ -489,73 +467,6 @@ function ArrayFindIndex(predicate/*, thisArg*/) {
     return -1;
 }
 
-#define ARRAY_ITERATOR_SLOT_ITERATED_OBJECT 0
-#define ARRAY_ITERATOR_SLOT_NEXT_INDEX 1
-#define ARRAY_ITERATOR_SLOT_ITEM_KIND 2
-
-#define ITEM_KIND_VALUE 0
-#define ITEM_KIND_KEY_AND_VALUE 1
-#define ITEM_KIND_KEY 2
-
-// ES6 draft specification, section 22.1.5.1, version 2013-09-05.
-function CreateArrayIterator(obj, kind) {
-    var iteratedObject = ToObject(obj);
-    var iterator = NewArrayIterator();
-    UnsafeSetReservedSlot(iterator, ARRAY_ITERATOR_SLOT_ITERATED_OBJECT, iteratedObject);
-    UnsafeSetReservedSlot(iterator, ARRAY_ITERATOR_SLOT_NEXT_INDEX, 0);
-    UnsafeSetReservedSlot(iterator, ARRAY_ITERATOR_SLOT_ITEM_KIND, kind);
-    return iterator;
-}
-
-function ArrayIteratorIdentity() {
-    return this;
-}
-
-function ArrayIteratorNext() {
-    // FIXME: ArrayIterator prototype should not pass this test.  Bug 924059.
-    if (!IsObject(this) || !IsArrayIterator(this))
-        ThrowError(JSMSG_INCOMPATIBLE_METHOD, "ArrayIterator", "next", ToString(this));
-
-    var a = UnsafeGetReservedSlot(this, ARRAY_ITERATOR_SLOT_ITERATED_OBJECT);
-    var index = UnsafeGetReservedSlot(this, ARRAY_ITERATOR_SLOT_NEXT_INDEX);
-    var itemKind = UnsafeGetReservedSlot(this, ARRAY_ITERATOR_SLOT_ITEM_KIND);
-
-    // FIXME: This should be ToLength, which clamps at 2**53.  Bug 924058.
-    if (index >= TO_UINT32(a.length)) {
-        // When the above is changed to ToLength, use +1/0 here instead
-        // of MAX_UINT32.
-        UnsafeSetReservedSlot(this, ARRAY_ITERATOR_SLOT_NEXT_INDEX, 0xffffffff);
-        return { value: undefined, done: true };
-    }
-
-    UnsafeSetReservedSlot(this, ARRAY_ITERATOR_SLOT_NEXT_INDEX, index + 1);
-
-    if (itemKind === ITEM_KIND_VALUE)
-        return { value: a[index], done: false };
-
-    if (itemKind === ITEM_KIND_KEY_AND_VALUE) {
-        var pair = NewDenseArray(2);
-        pair[0] = index;
-        pair[1] = a[index];
-        return { value: pair, done : false };
-    }
-
-    assert(itemKind === ITEM_KIND_KEY, itemKind);
-    return { value: index, done: false };
-}
-
-function ArrayValues() {
-    return CreateArrayIterator(this, ITEM_KIND_VALUE);
-}
-
-function ArrayEntries() {
-    return CreateArrayIterator(this, ITEM_KIND_KEY_AND_VALUE);
-}
-
-function ArrayKeys() {
-    return CreateArrayIterator(this, ITEM_KIND_KEY);
-}
-
 #ifdef ENABLE_PARALLEL_JS
 
 /*
@@ -616,12 +527,8 @@ function ComputeNumChunks(length) {
  */
 function ComputeSliceBounds(numItems, sliceIndex, numSlices) {
   var sliceWidth = (numItems / numSlices) | 0;
-  var extraChunks = (numItems % numSlices) | 0;
-
-  var startIndex = sliceWidth * sliceIndex + std_Math_min(extraChunks, sliceIndex);
-  var endIndex = startIndex + sliceWidth;
-  if (sliceIndex < extraChunks)
-    endIndex += 1;
+  var startIndex = sliceWidth * sliceIndex;
+  var endIndex = sliceIndex === numSlices - 1 ? numItems : sliceWidth * (sliceIndex + 1);
   return [startIndex, endIndex];
 }
 
@@ -635,18 +542,10 @@ function ComputeSliceBounds(numItems, sliceIndex, numSlices) {
  */
 function ComputeAllSliceBounds(numItems, numSlices) {
   // FIXME(bug 844890): Use typed arrays here.
-  var sliceWidth = (numItems / numSlices) | 0;
-  var extraChunks = (numItems % numSlices) | 0;
-  var counter = 0;
   var info = [];
-  var i = 0;
-  for (; i < extraChunks; i++) {
-    ARRAY_PUSH(info, SLICE_INFO(counter, counter + sliceWidth + 1));
-    counter += sliceWidth + 1;
-  }
-  for (; i < numSlices; i++) {
-    ARRAY_PUSH(info, SLICE_INFO(counter, counter + sliceWidth));
-    counter += sliceWidth;
+  for (var i = 0; i < numSlices; i++) {
+    var [start, end] = ComputeSliceBounds(numItems, i, numSlices);
+    ARRAY_PUSH(info, SLICE_INFO(start, end));
   }
   return info;
 }
@@ -710,8 +609,6 @@ function ArrayMapPar(func, mode) {
 
     return chunkEnd === info[SLICE_END(sliceId)];
   }
-
-  return undefined;
 }
 
 /**
@@ -796,8 +693,6 @@ function ArrayReducePar(func, mode) {
       accumulator = func(accumulator, self[i]);
     return accumulator;
   }
-
-  return undefined;
 }
 
 /**
@@ -985,8 +880,6 @@ function ArrayScanPar(func, mode) {
 
     return indexEnd === info[SLICE_END(sliceId)];
   }
-
-  return undefined;
 }
 
 /**
@@ -1139,8 +1032,6 @@ function ArrayScatterPar(targets, defaultValue, conflictFunc, length, mode) {
 
       return indexEnd === targetsLength;
     }
-
-    return undefined;
   }
 
   function parDivideScatterVector() {
@@ -1219,8 +1110,6 @@ function ArrayScatterPar(targets, defaultValue, conflictFunc, length, mode) {
         }
       }
     }
-
-    return undefined;
   }
 
   function seq() {
@@ -1254,8 +1143,6 @@ function ArrayScatterPar(targets, defaultValue, conflictFunc, length, mode) {
     // It's not enough to return t, as -0 | 0 === -0.
     return TO_INT32(t);
   }
-
-  return undefined;
 }
 
 /**
@@ -1391,8 +1278,6 @@ function ArrayFilterPar(func, mode) {
 
     return true;
   }
-
-  return undefined;
 }
 
 /**
@@ -1464,8 +1349,6 @@ function ArrayStaticBuildPar(length, func, mode) {
     for (var i = indexStart; i < indexEnd; i++)
       UnsafePutElements(buffer, i, func(i));
   }
-
-  return undefined;
 }
 
 /*

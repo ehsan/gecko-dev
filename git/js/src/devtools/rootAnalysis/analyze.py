@@ -97,7 +97,6 @@ def generate_hazards(config, outfilename):
 JOBS = { 'dbs':
              (('%(ANALYSIS_SCRIPTDIR)s/run_complete',
                '--foreground',
-               '--no-logs',
                '--build-root=%(objdir)s',
                '--wrap-dir=%(sixgill)s/scripts/wrap_gcc',
                '--work-dir=work',
@@ -124,20 +123,16 @@ JOBS = { 'dbs':
               'allFunctions.txt'),
 
          'hazards':
-             (generate_hazards, 'rootingHazards.txt'),
-
-         'explain':
-             (('python', '%(analysis_scriptdir)s/explain.py',
-               '%(hazards)s', '%(gcFunctions)s',
-               '[explained_hazards]', '[unnecessary]', '[refs]'),
-              ('hazards.txt', 'unnecessary.txt', 'refs.txt'))
+             (generate_hazards, 'rootingHazards.txt')
          }
+
 
 def out_indexes(command):
     for i in range(len(command)):
         m = re.match(r'^\[(.*)\]$', command[i])
         if m:
             yield (i, m.group(1))
+
 
 def run_job(name, config):
     cmdspec, outfiles = JOBS[name]
@@ -147,12 +142,11 @@ def run_job(name, config):
     else:
         temp_map = {}
         cmdspec = fill(cmdspec, config)
+        temp = '%s.tmp' % name
         if isinstance(outfiles, basestring):
-            stdout_filename = '%s.tmp' % name
-            temp_map[stdout_filename] = outfiles
+            temp_map[temp] = outfiles
             print_command(cmdspec, outfile=outfiles, env=env(config))
         else:
-            stdout_filename = None
             pc = list(cmdspec)
             outfile = 0
             for (i, name) in out_indexes(cmdspec):
@@ -167,12 +161,8 @@ def run_job(name, config):
             temp_map[command[i]] = outfiles[outfile]
             outfile += 1
 
-        sys.stdout.flush()
-        if stdout_filename is None:
-            subprocess.check_call(command, env=env(config))
-        else:
-            with open(stdout_filename, 'w') as output:
-                subprocess.check_call(command, stdout=output, env=env(config))
+        with open(temp, 'w') as output:
+            subprocess.check_call(command, stdout=output, env=env(config))
         for (temp, final) in temp_map.items():
             try:
                 os.rename(temp, final)
@@ -201,7 +191,7 @@ parser.add_argument('--source', metavar='SOURCE', type=str, nargs='?',
                     help='source code to analyze')
 parser.add_argument('--upto', metavar='UPTO', type=str, nargs='?',
                     help='last step to execute')
-parser.add_argument('--jobs', '-j', default=None, metavar='JOBS', type=int,
+parser.add_argument('--jobs', '-j', default=4, metavar='JOBS', type=int,
                     help='number of simultaneous analyzeRoots.js jobs')
 parser.add_argument('--list', const=True, nargs='?', type=bool,
                     help='display available steps')
@@ -209,8 +199,6 @@ parser.add_argument('--buildcommand', '--build', '-b', type=str, nargs='?',
                     help='command to build the tree being analyzed')
 parser.add_argument('--tag', '-t', type=str, nargs='?',
                     help='name of job, also sets build command to "build.<tag>"')
-parser.add_argument('--expect-file', type=str, nargs='?',
-                    help='deprecated option, temporarily still present for backwards compatibility')
 
 args = parser.parse_args()
 for k,v in vars(args).items():
@@ -238,8 +226,7 @@ steps = [ 'dbs',
           'gcTypes',
           'gcFunctions',
           'allFunctions',
-          'hazards',
-          'explain' ]
+          'hazards' ]
 
 if args.list:
     for step in steps:
@@ -259,7 +246,7 @@ for step in steps:
         for (i, name) in out_indexes(command):
             data[name] = outfiles[outfile]
             outfile += 1
-        assert len(outfiles) == outfile, 'step \'%s\': mismatched number of output files and params' % step
+        assert len(outfiles) == outfile, 'step %s: mismatched number of output files and params' % step
 
 if args.step:
     steps = steps[steps.index(args.step):]

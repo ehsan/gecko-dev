@@ -11,13 +11,15 @@
 #ifndef WEBRTC_MODULES_VIDEO_CODING_PACKET_H_
 #define WEBRTC_MODULES_VIDEO_CODING_PACKET_H_
 
-#include "webrtc/modules/interface/module_common_types.h"
-#include "webrtc/modules/video_coding/main/source/jitter_buffer_common.h"
-#include "webrtc/typedefs.h"
+#include "typedefs.h"
+#include "module_common_types.h"
+#include "jitter_buffer_common.h"
 
-namespace webrtc {
+namespace webrtc
+{
 
-class VCMPacket {
+class VCMPacket
+{
 public:
     VCMPacket();
     VCMPacket(const uint8_t* ptr,
@@ -45,13 +47,11 @@ public:
     VCMNaluCompleteness completeNALU;   // Default is kNaluIncomplete.
     bool insertStartCode;               // True if a start code should be inserted before this
                                         // packet.
-    int width;
-    int height;
     RTPVideoHeader codecSpecificHeader;
 
 protected:
     void CopyCodecSpecifics(const RTPVideoHeader& videoHeader);
 };
 
-}  // namespace webrtc
+} // namespace webrtc
 #endif // WEBRTC_MODULES_VIDEO_CODING_PACKET_H_

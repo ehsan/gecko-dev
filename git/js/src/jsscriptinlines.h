@@ -21,14 +21,14 @@ namespace js {
 
 inline
 Bindings::Bindings()
-    : callObjShape_(nullptr), bindingArrayAndFlag_(TEMPORARY_STORAGE_BIT), numArgs_(0), numVars_(0)
+    : callObjShape_(NULL), bindingArrayAndFlag_(TEMPORARY_STORAGE_BIT), numArgs_(0), numVars_(0)
 {}
 
 inline
 AliasedFormalIter::AliasedFormalIter(JSScript *script)
-  : begin_(script->bindingArray()),
+  : begin_(script->bindings.bindingArray()),
     p_(begin_),
-    end_(begin_ + (script->funHasAnyAliasedFormal() ? script->numArgs() : 0)),
+    end_(begin_ + (script->funHasAnyAliasedFormal ? script->bindings.numArgs() : 0)),
     slot_(CallObject::RESERVED_SLOTS)
 {
     settle();
@@ -67,7 +67,7 @@ JSScript::getFunction(size_t index)
 inline JSFunction *
 JSScript::getCallerFunction()
 {
-    JS_ASSERT(savedCallerFun());
+    JS_ASSERT(savedCallerFun);
     return getFunction(0);
 }
 
@@ -76,9 +76,9 @@ JSScript::functionOrCallerFunction()
 {
     if (function())
         return function();
-    if (savedCallerFun())
+    if (savedCallerFun)
         return getCallerFunction();
-    return nullptr;
+    return NULL;
 }
 
 inline js::RegExpObject *
@@ -98,8 +98,41 @@ JSScript::global() const
      * A JSScript always marks its compartment's global (via bindings) so we
      * can assert that maybeGlobal is non-null here.
      */
-    js::AutoThreadSafeAccess ts(this);
     return *compartment()->maybeGlobal();
+}
+
+inline void
+JSScript::writeBarrierPre(JSScript *script)
+{
+#ifdef JSGC_INCREMENTAL
+    if (!script || !script->runtimeFromAnyThread()->needsBarrier())
+        return;
+
+    JS::Zone *zone = script->zone();
+    if (zone->needsBarrier()) {
+        JS_ASSERT(!zone->runtimeFromMainThread()->isHeapMajorCollecting());
+        JSScript *tmp = script;
+        MarkScriptUnbarriered(zone->barrierTracer(), &tmp, "write barrier");
+        JS_ASSERT(tmp == script);
+    }
+#endif
+}
+
+/* static */ inline void
+js::LazyScript::writeBarrierPre(js::LazyScript *lazy)
+{
+#ifdef JSGC_INCREMENTAL
+    if (!lazy || !lazy->runtimeFromAnyThread()->needsBarrier())
+        return;
+
+    JS::Zone *zone = lazy->zone();
+    if (zone->needsBarrier()) {
+        JS_ASSERT(!zone->runtimeFromMainThread()->isHeapMajorCollecting());
+        js::LazyScript *tmp = lazy;
+        MarkLazyScriptUnbarriered(zone->barrierTracer(), &tmp, "write barrier");
+        JS_ASSERT(tmp == lazy);
+    }
+#endif
 }
 
 inline JSPrincipals *
@@ -110,30 +143,39 @@ JSScript::principals()
 
 inline JSFunction *
 JSScript::originalFunction() const {
-    if (!isCallsiteClone())
-        return nullptr;
+    if (!isCallsiteClone)
+        return NULL;
     return &enclosingScopeOrOriginalFunction_->as<JSFunction>();
 }
 
 inline void
-JSScript::setIsCallsiteClone(JSObject *fun) {
-    JS_ASSERT(shouldCloneAtCallsite());
-    shouldCloneAtCallsite_ = false;
-    isCallsiteClone_ = true;
-    JS_ASSERT(isCallsiteClone());
+JSScript::setOriginalFunctionObject(JSObject *fun) {
+    JS_ASSERT(isCallsiteClone);
     JS_ASSERT(fun->is<JSFunction>());
     enclosingScopeOrOriginalFunction_ = fun;
 }
 
 inline void
-JSScript::setBaselineScript(JSContext *maybecx, js::jit::BaselineScript *baselineScript) {
+JSScript::setIonScript(js::ion::IonScript *ionScript) {
+    if (hasIonScript())
+        js::ion::IonScript::writeBarrierPre(tenuredZone(), ion);
+    ion = ionScript;
+    updateBaselineOrIonRaw();
+}
+
+inline void
+JSScript::setParallelIonScript(js::ion::IonScript *ionScript) {
+    if (hasParallelIonScript())
+        js::ion::IonScript::writeBarrierPre(tenuredZone(), parallelIon);
+    parallelIon = ionScript;
+}
+
+inline void
+JSScript::setBaselineScript(js::ion::BaselineScript *baselineScript) {
 #ifdef JS_ION
     if (hasBaselineScript())
-        js::jit::BaselineScript::writeBarrierPre(tenuredZone(), baseline);
+        js::ion::BaselineScript::writeBarrierPre(tenuredZone(), baseline);
 #endif
-    mozilla::Maybe<js::AutoLockForCompilation> lock;
-    if (maybecx)
-        lock.construct(maybecx);
     baseline = baselineScript;
     updateBaselineOrIonRaw();
 }

@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2009 The Android Open Source Project
+ * Copyright (C) 2013 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,14 +19,11 @@
 #define GONK_RECORDER_H_
 
 #include "nsISupportsImpl.h"
-#include "GonkCameraHwMgr.h"
 
-#include <media/MediaRecorderBase.h>
+#include <media/mediarecorder.h>
 #include <camera/CameraParameters.h>
 #include <utils/String8.h>
 #include <system/audio.h>
-
-#include "mozilla/RefPtr.h"
 #include "GonkCameraHwMgr.h"
 
 namespace android {
@@ -56,7 +54,6 @@ struct GonkRecorder {
     virtual status_t setParameters(const String8& params);
     virtual status_t setCamera(const sp<GonkCameraHardware>& aCameraHw);
     virtual status_t setListener(const sp<IMediaRecorderClient>& listener);
-    virtual status_t setClientName(const String16& clientName);
     virtual status_t prepare();
     virtual status_t start();
     virtual status_t pause();
@@ -72,8 +69,6 @@ protected:
 
 private:
     sp<IMediaRecorderClient> mListener;
-    String16 mClientName;
-    uid_t mClientUid;
     sp<MediaWriter> mWriter;
     int mOutputFd;
     sp<AudioSource> mAudioSourceNode;
@@ -113,10 +108,10 @@ private:
 
     bool mStarted;
     // Needed when GLFrames are encoded.
-    // An <IGraphicBufferProducer> pointer
+    // An <ISurfaceTexture> pointer
     // will be sent to the client side using which the
     // frame buffers will be queued and dequeued
-
+    bool mDisableAudio;
     sp<GonkCameraHardware> mCameraHw;
 
     status_t setupMPEG4Recording(
@@ -129,11 +124,7 @@ private:
         sp<MetaData> *meta);
     status_t startMPEG4Recording();
     status_t startAMRRecording();
-#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
-    status_t startAACRecording();
-#endif
     status_t startRawAudioRecording();
-    status_t startRTPRecording();
     status_t startMPEG2TSRecording();
     sp<MediaSource> createAudioSource();
     status_t checkVideoEncoderCapabilities();

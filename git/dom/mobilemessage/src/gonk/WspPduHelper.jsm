@@ -2446,18 +2446,17 @@ this.PduHelper = {
 
       // Encode headersLen, DataLen
       let headersLen = data.offset;
-      let content = part.content;
       UintVar.encode(data, headersLen);
-      if (typeof content === "string") {
+      if (typeof part.content === "string") {
         let charset;
         if (contentType && contentType.params && contentType.params.charset &&
           contentType.params.charset.charset) {
           charset = contentType.params.charset.charset;
         }
-        content = this.encodeStringContent(content, charset);
-        UintVar.encode(data, content.length);
+        part.content = this.encodeStringContent(part.content, charset);
+        UintVar.encode(data, part.content.length);
       } else if (part.content instanceof Uint8Array) {
-        UintVar.encode(data, content.length);
+        UintVar.encode(data, part.content.length);
       } else {
         throw new TypeError();
       }
@@ -2471,7 +2470,7 @@ this.PduHelper = {
       // Append per-part header
       this.appendArrayToMultiStream(multiStream, data.array, data.offset);
       // Append part content
-      this.appendArrayToMultiStream(multiStream, content, content.length);
+      this.appendArrayToMultiStream(multiStream, part.content, part.content.length);
     }
   },
 };

@@ -16,7 +16,6 @@
 #include "mozilla/Services.h"
 #include "mozilla/StaticPtr.h"
 #include "nsIObserverService.h"
-#include "MainThreadUtils.h"
 
 using namespace mozilla;
 USING_BLUETOOTH_NAMESPACE
@@ -44,7 +43,6 @@ BluetoothHidManager::Observe(nsISupports* aSubject,
 
 BluetoothHidManager::BluetoothHidManager()
   : mConnected(false)
-  , mController(nullptr)
 {
 }
 
@@ -99,109 +97,51 @@ BluetoothHidManager::HandleShutdown()
 {
   MOZ_ASSERT(NS_IsMainThread());
   sInShutdown = true;
-  Disconnect(nullptr);
+  Disconnect();
   sBluetoothHidManager = nullptr;
 }
 
-void
+bool
 BluetoothHidManager::Connect(const nsAString& aDeviceAddress,
-                             BluetoothProfileController* aController)
+                             BluetoothReplyRunnable* aRunnable)
 {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(!aDeviceAddress.IsEmpty());
-  MOZ_ASSERT(aController && !mController);
 
-  BluetoothService* bs = BluetoothService::Get();
-  if (!bs || sInShutdown) {
-    aController->OnConnect(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
-    return;
-  }
-
-  if (mConnected) {
-    aController->OnConnect(NS_LITERAL_STRING(ERR_ALREADY_CONNECTED));
-    return;
-  }
+  NS_ENSURE_FALSE(sInShutdown, false);
+  NS_ENSURE_FALSE(mConnected, false);
 
   mDeviceAddress = aDeviceAddress;
-  mController = aController;
-
-  if (NS_FAILED(bs->SendInputMessage(aDeviceAddress,
-                                     NS_LITERAL_STRING("Connect")))) {
-    aController->OnConnect(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
-    return;
-  }
-}
-
-void
-BluetoothHidManager::Disconnect(BluetoothProfileController* aController)
-{
-  MOZ_ASSERT(NS_IsMainThread());
 
   BluetoothService* bs = BluetoothService::Get();
-  if (!bs) {
-    if (aController) {
-      aController->OnDisconnect(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
-    }
-    return;
-  }
+  NS_ENSURE_TRUE(bs, false);
+  nsresult rv = bs->SendInputMessage(aDeviceAddress,
+                                     NS_LITERAL_STRING("Connect"),
+                                     aRunnable);
 
-  if (!mConnected) {
-    if (aController) {
-      aController->OnDisconnect(NS_LITERAL_STRING(ERR_ALREADY_DISCONNECTED));
-    }
-    return;
-  }
+  return NS_SUCCEEDED(rv);
+}
+
+void
+BluetoothHidManager::Disconnect()
+{
+  NS_ENSURE_TRUE_VOID(mConnected);
 
   MOZ_ASSERT(!mDeviceAddress.IsEmpty());
-  MOZ_ASSERT(!mController);
 
-  mController = aController;
-
-  if (NS_FAILED(bs->SendInputMessage(mDeviceAddress,
-                                     NS_LITERAL_STRING("Disconnect")))) {
-    aController->OnDisconnect(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
-    return;
-  }
+  BluetoothService* bs = BluetoothService::Get();
+  NS_ENSURE_TRUE_VOID(bs);
+  bs->SendInputMessage(mDeviceAddress,
+                       NS_LITERAL_STRING("Disconnect"),
+                       nullptr);
 }
 
-void
-BluetoothHidManager::OnConnect(const nsAString& aErrorStr)
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  /**
-   * On the one hand, notify the controller that we've done for outbound
-   * connections. On the other hand, we do nothing for inbound connections.
-   */
-  NS_ENSURE_TRUE_VOID(mController);
-
-  nsRefPtr<BluetoothProfileController> controller = mController.forget();
-  controller->OnConnect(aErrorStr);
-}
-
-void
-BluetoothHidManager::OnDisconnect(const nsAString& aErrorStr)
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  /**
-   * On the one hand, notify the controller that we've done for outbound
-   * connections. On the other hand, we do nothing for inbound connections.
-   */
-  NS_ENSURE_TRUE_VOID(mController);
-
-  nsRefPtr<BluetoothProfileController> controller = mController.forget();
-  controller->OnDisconnect(aErrorStr);
-}
-
-bool
-BluetoothHidManager::IsConnected()
+bool BluetoothHidManager::IsConnected()
 {
   return mConnected;
 }
 
-void
-BluetoothHidManager::HandleInputPropertyChanged(const BluetoothSignal& aSignal)
+void BluetoothHidManager::HandleInputPropertyChanged(const BluetoothSignal& aSignal)
 {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aSignal.value().type() == BluetoothValue::TArrayOfBluetoothNamedValue);
@@ -219,11 +159,6 @@ BluetoothHidManager::HandleInputPropertyChanged(const BluetoothSignal& aSignal)
 
     mConnected = value.get_bool();
     NotifyStatusChanged();
-    if (mConnected) {
-      OnConnect(EmptyString());
-    } else {
-      OnDisconnect(EmptyString());
-    }
   }
 }
 
@@ -244,7 +179,7 @@ BluetoothHidManager::NotifyStatusChanged()
     BluetoothNamedValue(NS_LITERAL_STRING("address"), v));
 
   if (!BroadcastSystemMessage(type, parameters)) {
-    BT_WARNING("Failed to broadcast system message to settings");
+    NS_WARNING("Failed to broadcast system message to settings");
     return;
   }
 }

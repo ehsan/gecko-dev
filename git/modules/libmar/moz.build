@@ -16,3 +16,5 @@ elif CONFIG['OS_ARCH'] == 'WINNT':
 # If we are building ./sign and ./verify then ./tool must come after it
 DIRS += ['tool']
 
+MODULE = 'libmar_test'
+

@@ -6,6 +6,7 @@
 #include "nsMacUtilsImpl.h"
 
 #include <CoreFoundation/CoreFoundation.h>
+#include <sys/sysctl.h>
 
 NS_IMPL_ISUPPORTS1(nsMacUtilsImpl, nsIMacUtils)
 
@@ -89,8 +90,7 @@ nsresult nsMacUtilsImpl::GetArchString(nsAString& archString)
 
 NS_IMETHODIMP nsMacUtilsImpl::GetIsUniversalBinary(bool *aIsUniversalBinary)
 {
-  if (NS_WARN_IF(!aIsUniversalBinary))
-    return NS_ERROR_INVALID_ARG;
+  NS_ENSURE_ARG_POINTER(aIsUniversalBinary);
   *aIsUniversalBinary = false;
 
   nsAutoString archString;
@@ -124,7 +124,7 @@ NS_IMETHODIMP nsMacUtilsImpl::GetIsTranslated(bool *aIsTranslated)
 
   if (!sInitialized) {
     size_t sz = sizeof(sIsNative);
-    sysctlbyname("sysctl.proc_native", &sIsNative, &sz, nullptr, 0);
+    sysctlbyname("sysctl.proc_native", &sIsNative, &sz, NULL, 0);
     sInitialized = true;
   }
 

@@ -18,9 +18,9 @@
 #endif
 
 namespace js {
-namespace jit {
+namespace ion {
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif // JS_ION

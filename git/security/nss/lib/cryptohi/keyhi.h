@@ -95,12 +95,12 @@ SECKEY_CreateSubjectPublicKeyInfo(SECKEYPublicKey *k);
 /*
 ** Decode a DER encoded public key into an SECKEYPublicKey structure.
 */
-extern SECKEYPublicKey *SECKEY_DecodeDERPublicKey(const SECItem *pubkder);
+extern SECKEYPublicKey *SECKEY_DecodeDERPublicKey(SECItem *pubkder);
 
 /*
 ** Convert a base64 ascii encoded DER public key to our internal format.
 */
-extern SECKEYPublicKey *SECKEY_ConvertAndDecodePublicKey(const char *pubkstr);
+extern SECKEYPublicKey *SECKEY_ConvertAndDecodePublicKey(char *pubkstr);
 
 /*
 ** Convert a base64 ascii encoded DER public key and challenge to spki,
@@ -122,21 +122,21 @@ SECKEY_EncodeDERSubjectPublicKeyInfo(SECKEYPublicKey *pubk);
 ** CERTSubjectPublicKeyInfo structure.
 */
 extern CERTSubjectPublicKeyInfo *
-SECKEY_DecodeDERSubjectPublicKeyInfo(const SECItem *spkider);
+SECKEY_DecodeDERSubjectPublicKeyInfo(SECItem *spkider);
 
 /*
 ** Convert a base64 ascii encoded DER subject public key info to our
 ** internal format.
 */
 extern CERTSubjectPublicKeyInfo *
-SECKEY_ConvertAndDecodeSubjectPublicKeyInfo(const char *spkistr);
+SECKEY_ConvertAndDecodeSubjectPublicKeyInfo(char *spkistr);
 
 /*
  * extract the public key from a subject Public Key info structure.
  * (used by JSS).
  */
 extern SECKEYPublicKey *
-SECKEY_ExtractPublicKey(const CERTSubjectPublicKeyInfo *);
+SECKEY_ExtractPublicKey(CERTSubjectPublicKeyInfo *);
 
 /*
 ** Destroy a private key object.
@@ -183,7 +183,7 @@ SECKEY_DestroyEncryptedPrivateKeyInfo(SECKEYEncryptedPrivateKeyInfo *epki,
 extern SECStatus
 SECKEY_CopyPrivateKeyInfo(PLArenaPool *poolp,
 			  SECKEYPrivateKeyInfo *to,
-			  const SECKEYPrivateKeyInfo *from);
+			  SECKEYPrivateKeyInfo *from);
 
 extern SECStatus
 SECKEY_CacheStaticFlags(SECKEYPrivateKey* key);
@@ -199,19 +199,19 @@ SECKEY_CacheStaticFlags(SECKEYPrivateKey* key);
 extern SECStatus
 SECKEY_CopyEncryptedPrivateKeyInfo(PLArenaPool *poolp,
 				   SECKEYEncryptedPrivateKeyInfo *to,
-				   const SECKEYEncryptedPrivateKeyInfo *from);
+				   SECKEYEncryptedPrivateKeyInfo *from);
 /*
  * Accessor functions for key type of public and private keys.
  */
-KeyType SECKEY_GetPrivateKeyType(const SECKEYPrivateKey *privKey);
-KeyType SECKEY_GetPublicKeyType(const SECKEYPublicKey *pubKey);
+KeyType SECKEY_GetPrivateKeyType(SECKEYPrivateKey *privKey);
+KeyType SECKEY_GetPublicKeyType(SECKEYPublicKey *pubKey);
 
 /*
  * Creates a PublicKey from its DER encoding.
  * Currently only supports RSA and DSA keys.
  */
 SECKEYPublicKey*
-SECKEY_ImportDERPublicKey(const SECItem *derKey, CK_KEY_TYPE type);
+SECKEY_ImportDERPublicKey(SECItem *derKey, CK_KEY_TYPE type);
 
 SECKEYPrivateKeyList*
 SECKEY_NewPrivateKeyList(void);

@@ -9,10 +9,8 @@
 #include "gfxPlatform.h"                // for gfxPlatform, gfxImageFormat
 #include "mozilla/layers/ISurfaceAllocator.h"  // for ISurfaceAllocator, etc
 #include "mozilla/layers/ImageClient.h"  // for ImageClient
-#include "mozilla/layers/ImageDataSerializer.h"  // for ImageDataSerializer
 #include "mozilla/layers/LayersSurfaces.h"  // for SurfaceDescriptor, etc
 #include "mozilla/layers/TextureClient.h"  // for BufferTextureClient, etc
-#include "mozilla/layers/ImageBridgeChild.h"  // for ImageBridgeChild
 #include "mozilla/mozalloc.h"           // for operator delete, etc
 #include "nsAutoPtr.h"                  // for nsRefPtr
 #include "nsDebug.h"                    // for NS_WARNING, NS_ASSERTION
@@ -54,9 +52,9 @@ CreateSharedRGBImage(ImageContainer *aImageContainer,
                      nsIntSize aSize,
                      gfxImageFormat aImageFormat)
 {
-  NS_ASSERTION(aImageFormat == gfxImageFormatARGB32 ||
-               aImageFormat == gfxImageFormatRGB24 ||
-               aImageFormat == gfxImageFormatRGB16_565,
+  NS_ASSERTION(aImageFormat == gfxASurface::ImageFormatARGB32 ||
+               aImageFormat == gfxASurface::ImageFormatRGB24 ||
+               aImageFormat == gfxASurface::ImageFormatRGB16_565,
                "RGB formats supported only");
 
   if (!aImageContainer) {
@@ -84,11 +82,8 @@ CreateSharedRGBImage(ImageContainer *aImageContainer,
     return rgbImageDep.forget();
   }
   nsRefPtr<SharedRGBImage> rgbImage = static_cast<SharedRGBImage*>(image.get());
-  if (!rgbImage->Allocate(gfx::ToIntSize(aSize),
-                          gfx::ImageFormatToSurfaceFormat(aImageFormat))) {
-    NS_WARNING("Failed to allocate a shared image");
-    return nullptr;
-  }
+  rgbImage->Allocate(gfx::ToIntSize(aSize),
+                     gfx::ImageFormatToSurfaceFormat(aImageFormat));
   return image.forget();
 }
 
@@ -104,7 +99,7 @@ DeprecatedSharedRGBImage::GetBufferSize()
   return mSize.width * mSize.height * gfxASurface::BytesPerPixel(mImageFormat);
 }
 
-gfx::IntSize
+gfxIntSize
 DeprecatedSharedRGBImage::GetSize()
 {
   return mSize;
@@ -188,12 +183,6 @@ SharedRGBImage::SharedRGBImage(ImageClient* aCompositable)
 SharedRGBImage::~SharedRGBImage()
 {
   MOZ_COUNT_DTOR(SharedRGBImage);
-
-  if (mCompositable->GetAsyncID() != 0 &&
-      !InImageBridgeChildThread()) {
-    ImageBridgeChild::DispatchReleaseTextureClient(mTextureClient.forget().drop());
-    ImageBridgeChild::DispatchReleaseImageClient(mCompositable.forget().drop());
-  }
 }
 
 bool
@@ -207,15 +196,11 @@ SharedRGBImage::Allocate(gfx::IntSize aSize, gfx::SurfaceFormat aFormat)
 uint8_t*
 SharedRGBImage::GetBuffer()
 {
-  if (!mTextureClient) {
-    return nullptr;
-  }
-
-  ImageDataSerializer serializer(mTextureClient->GetBuffer());
-  return serializer.GetData();
+  return mTextureClient ? mTextureClient->GetBuffer()
+                        : nullptr;
 }
 
-gfx::IntSize
+gfxIntSize
 SharedRGBImage::GetSize()
 {
   return ThebesIntSize(mSize);

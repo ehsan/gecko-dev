@@ -7,3 +7,5 @@
 PARALLEL_DIRS += ['public', 'src']
 DIRS += ['test']
 
+MODULE = 'xuldoc'
+

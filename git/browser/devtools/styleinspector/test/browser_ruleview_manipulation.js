@@ -4,6 +4,8 @@
 
 let doc;
 
+
+
 function simpleOverride(aInspector, aRuleView)
 {
   doc.body.innerHTML = '<div id="testid">Styled Node</div>';

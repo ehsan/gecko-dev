@@ -28,7 +28,7 @@ XPIDL_SOURCES += [
     'mozIStorageValueArray.idl',
 ]
 
-XPIDL_MODULE = 'storage'
+MODULE = 'storage'
 
 EXPORTS += [
     'mozStorageHelper.h',

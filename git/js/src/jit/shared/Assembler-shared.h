@@ -23,7 +23,7 @@
 #    define JS_SMALL_BRANCH
 #endif
 namespace js {
-namespace jit {
+namespace ion {
 
 enum Scale {
     TimesOne = 0,
@@ -95,86 +95,22 @@ struct Imm32
     }
 };
 
-// Pointer-sized integer to be embedded as an immediate in an instruction.
+// Pointer-sized immediate.
 struct ImmWord
 {
     uintptr_t value;
 
     explicit ImmWord(uintptr_t value) : value(value)
     { }
-};
-
-#ifdef DEBUG
-static inline bool
-IsCompilingAsmJS()
-{
-    // asm.js compilation pushes an IonContext with a null JSCompartment.
-    IonContext *ictx = MaybeGetIonContext();
-    return ictx && ictx->compartment == nullptr;
-}
-#endif
-
-// Pointer to be embedded as an immediate in an instruction.
-struct ImmPtr
-{
-    void *value;
-
-    explicit ImmPtr(const void *value) : value(const_cast<void*>(value))
-    {
-        // To make code serialization-safe, asm.js compilation should only
-        // compile pointer immediates using AsmJSImmPtr.
-        JS_ASSERT(!IsCompilingAsmJS());
-    }
-
-    template <class R>
-    explicit ImmPtr(R (*pf)())
-      : value(JS_FUNC_TO_DATA_PTR(void *, pf))
-    {
-        JS_ASSERT(!IsCompilingAsmJS());
-    }
-
-    template <class R, class A1>
-    explicit ImmPtr(R (*pf)(A1))
-      : value(JS_FUNC_TO_DATA_PTR(void *, pf))
-    {
-        JS_ASSERT(!IsCompilingAsmJS());
-    }
-
-    template <class R, class A1, class A2>
-    explicit ImmPtr(R (*pf)(A1, A2))
-      : value(JS_FUNC_TO_DATA_PTR(void *, pf))
-    {
-        JS_ASSERT(!IsCompilingAsmJS());
-    }
-
-    template <class R, class A1, class A2, class A3>
-    explicit ImmPtr(R (*pf)(A1, A2, A3))
-      : value(JS_FUNC_TO_DATA_PTR(void *, pf))
-    {
-        JS_ASSERT(!IsCompilingAsmJS());
-    }
-
-    template <class R, class A1, class A2, class A3, class A4>
-    explicit ImmPtr(R (*pf)(A1, A2, A3, A4))
-      : value(JS_FUNC_TO_DATA_PTR(void *, pf))
-    {
-        JS_ASSERT(!IsCompilingAsmJS());
-    }
-
-};
-
-// The same as ImmPtr except that the intention is to patch this
-// instruction. The initial value of the immediate is 'addr' and this value is
-// either clobbered or used in the patching process.
-struct PatchedImmPtr {
-    void *value;
-
-    explicit PatchedImmPtr()
-      : value(nullptr)
+    explicit ImmWord(const void *ptr) : value(reinterpret_cast<uintptr_t>(ptr))
     { }
-    explicit PatchedImmPtr(const void *value)
-      : value(const_cast<void*>(value))
-    { }
+
+    // Note - this constructor is not implemented as it should not be used.
+    explicit ImmWord(gc::Cell *cell);
+
+    void *asPointer() {
+        return reinterpret_cast<void *>(value);
+    }
 };
 
 // Used for immediates which require relocation.
@@ -186,9 +122,6 @@ struct ImmGCPtr
     {
         JS_ASSERT(!IsPoisonedPtr(ptr));
         JS_ASSERT_IF(ptr, ptr->isTenured());
-
-        // asm.js shouldn't be creating GC things
-        JS_ASSERT(!IsCompilingAsmJS());
     }
 
   protected:
@@ -202,41 +135,20 @@ struct ImmMaybeNurseryPtr : public ImmGCPtr
     {
         this->value = reinterpret_cast<uintptr_t>(ptr);
         JS_ASSERT(!IsPoisonedPtr(ptr));
-
-        // asm.js shouldn't be creating GC things
-        JS_ASSERT(!IsCompilingAsmJS());
     }
 };
 
-// Pointer to be embedded as an immediate that is loaded/stored from by an
-// instruction.
+// Specifies a hardcoded, absolute address.
 struct AbsoluteAddress {
     void *addr;
 
-    explicit AbsoluteAddress(const void *addr)
-      : addr(const_cast<void*>(addr))
-    {
-        // asm.js shouldn't be creating GC things
-        JS_ASSERT(!IsCompilingAsmJS());
-    }
+    explicit AbsoluteAddress(void *addr)
+      : addr(addr)
+    { }
 
     AbsoluteAddress offset(ptrdiff_t delta) {
         return AbsoluteAddress(((uint8_t *) addr) + delta);
     }
-};
-
-// The same as AbsoluteAddress except that the intention is to patch this
-// instruction. The initial value of the immediate is 'addr' and this value is
-// either clobbered or used in the patching process.
-struct PatchedAbsoluteAddress {
-    void *addr;
-
-    explicit PatchedAbsoluteAddress()
-      : addr(nullptr)
-    { }
-    explicit PatchedAbsoluteAddress(const void *addr)
-      : addr(const_cast<void*>(addr))
-    { }
 };
 
 // Specifies an address computed in the form of a register base and a constant,
@@ -275,9 +187,9 @@ class Relocation {
         // buffer is relocated and the reference is relative.
         HARDCODED,
 
-        // The target is the start of a JitCode buffer, which must be traced
+        // The target is the start of an IonCode buffer, which must be traced
         // during garbage collection. Relocations and patching may be needed.
-        JITCODE
+        IONCODE
     };
 };
 
@@ -356,8 +268,12 @@ class Label : public LabelBase
     { }
     ~Label()
     {
-        if (MaybeGetIonContext())
-            JS_ASSERT_IF(!GetIonContext()->runtime->hadOutOfMemory(), !used());
+#ifdef DEBUG
+        // Note: the condition is a hack to silence this assert when OOM testing,
+        // see bug 756614.
+        if (MaybeGetIonContext() && !OffThreadIonCompilationEnabled(GetIonContext()->runtime))
+            JS_ASSERT_IF(!GetIonContext()->runtime->hadOutOfMemory, !used());
+#endif
     }
 };
 
@@ -466,7 +382,7 @@ class CodeLabel
     }
 };
 
-// Location of a jump or label in a generated JitCode block, relative to the
+// Location of a jump or label in a generated IonCode block, relative to the
 // start of the block.
 
 class CodeOffsetJump
@@ -515,9 +431,9 @@ class CodeOffsetLabel
 
 };
 
-// Absolute location of a jump or a label in some generated JitCode block.
+// Absolute location of a jump or a label in some generated IonCode block.
 // Can also encode a CodeOffset{Jump,Label}, such that the offset is initially
-// set and the absolute location later filled in after the final JitCode is
+// set and the absolute location later filled in after the final IonCode is
 // allocated.
 
 class CodeLocationJump
@@ -550,13 +466,13 @@ class CodeLocationJump
 
   public:
     CodeLocationJump() {
-        raw_ = nullptr;
+        raw_ = NULL;
         setUninitialized();
 #ifdef JS_SMALL_BRANCH
         jumpTableEntry_ = (uint8_t *) 0xdeadab1e;
 #endif
     }
-    CodeLocationJump(JitCode *code, CodeOffsetJump base) {
+    CodeLocationJump(IonCode *code, CodeOffsetJump base) {
         *this = base;
         repoint(code);
     }
@@ -569,7 +485,7 @@ class CodeLocationJump
 #endif
     }
 
-    void repoint(JitCode *code, MacroAssembler* masm = nullptr);
+    void repoint(IonCode *code, MacroAssembler* masm = NULL);
 
     uint8_t *raw() const {
         JS_ASSERT(state_ == Absolute);
@@ -614,14 +530,14 @@ class CodeLocationLabel
 
   public:
     CodeLocationLabel() {
-        raw_ = nullptr;
+        raw_ = NULL;
         setUninitialized();
     }
-    CodeLocationLabel(JitCode *code, CodeOffsetLabel base) {
+    CodeLocationLabel(IonCode *code, CodeOffsetLabel base) {
         *this = base;
         repoint(code);
     }
-    CodeLocationLabel(JitCode *code) {
+    CodeLocationLabel(IonCode *code) {
         raw_ = code->raw();
         setAbsolute();
     }
@@ -638,7 +554,7 @@ class CodeLocationLabel
         return raw_ - other.raw_;
     }
 
-    void repoint(JitCode *code, MacroAssembler *masm = nullptr);
+    void repoint(IonCode *code, MacroAssembler *masm = NULL);
 
 #ifdef DEBUG
     bool isSet() const {
@@ -656,100 +572,8 @@ class CodeLocationLabel
     }
 };
 
-struct AsmJSGlobalAccess
-{
-    CodeOffsetLabel patchAt;
-    unsigned globalDataOffset;
 
-    AsmJSGlobalAccess(CodeOffsetLabel patchAt, unsigned globalDataOffset)
-      : patchAt(patchAt), globalDataOffset(globalDataOffset)
-    {}
-};
-
-typedef Vector<AsmJSGlobalAccess, 0, IonAllocPolicy> AsmJSGlobalAccessVector;
-
-// Describes the intended pointee of an immediate to be embedded in asm.js
-// code. By representing the pointee as a symbolic enum, the pointee can be
-// patched after deserialization when the address of global things has changed.
-enum AsmJSImmKind
-{
-    AsmJSImm_Runtime,
-    AsmJSImm_StackLimit,
-    AsmJSImm_ReportOverRecursed,
-    AsmJSImm_HandleExecutionInterrupt,
-    AsmJSImm_InvokeFromAsmJS_Ignore,
-    AsmJSImm_InvokeFromAsmJS_ToInt32,
-    AsmJSImm_InvokeFromAsmJS_ToNumber,
-    AsmJSImm_CoerceInPlace_ToInt32,
-    AsmJSImm_CoerceInPlace_ToNumber,
-    AsmJSImm_ToInt32,
-    AsmJSImm_EnableActivationFromAsmJS,
-    AsmJSImm_DisableActivationFromAsmJS,
-#if defined(JS_CPU_ARM)
-    AsmJSImm_aeabi_idivmod,
-    AsmJSImm_aeabi_uidivmod,
-#endif
-    AsmJSImm_ModD,
-    AsmJSImm_SinD,
-    AsmJSImm_SinF,
-    AsmJSImm_CosD,
-    AsmJSImm_CosF,
-    AsmJSImm_TanD,
-    AsmJSImm_TanF,
-    AsmJSImm_ASinD,
-    AsmJSImm_ASinF,
-    AsmJSImm_ACosD,
-    AsmJSImm_ACosF,
-    AsmJSImm_ATanD,
-    AsmJSImm_ATanF,
-    AsmJSImm_CeilD,
-    AsmJSImm_CeilF,
-    AsmJSImm_FloorD,
-    AsmJSImm_FloorF,
-    AsmJSImm_ExpD,
-    AsmJSImm_ExpF,
-    AsmJSImm_LogD,
-    AsmJSImm_LogF,
-    AsmJSImm_PowD,
-    AsmJSImm_ATan2D,
-    AsmJSImm_Invalid
-};
-
-// Pointer to be embedded as an immediate in asm.js code.
-class AsmJSImmPtr
-{
-    AsmJSImmKind kind_;
-  public:
-    AsmJSImmKind kind() const { return kind_; }
-    AsmJSImmPtr(AsmJSImmKind kind) : kind_(kind) { JS_ASSERT(IsCompilingAsmJS()); }
-    AsmJSImmPtr() {}
-};
-
-// Pointer to be embedded as an immediate that is loaded/stored from by an
-// instruction in asm.js code.
-class AsmJSAbsoluteAddress
-{
-    AsmJSImmKind kind_;
-  public:
-    AsmJSImmKind kind() const { return kind_; }
-    AsmJSAbsoluteAddress(AsmJSImmKind kind) : kind_(kind) { JS_ASSERT(IsCompilingAsmJS()); }
-    AsmJSAbsoluteAddress() {}
-};
-
-// Represents an instruction to be patched and the intended pointee. These
-// links are accumulated in the MacroAssembler, but patching is done outside
-// the MacroAssembler (in AsmJSModule::staticallyLink).
-struct AsmJSAbsoluteLink
-{
-    AsmJSAbsoluteLink(CodeOffsetLabel patchAt, AsmJSImmKind target)
-      : patchAt(patchAt), target(target) {}
-    CodeOffsetLabel patchAt;
-    AsmJSImmKind target;
-};
-
-typedef Vector<AsmJSAbsoluteLink, 0, SystemAllocPolicy> AsmJSAbsoluteLinkVector;
-
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_shared_Assembler_shared_h */

@@ -14,8 +14,6 @@
 
 #ifdef XP_WIN
 # include <windows.h>
-# undef min
-# undef max
 # undef GetProp
 # undef SetProp
 # undef CONST

@@ -54,6 +54,8 @@ namespace unicode {
  *   if GetFlag(char) & (FLAG_IDENTIFIER_PART | FLAG_LETTER):
  *      return True
  *
+ * NO_DELTA
+ *   See comment in CharacterInfo
  */
 
 struct CharFlag {
@@ -61,6 +63,7 @@ struct CharFlag {
         SPACE  = 1 << 0,
         LETTER = 1 << 1,
         IDENTIFIER_PART = 1 << 2,
+        NO_DELTA = 1 << 3
     };
 };
 
@@ -78,6 +81,10 @@ class CharacterInfo {
      * unsigned overflow with identical mathematical behavior.
      * For upper case alpha, we would store 0 in upperCase and 32 in
      * lowerCase (65 + 32 = 97).
+     *
+     * If the delta between the chars wouldn't fit in a T, the flag
+     * FLAG_NO_DELTA is set, and you can just use upperCase and lowerCase
+     * without adding them the base char. See CharInfo.toUpperCase().
      *
      * We use deltas to reuse information for multiple characters. For
      * example the whole lower case latin alphabet fits into one entry,
@@ -193,6 +200,13 @@ ToUpperCase(jschar ch)
 {
     const CharacterInfo &info = CharInfo(ch);
 
+    /*
+     * The delta didn't fit into T, so we had to store the
+     * actual char code.
+     */
+    if (info.flags & CharFlag::NO_DELTA)
+        return info.upperCase;
+
     return uint16_t(ch) + info.upperCase;
 }
 
@@ -200,6 +214,9 @@ inline jschar
 ToLowerCase(jschar ch)
 {
     const CharacterInfo &info = CharInfo(ch);
+
+    if (info.flags & CharFlag::NO_DELTA)
+        return info.lowerCase;
 
     return uint16_t(ch) + info.lowerCase;
 }

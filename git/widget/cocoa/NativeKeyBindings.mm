@@ -7,8 +7,8 @@
 
 #include "nsTArray.h"
 #include "nsCocoaUtils.h"
+#include "nsGUIEvent.h"
 #include "prlog.h"
-#include "mozilla/TextEvents.h"
 
 using namespace mozilla;
 using namespace mozilla::widget;
@@ -36,6 +36,8 @@ NativeKeyBindings::Init(NativeKeyBindingsType aType)
 
   PR_LOG(gNativeKeyBindingsLog, PR_LOG_ALWAYS,
     ("%p NativeKeyBindings::Init", this));
+
+  mSelectorToCommand.Init();
 
   // Many selectors have a one-to-one mapping to a Gecko command. Those mappings
   // are registered in mSelectorToCommand.
@@ -167,14 +169,14 @@ NativeKeyBindings::Init(NativeKeyBindingsType aType)
 NS_IMPL_ISUPPORTS1(NativeKeyBindings, nsINativeKeyBindings)
 
 NS_IMETHODIMP_(bool)
-NativeKeyBindings::KeyDown(const WidgetKeyboardEvent& aEvent,
+NativeKeyBindings::KeyDown(const nsKeyEvent& aEvent,
                            DoCommandCallback aCallback, void* aCallbackData)
 {
   return false;
 }
 
 NS_IMETHODIMP_(bool)
-NativeKeyBindings::KeyPress(const WidgetKeyboardEvent& aEvent,
+NativeKeyBindings::KeyPress(const nsKeyEvent& aEvent,
                             DoCommandCallback aCallback, void* aCallbackData)
 {
   PR_LOG(gNativeKeyBindingsLog, PR_LOG_ALWAYS,
@@ -265,7 +267,7 @@ NativeKeyBindings::KeyPress(const WidgetKeyboardEvent& aEvent,
 }
 
 NS_IMETHODIMP_(bool)
-NativeKeyBindings::KeyUp(const WidgetKeyboardEvent& aEvent,
+NativeKeyBindings::KeyUp(const nsKeyEvent& aEvent,
                          DoCommandCallback aCallback, void* aCallbackData)
 {
   return false;

@@ -17,6 +17,10 @@
 
 using namespace mozilla;
 
+#ifdef DEBUG
+static bool gNoisy = false;
+#endif
+
 JoinElementTxn::JoinElementTxn()
   : EditTxn()
 {
@@ -50,6 +54,16 @@ NS_IMETHODIMP JoinElementTxn::Init(nsEditor   *aEditor,
 // After DoTransaction() and RedoTransaction(), the left node is removed from the content tree and right node remains.
 NS_IMETHODIMP JoinElementTxn::DoTransaction(void)
 {
+#ifdef DEBUG
+  if (gNoisy)
+  {
+    printf("%p Do Join of %p and %p\n",
+           static_cast<void*>(this),
+           static_cast<void*>(mLeftNode.get()),
+           static_cast<void*>(mRightNode.get()));
+  }
+#endif
+
   NS_PRECONDITION((mEditor && mLeftNode && mRightNode), "null arg");
   if (!mEditor || !mLeftNode || !mRightNode) { return NS_ERROR_NOT_INITIALIZED; }
 
@@ -71,13 +85,30 @@ NS_IMETHODIMP JoinElementTxn::DoTransaction(void)
   mParent = leftParent;
   mOffset = mLeftNode->Length();
 
-  return mEditor->JoinNodesImpl(mRightNode, mLeftNode, mParent);
+  nsresult rv = mEditor->JoinNodesImpl(mRightNode, mLeftNode, mParent);
+
+#ifdef DEBUG
+  if (NS_SUCCEEDED(rv) && gNoisy) {
+    printf("  left node = %p removed\n", static_cast<void*>(mLeftNode.get()));
+  }
+#endif
+
+  return rv;
 }
 
 //XXX: what if instead of split, we just deleted the unneeded children of mRight
 //     and re-inserted mLeft?
 NS_IMETHODIMP JoinElementTxn::UndoTransaction(void)
 {
+#ifdef DEBUG
+  if (gNoisy)
+  {
+    printf("%p Undo Join, right node = %p\n",
+           static_cast<void*>(this),
+           static_cast<void*>(mRightNode.get()));
+  }
+#endif
+
   NS_ASSERTION(mRightNode && mLeftNode && mParent, "bad state");
   if (!mRightNode || !mLeftNode || !mParent) { return NS_ERROR_NOT_INITIALIZED; }
   // first, massage the existing node so it is in its post-split state

@@ -10,7 +10,7 @@ SpecialPowers.addPermission("mobileconnection", true, document);
 let ifr = document.createElement("iframe");
 let connection;
 ifr.onload = function() {
-  connection = ifr.contentWindow.navigator.mozMobileConnections[0];
+  connection = ifr.contentWindow.navigator.mozMobileConnection;
 
   ok(connection instanceof ifr.contentWindow.MozMobileConnection,
      "connection is instanceof " + connection.constructor);
@@ -52,8 +52,7 @@ function testSetCallBarringOptionError(option) {
        'should not fire onsuccess for invaild call barring option: '
        + JSON.stringify(option));
   };
-  request.onerror = function(event) {
-    is(event.target.error.name, 'InvalidParameter', JSON.stringify(option));
+  request.onerror = function() {
     nextTest();
   };
 }

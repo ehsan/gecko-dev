@@ -11,8 +11,9 @@ namespace mozilla {
 class WebGLContext;
 
 class WebGLExtensionBase
-    : public nsWrapperCache
+    : public nsISupports
     , public WebGLContextBoundObject
+    , public nsWrapperCache
 {
 public:
     WebGLExtensionBase(WebGLContext*);
@@ -22,8 +23,8 @@ public:
         return Context();
     }
 
-    NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(WebGLExtensionBase)
-    NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(WebGLExtensionBase)
+    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+    NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(WebGLExtensionBase)
 };
 
 #define DECL_WEBGL_EXTENSION_GOOP                                           \
@@ -105,18 +106,6 @@ public:
 
     void LoseContext();
     void RestoreContext();
-
-    DECL_WEBGL_EXTENSION_GOOP
-};
-
-class WebGLExtensionSRGB
-    : public WebGLExtensionBase
-{
-public:
-    WebGLExtensionSRGB(WebGLContext*);
-    virtual ~WebGLExtensionSRGB();
-
-    static bool IsSupported(const WebGLContext* context);
 
     DECL_WEBGL_EXTENSION_GOOP
 };
@@ -207,12 +196,12 @@ public:
     WebGLExtensionInstancedArrays(WebGLContext* context);
     virtual ~WebGLExtensionInstancedArrays();
 
-    void DrawArraysInstancedANGLE(GLenum mode, GLint first,
-                                  GLsizei count, GLsizei primcount);
-    void DrawElementsInstancedANGLE(GLenum mode, GLsizei count,
-                                    GLenum type, WebGLintptr offset,
-                                    GLsizei primcount);
-    void VertexAttribDivisorANGLE(GLuint index, GLuint divisor);
+    void DrawArraysInstancedANGLE(WebGLenum mode, WebGLint first,
+                                  WebGLsizei count, WebGLsizei primcount);
+    void DrawElementsInstancedANGLE(WebGLenum mode, WebGLsizei count,
+                                    WebGLenum type, WebGLintptr offset,
+                                    WebGLsizei primcount);
+    void VertexAttribDivisorANGLE(WebGLuint index, WebGLuint divisor);
 
     static bool IsSupported(const WebGLContext* context);
 

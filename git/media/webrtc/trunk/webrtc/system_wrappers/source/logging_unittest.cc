@@ -10,7 +10,7 @@
 
 #include "webrtc/system_wrappers/interface/logging.h"
 
-#include "testing/gtest/include/gtest/gtest.h"
+#include "gtest/gtest.h"
 #include "webrtc/system_wrappers/interface/condition_variable_wrapper.h"
 #include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
 #include "webrtc/system_wrappers/interface/scoped_ptr.h"
@@ -47,7 +47,7 @@ class LoggingTest : public ::testing::Test, public TraceCallback {
     Trace::CreateTrace();
     Trace::SetTraceCallback(this);
     // Reduce the chance that spurious traces will ruin the test.
-    Trace::set_level_filter(kTraceWarning | kTraceError);
+    Trace::SetLevelFilter(kTraceWarning | kTraceError);
   }
 
   void TearDown() {

@@ -74,6 +74,11 @@ using namespace mozilla::dom;
 using namespace mozilla;
 
 //----------------------------------------------------------------------
+
+static NS_DEFINE_CID(kRDFContainerUtilsCID,      NS_RDFCONTAINERUTILS_CID);
+static NS_DEFINE_CID(kRDFServiceCID,             NS_RDFSERVICE_CID);
+
+//----------------------------------------------------------------------
 //
 // nsXULTemplateBuilder
 //
@@ -102,7 +107,6 @@ nsXULTemplateBuilder::nsXULTemplateBuilder(void)
       mTop(nullptr),
       mObservedDocument(nullptr)
 {
-    MOZ_COUNT_CTOR(nsXULTemplateBuilder);
 }
 
 static PLDHashOperator
@@ -129,8 +133,6 @@ nsXULTemplateBuilder::~nsXULTemplateBuilder(void)
         NS_IF_RELEASE(gScriptSecurityManager);
         NS_IF_RELEASE(gObserverService);
     }
-
-    MOZ_COUNT_DTOR(nsXULTemplateBuilder);
 }
 
 
@@ -142,12 +144,10 @@ nsXULTemplateBuilder::InitGlobals()
     if (gRefCnt++ == 0) {
         // Initialize the global shared reference to the service
         // manager and get some shared resource objects.
-        NS_DEFINE_CID(kRDFServiceCID, NS_RDFSERVICE_CID);
         rv = CallGetService(kRDFServiceCID, &gRDFService);
         if (NS_FAILED(rv))
             return rv;
 
-        NS_DEFINE_CID(kRDFContainerUtilsCID, NS_RDFCONTAINERUTILS_CID);
         rv = CallGetService(kRDFContainerUtilsCID, &gRDFContainerUtils);
         if (NS_FAILED(rv))
             return rv;
@@ -171,24 +171,10 @@ nsXULTemplateBuilder::InitGlobals()
         gXULTemplateLog = PR_NewLogModule("nsXULTemplateBuilder");
 #endif
 
+    if (!mMatchMap.IsInitialized())
+        mMatchMap.Init();
+
     return NS_OK;
-}
-
-void
-nsXULTemplateBuilder::StartObserving(nsIDocument* aDocument)
-{
-    aDocument->AddObserver(this);
-    mObservedDocument = aDocument;
-    gObserverService->AddObserver(this, DOM_WINDOW_DESTROYED_TOPIC, false);
-}
-
-void
-nsXULTemplateBuilder::StopObserving()
-{
-    MOZ_ASSERT(mObservedDocument);
-    mObservedDocument->RemoveObserver(this);
-    mObservedDocument = nullptr;
-    gObserverService->RemoveObserver(this, DOM_WINDOW_DESTROYED_TOPIC);
 }
 
 void
@@ -213,7 +199,10 @@ void
 nsXULTemplateBuilder::Uninit(bool aIsFinal)
 {
     if (mObservedDocument && aIsFinal) {
-        StopObserving();
+        gObserverService->RemoveObserver(this, DOM_WINDOW_DESTROYED_TOPIC);
+        gObserverService->RemoveObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID);
+        mObservedDocument->RemoveObserver(this);
+        mObservedDocument = nullptr;
     }
 
     if (mQueryProcessor)
@@ -255,7 +244,9 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXULTemplateBuilder)
     NS_IMPL_CYCLE_COLLECTION_UNLINK(mRootResult)
     NS_IMPL_CYCLE_COLLECTION_UNLINK(mListeners)
     NS_IMPL_CYCLE_COLLECTION_UNLINK(mQueryProcessor)
-    tmp->mMatchMap.Enumerate(DestroyMatchList, nullptr);
+    if (tmp->mMatchMap.IsInitialized()) {
+      tmp->mMatchMap.Enumerate(DestroyMatchList, nullptr);
+    }
     for (uint32_t i = 0; i < tmp->mQuerySets.Length(); ++i) {
         nsTemplateQuerySet* qs = tmp->mQuerySets[i];
         delete qs;
@@ -275,7 +266,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXULTemplateBuilder)
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mRootResult)
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mListeners)
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mQueryProcessor)
-    tmp->mMatchMap.EnumerateRead(TraverseMatchList, &cb);
+    if (tmp->mMatchMap.IsInitialized())
+        tmp->mMatchMap.EnumerateRead(TraverseMatchList, &cb);
     {
       uint32_t i, count = tmp->mQuerySets.Length();
       for (i = 0; i < count; ++i) {
@@ -445,7 +437,14 @@ nsXULTemplateBuilder::Init(nsIContent* aElement)
     nsresult rv = LoadDataSources(doc, &shouldDelay);
 
     if (NS_SUCCEEDED(rv)) {
-        StartObserving(doc);
+        // Add ourselves as a document observer
+        doc->AddObserver(this);
+
+        mObservedDocument = doc;
+        gObserverService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID,
+                                      false);
+        gObserverService->AddObserver(this, DOM_WINDOW_DESTROYED_TOPIC,
+                                      false);
     }
 
     return rv;
@@ -1083,6 +1082,8 @@ nsXULTemplateBuilder::Observe(nsISupports* aSubject,
             if (doc && doc == mObservedDocument)
                 NodeWillBeDestroyed(doc);
         }
+    } else if (!strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) {
+        UninitTrue();
     }
     return NS_OK;
 }
@@ -1132,8 +1133,7 @@ nsXULTemplateBuilder::ContentRemoved(nsIDocument* aDocument,
         nsContentUtils::AddScriptRunner(
             NS_NewRunnableMethod(this, &nsXULTemplateBuilder::UninitFalse));
 
-        MOZ_ASSERT(aDocument == mObservedDocument);
-        StopObserving();
+        aDocument->RemoveObserver(this);
 
         nsCOMPtr<nsIXULDocument> xuldoc = do_QueryInterface(aDocument);
         if (xuldoc)
@@ -1391,7 +1391,7 @@ nsXULTemplateBuilder::InitHTMLTemplateRoot()
     JS::Rooted<JSObject*> scope(jscontext, global->GetGlobalJSObject());
     JS::Rooted<JS::Value> v(jscontext);
     nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
-    rv = nsContentUtils::WrapNative(jscontext, scope, mRoot, mRoot, &v,
+    rv = nsContentUtils::WrapNative(jscontext, scope, mRoot, mRoot, v.address(),
                                     getter_AddRefs(wrapper));
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1402,7 +1402,7 @@ nsXULTemplateBuilder::InitHTMLTemplateRoot()
         JS::Rooted<JS::Value> jsdatabase(jscontext);
         rv = nsContentUtils::WrapNative(jscontext, scope, mDB,
                                         &NS_GET_IID(nsIRDFCompositeDataSource),
-                                        &jsdatabase, getter_AddRefs(wrapper));
+                                        jsdatabase.address(), getter_AddRefs(wrapper));
         NS_ENSURE_SUCCESS(rv, rv);
 
         bool ok;
@@ -1419,7 +1419,7 @@ nsXULTemplateBuilder::InitHTMLTemplateRoot()
         rv = nsContentUtils::WrapNative(jscontext, jselement,
                                         static_cast<nsIXULTemplateBuilder*>(this),
                                         &NS_GET_IID(nsIXULTemplateBuilder),
-                                        &jsbuilder, getter_AddRefs(wrapper));
+                                        jsbuilder.address(), getter_AddRefs(wrapper));
         NS_ENSURE_SUCCESS(rv, rv);
 
         bool ok;

@@ -16,16 +16,8 @@ using namespace mozilla;
 using namespace ABI::Windows::UI::Notifications;
 
 typedef __FITypedEventHandler_2_Windows__CUI__CNotifications__CToastNotification_IInspectable_t ToastActivationHandler;
-typedef __FITypedEventHandler_2_Windows__CUI__CNotifications__CToastNotification_Windows__CUI__CNotifications__CToastDismissedEventArgs ToastDismissHandler;
 
-void
-ToastNotificationHandler::DisplayNotification(HSTRING title,
-                                              HSTRING msg,
-                                              HSTRING imagePath,
-                                              const nsAString& aCookie)
-{
-  mCookie = aCookie;
-
+void ToastNotificationHandler::DisplayNotification(HSTRING title, HSTRING msg, HSTRING imagePath) {
   ComPtr<IToastNotificationManagerStatics> toastNotificationManagerStatics;
   AssertHRESULT(GetActivationFactory(HStringReference(RuntimeClass_Windows_UI_Notifications_ToastNotificationManager).Get(),
                                     toastNotificationManagerStatics.GetAddressOf()));
@@ -65,15 +57,10 @@ ToastNotificationHandler::DisplayNotification(HSTRING title,
   EventRegistrationToken activatedToken;
   AssertHRESULT(notification->add_Activated(Callback<ToastActivationHandler>(this,
       &ToastNotificationHandler::OnActivate).Get(), &activatedToken));
-  EventRegistrationToken dismissedToken;
-  AssertHRESULT(notification->add_Dismissed(Callback<ToastDismissHandler>(this,
-      &ToastNotificationHandler::OnDismiss).Get(), &dismissedToken));
 
   ComPtr<IToastNotifier> notifier;
   toastNotificationManagerStatics->CreateToastNotifier(&notifier);
   notifier->Show(notification.Get());
-
-  MetroUtils::FireObserver("metro_native_toast_shown", mCookie.get());
 }
 
 void ToastNotificationHandler::SetNodeValueString(HSTRING inputString, ComPtr<IXmlNode> node, ComPtr<IXmlDocument> xml) { 
@@ -86,14 +73,6 @@ void ToastNotificationHandler::SetNodeValueString(HSTRING inputString, ComPtr<IX
 }
 
 HRESULT ToastNotificationHandler::OnActivate(IToastNotification *notification, IInspectable *inspectable) {
-  MetroUtils::FireObserver("metro_native_toast_clicked", mCookie.get());
-  return S_OK;
-}
-
-HRESULT
-ToastNotificationHandler::OnDismiss(IToastNotification *notification,
-                                    IToastDismissedEventArgs* aArgs)
-{
-  MetroUtils::FireObserver("metro_native_toast_dismissed", mCookie.get());
+  MetroUtils::FireObserver("metro_native_toast_clicked");
   return S_OK;
 }

@@ -14,10 +14,11 @@
 #include "jscntxt.h"
 #include "jscompartment.h"
 
+#include "jit/IonFrames.h"
 #include "vm/ScopeObject.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 inline void
 BaselineFrame::pushOnScopeChain(ScopeObject &scope)
@@ -36,22 +37,34 @@ BaselineFrame::popOffScopeChain()
 inline bool
 BaselineFrame::pushBlock(JSContext *cx, Handle<StaticBlockObject *> block)
 {
-    JS_ASSERT(block->needsClone());
+    JS_ASSERT_IF(hasBlockChain(), blockChain() == *block->enclosingBlock());
 
-    ClonedBlockObject *clone = ClonedBlockObject::create(cx, block, this);
-    if (!clone)
-        return false;
-    pushOnScopeChain(*clone);
+    if (block->needsClone()) {
+        ClonedBlockObject *clone = ClonedBlockObject::create(cx, block, this);
+        if (!clone)
+            return false;
 
+        pushOnScopeChain(*clone);
+    }
+
+    setBlockChain(*block);
     return true;
 }
 
 inline void
 BaselineFrame::popBlock(JSContext *cx)
 {
-    JS_ASSERT(scopeChain_->is<ClonedBlockObject>());
+    JS_ASSERT(hasBlockChain());
 
-    popOffScopeChain();
+    if (cx->compartment()->debugMode())
+        DebugScopes::onPopBlock(cx, this);
+
+    if (blockChain_->needsClone()) {
+        JS_ASSERT(scopeChain_->as<ClonedBlockObject>().staticBlock() == *blockChain_);
+        popOffScopeChain();
+    }
+
+    setBlockChain(*blockChain_->enclosingBlock());
 }
 
 inline CallObject &
@@ -66,7 +79,7 @@ BaselineFrame::callObj() const
     return obj->as<CallObject>();
 }
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif // JS_ION

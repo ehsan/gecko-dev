@@ -13,9 +13,7 @@
 #include "mozilla/ipc/ProtocolUtils.h"
 #include "mozilla/layers/PCompositorChild.h"
 #include "nsAutoPtr.h"                  // for nsRefPtr
-#include "nsClassHashtable.h"           // for nsClassHashtable
 #include "nsCOMPtr.h"                   // for nsCOMPtr
-#include "nsHashKeys.h"                 // for nsUint64HashKey
 #include "nsISupportsImpl.h"            // for NS_INLINE_DECL_REFCOUNTING
 
 class nsIObserver;
@@ -23,25 +21,17 @@ class nsIObserver;
 namespace mozilla {
 namespace layers {
 
-class ClientLayerManager;
+class LayerManager;
 class CompositorParent;
-class FrameMetrics;
 
 class CompositorChild : public PCompositorChild
 {
   NS_INLINE_DECL_REFCOUNTING(CompositorChild)
 public:
-  CompositorChild(ClientLayerManager *aLayerManager);
+  CompositorChild(LayerManager *aLayerManager);
   virtual ~CompositorChild();
 
   void Destroy();
-
-  /**
-   * Lookup the FrameMetrics shared by the compositor process with the
-   * associated FrameMetrics::ViewID. The returned FrameMetrics is used
-   * in progressive paint calculations.
-   */
-  bool LookupCompositorFrameMetrics(const FrameMetrics::ViewID aId, FrameMetrics&);
 
   /**
    * We're asked to create a new Compositor in response to an Opens()
@@ -51,12 +41,9 @@ public:
   static PCompositorChild*
   Create(Transport* aTransport, ProcessId aOtherProcess);
 
-  static CompositorChild* Get();
+  static PCompositorChild* Get();
 
   static bool ChildProcessHasCompositor() { return sCompositor != nullptr; }
-
-  virtual bool RecvInvalidateAll() MOZ_OVERRIDE;
-
 protected:
   virtual PLayerTransactionChild*
     AllocPLayerTransactionChild(const nsTArray<LayersBackend>& aBackendHints,
@@ -68,43 +55,9 @@ protected:
 
   virtual void ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
 
-  virtual bool RecvSharedCompositorFrameMetrics(const mozilla::ipc::SharedMemoryBasic::Handle& metrics,
-                                                const CrossProcessMutexHandle& handle,
-                                                const uint32_t& aAPZCId) MOZ_OVERRIDE;
-
-  virtual bool RecvReleaseSharedCompositorFrameMetrics(const ViewID& aId,
-                                                       const uint32_t& aAPZCId) MOZ_OVERRIDE;
-
 private:
-  // Class used to store the shared FrameMetrics, mutex, and APZCId  in a hash table
-  class SharedFrameMetricsData {
-  public:
-    SharedFrameMetricsData(
-        const mozilla::ipc::SharedMemoryBasic::Handle& metrics,
-        const CrossProcessMutexHandle& handle,
-        const uint32_t& aAPZCId);
-
-    ~SharedFrameMetricsData();
-
-    void CopyFrameMetrics(FrameMetrics* aFrame);
-    FrameMetrics::ViewID GetViewID();
-    uint32_t GetAPZCId();
-
-  private:
-    // Pointer to the class that allows access to the shared memory that contains
-    // the shared FrameMetrics
-    mozilla::ipc::SharedMemoryBasic* mBuffer;
-    CrossProcessMutex* mMutex;
-    // Unique ID of the APZC that is sharing the FrameMetrics
-    uint32_t mAPZCId;
-  };
-
-  nsRefPtr<ClientLayerManager> mLayerManager;
+  nsRefPtr<LayerManager> mLayerManager;
   nsCOMPtr<nsIObserver> mMemoryPressureObserver;
-
-  // The ViewID of the FrameMetrics is used as the key for this hash table.
-  // While this should be safe to use since the ViewID is unique
-  nsClassHashtable<nsUint64HashKey, SharedFrameMetricsData> mFrameMetricsTable;
 
   // When we're in a child process, this is the process-global
   // compositor that we use to forward transactions directly to the

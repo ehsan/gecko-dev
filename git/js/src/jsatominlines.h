@@ -31,7 +31,6 @@ namespace js {
 inline jsid
 AtomToId(JSAtom *atom)
 {
-    AutoThreadSafeAccess ts(atom);
     JS_STATIC_ASSERT(JSID_INT_MIN == 0);
 
     uint32_t index;
@@ -105,18 +104,42 @@ BackfillIndexInCharBuffer(uint32_t index, mozilla::RangedPtr<T> end)
     return end;
 }
 
+template <AllowGC allowGC>
 bool
-IndexToIdSlow(ExclusiveContext *cx, uint32_t index, MutableHandleId idp);
+IndexToIdSlow(ExclusiveContext *cx, uint32_t index,
+              typename MaybeRooted<jsid, allowGC>::MutableHandleType idp);
 
 inline bool
 IndexToId(ExclusiveContext *cx, uint32_t index, MutableHandleId idp)
 {
+    MaybeCheckStackRoots(cx);
+
     if (index <= JSID_INT_MAX) {
         idp.set(INT_TO_JSID(index));
         return true;
     }
 
-    return IndexToIdSlow(cx, index, idp);
+    return IndexToIdSlow<CanGC>(cx, index, idp);
+}
+
+inline bool
+IndexToIdPure(uint32_t index, jsid *idp)
+{
+    if (index <= JSID_INT_MAX) {
+        *idp = INT_TO_JSID(index);
+        return true;
+    }
+
+    return false;
+}
+
+inline bool
+IndexToIdNoGC(JSContext *cx, uint32_t index, jsid *idp)
+{
+    if (IndexToIdPure(index, idp))
+        return true;
+
+    return IndexToIdSlow<NoGC>(cx, index, idp);
 }
 
 static JS_ALWAYS_INLINE JSFlatString *
@@ -131,7 +154,7 @@ IdToString(JSContext *cx, jsid id)
     RootedValue idv(cx, IdToValue(id));
     JSString *str = ToStringSlow<CanGC>(cx, idv);
     if (!str)
-        return nullptr;
+        return NULL;
 
     return str->ensureFlat(cx);
 }
@@ -153,37 +176,31 @@ AtomHasher::match(const AtomStateEntry &entry, const Lookup &lookup)
 }
 
 inline Handle<PropertyName*>
-TypeName(JSType type, const JSAtomState &names)
+TypeName(JSType type, JSRuntime *rt)
 {
     JS_ASSERT(type < JSTYPE_LIMIT);
     JS_STATIC_ASSERT(offsetof(JSAtomState, undefined) +
                      JSTYPE_LIMIT * sizeof(FixedHeapPtr<PropertyName>) <=
                      sizeof(JSAtomState));
     JS_STATIC_ASSERT(JSTYPE_VOID == 0);
-    return (&names.undefined)[type];
+    return (&rt->atomState.undefined)[type];
 }
 
 inline Handle<PropertyName*>
-ClassName(JSProtoKey key, JSAtomState &atomState)
+TypeName(JSType type, JSContext *cx)
+{
+    return TypeName(type, cx->runtime());
+}
+
+inline Handle<PropertyName*>
+ClassName(JSProtoKey key, ExclusiveContext *cx)
 {
     JS_ASSERT(key < JSProto_LIMIT);
     JS_STATIC_ASSERT(offsetof(JSAtomState, Null) +
                      JSProto_LIMIT * sizeof(FixedHeapPtr<PropertyName>) <=
                      sizeof(JSAtomState));
     JS_STATIC_ASSERT(JSProto_Null == 0);
-    return (&atomState.Null)[key];
-}
-
-inline Handle<PropertyName*>
-ClassName(JSProtoKey key, JSRuntime *rt)
-{
-    return ClassName(key, rt->atomState);
-}
-
-inline Handle<PropertyName*>
-ClassName(JSProtoKey key, ExclusiveContext *cx)
-{
-    return ClassName(key, cx->names());
+    return (&cx->names().Null)[key];
 }
 
 } // namespace js

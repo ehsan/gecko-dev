@@ -10,12 +10,12 @@
 
 #include "webrtc/modules/audio_processing/echo_control_mobile_impl.h"
 
-#include <assert.h>
-#include <string.h>
+#include <cassert>
+#include <cstring>
 
 #include "webrtc/modules/audio_processing/aecm/include/echo_control_mobile.h"
-#include "webrtc/modules/audio_processing/audio_buffer.h"
 #include "webrtc/modules/audio_processing/audio_processing_impl.h"
+#include "webrtc/modules/audio_processing/audio_buffer.h"
 #include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
 #include "webrtc/system_wrappers/interface/logging.h"
 

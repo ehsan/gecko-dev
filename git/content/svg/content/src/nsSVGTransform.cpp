@@ -25,41 +25,41 @@ nsSVGTransform::GetValueAsString(nsAString& aValue) const
       // The spec say that if Y is not provided, it is assumed to be zero.
       if (mMatrix.y0 != 0)
         nsTextFormatter::snprintf(buf, sizeof(buf)/sizeof(PRUnichar),
-            MOZ_UTF16("translate(%g, %g)"),
+            NS_LITERAL_STRING("translate(%g, %g)").get(),
             mMatrix.x0, mMatrix.y0);
       else
         nsTextFormatter::snprintf(buf, sizeof(buf)/sizeof(PRUnichar),
-            MOZ_UTF16("translate(%g)"),
+            NS_LITERAL_STRING("translate(%g)").get(),
             mMatrix.x0);
       break;
     case SVG_TRANSFORM_ROTATE:
       if (mOriginX != 0.0f || mOriginY != 0.0f)
         nsTextFormatter::snprintf(buf, sizeof(buf)/sizeof(PRUnichar),
-            MOZ_UTF16("rotate(%g, %g, %g)"),
+            NS_LITERAL_STRING("rotate(%g, %g, %g)").get(),
             mAngle, mOriginX, mOriginY);
       else
         nsTextFormatter::snprintf(buf, sizeof(buf)/sizeof(PRUnichar),
-            MOZ_UTF16("rotate(%g)"), mAngle);
+            NS_LITERAL_STRING("rotate(%g)").get(), mAngle);
       break;
     case SVG_TRANSFORM_SCALE:
       if (mMatrix.xx != mMatrix.yy)
         nsTextFormatter::snprintf(buf, sizeof(buf)/sizeof(PRUnichar),
-            MOZ_UTF16("scale(%g, %g)"), mMatrix.xx, mMatrix.yy);
+            NS_LITERAL_STRING("scale(%g, %g)").get(), mMatrix.xx, mMatrix.yy);
       else
         nsTextFormatter::snprintf(buf, sizeof(buf)/sizeof(PRUnichar),
-            MOZ_UTF16("scale(%g)"), mMatrix.xx);
+            NS_LITERAL_STRING("scale(%g)").get(), mMatrix.xx);
       break;
     case SVG_TRANSFORM_SKEWX:
       nsTextFormatter::snprintf(buf, sizeof(buf)/sizeof(PRUnichar),
-                                MOZ_UTF16("skewX(%g)"), mAngle);
+                                NS_LITERAL_STRING("skewX(%g)").get(), mAngle);
       break;
     case SVG_TRANSFORM_SKEWY:
       nsTextFormatter::snprintf(buf, sizeof(buf)/sizeof(PRUnichar),
-                                MOZ_UTF16("skewY(%g)"), mAngle);
+                                NS_LITERAL_STRING("skewY(%g)").get(), mAngle);
       break;
     case SVG_TRANSFORM_MATRIX:
       nsTextFormatter::snprintf(buf, sizeof(buf)/sizeof(PRUnichar),
-          MOZ_UTF16("matrix(%g, %g, %g, %g, %g, %g)"),
+          NS_LITERAL_STRING("matrix(%g, %g, %g, %g, %g, %g)").get(),
                             mMatrix.xx, mMatrix.yx,
                             mMatrix.xy, mMatrix.yy,
                             mMatrix.x0, mMatrix.y0);

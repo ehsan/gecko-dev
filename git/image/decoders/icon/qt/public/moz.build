@@ -8,5 +8,5 @@ XPIDL_SOURCES += [
     'nsGtkQtIconsConverter.idl',
 ]
 
-XPIDL_MODULE = 'gtkqticonsconverter'
+MODULE = 'gtkqticonsconverter'
 

@@ -28,9 +28,9 @@
 #include <queue>
 #include <vector>
 
-#include "webrtc/modules/interface/module_common_types.h"
-#include "webrtc/system_wrappers/interface/constructor_magic.h"
-#include "webrtc/typedefs.h"
+#include "modules/interface/module_common_types.h"
+#include "system_wrappers/interface/constructor_magic.h"
+#include "typedefs.h"  // NOLINT(build/include)
 
 namespace webrtc {
 
@@ -61,8 +61,6 @@ class RtpFormatVp8 {
                uint32_t payload_size,
                const RTPVideoHeaderVP8& hdr_info,
                int max_payload_len);
-
-  ~RtpFormatVp8();
 
   // Get the next payload with VP8 payload header.
   // max_payload_len limits the sum length of payload and VP8 payload header.

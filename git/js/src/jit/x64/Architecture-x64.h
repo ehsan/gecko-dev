@@ -10,7 +10,11 @@
 #include "assembler/assembler/MacroAssembler.h"
 
 namespace js {
-namespace jit {
+namespace ion {
+
+static const ptrdiff_t STACK_SLOT_SIZE       = 8;
+static const uint32_t MAX_STACK_SLOTS          = 256;
+static const uint32_t DOUBLE_STACK_ALIGNMENT   = 1;
 
 // In bytes: slots needed for potential memory->memory move spills.
 //   +8 for cycles
@@ -23,6 +27,9 @@ static const uint32_t ShadowStackSpace = 32;
 #else
 static const uint32_t ShadowStackSpace = 0;
 #endif
+
+// An offset that is illegal for a local variable's stack allocation.
+static const int32_t INVALID_STACK_SLOT       = -1;
 
 class Registers {
   public:
@@ -99,6 +106,8 @@ class Registers {
     // Registers returned from a JS -> C call.
     static const uint32_t CallMask =
         (1 << JSC::X86Registers::eax);
+
+    typedef JSC::MacroAssembler::RegisterID RegisterID;
 };
 
 // Smallest integer type that can hold a register bitmask.
@@ -145,7 +154,7 @@ class FloatRegisters {
     static const uint32_t AllocatableMask = AllMask & ~NonAllocatableMask;
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_x64_Architecture_x64_h */

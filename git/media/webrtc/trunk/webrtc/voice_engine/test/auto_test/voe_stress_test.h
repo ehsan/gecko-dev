@@ -40,10 +40,11 @@ class VoEStressTest {
   bool ProcessExtraApi();
 
   VoETestManager& _mgr;
+  static const char* _key;
 
   ThreadWrapper* _ptrExtraApiThread;
 };
 
-}  // namespace voetest
+} //  namespace voetest
 
 #endif // WEBRTC_VOICE_ENGINE_VOE_STRESS_TEST_H

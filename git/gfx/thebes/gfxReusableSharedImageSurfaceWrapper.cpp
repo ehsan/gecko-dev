@@ -4,7 +4,6 @@
 
 #include "gfxReusableSharedImageSurfaceWrapper.h"
 #include "gfxSharedImageSurface.h"
-#include "mozilla/layers/ISurfaceAllocator.h"
 
 using mozilla::ipc::Shmem;
 using mozilla::layers::ISurfaceAllocator;
@@ -27,7 +26,7 @@ gfxReusableSharedImageSurfaceWrapper::~gfxReusableSharedImageSurfaceWrapper()
 void
 gfxReusableSharedImageSurfaceWrapper::ReadLock()
 {
-  NS_ASSERT_OWNINGTHREAD(gfxReusableSharedImageSurfaceWrapper);
+  NS_CheckThreadSafe(_mOwningThread.GetThread(), "Only the owner thread can call ReadLock");
   mSurface->ReadLock();
 }
 
@@ -45,7 +44,7 @@ gfxReusableSharedImageSurfaceWrapper::ReadUnlock()
 gfxReusableSurfaceWrapper*
 gfxReusableSharedImageSurfaceWrapper::GetWritable(gfxImageSurface** aSurface)
 {
-  NS_ASSERT_OWNINGTHREAD(gfxReusableSharedImageSurfaceWrapper);
+  NS_CheckThreadSafe(_mOwningThread.GetThread(), "Only the owner thread can call GetWritable");
 
   int32_t readCount = mSurface->GetReadCount();
   NS_ABORT_IF_FALSE(readCount > 0, "A ReadLock must be held when calling GetWritable");
@@ -56,7 +55,7 @@ gfxReusableSharedImageSurfaceWrapper::GetWritable(gfxImageSurface** aSurface)
 
   // Something else is reading the surface, copy it
   nsRefPtr<gfxSharedImageSurface> copySurface =
-    gfxSharedImageSurface::CreateUnsafe(mAllocator.get(), mSurface->GetSize(), mSurface->Format());
+    gfxSharedImageSurface::CreateUnsafe(mAllocator, mSurface->GetSize(), mSurface->Format());
   copySurface->CopyFrom(mSurface);
   *aSurface = copySurface;
 
@@ -76,7 +75,7 @@ gfxReusableSharedImageSurfaceWrapper::GetReadOnlyData() const
   return mSurface->Data();
 }
 
-gfxImageFormat
+gfxASurface::gfxImageFormat
 gfxReusableSharedImageSurfaceWrapper::Format()
 {
   return mSurface->Format();

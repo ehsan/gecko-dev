@@ -14,10 +14,8 @@ Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 Cu.import("resource://gre/modules/osfile.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://gre/modules/Log.jsm");
+Cu.import("resource://services-common/log4moz.js");
 
-XPCOMUtils.defineLazyModuleGetter(this, "AsyncShutdown",
-                                  "resource://gre/modules/AsyncShutdown.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "CommonUtils",
                                   "resource://services-common/utils.js");
 XPCOMUtils.defineLazyModuleGetter(this, "FileUtils",
@@ -66,7 +64,7 @@ let connectionCounters = new Map();
  * @return Promise<OpenedConnection>
  */
 function openConnection(options) {
-  let log = Log.repository.getLogger("Sqlite.ConnectionOpener");
+  let log = Log4Moz.repository.getLogger("Sqlite.ConnectionOpener");
 
   if (!options.path) {
     throw new Error("path not specified in connection options.");
@@ -173,7 +171,7 @@ function openConnection(options) {
  *        `openConnection`.
  */
 function OpenedConnection(connection, basename, number, options) {
-  let log = Log.repository.getLogger("Sqlite.Connection." + basename);
+  let log = Log4Moz.repository.getLogger("Sqlite.Connection." + basename);
 
   // getLogger() returns a shared object. We can't modify the functions on this
   // object since they would have effect on all instances and last write would
@@ -183,7 +181,7 @@ function OpenedConnection(connection, basename, number, options) {
   let logProxy = {__proto__: log};
 
   // Automatically prefix all log messages with the identifier.
-  for (let level in Log.Level) {
+  for (let level in Log4Moz.Level) {
     if (level == "Desc") {
       continue;
     }
@@ -199,7 +197,6 @@ function OpenedConnection(connection, basename, number, options) {
   this._log.info("Opened");
 
   this._connection = connection;
-  this._connectionIdentifier = basename + " Conn #" + number;
   this._open = true;
 
   this._cachedStatements = new Map();
@@ -284,11 +281,6 @@ OpenedConnection.prototype = Object.freeze({
     this._log.debug("Request to close connection.");
     this._clearIdleShrinkTimer();
     let deferred = Promise.defer();
-
-    AsyncShutdown.profileBeforeChange.addBlocker(
-      "Sqlite.jsm: " + this._connectionIdentifier,
-      deferred.promise
-    );
 
     // We need to take extra care with transactions during shutdown.
     //
@@ -608,7 +600,9 @@ OpenedConnection.prototype = Object.freeze({
   },
 
   /**
-   * Whether a table exists in the database (both persistent and temporary tables).
+   * Whether a table exists in the database.
+   *
+   * IMPROVEMENT: Look for temporary tables.
    *
    * @param name
    *        (string) Name of the table.
@@ -617,9 +611,7 @@ OpenedConnection.prototype = Object.freeze({
    */
   tableExists: function (name) {
     return this.execute(
-      "SELECT name FROM (SELECT * FROM sqlite_master UNION ALL " +
-                        "SELECT * FROM sqlite_temp_master) " +
-      "WHERE type = 'table' AND name=?",
+      "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
       [name])
       .then(function onResult(rows) {
         return Promise.resolve(rows.length > 0);
@@ -628,7 +620,9 @@ OpenedConnection.prototype = Object.freeze({
   },
 
   /**
-   * Whether a named index exists (both persistent and temporary tables).
+   * Whether a named index exists.
+   *
+   * IMPROVEMENT: Look for indexes in temporary tables.
    *
    * @param name
    *        (string) Name of the index.
@@ -637,9 +631,7 @@ OpenedConnection.prototype = Object.freeze({
    */
   indexExists: function (name) {
     return this.execute(
-      "SELECT name FROM (SELECT * FROM sqlite_master UNION ALL " +
-                        "SELECT * FROM sqlite_temp_master) " +
-      "WHERE type = 'index' AND name=?",
+      "SELECT name FROM sqlite_master WHERE type='index' AND name=?",
       [name])
       .then(function onResult(rows) {
         return Promise.resolve(rows.length > 0);
@@ -745,7 +737,7 @@ OpenedConnection.prototype = Object.freeze({
 
     // Don't incur overhead for serializing params unless the messages go
     // somewhere.
-    if (this._log.level <= Log.Level.Trace) {
+    if (this._log.level <= Log4Moz.Level.Trace) {
       let msg = "Stmt #" + index + " " + sql;
 
       if (params) {

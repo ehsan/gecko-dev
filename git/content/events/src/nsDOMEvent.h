@@ -7,22 +7,23 @@
 #define nsDOMEvent_h__
 
 #include "mozilla/Attributes.h"
-#include "mozilla/BasicEvents.h"
 #include "nsIDOMEvent.h"
 #include "nsISupports.h"
 #include "nsCOMPtr.h"
 #include "nsPIDOMWindow.h"
 #include "nsPoint.h"
+#include "nsGUIEvent.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsAutoPtr.h"
 #include "mozilla/dom/EventBinding.h"
 #include "nsIScriptGlobalObject.h"
 #include "Units.h"
-#include "js/TypeDecls.h"
 
 class nsIContent;
 class nsIDOMEventTarget;
 class nsPresContext;
+struct JSContext;
+class JSObject;
 
 namespace mozilla {
 namespace dom {
@@ -41,13 +42,12 @@ class nsDOMEvent : public nsDOMEventBase,
 {
 public:
   nsDOMEvent(mozilla::dom::EventTarget* aOwner, nsPresContext* aPresContext,
-             mozilla::WidgetEvent* aEvent);
+             nsEvent* aEvent);
   nsDOMEvent(nsPIDOMWindow* aWindow);
   virtual ~nsDOMEvent();
 private:
   void ConstructorInit(mozilla::dom::EventTarget* aOwner,
-                       nsPresContext* aPresContext,
-                       mozilla::WidgetEvent* aEvent);
+                       nsPresContext* aPresContext, nsEvent* aEvent);
 public:
   void GetParentObject(nsIScriptGlobalObject** aParentObject)
   {
@@ -98,8 +98,7 @@ public:
   // Returns true if the event should be trusted.
   bool Init(mozilla::dom::EventTarget* aGlobal);
 
-  static PopupControlState GetEventPopupControlState(
-                             mozilla::WidgetEvent* aEvent);
+  static PopupControlState GetEventPopupControlState(nsEvent *aEvent);
 
   static void PopupAllowedEventsChanged();
 
@@ -107,18 +106,15 @@ public:
 
   static const char* GetEventName(uint32_t aEventType);
   static mozilla::CSSIntPoint
-  GetClientCoords(nsPresContext* aPresContext,
-                  mozilla::WidgetEvent* aEvent,
+  GetClientCoords(nsPresContext* aPresContext, nsEvent* aEvent,
                   mozilla::LayoutDeviceIntPoint aPoint,
                   mozilla::CSSIntPoint aDefaultPoint);
   static mozilla::CSSIntPoint
-  GetPageCoords(nsPresContext* aPresContext,
-                mozilla::WidgetEvent* aEvent,
+  GetPageCoords(nsPresContext* aPresContext, nsEvent* aEvent,
                 mozilla::LayoutDeviceIntPoint aPoint,
                 mozilla::CSSIntPoint aDefaultPoint);
   static nsIntPoint
-  GetScreenCoords(nsPresContext* aPresContext,
-                  mozilla::WidgetEvent* aEvent,
+  GetScreenCoords(nsPresContext* aPresContext, nsEvent* aEvent,
                   mozilla::LayoutDeviceIntPoint aPoint);
 
   static already_AddRefed<nsDOMEvent> Constructor(const mozilla::dom::GlobalObject& aGlobal,
@@ -153,20 +149,9 @@ public:
   // xpidl implementation
   // void PreventDefault();
 
-  // You MUST NOT call PreventDefaultJ(JSContext*) from C++ code.  A call of
-  // this method always sets Event.defaultPrevented true for web contents.
-  // If default action handler calls this, web applications meet wrong
-  // defaultPrevented value.
-  void PreventDefault(JSContext* aCx);
-
-  // You MUST NOT call DefaultPrevented(JSContext*) from C++ code.  This may
-  // return false even if PreventDefault() has been called.
-  // See comments in its implementation for the detail.
-  bool DefaultPrevented(JSContext* aCx) const;
-
   bool DefaultPrevented() const
   {
-    return mEvent->mFlags.mDefaultPrevented;
+    return mEvent && mEvent->mFlags.mDefaultPrevented;
   }
 
   bool MultipleActionsPrevented() const
@@ -201,21 +186,7 @@ protected:
   void SetEventType(const nsAString& aEventTypeArg);
   already_AddRefed<nsIContent> GetTargetFromFrame();
 
-  /**
-   * IsChrome() returns true if aCx is chrome context or the event is created
-   * in chrome's thread.  Otherwise, false.
-   */
-  bool IsChrome(JSContext* aCx) const;
-
-  /**
-   * @param aCalledByDefaultHandler     Should be true when this is called by
-   *                                    C++ or Chrome.  Otherwise, e.g., called
-   *                                    by a call of Event.preventDefault() in
-   *                                    content script, false.
-   */
-  void PreventDefaultInternal(bool aCalledByDefaultHandler);
-
-  mozilla::WidgetEvent*       mEvent;
+  nsEvent*                    mEvent;
   nsRefPtr<nsPresContext>     mPresContext;
   nsCOMPtr<mozilla::dom::EventTarget> mExplicitOriginalTarget;
   nsCOMPtr<nsPIDOMWindow>     mOwner; // nsPIDOMWindow for now.
@@ -246,7 +217,7 @@ protected:
   NS_IMETHOD GetIsTrusted(bool* aIsTrusted) { return _to GetIsTrusted(aIsTrusted); } \
   NS_IMETHOD SetTarget(nsIDOMEventTarget *aTarget) { return _to SetTarget(aTarget); } \
   NS_IMETHOD_(bool) IsDispatchStopped(void) { return _to IsDispatchStopped(); } \
-  NS_IMETHOD_(mozilla::WidgetEvent*) GetInternalNSEvent(void) { return _to GetInternalNSEvent(); } \
+  NS_IMETHOD_(nsEvent *) GetInternalNSEvent(void) { return _to GetInternalNSEvent(); } \
   NS_IMETHOD_(void) SetTrusted(bool aTrusted) { _to SetTrusted(aTrusted); } \
   NS_IMETHOD_(void) SetOwner(mozilla::dom::EventTarget* aOwner) { _to SetOwner(aOwner); } \
   NS_IMETHOD_(nsDOMEvent *) InternalDOMEvent(void) { return _to InternalDOMEvent(); }

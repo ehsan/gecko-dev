@@ -11,7 +11,7 @@ interface nsIVariant;
 interface nsIDocument;
 
 %{C++
-#include "js/TypeDecls.h"
+struct JSContext;
 %}
 
 /**

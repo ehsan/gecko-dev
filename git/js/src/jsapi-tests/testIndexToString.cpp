@@ -16,6 +16,12 @@
 
 using mozilla::ArrayLength;
 
+template<size_t N> JSFlatString *
+NewString(JSContext *cx, const jschar (&chars)[N])
+{
+    return js_NewStringCopyN<js::CanGC>(cx, chars, N);
+}
+
 static const struct TestPair {
     uint32_t num;
     const char *expected;
@@ -91,7 +97,7 @@ BEGIN_TEST(testStringToPropertyName)
     JSFlatString *hiStr = NewString(cx, hiChars);
     CHECK(hiStr);
     CHECK(!hiStr->isIndex(&index));
-    CHECK(hiStr->toPropertyName(cx) != nullptr);
+    CHECK(hiStr->toPropertyName(cx) != NULL);
 
     static const jschar maxChars[] = { '4', '2', '9', '4', '9', '6', '7', '2', '9', '5' };
     JSFlatString *maxStr = NewString(cx, maxChars);
@@ -103,15 +109,8 @@ BEGIN_TEST(testStringToPropertyName)
     JSFlatString *maxPlusOneStr = NewString(cx, maxPlusOneChars);
     CHECK(maxPlusOneStr);
     CHECK(!maxPlusOneStr->isIndex(&index));
-    CHECK(maxPlusOneStr->toPropertyName(cx) != nullptr);
+    CHECK(maxPlusOneStr->toPropertyName(cx) != NULL);
 
     return true;
 }
-
-template<size_t N> static JSFlatString *
-NewString(JSContext *cx, const jschar (&chars)[N])
-{
-    return js_NewStringCopyN<js::CanGC>(cx, chars, N);
-}
-
 END_TEST(testStringToPropertyName)

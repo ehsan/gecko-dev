@@ -807,7 +807,8 @@
 
             this.yearField = document.getAnonymousElementByAttribute(this, "anonid", yfield);
             if (!twoDigitYear)
-              this.yearField.parentNode.classList.add("datetimepicker-input-subbox", "datetimepicker-year");
+              this.yearField.parentNode.className =
+                "datetimepicker-input-subbox datetimepicker-year";
             this.monthField = document.getAnonymousElementByAttribute(this, "anonid", mfield);
             this.dateField = document.getAnonymousElementByAttribute(this, "anonid", dfield);
 
@@ -1177,7 +1178,7 @@
             return;
 
           var target = event.originalTarget;
-          if (target.classList.contains("datepicker-gridlabel") &&
+          if (target.className == "datepicker-gridlabel" &&
               target != this.selectedItem) {
             this.selectedItem = target;
             this._dateValue = new Date(this._displayedDate);

@@ -111,7 +111,7 @@ public:
 
   virtual already_AddRefed<gfxASurface>
     CreateOptimalSurface(const gfxIntSize &aSize,
-                         gfxImageFormat imageFormat);
+                         gfxASurface::gfxImageFormat imageFormat);
 
   virtual already_AddRefed<gfxASurface>
     CreateOptimalMaskSurface(const gfxIntSize &aSize);
@@ -123,7 +123,9 @@ public:
   virtual LayersBackend GetBackendType() { return LAYERS_D3D10; }
   virtual void GetBackendName(nsAString& name) { name.AssignLiteral("Direct3D 10"); }
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() const { return "D3D10"; }
+#endif // MOZ_LAYERS_HAVE_LOG
 
   // Public helpers
 
@@ -167,8 +169,6 @@ private:
   nsRefPtr<IDXGISwapChain> mSwapChain;
 
   nsIWidget *mWidget;
-
-  bool mDisableSequenceForNextFrame;
 
   CallbackInfo mCurrentCallbackInfo;
 

@@ -30,18 +30,17 @@ public:
   NS_DECL_NSIOBSERVER
 
   CheckPermissionsHelper(OpenDatabaseHelper* aHelper,
-                         nsIDOMWindow* aWindow)
+                         nsIDOMWindow* aWindow,
+                         bool aForDeletion)
   : mHelper(aHelper),
     mWindow(aWindow),
     // If we're trying to delete the database, we should never prompt the user.
     // Anything that would prompt is translated to denied.
-    mPromptAllowed(!aHelper->mForDeletion),
+    mPromptAllowed(!aForDeletion),
     mHasPrompted(false),
     mPromptResult(0)
   {
     NS_ASSERTION(aHelper, "Null pointer!");
-    NS_ASSERTION(aHelper->mPersistenceType == quota::PERSISTENCE_TYPE_PERSISTENT,
-                 "Checking permission for non persistent databases?!");
   }
 
 private:

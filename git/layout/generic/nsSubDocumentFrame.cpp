@@ -8,10 +8,9 @@
  * as <frame>, <iframe>, and some <object>s
  */
 
-#include "nsSubDocumentFrame.h"
-
 #include "mozilla/layout/RenderFrameParent.h"
 
+#include "nsSubDocumentFrame.h"
 #include "nsCOMPtr.h"
 #include "nsGenericHTMLElement.h"
 #include "nsAttrValueInlines.h"
@@ -36,7 +35,6 @@
 #include "nsObjectFrame.h"
 #include "nsContentUtils.h"
 #include "nsIPermissionManager.h"
-#include "nsServiceManagerUtils.h"
 
 using namespace mozilla;
 using mozilla::layout::RenderFrameParent;
@@ -242,6 +240,9 @@ nsSubDocumentFrame::GetSubdocumentSize()
 bool
 nsSubDocumentFrame::PassPointerEventsToChildren()
 {
+  if (StyleVisibility()->mPointerEvents != NS_STYLE_POINTER_EVENTS_NONE) {
+    return true;
+  }
   // Limit use of mozpasspointerevents to documents with embedded:apps/chrome
   // permission, because this could be used by the parent document to discover
   // which parts of the subdocument are transparent to events (if subdocument
@@ -274,29 +275,19 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   if (!IsVisibleForPainting(aBuilder))
     return;
 
+  // If mozpasspointerevents is set, then we should allow subdocument content
+  // to handle events even if we're pointer-events:none.
+  if (aBuilder->IsForEventDelivery() && !PassPointerEventsToChildren())
+    return;
+
   // If we are pointer-events:none then we don't need to HitTest background
-  bool pointerEventsNone = StyleVisibility()->mPointerEvents == NS_STYLE_POINTER_EVENTS_NONE;
-  if (!aBuilder->IsForEventDelivery() || !pointerEventsNone) {
+  if (!aBuilder->IsForEventDelivery() ||
+      StyleVisibility()->mPointerEvents != NS_STYLE_POINTER_EVENTS_NONE) {
     DisplayBorderBackgroundOutline(aBuilder, aLists);
   }
 
-  bool passPointerEventsToChildren = false;
-  if (aBuilder->IsForEventDelivery()) {
-    passPointerEventsToChildren = PassPointerEventsToChildren();
-    // If mozpasspointerevents is set, then we should allow subdocument content
-    // to handle events even if we're pointer-events:none.
-    if (pointerEventsNone && !passPointerEventsToChildren) {
-      return;
-    }
-  }
-
-  // If we're passing pointer events to children then we have to descend into
-  // subdocuments no matter what, to determine which parts are transparent for
-  // elementFromPoint.
-  if (!mInnerView ||
-      (!aBuilder->GetDescendIntoSubdocuments() && !passPointerEventsToChildren)) {
+  if (!mInnerView)
     return;
-  }
 
   nsFrameLoader* frameLoader = FrameLoader();
   if (frameLoader) {
@@ -357,13 +348,11 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   int32_t subdocAPD = presContext->AppUnitsPerDevPixel();
 
   nsRect dirty;
-  bool haveDisplayPort = false;
   if (subdocRootFrame) {
     nsIDocument* doc = subdocRootFrame->PresContext()->Document();
     nsIContent* root = doc ? doc->GetRootElement() : nullptr;
     nsRect displayPort;
     if (root && nsLayoutUtils::GetDisplayPort(root, &displayPort)) {
-      haveDisplayPort = true;
       dirty = displayPort;
     } else {
       // get the dirty rect relative to the root frame of the subdoc
@@ -381,11 +370,8 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   }
 
   nsIScrollableFrame *sf = presShell->GetRootScrollFrameAsScrollable();
-  bool constructResolutionItem = subdocRootFrame &&
-    (presShell->GetXResolution() != 1.0 || presShell->GetYResolution() != 1.0);
   bool constructZoomItem = subdocRootFrame && parentAPD != subdocAPD;
-  bool needsOwnLayer = constructResolutionItem || constructZoomItem ||
-    haveDisplayPort ||
+  bool needsOwnLayer = constructZoomItem ||
     presContext->IsRootContentDocument() || (sf && sf->IsScrollingActive());
 
   nsDisplayList childItems;
@@ -435,25 +421,13 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     }
   }
 
-  // Generate a resolution and/or zoom item if needed. If one or both of those is
-  // created, we don't need to create a separate nsDisplayOwnLayer.
-
-  if (constructResolutionItem) {
-    nsDisplayResolution* resolutionItem =
-      new (aBuilder) nsDisplayResolution(aBuilder, subdocRootFrame, &childItems,
-                                         nsDisplayOwnLayer::GENERATE_SUBDOC_INVALIDATIONS);
-    childItems.AppendToTop(resolutionItem);
-    needsOwnLayer = false;
-  }
   if (constructZoomItem) {
     nsDisplayZoom* zoomItem =
       new (aBuilder) nsDisplayZoom(aBuilder, subdocRootFrame, &childItems,
                                    subdocAPD, parentAPD,
                                    nsDisplayOwnLayer::GENERATE_SUBDOC_INVALIDATIONS);
     childItems.AppendToTop(zoomItem);
-    needsOwnLayer = false;
-  }
-  if (needsOwnLayer) {
+  } else if (needsOwnLayer) {
     // We always want top level content documents to be in their own layer.
     nsDisplayOwnLayer* layerItem = new (aBuilder) nsDisplayOwnLayer(
       aBuilder, subdocRootFrame ? subdocRootFrame : this,
@@ -570,7 +544,7 @@ nsSubDocumentFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
   return result;
 }
 
-/* virtual */ IntrinsicSize
+/* virtual */ nsIFrame::IntrinsicSize
 nsSubDocumentFrame::GetIntrinsicSize()
 {
   nsIFrame* subDocRoot = ObtainIntrinsicSizeFrame();
@@ -988,7 +962,8 @@ EndSwapDocShellsForDocument(nsIDocument* aDocument, void*)
   // Our docshell and view trees have been updated for the new hierarchy.
   // Now also update all nsDeviceContext::mWidget to that of the
   // container view in the new hierarchy.
-  nsCOMPtr<nsIDocShell> ds = aDocument->GetDocShell();
+  nsCOMPtr<nsISupports> container = aDocument->GetContainer();
+  nsCOMPtr<nsIDocShell> ds = do_QueryInterface(container);
   if (ds) {
     nsCOMPtr<nsIContentViewer> cv;
     ds->GetContentViewer(getter_AddRefs(cv));

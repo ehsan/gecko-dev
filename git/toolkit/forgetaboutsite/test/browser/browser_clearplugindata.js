@@ -29,14 +29,6 @@ function stored(needles) {
   return true;
 }
 
-function setTestPluginEnabledState(newEnabledState, plugin) {
-  var oldEnabledState = plugin.enabledState;
-  plugin.enabledState = newEnabledState;
-  SimpleTest.registerCleanupFunction(function() {
-    plugin.enabledState = oldEnabledState;
-  });
-}
-
 function test() {
   waitForExplicitFinish();
 
@@ -50,11 +42,6 @@ function test() {
       pluginTag = tags[i];
     }
   }
-  if (!pluginTag) {
-    ok(false, "Test Plug-in not available, can't run test");
-    finish();
-  }
-  setTestPluginEnabledState(Ci.nsIPluginTag.STATE_ENABLED, pluginTag);
 
   executeSoon(do_test);
 }

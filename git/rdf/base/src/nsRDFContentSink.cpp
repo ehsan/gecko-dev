@@ -38,6 +38,8 @@
 
 */
 
+#include "mozilla/Util.h"
+
 #include "nsCOMPtr.h"
 #include "nsInterfaceHashtable.h"
 #include "nsIContentSink.h"
@@ -65,6 +67,25 @@
 #include "nsIDTD.h"
 
 using namespace mozilla;
+
+////////////////////////////////////////////////////////////////////////
+// XPCOM IIDs
+
+static NS_DEFINE_IID(kIContentSinkIID,         NS_ICONTENT_SINK_IID); // XXX grr...
+static NS_DEFINE_IID(kIExpatSinkIID,           NS_IEXPATSINK_IID);
+static NS_DEFINE_IID(kIRDFServiceIID,          NS_IRDFSERVICE_IID);
+static NS_DEFINE_IID(kISupportsIID,            NS_ISUPPORTS_IID);
+static NS_DEFINE_IID(kIXMLContentSinkIID,      NS_IXMLCONTENT_SINK_IID);
+static NS_DEFINE_IID(kIRDFContentSinkIID,      NS_IRDFCONTENTSINK_IID);
+
+static NS_DEFINE_CID(kRDFServiceCID,            NS_RDFSERVICE_CID);
+static NS_DEFINE_CID(kRDFContainerUtilsCID,     NS_RDFCONTAINERUTILS_CID);
+
+////////////////////////////////////////////////////////////////////////
+
+#ifdef PR_LOGGING
+static PRLogModuleInfo* gLog;
+#endif
 
 ///////////////////////////////////////////////////////////////////////
 
@@ -223,11 +244,6 @@ protected:
     nsAutoTArray<RDFContextStackElement, 8>* mContextStack;
 
     nsIURI*      mDocumentURL;
-
-private:
-#ifdef PR_LOGGING
-    static PRLogModuleInfo* gLog;
-#endif
 };
 
 int32_t         RDFContentSinkImpl::gRefCnt = 0;
@@ -239,10 +255,6 @@ nsIRDFResource* RDFContentSinkImpl::kRDF_Alt;
 nsIRDFResource* RDFContentSinkImpl::kRDF_Bag;
 nsIRDFResource* RDFContentSinkImpl::kRDF_Seq;
 nsIRDFResource* RDFContentSinkImpl::kRDF_nextVal;
-
-#ifdef PR_LOGGING
-PRLogModuleInfo* RDFContentSinkImpl::gLog;
-#endif
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -270,7 +282,6 @@ RDFContentSinkImpl::RDFContentSinkImpl()
       mDocumentURL(nullptr)
 {
     if (gRefCnt++ == 0) {
-        NS_DEFINE_CID(kRDFServiceCID, NS_RDFSERVICE_CID);
         nsresult rv = CallGetService(kRDFServiceCID, &gRDFService);
 
         NS_ASSERTION(NS_SUCCEEDED(rv), "unable to get RDF service");
@@ -289,11 +300,13 @@ RDFContentSinkImpl::RDFContentSinkImpl()
                                           &kRDF_nextVal);
         }
 
-        NS_DEFINE_CID(kRDFContainerUtilsCID, NS_RDFCONTAINERUTILS_CID);
+
         rv = CallGetService(kRDFContainerUtilsCID, &gRDFContainerUtils);
 
         NS_RegisterStaticAtoms(rdf_atoms);
     }
+
+    mNodeIDMap.Init();
 
 #ifdef PR_LOGGING
     if (! gLog)
@@ -369,12 +382,6 @@ RDFContentSinkImpl::QueryInterface(REFNSIID iid, void** result)
     NS_PRECONDITION(result, "null ptr");
     if (! result)
         return NS_ERROR_NULL_POINTER;
-
-    NS_DEFINE_IID(kIContentSinkIID,    NS_ICONTENT_SINK_IID);
-    NS_DEFINE_IID(kIExpatSinkIID,      NS_IEXPATSINK_IID);
-    NS_DEFINE_IID(kISupportsIID,       NS_ISUPPORTS_IID);
-    NS_DEFINE_IID(kIXMLContentSinkIID, NS_IXMLCONTENT_SINK_IID);
-    NS_DEFINE_IID(kIRDFContentSinkIID, NS_IRDFCONTENTSINK_IID);
 
     *result = nullptr;
     if (iid.Equals(kIRDFContentSinkIID) ||
@@ -1391,7 +1398,7 @@ RDFContentSinkImpl::ReinitContainer(nsIRDFResource* aContainerType, nsIRDFResour
     nsresult rv;
 
     nsCOMPtr<nsIRDFLiteral> one;
-    rv = gRDFService->GetLiteral(MOZ_UTF16("1"), getter_AddRefs(one));
+    rv = gRDFService->GetLiteral(NS_LITERAL_STRING("1").get(), getter_AddRefs(one));
     if (NS_FAILED(rv)) return rv;
 
     // Re-initialize the 'nextval' property

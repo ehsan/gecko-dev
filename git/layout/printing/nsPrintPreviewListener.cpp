@@ -6,7 +6,6 @@
 
 #include "nsPrintPreviewListener.h"
 
-#include "mozilla/TextEvents.h"
 #include "mozilla/dom/Element.h"
 #include "nsDOMEvent.h"
 #include "nsIDOMWindow.h"
@@ -59,9 +58,6 @@ nsPrintPreviewListener::AddListeners()
     mEventTarget->AddEventListener(NS_LITERAL_STRING("mouseout"), this, true);
     mEventTarget->AddEventListener(NS_LITERAL_STRING("mouseover"), this, true);
     mEventTarget->AddEventListener(NS_LITERAL_STRING("mouseup"), this, true);
-
-    mEventTarget->AddSystemEventListener(NS_LITERAL_STRING("keydown"),
-                                         this, true);
   }
 
   return NS_OK;
@@ -88,9 +84,6 @@ nsPrintPreviewListener::RemoveListeners()
     mEventTarget->RemoveEventListener(NS_LITERAL_STRING("mouseout"), this, true);
     mEventTarget->RemoveEventListener(NS_LITERAL_STRING("mouseover"), this, true);
     mEventTarget->RemoveEventListener(NS_LITERAL_STRING("mouseup"), this, true);
-
-    mEventTarget->RemoveSystemEventListener(NS_LITERAL_STRING("keydown"),
-                                            this, true);
   }
 
   return NS_OK;
@@ -104,56 +97,46 @@ nsPrintPreviewListener::RemoveListeners()
 //
 enum eEventAction {
   eEventAction_Tab,       eEventAction_ShiftTab,
-  eEventAction_Propagate, eEventAction_Suppress,
-  eEventAction_StopPropagation
+  eEventAction_Propagate, eEventAction_Suppress
 };
 
 static eEventAction
 GetActionForEvent(nsIDOMEvent* aEvent)
 {
-  WidgetKeyboardEvent* keyEvent =
-    aEvent->GetInternalNSEvent()->AsKeyboardEvent();
-  if (!keyEvent) {
-    return eEventAction_Suppress;
-  }
-
-  if (keyEvent->mFlags.mInSystemGroup) {
-    NS_ASSERTION(keyEvent->message == NS_KEY_DOWN,
-      "Assuming we're listening only keydown event in system group");
-    return eEventAction_StopPropagation;
-  }
-
-  if (keyEvent->IsAlt() || keyEvent->IsControl() || keyEvent->IsMeta()) {
-    // Don't consume keydown event because following keypress event may be
-    // handled as access key or shortcut key.
-    return (keyEvent->message == NS_KEY_DOWN) ? eEventAction_StopPropagation :
-                                                eEventAction_Suppress;
-  }
-
   static const uint32_t kOKKeyCodes[] = {
     nsIDOMKeyEvent::DOM_VK_PAGE_UP, nsIDOMKeyEvent::DOM_VK_PAGE_DOWN,
     nsIDOMKeyEvent::DOM_VK_UP,      nsIDOMKeyEvent::DOM_VK_DOWN, 
     nsIDOMKeyEvent::DOM_VK_HOME,    nsIDOMKeyEvent::DOM_VK_END 
   };
 
-  if (keyEvent->keyCode == nsIDOMKeyEvent::DOM_VK_TAB) {
-    return keyEvent->IsShift() ? eEventAction_ShiftTab : eEventAction_Tab;
-  }
+  nsCOMPtr<nsIDOMKeyEvent> keyEvent(do_QueryInterface(aEvent));
+  if (keyEvent) {
+    bool b;
+    keyEvent->GetAltKey(&b);
+    if (b) return eEventAction_Suppress;
+    keyEvent->GetCtrlKey(&b);
+    if (b) return eEventAction_Suppress;
 
-  if (keyEvent->charCode == ' ' || keyEvent->keyCode == NS_VK_SPACE) {
-    return eEventAction_Propagate;
-  }
+    keyEvent->GetShiftKey(&b);
 
-  if (keyEvent->IsShift()) {
-    return eEventAction_Suppress;
-  }
+    uint32_t keyCode;
+    keyEvent->GetKeyCode(&keyCode);
+    if (keyCode == nsIDOMKeyEvent::DOM_VK_TAB)
+      return b ? eEventAction_ShiftTab : eEventAction_Tab;
 
-  for (uint32_t i = 0; i < ArrayLength(kOKKeyCodes); ++i) {
-    if (keyEvent->keyCode == kOKKeyCodes[i]) {
+    uint32_t charCode;
+    keyEvent->GetCharCode(&charCode);
+    if (charCode == ' ' || keyCode == nsIDOMKeyEvent::DOM_VK_SPACE)
       return eEventAction_Propagate;
+
+    if (b) return eEventAction_Suppress;
+
+    for (uint32_t i = 0; i < sizeof(kOKKeyCodes)/sizeof(kOKKeyCodes[0]); ++i) {
+      if (keyCode == kOKKeyCodes[i]) {
+        return eEventAction_Propagate;
+      }
     }
   }
-
   return eEventAction_Suppress;
 }
 
@@ -199,9 +182,6 @@ nsPrintPreviewListener::HandleEvent(nsIDOMEvent* aEvent)
       case eEventAction_Suppress:
         aEvent->StopPropagation();
         aEvent->PreventDefault();
-        break;
-      case eEventAction_StopPropagation:
-        aEvent->StopPropagation();
         break;
       case eEventAction_Propagate:
         // intentionally empty

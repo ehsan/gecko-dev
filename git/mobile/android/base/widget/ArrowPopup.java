@@ -9,9 +9,7 @@ import org.mozilla.gecko.GeckoApp;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.util.HardwareUtils;
 
-import android.content.res.Resources;
 import android.graphics.drawable.BitmapDrawable;
-import android.os.Build;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -33,26 +31,21 @@ public class ArrowPopup extends PopupWindow {
     protected LinearLayout mContent;
     protected boolean mInflated;
 
-    public ArrowPopup(GeckoApp aActivity) {
-        this(aActivity, null);
-    }
-
-    public ArrowPopup(GeckoApp activity, View anchor) {
-        super(activity);
-        mActivity = activity;
-        mAnchor = anchor;
+    public ArrowPopup(GeckoApp aActivity, View aAnchor) {
+        super(aActivity);
+        mActivity = aActivity;
+        mAnchor = aAnchor;
 
         mInflated = false;
 
-        final Resources res = activity.getResources();
-        mArrowWidth = res.getDimensionPixelSize(R.dimen.menu_popup_arrow_width);
-        mYOffset = res.getDimensionPixelSize(R.dimen.menu_popup_offset);
+        mArrowWidth = aActivity.getResources().getDimensionPixelSize(R.dimen.menu_popup_arrow_width);
+        mYOffset = aActivity.getResources().getDimensionPixelSize(R.dimen.menu_popup_offset);
 
         setAnimationStyle(R.style.PopupAnimation);
     }
 
-    public void setAnchor(View anchor) {
-        mAnchor = anchor;
+    public void setAnchor(View aAnchor) {
+        mAnchor = aAnchor;
     }
 
     protected void init() {
@@ -84,16 +77,7 @@ public class ArrowPopup extends PopupWindow {
         // If there's no anchor or the anchor is out of the window bounds,
         // just show the popup at the top of the gecko app view.
         if (mAnchor == null || anchorLocation[1] < 0) {
-            final View view = mActivity.getView();
-
-            // Bug in android code causes the window layout parameters to be ignored
-            // when using showAtLocation() in Gingerbread phones.
-            if (Build.VERSION.SDK_INT < 11) {
-                setWidth(view.getWidth());
-                setHeight(view.getHeight());
-            }
-
-            showAtLocation(view, Gravity.TOP, 0, 0);
+            showAtLocation(mActivity.getView(), Gravity.TOP, 0, 0);
             return;
         }
 
@@ -120,10 +104,6 @@ public class ArrowPopup extends PopupWindow {
             arrowLayoutParams.setMargins(leftMargin, 0, 0, 0);
         }
 
-        if (isShowing()) {
-            update(mAnchor, offset, -mYOffset, -1, -1);
-        } else {
-            showAsDropDown(mAnchor, offset, -mYOffset);
-        }
+        showAsDropDown(mAnchor, offset, -mYOffset);
     }
 }

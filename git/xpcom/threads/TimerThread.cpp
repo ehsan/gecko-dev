@@ -159,22 +159,10 @@ nsresult TimerThread::Shutdown()
   return NS_OK;
 }
 
-#ifdef MOZ_NUWA_PROCESS
-#include "ipc/Nuwa.h"
-#endif
-
 /* void Run(); */
 NS_IMETHODIMP TimerThread::Run()
 {
   PR_SetCurrentThreadName("Timer");
-
-#ifdef MOZ_NUWA_PROCESS
-  if (IsNuwaProcess()) {
-    NS_ASSERTION(NuwaMarkCurrentThread != nullptr,
-                 "NuwaMarkCurrentThread is undefined!");
-    NuwaMarkCurrentThread(nullptr, nullptr);
-  }
-#endif
 
   MonitorAutoLock lock(mMonitor);
 

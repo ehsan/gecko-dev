@@ -11,18 +11,20 @@ XPIDL_SOURCES += [
     'nsIStartupCache.idl',
 ]
 
-XPIDL_MODULE = 'startupcache'
+MODULE = 'startupcache'
 
 EXPORTS.mozilla.scache += [
     'StartupCache.h',
     'StartupCacheUtils.h',
 ]
 
-# These files cannot be built in unified mode because they rely on plarena.h.
-SOURCES += [
+CPP_SOURCES += [
     'StartupCache.cpp',
     'StartupCacheModule.cpp',
     'StartupCacheUtils.cpp',
 ]
 
-FINAL_LIBRARY = 'xul'
+LIBRARY_NAME = 'startupcache'
+
+LIBXUL_LIBRARY = True
+

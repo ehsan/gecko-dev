@@ -730,7 +730,7 @@
 
           this._selector.selectedItem = document.getAnonymousElementByAttribute(this, "pane", aPaneElement.id);
           if (!aPaneElement.loaded) {
-            let OverlayLoadObserver = function(aPane)
+            function OverlayLoadObserver(aPane)
             {
               this._pane = aPane;
             }
@@ -1292,8 +1292,7 @@
     </handlers>
   </binding>
           
-  <binding id="panebutton" role="xul:listitem"
-           extends="chrome://global/content/bindings/radio.xml#radio">
+  <binding id="panebutton" extends="chrome://global/content/bindings/radio.xml#radio">
     <resources>
       <stylesheet src="chrome://global/skin/preferences.css"/>
     </resources>
@@ -1301,6 +1300,15 @@
       <xul:image class="paneButtonIcon" xbl:inherits="src"/>
       <xul:label class="paneButtonLabel" xbl:inherits="value=label"/>
     </content>
+    <implementation implements="nsIAccessible">
+      <property name="accessibleType" readonly="true">
+        <getter>
+          <![CDATA[
+            return Components.interfaces.nsIAccessibleProvider.XULListitem;
+          ]]>
+        </getter>
+      </property>
+    </implementation>
   </binding>
 
 </bindings>

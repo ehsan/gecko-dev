@@ -369,13 +369,6 @@ WebContentConverterRegistrar.prototype = {
   function WCCR_registerProtocolHandler(aProtocol, aURIString, aTitle, aContentWindow) {
     LOG("registerProtocolHandler(" + aProtocol + "," + aURIString + "," + aTitle + ")");
 
-    var uri = this._checkAndGetURI(aURIString, aContentWindow);
-
-    // If the protocol handler is already registered, just return early.
-    if (this._protocolHandlerRegistered(aProtocol, uri.spec)) {
-      return;
-    }
-
     var browserWindow = this._getBrowserWindowForContentWindow(aContentWindow);    
     if (PrivateBrowsingUtils.isWindowPrivate(browserWindow)) {
       // Inside the private browsing mode, we don't want to alert the user to save
@@ -413,18 +406,25 @@ WebContentConverterRegistrar.prototype = {
       throw("Not allowed to register a protocol handler for " + aProtocol);
     }
 
-    // Now Ask the user and provide the proper callback
-    var message = this._getFormattedString("addProtocolHandler",
-                                           [aTitle, uri.host, aProtocol]);
+    var uri = this._checkAndGetURI(aURIString, aContentWindow);
 
-    var notificationIcon = uri.prePath + "/favicon.ico";
-    var notificationValue = "Protocol Registration: " + aProtocol;
-    var addButton = {
-      label: this._getString("addProtocolHandlerAddButton"),
-      accessKey: this._getString("addHandlerAddButtonAccesskey"),
-      protocolInfo: { protocol: aProtocol, uri: uri.spec, name: aTitle },
+    var buttons, message;
+    if (this._protocolHandlerRegistered(aProtocol, uri.spec))
+      message = this._getFormattedString("protocolHandlerRegistered",
+                                         [aTitle, aProtocol]);
+    else {
+      // Now Ask the user and provide the proper callback
+      message = this._getFormattedString("addProtocolHandler",
+                                         [aTitle, uri.host, aProtocol]);
 
-      callback:
+      var notificationIcon = uri.prePath + "/favicon.ico";
+      var notificationValue = "Protocol Registration: " + aProtocol;
+      var addButton = {
+        label: this._getString("addProtocolHandlerAddButton"),
+        accessKey: this._getString("addHandlerAddButtonAccesskey"),
+        protocolInfo: { protocol: aProtocol, uri: uri.spec, name: aTitle },
+
+        callback:
         function WCCR_addProtocolHandlerButtonCallback(aNotification, aButtonInfo) {
           var protocol = aButtonInfo.protocolInfo.protocol;
           var uri      = aButtonInfo.protocolInfo.uri;
@@ -450,14 +450,18 @@ WebContentConverterRegistrar.prototype = {
                    getService(Ci.nsIHandlerService);
           hs.store(handlerInfo);
         }
-    };
+      };
+      buttons = [addButton];
+    }
+
+
     var browserElement = this._getBrowserForContentWindow(browserWindow, aContentWindow);
     var notificationBox = browserWindow.getBrowser().getNotificationBox(browserElement);
     notificationBox.appendNotification(message,
                                        notificationValue,
                                        notificationIcon,
                                        notificationBox.PRIORITY_INFO_LOW,
-                                       [addButton]);
+                                       buttons);
   },
 
   /**

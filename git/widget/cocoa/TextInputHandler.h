@@ -17,9 +17,10 @@
 #include "nsITimer.h"
 #include "npapi.h"
 #include "nsTArray.h"
-#include "mozilla/EventForwards.h"
+#include "nsEvent.h"
 
 class nsChildView;
+struct nsTextRange;
 
 namespace mozilla {
 namespace widget {
@@ -36,8 +37,6 @@ enum
   kVK_PC_Insert          = kVK_Help,
   kVK_PC_Backspace       = kVK_Delete,
   kVK_PC_Delete          = kVK_ForwardDelete,
-
-  kVK_PC_ContextMenu     = 0x6E,
 
   kVK_Powerbook_KeypadEnter = 0x34  // Enter on Powerbook's keyboard is different
 };
@@ -94,12 +93,6 @@ public:
    *                                3: Swedish-Pro
    *                                4: Dvorak-Qwerty Cmd
    *                                5: Thai
-   *                                6: Arabic
-   *                                7: French
-   *                                8: Hebrew
-   *                                9: Lithuanian
-   *                               10: Norwegian
-   *                               11: Spanish
    * @param aOverrideKeyboard     When testing set to TRUE, otherwise, set to
    *                              FALSE.  When TRUE, we use an ANSI keyboard
    *                              instead of the actual keyboard.
@@ -222,7 +215,7 @@ public:
    *                              compute the character to be input from
    *                              characters of aNativeKeyEvent.
    */
-  void InitKeyEvent(NSEvent *aNativeKeyEvent, WidgetKeyboardEvent& aKeyEvent,
+  void InitKeyEvent(NSEvent *aNativeKeyEvent, nsKeyEvent& aKeyEvent,
                     const nsAString *aInsertString = nullptr);
 
   /**
@@ -293,7 +286,7 @@ protected:
    */
   void InitKeyPressEvent(NSEvent *aNativeKeyEvent,
                          PRUnichar aInsertChar,
-                         WidgetKeyboardEvent& aKeyEvent,
+                         nsKeyEvent& aKeyEvent,
                          UInt32 aKbType);
 
   bool GetBoolProperty(const CFStringRef aKey);
@@ -345,7 +338,7 @@ public:
    * @return                      TRUE if the event is consumed by web contents
    *                              or chrome contents.  Otherwise, FALSE.
    */
-  bool DispatchEvent(WidgetGUIEvent& aEvent);
+  bool DispatchEvent(nsGUIEvent& aEvent);
 
   /**
    * SetSelection() dispatches NS_SELECTION_SET event for the aRange.
@@ -371,7 +364,7 @@ public:
    *                              compute the character to be input from
    *                              characters of aNativeKeyEvent.
    */
-  void InitKeyEvent(NSEvent *aNativeKeyEvent, WidgetKeyboardEvent& aKeyEvent,
+  void InitKeyEvent(NSEvent *aNativeKeyEvent, nsKeyEvent& aKeyEvent,
                     const nsAString *aInsertString = nullptr);
 
   /**
@@ -392,7 +385,7 @@ public:
    * |mNativeKeyEvent| field of the Gecko event that is passed in.
    * @param aKeyEvent  Gecko key event to attach the native event to
    */
-  NS_IMETHOD AttachNativeKeyEvent(WidgetKeyboardEvent& aKeyEvent);
+  NS_IMETHOD AttachNativeKeyEvent(nsKeyEvent& aKeyEvent);
 
   /**
    * GetWindowLevel() returns the window level of current focused (in Gecko)
@@ -644,7 +637,7 @@ protected:
    * @return                      TRUE if the key event causes text input.
    *                              Otherwise, FALSE.
    */
-  static bool IsNormalCharInputtingEvent(const WidgetKeyboardEvent& aKeyEvent);
+  static bool IsNormalCharInputtingEvent(const nsKeyEvent& aKeyEvent);
 
   /**
    * IsModifierKey() checks whether the native keyCode is for a modifier key.
@@ -1019,7 +1012,7 @@ private:
   // This flag is enabled by OnFocusChangeInGecko, and will be cleared by
   // ExecutePendingMethods.  When this is true, IsFocus() returns TRUE.  At
   // that time, the focus processing in Gecko might not be finished yet.  So,
-  // you cannot use WidgetQueryContentEvent or something.
+  // you cannot use nsQueryContentEvent or something.
   bool mIsInFocusProcessing;
   bool mIMEHasFocus;
 
@@ -1073,13 +1066,13 @@ private:
    *                              be set to the NSUnderlineStyleAttributeName
    *                              ranges in aAttrString.  Note that if you pass
    *                              in a large enough auto-range instance for most
-   *                              cases (e.g., nsAutoTArray<TextRange, 4>),
+   *                              cases (e.g., nsAutoTArray<nsTextRange, 4>),
    *                              it prevents memory fragmentation.
    * @param aAttrString           An NSAttributedString instance which indicates
    *                              current composition string.
    * @param aSelectedRange        Current selected range (or caret position).
    */
-  void SetTextRangeList(nsTArray<TextRange>& aTextRangeList,
+  void SetTextRangeList(nsTArray<nsTextRange>& aTextRangeList,
                         NSAttributedString *aAttrString,
                         NSRange& aSelectedRange);
 
@@ -1089,7 +1082,7 @@ private:
    * @param aCompositionEvent     A composition event which you want to
    *                              initialize.
    */
-  void InitCompositionEvent(WidgetCompositionEvent& aCompositionEvent);
+  void InitCompositionEvent(nsCompositionEvent& aCompositionEvent);
 
   /**
    * When a composition starts, OnStartIMEComposition() is called.
@@ -1218,14 +1211,14 @@ protected:
    * GetModifierKeyForNativeKeyCode() returns the stored ModifierKey for
    * the key.
    */
-  const ModifierKey*
+  ModifierKey*
     GetModifierKeyForNativeKeyCode(unsigned short aKeyCode) const;
 
   /**
    * GetModifierKeyForDeviceDependentFlags() returns the stored ModifierKey for
    * the device dependent flags.
    */
-  const ModifierKey*
+  ModifierKey*
     GetModifierKeyForDeviceDependentFlags(NSUInteger aFlags) const;
 
   /**

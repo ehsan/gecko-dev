@@ -11,7 +11,6 @@
 #include "plarena.h"
 #include "nsClassHashtable.h"
 #include "nsICategoryManager.h"
-#include "nsIMemoryReporter.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/Attributes.h"
@@ -36,7 +35,7 @@ class CategoryLeaf : public nsDepCharHashKey
 public:
   CategoryLeaf(const char* aKey)
     : nsDepCharHashKey(aKey),
-      value(nullptr) { }
+      value(NULL) { }
   const char* value;
 };
 
@@ -98,8 +97,7 @@ private:
  * This implementation is thread-safe.
  */
 class nsCategoryManager MOZ_FINAL
-  : public mozilla::MemoryUniReporter
-  , public nsICategoryManager
+  : public nsICategoryManager
 {
 public:
   NS_DECL_ISUPPORTS
@@ -116,7 +114,7 @@ public:
                         const char* aKey,
                         const char* aValue,
                         bool aReplace = true,
-                        char** aOldValue = nullptr);
+                        char** aOldValue = NULL);
 
   static nsresult Create(nsISupports* aOuter, REFNSIID aIID, void** aResult);
   void InitMemoryReporter();
@@ -124,15 +122,14 @@ public:
   static nsCategoryManager* GetSingleton();
   static void Destroy();
 
-  int64_t Amount() MOZ_OVERRIDE;
+  static int64_t GetCategoryManagerSize();
+  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
 
 private:
   static nsCategoryManager* gCategoryManager;
 
   nsCategoryManager();
   ~nsCategoryManager();
-
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
 
   CategoryNode* get_category(const char* aName);
   void NotifyObservers(const char* aTopic,
@@ -143,6 +140,8 @@ private:
   nsClassHashtable<nsDepCharHashKey, CategoryNode> mTable;
   mozilla::Mutex mLock;
   bool mSuppressNotifications;
+
+  nsIMemoryReporter* mReporter;
 };
 
 #endif

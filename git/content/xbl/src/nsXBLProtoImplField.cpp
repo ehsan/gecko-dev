@@ -116,7 +116,7 @@ ValueHasISupportsPrivate(JS::Handle<JS::Value> v)
     return domClass->mDOMObjectIsISupports;
   }
 
-  const JSClass* clasp = ::JS_GetClass(&v.toObject());
+  JSClass* clasp = ::JS_GetClass(&v.toObject());
   const uint32_t HAS_PRIVATE_NSISUPPORTS =
     JSCLASS_HAS_PRIVATE | JSCLASS_PRIVATE_IS_NSISUPPORTS;
   return (clasp->flags & HAS_PRIVATE_NSISUPPORTS) == HAS_PRIVATE_NSISUPPORTS;
@@ -327,7 +327,7 @@ nsXBLProtoImplField::InstallAccessors(JSContext* aCx,
   // Get the field name as an id.
   JS::Rooted<jsid> id(aCx);
   JS::TwoByteChars chars(mName, NS_strlen(mName));
-  if (!JS_CharsToId(aCx, chars, &id))
+  if (!JS_CharsToId(aCx, chars, id.address()))
     return NS_ERROR_OUT_OF_MEMORY;
 
   // Properties/Methods have historically taken precendence over fields. We
@@ -345,7 +345,7 @@ nsXBLProtoImplField::InstallAccessors(JSContext* aCx,
   // First, enter the XBL scope, and compile the functions there.
   JSAutoCompartment ac(aCx, scopeObject);
   JS::Rooted<JS::Value> wrappedClassObj(aCx, JS::ObjectValue(*aTargetClassObject));
-  if (!JS_WrapValue(aCx, &wrappedClassObj) || !JS_WrapId(aCx, id.address()))
+  if (!JS_WrapValue(aCx, wrappedClassObj.address()) || !JS_WrapId(aCx, id.address()))
     return NS_ERROR_OUT_OF_MEMORY;
 
   JS::Rooted<JSObject*> get(aCx,
@@ -371,7 +371,7 @@ nsXBLProtoImplField::InstallAccessors(JSContext* aCx,
   // Now, re-enter the class object's scope, wrap the getters/setters, and define
   // them there.
   JSAutoCompartment ac2(aCx, aTargetClassObject);
-  if (!JS_WrapObject(aCx, &get) || !JS_WrapObject(aCx, &set) ||
+  if (!JS_WrapObject(aCx, get.address()) || !JS_WrapObject(aCx, set.address()) ||
       !JS_WrapId(aCx, id.address()))
   {
     return NS_ERROR_OUT_OF_MEMORY;
@@ -424,7 +424,7 @@ nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
   JSAutoCompartment ac(cx, scopeObject);
 
   JS::Rooted<JSObject*> wrappedNode(cx, aBoundNode);
-  if (!JS_WrapObject(cx, &wrappedNode))
+  if (!JS_WrapObject(cx, wrappedNode.address()))
       return NS_ERROR_OUT_OF_MEMORY;
 
   JS::Rooted<JS::Value> result(cx);
@@ -445,9 +445,9 @@ nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
   // the bound node.
   JSAutoCompartment ac2(cx, aBoundNode);
   nsDependentString name(mName);
-  if (!JS_WrapValue(cx, &result) ||
+  if (!JS_WrapValue(cx, result.address()) ||
       !::JS_DefineUCProperty(cx, aBoundNode,
-                             reinterpret_cast<const jschar*>(mName),
+                             reinterpret_cast<const jschar*>(mName), 
                              name.Length(), result, nullptr, nullptr,
                              mJSAttributes)) {
     return NS_ERROR_OUT_OF_MEMORY;
@@ -494,5 +494,5 @@ nsXBLProtoImplField::Write(nsIObjectOutputStream* aStream)
   rv = aStream->Write32(mLineNumber);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return aStream->WriteWStringZ(mFieldText ? mFieldText : MOZ_UTF16(""));
+  return aStream->WriteWStringZ(mFieldText ? mFieldText : EmptyString().get());
 }

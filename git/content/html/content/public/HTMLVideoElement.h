@@ -10,11 +10,11 @@
 #include "mozilla/Attributes.h"
 #include "nsIDOMHTMLVideoElement.h"
 #include "mozilla/dom/HTMLMediaElement.h"
+#include "mozilla/dom/VideoPlaybackQuality.h"
+#include "nsPerformance.h"
 
 namespace mozilla {
 namespace dom {
-
-class VideoPlaybackQuality;
 
 class HTMLVideoElement MOZ_FINAL : public HTMLMediaElement,
                                    public nsIDOMHTMLVideoElement
@@ -116,10 +116,6 @@ protected:
   void WakeLockUpdate();
 
   nsCOMPtr<nsIDOMMozWakeLock> mScreenWakeLock;
-
-private:
-  static void MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
-                                    nsRuleData* aData);
 };
 
 } // namespace dom

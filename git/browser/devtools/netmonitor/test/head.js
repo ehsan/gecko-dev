@@ -5,8 +5,7 @@
 const { classes: Cc, interfaces: Ci, utils: Cu, results: Cr } = Components;
 
 let { Services } = Cu.import("resource://gre/modules/Services.jsm", {});
-let { Task } = Cu.import("resource://gre/modules/Task.jsm", {});
-let { Promise: promise } = Cu.import("resource://gre/modules/Promise.jsm", {});
+let { Promise: promise } = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js", {});
 let { gDevTools } = Cu.import("resource:///modules/devtools/gDevTools.jsm", {});
 let { devtools } = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
 let TargetFactory = devtools.TargetFactory;
@@ -24,7 +23,6 @@ const POST_RAW_URL = EXAMPLE_URL + "html_post-raw-test-page.html";
 const JSONP_URL = EXAMPLE_URL + "html_jsonp-test-page.html";
 const JSON_LONG_URL = EXAMPLE_URL + "html_json-long-test-page.html";
 const JSON_MALFORMED_URL = EXAMPLE_URL + "html_json-malformed-test-page.html";
-const JSON_CUSTOM_MIME_URL = EXAMPLE_URL + "html_json-custom-mime-test-page.html";
 const SORTING_URL = EXAMPLE_URL + "html_sorting-test-page.html";
 const FILTERING_URL = EXAMPLE_URL + "html_filter-test-page.html";
 const INFINITE_GET_URL = EXAMPLE_URL + "html_infinite-get-page.html";
@@ -195,7 +193,7 @@ function verifyRequestItemTarget(aRequestItem, aMethod, aUrl, aData = {}) {
 
   let requestsMenu = aRequestItem.ownerView;
   let widgetIndex = requestsMenu.indexOfItem(aRequestItem);
-  let visibleIndex = requestsMenu.visibleItems.indexOf(aRequestItem);
+  let visibleIndex = requestsMenu.orderedVisibleItems.indexOf(aRequestItem);
 
   info("Widget index of item: " + widgetIndex);
   info("Visible index of item: " + visibleIndex);
@@ -282,21 +280,4 @@ function verifyRequestItemTarget(aRequestItem, aMethod, aUrl, aData = {}) {
         "Unexpected 'odd' attribute for " + aRequestItem.value);
     }
   }
-}
-
-/**
- * Helper function for waiting for an event to fire before resolving a promise.
- * Example: waitFor(aMonitor.panelWin, aMonitor.panelWin.EVENTS.TAB_UPDATED);
- *
- * @param object subject
- *        The event emitter object that is being listened to.
- * @param string eventName
- *        The name of the event to listen to.
- * @return object
- *        Returns a promise that resolves upon firing of the event.
- */
-function waitFor (subject, eventName) {
-  let deferred = promise.defer();
-  subject.once(eventName, deferred.resolve);
-  return deferred.promise;
 }

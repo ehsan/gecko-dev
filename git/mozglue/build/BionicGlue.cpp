@@ -9,7 +9,6 @@
 #include <time.h>
 #include <unistd.h>
 #include <android/log.h>
-#include <sys/syscall.h>
 
 #include "mozilla/Alignment.h"
 
@@ -103,7 +102,7 @@ extern "C" NS_EXPORT pid_t
 WRAP(fork)(void)
 {
   pid_t pid;
-  for (auto it = atfork.rbegin();
+  for (std::vector<AtForkFuncs>::reverse_iterator it = atfork.rbegin();
        it < atfork.rend(); ++it)
     if (it->prepare)
       it->prepare();
@@ -111,13 +110,13 @@ WRAP(fork)(void)
   switch ((pid = __fork())) {
   case 0:
     cpuacct_add(getuid());
-    for (auto it = atfork.begin();
+    for (std::vector<AtForkFuncs>::iterator it = atfork.begin();
          it < atfork.end(); ++it)
       if (it->child)
         it->child();
     break;
   default:
-    for (auto it = atfork.begin();
+    for (std::vector<AtForkFuncs>::iterator it = atfork.begin();
          it < atfork.end(); ++it)
       if (it->parent)
         it->parent();
@@ -129,16 +128,7 @@ WRAP(fork)(void)
 extern "C" NS_EXPORT int
 WRAP(raise)(int sig)
 {
-  // Bug 741272: Bionic incorrectly uses kill(), which signals the
-  // process, and thus could signal another thread (and let this one
-  // return "successfully" from raising a fatal signal).
-  //
-  // Bug 943170: POSIX specifies pthread_kill(pthread_self(), sig) as
-  // equivalent to raise(sig), but Bionic also has a bug with these
-  // functions, where a forked child will kill its parent instead.
-
-  extern pid_t gettid(void);
-  return syscall(__NR_tgkill, getpid(), gettid(), sig);
+  return pthread_kill(pthread_self(), sig);
 }
 
 /*

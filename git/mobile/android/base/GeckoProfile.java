@@ -7,6 +7,7 @@ package org.mozilla.gecko;
 
 import org.mozilla.gecko.util.INIParser;
 import org.mozilla.gecko.util.INISection;
+import org.mozilla.gecko.util.ThreadUtils;
 
 import android.content.Context;
 import android.text.TextUtils;
@@ -30,9 +31,10 @@ public final class GeckoProfile {
     private static HashMap<String, GeckoProfile> sProfileCache = new HashMap<String, GeckoProfile>();
     private static String sDefaultProfileName = null;
 
+    private final Context mContext;
     private final String mName;
-    private File mProfileDir;
-    public static boolean sIsUsingCustomProfile = false;
+    private File mMozDir;
+    private File mDir;
 
     // Constants to cache whether or not a profile is "locked".
     private enum LockState {
@@ -50,36 +52,27 @@ public final class GeckoProfile {
     private boolean mInGuestMode = false;
     private static GeckoProfile mGuestProfile = null;
 
-    private static final String MOZILLA_DIR_NAME = "mozilla";
-    private static File sMozillaDir;
-
-    private static INIParser getProfilesINI(File mozillaDir) {
-        File profilesIni = new File(mozillaDir, "profiles.ini");
-        return new INIParser(profilesIni);
+    static private INIParser getProfilesINI(Context context) {
+      File filesDir = context.getFilesDir();
+      File mozillaDir = new File(filesDir, "mozilla");
+      File profilesIni = new File(mozillaDir, "profiles.ini");
+      return new INIParser(profilesIni);
     }
 
     public static GeckoProfile get(Context context) {
-        boolean isGeckoApp = false;
-        try {
-            isGeckoApp = context instanceof GeckoApp;
-        } catch (NoClassDefFoundError ex) {}
-        
-
-        if (isGeckoApp) {
+        if (context instanceof GeckoApp) {
             // Check for a cached profile on this context already
             // TODO: We should not be caching profile information on the Activity context
             if (((GeckoApp)context).mProfile != null) {
                 return ((GeckoApp)context).mProfile;
             }
-        }
 
-        // If the guest profile exists and is locked, return it
-        GeckoProfile guest = GeckoProfile.getGuestProfile(context);
-        if (guest != null && guest.locked()) {
-            return guest;
-        }
+            GeckoProfile guest = GeckoProfile.getGuestProfile(context);
+            // if the guest profile exists and is locked, return it
+            if (guest != null && guest.locked()) {
+                return guest;
+            }
 
-        if (isGeckoApp) {
             // Otherwise, get the default profile for the Activity
             return get(context, ((GeckoApp)context).getDefaultProfileName());
         }
@@ -120,8 +113,7 @@ public final class GeckoProfile {
         synchronized (sProfileCache) {
             GeckoProfile profile = sProfileCache.get(profileName);
             if (profile == null) {
-                profile = new GeckoProfile(context, profileName);
-                profile.setDir(profileDir);
+                profile = new GeckoProfile(context, profileName, profileDir);
                 sProfileCache.put(profileName, profile);
             } else {
                 profile.setDir(profileDir);
@@ -130,15 +122,17 @@ public final class GeckoProfile {
         }
     }
 
-    private static File getMozillaDirectory(Context context) {
-        return new File(context.getFilesDir(), MOZILLA_DIR_NAME);
-    }
-
-    private synchronized File ensureMozillaDirectory() throws IOException {
-        if (sMozillaDir.exists() || sMozillaDir.mkdirs()) {
-            return sMozillaDir;
+    public static File ensureMozillaDirectory(Context context) throws IOException {
+        synchronized (context) {
+            File filesDir = context.getFilesDir();
+            File mozDir = new File(filesDir, "mozilla");
+            if (! mozDir.exists()) {
+                if (! mozDir.mkdirs()) {
+                    throw new IOException("Unable to create mozilla directory at " + mozDir.getAbsolutePath());
+                }
+            }
+            return mozDir;
         }
-        throw new IOException("Unable to create mozilla directory at " + sMozillaDir.getAbsolutePath());
     }
 
     public static boolean removeProfile(Context context, String profileName) {
@@ -237,21 +231,14 @@ public final class GeckoProfile {
             return mLocked == LockState.LOCKED;
         }
 
-        // Don't use getDir() as it will create a dir if none exists
-        if (mProfileDir != null && mProfileDir.exists()) {
-            File lockFile = new File(mProfileDir, LOCK_FILE_NAME);
-            boolean res = lockFile.exists();
-            mLocked = res ? LockState.LOCKED : LockState.UNLOCKED;
-        } else {
-            mLocked = LockState.UNLOCKED;
-        }
-
-        return mLocked == LockState.LOCKED;
+        File lockFile = new File(getDir(), LOCK_FILE_NAME);
+        boolean res = lockFile.exists();
+        mLocked = res ? LockState.LOCKED : LockState.UNLOCKED;
+        return res;
     }
 
     public boolean lock() {
         try {
-            // If this dir doesn't exist getDir will create it for us
             File lockFile = new File(getDir(), LOCK_FILE_NAME);
             boolean result = lockFile.createNewFile();
             if (result) {
@@ -268,13 +255,8 @@ public final class GeckoProfile {
     }
 
     public boolean unlock() {
-        // Don't use getDir() as it will create a dir
-        if (mProfileDir == null || !mProfileDir.exists()) {
-            return true;
-        }
-
         try {
-            File lockFile = new File(mProfileDir, LOCK_FILE_NAME);
+            File lockFile = new File(getDir(), LOCK_FILE_NAME);
             boolean result = delete(lockFile);
             if (result) {
                 mLocked = LockState.UNLOCKED;
@@ -290,10 +272,14 @@ public final class GeckoProfile {
     }
 
     private GeckoProfile(Context context, String profileName) {
+        mContext = context;
         mName = profileName;
-        if (sMozillaDir == null) {
-            sMozillaDir = getMozillaDirectory(context);
-        }
+    }
+
+    private GeckoProfile(Context context, String profileName, File profileDir) {
+        mContext = context;
+        mName = profileName;
+        setDir(profileDir);
     }
 
     public boolean inGuestMode() {
@@ -302,7 +288,7 @@ public final class GeckoProfile {
 
     private void setDir(File dir) {
         if (dir != null && dir.exists() && dir.isDirectory()) {
-            mProfileDir = dir;
+            mDir = dir;
         } else {
             Log.w(LOGTAG, "requested profile directory missing: " + dir);
         }
@@ -313,29 +299,24 @@ public final class GeckoProfile {
     }
 
     public synchronized File getDir() {
-        forceCreate();
-        return mProfileDir;
-    }
-
-    public synchronized GeckoProfile forceCreate() {
-        if (mProfileDir != null) {
-            return this;
+        if (mDir != null) {
+            return mDir;
         }
 
         try {
             // Check if a profile with this name already exists.
-            File mozillaDir = ensureMozillaDirectory();
-            mProfileDir = findProfileDir(mozillaDir);
-            if (mProfileDir == null) {
+            File mozillaDir = ensureMozillaDirectory(mContext);
+            mDir = findProfileDir(mozillaDir);
+            if (mDir == null) {
                 // otherwise create it
-                mProfileDir = createProfileDir(mozillaDir);
+                mDir = createProfileDir(mozillaDir);
             } else {
-                Log.d(LOGTAG, "Found profile dir: " + mProfileDir.getAbsolutePath());
+                Log.d(LOGTAG, "Found profile dir: " + mDir.getAbsolutePath());
             }
         } catch (IOException ioe) {
             Log.e(LOGTAG, "Error getting profile dir", ioe);
         }
-        return this;
+        return mDir;
     }
 
     public File getFile(String aFile) {
@@ -344,6 +325,10 @@ public final class GeckoProfile {
             return null;
 
         return new File(f, aFile);
+    }
+
+    public File getFilesDir() {
+        return mContext.getFilesDir();
     }
 
     /**
@@ -420,13 +405,13 @@ public final class GeckoProfile {
             if (dir.exists())
                 delete(dir);
 
-            File mozillaDir = ensureMozillaDirectory();
-            mProfileDir = findProfileDir(mozillaDir);
-            if (mProfileDir == null) {
+            File mozillaDir = ensureMozillaDirectory(mContext);
+            mDir = findProfileDir(mozillaDir);
+            if (mDir == null) {
                 return false;
             }
 
-            INIParser parser = getProfilesINI(mozillaDir);
+            INIParser parser = getProfilesINI(mContext);
 
             Hashtable<String, INISection> sections = parser.getSections();
             for (Enumeration<INISection> e = sections.elements(); e.hasMoreElements();) {
@@ -481,7 +466,7 @@ public final class GeckoProfile {
         }
 
         // Open profiles.ini to find the correct path
-        INIParser parser = getProfilesINI(getMozillaDirectory(context));
+        INIParser parser = getProfilesINI(context);
 
         for (Enumeration<INISection> e = parser.getSections().elements(); e.hasMoreElements();) {
             INISection section = e.nextElement();
@@ -496,7 +481,7 @@ public final class GeckoProfile {
 
     private File findProfileDir(File mozillaDir) {
         // Open profiles.ini to find the correct path
-        INIParser parser = getProfilesINI(mozillaDir);
+        INIParser parser = getProfilesINI(mContext);
 
         for (Enumeration<INISection> e = parser.getSections().elements(); e.hasMoreElements();) {
             INISection section = e.nextElement();
@@ -524,7 +509,7 @@ public final class GeckoProfile {
     }
 
     private File createProfileDir(File mozillaDir) throws IOException {
-        INIParser parser = getProfilesINI(mozillaDir);
+        INIParser parser = getProfilesINI(mContext);
 
         // Salt the name of our requested profile
         String saltedName = saltProfileName(mName);

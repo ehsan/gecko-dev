@@ -165,15 +165,6 @@ public:
   }
 
   /**
-   * Indicates if the animation is active.
-   *
-   * @return  true if the animation is active, false otherwise.
-   */
-  bool IsActive() const {
-    return mIsActive;
-  }
-
-  /**
    * Indicates if this animation will replace the passed in result rather than
    * adding to it. Animations that replace the underlying value may be called
    * without first calling lower priority animations.
@@ -260,7 +251,7 @@ public:
 
 protected:
   // Typedefs
-  typedef FallibleTArray<nsSMILValue> nsSMILValueArray;
+  typedef nsTArray<nsSMILValue> nsSMILValueArray;
 
   // Types
   enum nsSMILCalcMode
@@ -407,8 +398,8 @@ protected:
   static nsAttrValue::EnumTable sCalcModeTable[];
   static nsAttrValue::EnumTable sAccumulateTable[];
 
-  FallibleTArray<double>          mKeyTimes;
-  FallibleTArray<nsSMILKeySpline> mKeySplines;
+  nsTArray<double>              mKeyTimes;
+  nsTArray<nsSMILKeySpline>     mKeySplines;
 
   // These are the parameters provided by the previous sample. Currently we
   // perform lazy calculation. That is, we only calculate the result if and when

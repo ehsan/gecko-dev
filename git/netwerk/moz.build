@@ -12,7 +12,6 @@ PARALLEL_DIRS += [
     'mime',
     'streamconv',
     'cache',
-    'cache2',
     'protocol',
     'system',
     'ipc',
@@ -29,7 +28,15 @@ if CONFIG['NECKO_WIFI']:
 
 PARALLEL_DIRS += ['locales']
 
+if CONFIG['MOZ_DASH']:
+    PARALLEL_DIRS += ['dash']
+
 DIRS += ['build']
 TEST_TOOL_DIRS += ['test']
 
-CONFIGURE_DEFINE_FILES += ['necko-config.h']
+MODULE = 'necko'
+
+EXPORTS += [
+    'necko-config.h',
+]
+

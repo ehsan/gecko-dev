@@ -19,9 +19,7 @@
 #include "nsAuthInformationHolder.h"
 #include "nsIStringBundle.h"
 #include "nsIPrompt.h"
-#include "netCore.h"
-#include "nsIHttpAuthenticableChannel.h"
-#include "nsIURI.h"
+#include "nsNetUtil.h"
 
 static void
 GetAppIdAndBrowserStatus(nsIChannel* aChan, uint32_t* aAppId, bool* aInBrowserElem)

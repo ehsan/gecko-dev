@@ -1,199 +1,91 @@
-/* Any copyright is dedicated to the Public Domain.
- * http://creativecommons.org/publicdomain/zero/1.0/ */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-"use strict";
+let Scope = {};
+Cu.import("resource://gre/modules/Task.jsm", Scope);
+Cu.import("resource://gre/modules/Promise.jsm", Scope);
+let {Task, Promise} = Scope;
 
-let tmp = {};
-Cu.import("resource://gre/modules/Promise.jsm", tmp);
-let {Promise} = tmp;
+function promiseBrowserLoaded(aBrowser) {
+  let deferred = Promise.defer();
+  whenBrowserLoaded(aBrowser, () => deferred.resolve());
+  return deferred.promise;
+}
 
-const INITIAL_VALUE = "initial-value-" + Date.now();
+function forceWriteState() {
+  let deferred = Promise.defer();
+  const PREF = "browser.sessionstore.interval";
+  const TOPIC = "sessionstore-state-write";
 
-/**
- * This test ensures that setting, modifying and restoring sessionStorage data
- * works as expected.
- */
-add_task(function session_storage() {
-  let tab = yield createTabWithStorageData(["http://example.com", "http://mochi.test:8888"]);
-  let browser = tab.linkedBrowser;
+  Services.obs.addObserver(function observe() {
+    Services.obs.removeObserver(observe, TOPIC);
+    Services.prefs.clearUserPref(PREF);
+    deferred.resolve();
+  }, TOPIC, false);
 
-  // Flush to make sure chrome received all data.
-  SyncHandlers.get(browser).flush();
+  Services.prefs.setIntPref(PREF, 0);
+  return deferred.promise;
+}
 
-  let {storage} = JSON.parse(ss.getTabState(tab));
-  is(storage["http://example.com"].test, INITIAL_VALUE,
-    "sessionStorage data for example.com has been serialized correctly");
-  is(storage["http://mochi.test:8888"].test, INITIAL_VALUE,
-    "sessionStorage data for mochi.test has been serialized correctly");
+function waitForStorageChange(aTab) {
+  let deferred = Promise.defer();
+  waitForContentMessage(aTab.linkedBrowser,
+    "SessionStore:MozStorageChanged",
+    1000,
+    deferred.resolve);
+  return deferred.promise;
+}
 
-  // Ensure that modifying sessionStore values works.
-  yield modifySessionStorage(browser, {test: "modified"});
-  SyncHandlers.get(browser).flush();
+function test() {
 
-  let {storage} = JSON.parse(ss.getTabState(tab));
-  is(storage["http://example.com"].test, INITIAL_VALUE,
-    "sessionStorage data for example.com has been serialized correctly");
-  is(storage["http://mochi.test:8888"].test, "modified",
-    "sessionStorage data for mochi.test has been serialized correctly");
+  waitForExplicitFinish();
 
-  // Test that duplicating a tab works.
-  let tab2 = gBrowser.duplicateTab(tab);
-  let browser2 = tab2.linkedBrowser;
-  yield promiseTabRestored(tab2);
+  let tab;
+  Task.spawn(function() {
+    try {
+      tab = gBrowser.addTab("http://example.com");
+      // about:home supports sessionStorage and localStorage
 
-  // Flush to make sure chrome received all data.
-  SyncHandlers.get(browser2).flush();
+      let win = tab.linkedBrowser.contentWindow;
 
-  let {storage} = JSON.parse(ss.getTabState(tab2));
-  is(storage["http://example.com"].test, INITIAL_VALUE,
-    "sessionStorage data for example.com has been duplicated correctly");
-  is(storage["http://mochi.test:8888"].test, "modified",
-    "sessionStorage data for mochi.test has been duplicated correctly");
+      // Flush loading and next save, call getBrowserState()
+      // a few times to ensure that everything is cached.
+      yield promiseBrowserLoaded(tab.linkedBrowser);
+      yield forceWriteState();
+      info("Calling getBrowserState() to populate cache");
+      ss.getBrowserState();
 
-  // Ensure that the content script retains restored data
-  // (by e.g. duplicateTab) and send it along with new data.
-  yield modifySessionStorage(browser2, {test: "modified2"});
-  SyncHandlers.get(browser2).flush();
+      info("Change sessionStorage, ensure that state is saved");
+      win.sessionStorage["SESSION_STORAGE_KEY"] = "SESSION_STORAGE_VALUE";
+      let storageChanged = yield waitForStorageChange(tab);
+      ok(storageChanged, "Changing sessionStorage triggered the right message");
+      yield forceWriteState();
 
-  let {storage} = JSON.parse(ss.getTabState(tab2));
-  is(storage["http://example.com"].test, INITIAL_VALUE,
-    "sessionStorage data for example.com has been duplicated correctly");
-  is(storage["http://mochi.test:8888"].test, "modified2",
-    "sessionStorage data for mochi.test has been duplicated correctly");
+      let state = ss.getBrowserState();
+      ok(state.indexOf("SESSION_STORAGE_KEY") != -1, "Key appears in state");
+      ok(state.indexOf("SESSION_STORAGE_VALUE") != -1, "Value appears in state");
 
-  // Clean up.
-  gBrowser.removeTab(tab);
-  gBrowser.removeTab(tab2);
-});
 
-/**
- * This test ensures that purging domain data also purges data from the
- * sessionStorage data collected for tabs.
- */
-add_task(function purge_domain() {
-  let tab = yield createTabWithStorageData(["http://example.com", "http://mochi.test:8888"]);
-  let browser = tab.linkedBrowser;
+      info("Change localStorage, ensure that state is not saved");
+      win.localStorage["LOCAL_STORAGE_KEY"] = "LOCAL_STORAGE_VALUE";
+      storageChanged = yield waitForStorageChange(tab);
+      ok(!storageChanged, "Changing localStorage did not trigger a message");
+      yield forceWriteState();
 
-  yield notifyObservers(browser, "browser:purge-domain-data", "mochi.test");
+      state = ss.getBrowserState();
+      ok(state.indexOf("LOCAL_STORAGE_KEY") == -1, "Key does not appear in state");
+      ok(state.indexOf("LOCAL_STORAGE_VALUE") == -1, "Value does not appear in state");
+    } catch (ex) {
+      ok(false, ex);
+      info(ex.stack);
+    } finally {
+      // clean up
+      if (tab) {
+        gBrowser.removeTab(tab);
+      }
 
-  // Flush to make sure chrome received all data.
-  SyncHandlers.get(browser).flush();
-
-  let {storage} = JSON.parse(ss.getTabState(tab));
-  ok(!storage["http://mochi.test:8888"],
-    "sessionStorage data for mochi.test has been purged");
-  is(storage["http://example.com"].test, INITIAL_VALUE,
-    "sessionStorage data for example.com has been preserved");
-
-  gBrowser.removeTab(tab);
-});
-
-/**
- * This test ensures that purging session history data also purges data from
- * sessionStorage data collected for tabs
- */
-add_task(function purge_shistory() {
-  let tab = yield createTabWithStorageData(["http://example.com", "http://mochi.test:8888"]);
-  let browser = tab.linkedBrowser;
-
-  yield notifyObservers(browser, "browser:purge-session-history");
-
-  // Flush to make sure chrome received all data.
-  SyncHandlers.get(browser).flush();
-
-  let {storage} = JSON.parse(ss.getTabState(tab));
-  ok(!storage["http://example.com"],
-    "sessionStorage data for example.com has been purged");
-  is(storage["http://mochi.test:8888"].test, INITIAL_VALUE,
-    "sessionStorage data for mochi.test has been preserved");
-
-  gBrowser.removeTab(tab);
-});
-
-/**
- * This test ensures that collecting sessionStorage data respects the privacy
- * levels as set by the user.
- */
-add_task(function respect_privacy_level() {
-  let tab = yield createTabWithStorageData(["http://example.com", "https://example.com"]);
-  gBrowser.removeTab(tab);
-
-  let [{state: {storage}}] = JSON.parse(ss.getClosedTabData(window));
-  is(storage["http://example.com"].test, INITIAL_VALUE,
-    "http sessionStorage data has been saved");
-  is(storage["https://example.com"].test, INITIAL_VALUE,
-    "https sessionStorage data has been saved");
-
-  // Disable saving data for encrypted sites.
-  Services.prefs.setIntPref("browser.sessionstore.privacy_level", 1);
-
-  let tab = yield createTabWithStorageData(["http://example.com", "https://example.com"]);
-  gBrowser.removeTab(tab);
-
-  let [{state: {storage}}] = JSON.parse(ss.getClosedTabData(window));
-  is(storage["http://example.com"].test, INITIAL_VALUE,
-    "http sessionStorage data has been saved");
-  ok(!storage["https://example.com"],
-    "https sessionStorage data has *not* been saved");
-
-  // Disable saving data for any site.
-  Services.prefs.setIntPref("browser.sessionstore.privacy_level", 2);
-
-  // Check that duplicating a tab copies all private data.
-  let tab = yield createTabWithStorageData(["http://example.com", "https://example.com"]);
-  let tab2 = gBrowser.duplicateTab(tab);
-  yield promiseBrowserLoaded(tab2.linkedBrowser);
-  gBrowser.removeTab(tab);
-
-  // With privacy_level=2 the |tab| shouldn't have any sessionStorage data.
-  let [{state: {storage}}] = JSON.parse(ss.getClosedTabData(window));
-  ok(!storage["http://example.com"],
-    "http sessionStorage data has *not* been saved");
-  ok(!storage["https://example.com"],
-    "https sessionStorage data has *not* been saved");
-
-  // Restore the default privacy level and close the duplicated tab.
-  Services.prefs.clearUserPref("browser.sessionstore.privacy_level");
-  gBrowser.removeTab(tab2);
-
-  // With privacy_level=0 the duplicated |tab2| should persist all data.
-  let [{state: {storage}}] = JSON.parse(ss.getClosedTabData(window));
-  is(storage["http://example.com"].test, INITIAL_VALUE,
-    "http sessionStorage data has been saved");
-  is(storage["https://example.com"].test, INITIAL_VALUE,
-    "https sessionStorage data has been saved");
-});
-
-function createTabWithStorageData(urls) {
-  return Task.spawn(function task() {
-    let tab = gBrowser.addTab();
-    let browser = tab.linkedBrowser;
-
-    for (let url of urls) {
-      browser.loadURI(url);
-      yield promiseBrowserLoaded(browser);
-      yield modifySessionStorage(browser, {test: INITIAL_VALUE});
+      executeSoon(finish);
     }
-
-    throw new Task.Result(tab);
   });
-}
-
-function waitForStorageEvent(browser) {
-  return promiseContentMessage(browser, "ss-test:MozStorageChanged");
-}
-
-function waitForUpdateMessage(browser) {
-  return promiseContentMessage(browser, "SessionStore:update");
-}
-
-function modifySessionStorage(browser, data) {
-  browser.messageManager.sendAsyncMessage("ss-test:modifySessionStorage", data);
-  return waitForStorageEvent(browser);
-}
-
-function notifyObservers(browser, topic, data) {
-  let msg = {topic: topic, data: data};
-  browser.messageManager.sendAsyncMessage("ss-test:notifyObservers", msg);
-  return waitForUpdateMessage(browser);
 }

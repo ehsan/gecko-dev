@@ -51,9 +51,8 @@
 #include "nsIDOMCryptoDialogs.h"
 #include "nsIFormSigningDialog.h"
 #include "nsIContentSecurityPolicy.h"
-#include "nsIURI.h"
 #include "jsapi.h"
-#include "js/OldDebugAPI.h"
+#include "jsdbgapi.h"
 #include <ctype.h>
 #include "pk11func.h"
 #include "keyhi.h"
@@ -107,6 +106,12 @@ using namespace mozilla::dom;
 #define JS_ERR_BAD_MECHANISM_FLAGS        -8
 #define JS_ERR_BAD_CIPHER_ENABLE_FLAGS    -9
 #define JS_ERR_ADD_DUPLICATE_MOD          -10
+
+namespace {
+  
+NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
+
+} // unnamed namespace
 
 #ifndef MOZ_DISABLE_CRYPTOLEGACY
 
@@ -264,8 +269,6 @@ nsCrypto::Init(nsIDOMWindow* aWindow)
 void
 nsCrypto::SetEnableSmartCardEvents(bool aEnable, ErrorResult& aRv)
 {
-  NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
-
   nsresult rv = NS_OK;
 
   // this has the side effect of starting the nssComponent (and initializing
@@ -549,14 +552,11 @@ nsConvertToActualKeyGenParams(uint32_t keyGenMech, char *params,
               next_input, name, name_len, value, value_len,
               next_input))
       {
-        // use only the first specified curve
-        if (!curve && PL_strncmp(name, "curve", std::min(name_len, 5)) == 0)
+        if (PL_strncmp(name, "curve", std::min(name_len, 5)) == 0)
         {
           curve = PL_strndup(value, value_len);
         }
-        // use only the first specified popcert
-        else if (!keyPairInfo->ecPopCert &&
-                 PL_strncmp(name, "popcert", std::min(name_len, 7)) == 0)
+        else if (PL_strncmp(name, "popcert", std::min(name_len, 7)) == 0)
         {
           char *certstr = PL_strndup(value, value_len);
           if (certstr) {
@@ -573,7 +573,7 @@ nsConvertToActualKeyGenParams(uint32_t keyGenMech, char *params,
     }
 
     // first try to use the params of the provided CA cert
-    if (keyPairInfo->ecPopPubKey && keyPairInfo->ecPopPubKey->keyType == ecKey)
+    if (keyPairInfo->ecPopPubKey)
     {
       returnParams = SECITEM_DupItem(&keyPairInfo->ecPopPubKey->u.ec.DEREncodedParams);
     }
@@ -843,9 +843,7 @@ cryptojs_generateOneKeyPair(JSContext *cx, nsKeyPairInfo *keyPairInfo,
             mustMoveKey = true;
           }
         
-          if (used_slot) {
-            PK11_FreeSlot(used_slot);
-          }
+          PK11_FreeSlot(used_slot);
         }
       }
     }
@@ -953,8 +951,7 @@ cryptojs_ReadArgsAndGenerateKey(JSContext *cx,
   }
   keySize = JSVAL_TO_INT(argv[0]);
   if (!JSVAL_IS_NULL(argv[1])) {
-    JS::Rooted<JS::Value> v(cx, argv[1]);
-    jsString = JS::ToString(cx, v);
+    jsString = JS_ValueToString(cx,argv[1]);
     NS_ENSURE_TRUE(jsString, NS_ERROR_OUT_OF_MEMORY);
     argv[1] = STRING_TO_JSVAL(jsString);
     params.encodeLatin1(cx, jsString);
@@ -966,8 +963,7 @@ cryptojs_ReadArgsAndGenerateKey(JSContext *cx,
              "key generation type not specified");
     return NS_ERROR_FAILURE;
   }
-  JS::Rooted<JS::Value> v(cx, argv[2]);
-  jsString = JS::ToString(cx, v);
+  jsString = JS_ValueToString(cx, argv[2]);
   NS_ENSURE_TRUE(jsString, NS_ERROR_OUT_OF_MEMORY);
   argv[2] = STRING_TO_JSVAL(jsString);
   nsDependentJSString dependentKeyGenAlg;
@@ -1850,7 +1846,7 @@ loser:
 static nsISupports *
 GetISupportsFromContext(JSContext *cx)
 {
-    if (JS::ContextOptionsRef(cx).privateIsNSISupports())
+    if (JS_GetOptions(cx) & JSOPTION_PRIVATE_IS_NSISUPPORTS)
         return static_cast<nsISupports *>(JS_GetContextPrivate(cx));
 
     return nullptr;
@@ -1924,8 +1920,7 @@ nsCrypto::GenerateCRMFRequest(JSContext* aContext,
     csp->LogViolationDetails(nsIContentSecurityPolicy::VIOLATION_TYPE_EVAL,
                              NS_ConvertASCIItoUTF16(fileName),
                              scriptSample,
-                             lineNum,
-                             EmptyString());
+                             lineNum);
   }
 
   if (!evalAllowed) {
@@ -2106,8 +2101,6 @@ nsP12Runnable::~nsP12Runnable()
 NS_IMETHODIMP
 nsP12Runnable::Run()
 {
-  NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
-
   NS_ASSERTION(NS_IsMainThread(), "nsP12Runnable dispatched to the wrong thread");
 
   nsNSSShutDownPreventionLock locker;
@@ -2124,10 +2117,10 @@ nsP12Runnable::Run()
   //Build up the message that let's the user know we're trying to 
   //make PKCS12 backups of the new certs.
   nssComponent->GetPIPNSSBundleString("ForcedBackup1", final);
-  final.Append(MOZ_UTF16("\n\n"));
+  final.Append(NS_LITERAL_STRING("\n\n").get());
   nssComponent->GetPIPNSSBundleString("ForcedBackup2", temp);
   final.Append(temp.get());
-  final.Append(MOZ_UTF16("\n\n"));
+  final.Append(NS_LITERAL_STRING("\n\n").get());
 
   nssComponent->GetPIPNSSBundleString("ForcedBackup3", temp);
 
@@ -2311,8 +2304,8 @@ nsCrypto::ImportUserCertificates(const nsAString& aNickname,
     //certificates.  Let's keep an array of them around which
     //we pass along to the nsP12Runnable to use.
     certArr = new nsIX509Cert*[numResponses];
-    // If this is nullptr, chances are we're gonna fail really
-    // soon, but let's try to keep going just in case.
+    // If this is NULL, chances are we're gonna fail really soon,
+    // but let's try to keep going just in case.
     if (!certArr)
       aDoForcedBackup = false;
 
@@ -2355,7 +2348,7 @@ nsCrypto::ImportUserCertificates(const nsAString& aNickname,
       localNick = currCert->nickname;
     }
     else if (!nickname || nickname[0] == '\0') {
-      nsNSSCertificateDB::get_default_nickname(currCert, ctx, localNick, locker);
+      nsNSSCertificateDB::get_default_nickname(currCert, ctx, localNick);
     } else {
       //This is the case where we're getting a brand new
       //cert that doesn't have the same subjectName as a cert
@@ -2411,7 +2404,7 @@ nsCrypto::ImportUserCertificates(const nsAString& aNickname,
            node = CERT_LIST_NEXT(node), i++) {
         derCerts[i] = node->cert->derCert;
       }
-      nsNSSCertificateDB::ImportValidCACerts(numCAs, derCerts, ctx, locker);
+      nsNSSCertificateDB::ImportValidCACerts(numCAs, derCerts, ctx);
       nsMemory::Free(derCerts);
     }
   }
@@ -2826,8 +2819,6 @@ nsCrypto::SignText(JSContext* aContext,
 void
 nsCrypto::Logout(ErrorResult& aRv)
 {
-  NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
-
   nsresult rv;
   nsCOMPtr<nsINSSComponent> nssComponent(do_GetService(kNSSComponentCID, &rv));
   if (NS_FAILED(rv)) {
@@ -2895,8 +2886,6 @@ nsPkcs11::~nsPkcs11()
 NS_IMETHODIMP
 nsPkcs11::DeleteModule(const nsAString& aModuleName)
 {
-  NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
-
   nsNSSShutDownPreventionLock locker;
   nsresult rv;
   nsString errorMessage;
@@ -2934,8 +2923,6 @@ nsPkcs11::AddModule(const nsAString& aModuleName,
                     int32_t aCryptoMechanismFlags, 
                     int32_t aCipherFlags)
 {
-  NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
-
   nsNSSShutDownPreventionLock locker;
   nsresult rv;
   nsCOMPtr<nsINSSComponent> nssComponent(do_GetService(kNSSComponentCID, &rv));

@@ -18,7 +18,6 @@
 
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/Compiler.h"
 #include "mozilla/TypeTraits.h"
 
 #include <stdint.h>
@@ -28,16 +27,34 @@
  * does not have <atomic>.  So be sure to check for <atomic> support
  * along with C++0x support.
  */
-#if defined(__clang__) || defined(__GNUC__)
+#if defined(__clang__)
    /*
-    * Clang doesn't like <atomic> from libstdc++ before 4.7 due to the
-    * loose typing of the atomic builtins. GCC 4.5 and 4.6 lacks inline
-    * definitions for unspecialized std::atomic and causes linking errors.
-    * Therefore, we require at least 4.7.0 for using libstdc++.
+    * clang doesn't like libstdc++'s version of <atomic> before GCC 4.7,
+    * due to the loose typing of the __sync_* family of functions done by
+    * GCC.  We do not have a particularly good way to detect this sort of
+    * case at this point, so just assume that if we're on a Linux system,
+    * we can't use the system's <atomic>.
+    *
+    * OpenBSD uses an old libstdc++ 4.2.1 and thus doesnt have <atomic>.
     */
-#  if MOZ_USING_LIBSTDCXX && MOZ_LIBSTDCXX_VERSION_AT_LEAST(4, 7, 0)
+#  if !defined(__linux__) && !defined(__OpenBSD__) && \
+      (__cplusplus >= 201103L || defined(__GXX_EXPERIMENTAL_CXX0X__)) && \
+      __has_include(<atomic>)
 #    define MOZ_HAVE_CXX11_ATOMICS
-#  elif MOZ_USING_LIBCXX
+#  endif
+/*
+ * Android uses a different C++ standard library that does not provide
+ * support for <atomic>.
+ *
+ * GCC 4.5.x and 4.6.x's unspecialized std::atomic template doesn't include
+ * inline definitions for the functions declared therein.  This oversight
+ * leads to linking errors when using atomic enums.  We therefore require
+ * GCC 4.7 or higher.
+ */
+#elif defined(__GNUC__) && !defined(__ANDROID__)
+#  include "mozilla/Compiler.h"
+#  if (defined(__GXX_EXPERIMENTAL_CXX0X__) || __cplusplus >= 201103L) && \
+      MOZ_GCC_VERSION_AT_LEAST(4, 7, 0)
 #    define MOZ_HAVE_CXX11_ATOMICS
 #  endif
 #elif defined(_MSC_VER) && _MSC_VER >= 1700
@@ -703,10 +720,6 @@ struct IntrinsicBase
 template<typename T, MemoryOrdering Order>
 struct IntrinsicMemoryOps : public IntrinsicBase<T>
 {
-    typedef typename IntrinsicBase<T>::ValueType ValueType;
-    typedef typename IntrinsicBase<T>::Primitives Primitives;
-    typedef typename IntrinsicBase<T>::PrimType PrimType;
-    typedef typename IntrinsicBase<T>::Cast Cast;
     static ValueType load(const ValueType& ptr) {
       Barrier<Order>::beforeLoad();
       ValueType val = ptr;
@@ -741,9 +754,6 @@ struct IntrinsicMemoryOps : public IntrinsicBase<T>
 template<typename T>
 struct IntrinsicApplyHelper : public IntrinsicBase<T>
 {
-    typedef typename IntrinsicBase<T>::ValueType ValueType;
-    typedef typename IntrinsicBase<T>::PrimType PrimType;
-    typedef typename IntrinsicBase<T>::Cast Cast;
     typedef PrimType (*BinaryOp)(PrimType*, PrimType);
     typedef PrimType (*UnaryOp)(PrimType*);
 
@@ -763,8 +773,6 @@ struct IntrinsicApplyHelper : public IntrinsicBase<T>
 template<typename T>
 struct IntrinsicAddSub : public IntrinsicApplyHelper<T>
 {
-    typedef typename IntrinsicApplyHelper<T>::ValueType ValueType;
-    typedef typename IntrinsicBase<T>::Primitives Primitives;
     static ValueType add(ValueType& ptr, ValueType val) {
       return applyBinaryFunction(&Primitives::add, ptr, val);
     }
@@ -776,7 +784,6 @@ struct IntrinsicAddSub : public IntrinsicApplyHelper<T>
 template<typename T>
 struct IntrinsicAddSub<T*> : public IntrinsicApplyHelper<T*>
 {
-    typedef typename IntrinsicApplyHelper<T*>::ValueType ValueType;
     static ValueType add(ValueType& ptr, ptrdiff_t amount) {
       return applyBinaryFunction(&Primitives::add, ptr,
                                  (ValueType)(amount * sizeof(ValueType)));
@@ -790,7 +797,6 @@ struct IntrinsicAddSub<T*> : public IntrinsicApplyHelper<T*>
 template<typename T>
 struct IntrinsicIncDec : public IntrinsicAddSub<T>
 {
-    typedef typename IntrinsicAddSub<T>::ValueType ValueType;
     static ValueType inc(ValueType& ptr) { return add(ptr, 1); }
     static ValueType dec(ValueType& ptr) { return sub(ptr, 1); }
 };
@@ -799,7 +805,6 @@ template<typename T, MemoryOrdering Order>
 struct AtomicIntrinsics : public IntrinsicMemoryOps<T, Order>,
                           public IntrinsicIncDec<T>
 {
-    typedef typename IntrinsicIncDec<T>::ValueType ValueType;
     static ValueType or_(ValueType& ptr, T val) {
       return applyBinaryFunction(&Primitives::or_, ptr, val);
     }
@@ -815,7 +820,6 @@ template<typename T, MemoryOrdering Order>
 struct AtomicIntrinsics<T*, Order> : public IntrinsicMemoryOps<T*, Order>,
                                      public IntrinsicIncDec<T*>
 {
-    typedef typename IntrinsicMemoryOps<T*, Order>::ValueType ValueType;
 };
 
 } // namespace detail

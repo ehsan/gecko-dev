@@ -8,21 +8,21 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/video_render/android/video_render_android_impl.h"
+#include "video_render_android_impl.h"
 
-#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
-#include "webrtc/system_wrappers/interface/event_wrapper.h"
-#include "webrtc/system_wrappers/interface/thread_wrapper.h"
-#include "webrtc/system_wrappers/interface/tick_util.h"
+#include "critical_section_wrapper.h"
+#include "event_wrapper.h"
+#include "thread_wrapper.h"
+#include "tick_util.h"
 
 #ifdef ANDROID
-#include <android/log.h>
 #include <stdio.h>
+#include <android/log.h>
 
 #undef WEBRTC_TRACE
 #define WEBRTC_TRACE(a,b,c,...)  __android_log_print(ANDROID_LOG_DEBUG, "*WEBRTCN*", __VA_ARGS__)
 #else
-#include "webrtc/system_wrappers/interface/trace.h"
+#include "trace.h"
 #endif
 
 namespace webrtc {
@@ -46,6 +46,7 @@ VideoRenderAndroid::VideoRenderAndroid(
     _critSect(*CriticalSectionWrapper::CreateCriticalSection()),
     _renderType(videoRenderType),
     _ptrWindow((jobject)(window)),
+    _streamsMap(),
     _javaShutDownFlag(false),
     _javaShutdownEvent(*EventWrapper::Create()),
     _javaRenderEvent(*EventWrapper::Create()),
@@ -61,10 +62,9 @@ VideoRenderAndroid::~VideoRenderAndroid() {
   if (_javaRenderThread)
     StopRender();
 
-  for (AndroidStreamMap::iterator it = _streamsMap.begin();
-       it != _streamsMap.end();
-       ++it) {
-    delete it->second;
+  for (MapItem* item = _streamsMap.First(); item != NULL; item
+           = _streamsMap.Next(item)) { // Delete streams
+    delete static_cast<AndroidStream*> (item->GetItem());
   }
   delete &_javaShutdownEvent;
   delete &_javaRenderEvent;
@@ -91,20 +91,20 @@ VideoRenderAndroid::AddIncomingRenderStream(const uint32_t streamId,
   CriticalSectionScoped cs(&_critSect);
 
   AndroidStream* renderStream = NULL;
-  AndroidStreamMap::iterator item = _streamsMap.find(streamId);
-  if (item != _streamsMap.end() && item->second != NULL) {
-    WEBRTC_TRACE(kTraceInfo,
-                 kTraceVideoRenderer,
-                 -1,
-                 "%s: Render stream already exists",
-                 __FUNCTION__);
-    return renderStream;
+  MapItem* item = _streamsMap.Find(streamId);
+  if (item) {
+    renderStream = (AndroidStream*) (item->GetItem());
+    if (NULL != renderStream) {
+      WEBRTC_TRACE(kTraceInfo, kTraceVideoRenderer, -1,
+                   "%s: Render stream already exists", __FUNCTION__);
+      return renderStream;
+    }
   }
 
   renderStream = CreateAndroidRenderChannel(streamId, zOrder, left, top,
                                             right, bottom, *this);
   if (renderStream) {
-    _streamsMap[streamId] = renderStream;
+    _streamsMap.Insert(streamId, renderStream);
   }
   else {
     WEBRTC_TRACE(kTraceError, kTraceVideoRenderer, _id,
@@ -118,14 +118,16 @@ int32_t VideoRenderAndroid::DeleteIncomingRenderStream(
     const uint32_t streamId) {
   CriticalSectionScoped cs(&_critSect);
 
-  AndroidStreamMap::iterator item = _streamsMap.find(streamId);
-  if (item == _streamsMap.end()) {
+  MapItem* item = _streamsMap.Find(streamId);
+  if (item) {
+    delete (AndroidStream*) item->GetItem();
+    _streamsMap.Erase(streamId);
+  }
+  else {
     WEBRTC_TRACE(kTraceError, kTraceVideoRenderer, _id,
                  "(%s:%d): renderStream is NULL", __FUNCTION__, __LINE__);
     return -1;
   }
-  delete item->second;
-  _streamsMap.erase(item);
   return 0;
 }
 
@@ -232,10 +234,10 @@ bool VideoRenderAndroid::JavaRenderThreadProcess()
     }
   }
 
-  for (AndroidStreamMap::iterator it = _streamsMap.begin();
-       it != _streamsMap.end();
-       ++it) {
-    it->second->DeliverFrame(_javaRenderJniEnv);
+  for (MapItem* item = _streamsMap.First(); item != NULL;
+       item = _streamsMap.Next(item)) {
+    static_cast<AndroidStream*> (item->GetItem())->DeliverFrame(
+        _javaRenderJniEnv);
   }
 
   if (_javaShutDownFlag) {

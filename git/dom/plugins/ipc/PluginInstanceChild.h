@@ -30,14 +30,13 @@
 #include "nsRect.h"
 #include "nsTHashtable.h"
 #include "mozilla/PaintTracker.h"
+#include "gfxASurface.h"
 
 #include <map>
 
 #if (MOZ_WIDGET_GTK == 2)
 #include "gtk2xtbin.h"
 #endif
-
-class gfxASurface;
 
 namespace mozilla {
 
@@ -100,6 +99,11 @@ protected:
     DoAsyncSetWindow(const gfxSurfaceType& aSurfaceType,
                      const NPRemoteWindow& aWindow,
                      bool aIsAsync);
+
+    virtual bool
+    AnswerHandleKeyEvent(const nsKeyEvent& aEvent, bool* handled);
+    virtual bool
+    AnswerHandleTextEvent(const nsTextEvent& aEvent, bool* handled);
 
     virtual PPluginSurfaceChild* AllocPPluginSurfaceChild(const WindowsSharedMemoryHandle&,
                                                           const gfxIntSize&, const bool&) {
@@ -594,10 +598,9 @@ private:
     // that surface here.
     nsRefPtr<gfxASurface> mHelperSurface;
 
-    // true when plugin does not support painting to ARGB32
-    // surface this is false if plugin supports
-    // NPPVpluginTransparentAlphaBool (which is not part of
-    // NPAPI yet)
+    // true when plugin does not support painting to ARGB32 surface
+    // this is false for maemo platform, and false if plugin
+    // supports NPPVpluginTransparentAlphaBool (which is not part of NPAPI yet)
     bool mDoAlphaExtraction;
 
     // true when the plugin has painted at least once. We use this to ensure
@@ -609,6 +612,12 @@ private:
     // Used for reading back to current surface and syncing data,
     // in plugin coordinates.
     nsIntRect mSurfaceDifferenceRect;
+
+#if (MOZ_PLATFORM_MAEMO == 5) || (MOZ_PLATFORM_MAEMO == 6)
+    // Maemo5 Flash does not remember WindowlessLocal state
+    // we should listen for NPP values negotiation and remember it
+    bool                  mMaemoImageRendering;
+#endif
 };
 
 } // namespace plugins

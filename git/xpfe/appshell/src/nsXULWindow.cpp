@@ -50,6 +50,7 @@
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
 #include "nsContentUtils.h"
+#include "nsCxPusher.h"
 #include "nsWebShellWindow.h" // get rid of this one, too...
 #include "nsDOMEvent.h"
 #include "nsGlobalWindow.h"
@@ -59,10 +60,8 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/dom/BarProps.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/dom/ScriptSettings.h"
 
 using namespace mozilla;
-using dom::AutoSystemCaller;
 
 #define SIZEMODE_NORMAL     NS_LITERAL_STRING("normal")
 #define SIZEMODE_MAXIMIZED  NS_LITERAL_STRING("maximized")
@@ -359,7 +358,8 @@ NS_IMETHODIMP nsXULWindow::ShowModal()
   EnableParent(false);
 
   {
-    AutoSystemCaller asc;
+    nsCxPusher pusher;
+    pusher.PushNull();
     nsIThread *thread = NS_GetCurrentThread();
     while (mContinueModalLoop) {
       if (!NS_ProcessNextEvent(thread))
@@ -522,7 +522,7 @@ NS_IMETHODIMP nsXULWindow::Destroy()
 
 NS_IMETHODIMP nsXULWindow::GetUnscaledDevicePixelsPerCSSPixel(double *aScale)
 {
-  *aScale = mWindow ? mWindow->GetDefaultScale().scale : 1.0;
+  *aScale = mWindow ? mWindow->GetDefaultScale() : 1.0;
   return NS_OK;
 }
 
@@ -530,8 +530,7 @@ NS_IMETHODIMP nsXULWindow::SetPosition(int32_t aX, int32_t aY)
 {
   // Don't reset the window's size mode here - platforms that don't want to move
   // maximized windows should reset it in their respective Move implementation.
-  CSSToLayoutDeviceScale scale = mWindow->GetDefaultScale();
-  double invScale = 1.0 / scale.scale;
+  double invScale = 1.0 / mWindow->GetDefaultScale();
   nsresult rv = mWindow->Move(aX * invScale, aY * invScale);
   NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
   if (!mChromeLoaded) {
@@ -559,8 +558,7 @@ NS_IMETHODIMP nsXULWindow::SetSize(int32_t aCX, int32_t aCY, bool aRepaint)
 
   mIntrinsicallySized = false;
 
-  CSSToLayoutDeviceScale scale = mWindow->GetDefaultScale();
-  double invScale = 1.0 / scale.scale;
+  double invScale = 1.0 / mWindow->GetDefaultScale();
   nsresult rv = mWindow->Resize(aCX * invScale, aCY * invScale, aRepaint);
   NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
   if (!mChromeLoaded) {
@@ -592,8 +590,7 @@ NS_IMETHODIMP nsXULWindow::SetPositionAndSize(int32_t aX, int32_t aY,
 
   mIntrinsicallySized = false;
 
-  CSSToLayoutDeviceScale scale = mWindow->GetDefaultScale();
-  double invScale = 1.0 / scale.scale;
+  double invScale = 1.0 / mWindow->GetDefaultScale();
   nsresult rv = mWindow->Resize(aX * invScale, aY * invScale,
                                 aCX * invScale, aCY * invScale,
                                 aRepaint);
@@ -701,16 +698,16 @@ NS_IMETHODIMP nsXULWindow::Center(nsIXULWindow *aRelative, bool aScreen, bool aA
 
   if (screenCoordinates || windowCoordinates) {
     NS_ASSERTION(mWindow, "what, no window?");
-    CSSToLayoutDeviceScale scale = mWindow->GetDefaultScale();
+    double scale = mWindow->GetDefaultScale();
     GetSize(&ourWidth, &ourHeight);
-    ourWidth = NSToIntRound(ourWidth / scale.scale);
-    ourHeight = NSToIntRound(ourHeight / scale.scale);
+    ourWidth = NSToIntRound(ourWidth / scale);
+    ourHeight = NSToIntRound(ourHeight / scale);
     left += (width - ourWidth) / 2;
     top += (height - ourHeight) / (aAlert ? 3 : 2);
     if (windowCoordinates) {
       mWindow->ConstrainPosition(false, &left, &top);
     }
-    SetPosition(left * scale.scale, top * scale.scale);
+    SetPosition(left * scale, top * scale);
     return NS_OK;
   }
   return NS_ERROR_FAILURE;
@@ -1045,11 +1042,11 @@ bool nsXULWindow::LoadPositionFromXUL()
 
   // Convert to global display pixels for consistent window management across
   // screens with diverse resolutions
-  CSSToLayoutDeviceScale scale = mWindow->GetDefaultScale();
-  currX = NSToIntRound(currX / scale.scale);
-  currY = NSToIntRound(currY / scale.scale);
-  currWidth = NSToIntRound(currWidth / scale.scale);
-  currHeight = NSToIntRound(currHeight / scale.scale);
+  double scale = mWindow->GetDefaultScale();
+  currX = NSToIntRound(currX / scale);
+  currY = NSToIntRound(currY / scale);
+  currWidth = NSToIntRound(currWidth / scale);
+  currHeight = NSToIntRound(currHeight / scale);
 
   // Obtain the position information from the <xul:window> element.
   int32_t specX = currX;
@@ -1090,8 +1087,8 @@ bool nsXULWindow::LoadPositionFromXUL()
   }
   mWindow->ConstrainPosition(false, &specX, &specY);
   if (specX != currX || specY != currY) {
-    CSSToLayoutDeviceScale scale = mWindow->GetDefaultScale();
-    SetPosition(specX * scale.scale, specY * scale.scale);
+    double scale = mWindow->GetDefaultScale();
+    SetPosition(specX * scale, specY * scale);
   }
 
   return gotPosition;
@@ -1116,11 +1113,10 @@ bool nsXULWindow::LoadSizeFromXUL()
 
   NS_ASSERTION(mWindow, "we expected to have a window already");
 
-  CSSToLayoutDeviceScale scale = mWindow ? mWindow->GetDefaultScale()
-                                         : CSSToLayoutDeviceScale(1.0);
+  double scale = mWindow ? mWindow->GetDefaultScale() : 1.0;
   GetSize(&currWidth, &currHeight);
-  currWidth = NSToIntRound(currWidth / scale.scale);
-  currHeight = NSToIntRound(currHeight / scale.scale);
+  currWidth = NSToIntRound(currWidth / scale);
+  currHeight = NSToIntRound(currHeight / scale);
 
   // Obtain the position and sizing information from the <xul:window> element.
   int32_t specWidth = currWidth;
@@ -1161,8 +1157,8 @@ bool nsXULWindow::LoadSizeFromXUL()
 
     mIntrinsicallySized = false;
     if (specWidth != currWidth || specHeight != currHeight) {
-      CSSToLayoutDeviceScale scale = mWindow->GetDefaultScale();
-      SetSize(specWidth * scale.scale, specHeight * scale.scale, false);
+      double scale = mWindow->GetDefaultScale();
+      SetSize(specWidth * scale, specHeight * scale, false);
     }
   }
 
@@ -1410,10 +1406,6 @@ void nsXULWindow::SyncAttributesToWidget()
   }
   mWindow->SetIcon(attr);
 
-  // "drawtitle" attribute
-  windowElement->GetAttribute(NS_LITERAL_STRING("drawtitle"), attr);
-  mWindow->SetDrawsTitle(attr.LowerCaseEqualsLiteral("true"));
-
   // "toggletoolbar" attribute
   windowElement->GetAttribute(NS_LITERAL_STRING("toggletoolbar"), attr);
   mWindow->SetShowsToolbarButton(attr.LowerCaseEqualsLiteral("true"));
@@ -1452,7 +1444,7 @@ NS_IMETHODIMP nsXULWindow::SavePersistentAttributes()
   NS_ENSURE_SUCCESS(GetPositionAndSize(&x, &y, &cx, &cy), NS_ERROR_FAILURE);
 
   int32_t sizeMode = mWindow->SizeMode();
-  CSSToLayoutDeviceScale scale = mWindow->GetDefaultScale();
+  double scale = mWindow->GetDefaultScale();
 
   // make our position relative to our parent, if any
   nsCOMPtr<nsIBaseWindow> parent(do_QueryReferent(mParentWindow));
@@ -1480,14 +1472,14 @@ NS_IMETHODIMP nsXULWindow::SavePersistentAttributes()
   if ((mPersistentAttributesDirty & PAD_POSITION) &&
       sizeMode == nsSizeMode_Normal) {
     if (persistString.Find("screenX") >= 0) {
-      PR_snprintf(sizeBuf, sizeof(sizeBuf), "%d", NSToIntRound(x / scale.scale));
+      PR_snprintf(sizeBuf, sizeof(sizeBuf), "%d", NSToIntRound(x / scale));
       sizeString.AssignWithConversion(sizeBuf);
       docShellElement->SetAttribute(SCREENX_ATTRIBUTE, sizeString, rv);
       if (ownerXULDoc) // force persistence in case the value didn't change
         ownerXULDoc->Persist(windowElementId, SCREENX_ATTRIBUTE);
     }
     if (persistString.Find("screenY") >= 0) {
-      PR_snprintf(sizeBuf, sizeof(sizeBuf), "%d", NSToIntRound(y / scale.scale));
+      PR_snprintf(sizeBuf, sizeof(sizeBuf), "%d", NSToIntRound(y / scale));
       sizeString.AssignWithConversion(sizeBuf);
       docShellElement->SetAttribute(SCREENY_ATTRIBUTE, sizeString, rv);
       if (ownerXULDoc)
@@ -1498,14 +1490,14 @@ NS_IMETHODIMP nsXULWindow::SavePersistentAttributes()
   if ((mPersistentAttributesDirty & PAD_SIZE) &&
       sizeMode == nsSizeMode_Normal) {
     if (persistString.Find("width") >= 0) {
-      PR_snprintf(sizeBuf, sizeof(sizeBuf), "%d", NSToIntRound(cx / scale.scale));
+      PR_snprintf(sizeBuf, sizeof(sizeBuf), "%d", NSToIntRound(cx / scale));
       sizeString.AssignWithConversion(sizeBuf);
       docShellElement->SetAttribute(WIDTH_ATTRIBUTE, sizeString, rv);
       if (ownerXULDoc)
         ownerXULDoc->Persist(windowElementId, WIDTH_ATTRIBUTE);
     }
     if (persistString.Find("height") >= 0) {
-      PR_snprintf(sizeBuf, sizeof(sizeBuf), "%d", NSToIntRound(cy / scale.scale));
+      PR_snprintf(sizeBuf, sizeof(sizeBuf), "%d", NSToIntRound(cy / scale));
       sizeString.AssignWithConversion(sizeBuf);
       docShellElement->SetAttribute(HEIGHT_ATTRIBUTE, sizeString, rv);
       if (ownerXULDoc)
@@ -1771,16 +1763,16 @@ NS_IMETHODIMP nsXULWindow::CreateNewContentWindow(int32_t aChromeFlags,
 
   // We need to create a chrome window to contain the content window we're about
   // to pass back. The subject principal needs to be system while we're creating
-  // it to make things work right, so force a system caller. See bug 799348
-  // comment 13 for a description of what happens when we don't.
+  // it to make things work right, so push a null cx. See bug 799348 comment 13
+  // for a description of what happens when we don't.
+  nsCxPusher pusher;
+  pusher.PushNull();
   nsCOMPtr<nsIXULWindow> newWindow;
-  {
-    AutoSystemCaller asc;
-    appShell->CreateTopLevelWindow(this, uri,
-                                   aChromeFlags, 615, 480,
-                                   getter_AddRefs(newWindow));
-    NS_ENSURE_TRUE(newWindow, NS_ERROR_FAILURE);
-  }
+  appShell->CreateTopLevelWindow(this, uri,
+                                 aChromeFlags, 615, 480,
+                                 getter_AddRefs(newWindow));
+  NS_ENSURE_TRUE(newWindow, NS_ERROR_FAILURE);
+  pusher.Pop();
 
   // Specify that we want the window to remain locked until the chrome has loaded.
   nsXULWindow *xulWin = static_cast<nsXULWindow*>
@@ -1789,8 +1781,10 @@ NS_IMETHODIMP nsXULWindow::CreateNewContentWindow(int32_t aChromeFlags,
 
   xulWin->LockUntilChromeLoad();
 
+  // Push nullptr onto the JSContext stack before we dispatch a native event.
   {
-    AutoSystemCaller asc;
+    nsCxPusher pusher;
+    pusher.PushNull();
     nsIThread *thread = NS_GetCurrentThread();
     while (xulWin->IsLocked()) {
       if (!NS_ProcessNextEvent(thread))
@@ -1847,7 +1841,7 @@ bool nsXULWindow::ConstrainToZLevel(bool        aImmediate,
   altered = false;
   mediator->GetZLevel(this, &zLevel);
 
-  // translate from WidgetGUIEvent to nsIWindowMediator constants
+  // translate from nsGUIEvent to nsIWindowMediator constants
   position = nsIWindowMediator::zLevelTop;
   if (*aPlacement == nsWindowZBottom || zLevel == nsIXULWindow::lowestZ)
     position = nsIWindowMediator::zLevelBottom;
@@ -1964,10 +1958,10 @@ void nsXULWindow::SetContentScrollbarVisibility(bool aVisible)
 {
   nsCOMPtr<nsPIDOMWindow> contentWin(do_GetInterface(mPrimaryContentShell));
   if (contentWin) {
-    mozilla::ErrorResult rv;
     nsRefPtr<nsGlobalWindow> window = static_cast<nsGlobalWindow*>(contentWin.get());
-    nsRefPtr<mozilla::dom::BarProp> scrollbars = window->GetScrollbars(rv);
+    nsRefPtr<mozilla::dom::BarProp> scrollbars = window->Scrollbars();
     if (scrollbars) {
+      mozilla::ErrorResult rv;
       scrollbars->SetVisible(aVisible, rv);
     }
   }

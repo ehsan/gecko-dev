@@ -25,7 +25,7 @@ public:
 
 
   nsGTKRemoteService() :
-    mServerWindow(nullptr) { }
+    mServerWindow(NULL) { }
 
 private:
   ~nsGTKRemoteService() { }

@@ -25,12 +25,12 @@
 #include "nsISimpleEnumerator.h"
 #include "nsCOMArray.h"
 #include "nsAutoPtr.h"
+#include "nsICharsetConverterManager.h"
 #include "nsBaseFilePicker.h"
 #include "nsString.h"
 #include "nsdefs.h"
 #include <commdlg.h>
 #include <shobjidl.h>
-#undef LogSeverity // SetupAPI.h #defines this as DWORD
 
 class nsILoadContext;
 
@@ -96,7 +96,7 @@ protected:
   /* method from nsBaseFilePicker */
   virtual void InitNative(nsIWidget *aParent,
                           const nsAString& aTitle);
-  static void GetQualifiedPath(const wchar_t *aInPath, nsString &aOutPath);
+  static void GetQualifiedPath(const PRUnichar *aInPath, nsString &aOutPath);
   void GetFilterListArray(nsString& aFilterList);
   bool FilePickerWrapper(OPENFILENAMEW* ofn, PickerType aType);
   bool ShowXPFolderPicker(const nsString& aInitialDir);

@@ -17,10 +17,10 @@
 #include "nsClipboard.h"
 #include "KeyboardLayout.h"
 
-#include "mozilla/MouseEvents.h"
-
-using namespace mozilla;
 using namespace mozilla::widget;
+
+/* Define Class IDs */
+static NS_DEFINE_IID(kCDragServiceCID,  NS_DRAGSERVICE_CID);
 
 /* Define Interface IDs */
 static NS_DEFINE_IID(kIDragServiceIID, NS_IDRAGSERVICE_IID);
@@ -37,8 +37,6 @@ nsNativeDragTarget::nsNativeDragTarget(nsIWidget * aWidget)
     mEffectsPreferred(DROPEFFECT_NONE),
     mTookOwnRef(false), mWidget(aWidget), mDropTargetHelper(nullptr)
 {
-  static NS_DEFINE_IID(kCDragServiceCID,  NS_DRAGSERVICE_CID);
-
   mHWnd = (HWND)mWidget->GetNativeData(NS_NATIVE_WINDOW);
 
   /*
@@ -61,12 +59,12 @@ nsNativeDragTarget::~nsNativeDragTarget()
 STDMETHODIMP
 nsNativeDragTarget::QueryInterface(REFIID riid, void** ppv)
 {
-  *ppv=nullptr;
+  *ppv=NULL;
 
   if (IID_IUnknown == riid || IID_IDropTarget == riid)
     *ppv=this;
 
-  if (nullptr!=*ppv) {
+  if (NULL!=*ppv) {
     ((LPUNKNOWN)*ppv)->AddRef();
     return S_OK;
   }
@@ -155,7 +153,7 @@ void
 nsNativeDragTarget::DispatchDragDropEvent(uint32_t aEventType, POINTL aPT)
 {
   nsEventStatus status;
-  WidgetDragEvent event(true, aEventType, mWidget);
+  nsDragEvent event(true, aEventType, mWidget);
 
   nsWindow * win = static_cast<nsWindow *>(mWidget);
   win->InitEvent(event);
@@ -164,7 +162,7 @@ nsNativeDragTarget::DispatchDragDropEvent(uint32_t aEventType, POINTL aPT)
   cpos.x = aPT.x;
   cpos.y = aPT.y;
 
-  if (mHWnd != nullptr) {
+  if (mHWnd != NULL) {
     ::ScreenToClient(mHWnd, &cpos);
     event.refPoint.x = cpos.x;
     event.refPoint.y = cpos.y;
@@ -205,8 +203,7 @@ nsNativeDragTarget::ProcessDrag(uint32_t     aEventType,
 
   if (aEventType != NS_DRAGDROP_DROP) {
     // Get the cached drag effect from the drag service, the data member should
-    // have been set by whoever handled the WidgetGUIEvent or nsIDOMEvent on
-    // drags.
+    // have been set by whoever handled the nsGUIEvent or nsIDOMEvent on drags.
     bool canDrop;
     currSession->GetCanDrop(&canDrop);
     if (!canDrop) {
@@ -454,7 +451,7 @@ IDropTargetHelper*
 nsNativeDragTarget::GetDropTargetHelper()
 {
   if (!mDropTargetHelper) { 
-    CoCreateInstance(CLSID_DragDropHelper, nullptr, CLSCTX_INPROC_SERVER,
+    CoCreateInstance(CLSID_DragDropHelper, NULL, CLSCTX_INPROC_SERVER,
                      IID_IDropTargetHelper, (LPVOID*)&mDropTargetHelper);
   }
 

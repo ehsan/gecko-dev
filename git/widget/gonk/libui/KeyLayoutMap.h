@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef _ANDROIDFW_KEY_LAYOUT_MAP_H
-#define _ANDROIDFW_KEY_LAYOUT_MAP_H
+#ifndef _UI_KEY_LAYOUT_MAP_H
+#define _UI_KEY_LAYOUT_MAP_H
 
 #include <stdint.h>
 #include <utils/Errors.h>
 #include <utils/KeyedVector.h>
 #include "Tokenizer.h"
-#include <utils/RefBase.h>
 
 namespace android {
 
@@ -57,21 +56,17 @@ struct AxisInfo {
 
 /**
  * Describes a mapping from keyboard scan codes and joystick axes to Android key codes and axes.
- *
- * This object is immutable after it has been loaded.
  */
-class KeyLayoutMap : public RefBase {
+class KeyLayoutMap {
 public:
-    static status_t load(const String8& filename, sp<KeyLayoutMap>* outMap);
+    ~KeyLayoutMap();
 
-    status_t mapKey(int32_t scanCode, int32_t usageCode,
-            int32_t* outKeyCode, uint32_t* outFlags) const;
+    static status_t load(const String8& filename, KeyLayoutMap** outMap);
+
+    status_t mapKey(int32_t scanCode, int32_t* keyCode, uint32_t* flags) const;
     status_t findScanCodesForKey(int32_t keyCode, Vector<int32_t>* outScanCodes) const;
 
     status_t mapAxis(int32_t scanCode, AxisInfo* outAxisInfo) const;
-
-protected:
-    virtual ~KeyLayoutMap();
 
 private:
     struct Key {
@@ -79,13 +74,10 @@ private:
         uint32_t flags;
     };
 
-    KeyedVector<int32_t, Key> mKeysByScanCode;
-    KeyedVector<int32_t, Key> mKeysByUsageCode;
+    KeyedVector<int32_t, Key> mKeys;
     KeyedVector<int32_t, AxisInfo> mAxes;
 
     KeyLayoutMap();
-
-    const Key* getKey(int32_t scanCode, int32_t usageCode) const;
 
     class Parser {
         KeyLayoutMap* mMap;
@@ -104,4 +96,4 @@ private:
 
 } // namespace android
 
-#endif // _ANDROIDFW_KEY_LAYOUT_MAP_H
+#endif // _UI_KEY_LAYOUT_MAP_H

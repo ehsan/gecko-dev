@@ -46,23 +46,11 @@ class Configuration:
             if not isinstance(entry, list):
                 assert isinstance(entry, dict)
                 entry = [entry]
-            elif len(entry) == 1:
-                if entry[0].get("workers", False):
-                    # List with only a workers descriptor means we should
-                    # infer a mainthread descriptor.  If you want only
-                    # workers bindings, don't use a list here.
-                    entry.append({})
-                else:
-                    raise TypeError("Don't use a single-element list for "
-                                    "non-worker-only interface " + iface.identifier.name +
-                                    " in Bindings.conf")
-            elif len(entry) == 2:
-                if entry[0].get("workers", False) == entry[1].get("workers", False):
-                    raise TypeError("The two entries for interface " + iface.identifier.name +
-                                    " in Bindings.conf should not have the same value for 'workers'")
-            else:
-                raise TypeError("Interface " + iface.identifier.name +
-                                " should have no more than two entries in Bindings.conf")
+            elif len(entry) == 1 and entry[0].get("workers", False):
+                # List with only a workers descriptor means we should
+                # infer a mainthread descriptor.  If you want only
+                # workers bindings, don't use a list here.
+                entry.append({})
             self.descriptors.extend([Descriptor(self, iface, x) for x in entry])
 
         # Keep the descriptor list sorted for determinism.
@@ -177,10 +165,6 @@ class Configuration:
             if d.workers == workers:
                 return d
 
-        if workers:
-            for d in self.descriptorsByName[interfaceName]:
-                return d
-
         raise NoSuchDescriptorError("For " + interfaceName + " found no matches");
     def getDescriptorProvider(self, workers):
         """
@@ -225,7 +209,10 @@ class Descriptor(DescriptorProvider):
             else:
                 nativeTypeDefault = "nsIDOM" + ifaceName
         elif self.interface.isCallback():
-            nativeTypeDefault = "mozilla::dom::" + ifaceName
+            if self.workers:
+                nativeTypeDefault = "JSObject"
+            else:
+                nativeTypeDefault = "mozilla::dom::" + ifaceName
         else:
             if self.workers:
                 nativeTypeDefault = "mozilla::dom::workers::" + ifaceName
@@ -237,7 +224,7 @@ class Descriptor(DescriptorProvider):
 
         # Do something sane for JSObject
         if self.nativeType == "JSObject":
-            headerDefault = "js/TypeDecls.h"
+            headerDefault = "jsapi.h"
         elif self.interface.isCallback() or self.interface.isJSImplemented():
             # A copy of CGHeaders.getDeclarationFilename; we can't
             # import it here, sadly.
@@ -254,7 +241,6 @@ class Descriptor(DescriptorProvider):
                 headerDefault = self.nativeType
                 headerDefault = headerDefault.replace("::", "/") + ".h"
         self.headerFile = desc.get('headerFile', headerDefault)
-        self.headerIsDefault = self.headerFile == headerDefault
         if self.jsImplParent == self.nativeType:
             self.jsImplParentHeader = self.headerFile
         else:
@@ -363,22 +349,22 @@ class Descriptor(DescriptorProvider):
                     iface = iface.parent
         self.operations = operations
 
-        self.nativeOwnership = desc.get('nativeOwnership', 'refcounted')
-        if not self.nativeOwnership in ('owned', 'refcounted'):
-            raise TypeError("Descriptor for %s has unrecognized value (%s) "
-                            "for nativeOwnership" %
-                            (self.interface.identifier.name, self.nativeOwnership))
-        self.customFinalize = desc.get('customFinalize', False)
-        self.customWrapperManagement = desc.get('customWrapperManagement', False)
+        if self.workers and desc.get('nativeOwnership', 'worker') == 'worker':
+            self.nativeOwnership = "worker"
+        else:
+            self.nativeOwnership = desc.get('nativeOwnership', 'refcounted')
+            if not self.nativeOwnership in ['owned', 'refcounted']:
+                raise TypeError("Descriptor for %s has unrecognized value (%s) "
+                                "for nativeOwnership" %
+                                (self.interface.identifier.name, self.nativeOwnership))
+        self.customTrace = desc.get('customTrace', self.workers)
+        self.customFinalize = desc.get('customFinalize', self.workers)
         if desc.get('wantsQI', None) != None:
             self._wantsQI = desc.get('wantsQI', None)
         self.wrapperCache = (not self.interface.isCallback() and
-                             (self.nativeOwnership != 'owned' and
-                              desc.get('wrapperCache', True)))
-        if self.customWrapperManagement and not self.wrapperCache:
-            raise TypeError("Descriptor for %s has customWrapperManagement "
-                            "but is not wrapperCached." %
-                            (self.interface.identifier.name))
+                             (self.nativeOwnership == 'worker' or
+                              (self.nativeOwnership != 'owned' and
+                               desc.get('wrapperCache', True))))
 
         def make_name(name):
             return name + "_workers" if self.workers else name
@@ -425,7 +411,7 @@ class Descriptor(DescriptorProvider):
         self.prototypeChain = []
         parent = interface
         while parent:
-            self.prototypeChain.insert(0, parent.identifier.name)
+            self.prototypeChain.insert(0, make_name(parent.identifier.name))
             parent = parent.parent
         config.maxProtoChainLength = max(config.maxProtoChainLength,
                                          len(self.prototypeChain))
@@ -493,6 +479,26 @@ class Descriptor(DescriptorProvider):
             self.interface.hasInterfacePrototypeObject() or
             any((m.isAttr() or m.isMethod()) and m.isStatic() for m
                 in self.interface.members))
+
+    def wantsQI(self):
+        # If it was specified explicitly use that.
+        if hasattr(self, '_wantsQI'):
+            return self._wantsQI
+
+        # Make sure to not stick QueryInterface on abstract interfaces that
+        # have hasXPConnectImpls (like EventTarget).  So only put it on
+        # interfaces that are concrete and all of whose ancestors are abstract.
+        def allAncestorsAbstract(iface):
+            if not iface.parent:
+                return True
+            desc = self.getDescriptor(iface.parent.identifier.name)
+            if desc.concrete:
+                return False
+            return allAncestorsAbstract(iface.parent)
+        return (not self.workers and
+                self.interface.hasInterfacePrototypeObject() and
+                self.concrete and
+                allAncestorsAbstract(self.interface))
 
 # Some utility methods
 def getTypesFromDescriptor(descriptor):

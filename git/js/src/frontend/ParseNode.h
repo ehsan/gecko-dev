@@ -9,6 +9,9 @@
 
 #include "mozilla/Attributes.h"
 
+#include "jsscript.h"
+
+#include "builtin/Module.h"
 #include "frontend/TokenStream.h"
 
 namespace js {
@@ -122,26 +125,17 @@ class UpvarCookie
     F(THROW) \
     F(DEBUGGER) \
     F(YIELD) \
-    F(YIELD_STAR) \
     F(GENEXP) \
     F(ARRAYCOMP) \
     F(ARRAYPUSH) \
     F(LEXICALSCOPE) \
     F(LET) \
-    F(IMPORT) \
-    F(IMPORT_SPEC_LIST) \
-    F(IMPORT_SPEC) \
-    F(EXPORT) \
-    F(EXPORT_FROM) \
-    F(EXPORT_SPEC_LIST) \
-    F(EXPORT_SPEC) \
-    F(EXPORT_BATCH_SPEC) \
     F(SEQ) \
     F(FORIN) \
-    F(FOROF) \
     F(FORHEAD) \
     F(ARGSBODY) \
     F(SPREAD) \
+    F(MODULE) \
     \
     /* Unary operators. */ \
     F(TYPEOF) \
@@ -259,26 +253,19 @@ enum ParseNodeKind
  *                          pn_val: constant value if lookup or table switch
  * PNK_WHILE    binary      pn_left: cond, pn_right: body
  * PNK_DOWHILE  binary      pn_left: body, pn_right: cond
- * PNK_FOR      binary      pn_left: either PNK_FORIN (for-in statement),
- *                            PNK_FOROF (for-of) or PNK_FORHEAD (for(;;))
+ * PNK_FOR      binary      pn_left: either PNK_FORIN (for-in statement) or
+ *                            PNK_FORHEAD (for(;;) statement)
  *                          pn_right: body
- * PNK_FORIN    ternary     pn_kid1:  PNK_VAR to left of 'in', or nullptr
+ * PNK_FORIN    ternary     pn_kid1:  PNK_VAR to left of 'in', or NULL
  *                            its pn_xflags may have PNX_POPVAR
  *                            bit set
  *                          pn_kid2: PNK_NAME or destructuring expr
  *                            to left of 'in'; if pn_kid1, then this
  *                            is a clone of pn_kid1->pn_head
  *                          pn_kid3: object expr to right of 'in'
- * PNK_FOROF    ternary     pn_kid1:  PNK_VAR to left of 'of', or nullptr
- *                            its pn_xflags may have PNX_POPVAR
- *                            bit set
- *                          pn_kid2: PNK_NAME or destructuring expr
- *                            to left of 'of'; if pn_kid1, then this
- *                            is a clone of pn_kid1->pn_head
- *                          pn_kid3: expr to right of 'of'
- * PNK_FORHEAD  ternary     pn_kid1:  init expr before first ';' or nullptr
- *                          pn_kid2:  cond expr before second ';' or nullptr
- *                          pn_kid3:  update expr after second ';' or nullptr
+ * PNK_FORHEAD  ternary     pn_kid1:  init expr before first ';' or NULL
+ *                          pn_kid2:  cond expr before second ';' or NULL
+ *                          pn_kid3:  update expr after second ';' or NULL
  * PNK_THROW    unary       pn_op: JSOP_THROW, pn_kid: exception
  * PNK_TRY      ternary     pn_kid1: try block
  *                          pn_kid2: null or PNK_CATCHLIST list of
@@ -407,7 +394,7 @@ enum ParseNodeKind
  * PNK_NULL,
  * PNK_THIS
  *
- * PNK_LEXICALSCOPE name    pn_op: JSOP_POPN or JSOP_POPNV
+ * PNK_LEXICALSCOPE name    pn_op: JSOP_LEAVEBLOCK or JSOP_LEAVEBLOCKEXPR
  *                          pn_objbox: block object in ObjectBox holder
  *                          pn_expr: block body
  * PNK_ARRAYCOMP    list    pn_count: 1
@@ -437,6 +424,7 @@ class BreakStatement;
 class ContinueStatement;
 class ConditionalExpression;
 class PropertyAccess;
+class ModuleBox;
 
 class ParseNode
 {
@@ -453,7 +441,7 @@ class ParseNode
   public:
     ParseNode(ParseNodeKind kind, JSOp op, ParseNodeArity arity)
       : pn_type(kind), pn_op(op), pn_arity(arity), pn_parens(0), pn_used(0), pn_defn(0),
-        pn_pos(0, 0), pn_offset(0), pn_next(nullptr), pn_link(nullptr)
+        pn_pos(0, 0), pn_offset(0), pn_next(NULL), pn_link(NULL)
     {
         JS_ASSERT(kind < PNK_LIMIT);
         memset(&pn_u, 0, sizeof pn_u);
@@ -461,7 +449,7 @@ class ParseNode
 
     ParseNode(ParseNodeKind kind, JSOp op, ParseNodeArity arity, const TokenPos &pos)
       : pn_type(kind), pn_op(op), pn_arity(arity), pn_parens(0), pn_used(0), pn_defn(0),
-        pn_pos(pos), pn_offset(0), pn_next(nullptr), pn_link(nullptr)
+        pn_pos(pos), pn_offset(0), pn_next(NULL), pn_link(NULL)
     {
         JS_ASSERT(kind < PNK_LIMIT);
         memset(&pn_u, 0, sizeof pn_u);
@@ -523,13 +511,15 @@ class ParseNode
         } binary;
         struct {                        /* one kid if unary */
             ParseNode   *kid;
-            bool        prologue;       /* directive prologue member (as
+            bool        hidden;         /* hidden genexp-induced JSOP_YIELD
+                                           or directive prologue member (as
                                            pn_prologue) */
         } unary;
         struct {                        /* name, labeled statement, etc. */
             union {
                 JSAtom      *atom;      /* lexical name or label atom */
                 ObjectBox   *objbox;    /* block or regexp object */
+                ModuleBox   *modulebox; /* module object */
                 FunctionBox *funbox;    /* function object */
             };
             union {
@@ -574,7 +564,8 @@ class ParseNode
 #define pn_pval         pn_u.binary.pval
 #define pn_iflags       pn_u.binary.iflags
 #define pn_kid          pn_u.unary.kid
-#define pn_prologue     pn_u.unary.prologue
+#define pn_hidden       pn_u.unary.hidden
+#define pn_prologue     pn_u.unary.hidden
 #define pn_atom         pn_u.name.atom
 #define pn_objbox       pn_u.name.objbox
 #define pn_expr         pn_u.name.expr
@@ -589,7 +580,7 @@ class ParseNode
         pn_parens = false;
         JS_ASSERT(!pn_used);
         JS_ASSERT(!pn_defn);
-        pn_next = pn_link = nullptr;
+        pn_next = pn_link = NULL;
     }
 
     static ParseNode *create(ParseNodeKind kind, ParseNodeArity arity, FullParseHandler *handler);
@@ -633,8 +624,8 @@ class ParseNode
         return pn_lexdef;
     }
 
-    ParseNode  *maybeExpr()   { return pn_used ? nullptr : expr(); }
-    Definition *maybeLexDef() { return pn_used ? lexdef() : nullptr; }
+    ParseNode  *maybeExpr()   { return pn_used ? NULL : expr(); }
+    Definition *maybeLexDef() { return pn_used ? lexdef() : NULL; }
 
     Definition *resolve();
 
@@ -659,6 +650,8 @@ class ParseNode
 #define PND_USE2DEF_FLAGS (PND_ASSIGNED | PND_CLOSED)
 
 /* PN_LIST pn_xflags bits. */
+#define PNX_STRCAT      0x01            /* PNK_ADD list has string term */
+#define PNX_CANTFOLD    0x02            /* PNK_ADD list has unfoldable term */
 #define PNX_POPVAR      0x04            /* PNK_VAR or PNK_CONST last result
                                            needs popping */
 #define PNX_GROUPINIT   0x08            /* var [a, b] = [c, d]; unit list */
@@ -715,7 +708,7 @@ class ParseNode
             if (kid && kid->getKind() == PNK_STRING && !kid->pn_parens)
                 return kid->pn_atom;
         }
-        return nullptr;
+        return NULL;
     }
 
     inline bool test(unsigned flag) const;
@@ -772,7 +765,7 @@ class ParseNode
 
     void makeEmpty() {
         JS_ASSERT(pn_arity == PN_LIST);
-        pn_head = nullptr;
+        pn_head = NULL;
         pn_tail = &pn_head;
         pn_count = 0;
         pn_xflags = 0;
@@ -991,7 +984,7 @@ struct NameNode : public ParseNode
       : ParseNode(kind, op, PN_NAME, pos)
     {
         pn_atom = atom;
-        pn_expr = nullptr;
+        pn_expr = NULL;
         pn_cookie.makeFree();
         pn_dflags = 0;
         pn_blockid = blockid;
@@ -1182,8 +1175,8 @@ class PropertyAccess : public ParseNode
     PropertyAccess(ParseNode *lhs, PropertyName *name, uint32_t begin, uint32_t end)
       : ParseNode(PNK_DOT, JSOP_NOP, PN_NAME, TokenPos(begin, end))
     {
-        JS_ASSERT(lhs != nullptr);
-        JS_ASSERT(name != nullptr);
+        JS_ASSERT(lhs != NULL);
+        JS_ASSERT(name != NULL);
         pn_u.name.expr = lhs;
         pn_u.name.atom = name;
     }
@@ -1356,7 +1349,7 @@ class ParseNodeAllocator
 {
   public:
     explicit ParseNodeAllocator(ExclusiveContext *cx, LifoAlloc &alloc)
-      : cx(cx), alloc(alloc), freelist(nullptr)
+      : cx(cx), alloc(alloc), freelist(NULL)
     {}
 
     void *allocNode();
@@ -1428,7 +1421,9 @@ class ObjectBox
     JSObject *object;
 
     ObjectBox(JSObject *object, ObjectBox *traceLink);
+    bool isModuleBox() { return object->is<Module>(); }
     bool isFunctionBox() { return object->is<JSFunction>(); }
+    ModuleBox *asModuleBox();
     FunctionBox *asFunctionBox();
     void trace(JSTracer *trc);
 
@@ -1439,6 +1434,7 @@ class ObjectBox
     ObjectBox *emitLink;
 
     ObjectBox(JSFunction *function, ObjectBox *traceLink);
+    ObjectBox(Module *module, ObjectBox *traceLink);
 };
 
 enum ParseReportKind
@@ -1450,19 +1446,6 @@ enum ParseReportKind
 };
 
 enum FunctionSyntaxKind { Expression, Statement, Arrow };
-
-static inline ParseNode *
-FunctionArgsList(ParseNode *fn, unsigned *numFormals)
-{
-    JS_ASSERT(fn->isKind(PNK_FUNCTION));
-    ParseNode *argsBody = fn->pn_body;
-    JS_ASSERT(argsBody->isKind(PNK_ARGSBODY));
-    *numFormals = argsBody->pn_count;
-    if (*numFormals > 0 && argsBody->last()->isKind(PNK_STATEMENTLIST))
-        (*numFormals)--;
-    JS_ASSERT(argsBody->isArity(PN_LIST));
-    return argsBody->pn_head;
-}
 
 } /* namespace frontend */
 } /* namespace js */

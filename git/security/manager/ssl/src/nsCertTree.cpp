@@ -30,6 +30,7 @@ using namespace mozilla;
 extern PRLogModuleInfo* gPIPNSSLog;
 #endif
 
+static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
 static NS_DEFINE_CID(kCertOverrideCID, NS_CERTOVERRIDE_CID);
 
 // treeArrayElStr
@@ -90,7 +91,7 @@ CompareCacheClearEntry(PLDHashTable *table, PLDHashEntryHdr *hdr)
   entryPtr->~CompareCacheHashEntryPtr();
 }
 
-static const PLDHashTableOps gMapOps = {
+static PLDHashTableOps gMapOps = {
   PL_DHashAllocTable,
   PL_DHashFreeTable,
   PL_DHashVoidPtrKeyStub,
@@ -161,8 +162,6 @@ NS_IMPL_ISUPPORTS2(nsCertTree, nsICertTree, nsITreeView)
 
 nsCertTree::nsCertTree() : mTreeArray(nullptr)
 {
-  static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
-
   mCompareCache.ops = nullptr;
   mNSSComponent = do_GetService(kNSSComponentCID);
   mOverrideService = do_GetService("@mozilla.org/security/certoverride;1");
@@ -464,6 +463,7 @@ nsCertTree::GetCertsByTypeFromCertList(CERTCertList *aCertList,
     return NS_ERROR_FAILURE;
 
   nsTHashtable<nsCStringHashKey> allHostPortOverrideKeys;
+  allHostPortOverrideKeys.Init();
 
   if (aWantedType == nsIX509Cert::SERVER_CERT) {
     mOriginalOverrideService->

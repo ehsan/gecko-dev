@@ -14,7 +14,7 @@
 //
 //
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #include "prlink.h"
 #include "nsCOMPtr.h"
@@ -40,9 +40,6 @@ typedef KLStatus (*KLCacheHasValidTickets_type)(
 #endif
 
 #if defined(HAVE_RES_NINIT)
-#include <sys/types.h>
-#include <netinet/in.h>
-#include <arpa/nameser.h>
 #include <resolv.h>
 #endif
 
@@ -361,8 +358,8 @@ nsAuthGSSAPI::Init(const char *serviceName,
     static bool sTelemetrySent = false;
     if (!sTelemetrySent) {
         mozilla::Telemetry::Accumulate(
-            mozilla::Telemetry::NTLM_MODULE_USED_2,
-            serviceFlags & nsIAuthModule::REQ_PROXY_AUTH
+            mozilla::Telemetry::NTLM_MODULE_USED,
+            serviceFlags | nsIAuthModule::REQ_PROXY_AUTH
                 ? NTLM_MODULE_KERBEROS_PROXY
                 : NTLM_MODULE_KERBEROS_DIRECT);
         sTelemetrySent = true;

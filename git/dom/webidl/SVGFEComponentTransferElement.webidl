@@ -13,5 +13,3 @@
 interface SVGFEComponentTransferElement : SVGElement {
   readonly attribute SVGAnimatedString in1;
 };
-
-SVGFEComponentTransferElement implements SVGFilterPrimitiveStandardAttributes;

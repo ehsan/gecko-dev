@@ -45,10 +45,7 @@ namespace layers {
 static bool
 UsingXCompositing()
 {
-  if (!PR_GetEnv("MOZ_LAYERS_ENABLE_XLIB_SURFACES")) {
-      return false;
-  }
-  return (gfxSurfaceTypeXlib ==
+  return (gfxASurface::SurfaceTypeXlib ==
           gfxPlatform::GetPlatform()->ScreenReferenceSurface()->GetType());
 }
 
@@ -116,10 +113,13 @@ SurfaceDescriptorX11::OpenForeign() const
 
 bool
 ISurfaceAllocator::PlatformAllocSurfaceDescriptor(const gfxIntSize& aSize,
-                                                  gfxContentType aContent,
+                                                  gfxASurface::gfxContentType aContent,
                                                   uint32_t aCaps,
                                                   SurfaceDescriptor* aBuffer)
 {
+  if (!PR_GetEnv("MOZ_LAYERS_ENABLE_XLIB_SURFACES")) {
+      return false;
+  }
   if (!UsingXCompositing()) {
     // If we're not using X compositing, we're probably compositing on
     // the client side, in which case X surfaces would just slow
@@ -135,7 +135,7 @@ ISurfaceAllocator::PlatformAllocSurfaceDescriptor(const gfxIntSize& aSize,
   gfxPlatform* platform = gfxPlatform::GetPlatform();
   nsRefPtr<gfxASurface> buffer = platform->CreateOffscreenSurface(aSize, aContent);
   if (!buffer ||
-      buffer->GetType() != gfxSurfaceTypeXlib) {
+      buffer->GetType() != gfxASurface::SurfaceTypeXlib) {
     NS_ERROR("creating Xlib front/back surfaces failed!");
     return false;
   }
@@ -225,6 +225,15 @@ LayerManagerComposite::PlatformSyncBeforeReplyUpdate()
     // that are still participating in requests as old front buffers.
     FinishX(DefaultXDisplay());
   }
+}
+
+/*static*/ already_AddRefed<TextureImage>
+LayerManagerComposite::OpenDescriptorForDirectTexturing(GLContext*,
+                                                        const SurfaceDescriptor&,
+                                                        GLenum)
+{
+  // FIXME/bug XXXXXX: implement this using texture-from-pixmap
+  return nullptr;
 }
 
 /*static*/ bool

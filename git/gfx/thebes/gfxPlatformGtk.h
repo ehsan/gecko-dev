@@ -17,6 +17,11 @@ extern "C" {
 #endif
 
 class gfxFontconfigUtils;
+#ifndef MOZ_PANGO
+class FontFamily;
+class FontEntry;
+typedef struct FT_LibraryRec_ *FT_Library;
+#endif
 
 class gfxPlatformGtk : public gfxPlatform {
 public:
@@ -28,7 +33,7 @@ public:
     }
 
     already_AddRefed<gfxASurface> CreateOffscreenSurface(const gfxIntSize& size,
-                                                         gfxContentType contentType);
+                                                         gfxASurface::gfxContentType contentType);
 
     mozilla::TemporaryRef<mozilla::gfx::ScaledFont>
       GetScaledFontForFont(mozilla::gfx::DrawTarget* aTarget, gfxFont *aFont);
@@ -49,6 +54,7 @@ public:
                                   const gfxFontStyle *aStyle,
                                   gfxUserFontSet *aUserFontSet);
 
+#ifdef MOZ_PANGO
     /**
      * Look up a local platform font using the full font face name (needed to
      * support @font-face src local() )
@@ -70,17 +76,41 @@ public:
      */
     virtual bool IsFontFormatSupported(nsIURI *aFontURI,
                                          uint32_t aFormatFlags);
+#endif
+
+#ifndef MOZ_PANGO
+    FontFamily *FindFontFamily(const nsAString& aName);
+    FontEntry *FindFontEntry(const nsAString& aFamilyName, const gfxFontStyle& aFontStyle);
+    already_AddRefed<gfxFont> FindFontForChar(uint32_t aCh, gfxFont *aFont);
+    bool GetPrefFontEntries(const nsCString& aLangGroup, nsTArray<nsRefPtr<gfxFontEntry> > *aFontEntryList);
+    void SetPrefFontEntries(const nsCString& aLangGroup, nsTArray<nsRefPtr<gfxFontEntry> >& aFontEntryList);
+#endif
+
+#ifndef MOZ_PANGO
+    FT_Library GetFTLibrary();
+#endif
 
 #if (MOZ_WIDGET_GTK == 2)
-    static void SetGdkDrawable(cairo_surface_t *target,
+    static void SetGdkDrawable(gfxASurface *target,
                                GdkDrawable *drawable);
-    static GdkDrawable *GetGdkDrawable(cairo_surface_t *target);
+    static GdkDrawable *GetGdkDrawable(gfxASurface *target);
 #endif
 
     static int32_t GetDPI();
 
     bool UseXRender() {
-#if defined(MOZ_X11)
+#if defined(MOZ_X11) && defined(MOZ_PLATFORM_MAEMO)
+        // XRender is not accelerated on the Maemo at the moment, and 
+        // X server pixman is out of our control; it's likely to be 
+        // older than (our) cairo's.   So fall back on software 
+        // rendering for more predictable performance.
+        // This setting will likely not be relevant when we have
+        // GL-accelerated compositing. We know of other platforms 
+        // with bad drivers where we'd like to also use client side 
+        // rendering, but until we have the ability to featuer test 
+        // this, we'll only disable this for maemo.
+        return true;
+#elif defined(MOZ_X11)
         if (GetContentBackend() != mozilla::gfx::BACKEND_NONE &&
             GetContentBackend() != mozilla::gfx::BACKEND_CAIRO)
             return false;

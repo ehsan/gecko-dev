@@ -915,12 +915,7 @@ let actorProto = function(actorProto) {
           response.from = this.actorID;
           // If spec.release has been specified, destroy the object.
           if (spec.release) {
-            try {
-              this.destroy();
-            } catch(e) {
-              this.writeError(e);
-              return;
-            }
+            this.destroy();
           }
 
           conn.send(response);
@@ -993,12 +988,6 @@ let Front = Class({
   },
 
   destroy: function() {
-    // Reject all outstanding requests, they won't make sense after
-    // the front is destroyed.
-    while (this._requests && this._requests.length > 0) {
-      let deferred = this._requests.shift();
-      deferred.reject(new Error("Connection closed"));
-    }
     Pool.prototype.destroy.call(this);
     this.actorID = null;
   },
@@ -1058,10 +1047,7 @@ let Front = Class({
 
     // Remaining packets must be responses.
     if (this._requests.length === 0) {
-      let msg = "Unexpected packet " + this.actorID + ", " + JSON.stringify(packet);
-      let err = Error(msg);
-      console.error(err);
-      throw err;
+      throw Error("Unexpected packet from " + this.actorID + ", " + packet.type);
     }
 
     let deferred = this._requests.shift();

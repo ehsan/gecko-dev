@@ -9,13 +9,13 @@
 
 using namespace mozilla;
 
-typedef nsTObserverArray<int> IntArray;
+typedef nsTObserverArray<int> Array;
 
 #define DO_TEST(_type, _exp, _code)                                   \
   do {                                                                \
     ++testNum;                                                        \
     count = 0;                                                        \
-    IntArray::_type iter(arr);                                        \
+    Array::_type iter(arr);                                           \
     while (iter.HasMore() && count != ArrayLength(_exp)) {            \
       _code                                                           \
       int next = iter.GetNext();                                      \
@@ -45,7 +45,7 @@ int main(int argc, char **argv)
 
   int rv = 0;
 
-  IntArray arr;
+  Array arr;
   arr.AppendElement(3);
   arr.AppendElement(4);
 

@@ -3,6 +3,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#ifdef MOZ_LOGGING
+// so we can get logging even in release builds
+#define FORCE_PR_LOG 1
+#endif
+
 #include "MetroUtils.h"
 #include <windows.h>
 #include "nsICommandLineRunner.h"
@@ -16,12 +21,10 @@
 #include "nsIURI.h"
 #include "prlog.h"
 #include "nsIObserverService.h"
-#include "nsRect.h"
 
 #include <wrl/wrappers/corewrappers.h>
 #include <windows.ui.applicationsettings.h>
 #include <windows.graphics.display.h>
-#include "DisplayInfo_sdk81.h"
 
 using namespace ABI::Windows::UI::ApplicationSettings;
 
@@ -33,92 +36,140 @@ using namespace Microsoft::WRL::Wrappers;
 using namespace ABI::Windows::UI::ViewManagement;
 using namespace ABI::Windows::Graphics::Display;
 
-// Conversion between logical and physical coordinates
+// File-scoped statics (unnamed namespace)
+namespace {
+#ifdef PR_LOGGING
+  PRLogModuleInfo* metroWidgetLog = PR_NewLogModule("MetroWidget");
+#endif
 
-double
-MetroUtils::LogToPhysFactor()
-{
-  ComPtr<IDisplayInformationStatics> dispInfoStatics;
-  if (SUCCEEDED(GetActivationFactory(HStringReference(RuntimeClass_Windows_Graphics_Display_DisplayInformation).Get(),
-                                      dispInfoStatics.GetAddressOf()))) {
-    ComPtr<IDisplayInformation> dispInfo;
-    if (SUCCEEDED(dispInfoStatics->GetForCurrentView(&dispInfo))) {
+  FLOAT LogToPhysFactor() {
+    ComPtr<IDisplayPropertiesStatics> dispProps;
+    if (SUCCEEDED(GetActivationFactory(HStringReference(RuntimeClass_Windows_Graphics_Display_DisplayProperties).Get(),
+                                       dispProps.GetAddressOf()))) {
       FLOAT dpi;
-      if (SUCCEEDED(dispInfo->get_LogicalDpi(&dpi))) {
-        return (double)dpi / 96.0f;
+      if (SUCCEEDED(dispProps->get_LogicalDpi(&dpi))) {
+        return dpi / 96.0f;
       }
     }
+    return 1.0f;
   }
 
-  ComPtr<IDisplayPropertiesStatics> dispProps;
-  if (SUCCEEDED(GetActivationFactory(HStringReference(RuntimeClass_Windows_Graphics_Display_DisplayProperties).Get(),
-                                      dispProps.GetAddressOf()))) {
-    FLOAT dpi;
-    if (SUCCEEDED(dispProps->get_LogicalDpi(&dpi))) {
-      return (double)dpi / 96.0f;
-    }
-  }
-
-  return 1.0;
-}
-
-double
-MetroUtils::PhysToLogFactor()
-{
-  return 1.0 / LogToPhysFactor();
-}
-
-double
-MetroUtils::ScaleFactor()
-{
-  // Return the resolution scale factor reported by the metro environment.
-  // XXX TODO: also consider the desktop resolution setting, as IE appears to do?
-  ComPtr<IDisplayInformationStatics> dispInfoStatics;
-  if (SUCCEEDED(GetActivationFactory(HStringReference(RuntimeClass_Windows_Graphics_Display_DisplayInformation).Get(),
-                                      dispInfoStatics.GetAddressOf()))) {
-    ComPtr<IDisplayInformation> dispInfo;
-    if (SUCCEEDED(dispInfoStatics->GetForCurrentView(&dispInfo))) {
-      ResolutionScale scale;
-      if (SUCCEEDED(dispInfo->get_ResolutionScale(&scale))) {
-        return (double)scale / 100.0;
+  FLOAT PhysToLogFactor() {
+    ComPtr<IDisplayPropertiesStatics> dispProps;
+    if (SUCCEEDED(GetActivationFactory(HStringReference(RuntimeClass_Windows_Graphics_Display_DisplayProperties).Get(),
+                                       dispProps.GetAddressOf()))) {
+      FLOAT dpi;
+      if (SUCCEEDED(dispProps->get_LogicalDpi(&dpi))) {
+        return 96.0f / dpi;
       }
     }
+    return 1.0f;
   }
+};
 
-  ComPtr<IDisplayPropertiesStatics> dispProps;
-  if (SUCCEEDED(GetActivationFactory(HStringReference(RuntimeClass_Windows_Graphics_Display_DisplayProperties).Get(),
-                                     dispProps.GetAddressOf()))) {
-    ResolutionScale scale;
-    if (SUCCEEDED(dispProps->get_ResolutionScale(&scale))) {
-      return (double)scale / 100.0;
+void LogW(const wchar_t *fmt, ...)
+{
+  va_list args = NULL;
+  if(!lstrlenW(fmt))
+    return;
+  va_start(args, fmt);
+  int buflen = _vscwprintf(fmt, args);
+  wchar_t* buffer = new wchar_t[buflen+1];
+  if (!buffer) {
+    va_end(args);
+    return;
+  }
+  vswprintf(buffer, buflen, fmt, args);
+  va_end(args);
+
+  // MSVC, including remote debug sessions
+  OutputDebugStringW(buffer);
+  OutputDebugStringW(L"\n");
+
+  int len = wcslen(buffer);
+  if (len) {
+    char* utf8 = new char[len+1];
+    memset(utf8, 0, sizeof(utf8));
+    if (WideCharToMultiByte(CP_ACP, 0, buffer,
+                            -1, utf8, len+1, NULL,
+                            NULL) > 0) {
+      // desktop console
+      printf("%s\n", utf8);
+#ifdef PR_LOGGING
+      NS_ASSERTION(metroWidgetLog, "Called MetroUtils Log() but MetroWidget "
+                                   "log module doesn't exist!");
+      PR_LOG(metroWidgetLog, PR_LOG_ALWAYS, (utf8));
+#endif
     }
+    delete[] utf8;
   }
+  delete[] buffer;
+}
 
-  return 1.0;
+void Log(const char *fmt, ...)
+{
+  va_list args = NULL;
+  if(!strlen(fmt))
+    return;
+  va_start(args, fmt);
+  int buflen = _vscprintf(fmt, args);
+  char* buffer = new char[buflen+1];
+  if (!buffer) {
+    va_end(args);
+    return;
+  }
+  vsprintf(buffer, fmt, args);
+  va_end(args);
+
+  // MSVC, including remote debug sessions
+  OutputDebugStringA(buffer);
+  OutputDebugStringW(L"\n");
+
+  // desktop console
+  printf("%s\n", buffer);
+
+#ifdef PR_LOGGING
+  NS_ASSERTION(metroWidgetLog, "Called MetroUtils Log() but MetroWidget "
+                               "log module doesn't exist!");
+  PR_LOG(metroWidgetLog, PR_LOG_ALWAYS, (buffer));
+#endif
+  delete[] buffer;
+}
+
+// Conversion between logical and physical coordinates
+int32_t
+MetroUtils::LogToPhys(FLOAT aValue)
+{
+  return int32_t(NS_round(aValue * LogToPhysFactor()));
 }
 
 nsIntPoint
 MetroUtils::LogToPhys(const Point& aPt)
 {
-  double factor = LogToPhysFactor();
+  FLOAT factor = LogToPhysFactor();
   return nsIntPoint(int32_t(NS_round(aPt.X * factor)), int32_t(NS_round(aPt.Y * factor)));
 }
 
 nsIntRect
 MetroUtils::LogToPhys(const Rect& aRect)
 {
-  double factor = LogToPhysFactor();
+  FLOAT factor = LogToPhysFactor();
   return nsIntRect(int32_t(NS_round(aRect.X * factor)),
                    int32_t(NS_round(aRect.Y * factor)),
                    int32_t(NS_round(aRect.Width * factor)),
                    int32_t(NS_round(aRect.Height * factor)));
 }
 
+FLOAT
+MetroUtils::PhysToLog(int32_t aValue)
+{
+  return FLOAT(aValue) * PhysToLogFactor();
+}
+
 Point
 MetroUtils::PhysToLog(const nsIntPoint& aPt)
 {
-  // Points contain FLOATs
-  FLOAT factor = (FLOAT)PhysToLogFactor();
+  FLOAT factor = PhysToLogFactor();
   Point p = { FLOAT(aPt.x) * factor, FLOAT(aPt.y) * factor };
   return p;
 }

@@ -190,6 +190,11 @@ function getUsage(usageHandler)
   quotaManager.getUsageForURI(uri, cb);
 }
 
+function scheduleGC()
+{
+  SpecialPowers.exactGC(window, continueToNextStep);
+}
+
 function getFileId(file)
 {
   return utils.getFileId(file);
@@ -203,13 +208,13 @@ function hasFileInfo(name, id)
 function getFileRefCount(name, id)
 {
   let count = {};
-  utils.getFileReferences(name, id, null, count);
+  utils.getFileReferences(name, id, count);
   return count.value;
 }
 
 function getFileDBRefCount(name, id)
 {
   let count = {};
-  utils.getFileReferences(name, id, null, {}, count);
+  utils.getFileReferences(name, id, {}, count);
   return count.value;
 }

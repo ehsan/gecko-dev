@@ -10,12 +10,8 @@ const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
 
-const phishingList = Services.prefs.getCharPref("urlclassifier.phish_table");
-const malwareList = Services.prefs.getCharPref("urlclassifier.malware_table");
-const downloadBlockList =
-  Services.prefs.getCharPref("urlclassifier.download_block_table");
-const downloadAllowList =
-  Services.prefs.getCharPref("urlclassifier.download_allow_table");
+const [phishingList, malwareList] =
+  Services.prefs.getCharPref("urlclassifier.gethashtables").split(",").map(function(value) value.trim());
 
 var debug = false;
 function log(...stuff) {
@@ -35,7 +31,7 @@ this.SafeBrowsing = {
       return;
     }
 
-    Services.prefs.addObserver("browser.safebrowsing", this.readPrefs.bind(this), false);
+    Services.prefs.addObserver("browser.safebrowsing", this.readPrefs, false);
     this.readPrefs();
 
     // Register our two types of tables, and add custom Mozilla entries
@@ -43,8 +39,6 @@ this.SafeBrowsing = {
                       getService(Ci.nsIUrlListManager);
     listManager.registerTable(phishingList, false);
     listManager.registerTable(malwareList, false);
-    listManager.registerTable(downloadBlockList, false);
-    listManager.registerTable(downloadAllowList, false);
     this.addMozEntries();
 
     this.controlUpdateChecking();
@@ -98,7 +92,7 @@ this.SafeBrowsing = {
       var clientID = Services.appinfo.name;
     }
 
-    log("initializing safe browsing URLs, client id ", clientID);
+    log("initializing safe browsing URLs");
     let basePref = "browser.safebrowsing.";
 
     // Urls to HTML report pages
@@ -141,15 +135,10 @@ this.SafeBrowsing = {
     else
       listManager.disableUpdate(phishingList);
 
-    if (this.malwareEnabled) {
+    if (this.malwareEnabled)
       listManager.enableUpdate(malwareList);
-      listManager.enableUpdate(downloadBlockList);
-      listManager.enableUpdate(downloadAllowList);
-    } else {
+    else
       listManager.disableUpdate(malwareList);
-      listManager.disableUpdate(downloadBlockList);
-      listManager.disableUpdate(downloadAllowList);
-    }
   },
 
 

@@ -5,7 +5,7 @@
 MOZ_APP_BASENAME=Fennec
 MOZ_APP_VENDOR=Mozilla
 
-MOZ_APP_VERSION=29.0a1
+MOZ_APP_VERSION=26.0a1
 MOZ_APP_UA_NAME=Firefox
 
 MOZ_BRANDING_DIRECTORY=mobile/android/branding/unofficial
@@ -33,9 +33,9 @@ MOZ_RAW=1
 MOZ_PLACES=
 MOZ_SOCIAL=
 MOZ_ANDROID_HISTORY=1
-MOZ_DISABLE_EXPORT_JS=1
 
 # Needed for building our components as part of libxul
+MOZ_APP_COMPONENT_LIBS="browsercomps"
 MOZ_APP_COMPONENT_INCLUDE=nsBrowserComponents.h
 
 # use custom widget for html:select
@@ -46,6 +46,8 @@ MOZ_APP_ID={aa3c5121-dab2-40e2-81ca-7ea25febc110}
 MOZ_ANDROID_OMTC=1
 MOZ_EXTENSION_MANAGER=1
 MOZ_APP_STATIC_INI=1
+
+MOZ_FENNEC=1
 
 # Enable on-demand decompression
 MOZ_ENABLE_SZIP=1
@@ -58,10 +60,8 @@ MOZ_PAY=1
 # Enable UI for healthreporter
 MOZ_SERVICES_HEALTHREPORT=1
 
-# Wifi-AP/cell tower data reporting is enabled on non-release builds.
-if test ! "$RELEASE_BUILD"; then
+# Wifi-AP/cell tower data reporting is always enabled.
 MOZ_DATA_REPORTING=1
-fi
 
 # Enable the production cert for verifying signed packaged apps.
 MOZ_B2G_CERTDATA=1

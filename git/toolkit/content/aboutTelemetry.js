@@ -19,9 +19,8 @@ const brandBundle = Services.strings.createBundle(
 const TelemetryPing = Cc["@mozilla.org/base/telemetry-ping;1"].
   getService(Ci.nsITelemetryPing);
 
-// Maximum height of a histogram bar (in em for html, in chars for text)
+// Maximum height of a histogram bar (in em)
 const MAX_BAR_HEIGHT = 18;
-const MAX_BAR_CHARS = 25;
 const PREF_TELEMETRY_SERVER_OWNER = "toolkit.telemetry.server_owner";
 #ifdef MOZ_TELEMETRY_ON_BY_DEFAULT
 const PREF_TELEMETRY_ENABLED = "toolkit.telemetry.enabledPreRelease";
@@ -31,15 +30,6 @@ const PREF_TELEMETRY_ENABLED = "toolkit.telemetry.enabled";
 const PREF_DEBUG_SLOW_SQL = "toolkit.telemetry.debugSlowSql";
 const PREF_SYMBOL_SERVER_URI = "profiler.symbolicationUrl";
 const DEFAULT_SYMBOL_SERVER_URI = "http://symbolapi.mozilla.org";
-
-// ms idle before applying the filter (allow uninterrupted typing)
-const FILTER_IDLE_TIMEOUT = 500;
-
-#ifdef XP_WIN
-const EOL = "\r\n";
-#else
-const EOL = "\n";
-#endif
 
 // Cached value of document's RTL mode
 let documentRTLMode = "";
@@ -136,10 +126,9 @@ let SlowSQL = {
     let mainThreadCount = Object.keys(mainThread).length;
     let otherThreadCount = Object.keys(otherThreads).length;
     if (mainThreadCount == 0 && otherThreadCount == 0) {
+      showEmptySectionMessage("slow-sql-section");
       return;
     }
-
-    setHasData("slow-sql-section", true);
 
     if (debugSlowSql) {
       document.getElementById("sql-warning").classList.remove("hidden");
@@ -286,10 +275,9 @@ let StackRenderer = {
     }
 
     if (aStacks.length == 0) {
+      showEmptySectionMessage(aPrefix + '-section');
       return;
     }
-
-    setHasData(aPrefix + '-section', true);
 
     this.renderMemoryMap(div, aMemoryMap);
 
@@ -419,8 +407,6 @@ let Histogram = {
 
   hgramSumCaption: bundle.GetStringFromName("histogramSum"),
 
-  hgramCopyCaption: bundle.GetStringFromName("histogramCopy"),
-
   /**
    * Renders a single Telemetry histogram
    *
@@ -451,18 +437,7 @@ let Histogram = {
     if (isRTL())
       hgram.values.reverse();
 
-    let textData = this.renderValues(outerDiv, hgram.values, hgram.max, hgram.sample_count);
-
-    // The 'Copy' button contains the textual data, copied to clipboard on click
-    let copyButton = document.createElement("button");
-    copyButton.className = "copy-node";
-    copyButton.appendChild(document.createTextNode(this.hgramCopyCaption));
-    copyButton.histogramText = aName + EOL + stats + EOL + EOL + textData;
-    copyButton.addEventListener("click", function(){
-      Cc["@mozilla.org/widget/clipboardhelper;1"].getService(Ci.nsIClipboardHelper)
-                                                 .copyString(this.histogramText);
-    });
-    outerDiv.appendChild(copyButton);
+    this.renderValues(outerDiv, hgram.values, hgram.max);
 
     aParent.appendChild(outerDiv);
   },
@@ -516,28 +491,14 @@ let Histogram = {
   },
 
   /**
-   * Create histogram HTML bars, also returns a textual representation
-   * Both aMaxValue and aSumValues must be positive.
-   * Values are assumed to use 0 as baseline.
+   * Create histogram bars
    *
    * @param aDiv Outer parent div
    * @param aValues Histogram values
-   * @param aMaxValue Value of the longest bar (length, not label)
-   * @param aSumValues Sum of all bar values
+   * @param aMaxValue Largest histogram value in set
    */
-  renderValues: function Histogram_renderValues(aDiv, aValues, aMaxValue, aSumValues) {
-    let text = "";
-    // If the last label is not the longest string, alignment will break a little
-    let labelPadTo = String(aValues[aValues.length -1][0]).length;
-
+  renderValues: function Histogram_renderValues(aDiv, aValues, aMaxValue) {
     for (let [label, value] of aValues) {
-      // Create a text representation: <right-aligned-label> |<bar-of-#><value>  <percentage>
-      text += EOL
-              + " ".repeat(Math.max(0, labelPadTo - String(label).length)) + label // Right-aligned label
-              + " |" + "#".repeat(Math.round(MAX_BAR_CHARS * value / aMaxValue)) + value // Bars and value
-              + "  " + Math.round(100 * value / aSumValues) + "%"; // Percentage
-
-      // Construct the HTML labels + bars
       let belowEm = Math.round(MAX_BAR_HEIGHT * (value / aMaxValue) * 10) / 10;
       let aboveEm = MAX_BAR_HEIGHT - belowEm;
 
@@ -559,119 +520,22 @@ let Histogram = {
 
       aDiv.appendChild(barDiv);
     }
-
-    return text.substr(EOL.length); // Trim the EOL before the first line
-  },
-
-  /**
-   * Helper function for filtering histogram elements by their id
-   * Adds the "filter-blocked" class to histogram nodes whose IDs don't match the filter.
-   *
-   * @param aContainerNode Container node containing the histogram class nodes to filter
-   * @param aFilterText either text or /RegEx/. If text, case-insensitive and AND words
-   */
-  filterHistograms: function _filterHistograms(aContainerNode, aFilterText) {
-    let filter = aFilterText.toString();
-
-    // Pass if: all non-empty array items match (case-sensitive)
-    function isPassText(subject, filter) {
-      for (let item of filter) {
-        if (item.length && subject.indexOf(item) < 0) {
-          return false; // mismatch and not a spurious space
-        }
-      }
-      return true;
-    }
-
-    function isPassRegex(subject, filter) {
-      return filter.test(subject);
-    }
-
-    // Setup normalized filter string (trimmed, lower cased and split on spaces if not RegEx)
-    let isPassFunc; // filter function, set once, then applied to all elements
-    filter = filter.trim();
-    if (filter[0] != "/") { // Plain text: case insensitive, AND if multi-string
-      isPassFunc = isPassText;
-      filter = filter.toLowerCase().split(" ");
-    } else {
-      isPassFunc = isPassRegex;
-      var r = filter.match(/^\/(.*)\/(i?)$/);
-      try {
-        filter = RegExp(r[1], r[2]);
-      }
-      catch (e) { // Incomplete or bad RegExp - always no match
-        isPassFunc = function() {
-          return false;
-        };
-      }
-    }
-
-    let needLower = (isPassFunc === isPassText);
-
-    let histograms = aContainerNode.getElementsByClassName("histogram");
-    for (let hist of histograms) {
-      hist.classList[isPassFunc((needLower ? hist.id.toLowerCase() : hist.id), filter) ? "remove" : "add"]("filter-blocked");
-    }
-  },
-
-  /**
-   * Event handler for change at histograms filter input
-   *
-   * When invoked, 'this' is expected to be the filter HTML node.
-   */
-  histogramFilterChanged: function _histogramFilterChanged() {
-    if (this.idleTimeout) {
-      clearTimeout(this.idleTimeout);
-    }
-
-    this.idleTimeout = setTimeout( () => {
-      Histogram.filterHistograms(document.getElementById(this.getAttribute("target_id")), this.value);
-    }, FILTER_IDLE_TIMEOUT);
   }
-};
-
-/*
- * Helper function to render JS objects with white space between top level elements
- * so that they look better in the browser
- * @param   aObject JavaScript object or array to render
- * @return  String
- */
-function RenderObject(aObject) {
-  let output = "";
-  if (Array.isArray(aObject)) {
-    if (aObject.length == 0) {
-      return "[]";
-    }
-    output = "[" + JSON.stringify(aObject[0]);
-    for (let i = 1; i < aObject.length; i++) {
-      output += ", " + JSON.stringify(aObject[i]);
-    }
-    return output + "]";
-  }
-  let keys = Object.keys(aObject);
-  if (keys.length == 0) {
-    return "{}";
-  }
-  output = "{\"" + keys[0] + "\":\u00A0" + JSON.stringify(aObject[keys[0]]);
-  for (let i = 1; i < keys.length; i++) {
-    output += ", \"" + keys[i] + "\":\u00A0" + JSON.stringify(aObject[keys[i]]);
-  }
-  return output + "}";
 };
 
 let KeyValueTable = {
+
+  keysHeader: bundle.GetStringFromName("keysHeader"),
+
+  valuesHeader: bundle.GetStringFromName("valuesHeader"),
+
   /**
-   * Returns a 2-column table with keys and values
-   * @param aMeasurements Each key in this JS object is rendered as a row in
-   *                      the table with its corresponding value
-   * @param aKeysLabel    Column header for the keys column
-   * @param aValuesLabel  Column header for the values column
+   * Fill out a 2-column table with keys and values
    */
-  render: function KeyValueTable_render(aMeasurements, aKeysLabel, aValuesLabel) {
-    let table = document.createElement("table");
-    this.renderHeader(table, aKeysLabel, aValuesLabel);
+  render: function KeyValueTable_render(aTableID, aMeasurements) {
+    let table = document.getElementById(aTableID);
+    this.renderHeader(table);
     this.renderBody(table, aMeasurements);
-    return table;
   },
 
   /**
@@ -679,17 +543,15 @@ let KeyValueTable = {
    * Tabs & newlines added to cells to make it easier to copy-paste.
    *
    * @param aTable Table element
-   * @param aKeysLabel    Column header for the keys column
-   * @param aValuesLabel  Column header for the values column
    */
-  renderHeader: function KeyValueTable_renderHeader(aTable, aKeysLabel, aValuesLabel) {
+  renderHeader: function KeyValueTable_renderHeader(aTable) {
     let headerRow = document.createElement("tr");
     aTable.appendChild(headerRow);
 
     let keysColumn = document.createElement("th");
-    keysColumn.appendChild(document.createTextNode(aKeysLabel + "\t"));
+    keysColumn.appendChild(document.createTextNode(this.keysHeader + "\t"));
     let valuesColumn = document.createElement("th");
-    valuesColumn.appendChild(document.createTextNode(aValuesLabel + "\n"));
+    valuesColumn.appendChild(document.createTextNode(this.valuesHeader + "\n"));
 
     headerRow.appendChild(keysColumn);
     headerRow.appendChild(valuesColumn);
@@ -705,7 +567,7 @@ let KeyValueTable = {
   renderBody: function KeyValueTable_renderBody(aTable, aMeasurements) {
     for (let [key, value] of Iterator(aMeasurements)) {
       if (typeof value == "object") {
-        value = RenderObject(value);
+        value = JSON.stringify(value);
       }
 
       let newRow = document.createElement("tr");
@@ -722,37 +584,35 @@ let KeyValueTable = {
   }
 };
 
-let AddonDetails = {
-  tableIDTitle: bundle.GetStringFromName("addonTableID"),
-  tableDetailsTitle: bundle.GetStringFromName("addonTableDetails"),
-
-  /**
-   * Render the addon details section as a series of headers followed by key/value tables
-   * @param aSections Object containing the details sections to render
-   */
-  render: function AddonDetails_render(aSections) {
-    let addonSection = document.getElementById("addon-details");
-    for (let provider in aSections) {
-      let providerSection = document.createElement("h2");
-      let titleText = bundle.formatStringFromName("addonProvider", [provider], 1);
-      providerSection.appendChild(document.createTextNode(titleText));
-      addonSection.appendChild(providerSection);
-      addonSection.appendChild(
-        KeyValueTable.render(aSections[provider],
-                             this.tableIDTitle, this.tableDetailsTitle));
-    }
-  }
-};
-
 /**
- * Helper function for showing either the toggle element or "No data collected" message for a section
+ * Helper function for showing "No data collected" message for a section
  *
  * @param aSectionID ID of the section element that needs to be changed
- * @param aHasData true (default) indicates that toggle should be displayed
  */
-function setHasData(aSectionID, aHasData) {
+function showEmptySectionMessage(aSectionID) {
   let sectionElement = document.getElementById(aSectionID);
-  sectionElement.classList[aHasData ? "add" : "remove"]("has-data");
+
+  // Hide toggle captions
+  let toggleElements = sectionElement.getElementsByClassName("toggle-caption");
+  toggleElements[0].classList.add("hidden");
+  toggleElements[1].classList.add("hidden");
+
+  // Show "No data collected" message
+  let messageElement = sectionElement.getElementsByClassName("empty-caption")[0];
+  messageElement.classList.remove("hidden");
+
+  // Don't allow section to be expanded by clicking on the header text
+  let sectionHeaders = sectionElement.getElementsByClassName("section-name");
+  for (let sectionHeader of sectionHeaders) {
+    sectionHeader.removeEventListener("click", toggleSection);
+    sectionHeader.style.cursor = "auto";
+  }
+
+  // Don't allow section to be expanded by clicking on the toggle text
+  let toggleLinks = sectionElement.getElementsByClassName("toggle-caption");
+  for (let toggleLink of toggleLinks) {
+    toggleLink.removeEventListener("click", toggleSection);
+  }
 }
 
 /**
@@ -761,15 +621,12 @@ function setHasData(aSectionID, aHasData) {
  */
 function toggleSection(aEvent) {
   let parentElement = aEvent.target.parentElement;
-  if (!parentElement.classList.contains("has-data")) {
-    return; // nothing to toggle
-  }
+  let sectionDiv = parentElement.getElementsByTagName("div")[0];
+  sectionDiv.classList.toggle("hidden");
 
-  parentElement.classList.toggle("expanded");
-
-  // Store section opened/closed state in a hidden checkbox (which is then used on reload)
-  let statebox = parentElement.getElementsByClassName("statebox")[0];
-  statebox.checked = parentElement.classList.contains("expanded");
+  let toggleLinks = parentElement.getElementsByClassName("toggle-caption");
+  toggleLinks[0].classList.toggle("hidden");
+  toggleLinks[1].classList.toggle("hidden");
 }
 
 /**
@@ -843,13 +700,12 @@ function setupListeners() {
     sectionHeader.addEventListener("click", toggleSection, false);
   }
 
-  // Clicking on the "toggle" text will also toggle section's state
+  // Clicking on the "collapse"/"expand" text will also toggle section's state
   let toggleLinks = document.getElementsByClassName("toggle-caption");
   for (let toggleLink of toggleLinks) {
     toggleLink.addEventListener("click", toggleSection, false);
   }
 }
-
 
 function onLoad() {
   window.removeEventListener("load", onLoad);
@@ -873,14 +729,8 @@ function onLoad() {
     for (let [name, hgram] of Iterator(histograms)) {
       Histogram.render(hgramDiv, name, hgram);
     }
-
-    let filterBox = document.getElementById("histograms-filter");
-    filterBox.addEventListener("input", Histogram.histogramFilterChanged, false);
-    if (filterBox.value.trim() != "") { // on load, no need to filter if empty
-      Histogram.filterHistograms(hgramDiv, filterBox.value);
-    }
-
-    setHasData("histograms-section", true);
+  } else {
+    showEmptySectionMessage("histograms-section");
   }
 
   // Show addon histogram data
@@ -894,21 +744,13 @@ function onLoad() {
     }
   }
 
-  if (addonHistogramsRendered) {
-   setHasData("addon-histograms-section", true);
+  if (!addonHistogramsRendered) {
+    showEmptySectionMessage("addon-histograms-section");
   }
 
   // Get the Telemetry Ping payload
   Telemetry.asyncFetchTelemetryData(displayPingData);
-
-  // Restore sections states
-  let stateboxes = document.getElementsByClassName("statebox");
-  for (let box of stateboxes) {
-    if (box.checked) { // Was open. Will still display as empty if not has-data
-        box.parentElement.classList.add("expanded");
-    }
-  }
-}
+};
 
 let LateWritesSingleton = {
   renderHeader: function LateWritesSingleton_renderHeader(aIndex) {
@@ -971,32 +813,21 @@ function sortStartupMilestones(aSimpleMeasurements) {
 function displayPingData() {
   let ping = TelemetryPing.getPayload();
 
-  let keysHeader = bundle.GetStringFromName("keysHeader");
-  let valuesHeader = bundle.GetStringFromName("valuesHeader");
-
   // Show simple measurements
   let simpleMeasurements = sortStartupMilestones(ping.simpleMeasurements);
   if (Object.keys(simpleMeasurements).length) {
-    let simpleSection = document.getElementById("simple-measurements");
-    simpleSection.appendChild(KeyValueTable.render(simpleMeasurements,
-                                                   keysHeader, valuesHeader));
-    setHasData("simple-measurements-section", true);
+    KeyValueTable.render("simple-measurements-table", simpleMeasurements);
+  } else {
+    showEmptySectionMessage("simple-measurements-section");
   }
 
   LateWritesSingleton.renderLateWrites(ping.lateWrites);
 
   // Show basic system info gathered
   if (Object.keys(ping.info).length) {
-    let infoSection = document.getElementById("system-info");
-    infoSection.appendChild(KeyValueTable.render(ping.info,
-                                                 keysHeader, valuesHeader));
-    setHasData("system-info-section", true);
-  }
-
-  let addonDetails = ping.addonDetails;
-  if (Object.keys(addonDetails).length) {
-    AddonDetails.render(addonDetails);
-    setHasData("addon-details-section", true);
+    KeyValueTable.render("system-info-table", ping.info);
+  } else {
+    showEmptySectionMessage("system-info-section");
   }
 }
 

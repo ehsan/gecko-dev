@@ -8,13 +8,13 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/system_wrappers/interface/condition_variable_wrapper.h"
+#include "system_wrappers/interface/condition_variable_wrapper.h"
 
-#include "testing/gtest/include/gtest/gtest.h"
-#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
-#include "webrtc/system_wrappers/interface/thread_wrapper.h"
-#include "webrtc/system_wrappers/interface/trace.h"
-#include "webrtc/system_wrappers/source/unittest_utilities.h"
+#include "gtest/gtest.h"
+#include "system_wrappers/interface/critical_section_wrapper.h"
+#include "system_wrappers/interface/thread_wrapper.h"
+#include "system_wrappers/interface/trace.h"
+#include "system_wrappers/source/unittest_utilities.h"
 
 namespace webrtc {
 
@@ -175,10 +175,6 @@ class CondVarTest : public ::testing::Test {
   ThreadWrapper* thread_;
 };
 
-// Disable for TSan v2, see
-// https://code.google.com/p/webrtc/issues/detail?id=2259 for details.
-#if !defined(THREAD_SANITIZER)
-
 // The SetUp and TearDown functions use condition variables.
 // This test verifies those pieces in isolation.
 TEST_F(CondVarTest, InitFunctionsWork) {
@@ -194,8 +190,6 @@ TEST_F(CondVarTest, PassBatonMultipleTimes) {
   }
   EXPECT_EQ(2 * kNumberOfRounds, baton_.PassCount());
 }
-
-#endif // if !defined(THREAD_SANITIZER)
 
 }  // anonymous namespace
 

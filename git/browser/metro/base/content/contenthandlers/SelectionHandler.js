@@ -2,16 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-let Ci = Components.interfaces;
-let Cc = Components.classes;
-
 dump("### SelectionHandler.js loaded\n");
 
 var SelectionHandler = {
   init: function init() {
     this.type = kContentSelector;
     this.snap = true;
-    this.lastYPos = this.lastXPos = null;
     addMessageListener("Browser:SelectionStart", this);
     addMessageListener("Browser:SelectionAttach", this);
     addMessageListener("Browser:SelectionEnd", this);
@@ -28,7 +24,6 @@ var SelectionHandler = {
     addMessageListener("Browser:SelectionSwitchMode", this);
     addMessageListener("Browser:RepositionInfoRequest", this);
     addMessageListener("Browser:SelectionHandlerPing", this);
-    addMessageListener("Browser:ResetLastPos", this);
   },
 
   shutdown: function shutdown() {
@@ -48,7 +43,6 @@ var SelectionHandler = {
     removeMessageListener("Browser:SelectionSwitchMode", this);
     removeMessageListener("Browser:RepositionInfoRequest", this);
     removeMessageListener("Browser:SelectionHandlerPing", this);
-    removeMessageListener("Browser:ResetLastPos", this);
   },
 
   sendAsync: function sendAsync(aMsg, aJson) {
@@ -328,6 +322,17 @@ var SelectionHandler = {
    * whether the browser deck needs repositioning.
    */
   _repositionInfoRequest: function _repositionInfoRequest(aJsonMsg) {
+    if (!this.isActive) {
+      Util.dumpLn("unexpected: repositionInfoRequest but selection isn't active.");
+      this.sendAsync("Content:RepositionInfoResponse", { reposition: false });
+      return;
+    }
+    
+    if (!this.targetIsEditable) {
+      Util.dumpLn("unexpected: repositionInfoRequest but targetIsEditable is false.");
+      this.sendAsync("Content:RepositionInfoResponse", { reposition: false });
+    }
+    
     let result = this._calcNewContentPosition(aJsonMsg.viewHeight);
 
     // no repositioning needed
@@ -344,11 +349,6 @@ var SelectionHandler = {
 
   _onPing: function _onPing(aId) {
     this.sendAsync("Content:SelectionHandlerPong", { id: aId });
-  },
-
-  onClickCoords: function (xPos, yPos) {
-    this.lastXPos = xPos;
-    this.lastYPos = yPos;
   },
 
   /*************************************************
@@ -400,7 +400,7 @@ var SelectionHandler = {
           contentWindow: contentWindow,
           offset: offset,
           utils: utils } =
-      Content.getCurrentWindowAndOffset(aX, aY);
+      this.getCurrentWindowAndOffset(aX, aY);
     if (!contentWindow) {
       return false;
     }
@@ -422,18 +422,37 @@ var SelectionHandler = {
    * distance content should be raised to center the target element.
    */
   _calcNewContentPosition: function _calcNewContentPosition(aNewViewHeight) {
-    // We have no target element but the keyboard is up
-    // so lets not cover content that is below the keyboard
-    if (!this._cache || !this._cache.element) {
-      if (this.lastYPos != null && this.lastYPos > aNewViewHeight) {
-        return Services.metro.keyboardHeight;
-      }
+    // We don't support this on non-editable elements
+    if (!this._targetIsEditable) {
       return 0;
     }
 
-    let position = Util.centerElementInView(aNewViewHeight, this._cache.element);
-    if (position !== undefined) {
-      return position;
+    // If the bottom of the target bounds is higher than the new height,
+    // there's no need to adjust. It will be above the keyboard.
+    if (this._cache.element.bottom <= aNewViewHeight) {
+      return 0;
+    }
+    
+    // height of the target element
+    let targetHeight = this._cache.element.bottom - this._cache.element.top;
+    // height of the browser view.
+    let viewBottom = content.innerHeight;
+
+    // If the target is shorter than the new content height, we can go ahead
+    // and center it.
+    if (targetHeight <= aNewViewHeight) {
+      // Try to center the element vertically in the new content area, but
+      // don't position such that the bottom of the browser view moves above
+      // the top of the chrome. We purposely do not resize the browser window
+      // by making it taller when trying to center elements that are near the
+      // lower bounds. This would trigger reflow which can cause content to
+      // shift around. 
+      let splitMargin = Math.round((aNewViewHeight - targetHeight) * .5);
+      let distanceToPageBounds = viewBottom - this._cache.element.bottom;
+      let distanceFromChromeTop = this._cache.element.bottom - aNewViewHeight;
+      let distanceToCenter =
+        distanceFromChromeTop + Math.min(distanceToPageBounds, splitMargin);
+      return distanceToCenter;
     }
 
     // Special case: we are dealing with an input that is taller than the
@@ -537,20 +556,11 @@ var SelectionHandler = {
         break;
 
       case "Browser:RepositionInfoRequest":
-        // This message is sent simultaneously with a tap event.
-        // Wait a bit to make sure we have the most up-to-date tap co-ordinates
-        // before a call to _calcNewContentPosition() which accesses them.
-        content.setTimeout (function () {
-          SelectionHandler._repositionInfoRequest(json);
-        }, 50);
+        this._repositionInfoRequest(json);
         break;
 
       case "Browser:SelectionHandlerPing":
         this._onPing(json.id);
-        break;
-
-      case "Browser:ResetLastPos":
-        this.onClickCoords(json.xPos, json.yPos);
         break;
     }
   },
@@ -558,6 +568,61 @@ var SelectionHandler = {
   /*************************************************
    * Utilities
    */
+
+  /*
+   * Retrieve the total offset from the window's origin to the sub frame
+   * element including frame and scroll offsets. The resulting offset is
+   * such that:
+   * sub frame coords + offset = root frame position
+   */
+  getCurrentWindowAndOffset: function(x, y) {
+    // If the element at the given point belongs to another document (such
+    // as an iframe's subdocument), the element in the calling document's
+    // DOM (e.g. the iframe) is returned.
+    let utils = Util.getWindowUtils(content);
+    let element = utils.elementFromPoint(x, y, true, false);
+    let offset = { x:0, y:0 };
+
+    while (element && (element instanceof HTMLIFrameElement ||
+                       element instanceof HTMLFrameElement)) {
+      // get the child frame position in client coordinates
+      let rect = element.getBoundingClientRect();
+
+      // calculate offsets for digging down into sub frames
+      // using elementFromPoint:
+
+      // Get the content scroll offset in the child frame
+      scrollOffset = ContentScroll.getScrollOffset(element.contentDocument.defaultView);
+      // subtract frame and scroll offset from our elementFromPoint coordinates
+      x -= rect.left + scrollOffset.x;
+      y -= rect.top + scrollOffset.y;
+
+      // calculate offsets we'll use to translate to client coords:
+
+      // add frame client offset to our total offset result
+      offset.x += rect.left;
+      offset.y += rect.top;
+
+      // get the frame's nsIDOMWindowUtils
+      utils = element.contentDocument
+                     .defaultView
+                     .QueryInterface(Ci.nsIInterfaceRequestor)
+                     .getInterface(Ci.nsIDOMWindowUtils);
+
+      // retrieve the target element in the sub frame at x, y
+      element = utils.elementFromPoint(x, y, true, false);
+    }
+
+    if (!element)
+      return {};
+
+    return {
+      element: element,
+      contentWindow: element.ownerDocument.defaultView,
+      offset: offset,
+      utils: utils
+    };
+  },
 
   _getDocShell: function _getDocShell(aWindow) {
     if (aWindow == null)
@@ -599,7 +664,6 @@ var SelectionHandler = {
     }
   },
 };
-this.SelectionHandler = SelectionHandler;
 
 SelectionHandler.__proto__ = new SelectionPrototype();
 SelectionHandler.init();

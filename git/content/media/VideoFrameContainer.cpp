@@ -20,7 +20,8 @@ VideoFrameContainer::VideoFrameContainer(dom::HTMLMediaElement* aElement,
                                          already_AddRefed<ImageContainer> aContainer)
   : mElement(aElement),
     mImageContainer(aContainer), mMutex("nsVideoFrameContainer"),
-    mIntrinsicSizeChanged(false), mImageSizeChanged(false)
+    mIntrinsicSizeChanged(false), mImageSizeChanged(false),
+    mNeedInvalidation(true)
 {
   NS_ASSERTION(aElement, "aElement must not be null");
   NS_ASSERTION(mImageContainer, "aContainer must not be null");
@@ -40,7 +41,7 @@ void VideoFrameContainer::SetCurrentFrame(const gfxIntSize& aIntrinsicSize,
     mIntrinsicSizeChanged = true;
   }
 
-  gfx::IntSize oldFrameSize = mImageContainer->GetCurrentSize();
+  gfxIntSize oldFrameSize = mImageContainer->GetCurrentSize();
   TimeStamp lastPaintTime = mImageContainer->GetPaintTime();
   if (!lastPaintTime.IsNull() && !mPaintTarget.IsNull()) {
     mPaintDelay = lastPaintTime - mPaintTarget;
@@ -57,9 +58,10 @@ void VideoFrameContainer::SetCurrentFrame(const gfxIntSize& aIntrinsicSize,
   mImageContainer->UnlockCurrentImage();
 
   mImageContainer->SetCurrentImage(aImage);
-  gfx::IntSize newFrameSize = mImageContainer->GetCurrentSize();
+  gfxIntSize newFrameSize = mImageContainer->GetCurrentSize();
   if (oldFrameSize != newFrameSize) {
     mImageSizeChanged = true;
+    mNeedInvalidation = true;
   }
 
   mPaintTarget = aTargetTime;
@@ -85,8 +87,12 @@ void VideoFrameContainer::ClearCurrentFrame(bool aResetSize)
   kungFuDeathGrip = mImageContainer->LockCurrentImage();
   mImageContainer->UnlockCurrentImage();
 
-  mImageContainer->ClearAllImages();
+  mImageContainer->SetCurrentImage(nullptr);
   mImageSizeChanged = aResetSize;
+
+  // We removed the current image so we will have to invalidate once
+  // again to setup the ImageContainer <-> Compositor pair.
+  mNeedInvalidation = true;
 }
 
 ImageContainer* VideoFrameContainer::GetImageContainer() {
@@ -100,9 +106,20 @@ double VideoFrameContainer::GetFrameDelay()
   return mPaintDelay.ToSeconds();
 }
 
-void VideoFrameContainer::InvalidateWithFlags(uint32_t aFlags)
+void VideoFrameContainer::Invalidate()
 {
   NS_ASSERTION(NS_IsMainThread(), "Must call on main thread");
+
+  if (!mNeedInvalidation) {
+    return;
+  }
+
+  if (mImageContainer &&
+      mImageContainer->IsAsync() &&
+      mImageContainer->HasCurrentImage() &&
+      !mIntrinsicSizeChanged) {
+    mNeedInvalidation = false;
+  }
 
   if (!mElement) {
     // Element has been destroyed
@@ -133,16 +150,11 @@ void VideoFrameContainer::InvalidateWithFlags(uint32_t aFlags)
     }
   }
 
-  bool asyncInvalidate = mImageContainer &&
-                         mImageContainer->IsAsync() &&
-                         !(aFlags & INVALIDATE_FORCE);
-
   if (frame) {
     if (invalidateFrame) {
       frame->InvalidateFrame();
     } else {
-      frame->InvalidateLayer(nsDisplayItem::TYPE_VIDEO, nullptr,
-                             asyncInvalidate ? nsIFrame::UPDATE_IS_ASYNC : 0);
+      frame->InvalidateLayer(nsDisplayItem::TYPE_VIDEO);
     }
   }
 

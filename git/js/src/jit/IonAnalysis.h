@@ -13,7 +13,7 @@
 #include "jit/MIR.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class MIRGenerator;
 class MIRGraph;
@@ -97,15 +97,13 @@ struct LinearTerm
 class LinearSum
 {
   public:
-    LinearSum(TempAllocator &alloc)
-      : terms_(alloc),
-        constant_(0)
+    LinearSum()
+      : constant_(0)
     {
     }
 
     LinearSum(const LinearSum &other)
-      : terms_(other.terms_.allocPolicy()),
-        constant_(other.constant_)
+      : constant_(other.constant_)
     {
         terms_.appendAll(other.terms_);
     }
@@ -120,20 +118,13 @@ class LinearSum
     LinearTerm term(size_t i) const { return terms_[i]; }
 
     void print(Sprinter &sp) const;
-    void dump(FILE *) const;
-    void dump() const;
 
   private:
     Vector<LinearTerm, 2, IonAllocPolicy> terms_;
     int32_t constant_;
 };
 
-bool
-AnalyzeNewScriptProperties(JSContext *cx, JSFunction *fun,
-                           types::TypeObject *type, HandleObject baseobj,
-                           Vector<types::TypeNewScript::Initializer> *initializerList);
-
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_IonAnalysis_h */

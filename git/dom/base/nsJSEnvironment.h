@@ -14,17 +14,14 @@
 #include "nsIXPConnect.h"
 #include "nsIArray.h"
 #include "mozilla/Attributes.h"
-#include "nsThreadUtils.h"
 
 class nsICycleCollectorListener;
 class nsIXPConnectJSObjectHolder;
 class nsRootedJSValueArray;
 class nsScriptNameSpaceManager;
-class nsCycleCollectionNoteRootCallback;
 
 namespace mozilla {
 template <class> class Maybe;
-struct CycleCollectorResults;
 }
 
 // The amount of time we wait between a request to GC (due to leaving
@@ -45,8 +42,7 @@ public:
                                   JS::Handle<JSObject*> aScopeObject,
                                   JS::CompileOptions &aOptions,
                                   bool aCoerceToString,
-                                  JS::Value* aRetValue,
-                                  void **aOffThreadToken = nullptr) MOZ_OVERRIDE;
+                                  JS::Value* aRetValue) MOZ_OVERRIDE;
 
   virtual nsresult BindCompiledEventHandler(nsISupports *aTarget,
                                             JS::Handle<JSObject*> aScope,
@@ -57,8 +53,12 @@ public:
   inline nsIScriptGlobalObject *GetGlobalObjectRef() { return mGlobalObjectRef; }
 
   virtual JSContext* GetNativeContext() MOZ_OVERRIDE;
+  virtual JSObject* GetNativeGlobal() MOZ_OVERRIDE;
   virtual nsresult InitContext() MOZ_OVERRIDE;
   virtual bool IsContextInitialized() MOZ_OVERRIDE;
+
+  virtual bool GetScriptsEnabled() MOZ_OVERRIDE;
+  virtual void SetScriptsEnabled(bool aEnabled, bool aFireTimeouts) MOZ_OVERRIDE;
 
   virtual nsresult SetProperty(JS::Handle<JSObject*> aTarget, const char* aPropName, nsISupports* aVal) MOZ_OVERRIDE;
 
@@ -69,10 +69,6 @@ public:
 
   virtual void WillInitializeContext() MOZ_OVERRIDE;
   virtual void DidInitializeContext() MOZ_OVERRIDE;
-
-  virtual void SetWindowProxy(JS::Handle<JSObject*> aWindowProxy) MOZ_OVERRIDE;
-  virtual JSObject* GetWindowProxy() MOZ_OVERRIDE;
-  virtual JSObject* GetWindowProxyPreserveColor() MOZ_OVERRIDE;
 
   static void LoadStart();
   static void LoadEnd();
@@ -104,10 +100,8 @@ public:
   // If aExtraForgetSkippableCalls is -1, forgetSkippable won't be
   // called even if the previous collection was GC.
   static void CycleCollectNow(nsICycleCollectorListener *aListener = nullptr,
-                              int32_t aExtraForgetSkippableCalls = 0);
-  static void ScheduledCycleCollectNow();
-  static void BeginCycleCollectionCallback();
-  static void EndCycleCollectionCallback(mozilla::CycleCollectorResults &aResults);
+                              int32_t aExtraForgetSkippableCalls = 0,
+                              bool aManuallyTriggered = true);
 
   static void PokeGC(JS::gcreason::Reason aReason, int aDelay = 0);
   static void KillGCTimer();
@@ -131,7 +125,7 @@ public:
   {
     // Verify that we have a global so that this
     // does always return a null when GetGlobalObject() is null.
-    JSObject* global = GetWindowProxy();
+    JSObject* global = GetNativeGlobal();
     return global ? mGlobalObjectRef.get() : nullptr;
   }
 protected:
@@ -156,19 +150,19 @@ protected:
   // function will set aside the frame chain on mContext before
   // reporting.
   void ReportPendingException();
-
 private:
   void DestroyJSContext();
 
   nsrefcnt GetCCRefcnt();
 
   JSContext *mContext;
-  JS::Heap<JSObject*> mWindowProxy;
 
   bool mIsInitialized;
+  bool mScriptsEnabled;
   bool mGCOnDestruction;
   bool mProcessingScriptTag;
 
+  uint32_t mDefaultJSOptions;
   PRTime mOperationCallbackTime;
 
   PRTime mModalStateTime;
@@ -181,14 +175,12 @@ private:
   // context does. It is eventually collected by the cycle collector.
   nsCOMPtr<nsIScriptGlobalObject> mGlobalObjectRef;
 
-  static void JSOptionChangedCallback(const char *pref, void *data);
+  static int JSOptionChangedCallback(const char *pref, void *data);
 
   static bool DOMOperationCallback(JSContext *cx);
 };
 
 class nsIJSRuntimeService;
-class nsIPrincipal;
-class nsPIDOMWindow;
 
 namespace mozilla {
 namespace dom {
@@ -198,37 +190,6 @@ void ShutdownJSEnvironment();
 
 // Get the NameSpaceManager, creating if necessary
 nsScriptNameSpaceManager* GetNameSpaceManager();
-
-// Runnable that's used to do async error reporting
-class AsyncErrorReporter : public nsRunnable
-{
-public:
-  // aWindow may be null if this error report is not associated with a window
-  AsyncErrorReporter(JSRuntime* aRuntime,
-                     JSErrorReport* aErrorReport,
-                     const char* aFallbackMessage,
-                     bool aIsChromeError, // To determine category
-                     nsPIDOMWindow* aWindow);
-
-  NS_IMETHOD Run()
-  {
-    ReportError();
-    return NS_OK;
-  }
-
-protected:
-  // Do the actual error reporting
-  void ReportError();
-
-  nsString mErrorMsg;
-  nsString mFileName;
-  nsString mSourceLine;
-  nsCString mCategory;
-  uint32_t mLineNumber;
-  uint32_t mColumn;
-  uint32_t mFlags;
-  uint64_t mInnerWindowID;
-};
 
 } // namespace dom
 } // namespace mozilla

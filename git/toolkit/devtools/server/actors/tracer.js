@@ -14,63 +14,6 @@ const { DebuggerServer } = Cu.import("resource://gre/modules/devtools/dbg-server
 Cu.import("resource://gre/modules/jsdebugger.jsm");
 addDebuggerToGlobal(this);
 
-// TODO bug 943125: remove this polyfill and use Debugger.Frame.prototype.depth
-// once it is implemented.
-if (!Object.getOwnPropertyDescriptor(Debugger.Frame.prototype, "depth")) {
-  Debugger.Frame.prototype._depth = null;
-  Object.defineProperty(Debugger.Frame.prototype, "depth", {
-    get: function () {
-      if (this._depth === null) {
-        if (!this.older) {
-          this._depth = 0;
-        } else {
-          // Hide depth from self-hosted frames.
-          const increment = this.script && this.script.url == "self-hosted"
-            ? 0
-            : 1;
-          this._depth = increment + this.older.depth;
-        }
-      }
-
-      return this._depth;
-    }
-  });
-}
-
-const { setTimeout } = require("sdk/timers");
-
-/**
- * The number of milliseconds we should buffer frame enter/exit packets before
- * sending.
- */
-const BUFFER_SEND_DELAY = 50;
-
-/**
- * The maximum number of arguments we will send for any single function call.
- */
-const MAX_ARGUMENTS = 3;
-
-/**
- * The maximum number of an object's properties we will serialize.
- */
-const MAX_PROPERTIES = 3;
-
-/**
- * The complete set of trace types supported.
- */
-const TRACE_TYPES = new Set([
-  "time",
-  "return",
-  "throw",
-  "yield",
-  "name",
-  "location",
-  "callsite",
-  "parameterNames",
-  "arguments",
-  "depth"
-]);
-
 /**
  * Creates a TraceActor. TraceActor provides a stream of function
  * call/return packets to a remote client gathering a full trace.
@@ -81,19 +24,11 @@ function TraceActor(aConn, aParentActor)
   this._activeTraces = new MapStack();
   this._totalTraces = 0;
   this._startTime = 0;
-
-  // Keep track of how many different trace requests have requested what kind of
-  // tracing info. This way we can minimize the amount of data we are collecting
-  // at any given time.
   this._requestsForTraceType = Object.create(null);
-  for (let type of TRACE_TYPES) {
+  for (let type of TraceTypes.types) {
     this._requestsForTraceType[type] = 0;
   }
-
   this._sequence = 0;
-  this._bufferSendTimer = null;
-  this._buffer = [];
-  this.onExitFrame = this.onExitFrame.bind(this);
 
   this.global = aParentActor.window.wrappedJSObject;
 }
@@ -106,19 +41,24 @@ TraceActor.prototype = {
   get tracing()  { return this._attached && this._activeTraces.size > 0; },
 
   /**
-   * Buffer traces and only send them every BUFFER_SEND_DELAY milliseconds.
+   * Handle a TraceTypes.Events event by calling each handler which has been
+   * requested by an active trace and adding its result to the packet.
+   *
+   * @param aEvent string
+   *        The event to dispatch.
+   *
+   * @param aPacket object
+   *        The debugger protocol packet.
+   *
+   * @param aArgs object
+   *        The arguments object for the handler.
    */
-  _send: function(aPacket) {
-    this._buffer.push(aPacket);
-    if (this._bufferSendTimer === null) {
-      this._bufferSendTimer = setTimeout(() => {
-        this.conn.send({
-          from: this.actorID,
-          type: "traces",
-          traces: this._buffer.splice(0, this._buffer.length)
-        });
-        this._bufferSendTimer = null;
-      }, BUFFER_SEND_DELAY);
+  _handleEvent: function(aEvent, aPacket, aArgs) {
+    let handlersForEvent = TraceTypes.handlers[aEvent];
+    for (let traceType in handlersForEvent) {
+      if (this._requestsForTraceType[traceType]) {
+        aPacket[traceType] = handlersForEvent[traceType].call(null, aArgs);
+      }
     }
   },
 
@@ -211,11 +151,7 @@ TraceActor.prototype = {
 
     this._attached = true;
 
-    return {
-      type: "attached",
-      traceTypes: Object.keys(this._requestsForTraceType)
-        .filter(k => !!this._requestsForTraceType[k])
-    };
+    return { type: "attached", traceTypes: TraceTypes.types };
   },
 
   /**
@@ -232,7 +168,7 @@ TraceActor.prototype = {
     this.dbg = null;
 
     this._attached = false;
-    return { type: "detached" };
+    this.conn.send({ from: this.actorID, type: "detached" });
   },
 
   /**
@@ -243,7 +179,7 @@ TraceActor.prototype = {
    */
   onStartTrace: function(aRequest) {
     for (let traceType of aRequest.trace) {
-      if (!TRACE_TYPES.has(traceType)) {
+      if (TraceTypes.types.indexOf(traceType) < 0) {
         return {
           error: "badParameterType",
           message: "No such trace type: " + traceType
@@ -254,7 +190,7 @@ TraceActor.prototype = {
     if (this.idle) {
       this.dbg.enabled = true;
       this._sequence = 0;
-      this._startTime = Date.now();
+      this._startTime = +new Date;
     }
 
     // Start recording all requested trace types.
@@ -319,123 +255,43 @@ TraceActor.prototype = {
    *        The stack frame that was entered.
    */
   onEnterFrame: function(aFrame) {
-    if (aFrame.script && aFrame.script.url == "self-hosted") {
-      return;
-    }
-
+    let callee = aFrame.callee;
     let packet = {
+      from: this.actorID,
       type: "enteredFrame",
       sequence: this._sequence++
     };
 
-    if (this._requestsForTraceType.name) {
-      packet.name = aFrame.callee
-        ? aFrame.callee.displayName || "(anonymous function)"
-        : "(" + aFrame.type + ")";
-    }
+    this._handleEvent(TraceTypes.Events.enterFrame, packet, {
+      frame: aFrame,
+      startTime: this._startTime
+    });
 
-    if (this._requestsForTraceType.location && aFrame.script) {
-      // We should return the location of the start of the script, but
-      // Debugger.Script does not provide complete start locations (bug
-      // 901138). Instead, return the current offset (the location of the first
-      // statement in the function).
-      packet.location = {
-        url: aFrame.script.url,
-        line: aFrame.script.getOffsetLine(aFrame.offset),
-        column: getOffsetColumn(aFrame.offset, aFrame.script)
-      };
-    }
+    aFrame.onPop = this.onExitFrame.bind(this);
 
-    if (this._requestsForTraceType.callsite
-        && aFrame.older
-        && aFrame.older.script) {
-      let older = aFrame.older;
-      packet.callsite = {
-        url: older.script.url,
-        line: older.script.getOffsetLine(older.offset),
-        column: getOffsetColumn(older.offset, older.script)
-      };
-    }
-
-    if (this._requestsForTraceType.time) {
-      packet.time = Date.now() - this._startTime;
-    }
-
-    if (this._requestsForTraceType.parameterNames && aFrame.callee) {
-      packet.parameterNames = aFrame.callee.parameterNames;
-    }
-
-    if (this._requestsForTraceType.arguments && aFrame.arguments) {
-      packet.arguments = [];
-      let i = 0;
-      for (let arg of aFrame.arguments) {
-        if (i++ > MAX_ARGUMENTS) {
-          break;
-        }
-        packet.arguments.push(createValueSnapshot(arg, true));
-      }
-    }
-
-    if (this._requestsForTraceType.depth) {
-      packet.depth = aFrame.depth;
-    }
-
-    const onExitFrame = this.onExitFrame;
-    aFrame.onPop = function (aCompletion) {
-      onExitFrame(this, aCompletion);
-    };
-
-    this._send(packet);
+    this.conn.send(packet);
   },
 
   /**
    * Called by the engine when a frame is exited. Sends an unsolicited packet to
    * the client carrying requested trace information.
    *
-   * @param Debugger.Frame aFrame
-   *        The Debugger.Frame that was just exited.
-   * @param aCompletion object
+   * @param aValue object
    *        The debugger completion value for the frame.
    */
-  onExitFrame: function(aFrame, aCompletion) {
+  onExitFrame: function(aValue) {
     let packet = {
+      from: this.actorID,
       type: "exitedFrame",
-      sequence: this._sequence++,
+      sequence: this._sequence++
     };
 
-    if (!aCompletion) {
-      packet.why = "terminated";
-    } else if (aCompletion.hasOwnProperty("return")) {
-      packet.why = "return";
-    } else if (aCompletion.hasOwnProperty("yield")) {
-      packet.why = "yield";
-    } else {
-      packet.why = "throw";
-    }
+    this._handleEvent(TraceTypes.Events.exitFrame, packet, {
+      value: aValue,
+      startTime: this._startTime
+    });
 
-    if (this._requestsForTraceType.time) {
-      packet.time = Date.now() - this._startTime;
-    }
-
-    if (this._requestsForTraceType.depth) {
-      packet.depth = aFrame.depth;
-    }
-
-    if (aCompletion) {
-      if (this._requestsForTraceType.return && "return" in aCompletion) {
-        packet.return = createValueSnapshot(aCompletion.return, true);
-      }
-
-      else if (this._requestsForTraceType.throw && "throw" in aCompletion) {
-        packet.throw = createValueSnapshot(aCompletion.throw, true);
-      }
-
-      else if (this._requestsForTraceType.yield && "yield" in aCompletion) {
-        packet.yield = createValueSnapshot(aCompletion.yield, true);
-      }
-    }
-
-    this._send(packet);
+    this.conn.send(packet);
   }
 };
 
@@ -553,11 +409,138 @@ MapStack.prototype = {
   }
 };
 
+
+/**
+ * TraceTypes is a collection of handlers which generate optional trace
+ * information. Handlers are associated with an event (from TraceTypes.Event)
+ * and a trace type, and return a value to be embedded in the packet associated
+ * with that event.
+ */
+let TraceTypes = {
+  handlers: {},
+  types: [],
+
+  register: function(aType, aEvent, aHandler) {
+    if (!this.handlers[aEvent]) {
+      this.handlers[aEvent] = {};
+    }
+    this.handlers[aEvent][aType] = aHandler;
+    if (this.types.indexOf(aType) < 0) {
+      this.types.push(aType);
+    }
+  }
+};
+
+TraceTypes.Events = {
+  "enterFrame": "enterFrame",
+  "exitFrame": "exitFrame"
+};
+
+TraceTypes.register("name", TraceTypes.Events.enterFrame, function({ frame }) {
+  return frame.callee
+    ? frame.callee.displayName || "(anonymous function)"
+    : "(" + frame.type + ")";
+});
+
+TraceTypes.register("location", TraceTypes.Events.enterFrame, function({ frame }) {
+  if (!frame.script) {
+    return undefined;
+  }
+  // We should return the location of the start of the script, but
+  // Debugger.Script does not provide complete start locations
+  // (bug 901138). Instead, return the current offset (the location of
+  // the first statement in the function).
+  return {
+    url: frame.script.url,
+    line: frame.script.getOffsetLine(frame.offset),
+    column: getOffsetColumn(frame.offset, frame.script)
+  };
+});
+
+TraceTypes.register("callsite", TraceTypes.Events.enterFrame, function({ frame }) {
+  let older = frame.older;
+  if (!older || !older.script) {
+    return undefined;
+  }
+  return {
+    url: older.script.url,
+    line: older.script.getOffsetLine(older.offset),
+    column: getOffsetColumn(older.offset, older.script)
+  };
+});
+
+TraceTypes.register("time", TraceTypes.Events.enterFrame, timeSinceTraceStarted);
+TraceTypes.register("time", TraceTypes.Events.exitFrame, timeSinceTraceStarted);
+
+TraceTypes.register("parameterNames", TraceTypes.Events.enterFrame, function({ frame }) {
+  return frame.callee ? frame.callee.parameterNames : undefined;
+});
+
+TraceTypes.register("arguments", TraceTypes.Events.enterFrame, function({ frame }) {
+  if (!frame.arguments) {
+    return undefined;
+  }
+  let args = Array.prototype.slice.call(frame.arguments);
+  return args.map(arg => createValueGrip(arg, true));
+});
+
+TraceTypes.register("return", TraceTypes.Events.exitFrame,
+                    serializeCompletionValue.bind(null, "return"));
+
+TraceTypes.register("throw", TraceTypes.Events.exitFrame,
+                    serializeCompletionValue.bind(null, "throw"));
+
+TraceTypes.register("yield", TraceTypes.Events.exitFrame,
+                    serializeCompletionValue.bind(null, "yield"));
+
+
 // TODO bug 863089: use Debugger.Script.prototype.getOffsetColumn when
 // it is implemented.
 function getOffsetColumn(aOffset, aScript) {
-  return 0;
+  let bestOffsetMapping = null;
+  for (let offsetMapping of aScript.getAllColumnOffsets()) {
+    if (!bestOffsetMapping ||
+        (offsetMapping.offset <= aOffset &&
+         offsetMapping.offset > bestOffsetMapping.offset)) {
+      bestOffsetMapping = offsetMapping;
+    }
+  }
+
+  if (!bestOffsetMapping) {
+    // XXX: Try not to completely break the experience of using the
+    // tracer for the user by assuming column 0. Simultaneously,
+    // report the error so that there is a paper trail if the
+    // assumption is bad and the tracing experience becomes wonky.
+    reportException("TraceActor",
+                    new Error("Could not find a column for offset " + aOffset +
+                              " in the script " + aScript));
+    return 0;
+  }
+
+  return bestOffsetMapping.columnNumber;
 }
+
+/**
+ * Returns elapsed time since the given start time.
+ */
+function timeSinceTraceStarted({ startTime }) {
+  return +new Date - startTime;
+}
+
+/**
+ * Creates a value grip for the given completion value, to be
+ * serialized by JSON.stringify.
+ *
+ * @param aType string
+ *        The type of completion value to serialize (return, throw, or yield).
+ */
+function serializeCompletionValue(aType, { value }) {
+  if (!Object.hasOwnProperty.call(value, aType)) {
+    return undefined;
+  }
+  return createValueGrip(value[aType], true);
+}
+
 
 // Serialization helper functions. Largely copied from script.js and modified
 // for use in serialization rather than object actor requests.
@@ -568,14 +551,13 @@ function getOffsetColumn(aOffset, aScript) {
  * @param aValue Debugger.Object|primitive
  *        The value to describe with the created grip.
  *
- * @param aDetailed boolean
- *        If true, capture slightly more detailed information, like some
- *        properties on an object.
+ * @param aUseDescriptor boolean
+ *        If true, creates descriptors for objects rather than grips.
  *
- * @return Object
- *         A primitive value or a snapshot of an object.
+ * @return ValueGrip
+ *        A primitive value or a grip object.
  */
-function createValueSnapshot(aValue, aDetailed=false) {
+function createValueGrip(aValue, aUseDescriptor) {
   switch (typeof aValue) {
     case "boolean":
       return aValue;
@@ -605,9 +587,7 @@ function createValueSnapshot(aValue, aDetailed=false) {
       if (aValue === null) {
         return { type: "null" };
       }
-      return aDetailed
-        ? detailedObjectSnapshot(aValue)
-        : objectSnapshot(aValue);
+      return aUseDescriptor ? objectDescriptor(aValue) : objectGrip(aValue);
     default:
       reportException("TraceActor",
                       new Error("Failed to provide a grip for: " + aValue));
@@ -616,59 +596,93 @@ function createValueSnapshot(aValue, aDetailed=false) {
 }
 
 /**
- * Create a very minimal snapshot of the given debuggee object.
+ * Create a grip for the given debuggee object.
  *
  * @param aObject Debugger.Object
  *        The object to describe with the created grip.
  */
-function objectSnapshot(aObject) {
-  return {
+function objectGrip(aObject) {
+  let g = {
     "type": "object",
     "class": aObject.class,
+    "extensible": aObject.isExtensible(),
+    "frozen": aObject.isFrozen(),
+    "sealed": aObject.isSealed()
   };
+
+  // Add additional properties for functions.
+  if (aObject.class === "Function") {
+    if (aObject.name) {
+      g.name = aObject.name;
+    }
+    if (aObject.displayName) {
+      g.displayName = aObject.displayName;
+    }
+
+    // Check if the developer has added a de-facto standard displayName
+    // property for us to use.
+    let name = aObject.getOwnPropertyDescriptor("displayName");
+    if (name && name.value && typeof name.value == "string") {
+      g.userDisplayName = createValueGrip(name.value, aObject);
+    }
+
+    // Add source location information.
+    if (aObject.script) {
+      g.url = aObject.script.url;
+      g.line = aObject.script.startLine;
+    }
+  }
+
+  return g;
 }
 
 /**
- * Create a (slightly more) detailed snapshot of the given debuggee object.
+ * Create a descriptor for the given debuggee object. Descriptors are
+ * identical to grips, with the addition of the prototype,
+ * ownProperties, and safeGetterValues properties.
  *
  * @param aObject Debugger.Object
  *        The object to describe with the created descriptor.
  */
-function detailedObjectSnapshot(aObject) {
-  let desc = objectSnapshot(aObject);
-  let ownProperties = desc.ownProperties = Object.create(null);
-
-  if (aObject.class == "DeadObject") {
+function objectDescriptor(aObject) {
+  let desc = objectGrip(aObject);
+  let ownProperties = Object.create(null);
+  let names;
+  try {
+    names = aObject.getOwnPropertyNames();
+  } catch(ex) {
+    // The above can throw if aObject points to a dead object.
+    // TODO: we should use Cu.isDeadWrapper() - see bug 885800.
+    desc.prototype = createValueGrip(null);
+    desc.ownProperties = ownProperties;
+    desc.safeGetterValues = Object.create(null);
     return desc;
   }
-
-  let i = 0;
-  for (let name of aObject.getOwnPropertyNames()) {
-    if (i++ > MAX_PROPERTIES) {
-      break;
-    }
-    let desc = propertySnapshot(name, aObject);
-    if (desc) {
-      ownProperties[name] = desc;
-    }
+  for (let name of names) {
+    ownProperties[name] = propertyDescriptor(name, aObject);
   }
+
+  desc.prototype = createValueGrip(aObject.proto);
+  desc.ownProperties = ownProperties;
+  desc.safeGetterValues = findSafeGetterValues(ownProperties, aObject);
 
   return desc;
 }
 
 /**
- * A helper method that creates a snapshot of the object's |aName| property.
+ * A helper method that creates a property descriptor for the provided object,
+ * properly formatted for sending in a protocol response.
  *
  * @param aName string
- *        The property of which the snapshot is taken.
+ *        The property that the descriptor is generated for.
  *
  * @param aObject Debugger.Object
- *        The object whose property the snapshot is taken of.
+ *        The object whose property the descriptor is generated for.
  *
- * @return Object
- *         The snapshot of the property.
+ * @return object
+ *         The property descriptor for the property |aName| in |aObject|.
  */
-function propertySnapshot(aName, aObject) {
+function propertyDescriptor(aName, aObject) {
   let desc;
   try {
     desc = aObject.getOwnPropertyDescriptor(aName);
@@ -684,18 +698,126 @@ function propertySnapshot(aName, aObject) {
     };
   }
 
-  // Only create descriptors for simple values. We skip objects and properties
-  // that have getters and setters; ain't nobody got time for that!
-  if (!desc
-      || typeof desc.value == "object" && desc.value !== null
-      || !("value" in desc)) {
+  if (!desc) {
     return undefined;
   }
 
-  return {
+  let retval = {
     configurable: desc.configurable,
-    enumerable: desc.enumerable,
-    writable: desc.writable,
-    value: createValueSnapshot(desc.value)
+    enumerable: desc.enumerable
   };
+
+  if ("value" in desc) {
+    retval.writable = desc.writable;
+    retval.value = createValueGrip(desc.value);
+  } else {
+    if ("get" in desc) {
+      retval.get = createValueGrip(desc.get);
+    }
+    if ("set" in desc) {
+      retval.set = createValueGrip(desc.set);
+    }
+  }
+  return retval;
+}
+
+/**
+ * Find the safe getter values for the given Debugger.Object.
+ *
+ * @param aOwnProperties object
+ *        The object that holds the list of known ownProperties for |aObject|.
+ *
+ * @param Debugger.Object object
+ *        The object to find safe getter values for.
+ *
+ * @return object
+ *         An object that maps property names to safe getter descriptors.
+ */
+function findSafeGetterValues(aOwnProperties, aObject) {
+  let safeGetterValues = Object.create(null);
+  let obj = aObject;
+  let level = 0;
+
+  while (obj) {
+    let getters = findSafeGetters(obj);
+    for (let name of getters) {
+      // Avoid overwriting properties from prototypes closer to this.obj. Also
+      // avoid providing safeGetterValues from prototypes if property |name|
+      // is already defined as an own property.
+      if (name in safeGetterValues ||
+          (obj != aObject && name in aOwnProperties)) {
+        continue;
+      }
+
+      let desc = null, getter = null;
+      try {
+        desc = obj.getOwnPropertyDescriptor(name);
+        getter = desc.get;
+      } catch (ex) {
+        // The above can throw if the cache becomes stale.
+      }
+      if (!getter) {
+        continue;
+      }
+
+      let result = getter.call(aObject);
+      if (result && !("throw" in result)) {
+        let getterValue = undefined;
+        if ("return" in result) {
+          getterValue = result.return;
+        } else if ("yield" in result) {
+          getterValue = result.yield;
+        }
+        // WebIDL attributes specified with the LenientThis extended attribute
+        // return undefined and should be ignored.
+        if (getterValue !== undefined) {
+          safeGetterValues[name] = {
+            getterValue: createValueGrip(getterValue),
+            getterPrototypeLevel: level,
+            enumerable: desc.enumerable,
+            writable: level == 0 ? desc.writable : true,
+          };
+        }
+      }
+    }
+
+    obj = obj.proto;
+    level++;
+  }
+
+  return safeGetterValues;
+}
+
+/**
+ * Find the safe getters for a given Debugger.Object. Safe getters are native
+ * getters which are safe to execute.
+ *
+ * @param Debugger.Object aObject
+ *        The Debugger.Object where you want to find safe getters.
+ *
+ * @return Set
+ *         A Set of names of safe getters.
+ */
+function findSafeGetters(aObject) {
+  let getters = new Set();
+  for (let name of aObject.getOwnPropertyNames()) {
+    let desc = null;
+    try {
+      desc = aObject.getOwnPropertyDescriptor(name);
+    } catch (e) {
+      // Calling getOwnPropertyDescriptor on wrapped native prototypes is not
+      // allowed (bug 560072).
+    }
+    if (!desc || desc.value !== undefined || !("get" in desc)) {
+      continue;
+    }
+
+    let fn = desc.get;
+    if (fn && fn.callable && fn.class == "Function" &&
+        fn.script === undefined) {
+      getters.add(name);
+    }
+  }
+
+  return getters;
 }

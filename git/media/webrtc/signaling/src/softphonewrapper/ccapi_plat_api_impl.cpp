@@ -229,12 +229,12 @@ boolean	platIsNetworkInterfaceChanged() {
  *         Anything other than 1 - image_b is active
  */
 int platGetActiveInactivePhoneLoadName(char * image_a, char * image_b, int len) {
-    if (image_a != nullptr)
+    if (image_a != NULL)
     {
         sstrncpy(image_a, "image_a", len);
     }
 
-    if (image_b != nullptr)
+    if (image_b != NULL)
     {
         sstrncpy(image_b, "image_b", len);
     }
@@ -257,7 +257,7 @@ int platGetPhraseText(int index, char* phrase, unsigned int len) {
     //do something then SIPCC will go on the use the uninitialized
     //buffer.
 
-    if (phrase == nullptr)
+    if (phrase == NULL)
     {
         return CC_FAILURE;
     }
@@ -395,8 +395,8 @@ plat_soc_status_e platSecIsServerSecure(void) {
  *             >=0: connected or in progress
  *             INVALID SOCKET: failed
  *
- * @pre        (hostAndPort not_eq nullptr)
- * @pre        (localPort   not_eq nullptr)
+ * @pre        (hostAndPort not_eq NULL)
+ * @pre        (localPort   not_eq NULL)
  *
  * @note localPort is undefined when the return value is INVALID_SOCKET
  *
@@ -570,22 +570,22 @@ void platSetSISProtocolVer(cc_uint32_t a, cc_uint32_t b, cc_uint32_t c, char* na
 void
 platGetSISProtocolVer (cc_uint32_t *a, cc_uint32_t *b, cc_uint32_t *c, char* name) {
 
-    if (a != nullptr)
+    if (a != NULL)
     {
         *a = majorSIS;
     }
 
-    if (b != nullptr)
+    if (b != NULL)
     {
         *b = minorSIS;
     }
 
-    if (c != nullptr)
+    if (c != NULL)
     {
         *c = addtnlSIS;
     }
 
-    if (name != nullptr)
+    if (name != NULL)
     {
        sstrncpy(name, sis_ver_name, CC_MAX_LEN_REQ_SUPP_PARAM_CISCO_SISTAG);
     }

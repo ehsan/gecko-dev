@@ -11,7 +11,7 @@ namespace CSF {
 
 void VideoControlWrapper::setVideoMode( bool enable )
 {
-	if (_realVideoControl != nullptr)
+	if (_realVideoControl != NULL)
 	{
 		_realVideoControl->setVideoMode(enable);
 	}
@@ -24,7 +24,7 @@ void VideoControlWrapper::setVideoMode( bool enable )
 
 void VideoControlWrapper::setPreviewWindow( VideoWindowHandle window, int top, int left, int bottom, int right, RenderScaling style )
 {
-	if (_realVideoControl != nullptr)
+	if (_realVideoControl != NULL)
 	{
 		_realVideoControl->setPreviewWindow(window, top, left, bottom, right, style);
 	}
@@ -37,7 +37,7 @@ void VideoControlWrapper::setPreviewWindow( VideoWindowHandle window, int top, i
 
 void VideoControlWrapper::showPreviewWindow( bool show )
 {
-	if (_realVideoControl != nullptr)
+	if (_realVideoControl != NULL)
 	{
 		_realVideoControl->showPreviewWindow(show);
 	}
@@ -51,7 +51,7 @@ void VideoControlWrapper::showPreviewWindow( bool show )
 
 std::vector<std::string> VideoControlWrapper::getCaptureDevices()
 {
-	if (_realVideoControl != nullptr)
+	if (_realVideoControl != NULL)
 	{
 		return _realVideoControl->getCaptureDevices();
 	}
@@ -66,7 +66,7 @@ std::vector<std::string> VideoControlWrapper::getCaptureDevices()
 
 std::string VideoControlWrapper::getCaptureDevice()
 {
-	if (_realVideoControl != nullptr)
+	if (_realVideoControl != NULL)
 	{
 		return _realVideoControl->getCaptureDevice();
 	}
@@ -79,7 +79,7 @@ std::string VideoControlWrapper::getCaptureDevice()
 
 bool VideoControlWrapper::setCaptureDevice( const std::string& name )
 {
-	if (_realVideoControl != nullptr)
+	if (_realVideoControl != NULL)
 	{
 		return _realVideoControl->setCaptureDevice(name);
 	}

@@ -9,16 +9,20 @@
 
 #include "base/basictypes.h"
 
+#include "nsIOService.h"
 #include "nsHttpHandler.h"
 #include "nsHttpTransaction.h"
+#include "nsHttpConnection.h"
 #include "nsHttpRequestHead.h"
 #include "nsHttpResponseHead.h"
 #include "nsHttpChunkedDecoder.h"
 #include "nsTransportUtils.h"
 #include "nsNetUtil.h"
-#include "nsCRT.h"
+#include "nsProxyRelease.h"
+#include "nsIOService.h"
 
 #include "nsISeekableStream.h"
+#include "nsISocketTransport.h"
 #include "nsMultiplexInputStream.h"
 #include "nsStringStream.h"
 #include "mozilla/VisualEventTracer.h"
@@ -27,16 +31,8 @@
 #include "nsServiceManagerUtils.h"   // do_GetService
 #include "nsIHttpActivityObserver.h"
 #include "nsSocketTransportService2.h"
-#include "nsICancelable.h"
-#include "nsIEventTarget.h"
-#include "nsIInputStream.h"
-#include "nsITransport.h"
-#include "nsIOService.h"
 #include <algorithm>
 
-#ifdef MOZ_WIDGET_GONK
-#include "nsINetworkStatsServiceProxy.h"
-#endif
 
 using namespace mozilla;
 
@@ -98,7 +94,6 @@ nsHttpTransaction::nsHttpTransaction()
     , mPriority(0)
     , mRestartCount(0)
     , mCaps(0)
-    , mCapsToClear(0)
     , mClassification(CLASS_GENERAL)
     , mPipelinePosition(0)
     , mHttpVersion(NS_HTTP_VERSION_UNKNOWN)
@@ -125,17 +120,14 @@ nsHttpTransaction::nsHttpTransaction()
     , mSubmittedRatePacing(false)
     , mPassedRatePacing(false)
     , mSynchronousRatePaceRequest(false)
-    , mCountRecv(0)
-    , mCountSent(0)
-    , mAppId(NECKO_NO_APP_ID)
 {
-    LOG(("Creating nsHttpTransaction @%p\n", this));
+    LOG(("Creating nsHttpTransaction @%x\n", this));
     gHttpHandler->GetMaxPipelineObjectSize(&mMaxPipelineObjectSize);
 }
 
 nsHttpTransaction::~nsHttpTransaction()
 {
-    LOG(("Destroying nsHttpTransaction @%p\n", this));
+    LOG(("Destroying nsHttpTransaction @%x\n", this));
 
     if (mTokenBucketCancel) {
         mTokenBucketCancel->Cancel(NS_ERROR_ABORT);
@@ -230,21 +222,6 @@ nsHttpTransaction::Init(uint32_t caps,
         activityDistributorActive = false;
         mActivityDistributor = nullptr;
     }
-
-    nsCOMPtr<nsIChannel> channel = do_QueryInterface(eventsink);
-    if (channel) {
-        bool isInBrowser;
-        NS_GetAppInfo(channel, &mAppId, &isInBrowser);
-    }
-
-#ifdef MOZ_WIDGET_GONK
-    if (mAppId != NECKO_NO_APP_ID) {
-        nsCOMPtr<nsINetworkInterface> activeNetwork;
-        NS_GetActiveNetworkInterface(activeNetwork);
-        mActiveNetwork =
-            new nsMainThreadPtrHolder<nsINetworkInterface>(activeNetwork);
-    }
-#endif
 
     // create transport event sink proxy. it coalesces all events if and only
     // if the activity observer is not active. when the observer is active
@@ -553,14 +530,7 @@ nsHttpTransaction::Status()
 uint32_t
 nsHttpTransaction::Caps()
 {
-    return mCaps & ~mCapsToClear;
-}
-
-void
-nsHttpTransaction::SetDNSWasRefreshed()
-{
-    MOZ_ASSERT(NS_IsMainThread(), "SetDNSWasRefreshed on main thread only!");
-    mCapsToClear |= NS_HTTP_REFRESH_DNS;
+    return mCaps;
 }
 
 uint64_t
@@ -594,7 +564,6 @@ nsHttpTransaction::ReadRequestSegment(nsIInputStream *stream,
                               "net::http::first-write");
     }
 
-    trans->CountSentBytes(*countRead);
     trans->mSentData = true;
     return NS_OK;
 }
@@ -671,7 +640,6 @@ nsHttpTransaction::WritePipeSegment(nsIOutputStream *stream,
     }
 
     MOZ_ASSERT(*countWritten > 0, "bad writer");
-    trans->CountRecvBytes(*countWritten);
     trans->mReceivedData = true;
 
     // Let the transaction "play" with the buffer.  It is free to modify
@@ -716,96 +684,6 @@ nsHttpTransaction::WriteSegments(nsAHttpSegmentWriter *writer,
     }
 
     return rv;
-}
-
-//-----------------------------------------------------------------------------
-// nsHttpTransaction save network statistics event
-//-----------------------------------------------------------------------------
-
-#ifdef MOZ_WIDGET_GONK
-namespace {
-class SaveNetworkStatsEvent : public nsRunnable {
-public:
-    SaveNetworkStatsEvent(uint32_t aAppId,
-                          nsMainThreadPtrHandle<nsINetworkInterface> &aActiveNetwork,
-                          uint64_t aCountRecv,
-                          uint64_t aCountSent)
-        : mAppId(aAppId),
-          mActiveNetwork(aActiveNetwork),
-          mCountRecv(aCountRecv),
-          mCountSent(aCountSent)
-    {
-        MOZ_ASSERT(mAppId != NECKO_NO_APP_ID);
-        MOZ_ASSERT(mActiveNetwork);
-    }
-
-    NS_IMETHOD Run()
-    {
-        MOZ_ASSERT(NS_IsMainThread());
-
-        nsresult rv;
-        nsCOMPtr<nsINetworkStatsServiceProxy> mNetworkStatsServiceProxy =
-            do_GetService("@mozilla.org/networkstatsServiceProxy;1", &rv);
-        if (NS_FAILED(rv)) {
-            return rv;
-        }
-
-        // save the network stats through NetworkStatsServiceProxy
-        mNetworkStatsServiceProxy->SaveAppStats(mAppId,
-                                                mActiveNetwork,
-                                                PR_Now() / 1000,
-                                                mCountRecv,
-                                                mCountSent,
-                                                nullptr);
-
-        return NS_OK;
-    }
-private:
-    uint32_t mAppId;
-    nsMainThreadPtrHandle<nsINetworkInterface> mActiveNetwork;
-    uint64_t mCountRecv;
-    uint64_t mCountSent;
-};
-};
-#endif
-
-nsresult
-nsHttpTransaction::SaveNetworkStats(bool enforce)
-{
-#ifdef MOZ_WIDGET_GONK
-    // Check if active network and appid are valid.
-    if (!mActiveNetwork || mAppId == NECKO_NO_APP_ID) {
-        return NS_OK;
-    }
-
-    if (mCountRecv <= 0 && mCountSent <= 0) {
-        // There is no traffic, no need to save.
-        return NS_OK;
-    }
-
-    // If |enforce| is false, the traffic amount is saved
-    // only when the total amount exceeds the predefined
-    // threshold.
-    uint64_t totalBytes = mCountRecv + mCountSent;
-    if (!enforce && totalBytes < NETWORK_STATS_THRESHOLD) {
-        return NS_OK;
-    }
-
-    // Create the event to save the network statistics.
-    // the event is then dispathed to the main thread.
-    nsRefPtr<nsRunnable> event =
-        new SaveNetworkStatsEvent(mAppId, mActiveNetwork,
-                                  mCountRecv, mCountSent);
-    NS_DispatchToMainThread(event);
-
-    // Reset the counters after saving.
-    mCountSent = 0;
-    mCountRecv = 0;
-
-    return NS_OK;
-#else
-    return NS_ERROR_NOT_IMPLEMENTED;
-#endif
 }
 
 void
@@ -949,9 +827,6 @@ nsHttpTransaction::Close(nsresult reason)
     if (relConn && mConnection)
         NS_RELEASE(mConnection);
 
-    // save network statistics in the end of transaction
-    SaveNetworkStats(true);
-
     mStatus = reason;
     mTransactionDone = true; // forcibly flag the transaction as complete
     mClosed = true;
@@ -1070,11 +945,11 @@ nsHttpTransaction::Restart()
 
     // limit the number of restart attempts - bug 92224
     if (++mRestartCount >= gHttpHandler->MaxRequestAttempts()) {
-        LOG(("reached max request attempts, failing transaction @%p\n", this));
+        LOG(("reached max request attempts, failing transaction @%x\n", this));
         return NS_ERROR_NET_RESET;
     }
 
-    LOG(("restarting transaction @%p\n", this));
+    LOG(("restarting transaction @%x\n", this));
 
     // rewind streams in case we already wrote out the request
     nsCOMPtr<nsISeekableStream> seekable = do_QueryInterface(mRequestStream);

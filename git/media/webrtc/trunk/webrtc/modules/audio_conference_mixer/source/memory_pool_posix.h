@@ -13,9 +13,9 @@
 
 #include <assert.h>
 
-#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
-#include "webrtc/system_wrappers/interface/list_wrapper.h"
-#include "webrtc/typedefs.h"
+#include "critical_section_wrapper.h"
+#include "list_wrapper.h"
+#include "typedefs.h"
 
 namespace webrtc {
 template<class MemoryType>
@@ -163,6 +163,6 @@ int32_t MemoryPoolImpl<MemoryType>::CreateMemory(
     }
     return 0;
 }
-}  // namespace webrtc
+} // namespace webrtc
 
 #endif // WEBRTC_MODULES_AUDIO_CONFERENCE_MIXER_SOURCE_MEMORY_POOL_GENERIC_H_

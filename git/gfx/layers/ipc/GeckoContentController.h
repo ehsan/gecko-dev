@@ -34,34 +34,27 @@ public:
    * AsyncPanZoomController::ZoomToRect with the dimensions that we want to zoom
    * to.
    */
-  virtual void HandleDoubleTap(const CSSIntPoint& aPoint, int32_t aModifiers) = 0;
+  virtual void HandleDoubleTap(const CSSIntPoint& aPoint) = 0;
 
   /**
    * Requests handling a single tap. |aPoint| is in CSS pixels, relative to the
    * current scroll offset. This should simulate and send to content a mouse
    * button down, then mouse button up at |aPoint|.
    */
-  virtual void HandleSingleTap(const CSSIntPoint& aPoint, int32_t aModifiers) = 0;
+  virtual void HandleSingleTap(const CSSIntPoint& aPoint) = 0;
 
   /**
    * Requests handling a long tap. |aPoint| is in CSS pixels, relative to the
    * current scroll offset.
    */
-  virtual void HandleLongTap(const CSSIntPoint& aPoint, int32_t aModifiers) = 0;
-
-  /**
-   * Requests handling of releasing a long tap. |aPoint| is in CSS pixels,
-   * relative to the current scroll offset. HandleLongTapUp will always be
-   * preceeded by HandleLongTap
-   */
-  virtual void HandleLongTapUp(const CSSIntPoint& aPoint, int32_t aModifiers) = 0;
+  virtual void HandleLongTap(const CSSIntPoint& aPoint) = 0;
 
   /**
    * Requests sending a mozbrowserasyncscroll domevent to embedder.
    * |aContentRect| is in CSS pixels, relative to the current cssPage.
    * |aScrollableSize| is the current content width/height in CSS pixels.
    */
-  virtual void SendAsyncScrollDOMEvent(bool aIsRoot,
+  virtual void SendAsyncScrollDOMEvent(FrameMetrics::ViewID aScrollId,
                                        const CSSRect &aContentRect,
                                        const CSSSize &aScrollableSize) = 0;
 
@@ -71,25 +64,16 @@ public:
    */
   virtual void PostDelayedTask(Task* aTask, int aDelayMs) = 0;
 
-  /**
-   * Retrieves the last known zoom constraints for the root scrollable layer
-   * for this layers tree. This function should return false if there are no
-   * last known zoom constraints.
-   */
-  virtual bool GetRootZoomConstraints(bool* aOutAllowZoom,
-                                      CSSToScreenScale* aOutMinZoom,
-                                      CSSToScreenScale* aOutMaxZoom)
-  {
-    return false;
-  }
 
   /**
-   * General tranformation notices for consumers. These fire any time
-   * the apzc is modifying the view, including panning, zooming, and
-   * fling.
+   * Request any special actions be performed when panning starts
    */
-  virtual void NotifyTransformBegin(const ScrollableLayerGuid& aGuid) {}
-  virtual void NotifyTransformEnd(const ScrollableLayerGuid& aGuid) {}
+  virtual void HandlePanBegin() {}
+
+  /**
+   * Request any special actions be performed when panning ends
+   */
+  virtual void HandlePanEnd() {}
 
   GeckoContentController() {}
   virtual ~GeckoContentController() {}

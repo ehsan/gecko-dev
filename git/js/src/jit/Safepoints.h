@@ -7,13 +7,14 @@
 #ifndef jit_Safepoints_h
 #define jit_Safepoints_h
 
+#include "jit/BitSet.h"
 #include "jit/CompactBuffer.h"
+#include "jit/Registers.h"
 #include "jit/shared/Assembler-shared.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
-class BitSet;
 struct SafepointNunboxEntry;
 class LAllocation;
 class LSafepoint;
@@ -26,7 +27,7 @@ class SafepointWriter
     BitSet *frameSlots_;
 
   public:
-    bool init(TempAllocator &alloc, uint32_t slotCount);
+    bool init(uint32_t slotCount);
 
   private:
     // A safepoint entry is written in the order these functions appear.
@@ -61,7 +62,7 @@ class SafepointReader
     CompactBufferReader stream_;
     uint32_t frameSlots_;
     uint32_t currentSlotChunk_;
-    uint32_t nextSlotChunkNumber_;
+    uint32_t currentSlotChunkNumber_;
     uint32_t osiCallPointOffset_;
     GeneralRegisterSet gcSpills_;
     GeneralRegisterSet valueSpills_;
@@ -117,7 +118,7 @@ class SafepointReader
     bool getSlotsOrElementsSlot(uint32_t *slot);
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_Safepoints_h */

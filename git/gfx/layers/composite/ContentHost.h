@@ -10,7 +10,7 @@
 #include <stdio.h>                      // for FILE
 #include "mozilla-config.h"             // for MOZ_DUMP_PAINTING
 #include "CompositableHost.h"           // for CompositableHost, etc
-#include "RotatedBuffer.h"              // for RotatedContentBuffer, etc
+#include "ThebesLayerBuffer.h"          // for ThebesLayerBuffer, etc
 #include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
 #include "mozilla/RefPtr.h"             // for RefPtr
 #include "mozilla/gfx/BasePoint.h"      // for BasePoint
@@ -20,7 +20,7 @@
 #include "mozilla/layers/CompositorTypes.h"  // for TextureInfo, etc
 #include "mozilla/layers/ISurfaceAllocator.h"  // for ISurfaceAllocator
 #include "mozilla/layers/LayersSurfaces.h"  // for SurfaceDescriptor
-#include "mozilla/layers/LayersTypes.h"  // for etc
+#include "mozilla/layers/LayersTypes.h"  // for MOZ_LAYERS_HAVE_LOG, etc
 #include "mozilla/layers/TextureHost.h"  // for DeprecatedTextureHost
 #include "mozilla/mozalloc.h"           // for operator delete
 #include "nsAutoPtr.h"                  // for nsAutoPtr
@@ -32,6 +32,8 @@
 #include "nsTArray.h"                   // for nsTArray
 #include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
 #include "nscore.h"                     // for nsACString
+
+class gfxImageSurface;
 
 namespace mozilla {
 namespace gfx {
@@ -85,67 +87,16 @@ protected:
 class ContentHostBase : public ContentHost
 {
 public:
-  typedef RotatedContentBuffer::ContentType ContentType;
-  typedef RotatedContentBuffer::PaintState PaintState;
+  typedef ThebesLayerBuffer::ContentType ContentType;
+  typedef ThebesLayerBuffer::PaintState PaintState;
 
   ContentHostBase(const TextureInfo& aTextureInfo);
-  virtual ~ContentHostBase();
+  ~ContentHostBase();
 
   virtual void Composite(EffectChain& aEffectChain,
                          float aOpacity,
                          const gfx::Matrix4x4& aTransform,
-                         const gfx::Filter& aFilter,
-                         const gfx::Rect& aClipRect,
-                         const nsIntRegion* aVisibleRegion = nullptr,
-                         TiledLayerProperties* aLayerProperties = nullptr);
-
-  virtual LayerRenderState GetRenderState() MOZ_OVERRIDE;
-
-  virtual void SetCompositor(Compositor* aCompositor) MOZ_OVERRIDE;
-
-#ifdef MOZ_DUMP_PAINTING
-  virtual TemporaryRef<gfx::DataSourceSurface> GetAsSurface() MOZ_OVERRIDE;
-
-  virtual void Dump(FILE* aFile=nullptr,
-                    const char* aPrefix="",
-                    bool aDumpHtml=false) MOZ_OVERRIDE;
-#endif
-
-  virtual void PrintInfo(nsACString& aTo, const char* aPrefix) MOZ_OVERRIDE;
-
-  virtual TextureHost* GetAsTextureHost() MOZ_OVERRIDE;
-
-  virtual void UseTextureHost(TextureHost* aTexture) MOZ_OVERRIDE;
-
-  virtual void SetPaintWillResample(bool aResample) { mPaintWillResample = aResample; }
-
-protected:
-  virtual nsIntPoint GetOriginOffset()
-  {
-    return mBufferRect.TopLeft() - mBufferRotation;
-  }
-
-  bool PaintWillResample() { return mPaintWillResample; }
-
-  nsIntRect mBufferRect;
-  nsIntPoint mBufferRotation;
-  RefPtr<TextureHost> mTextureHost;
-  RefPtr<TextureHost> mTextureHostOnWhite;
-  bool mPaintWillResample;
-  bool mInitialised;
-};
-class DeprecatedContentHostBase : public ContentHost
-{
-public:
-  typedef RotatedContentBuffer::ContentType ContentType;
-  typedef RotatedContentBuffer::PaintState PaintState;
-
-  DeprecatedContentHostBase(const TextureInfo& aTextureInfo);
-  ~DeprecatedContentHostBase();
-
-  virtual void Composite(EffectChain& aEffectChain,
-                         float aOpacity,
-                         const gfx::Matrix4x4& aTransform,
+                         const gfx::Point& aOffset,
                          const gfx::Filter& aFilter,
                          const gfx::Rect& aClipRect,
                          const nsIntRegion* aVisibleRegion = nullptr,
@@ -162,7 +113,7 @@ public:
   virtual void SetCompositor(Compositor* aCompositor) MOZ_OVERRIDE;
 
 #ifdef MOZ_DUMP_PAINTING
-  virtual TemporaryRef<gfx::DataSourceSurface> GetAsSurface();
+  virtual already_AddRefed<gfxImageSurface> GetAsSurface();
 
   virtual void Dump(FILE* aFile=nullptr,
                     const char* aPrefix="",
@@ -203,9 +154,7 @@ protected:
 };
 
 /**
- * Double buffering is implemented by swapping the front and back TextureHosts.
- * We assume that whenever we use double buffering, then we have
- * render-to-texture and thus no texture upload to do.
+ * Double buffering is implemented by swapping the front and back DeprecatedTextureHosts.
  */
 class ContentHostDoubleBuffered : public ContentHostBase
 {
@@ -214,27 +163,7 @@ public:
     : ContentHostBase(aTextureInfo)
   {}
 
-  virtual ~ContentHostDoubleBuffered() {}
-
-  virtual CompositableType GetType() { return COMPOSITABLE_CONTENT_DOUBLE; }
-
-  virtual void UpdateThebes(const ThebesBufferData& aData,
-                            const nsIntRegion& aUpdated,
-                            const nsIntRegion& aOldValidRegionBack,
-                            nsIntRegion* aUpdatedRegionBack);
-
-protected:
-  nsIntRegion mValidRegionForNextBackBuffer;
-};
-
-class DeprecatedContentHostDoubleBuffered : public DeprecatedContentHostBase
-{
-public:
-  DeprecatedContentHostDoubleBuffered(const TextureInfo& aTextureInfo)
-    : DeprecatedContentHostBase(aTextureInfo)
-  {}
-
-  ~DeprecatedContentHostDoubleBuffered();
+  ~ContentHostDoubleBuffered();
 
   virtual CompositableType GetType() { return BUFFER_CONTENT_DIRECT; }
 
@@ -255,7 +184,9 @@ public:
                     bool aDumpHtml=false) MOZ_OVERRIDE;
 #endif
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual void PrintInfo(nsACString& aTo, const char* aPrefix);
+#endif
 protected:
   nsIntRegion mValidRegionForNextBackBuffer;
   // Texture host for the back buffer. We never read or write this buffer. We
@@ -275,23 +206,7 @@ public:
   ContentHostSingleBuffered(const TextureInfo& aTextureInfo)
     : ContentHostBase(aTextureInfo)
   {}
-  virtual ~ContentHostSingleBuffered() {}
-
-  virtual CompositableType GetType() { return COMPOSITABLE_CONTENT_SINGLE; }
-
-  virtual void UpdateThebes(const ThebesBufferData& aData,
-                            const nsIntRegion& aUpdated,
-                            const nsIntRegion& aOldValidRegionBack,
-                            nsIntRegion* aUpdatedRegionBack);
-};
-
-class DeprecatedContentHostSingleBuffered : public DeprecatedContentHostBase
-{
-public:
-  DeprecatedContentHostSingleBuffered(const TextureInfo& aTextureInfo)
-    : DeprecatedContentHostBase(aTextureInfo)
-  {}
-  virtual ~DeprecatedContentHostSingleBuffered();
+  virtual ~ContentHostSingleBuffered();
 
   virtual CompositableType GetType() { return BUFFER_CONTENT; }
 
@@ -306,7 +221,9 @@ public:
                                  const TextureInfo& aTextureInfo) MOZ_OVERRIDE;
   virtual void DestroyTextures() MOZ_OVERRIDE;
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual void PrintInfo(nsACString& aTo, const char* aPrefix);
+#endif
 };
 
 /**
@@ -319,11 +236,11 @@ public:
  * Delays texture uploads until the next composite to
  * avoid blocking the main thread.
  */
-class ContentHostIncremental : public DeprecatedContentHostBase
+class ContentHostIncremental : public ContentHostBase
 {
 public:
   ContentHostIncremental(const TextureInfo& aTextureInfo)
-    : DeprecatedContentHostBase(aTextureInfo)
+    : ContentHostBase(aTextureInfo)
     , mDeAllocator(nullptr)
   {}
 
@@ -358,6 +275,7 @@ public:
   virtual void Composite(EffectChain& aEffectChain,
                          float aOpacity,
                          const gfx::Matrix4x4& aTransform,
+                         const gfx::Point& aOffset,
                          const gfx::Filter& aFilter,
                          const gfx::Rect& aClipRect,
                          const nsIntRegion* aVisibleRegion = nullptr,
@@ -365,8 +283,8 @@ public:
   {
     ProcessTextureUpdates();
 
-    DeprecatedContentHostBase::Composite(aEffectChain, aOpacity,
-                               aTransform, aFilter,
+    ContentHostBase::Composite(aEffectChain, aOpacity,
+                               aTransform, aOffset, aFilter,
                                aClipRect, aVisibleRegion,
                                aLayerProperties);
   }
@@ -380,7 +298,6 @@ public:
 
 private:
 
-  void FlushUpdateQueue();
   void ProcessTextureUpdates();
 
   class Request
@@ -450,7 +367,7 @@ private:
 
     nsIntRect GetQuadrantRectangle(XSide aXSide, YSide aYSide) const;
 
-    RefPtr<ISurfaceAllocator> mDeAllocator;
+    ISurfaceAllocator* mDeAllocator;
     TextureIdentifier mTextureId;
     SurfaceDescriptor mDescriptor;
     nsIntRegion mUpdated;
@@ -460,7 +377,7 @@ private:
 
   nsTArray<nsAutoPtr<Request> > mUpdateList;
 
-  RefPtr<ISurfaceAllocator> mDeAllocator;
+  ISurfaceAllocator* mDeAllocator;
 };
 
 }

@@ -34,23 +34,6 @@ public:
 
   virtual void DestroyMediaStream() MOZ_OVERRIDE;
 
-  virtual void SetChannelCount(uint32_t aChannelCount, ErrorResult& aRv) MOZ_OVERRIDE
-  {
-    if (aChannelCount > 2) {
-      aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
-      return;
-    }
-    AudioNode::SetChannelCount(aChannelCount, aRv);
-  }
-  virtual void SetChannelCountModeValue(ChannelCountMode aMode, ErrorResult& aRv) MOZ_OVERRIDE
-  {
-    if (aMode == ChannelCountMode::Max) {
-      aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
-      return;
-    }
-    AudioNode::SetChannelCountModeValue(aMode, aRv);
-  }
-
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(PannerNode, AudioNode)
 
@@ -137,14 +120,14 @@ public:
 
   void SetOrientation(double aX, double aY, double aZ)
   {
-    ThreeDPoint orientation(aX, aY, aZ);
-    if (!orientation.IsZero()) {
-      orientation.Normalize();
-    }
-    if (mOrientation.FuzzyEqual(orientation)) {
+    if (WebAudioUtils::FuzzyEqual(mOrientation.x, aX) &&
+        WebAudioUtils::FuzzyEqual(mOrientation.y, aY) &&
+        WebAudioUtils::FuzzyEqual(mOrientation.z, aZ)) {
       return;
     }
-    mOrientation = orientation;
+    mOrientation.x = aX;
+    mOrientation.y = aY;
+    mOrientation.z = aZ;
     SendThreeDPointParameterToStream(ORIENTATION, mOrientation);
   }
 
@@ -250,15 +233,15 @@ private:
   friend class PannerNodeEngine;
   enum EngineParameters {
     LISTENER_POSITION,
-    LISTENER_FRONT_VECTOR, // unit length
-    LISTENER_RIGHT_VECTOR, // unit length, orthogonal to LISTENER_FRONT_VECTOR
+    LISTENER_ORIENTATION,
+    LISTENER_UPVECTOR,
     LISTENER_VELOCITY,
     LISTENER_DOPPLER_FACTOR,
     LISTENER_SPEED_OF_SOUND,
     PANNING_MODEL,
     DISTANCE_MODEL,
     POSITION,
-    ORIENTATION, // unit length or zero
+    ORIENTATION,
     VELOCITY,
     REF_DISTANCE,
     MAX_DISTANCE,

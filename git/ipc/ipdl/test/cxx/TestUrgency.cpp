@@ -1,28 +1,10 @@
 #include "TestUrgency.h"
 
 #include "IPDLUnitTests.h"      // fail etc.
-#if defined(OS_POSIX)
 #include <unistd.h>
-#else
-#include <windows.h>
-#endif
-
-template<>
-struct RunnableMethodTraits<mozilla::_ipdltest::TestUrgencyParent>
-{
-    static void RetainCallee(mozilla::_ipdltest::TestUrgencyParent* obj) { }
-    static void ReleaseCallee(mozilla::_ipdltest::TestUrgencyParent* obj) { }
-};
 
 namespace mozilla {
 namespace _ipdltest {
-
-#if defined(OS_POSIX)
-static void Sleep(int ms)
-{
-    sleep(ms / 1000);
-}
-#endif
 
 //-----------------------------------------------------------------------------
 // parent
@@ -78,17 +60,17 @@ TestUrgencyParent::RecvTest3(uint32_t *value)
 }
 
 bool
-TestUrgencyParent::RecvFinalTest_Begin()
+TestUrgencyParent::RecvTest4_Begin()
 {
-  SetReplyTimeoutMs(2000);
-  if (CallFinalTest_Hang())
-    fail("should have failed due to timeout");
-  if (!GetIPCChannel()->Unsound_IsClosed())
-    fail("channel should have closed");
+  if (!CallTest4_Reenter())
+    fail("call Test4_Reenter");
+  return true;
+}
 
-  MessageLoop::current()->PostTask(
-      FROM_HERE,
-      NewRunnableMethod(this, &TestUrgencyParent::Close));
+bool
+TestUrgencyParent::RecvTest4_NestedSync()
+{
+  fail("nested sync not supported");
   return false;
 }
 
@@ -130,9 +112,8 @@ TestUrgencyChild::RecvStart()
   if (result != 1000)
     fail("wrong value from test3");
 
-  // This must be the last test, since the child process may die.
-  if (SendFinalTest_Begin())
-    fail("Final test should not have succeeded");
+  if (!SendTest4_Begin())
+    fail("calling SendTest4_Begin");
 
   Close();
 
@@ -157,7 +138,7 @@ TestUrgencyChild::AnswerReply2(uint32_t *reply)
     fail("wrong test # in AnswerReply2");
 
   // sleep for 5 seconds so the parent process tries to deliver more messages.
-  Sleep(5000);
+  sleep(5);
 
   *reply = 500;
   test_ = kSecondTestGotReply;
@@ -165,9 +146,10 @@ TestUrgencyChild::AnswerReply2(uint32_t *reply)
 }
 
 bool
-TestUrgencyChild::AnswerFinalTest_Hang()
+TestUrgencyChild::AnswerTest4_Reenter()
 {
-  Sleep(10);
+  if (SendTest4_NestedSync())
+    fail("sending nested sync messages not supported");
   return true;
 }
 

@@ -12,10 +12,6 @@ function onLoad() {
 
 function onUnload() {
   if (!gIterations) {
-    gBugWindow = null;
-    Services.obs.removeObserver(onLoad, "bug839193-loaded");
-    Services.obs.removeObserver(onUnload, "bug839193-unloaded");
-
     window.focus();
     finish();
   } else {
@@ -29,8 +25,12 @@ function onUnload() {
 // will be apparent by the checks the harness performs.
 function test() {
   waitForExplicitFinish();
-  Services.obs.addObserver(onLoad, "bug839193-loaded", false);
-  Services.obs.addObserver(onUnload, "bug839193-unloaded", false);
+  Components.classes["@mozilla.org/observer-service;1"]
+            .getService(Components.interfaces.nsIObserverService)
+            .addObserver(onLoad, "bug839193-loaded", false);
+  Components.classes["@mozilla.org/observer-service;1"]
+            .getService(Components.interfaces.nsIObserverService)
+            .addObserver(onUnload, "bug839193-unloaded", false);
 
   gBugWindow = window.openDialog(gTestRoot + "bug839193.xul");
 }

@@ -1,8 +1,6 @@
 #data
 <isindex>
 #errors
-(1,9): expected-doctype-but-got-start-tag
-(1,9): deprecated-tag
 #document
 | <html>
 |   <head>
@@ -18,8 +16,6 @@
 #data
 <isindex name="A" action="B" prompt="C" foo="D">
 #errors
-(1,48): expected-doctype-but-got-start-tag
-(1,48): deprecated-tag
 #document
 | <html>
 |   <head>
@@ -37,9 +33,6 @@
 #data
 <form><isindex>
 #errors
-(1,6): expected-doctype-but-got-start-tag
-(1,15): deprecated-tag
-(1,15): expected-closing-tag-but-got-eof
 #document
 | <html>
 |   <head>

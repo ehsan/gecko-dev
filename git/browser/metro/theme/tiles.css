@@ -21,10 +21,6 @@ richgriditem[tiletype="thumbnail"] {
   width: @grid_double_column_width@;
   height: @grid_double_row_height@;
 }
-richgriditem[search] {
-  width: @grid_search_width@;
-  height: @grid_row_height@;
-}
 richgriditem[compact] {
   width: auto;
   height: @compactgrid_row_height@;
@@ -36,7 +32,6 @@ richgrid {
   display: -moz-box;
   overflow: hidden;
 }
-
 richgrid > .richgrid-grid {
   -moz-column-width: @grid_double_column_width@; /* tile width (2x unit + gutter) */
   min-width: @grid_double_column_width@; /* min 1 column */
@@ -50,11 +45,6 @@ richgrid > .richgrid-grid {
   transition: 100ms transform ease-out;
 }
 
-richgrid[search] > .richgrid-grid {
-  -moz-column-width: auto;
-  min-width: 0;
-}
-
 richgriditem {
   display: block;
   position: relative;
@@ -64,6 +54,9 @@ richgriditem {
   -moz-column-gap: 0;
   overflow:hidden;
   cursor: default;
+  transition: 300ms height ease-out,
+              150ms opacity ease-out,
+              100ms transform ease-out;
 }
 
 .tile-content {
@@ -78,8 +71,7 @@ richgriditem {
   top: 2px; right: @tile_side_margin@; bottom: 10px; left: @tile_side_margin@;
   border: @metro_border_thin@ solid @tile_border_color@;
   box-shadow: 0 0 5px 0 rgba(0, 0, 0, 0.1);
-  transition: 150ms transform ease-out,
-              @metro_animation_duration@ background-color @metro_animation_easing@;
+  transition: 150ms transform ease-out;
 }
 
 .tile-start-container {
@@ -90,10 +82,6 @@ richgriditem {
   left: 10px;
   padding: 8px;
   background-color: #fff;
-}
-
-richgriditem[search] .tile-start-container {
-  background-color: transparent;
 }
 
 richgriditem:not([tiletype="thumbnail"]) .tile-start-container {
@@ -123,6 +111,7 @@ richgriditem:not([tiletype="thumbnail"]) .tile-start-container {
 richgriditem:not([iconURI]) .tile-icon-box,
 richgriditem[iconURI=""] .tile-icon-box,
 richgriditem[iconsize="large"] .tile-icon-box {
+  background-color: transparent!important;
   border-color: transparent!important;
   padding: 4px;
 }
@@ -133,38 +122,6 @@ richgriditem[iconsize="large"] .tile-icon-box > image,
   height: 24px;
 }
 
-richgriditem[search] .tile-icon-box {
-  padding: 0;
-  border: 0;
-  left: 50%;
-  margin-left: -13px;
-  margin-top: -8px;
-}
-
-richgriditem[search][iconsize="large"] .tile-icon-box {
-  left: 0;
-  top: 0;
-  margin: 0;
-}
-
-richgriditem[search][iconsize="large"] .tile-start-container {
-  left: 0;
-  padding: 0;
-}
-
-richgriditem[search][iconsize="large"] .tile-icon-box > image {
-  width: 74px;
-  height: 74px;
-}
-
-richgriditem[search] .tile-desc {
-  display: none;
-}
-
-richgriditem[search] .tile-content {
-  border: 0;
-}
-
 .tile-desc {
   display: block;
   position: absolute;
@@ -172,7 +129,6 @@ richgriditem[search] .tile-content {
   left: 52px; /* label goes to the right of the favicon */
   right: 0;
   padding: 1em 6px 6px 12px;
-  background: white;
   color: #333;
   margin: 0;
   -moz-margin-start: 0;
@@ -181,7 +137,6 @@ richgriditem[search] .tile-content {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  transition: @metro_animation_duration@ background-color @metro_animation_easing@;
 }
 
 richgriditem:not([tiletype="thumbnail"]) .tile-desc {
@@ -206,6 +161,10 @@ richgriditem:active {
 
 /* thumbnail variation */
 
+richgriditem[tiletype="thumbnail"] .tile-start-container {
+  background-image: url("chrome://browser/skin/images/firefox-watermark.png");
+}
+
 richgriditem[tiletype="thumbnail"] {
   width: @grid_double_column_width@;
   height: @grid_double_row_height@;
@@ -228,9 +187,7 @@ richgriditem[tiletype="thumbnail"] > .tile-content > .tile-desc {
 }
 
 /* thumbnail tiles use a screenshot thumbnail as the background */
-
-richgriditem[tiletype="thumbnail"] > .tile-content > .tile-start-container,
-richgriditem[tiletype="thumbnail"] > .tile-content > .tile-start-container::after {
+richgriditem[tiletype="thumbnail"] > .tile-content > .tile-start-container {
   background-size: cover;
   background-position: top left;
   background-repeat: no-repeat;
@@ -240,21 +197,6 @@ richgriditem[tiletype="thumbnail"] > .tile-content > .tile-start-container::afte
   right: 0;
   left: 0;
 }
-
-richgriditem[tiletype="thumbnail"] > .tile-content > .tile-start-container::after {
-  pointer-events:none;
-  content: "";
-  display: block;
-  opacity: 0;
-  background-color: #fff;
-  background-image: url("chrome://browser/skin/images/firefox-watermark.png")!important;
-  transition: @metro_animation_duration@ opacity ease-in;
-}
-
-richgriditem[tiletype="thumbnail"]:not([customImage]) > .tile-content > .tile-start-container::after {
-  opacity: 1;
-}
-
 richgriditem[tiletype="thumbnail"] .tile-icon-box {
   top: auto;
   left: 10px;
@@ -333,32 +275,12 @@ richgriditem[bending] > .tile-content {
   transform-origin: center center;
 }
 
-richgriditem[tiletype="thumbnail"]:not([value]) {
-  visibility: visible;
-}
-richgriditem:not([value]) > .tile-content {
-  padding: 10px 14px;
-}
-/* Empty/unused tiles */
-richgriditem:not([value]) > .tile-content {
-  box-shadow: 0px 0px 0px 1px rgba(0, 0, 0, 0.05);
-  background-image: url("chrome://browser/skin/images/firefox-watermark.png");
-  background-origin: content-box;
-  background-repeat: no-repeat;
-  background-color: rgba(255,255,255, 0.2);
-  background-position: center center;
-  background-size: @compactgrid_row_height@;
-}
-richgriditem[tiletype="thumbnail"]:not([value]) > .tile-content {
-  background-size: @grid_row_height@;
-}
-
 /* Snapped-view variation
    We use the compact, single-column grid treatment for <=320px */
 
 @media (max-width: 330px) {
 
-  richgrid:not([search]) > .richgrid-grid {
+  richgrid > .richgrid-grid {
     -moz-column-width: auto!important; /* let it flow */
     -moz-column-count: auto!important; /* let it flow */
     height: auto; /* let it flow */
@@ -376,7 +298,7 @@ richgriditem[tiletype="thumbnail"]:not([value]) > .tile-content {
     padding: 0.5em 4px 4px 4px;
   }
 
-  richgriditem:not([search]) > .tile-content {
+  .tile-content {
     left: 0;
     right: 0;
   }

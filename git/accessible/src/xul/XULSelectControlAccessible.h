@@ -22,7 +22,7 @@ public:
   XULSelectControlAccessible(nsIContent* aContent, DocAccessible* aDoc);
   virtual ~XULSelectControlAccessible() {}
 
-  // Accessible
+  // nsAccessNode
   virtual void Shutdown();
 
   // SelectAccessible

@@ -38,16 +38,13 @@ function test() {
 // var assert = require('test/assert');
 // var helpers = require('gclitest/helpers');
 // var mockCommands = require('gclitest/mockCommands');
-var nodetype = require('gcli/types/node');
 
 exports.setup = function(options) {
   mockCommands.setup();
-  nodetype.setDocument(options.window.document);
 };
 
 exports.shutdown = function(options) {
   mockCommands.shutdown();
-  nodetype.unsetDocument();
 };
 
 exports.testNode = function(options) {
@@ -290,6 +287,8 @@ exports.testNodes = function(options) {
         cursor: 16,
         current: 'nodes',
         status: 'ERROR',
+        outputState: 'false:default',
+        tooltipState: 'true:isError',
         args: {
           command: { name: 'tse' },
           node: {
@@ -325,6 +324,8 @@ exports.testNodes = function(options) {
         cursor: 17,
         current: 'nodes2',
         status: 'ERROR',
+        outputState: 'false:default',
+        tooltipState: 'false:default',
         args: {
           command: { name: 'tse' },
           node: {

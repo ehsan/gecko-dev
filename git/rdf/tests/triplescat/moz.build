@@ -6,6 +6,6 @@
 
 PROGRAM = 'triplescat'
 
-SOURCES += [
+CPP_SOURCES += [
     'triplescat.cpp',
 ]

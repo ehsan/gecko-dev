@@ -35,7 +35,6 @@
 #include "nsIErrorService.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsJSUtils.h"
-#include "nsIXPConnect.h"
 
 using namespace mozilla::dom;
 
@@ -1067,12 +1066,12 @@ txMozillaXSLTProcessor::reportError(nsresult aResult,
             if (bundle) {
                 const PRUnichar* error[] = { errorText.get() };
                 if (mStylesheet) {
-                    bundle->FormatStringFromName(MOZ_UTF16("TransformError"),
+                    bundle->FormatStringFromName(NS_LITERAL_STRING("TransformError").get(),
                                                  error, 1,
                                                  getter_Copies(errorMessage));
                 }
                 else {
-                    bundle->FormatStringFromName(MOZ_UTF16("LoadingError"),
+                    bundle->FormatStringFromName(NS_LITERAL_STRING("LoadingError").get(),
                                                  error, 1,
                                                  getter_Copies(errorMessage));
                 }
@@ -1441,11 +1440,10 @@ txVariable::Convert(nsIVariant *aValue, txAExprResult** aResult)
                 JSContext* cx = nsContentUtils::GetCurrentJSContext();
                 NS_ENSURE_TRUE(cx, NS_ERROR_NOT_AVAILABLE);
 
-                JS::Rooted<JSObject*> jsobj(cx, holder->GetJSObject());
+                JS::RootedObject jsobj(cx, holder->GetJSObject());
                 NS_ENSURE_STATE(jsobj);
 
-                JS::Rooted<JS::Value> v(cx, JS::ObjectValue(*jsobj));
-                JS::Rooted<JSString*> str(cx, JS::ToString(cx, v));
+                JS::RootedString str(cx, JS_ValueToString(cx, OBJECT_TO_JSVAL(jsobj)));
                 NS_ENSURE_TRUE(str, NS_ERROR_FAILURE);
 
                 nsDependentJSString value;

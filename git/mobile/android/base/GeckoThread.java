@@ -6,12 +6,12 @@
 package org.mozilla.gecko;
 
 import org.mozilla.gecko.mozglue.GeckoLoader;
-import org.mozilla.gecko.mozglue.RobocopTarget;
 import org.mozilla.gecko.util.GeckoEventListener;
 import org.mozilla.gecko.util.ThreadUtils;
 
 import org.json.JSONObject;
 
+import android.content.Intent;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.content.res.Resources;
@@ -28,7 +28,6 @@ import java.util.Locale;
 public class GeckoThread extends Thread implements GeckoEventListener {
     private static final String LOGTAG = "GeckoThread";
 
-    @RobocopTarget
     public enum LaunchState {
         Launching,
         WaitForDebugger,
@@ -110,7 +109,7 @@ public class GeckoThread extends Thread implements GeckoEventListener {
             Activity activity = (Activity)app;
             resourcePath = activity.getApplication().getPackageResourcePath();
             res = activity.getBaseContext().getResources();
-            GeckoLoader.setupGeckoEnvironment(activity, pluginDirs, app.getFilesDir().getPath());
+            GeckoLoader.setupGeckoEnvironment(activity, pluginDirs, GeckoProfile.get(app).getFilesDir().getPath());
         }
         GeckoLoader.loadSQLiteLibs(app, resourcePath);
         GeckoLoader.loadNSSLibs(app, resourcePath);
@@ -148,9 +147,7 @@ public class GeckoThread extends Thread implements GeckoEventListener {
                 if (args == null || !args.contains(BrowserApp.GUEST_BROWSING_ARG)) {
                     guest = " " + BrowserApp.GUEST_BROWSING_ARG;
                 }
-            } else if (!GeckoProfile.sIsUsingCustomProfile) {
-                // If nothing was passed in in the intent, force Gecko to use the default profile for
-                // for this activity
+            } else if (GeckoApp.sIsUsingCustomProfile) {
                 profile = " -P " + GeckoAppShell.getGeckoInterface().getProfile().getName();
             }
         }
@@ -188,7 +185,6 @@ public class GeckoThread extends Thread implements GeckoEventListener {
         }
     }
 
-    @RobocopTarget
     public static boolean checkLaunchState(LaunchState checkState) {
         synchronized (sLock) {
             return sLaunchState == checkState;

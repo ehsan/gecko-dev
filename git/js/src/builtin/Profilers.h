@@ -13,12 +13,6 @@
 
 #include "jstypes.h"
 
-#ifdef _MSC_VER
-typedef int pid_t;
-#else
-#include <unistd.h>
-#endif
-
 /**
  * Start any profilers that are available and have been configured on for this
  * platform. This is NOT thread safe.
@@ -26,12 +20,12 @@ typedef int pid_t;
  * The profileName is used by some profilers to describe the current profiling
  * run. It may be used for part of the filename of the output, but the
  * specifics depend on the profiler. Many profilers will ignore it. Passing in
- * nullptr is legal; some profilers may use it to output to stdout or similar.
+ * NULL is legal; some profilers may use it to output to stdout or similar.
  *
  * Returns true if no profilers fail to start.
  */
 extern JS_PUBLIC_API(bool)
-JS_StartProfiling(const char *profileName, pid_t pid);
+JS_StartProfiling(const char *profileName);
 
 /**
  * Stop any profilers that were previously started with JS_StartProfiling.

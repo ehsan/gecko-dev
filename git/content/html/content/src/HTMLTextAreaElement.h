@@ -17,7 +17,6 @@
 #include "nsStubMutationObserver.h"
 #include "nsIConstraintValidation.h"
 #include "mozilla/dom/HTMLFormElement.h"
-#include "mozilla/dom/HTMLInputElementBinding.h"
 #include "nsGkAtoms.h"
 
 #include "nsTextEditorState.h"
@@ -90,8 +89,8 @@ public:
   NS_IMETHOD_(void) UnbindFromFrame(nsTextControlFrame* aFrame) MOZ_OVERRIDE;
   NS_IMETHOD CreateEditor() MOZ_OVERRIDE;
   NS_IMETHOD_(nsIContent*) GetRootEditorNode() MOZ_OVERRIDE;
-  NS_IMETHOD_(Element*) CreatePlaceholderNode() MOZ_OVERRIDE;
-  NS_IMETHOD_(Element*) GetPlaceholderNode() MOZ_OVERRIDE;
+  NS_IMETHOD_(nsIContent*) CreatePlaceholderNode() MOZ_OVERRIDE;
+  NS_IMETHOD_(nsIContent*) GetPlaceholderNode() MOZ_OVERRIDE;
   NS_IMETHOD_(void) UpdatePlaceholderVisibility(bool aNotify) MOZ_OVERRIDE;
   NS_IMETHOD_(bool) GetPlaceholderVisibility() MOZ_OVERRIDE;
   NS_IMETHOD_(void) InitializeKeyboardEventListeners() MOZ_OVERRIDE;
@@ -215,14 +214,6 @@ public:
   {
     return GetBoolAttr(nsGkAtoms::required);
   }
-
-  void SetRangeText(const nsAString& aReplacement, ErrorResult& aRv);
-
-  void SetRangeText(const nsAString& aReplacement, uint32_t aStart,
-                    uint32_t aEnd, const SelectionMode& aSelectMode,
-                    ErrorResult& aRv, int32_t aSelectionStart = -1,
-                    int32_t aSelectionEnd = -1);
-
   void SetRequired(bool aRequired, ErrorResult& aError)
   {
     SetHTMLBoolAttr(nsGkAtoms::required, aRequired, aError);
@@ -356,10 +347,6 @@ protected:
    * @return whether the current value is the empty string.
    */
   bool IsValueEmpty() const;
-
-private:
-  static void MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
-                                    nsRuleData* aData);
 };
 
 } // namespace dom

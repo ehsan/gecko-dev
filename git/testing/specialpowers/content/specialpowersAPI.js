@@ -494,56 +494,6 @@ SpecialPowersAPI.prototype = {
     return MockPermissionPrompt
   },
 
-  loadChromeScript: function (url) {
-    // Create a unique id for this chrome script
-    let uuidGenerator = Cc["@mozilla.org/uuid-generator;1"]
-                          .getService(Ci.nsIUUIDGenerator);
-    let id = uuidGenerator.generateUUID().toString();
-
-    // Tells chrome code to evaluate this chrome script
-    this._sendSyncMessage("SPLoadChromeScript",
-                          { url: url, id: id });
-
-    // Returns a MessageManager like API in order to be
-    // able to communicate with this chrome script
-    let listeners = [];
-    let chromeScript = {
-      addMessageListener: (name, listener) => {
-        listeners.push({ name: name, listener: listener });
-      },
-
-      removeMessageListener: (name, listener) => {
-        listeners = listeners.filter(
-          o => (o.name != name || o.listener != listener)
-        );
-      },
-
-      sendAsyncMessage: (name, message) => {
-        this._sendSyncMessage("SPChromeScriptMessage",
-                              { id: id, name: name, message: message });
-      },
-
-      destroy: () => {
-        listeners = [];
-        this._removeMessageListener("SPChromeScriptMessage", chromeScript);
-      },
-
-      receiveMessage: (aMessage) => {
-        let messageId = aMessage.json.id;
-        let name = aMessage.json.name;
-        let message = aMessage.json.message;
-        // Ignore message from other chrome script
-        if (messageId != id)
-          return;
-
-        listeners.filter(o => (o.name == name))
-                 .forEach(o => o.listener(this.wrap(message)));
-      }
-    };
-    this._addMessageListener("SPChromeScriptMessage", chromeScript);
-    return this.wrap(chromeScript);
-  },
-
   get Services() {
     return wrapPrivileged(Services);
   },
@@ -626,12 +576,6 @@ SpecialPowersAPI.prototype = {
           originalValue = Ci.nsIPermissionManager.DENY_ACTION;
         } else if (this.testPermission(permission.type, Ci.nsIPermissionManager.PROMPT_ACTION, permission.context)) {
           originalValue = Ci.nsIPermissionManager.PROMPT_ACTION;
-        } else if (this.testPermission(permission.type, Ci.nsICookiePermission.ACCESS_SESSION, permission.context)) {
-          originalValue = Ci.nsICookiePermission.ACCESS_SESSION;
-        } else if (this.testPermission(permission.type, Ci.nsICookiePermission.ACCESS_ALLOW_FIRST_PARTY_ONLY, permission.context)) {
-          originalValue = Ci.nsICookiePermission.ACCESS_ALLOW_FIRST_PARTY_ONLY;
-        } else if (this.testPermission(permission.type, Ci.nsICookiePermission.ACCESS_LIMIT_THIRD_PARTY, permission.context)) {
-          originalValue = Ci.nsICookiePermission.ACCESS_LIMIT_THIRD_PARTY;
         }
 
         let [url, appId, isInBrowserElement] = this._getInfoFromPermissionArg(permission.context);
@@ -643,9 +587,6 @@ SpecialPowersAPI.prototype = {
           perm = permission.allow ? Ci.nsIPermissionManager.ALLOW_ACTION
                              : Ci.nsIPermissionManager.DENY_ACTION;
         }
-
-        if (permission.remove == true)
-          perm = Ci.nsIPermissionManager.UNKNOWN_ACTION;
 
         if (originalValue == perm) {
           continue;
@@ -1184,6 +1125,10 @@ SpecialPowersAPI.prototype = {
     this._getMUDV(window).stopEmulatingMedium();
   },
 
+  createSystemXHR: function() {
+    return this.wrap(Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Ci.nsIXMLHttpRequest));
+  },
+
   snapshotWindowWithOptions: function (win, rect, bgcolor, options) {
     var el = this.window.get().document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
     if (rect === undefined) {
@@ -1234,11 +1179,6 @@ SpecialPowersAPI.prototype = {
     Cu.forceCC();
   },
 
-  // Due to various dependencies between JS objects and C++ objects, an ordinary
-  // forceGC doesn't necessarily clear all unused objects, thus the GC and CC
-  // needs to run several times and when no other JS is running.
-  // The current number of iterations has been determined according to massive
-  // cross platform testing.
   exactGC: function(win, callback) {
     var self = this;
     let count = 0;
@@ -1651,7 +1591,3 @@ SpecialPowersAPI.prototype = {
     this._sendSyncMessage('SPObserverService', msg);
   },
 };
-
-this.SpecialPowersAPI = SpecialPowersAPI;
-this.bindDOMWindowUtils = bindDOMWindowUtils;
-this.getRawComponents = getRawComponents;

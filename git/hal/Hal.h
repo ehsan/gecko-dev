@@ -10,16 +10,15 @@
 #include "mozilla/hal_sandbox/PHal.h"
 #include "mozilla/HalTypes.h"
 #include "base/basictypes.h"
-#include "mozilla/Observer.h"
 #include "mozilla/Types.h"
 #include "nsTArray.h"
 #include "prlog.h"
 #include "mozilla/dom/battery/Types.h"
 #include "mozilla/dom/network/Types.h"
 #include "mozilla/dom/power/Types.h"
+#include "mozilla/dom/ContentParent.h"
 #include "mozilla/hal_sandbox/PHal.h"
 #include "mozilla/dom/ScreenOrientation.h"
-#include "mozilla/HalScreenConfiguration.h"
 
 /*
  * Hal.h contains the public Hal API.
@@ -40,9 +39,13 @@ class nsIDOMWindow;
 
 namespace mozilla {
 
+template <class T>
+class Observer;
+
 namespace hal {
 
 typedef Observer<void_t> AlarmObserver;
+typedef Observer<ScreenConfiguration> ScreenConfigurationObserver;
 
 class WindowIdentifier;
 
@@ -256,12 +259,6 @@ void SetTimezone(const nsCString& aTimezoneSpec);
  * http://en.wikipedia.org/wiki/List_of_tz_database_time_zones
  */
 nsCString GetTimezone();
-
-/**
- * Get timezone offset
- * returns the timezone offset relative to UTC in minutes (DST effect included)
- */
-int32_t GetTimezoneOffset();
 
 /**
  * Register observer for system clock changed notification.
@@ -487,8 +484,7 @@ bool SetAlarm(int32_t aSeconds, int32_t aNanoseconds);
  */
 void SetProcessPriority(int aPid,
                         hal::ProcessPriority aPriority,
-                        hal::ProcessCPUPriority aCPUPriority,
-                        uint32_t aLRU = 0);
+                        hal::ProcessCPUPriority aCPUPriority);
 
 /**
  * Register an observer for the FM radio.
@@ -594,13 +590,6 @@ void StartDiskSpaceWatcher();
  * This API is currently only allowed to be used from the main process.
  */
 void StopDiskSpaceWatcher();
-
-/**
- * Get total system memory of device being run on in bytes.
- *
- * Returns 0 if we are unable to determine this information from /proc/meminfo.
- */
-uint32_t GetTotalSystemMemory();
 
 } // namespace MOZ_HAL_NAMESPACE
 } // namespace mozilla

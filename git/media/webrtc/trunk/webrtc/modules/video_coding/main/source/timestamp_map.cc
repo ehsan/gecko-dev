@@ -8,9 +8,9 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include <assert.h>
+#include "timestamp_map.h"
 #include <stdlib.h>
-#include "webrtc/modules/video_coding/main/source/timestamp_map.h"
+#include <assert.h>
 
 namespace webrtc {
 

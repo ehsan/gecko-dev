@@ -11,11 +11,8 @@
 #include "mozilla/MemoryReporting.h"
 
 #include "jscntxt.h"
-#include "jsproxy.h"
 
 #include "gc/Marking.h"
-#include "gc/Zone.h"
-#include "vm/Shape.h"
 #if ENABLE_YARR_JIT
 #include "yarr/YarrJIT.h"
 #else
@@ -76,7 +73,7 @@ class RegExpObjectBuilder
     bool getOrCreateClone(RegExpObject *proto);
 
   public:
-    RegExpObjectBuilder(ExclusiveContext *cx, RegExpObject *reobj = nullptr);
+    RegExpObjectBuilder(ExclusiveContext *cx, RegExpObject *reobj = NULL);
 
     RegExpObject *reobj() { return reobj_; }
 
@@ -191,7 +188,7 @@ class RegExpShared
 
     /* Called when a RegExpShared is installed into a RegExpObject. */
     void prepareForUse(ExclusiveContext *cx) {
-        gcNumberWhenUsed = cx->zone()->gcNumber();
+        gcNumberWhenUsed = cx->gcNumber();
     }
 
     /* Primary interface: run this regular expression on the given string. */
@@ -224,7 +221,7 @@ class RegExpShared
     bool hasCode() const                { return false; }
     bool hasMatchOnlyCode() const       { return false; }
 #endif
-    bool hasBytecode() const            { return bytecode != nullptr; }
+    bool hasBytecode() const            { return bytecode != NULL; }
     bool isCompiled() const             { return hasBytecode() || hasCode() || hasMatchOnlyCode(); }
 };
 
@@ -248,7 +245,7 @@ class RegExpGuard
 
   public:
     RegExpGuard(ExclusiveContext *cx)
-      : re_(nullptr), source_(cx)
+      : re_(NULL), source_(cx)
     {}
 
     RegExpGuard(ExclusiveContext *cx, RegExpShared &re)
@@ -272,8 +269,8 @@ class RegExpGuard
     void release() {
         if (re_) {
             re_->decRef();
-            re_ = nullptr;
-            source_ = nullptr;
+            re_ = NULL;
+            source_ = NULL;
         }
     }
 
@@ -318,13 +315,6 @@ class RegExpCompartment
     typedef HashSet<RegExpShared *, DefaultHasher<RegExpShared*>, RuntimeAllocPolicy> PendingSet;
     PendingSet inUse_;
 
-    /*
-     * This is the template object where the result of re.exec() is based on,
-     * if there is a result. This is used in CreateRegExpMatchResult to set
-     * the input/index properties faster.
-     */
-    HeapPtrObject matchResultTemplateObject_;
-
   public:
     RegExpCompartment(JSRuntime *rt);
     ~RegExpCompartment();
@@ -337,9 +327,6 @@ class RegExpCompartment
 
     /* Like 'get', but compile 'maybeOpt' (if non-null). */
     bool get(JSContext *cx, HandleAtom source, JSString *maybeOpt, RegExpGuard *g);
-
-    /* Get or create template object used to base the result of .exec() on. */
-    HeapPtrObject &getOrCreateMatchResultTemplateObject(JSContext *cx);
 
     size_t sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf);
 };
@@ -356,7 +343,7 @@ class RegExpObject : public JSObject
   public:
     static const unsigned RESERVED_SLOTS = 6;
 
-    static const Class class_;
+    static Class class_;
 
     /*
      * Note: The regexp statics flags are OR'd into the provided flags,
@@ -379,22 +366,13 @@ class RegExpObject : public JSObject
     static unsigned lastIndexSlot() { return LAST_INDEX_SLOT; }
 
     const Value &getLastIndex() const { return getSlot(LAST_INDEX_SLOT); }
-
-    void setLastIndex(double d) {
-        setSlot(LAST_INDEX_SLOT, NumberValue(d));
-    }
-
-    void zeroLastIndex() {
-        setSlot(LAST_INDEX_SLOT, Int32Value(0));
-    }
+    inline void setLastIndex(double d);
+    inline void zeroLastIndex();
 
     JSFlatString *toString(JSContext *cx) const;
 
     JSAtom *getSource() const { return &getSlot(SOURCE_SLOT).toString()->asAtom(); }
-
-    void setSource(JSAtom *source) {
-        setSlot(SOURCE_SLOT, StringValue(source));
-    }
+    inline void setSource(JSAtom *source);
 
     RegExpFlag getFlags() const {
         unsigned flags = 0;
@@ -407,29 +385,17 @@ class RegExpObject : public JSObject
 
     /* Flags. */
 
-    void setIgnoreCase(bool enabled) {
-        setSlot(IGNORE_CASE_FLAG_SLOT, BooleanValue(enabled));
-    }
-
-    void setGlobal(bool enabled) {
-        setSlot(GLOBAL_FLAG_SLOT, BooleanValue(enabled));
-    }
-
-    void setMultiline(bool enabled) {
-        setSlot(MULTILINE_FLAG_SLOT, BooleanValue(enabled));
-    }
-
-    void setSticky(bool enabled) {
-        setSlot(STICKY_FLAG_SLOT, BooleanValue(enabled));
-    }
-
-    bool ignoreCase() const { return getFixedSlot(IGNORE_CASE_FLAG_SLOT).toBoolean(); }
-    bool global() const     { return getFixedSlot(GLOBAL_FLAG_SLOT).toBoolean(); }
-    bool multiline() const  { return getFixedSlot(MULTILINE_FLAG_SLOT).toBoolean(); }
-    bool sticky() const     { return getFixedSlot(STICKY_FLAG_SLOT).toBoolean(); }
+    inline void setIgnoreCase(bool enabled);
+    inline void setGlobal(bool enabled);
+    inline void setMultiline(bool enabled);
+    inline void setSticky(bool enabled);
+    bool ignoreCase() const { return getSlot(IGNORE_CASE_FLAG_SLOT).toBoolean(); }
+    bool global() const     { return getSlot(GLOBAL_FLAG_SLOT).toBoolean(); }
+    bool multiline() const  { return getSlot(MULTILINE_FLAG_SLOT).toBoolean(); }
+    bool sticky() const     { return getSlot(STICKY_FLAG_SLOT).toBoolean(); }
 
     void shared(RegExpGuard *g) const {
-        JS_ASSERT(maybeShared() != nullptr);
+        JS_ASSERT(maybeShared() != NULL);
         g->init(*maybeShared());
     }
 
@@ -440,27 +406,17 @@ class RegExpObject : public JSObject
         }
         return createShared(cx, g);
     }
-
-    void setShared(ExclusiveContext *cx, RegExpShared &shared) {
-        shared.prepareForUse(cx);
-        JSObject::setPrivate(&shared);
-    }
+    inline void setShared(ExclusiveContext *cx, RegExpShared &shared);
 
   private:
     friend class RegExpObjectBuilder;
 
-    /* For access to assignInitialShape. */
-    friend bool
-    EmptyShape::ensureInitialCustomShape<RegExpObject>(ExclusiveContext *cx,
-                                                       Handle<RegExpObject*> obj);
-
     /*
      * Compute the initial shape to associate with fresh RegExp objects,
      * encoding their initial properties. Return the shape after
-     * changing |obj|'s last property to it.
+     * changing this regular expression object's last property to it.
      */
-    static Shape *
-    assignInitialShape(ExclusiveContext *cx, Handle<RegExpObject*> obj);
+    Shape *assignInitialShape(ExclusiveContext *cx);
 
     bool init(ExclusiveContext *cx, HandleAtom source, RegExpFlag flags);
 

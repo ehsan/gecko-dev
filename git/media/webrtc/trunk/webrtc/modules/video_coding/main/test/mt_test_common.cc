@@ -8,14 +8,11 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/video_coding/main/test/mt_test_common.h"
+#include "mt_test_common.h"
 
-#include <math.h>
+#include <cmath>
 
-#include "webrtc/modules/rtp_rtcp/interface/rtp_header_parser.h"
-#include "webrtc/modules/rtp_rtcp/interface/rtp_payload_registry.h"
-#include "webrtc/modules/rtp_rtcp/interface/rtp_receiver.h"
-#include "webrtc/modules/utility/interface/rtp_dump.h"
+#include "rtp_dump.h"
 #include "webrtc/system_wrappers/interface/clock.h"
 
 namespace webrtc {
@@ -91,22 +88,12 @@ TransportCallback::TransportPackets()
 
         _rtpPackets.pop_front();
         // Send to receive side
-        RTPHeader header;
-        scoped_ptr<RtpHeaderParser> parser(RtpHeaderParser::Create());
-        if (!parser->Parse(packet->data, packet->length, &header)) {
-          delete packet;
-          return -1;
-        }
-        PayloadUnion payload_specific;
-        if (!rtp_payload_registry_->GetPayloadSpecifics(
-            header.payloadType, &payload_specific)) {
-          return -1;
-        }
-        if (!rtp_receiver_->IncomingRtpPacket(header, packet->data,
-                                              packet->length, payload_specific,
-                                              true))
+        if (_rtp->IncomingPacket((const uint8_t*)packet->data,
+                                     packet->length) < 0)
         {
             delete packet;
+            packet = NULL;
+            // Will return an error after the first packet that goes wrong
             return -1;
         }
         delete packet;

@@ -8,10 +8,10 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include <time.h>
+#include <ctime>
 
 #include "gflags/gflags.h"
-#include "testing/gtest/include/gtest/gtest.h"
+#include "gtest/gtest.h"
 #include "webrtc/test/libtest/include/bit_flip_encryption.h"
 #include "webrtc/test/libtest/include/random_encryption.h"
 #include "webrtc/video_engine/test/auto_test/automated/two_windows_fixture.h"
@@ -65,7 +65,7 @@ protected:
     if (FLAGS_rtp_fuzz_test_rand_seed != 0) {
       return FLAGS_rtp_fuzz_test_rand_seed;
     }
-    return time(NULL);
+    return std::time(NULL);
   }
 
   // Pass in a number [0, 1] which will be the bit flip probability per byte.

@@ -4,8 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_SpeechRecognition_h
-#define mozilla_dom_SpeechRecognition_h
+#pragma once
 
 #include "mozilla/Attributes.h"
 #include "nsCOMPtr.h"
@@ -13,10 +12,8 @@
 #include "nsString.h"
 #include "nsWrapperCache.h"
 #include "nsTArray.h"
-#include "js/TypeDecls.h"
 
-#include "nsIDOMNavigatorUserMedia.h"
-#include "nsITimer.h"
+#include "MediaManager.h"
 #include "MediaEngine.h"
 #include "MediaStreamGraph.h"
 #include "AudioSegment.h"
@@ -32,6 +29,7 @@
 
 #include "mozilla/dom/SpeechRecognitionError.h"
 
+struct JSContext;
 class nsIDOMWindow;
 
 namespace mozilla {
@@ -171,11 +169,22 @@ private:
     STATE_WAITING_FOR_SPEECH,
     STATE_RECOGNIZING,
     STATE_WAITING_FOR_RESULT,
+    STATE_ABORTING,
     STATE_COUNT
   };
 
   void SetState(FSMState state);
   bool StateBetween(FSMState begin, FSMState end);
+
+  class GetUserMediaStreamOptions : public nsIMediaStreamOptions
+  {
+  public:
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSIMEDIASTREAMOPTIONS
+
+    GetUserMediaStreamOptions() {}
+    virtual ~GetUserMediaStreamOptions() {}
+  };
 
   class GetUserMediaSuccessCallback : public nsIDOMGetUserMediaSuccessCallback
   {
@@ -238,6 +247,7 @@ private:
   void GetRecognitionServiceCID(nsACString& aResultCID);
 
   FSMState mCurrentState;
+  nsTArray<nsRefPtr<SpeechEvent> > mPriorityEvents;
 
   Endpointer mEndpointer;
   uint32_t mEstimationSamples;
@@ -250,7 +260,6 @@ private:
   uint32_t mBufferedSamples;
 
   nsCOMPtr<nsITimer> mSpeechDetectionTimer;
-  bool mAborted;
 
   void ProcessTestEventRequest(nsISupports* aSubject, const nsAString& aEventName);
 
@@ -297,5 +306,3 @@ ToSupports(dom::SpeechRecognition* aRec)
   return ToSupports(static_cast<nsDOMEventTargetHelper*>(aRec));
 }
 } // namespace mozilla
-
-#endif

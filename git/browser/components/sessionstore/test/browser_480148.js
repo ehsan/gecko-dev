@@ -5,7 +5,7 @@
 function test() {
   /** Test for Bug 484108 **/
   waitForExplicitFinish();
-  requestLongerTimeout(5);
+  requestLongerTimeout(4);
 
   // builds the tests state based on a few parameters
   function buildTestState(num, selected, hidden, pinned) {
@@ -162,54 +162,48 @@ function test() {
       return;
     }
 
-    let wu = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-                   .getInterface(Components.interfaces.nsIDOMWindowUtils);
-    wu.garbageCollect();
+    info ("Starting test " + (++testIndex));
+    let test = tests.shift();
+    let state = buildTestState(test.totalTabs, test.selectedTab,
+                               test.hiddenTabs, test.pinnedTabs);
+    let tabbarWidth = Math.floor((test.shownTabs - 0.5) * tabMinWidth);
+    let win = openDialog(location, "_blank", "chrome,all,dialog=no");
+    let tabsRestored = [];
 
-    setTimeout(function() {
-      info ("Starting test " + (++testIndex));
-      let test = tests.shift();
-      let state = buildTestState(test.totalTabs, test.selectedTab,
-                                 test.hiddenTabs, test.pinnedTabs);
-      let tabbarWidth = Math.floor((test.shownTabs - 0.5) * tabMinWidth);
-      let win = openDialog(location, "_blank", "chrome,all,dialog=no");
-      let tabsRestored = [];
+    win.addEventListener("SSTabRestoring", function onSSTabRestoring(aEvent) {
+      let tab = aEvent.originalTarget;
+      let tabLink = tab.linkedBrowser.currentURI.spec;
+      let tabIndex =
+        tabLink.substring(tabLink.indexOf("?t=") + 3, tabLink.length);
 
-      win.addEventListener("SSTabRestoring", function onSSTabRestoring(aEvent) {
-        let tab = aEvent.originalTarget;
-        let tabLink = tab.linkedBrowser.currentURI.spec;
-        let tabIndex =
-          tabLink.substring(tabLink.indexOf("?t=") + 3, tabLink.length);
+      // we need to compare with the tab's restoring index, no with the
+      // position index, since the pinned tabs change the positions in the
+      // tabbar. 
+      tabsRestored.push(tabIndex);
 
-        // we need to compare with the tab's restoring index, no with the
-        // position index, since the pinned tabs change the positions in the
-        // tabbar. 
-        tabsRestored.push(tabIndex);
+      if (tabsRestored.length < state.windows[0].tabs.length)
+        return;
 
-        if (tabsRestored.length < state.windows[0].tabs.length)
-          return;
+      // all of the tabs should be restoring or restored by now
+      is(tabsRestored.length, state.windows[0].tabs.length,
+         "Test #" + testIndex + ": Number of restored tabs is as expected");
 
-        // all of the tabs should be restoring or restored by now
-        is(tabsRestored.length, state.windows[0].tabs.length,
-           "Test #" + testIndex + ": Number of restored tabs is as expected");
+      is(tabsRestored.join(" "), test.order.join(" "),
+         "Test #" + testIndex + ": 'visible' tabs restored first");
 
-        is(tabsRestored.join(" "), test.order.join(" "),
-           "Test #" + testIndex + ": 'visible' tabs restored first");
+      // cleanup
+      win.removeEventListener("SSTabRestoring", onSSTabRestoring, false);
+      win.close();
+      executeSoon(runNextTest);
+    }, false);
 
-        // cleanup
-        win.removeEventListener("SSTabRestoring", onSSTabRestoring, false);
-        win.close();
-        executeSoon(runNextTest);
-      }, false);
-
-      whenWindowLoaded(win, function(aEvent) {
-        let extent =
-          win.outerWidth - win.gBrowser.tabContainer.mTabstrip.scrollClientSize;
-        let windowWidth = tabbarWidth + extent;
-        win.resizeTo(windowWidth, win.outerHeight);
-        ss.setWindowState(win, JSON.stringify(state), true);
-      });
-    }, 1000);
+    whenWindowLoaded(win, function(aEvent) {
+      let extent =
+        win.outerWidth - win.gBrowser.tabContainer.mTabstrip.scrollClientSize;
+      let windowWidth = tabbarWidth + extent;
+      win.resizeTo(windowWidth, win.outerHeight);
+      ss.setWindowState(win, JSON.stringify(state), true);
+    });
   };
 
   runNextTest();

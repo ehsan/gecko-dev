@@ -22,7 +22,6 @@ let FlyoutPanelsUI = {
           [
             ['AboutFlyoutPanel', 'chrome://browser/content/flyoutpanels/AboutFlyoutPanel.js'],
             ['PrefsFlyoutPanel', 'chrome://browser/content/flyoutpanels/PrefsFlyoutPanel.js'],
-            ['SearchFlyoutPanel', 'chrome://browser/content/flyoutpanels/SearchFlyoutPanel.js'],
 #ifdef MOZ_SERVICES_SYNC
             ['SyncFlyoutPanel', 'chrome://browser/content/flyoutpanels/SyncFlyoutPanel.js'],
 #endif
@@ -37,14 +36,6 @@ let FlyoutPanelsUI = {
         return sandbox[name];
       });
     });
-
-    Services.obs.addObserver(this, "metro_viewstate_changed", false);
-    window.addEventListener("TabOpen", this, false);
-  },
-
-  uninit: function () {
-    Services.obs.removeObserver(this, "metro_viewstate_changed");
-    window.removeEventListener("TabOpen", this, false);
   },
 
   show: function(aToShow) {
@@ -74,30 +65,12 @@ let FlyoutPanelsUI = {
       this._currentFlyout._onBackButton();
     } else {
       this.hide();
-      Services.metro.showSettingsFlyout();
+      MetroUtils.showSettingsFlyout();
     }
   },
 
   get isVisible() {
     return this._currentFlyout ? true : false;
-  },
-
-  handleEvent: function (aEvent) {
-    switch (aEvent.type) {
-      case "TabOpen":
-        this.hide()
-        break;
-    }
-  },
-
-  observe: function (aSubject, aTopic, aData) {
-    switch (aTopic) {
-      case "metro_viewstate_changed":
-        if (aData == "snapped") {
-          this.hide();
-        }
-        break;
-    }
   },
 
   dispatchEvent: function(aEvent) {

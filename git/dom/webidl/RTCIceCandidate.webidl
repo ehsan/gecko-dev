@@ -21,5 +21,7 @@ interface mozRTCIceCandidate {
   attribute DOMString?      sdpMid;
   attribute unsigned short? sdpMLineIndex;
 
-  jsonifier;
+  // Bug 863402 serializer support
+  //
+  //serializer = {attribute};
 };

@@ -414,7 +414,7 @@ cc_sdp_direction_t CC_SIPCCCallInfo::getVideoDirection()
 
 int CC_SIPCCCallInfo::getVolume()
 {
-    if( pMediaData != nullptr)
+    if( pMediaData  != NULL)
     {
         return  pMediaData->volume;
     }
@@ -447,16 +447,6 @@ cc_int32_t CC_SIPCCCallInfo::getStatusCode()
 MediaStreamTable* CC_SIPCCCallInfo::getMediaStreams() const
 {
 	return CCAPI_CallInfo_getMediaStreams(callinfo_ref);
-}
-
-Timecard *CC_SIPCCCallInfo::takeTimecard()
-{
-    return CCAPI_CallInfo_takeTimecard(callinfo_ref);
-}
-
-std::string CC_SIPCCCallInfo::getCandidate()
-{
-    return CCAPI_CallInfo_getCandidate(callinfo_ref);
 }
 
 bool CC_SIPCCCallInfo::isMediaStateAvailable()

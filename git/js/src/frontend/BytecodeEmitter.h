@@ -28,27 +28,6 @@ template <typename ParseHandler> class Parser;
 class SharedContext;
 class TokenStream;
 
-class CGConstList {
-    Vector<Value> list;
-  public:
-    CGConstList(ExclusiveContext *cx) : list(cx) {}
-    bool append(Value v) { JS_ASSERT_IF(v.isString(), v.toString()->isAtom()); return list.append(v); }
-    size_t length() const { return list.length(); }
-    void finish(ConstArray *array);
-};
-
-struct CGObjectList {
-    uint32_t            length;     /* number of emitted so far objects */
-    ObjectBox           *lastbox;   /* last emitted object */
-
-    CGObjectList() : length(0), lastbox(nullptr) {}
-
-    unsigned add(ObjectBox *objbox);
-    unsigned indexOf(JSObject *obj);
-    void finish(ObjectArray *array);
-    ObjectBox* find(uint32_t index);
-};
-
 struct CGTryNoteList {
     Vector<JSTryNote> list;
     CGTryNoteList(ExclusiveContext *cx) : list(cx) {}
@@ -58,15 +37,24 @@ struct CGTryNoteList {
     void finish(TryNoteArray *array);
 };
 
-struct CGBlockScopeList {
-    Vector<BlockScopeNote> list;
-    CGBlockScopeList(ExclusiveContext *cx) : list(cx) {}
+struct CGObjectList {
+    uint32_t            length;     /* number of emitted so far objects */
+    ObjectBox           *lastbox;   /* last emitted object */
 
-    bool append(uint32_t scopeObject, uint32_t offset, uint32_t parent);
-    uint32_t findEnclosingScope(uint32_t index);
-    void recordEnd(uint32_t index, uint32_t offset);
+    CGObjectList() : length(0), lastbox(NULL) {}
+
+    unsigned add(ObjectBox *objbox);
+    unsigned indexOf(JSObject *obj);
+    void finish(ObjectArray *array);
+};
+
+class CGConstList {
+    Vector<Value> list;
+  public:
+    CGConstList(ExclusiveContext *cx) : list(cx) {}
+    bool append(Value v) { JS_ASSERT_IF(v.isString(), v.toString()->isAtom()); return list.append(v); }
     size_t length() const { return list.length(); }
-    void finish(BlockScopeArray *array);
+    void finish(ConstArray *array);
 };
 
 struct StmtInfoBCE;
@@ -116,6 +104,8 @@ struct BytecodeEmitter
     int             stackDepth;     /* current stack depth in script frame */
     unsigned        maxStackDepth;  /* maximum stack depth so far */
 
+    CGTryNoteList   tryNoteList;    /* list of emitted try notes */
+
     unsigned        arrayCompDepth; /* stack depth of array in comprehension */
 
     unsigned        emitLevel;      /* js::frontend::EmitTree recursion level */
@@ -125,8 +115,6 @@ struct BytecodeEmitter
     CGObjectList    objectList;     /* list of emitted objects */
     CGObjectList    regexpList;     /* list of emitted regexp that will be
                                        cloned during execution */
-    CGTryNoteList   tryNoteList;    /* list of emitted try notes */
-    CGBlockScopeList blockScopeList;/* list of emitted block scope notes */
 
     uint16_t        typesetCount;   /* Number of JOF_TYPESET opcodes generated */
 
@@ -136,10 +124,6 @@ struct BytecodeEmitter
 
     bool            emittingRunOnceLambda:1; /* true while emitting a lambda which is only
                                                 expected to run once. */
-    bool            lazyRunOnceLambda:1; /* true while lazily emitting a script for
-                                          * a lambda which is only expected to run once. */
-
-    bool isRunOnceLambda();
 
     bool            insideEval:1;       /* True if compiling an eval-expression or a function
                                            nested inside an eval. */

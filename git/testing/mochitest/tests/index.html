@@ -2,7 +2,6 @@
 <head>
     <!-- This harness does not work locally in Safari -->
     <script type="text/javascript" src="../MochiKit/MochiKit.js"></script>
-    <script type="text/javascript" src="SimpleTest/MemoryStats.js"></script>
     <script type="text/javascript" src="SimpleTest/TestRunner.js"></script>
     <script type="text/javascript" src="SimpleTest/MozillaLogger.js"></script>
     <!--<link rel="stylesheet" type="text/css" href="/static/main.css" />-->
@@ -44,7 +43,8 @@ if (!params.quiet) {
 var RunSet = {}
 RunSet.runall = function() {
   TestRunner.runTests(
-      'test_bug362788.xhtml'
+      'test_bug362788.xhtml',
+      'test_bug366645.xhtml'
   );
 };
 RunSet.reloadAndRunAll = function() {

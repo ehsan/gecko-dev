@@ -11,8 +11,8 @@
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "webrtc/modules/video_coding/codecs/interface/mock/mock_video_codec_interface.h"
-#include "webrtc/modules/video_coding/main/interface/mock/mock_vcm_callbacks.h"
 #include "webrtc/modules/video_coding/main/interface/video_coding.h"
+#include "webrtc/modules/video_coding/main/interface/mock/mock_vcm_callbacks.h"
 #include "webrtc/modules/video_coding/main/test/test_util.h"
 #include "webrtc/system_wrappers/interface/clock.h"
 
@@ -40,7 +40,7 @@ class VCMRobustnessTest : public ::testing::Test {
     ASSERT_EQ(0, vcm_->InitializeReceiver());
     const size_t kMaxNackListSize = 250;
     const int kMaxPacketAgeToNack = 450;
-    vcm_->SetNackSettings(kMaxNackListSize, kMaxPacketAgeToNack, 0);
+    vcm_->SetNackSettings(kMaxNackListSize, kMaxPacketAgeToNack);
     ASSERT_EQ(0, vcm_->RegisterFrameTypeCallback(&frame_type_callback_));
     ASSERT_EQ(0, vcm_->RegisterPacketRequestCallback(&request_callback_));
     ASSERT_EQ(VCM_OK, vcm_->Codec(kVideoCodecVP8, &video_codec_));
@@ -67,7 +67,7 @@ class VCMRobustnessTest : public ::testing::Test {
     rtp_info.header.sequenceNumber = seq_no;
     rtp_info.header.markerBit = marker_bit;
     rtp_info.header.payloadType = video_codec_.plType;
-    rtp_info.type.Video.codec = kRtpVideoVp8;
+    rtp_info.type.Video.codec = kRTPVideoVP8;
     rtp_info.type.Video.codecHeader.VP8.InitRTPVideoHeaderVP8();
     rtp_info.type.Video.isFirstPacket = first;
 
@@ -102,17 +102,15 @@ TEST_F(VCMRobustnessTest, TestHardNack) {
 
   ASSERT_EQ(VCM_OK, vcm_->SetReceiverRobustnessMode(
       VideoCodingModule::kHardNack,
-      kNoErrors));
+      VideoCodingModule::kNoDecodeErrors));
 
   InsertPacket(0, 0, true, false, kVideoFrameKey);
   InsertPacket(0, 1, false, false, kVideoFrameKey);
   InsertPacket(0, 2, false, true, kVideoFrameKey);
-  clock_->AdvanceTimeMilliseconds(1000 / 30);
 
   InsertPacket(3000, 3, true, false, kVideoFrameDelta);
   InsertPacket(3000, 4, false, false, kVideoFrameDelta);
   InsertPacket(3000, 5, false, true, kVideoFrameDelta);
-  clock_->AdvanceTimeMilliseconds(1000 / 30);
 
   ASSERT_EQ(VCM_OK, vcm_->Decode(0));
   ASSERT_EQ(VCM_OK, vcm_->Decode(0));
@@ -146,7 +144,7 @@ TEST_F(VCMRobustnessTest, TestHardNackNoneDecoded) {
 
   ASSERT_EQ(VCM_OK, vcm_->SetReceiverRobustnessMode(
       VideoCodingModule::kHardNack,
-      kNoErrors));
+      VideoCodingModule::kNoDecodeErrors));
 
   InsertPacket(3000, 3, true, false, kVideoFrameDelta);
   InsertPacket(3000, 4, false, false, kVideoFrameDelta);
@@ -215,7 +213,8 @@ TEST_F(VCMRobustnessTest, TestDualDecoder) {
 
 
   ASSERT_EQ(VCM_OK, vcm_->SetReceiverRobustnessMode(
-      VideoCodingModule::kDualDecoder, kWithErrors));
+      VideoCodingModule::kDualDecoder,
+      VideoCodingModule::kAllowDecodeErrors));
 
   InsertPacket(0, 0, true, false, kVideoFrameKey);
   InsertPacket(0, 1, false, false, kVideoFrameKey);
@@ -224,7 +223,7 @@ TEST_F(VCMRobustnessTest, TestDualDecoder) {
 
   clock_->AdvanceTimeMilliseconds(33);
   InsertPacket(3000, 3, true, false, kVideoFrameDelta);
-  // Packet 4 missing.
+  // Packet 4 missing
   InsertPacket(3000, 5, false, true, kVideoFrameDelta);
   EXPECT_EQ(VCM_FRAME_NOT_READY, vcm_->Decode(0));
 
@@ -296,7 +295,7 @@ TEST_F(VCMRobustnessTest, TestModeNoneWithErrors) {
 
   ASSERT_EQ(VCM_OK, vcm_->SetReceiverRobustnessMode(
       VideoCodingModule::kNone,
-      kWithErrors));
+      VideoCodingModule::kAllowDecodeErrors));
 
   InsertPacket(0, 0, true, false, kVideoFrameKey);
   InsertPacket(0, 1, false, false, kVideoFrameKey);

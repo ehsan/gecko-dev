@@ -25,7 +25,6 @@ public:
   // XXX: The localonly flag is ignored in the classic verification case
 
   // *evOidPolicy == SEC_OID_UNKNOWN means the cert is NOT EV
-  // Only one usage per verification is supported.
   SECStatus VerifyCert(CERTCertificate * cert,
                        const SECCertificateUsage usage,
                        const PRTime time,
@@ -39,21 +38,23 @@ public:
   enum crl_download_config { crl_local_only = 0, crl_download_allowed };
   enum ocsp_download_config { ocsp_off = 0, ocsp_on };
   enum ocsp_strict_config { ocsp_relaxed = 0, ocsp_strict };
-  enum ocsp_get_config { ocsp_get_disabled = 0, ocsp_get_enabled = 1 };
+  enum any_revo_fresh_config { any_revo_relaxed = 0, any_revo_strict };
 
   bool IsOCSPDownloadEnabled() const { return mOCSPDownloadEnabled; }
 
 private:
   CertVerifier(missing_cert_download_config ac, crl_download_config cdc,
                ocsp_download_config odc, ocsp_strict_config osc,
-               ocsp_get_config ogc);
+               any_revo_fresh_config arfc,
+               const char *firstNetworkRevocationMethod);
   ~CertVerifier();
 
   const bool mMissingCertDownloadEnabled;
   const bool mCRLDownloadEnabled;
   const bool mOCSPDownloadEnabled;
   const bool mOCSPStrict;
-  const bool mOCSPGETEnabled;
+  const bool mRequireRevocationInfo;
+  const bool mCRLFirst;
   friend class ::nsNSSComponent;
 };
 

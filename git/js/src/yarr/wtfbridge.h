@@ -82,7 +82,8 @@ class OwnPtr {
     OwnPtr(PassOwnPtr<T> p) : ptr(p.get()) { }
 
     ~OwnPtr() {
-        js_delete(ptr);
+        if (ptr)
+            js_delete(ptr);
     }
 
     OwnPtr<T> &operator=(PassOwnPtr<T> p) {

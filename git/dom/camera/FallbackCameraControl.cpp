@@ -24,14 +24,11 @@ public:
   const char* GetParameter(const char* aKey);
   const char* GetParameterConstChar(uint32_t aKey);
   double GetParameterDouble(uint32_t aKey);
-  int32_t GetParameterInt32(uint32_t aKey);
   void GetParameter(uint32_t aKey, nsTArray<idl::CameraRegion>& aRegions);
-  void GetParameter(uint32_t aKey, idl::CameraSize& aSize);
   void SetParameter(const char* aKey, const char* aValue);
   void SetParameter(uint32_t aKey, const char* aValue);
   void SetParameter(uint32_t aKey, double aValue);
   void SetParameter(uint32_t aKey, const nsTArray<idl::CameraRegion>& aRegions);
-  void SetParameter(uint32_t aKey, const idl::CameraSize& aSize);
   nsresult GetVideoSizes(nsTArray<idl::CameraSize>& aVideoSizes);
   nsresult PushParameters();
 
@@ -66,7 +63,6 @@ nsDOMCameraControl::nsDOMCameraControl(uint32_t aCameraId, nsIThread* aCameraThr
   mWindow(aWindow)
 {
   MOZ_ASSERT(aWindow, "shouldn't be created with null window!");
-  SetIsDOMBinding();
 }
 
 /**
@@ -102,19 +98,8 @@ nsFallbackCameraControl::GetParameterDouble(uint32_t aKey)
   return NAN;
 }
 
-int32_t
-nsFallbackCameraControl::GetParameterInt32(uint32_t aKey)
-{
-  return 0;
-}
-
 void
 nsFallbackCameraControl::GetParameter(uint32_t aKey, nsTArray<idl::CameraRegion>& aRegions)
-{
-}
-
-void
-nsFallbackCameraControl::GetParameter(uint32_t aKey, idl::CameraSize& aSize)
 {
 }
 
@@ -135,11 +120,6 @@ nsFallbackCameraControl::SetParameter(uint32_t aKey, double aValue)
 
 void
 nsFallbackCameraControl::SetParameter(uint32_t aKey, const nsTArray<idl::CameraRegion>& aRegions)
-{
-}
-
-void
-nsFallbackCameraControl::SetParameter(uint32_t aKey, const idl::CameraSize& aSize)
 {
 }
 

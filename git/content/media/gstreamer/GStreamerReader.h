@@ -5,8 +5,6 @@
 #if !defined(GStreamerReader_h_)
 #define GStreamerReader_h_
 
-#include <map>
-
 #include <gst/gst.h>
 #include <gst/app/gstappsrc.h>
 #include <gst/app/gstappsink.h>
@@ -19,19 +17,13 @@
 #pragma GCC diagnostic ignored "-Wreserved-user-defined-literal"
 #include <gst/video/video.h>
 #pragma GCC diagnostic pop
-
+#include <map>
 #include "MediaDecoderReader.h"
-#include "MP3FrameParser.h"
-#include "nsRect.h"
 
 namespace mozilla {
 
 namespace dom {
 class TimeRanges;
-}
-
-namespace layers {
-class PlanarYCbCrImage;
 }
 
 class AbstractMediaDecoder;
@@ -47,7 +39,7 @@ public:
   virtual bool DecodeAudioData();
   virtual bool DecodeVideoFrame(bool &aKeyframeSkip,
                                 int64_t aTimeThreshold);
-  virtual nsresult ReadMetadata(MediaInfo* aInfo,
+  virtual nsresult ReadMetadata(VideoInfo* aInfo,
                                 MetadataTags** aTags);
   virtual nsresult Seek(int64_t aTime,
                         int64_t aStartTime,
@@ -55,21 +47,18 @@ public:
                         int64_t aCurrentTime);
   virtual nsresult GetBuffered(dom::TimeRanges* aBuffered, int64_t aStartTime);
 
-  virtual void NotifyDataArrived(const char *aBuffer,
-                                 uint32_t aLength,
-                                 int64_t aOffset) MOZ_OVERRIDE;
-
   virtual bool HasAudio() {
-    return mInfo.HasAudio();
+    return mInfo.mHasAudio;
   }
 
   virtual bool HasVideo() {
-    return mInfo.HasVideo();
+    return mInfo.mHasVideo;
   }
 
 private:
 
   void ReadAndPushData(guint aLength);
+  void NotifyBytesConsumed();
   int64_t QueryDuration();
 
   /* Called once the pipeline is setup to check that the stream only contains
@@ -136,20 +125,6 @@ private:
   static void EosCb(GstAppSink* aSink, gpointer aUserData);
   void Eos();
 
-  // Try to find MP3 headers in this stream using our MP3 frame parser.
-  nsresult ParseMP3Headers();
-
-  // Use our own MP3 parser here, largely for consistency with other platforms.
-  MP3FrameParser mMP3FrameParser;
-
-  // We want to be able to decide in |ReadMetadata| whether or not we use the
-  // duration from the MP3 frame parser, as this backend supports more than just
-  // MP3. But |NotifyDataArrived| can update the duration and is often called
-  // _before_ |ReadMetadata|. This flag stops the former from using the parser
-  // duration until we are sure we want to.
-  bool mUseParserDuration;
-  int64_t mLastParserDuration;
-
   GstElement* mPlayBin;
   GstBus* mBus;
   GstAppSrc* mSource;
@@ -180,6 +155,10 @@ private:
    * DecodeAudioData and DecodeVideoFrame should not expect any more data
    */
   bool mReachedEos;
+  /* offset we've reached reading from the source */
+  gint64 mByteOffset;
+  /* the last offset we reported with NotifyBytesConsumed */
+  gint64 mLastReportedByteOffset;
   int fpsNum;
   int fpsDen;
 };

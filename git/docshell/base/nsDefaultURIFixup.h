@@ -9,6 +9,10 @@
 
 #include "nsIURIFixup.h"
 
+#include "nsCOMPtr.h"
+
+#include "nsCDefaultURIFixup.h"
+
 /* Header file */
 class nsDefaultURIFixup : public nsIURIFixup
 {
@@ -30,6 +34,10 @@ private:
     bool PossiblyHostPortUrl(const nsACString& aUrl);
     bool MakeAlternateURI(nsIURI *aURI);
     bool IsLikelyFTP(const nsCString& aHostSpec);
+    const char * GetFileSystemCharset();
+    const char * GetCharsetForUrlBar();
+
+    nsCString mFsCharset;
 };
 
 #endif

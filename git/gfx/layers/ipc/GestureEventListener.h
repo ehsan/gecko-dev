@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set sw=2 ts=8 et tw=80 : */
+/* vim: set sw=4 ts=8 et tw=80 : */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -11,8 +11,8 @@
 #include "InputData.h"                  // for MultiTouchInput, etc
 #include "Units.h"                      // for ScreenIntPoint
 #include "mozilla/Assertions.h"         // for MOZ_ASSERT_HELPER2
-#include "mozilla/EventForwards.h"      // for nsEventStatus
 #include "nsAutoPtr.h"                  // for nsRefPtr
+#include "nsEvent.h"                    // for nsEventStatus
 #include "nsISupportsImpl.h"
 #include "nsTArray.h"                   // for nsTArray
 
@@ -85,10 +85,7 @@ protected:
     // may be mistaken for a tap.
     GESTURE_WAITING_SINGLE_TAP,
     // A single tap has happened for sure, and we're waiting for a second tap.
-    GESTURE_WAITING_DOUBLE_TAP,
-    // A long tap has happened, wait for the tap to be released in case we need
-    // to fire a click event in the case the long tap was not handled.
-    GESTURE_LONG_TAP_UP
+    GESTURE_WAITING_DOUBLE_TAP
   };
 
   /**
@@ -122,12 +119,6 @@ protected:
    * for context menu.
    */
   nsEventStatus HandleLongTapEvent(const MultiTouchInput& aEvent);
-
-  /**
-   * Attempts to handle release of long tap. This is used to fire click
-   * events in the case the context menu was not invoked.
-   */
-  nsEventStatus HandleLongTapUpEvent(const MultiTouchInput& aEvent);
 
   /**
    * Attempts to handle a tap event cancellation. This happens when we think

@@ -11,8 +11,7 @@
 #ifndef WEBRTC_TEST_TESTSUPPORT_FRAME_WRITER_H_
 #define WEBRTC_TEST_TESTSUPPORT_FRAME_WRITER_H_
 
-#include <stdio.h>
-
+#include <cstdio>
 #include <string>
 
 #include "webrtc/typedefs.h"
@@ -53,10 +52,10 @@ class FrameWriterImpl : public FrameWriter {
   //                           For YUV: 3*width*height/2
   FrameWriterImpl(std::string output_filename, size_t frame_length_in_bytes);
   virtual ~FrameWriterImpl();
-  virtual bool Init() OVERRIDE;
-  virtual bool WriteFrame(uint8_t* frame_buffer) OVERRIDE;
-  virtual void Close() OVERRIDE;
-  virtual size_t FrameLength() OVERRIDE;
+  bool Init();
+  bool WriteFrame(uint8_t* frame_buffer);
+  void Close();
+  size_t FrameLength() { return frame_length_in_bytes_; }
 
  private:
   std::string output_filename_;

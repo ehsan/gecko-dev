@@ -45,6 +45,7 @@ public:
   AtkSocketAccessible(nsIContent* aContent, DocAccessible* aDoc,
                       const nsCString& aPlugId);
 
+  // nsAccessNode
   virtual void Shutdown();
 
   // nsIAccessible

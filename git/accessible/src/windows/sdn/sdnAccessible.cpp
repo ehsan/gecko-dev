@@ -11,7 +11,6 @@
 
 #include "nsAttrName.h"
 #include "nsCoreUtils.h"
-#include "nsIAccessibleTypes.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsIDOMCSSStyleDeclaration.h"
 #include "nsServiceManagerUtils.h"
@@ -185,7 +184,7 @@ sdnAccessible::get_attributesForNames(unsigned short aMaxAttribs,
     if (aAttribNames[index]) {
       nsAutoString attributeValue, nameSpaceURI;
       nsAutoString attributeName(nsDependentString(
-        static_cast<const wchar_t*>(aAttribNames[index])));
+        static_cast<PRUnichar*>(aAttribNames[index])));
 
       nsresult rv = NS_OK;
       if (aNameSpaceID[index]>0 &&
@@ -282,7 +281,8 @@ sdnAccessible::get_computedStyleForProperties(unsigned short aNumStyleProperties
   for (index = 0; index < aNumStyleProperties; index++) {
     nsAutoString value;
     if (aStyleProperties[index])
-      cssDecl->GetPropertyValue(nsDependentString(aStyleProperties[index]), value);  // Get property value
+      cssDecl->GetPropertyValue(nsDependentString(static_cast<PRUnichar*>(
+        aStyleProperties[index])), value);  // Get property value
     aStyleValues[index] = ::SysAllocString(value.get());
   }
 
@@ -465,11 +465,12 @@ sdnAccessible::get_innerHTML(BSTR __RPC_FAR* aInnerHTML)
   if (IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
-  if (!mNode->IsElement())
+  nsCOMPtr<nsIDOMHTMLElement> htmlElement = do_QueryInterface(mNode);
+  if (!htmlElement)
     return S_FALSE;
 
   nsAutoString innerHTML;
-  mNode->AsElement()->GetInnerHTML(innerHTML);
+  htmlElement->GetInnerHTML(innerHTML);
   if (innerHTML.IsEmpty())
     return S_FALSE;
 
@@ -515,8 +516,8 @@ sdnAccessible::get_language(BSTR __RPC_FAR* aLanguage)
     return CO_E_OBJNOTCONNECTED;
 
   nsAutoString language;
-  if (mNode->IsContent())
-    nsCoreUtils::GetLanguageFor(mNode->AsContent(), nullptr, language);
+  if (mNode->IsElement())
+    nsCoreUtils::GetLanguageFor(mNode->AsElement(), nullptr, language);
   if (language.IsEmpty()) { // Nothing found, so use document's language
     mNode->OwnerDoc()->GetHeaderData(nsGkAtoms::headerContentLanguage,
                                      language);

@@ -109,9 +109,6 @@ var gUnexpectedCrashDumpFiles = { };
 var gCrashDumpDir;
 var gFailedNoPaint = false;
 
-// The enabled-state of the test-plugins, stored so they can be reset later
-var gTestPluginEnabledStates = null;
-
 const TYPE_REFTEST_EQUAL = '==';
 const TYPE_REFTEST_NOTEQUAL = '!=';
 const TYPE_LOAD = 'load';     // test without a reference (just test that it does
@@ -211,20 +208,6 @@ function IDForEventTarget(event)
     }
 }
 
-function getTestPlugin(aName) {
-  var ph = CC["@mozilla.org/plugin/host;1"].getService(CI.nsIPluginHost);
-  var tags = ph.getPluginTags();
-
-  // Find the test plugin
-  for (var i = 0; i < tags.length; i++) {
-    if (tags[i].name == aName)
-      return tags[i];
-  }
-
-  LogWarning("Failed to find the test-plugin.");
-  return null;
-}
-
 this.OnRefTestLoad = function OnRefTestLoad(win)
 {
     gCrashDumpDir = CC[NS_DIRECTORY_SERVICE_CONTRACTID]
@@ -260,7 +243,6 @@ this.OnRefTestLoad = function OnRefTestLoad(win)
     if (gBrowserIsIframe) {
       gBrowser = gContainingWindow.document.createElementNS(XHTML_NS, "iframe");
       gBrowser.setAttribute("mozbrowser", "");
-      gBrowser.setAttribute("mozapp", prefs.getCharPref("browser.manifestURL"));
     } else {
       gBrowser = gContainingWindow.document.createElementNS(XUL_NS, "xul:browser");
     }
@@ -271,9 +253,9 @@ this.OnRefTestLoad = function OnRefTestLoad(win)
     // what size our window is
     gBrowser.setAttribute("style", "min-width: 800px; min-height: 1000px; max-width: 800px; max-height: 1000px");
 
-#ifdef BOOTSTRAP
-#ifdef REFTEST_B2G
-    var doc = gContainingWindow.document.getElementsByTagName("html")[0];
+#if BOOTSTRAP
+#if REFTEST_B2G
+    var doc = gContainingWindow.document.getElementsByTagName("window")[0];
 #else
     var doc = gContainingWindow.document.getElementById('main-window');
 #endif
@@ -284,17 +266,6 @@ this.OnRefTestLoad = function OnRefTestLoad(win)
 #else
     document.getElementById("reftest-window").appendChild(gBrowser);
 #endif
-
-    // reftests should have the test plugins enabled, not click-to-play
-    let plugin1 = getTestPlugin("Test Plug-in");
-    let plugin2 = getTestPlugin("Second Test Plug-in");
-    if (plugin1 && plugin2) {
-      gTestPluginEnabledStates = [plugin1.enabledState, plugin2.enabledState];
-      plugin1.enabledState = CI.nsIPluginTag.STATE_ENABLED;
-      plugin2.enabledState = CI.nsIPluginTag.STATE_ENABLED;
-    } else {
-      LogWarning("Could not get test plugin tags.");
-    }
 
     gBrowserMessageManager = gBrowser.QueryInterface(CI.nsIFrameLoaderOwner)
                                      .frameLoader.messageManager;
@@ -333,8 +304,8 @@ function InitAndStartRefTests()
                 var mfl = FileUtils.openFileOutputStream(f, FileUtils.MODE_WRONLY | FileUtils.MODE_CREATE);
                 // Set to mirror to stdout as well as the file
                 gDumpLog = function (msg) {
-#ifdef BOOTSTRAP
-#ifdef REFTEST_B2G
+#if BOOTSTRAP
+#if REFTEST_B2G
                     dump(msg);
 #else
                     //NOTE: on android-xul, we have a libc crash if we do a dump with %7s in the string
@@ -407,10 +378,8 @@ function InitAndStartRefTests()
         DoneTests();
     }
 
-    // Focus the content browser.
-    if (gFocusFilterMode != FOCUS_FILTER_NON_NEEDS_FOCUS_TESTS) {
-        gBrowser.focus();
-    }
+    // Focus the content browser
+    gBrowser.focus();
 
     StartTests();
 }
@@ -529,14 +498,6 @@ function StartTests()
 
 function OnRefTestUnload()
 {
-  let plugin1 = getTestPlugin("Test Plug-in");
-  let plugin2 = getTestPlugin("Second Test Plug-in");
-  if (plugin1 && plugin2) {
-    plugin1.enabledState = gTestPluginEnabledStates[0];
-    plugin2.enabledState = gTestPluginEnabledStates[1];
-  } else {
-    LogWarning("Failed to get test plugin tags.");
-  }
 }
 
 // Read all available data from an input stream and return it
@@ -637,9 +598,17 @@ function BuildConditionSandbox(aURL) {
 
     // see if we have the test plugin available,
     // and set a sandox prop accordingly
+    sandbox.haveTestPlugin = false;
+
     var navigator = gContainingWindow.navigator;
-    var testPlugin = navigator.plugins["Test Plug-in"];
-    sandbox.haveTestPlugin = !!testPlugin;
+    for (var i = 0; i < navigator.mimeTypes.length; i++) {
+        if (navigator.mimeTypes[i].type == "application/x-test" &&
+            navigator.mimeTypes[i].enabledPlugin != null &&
+            navigator.mimeTypes[i].enabledPlugin.name == "Test Plug-in") {
+            sandbox.haveTestPlugin = true;
+            break;
+        }
+    }
 
     // Set a flag on sandbox if the windows default theme is active
     var box = gContainingWindow.document.createElement("box");
@@ -1149,15 +1118,6 @@ function Focus()
     return true;
 }
 
-function Blur()
-{
-    // On non-remote reftests, this will transfer focus to the dummy window
-    // we created to hold focus for non-needs-focus tests.  Buggy tests
-    // (ones which require focus but don't request needs-focus) will then
-    // fail.
-    gContainingWindow.blur();
-}
-
 function StartCurrentTest()
 {
     gTestLog = [];
@@ -1190,9 +1150,6 @@ function StartCurrentTest()
     }
     else {
         gDumpLog("REFTEST TEST-START | " + gURLs[0].prettyPath + "\n");
-        if (!gURLs[0].needsFocus) {
-            Blur();
-        }
         var currentTest = gTotalTests - gURLs.length;
         gContainingWindow.document.title = "reftest: " + currentTest + " / " + gTotalTests +
             " (" + Math.floor(100 * (currentTest / gTotalTests)) + "%)";
@@ -1873,7 +1830,7 @@ function RegisterMessageListenersAndLoadContentScript()
         function (m) { SetAsyncScroll(true); }
     );
 
-    gBrowserMessageManager.loadFrameScript("chrome://reftest/content/reftest-content.js", true, true);
+    gBrowserMessageManager.loadFrameScript("chrome://reftest/content/reftest-content.js", true);
 }
 
 function SetAsyncScroll(enabled)

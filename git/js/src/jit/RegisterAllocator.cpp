@@ -7,7 +7,7 @@
 #include "jit/RegisterAllocator.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 bool
 AllocationIntegrityState::record()
@@ -19,7 +19,7 @@ AllocationIntegrityState::record()
     if (!instructions.appendN(InstructionInfo(), graph.numInstructions()))
         return false;
 
-    if (!virtualRegisters.appendN((LDefinition *)nullptr, graph.numVirtualRegisters()))
+    if (!virtualRegisters.appendN((LDefinition *)NULL, graph.numVirtualRegisters()))
         return false;
 
     if (!blocks.reserve(graph.numBlocks()))
@@ -162,7 +162,8 @@ AllocationIntegrityState::check(bool populateSafepoints)
                 checkIntegrity(block, *riter, vreg, **alloc, populateSafepoints);
 
                 while (!worklist.empty()) {
-                    IntegrityItem item = worklist.popCopy();
+                    IntegrityItem item = worklist.back();
+                    worklist.popBack();
                     checkIntegrity(item.block, *item.block->rbegin(), item.vreg, item.alloc, populateSafepoints);
                 }
             }
@@ -229,7 +230,7 @@ AllocationIntegrityState::checkIntegrity(LBlock *block, LInstruction *ins,
     // inputs as it is not guaranteed the register allocator filled in physical
     // allocations for the inputs and outputs of the phis.
     for (size_t i = 0; i < block->numPhis(); i++) {
-        const InstructionInfo &info = blocks[block->mir()->id()].phis[i];
+        InstructionInfo &info = blocks[block->mir()->id()].phis[i];
         LPhi *phi = block->getPhi(i);
         if (info.outputs[0].virtualRegister() == vreg) {
             for (size_t j = 0; j < phi->numOperands(); j++) {
@@ -359,79 +360,71 @@ void
 AllocationIntegrityState::dump()
 {
 #ifdef DEBUG
-    fprintf(stderr, "Register Allocation:\n");
+    printf("Register Allocation:\n");
 
     for (size_t blockIndex = 0; blockIndex < graph.numBlocks(); blockIndex++) {
         LBlock *block = graph.getBlock(blockIndex);
         MBasicBlock *mir = block->mir();
 
-        fprintf(stderr, "\nBlock %lu", static_cast<unsigned long>(blockIndex));
+        printf("\nBlock %lu", static_cast<unsigned long>(blockIndex));
         for (size_t i = 0; i < mir->numSuccessors(); i++)
-            fprintf(stderr, " [successor %u]", mir->getSuccessor(i)->id());
-        fprintf(stderr, "\n");
+            printf(" [successor %u]", mir->getSuccessor(i)->id());
+        printf("\n");
 
         for (size_t i = 0; i < block->numPhis(); i++) {
-            const InstructionInfo &info = blocks[blockIndex].phis[i];
+            InstructionInfo &info = blocks[blockIndex].phis[i];
             LPhi *phi = block->getPhi(i);
-            CodePosition output(phi->id(), CodePosition::OUTPUT);
 
-            // Don't print the inputOf for phi nodes, since it's never used.
-            fprintf(stderr, "[,%u Phi [def v%u %s] <-",
-                    output.pos(),
-                    info.outputs[0].virtualRegister(),
-                    phi->getDef(0)->output()->toString());
+            printf("Phi v%u <-", info.outputs[0].virtualRegister());
             for (size_t j = 0; j < phi->numOperands(); j++)
-                fprintf(stderr, " %s", info.inputs[j].toString());
-            fprintf(stderr, "]\n");
+                printf(" %s", info.inputs[j].toString());
+            printf("\n");
         }
 
         for (LInstructionIterator iter = block->begin(); iter != block->end(); iter++) {
             LInstruction *ins = *iter;
-            const InstructionInfo &info = instructions[ins->id()];
+            InstructionInfo &info = instructions[ins->id()];
 
             CodePosition input(ins->id(), CodePosition::INPUT);
             CodePosition output(ins->id(), CodePosition::OUTPUT);
 
-            fprintf(stderr, "[");
-            if (input != CodePosition::MIN)
-                fprintf(stderr, "%u,%u ", input.pos(), output.pos());
-            fprintf(stderr, "%s]", ins->opName());
+            printf("[%u,%u %s]", input.pos(), output.pos(), ins->opName());
 
             if (ins->isMoveGroup()) {
                 LMoveGroup *group = ins->toMoveGroup();
                 for (int i = group->numMoves() - 1; i >= 0; i--) {
                     // Use two printfs, as LAllocation::toString is not reentant.
-                    fprintf(stderr, " [%s", group->getMove(i).from()->toString());
-                    fprintf(stderr, " -> %s]", group->getMove(i).to()->toString());
+                    printf(" [%s", group->getMove(i).from()->toString());
+                    printf(" -> %s]", group->getMove(i).to()->toString());
                 }
-                fprintf(stderr, "\n");
+                printf("\n");
                 continue;
             }
 
             for (size_t i = 0; i < ins->numTemps(); i++) {
                 LDefinition *temp = ins->getTemp(i);
                 if (!temp->isBogusTemp())
-                    fprintf(stderr, " [temp v%u %s]", info.temps[i].virtualRegister(),
+                    printf(" [temp v%u %s]", info.temps[i].virtualRegister(),
                            temp->output()->toString());
             }
 
             for (size_t i = 0; i < ins->numDefs(); i++) {
                 LDefinition *def = ins->getDef(i);
-                fprintf(stderr, " [def v%u %s]", info.outputs[i].virtualRegister(),
+                printf(" [def v%u %s]", info.outputs[i].virtualRegister(),
                        def->output()->toString());
             }
 
             size_t index = 0;
             for (LInstruction::InputIterator alloc(*ins); alloc.more(); alloc.next()) {
-                fprintf(stderr, " [use %s", info.inputs[index++].toString());
-                fprintf(stderr, " %s]", alloc->toString());
+                printf(" [use %s", info.inputs[index++].toString());
+                printf(" %s]", alloc->toString());
             }
 
-            fprintf(stderr, "\n");
+            printf("\n");
         }
     }
 
-    fprintf(stderr, "\nIntermediate Allocations:\n\n");
+    printf("\nIntermediate Allocations:\n\n");
 
     // Print discovered allocations at the ends of blocks, in the order they
     // were discovered.
@@ -446,11 +439,11 @@ AllocationIntegrityState::dump()
 
     for (size_t i = 0; i < seenOrdered.length(); i++) {
         IntegrityItem item = seenOrdered[i];
-        fprintf(stderr, "block %u reg v%u alloc %s\n",
+        printf("block %u reg v%u alloc %s\n",
                item.block->mir()->id(), item.vreg, item.alloc.toString());
     }
 
-    fprintf(stderr, "\n");
+    printf("\n");
 #endif
 }
 
@@ -486,7 +479,7 @@ RegisterAllocator::getInputMoveGroup(uint32_t ins)
     if (data->inputMoves())
         return data->inputMoves();
 
-    LMoveGroup *moves = LMoveGroup::New(alloc());
+    LMoveGroup *moves = new LMoveGroup;
     data->setInputMoves(moves);
     data->block()->insertBefore(data->ins(), moves);
 
@@ -502,11 +495,11 @@ RegisterAllocator::getMoveGroupAfter(uint32_t ins)
     if (data->movesAfter())
         return data->movesAfter();
 
-    LMoveGroup *moves = LMoveGroup::New(alloc());
+    LMoveGroup *moves = new LMoveGroup;
     data->setMovesAfter(moves);
 
     if (data->ins()->isLabel())
-        data->block()->insertAfter(data->block()->getEntryMoveGroup(alloc()), moves);
+        data->block()->insertAfter(data->block()->getEntryMoveGroup(), moves);
     else
         data->block()->insertAfter(data->ins(), moves);
     return moves;

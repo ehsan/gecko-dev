@@ -47,6 +47,7 @@
 #include "nsXBLBinding.h"
 #include "nsIPrincipal.h"
 #include "nsIScriptSecurityManager.h"
+#include "nsGUIEvent.h"
 #include "mozilla/dom/XBLChildrenElement.h"
 
 #include "prprf.h"
@@ -58,7 +59,6 @@
 #include "nsDOMClassInfo.h"
 
 #include "mozilla/dom/Element.h"
-#include "mozilla/dom/ShadowRoot.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -76,7 +76,7 @@ XBLFinalize(JSFreeOp *fop, JSObject *obj)
     static_cast<nsXBLDocumentInfo*>(::JS_GetPrivate(obj));
   nsContentUtils::DeferredFinalize(docInfo);
   
-  nsXBLJSClass* c = nsXBLJSClass::fromJSClass(::JS_GetClass(obj));
+  nsXBLJSClass* c = static_cast<nsXBLJSClass*>(::JS_GetClass(obj));
   c->Drop();
 }
 
@@ -138,42 +138,18 @@ nsXBLJSClass::Destroy()
   return 0;
 }
 
-nsXBLJSClass*
-nsXBLService::getClass(const nsCString& k)
-{
-  nsCStringKey key(k);
-  return getClass(&key);
-}
-
-nsXBLJSClass*
-nsXBLService::getClass(nsCStringKey *k)
-{
-  return static_cast<nsXBLJSClass*>(nsXBLService::gClassTable->Get(k));
-}
-
 // Implementation /////////////////////////////////////////////////////////////////
 
 // Constructors/Destructors
 nsXBLBinding::nsXBLBinding(nsXBLPrototypeBinding* aBinding)
-  : mMarkedForDeath(false)
-  , mUsingXBLScope(false)
-  , mPrototypeBinding(aBinding)
+  : mMarkedForDeath(false),
+    mPrototypeBinding(aBinding)
 {
   NS_ASSERTION(mPrototypeBinding, "Must have a prototype binding!");
   // Grab a ref to the document info so the prototype binding won't die
   NS_ADDREF(mPrototypeBinding->XBLDocumentInfo());
 }
 
-// Constructor used by web components.
-nsXBLBinding::nsXBLBinding(ShadowRoot* aShadowRoot, nsXBLPrototypeBinding* aBinding)
-  : mMarkedForDeath(false),
-    mPrototypeBinding(aBinding),
-    mContent(aShadowRoot)
-{
-  NS_ASSERTION(mPrototypeBinding, "Must have a prototype binding!");
-  // Grab a ref to the document info so the prototype binding won't die
-  NS_ADDREF(mPrototypeBinding->XBLDocumentInfo());
-}
 
 nsXBLBinding::~nsXBLBinding(void)
 {
@@ -267,7 +243,7 @@ nsXBLBinding::InstallAnonymousContent(nsIContent* aAnonParent, nsIContent* aElem
       return;
     }        
 
-    child->SetFlags(NODE_IS_ANONYMOUS_ROOT);
+    child->SetFlags(NODE_IS_ANONYMOUS);
 
 #ifdef MOZ_XUL
     // To make XUL templates work (and other goodies that happen when
@@ -284,13 +260,6 @@ void
 nsXBLBinding::UninstallAnonymousContent(nsIDocument* aDocument,
                                         nsIContent* aAnonParent)
 {
-  if (aAnonParent->HasFlag(NODE_IS_IN_SHADOW_TREE)) {
-    // It is unnecessary to uninstall anonymous content in a shadow tree
-    // because the ShadowRoot itself is a DocumentFragment and does not
-    // need any additional cleanup.
-    return;
-  }
-
   nsAutoScriptBlocker scriptBlocker;
   // Hold a strong ref while doing this, just in case.
   nsCOMPtr<nsIContent> anonParent = aAnonParent;
@@ -316,20 +285,6 @@ nsXBLBinding::SetBoundElement(nsIContent* aElement)
   mBoundElement = aElement;
   if (mNextBinding)
     mNextBinding->SetBoundElement(aElement);
-
-  if (!mBoundElement) {
-    return;
-  }
-
-  // Compute whether we're using an XBL scope.
-  //
-  // We disable XBL scopes for remote XUL, where we care about compat more
-  // than security. So we need to know whether we're using an XBL scope so that
-  // we can decide what to do about untrusted events when "allowuntrusted"
-  // is not given in the handler declaration.
-  nsCOMPtr<nsIGlobalObject> go = mBoundElement->OwnerDoc()->GetScopeObject();
-  NS_ENSURE_TRUE_VOID(go && go->GetGlobalJSObject());
-  mUsingXBLScope = xpc::UseXBLScope(js::GetObjectCompartment(go->GetGlobalJSObject()));
 }
 
 bool
@@ -531,7 +486,8 @@ nsXBLBinding::InstallEventHandlers()
     nsXBLPrototypeHandler* handlerChain = mPrototypeBinding->GetPrototypeHandlers();
 
     if (handlerChain) {
-      nsEventListenerManager* manager = mBoundElement->GetOrCreateListenerManager();
+      nsEventListenerManager* manager =
+        mBoundElement->GetListenerManager(true);
       if (!manager)
         return;
 
@@ -563,7 +519,7 @@ nsXBLBinding::InstallEventHandlers()
 
           bool hasAllowUntrustedAttr = curr->HasAllowUntrustedAttr();
           if ((hasAllowUntrustedAttr && curr->AllowUntrustedEvents()) ||
-              (!hasAllowUntrustedAttr && !isChromeDoc && !mUsingXBLScope)) {
+              (!hasAllowUntrustedAttr && !isChromeDoc)) {
             flags.mAllowUntrustedEvents = true;
           }
 
@@ -579,7 +535,6 @@ nsXBLBinding::InstallEventHandlers()
       for (i = 0; i < keyHandlers->Count(); ++i) {
         nsXBLKeyEventHandler* handler = keyHandlers->ObjectAt(i);
         handler->SetIsBoundToChrome(isChromeDoc);
-        handler->SetUsingXBLScope(mUsingXBLScope);
 
         nsAutoString type;
         handler->GetEventName(type);
@@ -681,7 +636,7 @@ nsXBLBinding::UnhookEventHandlers()
 
   if (handlerChain) {
     nsEventListenerManager* manager =
-      mBoundElement->GetExistingListenerManager();
+      mBoundElement->GetListenerManager(false);
     if (!manager) {
       return;
     }
@@ -818,7 +773,7 @@ nsXBLBinding::ChangeDocument(nsIDocument* aOldDocument, nsIDocument* aNewDocumen
               break;
             }
 
-            const JSClass* clazz = ::JS_GetClass(proto);
+            JSClass* clazz = ::JS_GetClass(proto);
             if (!clazz ||
                 (~clazz->flags &
                  (JSCLASS_HAS_PRIVATE | JSCLASS_PRIVATE_IS_NSISUPPORTS)) ||
@@ -971,8 +926,9 @@ nsXBLBinding::DoInitJSClass(JSContext *cx, JS::Handle<JSObject*> global,
         PR_snprintf(buf, sizeof(buf), " %llx", parent_proto_id.get());
       }
       xblKey.Append(buf);
+      nsCStringKey key(xblKey);
 
-      c = nsXBLService::getClass(xblKey);
+      c = static_cast<nsXBLJSClass*>(nsXBLService::gClassTable->Get(&key));
       if (c) {
         className.Assign(c->name);
       } else {
@@ -998,7 +954,7 @@ nsXBLBinding::DoInitJSClass(JSContext *cx, JS::Handle<JSObject*> global,
 
     nsCStringKey key(xblKey);
     if (!c) {
-      c = nsXBLService::getClass(&key);
+      c = static_cast<nsXBLJSClass*>(nsXBLService::gClassTable->Get(&key));
     }
     if (c) {
       // If c is on the LRU list, remove it now!
@@ -1082,7 +1038,40 @@ nsXBLBinding::DoInitJSClass(JSContext *cx, JS::Handle<JSObject*> global,
 bool
 nsXBLBinding::AllowScripts()
 {
-  return mBoundElement && mPrototypeBinding->GetAllowScripts();
+  if (!mPrototypeBinding->GetAllowScripts())
+    return false;
+
+  // Nasty hack.  Use the JSContext of the bound node, since the
+  // security manager API expects to get the docshell type from
+  // that.  But use the nsIPrincipal of our document.
+  nsIScriptSecurityManager* mgr = nsContentUtils::GetSecurityManager();
+  if (!mgr) {
+    return false;
+  }
+
+  nsIDocument* doc = mBoundElement ? mBoundElement->OwnerDoc() : nullptr;
+  if (!doc) {
+    return false;
+  }
+
+  nsCOMPtr<nsIScriptGlobalObject> global = do_QueryInterface(doc->GetWindow());
+  if (!global) {
+    return false;
+  }
+
+  nsCOMPtr<nsIScriptContext> context = global->GetContext();
+  if (!context) {
+    return false;
+  }
+  
+  AutoPushJSContext cx(context->GetNativeContext());
+
+  nsCOMPtr<nsIDocument> ourDocument =
+    mPrototypeBinding->XBLDocumentInfo()->GetDocument();
+  bool canExecute;
+  nsresult rv =
+    mgr->CanExecuteScripts(cx, ourDocument->NodePrincipal(), &canExecute);
+  return NS_SUCCEEDED(rv) && canExecute;
 }
 
 nsXBLBinding*
@@ -1109,7 +1098,7 @@ nsXBLBinding::ResolveAllFields(JSContext *cx, JS::Handle<JSObject*> obj) const
 }
 
 bool
-nsXBLBinding::LookupMember(JSContext* aCx, JS::Handle<jsid> aId,
+nsXBLBinding::LookupMember(JSContext* aCx, JS::HandleId aId,
                            JS::MutableHandle<JSPropertyDescriptor> aDesc)
 {
   // We should never enter this function with a pre-filled property descriptor.
@@ -1138,7 +1127,7 @@ nsXBLBinding::LookupMember(JSContext* aCx, JS::Handle<jsid> aId,
   // Enter the xbl scope and invoke the internal version.
   {
     JSAutoCompartment ac(aCx, xblScope);
-    JS::Rooted<jsid> id(aCx, aId);
+    JS::RootedId id(aCx, aId);
     if (!JS_WrapId(aCx, id.address()) ||
         !LookupMemberInternal(aCx, name, id, aDesc, xblScope))
     {
@@ -1152,7 +1141,7 @@ nsXBLBinding::LookupMember(JSContext* aCx, JS::Handle<jsid> aId,
 
 bool
 nsXBLBinding::LookupMemberInternal(JSContext* aCx, nsString& aName,
-                                   JS::Handle<jsid> aNameAsId,
+                                   JS::HandleId aNameAsId,
                                    JS::MutableHandle<JSPropertyDescriptor> aDesc,
                                    JS::Handle<JSObject*> aXBLScope)
 {
@@ -1168,7 +1157,7 @@ nsXBLBinding::LookupMemberInternal(JSContext* aCx, nsString& aName,
 
   // Find our class object. It's in a protected scope and permanent just in case,
   // so should be there no matter what.
-  JS::Rooted<JS::Value> classObject(aCx);
+  JS::RootedValue classObject(aCx);
   if (!JS_GetProperty(aCx, aXBLScope, mJSClass->name, &classObject)) {
     return false;
   }

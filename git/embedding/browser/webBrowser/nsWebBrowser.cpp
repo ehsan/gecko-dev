@@ -26,6 +26,7 @@
 #include "nsIWebBrowserStream.h"
 #include "nsIPresShell.h"
 #include "nsIURIContentListener.h"
+#include "nsGUIEvent.h"
 #include "nsISHistoryListener.h"
 #include "nsIURI.h"
 #include "nsIWebBrowserPersist.h"
@@ -35,7 +36,6 @@
 #include "nsFocusManager.h"
 #include "Layers.h"
 #include "gfxContext.h"
-#include "nsILoadContext.h"
 
 // for painting the background window
 #include "mozilla/LookAndFeel.h"
@@ -53,6 +53,7 @@
 using namespace mozilla;
 using namespace mozilla::layers;
 
+static NS_DEFINE_IID(kWindowCID, NS_WINDOW_CID);
 static NS_DEFINE_CID(kChildCID, NS_CHILD_CID);
 
 
@@ -1244,7 +1245,7 @@ NS_IMETHODIMP nsWebBrowser::Destroy()
 
 NS_IMETHODIMP nsWebBrowser::GetUnscaledDevicePixelsPerCSSPixel(double *aScale)
 {
-  *aScale = mParentWidget ? mParentWidget->GetDefaultScale().scale : 1.0;
+  *aScale = mParentWidget ? mParentWidget->GetDefaultScale() : 1.0;
   return NS_OK;
 }
 
@@ -1662,7 +1663,6 @@ NS_IMETHODIMP nsWebBrowser::EnsureDocShellTreeOwner()
 static void DrawThebesLayer(ThebesLayer* aLayer,
                             gfxContext* aContext,
                             const nsIntRegion& aRegionToDraw,
-                            DrawRegionClip aClip,
                             const nsIntRegion& aRegionToInvalidate,
                             void* aCallbackData)
 {

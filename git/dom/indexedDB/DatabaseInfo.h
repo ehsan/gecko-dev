@@ -9,13 +9,12 @@
 
 #include "mozilla/dom/indexedDB/IndexedDatabase.h"
 
-#include "mozilla/dom/quota/PersistenceType.h"
-#include "nsRefPtrHashtable.h"
-#include "nsHashKeys.h"
-
 #include "mozilla/dom/indexedDB/Key.h"
 #include "mozilla/dom/indexedDB/KeyPath.h"
 #include "mozilla/dom/indexedDB/IDBObjectStore.h"
+
+#include "nsRefPtrHashtable.h"
+#include "nsHashKeys.h"
 
 BEGIN_INDEXEDDB_NAMESPACE
 
@@ -27,8 +26,6 @@ typedef nsRefPtrHashtable<nsStringHashKey, ObjectStoreInfo>
 
 struct DatabaseInfoGuts
 {
-  typedef mozilla::dom::quota::PersistenceType PersistenceType;
-
   DatabaseInfoGuts()
   : nextObjectStoreId(1), nextIndexId(1)
   { }
@@ -36,20 +33,16 @@ struct DatabaseInfoGuts
   bool operator==(const DatabaseInfoGuts& aOther) const
   {
     return this->name == aOther.name &&
-           this->group == aOther.group &&
            this->origin == aOther.origin &&
            this->version == aOther.version &&
-           this->persistenceType == aOther.persistenceType &&
            this->nextObjectStoreId == aOther.nextObjectStoreId &&
            this->nextIndexId == aOther.nextIndexId;
   };
 
   // Make sure to update ipc/SerializationHelpers.h when changing members here!
   nsString name;
-  nsCString group;
   nsCString origin;
   uint64_t version;
-  PersistenceType persistenceType;
   int64_t nextObjectStoreId;
   int64_t nextIndexId;
 };
@@ -62,12 +55,12 @@ struct DatabaseInfo : public DatabaseInfoGuts
 
   ~DatabaseInfo();
 
-  static bool Get(const nsACString& aId,
+  static bool Get(nsIAtom* aId,
                   DatabaseInfo** aInfo);
 
   static bool Put(DatabaseInfo* aInfo);
 
-  static void Remove(const nsACString& aId);
+  static void Remove(nsIAtom* aId);
 
   bool GetObjectStoreNames(nsTArray<nsString>& aNames);
   bool ContainsStoreName(const nsAString& aName);
@@ -80,7 +73,7 @@ struct DatabaseInfo : public DatabaseInfoGuts
 
   already_AddRefed<DatabaseInfo> Clone();
 
-  nsCString id;
+  nsCOMPtr<nsIAtom> id;
   nsString filePath;
   bool cloned;
 

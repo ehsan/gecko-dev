@@ -137,3 +137,5 @@ exports.testIsPrivateOnWindowOff = function(assert, done) {
     }
   })
 }
+
+require("test").run(exports);

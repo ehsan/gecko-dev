@@ -11,8 +11,7 @@
 #ifndef jsdebug_h___
 #define jsdebug_h___
 
-#include "jstypes.h"
-#include "js/TypeDecls.h"
+#include "jsapi.h"
 
 extern "C" {
 
@@ -83,7 +82,7 @@ JSD_SetUserCallbacks(JSRuntime*         jsrt,
 /*
 * Startup JSD.
 * This version of the init function requires that JSD_SetUserCallbacks()
-* has been previously called (with a non-nullptr callback struct pointer)
+* has been previously called (with a non-NULL callback struct pointer)
 */
 extern JSD_PUBLIC_API(JSDContext*)
 JSD_DebuggerOn(void);
@@ -262,15 +261,15 @@ JSD_UnlockScriptSubsystem(JSDContext* jsdc);
 
 /*
 * Iterate through all the active scripts for this JSDContext.
-* NOTE: must initialize iterp to nullptr to start iteration.
+* NOTE: must initialize iterp to NULL to start iteration.
 * NOTE: must lock and unlock the subsystem
 * example:
 *
 *  JSDScript jsdscript;
-*  JSDScript iter = nullptr;
+*  JSDScript iter = NULL;
 *
 *  JSD_LockScriptSubsystem(jsdc);
-*  while((jsdscript = JSD_IterateScripts(jsdc, &iter)) != nullptr) {
+*  while((jsdscript = JSD_IterateScripts(jsdc, &iter)) != NULL) {
 *     *** use jsdscript here ***
 *  }
 *  JSD_UnlockScriptSubsystem(jsdc);
@@ -395,9 +394,8 @@ extern JSD_PUBLIC_API(const char*)
 JSD_GetScriptFilename(JSDContext* jsdc, JSDScript *jsdscript);
 
 /*
-* Get the function name associated with this script (nullptr if not a
-* function). If the function does not have a name the result is the
-* string "anonymous".
+* Get the function name associated with this script (NULL if not a function).
+* If the function does not have a name the result is the string "anonymous".
 * *** new for gecko 2.0 ****
 */
 extern JSD_PUBLIC_API(JSString *)
@@ -465,9 +463,9 @@ JSD_GetClosestLine(JSDContext* jsdc, JSDScript* jsdscript, uintptr_t pc);
 
 /*
  * Get a list of lines and the corresponding earliest PC for each (see
- * JSD_GetClosestPC). Lines with no PCs associated will not be returned.
- * nullptr may be passed for either lines or pcs to avoid filling anything in
- * for that argument.
+ * JSD_GetClosestPC). Lines with no PCs associated will not be returned. NULL
+ * may be passed for either lines or pcs to avoid filling anything in for that
+ * argument.
  */
 extern JSD_PUBLIC_API(bool)
 JSD_GetLinePCs(JSDContext* jsdc, JSDScript* jsdscript,
@@ -558,7 +556,7 @@ JSD_IterateSources(JSDContext* jsdc, JSDSourceText **iterp);
 /*
 * Find the source text item for the given URL (or filename - or whatever
 * string the given embedding uses to describe source locations).
-* Returns nullptr if not found.
+* Returns NULL is not found.
 */
 extern JSD_PUBLIC_API(JSDSourceText*)
 JSD_FindSourceForURL(JSDContext* jsdc, const char* url);
@@ -640,7 +638,7 @@ JSD_DestroyAllSources( JSDContext* jsdc );
 /*
 * Add a new item for a given URL. If an item already exists for the given URL
 * then the old item is removed.
-* 'url' may not be nullptr.
+* 'url' may not be NULL.
 */
 extern JSD_PUBLIC_API(JSDSourceText*)
 JSD_NewSourceText(JSDContext* jsdc, const char* url);
@@ -648,9 +646,8 @@ JSD_NewSourceText(JSDContext* jsdc, const char* url);
 /*
 * Append text (or change status -- e.g. set completed) for a source text
 * item. Text need not be zero terminated. Callers should consider the returned
-* JSDSourceText to be the 'current' item for future use. This may return
-* nullptr if called after this item has been replaced by a call to
-* JSD_NewSourceText.
+* JSDSourceText to be the 'current' item for future use. This may return NULL
+* if called after this item has been replaced by a call to JSD_NewSourceText.
 */
 extern JSD_PUBLIC_API(JSDSourceText*)
 JSD_AppendSourceText(JSDContext*     jsdc,
@@ -683,7 +680,7 @@ JSD_AppendUCSourceText(JSDContext*     jsdc,
  *                                     text, length, JSD_SOURCE_PARTIAL);
  *   if(jsdsrc)
  *       jsdsrc = jsd_AppendSourceText(jsdc, jsdsrc,
- *                                     nullptr, 0, JSD_SOURCE_COMPLETED);
+ *                                     NULL, 0, JSD_SOURCE_COMPLETED);
  *   JSD_UNLOCK_SOURCE_TEXT(jsdc);
  *   return jsdsrc ? true : false;
  */
@@ -717,9 +714,9 @@ JSD_AddFullSourceText(JSDContext* jsdc,
 typedef unsigned
 (* JSD_ExecutionHookProc)(JSDContext*     jsdc,
                           JSDThreadState* jsdthreadstate,
-                          unsigned        type,
+                          unsigned           type,
                           void*           callerdata,
-                          JS::Value*      rval);
+                          jsval*          rval);
 
 /* possible 'type' params for JSD_CallHookProc */
 #define JSD_HOOK_TOPLEVEL_START  0   /* about to evaluate top level script */
@@ -1008,18 +1005,18 @@ JSD_AttemptScriptInStackFrame(JSDContext* jsdc,
                               const char *filename, unsigned lineno, JS::MutableHandleValue rval);
 
 /*
-* Convert the given JS::Value to a string
+* Convert the given jsval to a string
 * NOTE: The ErrorReporter hook might be called if this fails.
 */
 extern JSD_PUBLIC_API(JSString*)
 JSD_ValToStringInStackFrame(JSDContext* jsdc,
                             JSDThreadState* jsdthreadstate,
                             JSDStackFrameInfo* jsdframe,
-                            JS::Value val);
+                            jsval val);
 
 /*
-* Get the JSDValue currently being thrown as an exception (may be nullptr).
-* NOTE: must eventually release by calling JSD_DropValue (if not nullptr)
+* Get the JSDValue currently being thrown as an exception (may be NULL).
+* NOTE: must eventually release by calling JSD_DropValue (if not NULL)
 * *** new for version 1.1 ****
 */
 extern JSD_PUBLIC_API(JSDValue*)
@@ -1124,18 +1121,18 @@ JSD_CurrentThread();
 
 /*
 * NOTE: JSDValue and JSDProperty objects are reference counted. This allows
-* for rooting these objects AND any underlying garbage collected JS::Values.
+* for rooting these objects AND any underlying garbage collected jsvals.
 * ALL JSDValue and JSDProperty objects returned by the functions below
 * MUST eventually be released using the appropriate JSD_Dropxxx function.
 */
 
 /*
-* Create a new JSDValue to wrap the given JS::Value
-* NOTE: must eventually release by calling JSD_DropValue (if not nullptr)
+* Create a new JSDValue to wrap the given jsval
+* NOTE: must eventually release by calling JSD_DropValue (if not NULL)
 * *** new for version 1.1 ****
 */
 extern JSD_PUBLIC_API(JSDValue*)
-JSD_NewValue(JSDContext* jsdc, JS::Value val);
+JSD_NewValue(JSDContext* jsdc, jsval val);
 
 /*
 * Release the JSDValue. After this call the object MUST not be referenced again!
@@ -1145,10 +1142,10 @@ extern JSD_PUBLIC_API(void)
 JSD_DropValue(JSDContext* jsdc, JSDValue* jsdval);
 
 /*
-* Get the JS::Value wrapped by this JSDValue
+* Get the jsval wrapped by this JSDValue
 * *** new for version 1.1 ****
 */
-extern JSD_PUBLIC_API(JS::Value)
+extern JSD_PUBLIC_API(jsval)
 JSD_GetValueWrappedJSVal(JSDContext* jsdc, JSDValue* jsdval);
 
 /*
@@ -1310,7 +1307,7 @@ JSD_IterateProperties(JSDContext* jsdc, JSDValue* jsdval, JSDProperty **iterp);
 
 /* 
 * Get the JSDProperty for the property of this JSDVal with this name.
-* NOTE: must eventually release by calling JSD_DropProperty (if not nullptr)
+* NOTE: must eventually release by calling JSD_DropProperty (if not NULL)
 * *** new for version 1.1 ****
 */
 extern JSD_PUBLIC_API(JSDProperty*)
@@ -1318,7 +1315,7 @@ JSD_GetValueProperty(JSDContext* jsdc, JSDValue* jsdval, JSString* name);
 
 /*
 * Get the prototype object for this JSDValue.
-* NOTE: must eventually release by calling JSD_DropValue (if not nullptr)
+* NOTE: must eventually release by calling JSD_DropValue (if not NULL)
 * *** new for version 1.1 ****
 */
 extern JSD_PUBLIC_API(JSDValue*)
@@ -1326,7 +1323,7 @@ JSD_GetValuePrototype(JSDContext* jsdc, JSDValue* jsdval);
 
 /*
 * Get the parent object for this JSDValue.
-* NOTE: must eventually release by calling JSD_DropValue (if not nullptr)
+* NOTE: must eventually release by calling JSD_DropValue (if not NULL)
 * *** new for version 1.1 ****
 */
 extern JSD_PUBLIC_API(JSDValue*)
@@ -1334,7 +1331,7 @@ JSD_GetValueParent(JSDContext* jsdc, JSDValue* jsdval);
 
 /*
 * Get the ctor object for this JSDValue (or likely its prototype's ctor).
-* NOTE: must eventually release by calling JSD_DropValue (if not nullptr)
+* NOTE: must eventually release by calling JSD_DropValue (if not NULL)
 * *** new for version 1.1 ****
 */
 extern JSD_PUBLIC_API(JSDValue*)
@@ -1358,7 +1355,7 @@ JSD_GetScriptForValue(JSDContext* jsdc, JSDValue* jsdval);
 
 /* possible or'd together bitflags returned by JSD_GetPropertyFlags
  *
- * XXX these must stay the same as the JSPD_ flags in js/OldDebugAPI.h
+ * XXX these must stay the same as the JSPD_ flags in jsdbgapi.h
  */
 #define JSDPD_ENUMERATE  JSPD_ENUMERATE    /* visible to for/in loop */
 #define JSDPD_READONLY   JSPD_READONLY     /* assignment is error */
@@ -1368,7 +1365,7 @@ JSD_GetScriptForValue(JSDContext* jsdc, JSDValue* jsdval);
                                            /* proprety, value is exception  */
 #define JSDPD_ERROR      JSPD_ERROR        /* native getter returned false */
                                            /* without throwing an exception */
-/* this is not one of the JSPD_ flags in js/OldDebugAPI.h  - don't overlap! */
+/* this is not one of the JSPD_ flags in jsdbgapi.h  - careful not to overlap*/
 #define JSDPD_HINTED     0x800             /* found via explicit lookup */
 
 /*
@@ -1388,7 +1385,7 @@ JSD_GetPropertyName(JSDContext* jsdc, JSDProperty* jsdprop);
 
 /*
 * Get the JSDValue represeting the current value of this property
-* NOTE: must eventually release by calling JSD_DropValue (if not nullptr)
+* NOTE: must eventually release by calling JSD_DropValue (if not NULL)
 * *** new for version 1.1 ****
 */
 extern JSD_PUBLIC_API(JSDValue*)
@@ -1396,7 +1393,7 @@ JSD_GetPropertyValue(JSDContext* jsdc, JSDProperty* jsdprop);
 
 /*
 * Get the JSDValue represeting the alias of this property (if JSDPD_ALIAS set)
-* NOTE: must eventually release by calling JSD_DropValue (if not nullptr)
+* NOTE: must eventually release by calling JSD_DropValue (if not NULL)
 * *** new for version 1.1 ****
 */
 extern JSD_PUBLIC_API(JSDValue*)
@@ -1457,7 +1454,7 @@ JSD_GetWrappedObject(JSDContext* jsdc, JSDObject* jsdobj);
 
 /*
 * Get the URL of the line of source that caused this object to be created.
-* May be nullptr.
+* May be NULL.
 * *** new for version 1.1 ****
 */
 extern JSD_PUBLIC_API(const char*)
@@ -1473,7 +1470,7 @@ JSD_GetObjectNewLineNumber(JSDContext* jsdc, JSDObject* jsdobj);
 
 /*
 * Get the URL of the line of source of the constructor for this object.
-* May be nullptr.
+* May be NULL.
 * *** new for version 1.1 ****
 */
 extern JSD_PUBLIC_API(const char*)
@@ -1489,7 +1486,7 @@ JSD_GetObjectConstructorLineNumber(JSDContext* jsdc, JSDObject* jsdobj);
 
 /*
 * Get the name of the constructor for this object.
-* May be nullptr.
+* May be NULL.
 * *** new for version 1.1 ****
 */
 extern JSD_PUBLIC_API(const char*)
@@ -1497,7 +1494,7 @@ JSD_GetObjectConstructorName(JSDContext* jsdc, JSDObject* jsdobj);
 
 /*
 * Get JSDObject representing this JSObject.
-* May return nullptr.
+* May return NULL.
 * *** new for version 1.1 ****
 */
 extern JSD_PUBLIC_API(JSDObject*)
@@ -1505,7 +1502,7 @@ JSD_GetJSDObjectForJSObject(JSDContext* jsdc, JSObject* jsobj);
 
 /*
 * Get JSDObject representing this JSDValue.
-* May return nullptr.
+* May return NULL.
 * *** new for version 1.1 ****
 */
 extern JSD_PUBLIC_API(JSDObject*)
@@ -1513,7 +1510,7 @@ JSD_GetObjectForValue(JSDContext* jsdc, JSDValue* jsdval);
 
 /*
 * Create a JSDValue to wrap (and root) this JSDObject.
-* NOTE: must eventually release by calling JSD_DropValue (if not nullptr)
+* NOTE: must eventually release by calling JSD_DropValue (if not NULL)
 * *** new for version 1.1 ****
 */
 extern JSD_PUBLIC_API(JSDValue*)

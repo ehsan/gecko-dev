@@ -12,7 +12,6 @@ class GeckoInstance(object):
 
     required_prefs = {"marionette.defaultPrefs.enabled": True,
                       "marionette.defaultPrefs.port": 2828,
-                      "marionette.logging": True,
                       "startup.homepage_welcome_url": "about:blank",
                       "browser.shell.checkDefaultBrowser": False,
                       "browser.startup.page": 0,

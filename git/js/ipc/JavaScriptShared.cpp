@@ -6,7 +6,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "JavaScriptShared.h"
-#include "mozilla/dom/BindingUtils.h"
 #include "jsfriendapi.h"
 #include "xpcprivate.h"
 
@@ -30,9 +29,9 @@ void
 ObjectStore::trace(JSTracer *trc)
 {
     for (ObjectTable::Range r(table_.all()); !r.empty(); r.popFront()) {
-        DebugOnly<JSObject *> prior = r.front().value().get();
-        JS_CallHeapObjectTracer(trc, &r.front().value(), "ipc-object");
-        MOZ_ASSERT(r.front().value() == prior);
+        DebugOnly<JSObject *> prior = r.front().value.get();
+        JS_CallHeapObjectTracer(trc, &r.front().value, "ipc-object");
+        MOZ_ASSERT(r.front().value == prior);
     }
 }
 
@@ -41,8 +40,8 @@ ObjectStore::find(ObjectId id)
 {
     ObjectTable::Ptr p = table_.lookup(id);
     if (!p)
-        return nullptr;
-    return p->value();
+        return NULL;
+    return p->value;
 }
 
 bool
@@ -58,51 +57,41 @@ ObjectStore::remove(ObjectId id)
 }
 
 ObjectIdCache::ObjectIdCache()
-  : table_(nullptr)
+  : table_(SystemAllocPolicy())
 {
-}
-
-ObjectIdCache::~ObjectIdCache()
-{
-    if (table_) {
-        dom::AddForDeferredFinalization<ObjectIdTable, nsAutoPtr>(table_);
-        table_ = nullptr;
-    }
 }
 
 bool
 ObjectIdCache::init()
 {
-    MOZ_ASSERT(!table_);
-    table_ = new ObjectIdTable(SystemAllocPolicy());
-    return table_ && table_->init(32);
+    return table_.init(32);
 }
 
 void
 ObjectIdCache::trace(JSTracer *trc)
 {
-    for (ObjectIdTable::Range r(table_->all()); !r.empty(); r.popFront()) {
-        JSObject *obj = r.front().key();
+    for (ObjectIdTable::Range r(table_.all()); !r.empty(); r.popFront()) {
+        JSObject *obj = r.front().key;
         JS_CallObjectTracer(trc, &obj, "ipc-id");
-        MOZ_ASSERT(obj == r.front().key());
+        MOZ_ASSERT(obj == r.front().key);
     }
 }
 
 ObjectId
 ObjectIdCache::find(JSObject *obj)
 {
-    ObjectIdTable::Ptr p = table_->lookup(obj);
+    ObjectIdTable::Ptr p = table_.lookup(obj);
     if (!p)
         return 0;
-    return p->value();
+    return p->value;
 }
 
 bool
 ObjectIdCache::add(JSContext *cx, JSObject *obj, ObjectId id)
 {
-    if (!table_->put(obj, id))
+    if (!table_.put(obj, id))
         return false;
-    JS_StoreObjectPostBarrierCallback(cx, keyMarkCallback, obj, table_);
+    JS_StoreObjectPostBarrierCallback(cx, keyMarkCallback, obj, this);
     return true;
 }
 
@@ -111,18 +100,18 @@ ObjectIdCache::add(JSContext *cx, JSObject *obj, ObjectId id)
  * been moved.
  */
 /* static */ void
-ObjectIdCache::keyMarkCallback(JSTracer *trc, void *keyArg, void *dataArg) {
-    JSObject *key = static_cast<JSObject*>(keyArg);
-    ObjectIdTable* table = static_cast<ObjectIdTable*>(dataArg);
+ObjectIdCache::keyMarkCallback(JSTracer *trc, void *k, void *d) {
+    JSObject *key = static_cast<JSObject*>(k);
+    ObjectIdCache* self = static_cast<ObjectIdCache*>(d);
     JSObject *prior = key;
     JS_CallObjectTracer(trc, &key, "ObjectIdCache::table_ key");
-    table->rekeyIfMoved(prior, key);
+    self->table_.rekey(prior, key);
 }
 
 void
 ObjectIdCache::remove(JSObject *obj)
 {
-    table_->remove(obj);
+    table_.remove(obj);
 }
 
 bool
@@ -140,7 +129,7 @@ JavaScriptShared::convertIdToGeckoString(JSContext *cx, JS::HandleId id, nsStrin
     if (!JS_IdToValue(cx, id, idval.address()))
         return false;
 
-    RootedString str(cx, ToString(cx, idval));
+    RootedString str(cx, JS_ValueToString(cx, idval));
     if (!str)
         return false;
 
@@ -163,7 +152,7 @@ JavaScriptShared::convertGeckoStringToId(JSContext *cx, const nsString &from, JS
 }
 
 bool
-JavaScriptShared::toVariant(JSContext *cx, JS::HandleValue from, JSVariant *to)
+JavaScriptShared::toVariant(JSContext *cx, jsval from, JSVariant *to)
 {
     switch (JS_TypeOfValue(cx, from)) {
       case JSTYPE_VOID:
@@ -427,21 +416,20 @@ JavaScriptShared::toDescriptor(JSContext *cx, const PPropertyDescriptor &in,
 }
 
 bool
-CpowIdHolder::ToObject(JSContext *cx, JS::MutableHandleObject objp)
+CpowIdHolder::ToObject(JSContext *cx, JSObject **objp)
 {
     return js_->Unwrap(cx, cpows_, objp);
 }
 
 bool
-JavaScriptShared::Unwrap(JSContext *cx, const InfallibleTArray<CpowEntry> &aCpows,
-                         JS::MutableHandleObject objp)
+JavaScriptShared::Unwrap(JSContext *cx, const InfallibleTArray<CpowEntry> &aCpows, JSObject **objp)
 {
-    objp.set(nullptr);
+    *objp = NULL;
 
     if (!aCpows.Length())
         return true;
 
-    RootedObject obj(cx, JS_NewObject(cx, nullptr, nullptr, nullptr));
+    RootedObject obj(cx, JS_NewObject(cx, NULL, NULL, NULL));
     if (!obj)
         return false;
 
@@ -458,15 +446,15 @@ JavaScriptShared::Unwrap(JSContext *cx, const InfallibleTArray<CpowEntry> &aCpow
                                  name.BeginReading(),
                                  name.Length(),
                                  v,
-                                 nullptr,
-                                 nullptr,
+                                 NULL,
+                                 NULL,
                                  JSPROP_ENUMERATE))
         {
             return false;
         }
     }
 
-    objp.set(obj);
+    *objp = obj;
     return true;
 }
 

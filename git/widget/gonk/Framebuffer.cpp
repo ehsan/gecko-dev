@@ -109,7 +109,7 @@ Open()
     // The android porting doc requires a /dev/graphics/fb0 device
     // that's double buffered with r5g6b5 format.  Hence the
     // hard-coded numbers here.
-    gfxImageFormat format = gfxImageFormatRGB16_565;
+    gfxASurface::gfxImageFormat format = gfxASurface::ImageFormatRGB16_565;
     int bytesPerPixel = gfxASurface::BytePerPixelFromFormat(format);
     if (!sScreenSize) {
         sScreenSize = new gfxIntSize(sVi.xres, sVi.yres);
@@ -162,9 +162,9 @@ Close()
 
     munmap(Buffers()[0]->Data(), sMappedSize);
     delete sBuffers;
-    sBuffers = nullptr;
+    sBuffers = NULL;
     delete sScreenSize;
-    sScreenSize = nullptr;
+    sScreenSize = NULL;
 
     close(sFd);
     sFd = -1;

@@ -6,3 +6,5 @@
 
 TEST_DIRS += ['example']
 
+MODULE = 'testing_xpcshell'
+

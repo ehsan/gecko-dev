@@ -9,9 +9,12 @@
 
 #include "mozilla/FloatingPoint.h"
 
-#include "NamespaceImports.h"
+#include "jsapi.h"
 
 #include "vm/NumericConversions.h"
+
+extern double js_PositiveInfinity;
+extern double js_NegativeInfinity;
 
 namespace js {
 
@@ -39,9 +42,7 @@ extern const char js_isFinite_str[];
 extern const char js_parseFloat_str[];
 extern const char js_parseInt_str[];
 
-class JSAtom;
-
-namespace js {
+class JSString;
 
 /*
  * When base == 10, this function implements ToString() as specified by
@@ -50,17 +51,13 @@ namespace js {
  */
 template <js::AllowGC allowGC>
 extern JSString *
-NumberToString(js::ThreadSafeContext *cx, double d);
+js_NumberToString(js::ThreadSafeContext *cx, double d);
 
-extern JSAtom *
-NumberToAtom(js::ExclusiveContext *cx, double d);
+namespace js {
 
 template <AllowGC allowGC>
 extern JSFlatString *
 Int32ToString(ThreadSafeContext *cx, int32_t i);
-
-extern JSAtom *
-Int32ToAtom(ExclusiveContext *cx, int32_t si);
 
 /*
  * Convert an integer or double (contained in the given value) to a string and
@@ -99,7 +96,7 @@ struct ToCStringBuf
 /*
  * Convert a number to a C string.  When base==10, this function implements
  * ToString() as specified by ECMA-262-5 section 9.8.1.  It handles integral
- * values cheaply.  Return nullptr if we ran out of memory.  See also
+ * values cheaply.  Return NULL if we ran out of memory.  See also
  * js_NumberToCString().
  */
 extern char *
@@ -158,7 +155,7 @@ ToNumber(JSContext *cx, JS::MutableHandleValue vp)
     if (vp.isNumber())
         return true;
     double d;
-    extern JS_PUBLIC_API(bool) ToNumberSlow(JSContext *cx, Value v, double *dp);
+    extern bool ToNumberSlow(JSContext *cx, Value v, double *dp);
     if (!ToNumberSlow(cx, vp, &d))
         return false;
 
@@ -247,7 +244,7 @@ ToInteger(JSContext *cx, HandleValue v, double *dp)
     if (v.isDouble()) {
         *dp = v.toDouble();
     } else {
-        extern JS_PUBLIC_API(bool) ToNumberSlow(JSContext *cx, Value v, double *dp);
+        extern bool ToNumberSlow(JSContext *cx, Value v, double *dp);
         if (!ToNumberSlow(cx, v, dp))
             return false;
     }
@@ -258,9 +255,7 @@ ToInteger(JSContext *cx, HandleValue v, double *dp)
 inline bool
 SafeAdd(int32_t one, int32_t two, int32_t *res)
 {
-    // Use unsigned for the 32-bit operation since signed overflow gets
-    // undefined behavior.
-    *res = uint32_t(one) + uint32_t(two);
+    *res = one + two;
     int64_t ores = (int64_t)one + (int64_t)two;
     return ores == (int64_t)*res;
 }
@@ -268,7 +263,7 @@ SafeAdd(int32_t one, int32_t two, int32_t *res)
 inline bool
 SafeSub(int32_t one, int32_t two, int32_t *res)
 {
-    *res = uint32_t(one) - uint32_t(two);
+    *res = one - two;
     int64_t ores = (int64_t)one - (int64_t)two;
     return ores == (int64_t)*res;
 }
@@ -276,7 +271,7 @@ SafeSub(int32_t one, int32_t two, int32_t *res)
 inline bool
 SafeMul(int32_t one, int32_t two, int32_t *res)
 {
-    *res = uint32_t(one) * uint32_t(two);
+    *res = one * two;
     int64_t ores = (int64_t)one * (int64_t)two;
     return ores == (int64_t)*res;
 }

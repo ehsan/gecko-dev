@@ -4,7 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsErrorService.h"
-#include "nsCRTGlue.h"
+#include "nsCRT.h"
 #include "nsAutoPtr.h"
 
 static void*
@@ -65,8 +65,7 @@ NS_IMPL_ISUPPORTS1(nsErrorService, nsIErrorService)
 nsresult
 nsErrorService::Create(nsISupports* outer, const nsIID& aIID, void* *aInstancePtr)
 {
-    if (NS_WARN_IF(outer))
-        return NS_ERROR_NO_AGGREGATION;
+    NS_ENSURE_NO_AGGREGATION(outer);
     nsRefPtr<nsErrorService> serv = new nsErrorService();
     return serv->QueryInterface(aIID, aInstancePtr);
 }

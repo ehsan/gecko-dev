@@ -6,7 +6,6 @@
 
 // Local Includes
 #include "nsSHTransaction.h"
-#include "nsISHEntry.h"
 
 //*****************************************************************************
 //***    nsSHTransaction: Object Management

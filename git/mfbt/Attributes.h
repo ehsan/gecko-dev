@@ -12,9 +12,25 @@
 #include "mozilla/Compiler.h"
 
 /*
+ * MOZ_INLINE is a macro which expands to tell the compiler that the method
+ * decorated with it should be inlined.  This macro is usable from C and C++
+ * code, even though C89 does not support the |inline| keyword.  The compiler
+ * may ignore this directive if it chooses.
+ */
+#if defined(__cplusplus)
+#  define MOZ_INLINE            inline
+#elif defined(_MSC_VER)
+#  define MOZ_INLINE            __inline
+#elif defined(__GNUC__)
+#  define MOZ_INLINE            __inline__
+#else
+#  define MOZ_INLINE            inline
+#endif
+
+/*
  * MOZ_ALWAYS_INLINE is a macro which expands to tell the compiler that the
  * method decorated with it must be inlined, even if the compiler thinks
- * otherwise.  This is only a (much) stronger version of the inline hint:
+ * otherwise.  This is only a (much) stronger version of the MOZ_INLINE hint:
  * compilers are not guaranteed to respect it (although they're much more likely
  * to do so).
  *
@@ -24,17 +40,15 @@
 #if defined(_MSC_VER)
 #  define MOZ_ALWAYS_INLINE_EVEN_DEBUG     __forceinline
 #elif defined(__GNUC__)
-#  define MOZ_ALWAYS_INLINE_EVEN_DEBUG     __attribute__((always_inline)) inline
+#  define MOZ_ALWAYS_INLINE_EVEN_DEBUG     __attribute__((always_inline)) MOZ_INLINE
 #else
-#  define MOZ_ALWAYS_INLINE_EVEN_DEBUG     inline
+#  define MOZ_ALWAYS_INLINE_EVEN_DEBUG     MOZ_INLINE
 #endif
 
-#if !defined(DEBUG)
-#  define MOZ_ALWAYS_INLINE     MOZ_ALWAYS_INLINE_EVEN_DEBUG
-#elif defined(_MSC_VER) && !defined(__cplusplus)
-#  define MOZ_ALWAYS_INLINE     __inline
+#if defined(DEBUG)
+#  define MOZ_ALWAYS_INLINE     MOZ_INLINE
 #else
-#  define MOZ_ALWAYS_INLINE     inline
+#  define MOZ_ALWAYS_INLINE     MOZ_ALWAYS_INLINE_EVEN_DEBUG
 #endif
 
 /*
@@ -89,9 +103,6 @@
 #  define MOZ_HAVE_NEVER_INLINE          __attribute__((noinline))
 #  define MOZ_HAVE_NORETURN              __attribute__((noreturn))
 #elif defined(_MSC_VER)
-#  if _MSC_VER >= 1800
-#    define MOZ_HAVE_CXX11_DELETE
-#  endif
 #  if _MSC_VER >= 1700
 #    define MOZ_HAVE_CXX11_FINAL         final
 #  else
@@ -159,31 +170,12 @@
  * Furthermore, it will prevent the compiler from inlining the function because
  * inlining currently breaks the blacklisting mechanism of AddressSanitizer.
  */
-#if defined(__has_feature)
-#  if __has_feature(address_sanitizer)
-#    define MOZ_ASAN_BLACKLIST MOZ_NEVER_INLINE __attribute__((no_sanitize_address))
-#  else
-#    define MOZ_ASAN_BLACKLIST /* nothing */
-#  endif
-#else
-#  define MOZ_ASAN_BLACKLIST /* nothing */
+#if defined(MOZ_ASAN)
+#  define MOZ_ASAN_BLACKLIST MOZ_NEVER_INLINE __attribute__((no_address_safety_analysis))
+# else
+#  define MOZ_ASAN_BLACKLIST
 #endif
 
-/*
- * MOZ_TSAN_BLACKLIST is a macro to tell ThreadSanitizer (a compile-time
- * instrumentation shipped with Clang) to not instrument the annotated function.
- * Furthermore, it will prevent the compiler from inlining the function because
- * inlining currently breaks the blacklisting mechanism of ThreadSanitizer.
- */
-#if defined(__has_feature)
-#  if __has_feature(thread_sanitizer)
-#    define MOZ_TSAN_BLACKLIST MOZ_NEVER_INLINE __attribute__((no_sanitize_thread))
-#  else
-#    define MOZ_TSAN_BLACKLIST /* nothing */
-#  endif
-#else
-#  define MOZ_TSAN_BLACKLIST /* nothing */
-#endif
 
 #ifdef __cplusplus
 
@@ -409,29 +401,15 @@
  *   class uses this class, or if another class inherits from this class, then
  *   it is considered to be a non-heap class as well, although this attribute
  *   need not be provided in such cases.
- * MOZ_HEAP_ALLOCATOR: Applies to any function. This indicates that the return
- *   value is allocated on the heap, and will as a result check such allocations
- *   during MOZ_STACK_CLASS and MOZ_NONHEAP_CLASS annotation checking.
  */
 #ifdef MOZ_CLANG_PLUGIN
-#  define MOZ_MUST_OVERRIDE __attribute__((annotate("moz_must_override")))
-#  define MOZ_STACK_CLASS __attribute__((annotate("moz_stack_class")))
-#  define MOZ_NONHEAP_CLASS __attribute__((annotate("moz_nonheap_class")))
-/*
- * It turns out that clang doesn't like void func() __attribute__ {} without a
- * warning, so use pragmas to disable the warning. This code won't work on GCC
- * anyways, so the warning is safe to ignore.
- */
-#  define MOZ_HEAP_ALLOCATOR \
-    _Pragma("clang diagnostic push") \
-    _Pragma("clang diagnostic ignored \"-Wgcc-compat\"") \
-    __attribute__((annotate("moz_heap_allocator"))) \
-    _Pragma("clang diagnostic pop")
+# define MOZ_MUST_OVERRIDE __attribute__((annotate("moz_must_override")))
+# define MOZ_STACK_CLASS __attribute__((annotate("moz_stack_class")))
+# define MOZ_NONHEAP_CLASS __attribute__((annotate("moz_nonheap_class")))
 #else
-#  define MOZ_MUST_OVERRIDE /* nothing */
-#  define MOZ_STACK_CLASS /* nothing */
-#  define MOZ_NONHEAP_CLASS /* nothing */
-#  define MOZ_HEAP_ALLOCATOR /* nothing */
+# define MOZ_MUST_OVERRIDE /* nothing */
+# define MOZ_STACK_CLASS /* nothing */
+# define MOZ_NONHEAP_CLASS /* nothing */
 #endif /* MOZ_CLANG_PLUGIN */
 
 /*

@@ -42,12 +42,11 @@ var local = false;
 
 exports.testGetPredictor = function(options) {
   if (!options.isNode || !local) {
-    assert.log('Skipping tests due to install differences.');
     return;
   }
 
-  var opts = { filetype: 'file', existing: 'yes' };
-  var predictor = fileparser.getPredictor('/usr/locl/bin/nmp', opts);
+  var options = { filetype: 'file', existing: 'yes' };
+  var predictor = fileparser.getPredictor('/usr/locl/bin/nmp', options);
   return predictor().then(function(replies) {
     assert.is(replies[0].name,
               '/usr/local/bin/npm',

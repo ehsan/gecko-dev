@@ -8,10 +8,10 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/test/testsupport/frame_reader.h"
+#include "testsupport/frame_reader.h"
 
-#include "testing/gtest/include/gtest/gtest.h"
-#include "webrtc/test/testsupport/fileutils.h"
+#include "gtest/gtest.h"
+#include "testsupport/fileutils.h"
 
 namespace webrtc {
 namespace test {
@@ -28,7 +28,7 @@ class FrameReaderTest: public testing::Test {
   virtual ~FrameReaderTest() {}
   void SetUp() {
     // Cleanup any previous dummy input file.
-    remove(kInputFilename.c_str());
+    std::remove(kInputFilename.c_str());
 
     // Create a dummy input file.
     FILE* dummy = fopen(kInputFilename.c_str(), "wb");
@@ -41,7 +41,7 @@ class FrameReaderTest: public testing::Test {
   void TearDown() {
     delete frame_reader_;
     // Cleanup the dummy input file.
-    remove(kInputFilename.c_str());
+    std::remove(kInputFilename.c_str());
   }
   FrameReader* frame_reader_;
 };

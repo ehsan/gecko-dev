@@ -6,7 +6,6 @@
 #define nsFormData_h__
 
 #include "mozilla/Attributes.h"
-#include "nsIDOMFile.h"
 #include "nsIDOMFormData.h"
 #include "nsIXMLHttpRequest.h"
 #include "nsFormSubmission.h"

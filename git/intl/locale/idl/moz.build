@@ -11,5 +11,5 @@ XPIDL_SOURCES += [
     'nsIScriptableDateFormat.idl',
 ]
 
-XPIDL_MODULE = 'locale'
+MODULE = 'locale'
 

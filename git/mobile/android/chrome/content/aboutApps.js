@@ -23,17 +23,15 @@ XPCOMUtils.defineLazyGetter(window, "gChromeWin", function()
     .getInterface(Ci.nsIDOMWindow)
     .QueryInterface(Ci.nsIDOMChromeWindow));
 
-document.addEventListener("DOMContentLoaded", onLoad, false);
-
 var AppsUI = {
   uninstall: null,
   shortcut: null
 };
 
-function openLink(aEvent) {
+function openLink(aElement) {
   try {
     let formatter = Cc["@mozilla.org/toolkit/URLFormatterService;1"].getService(Ci.nsIURLFormatter);
-    let url = formatter.formatURLPref(aEvent.target.getAttribute("pref"));
+    let url = formatter.formatURLPref(aElement.getAttribute("pref"));
     let BrowserApp = gChromeWin.BrowserApp;
     BrowserApp.addTab(url, { selected: true, parentId: BrowserApp.selectedTab.id });
   } catch (ex) {}
@@ -43,9 +41,7 @@ var ContextMenus = {
   target: null,
 
   init: function() {
-    document.addEventListener("contextmenu", this, false);
-    document.getElementById("addToHomescreenLabel").addEventListener("click", this.addToHomescreen, false);
-    document.getElementById("uninstallLabel").addEventListener("click", this.uninstall, false);
+    document.addEventListener("contextmenu", ContextMenus, false);
   },
 
   handleEvent: function(event) {
@@ -86,11 +82,6 @@ function onLoad(aEvent) {
     link.setAttribute("href", url);
   } catch (e) {}
 
-  let elmts = document.querySelectorAll("[pref]");
-  for (let i = 0; i < elmts.length; i++) {
-    elmts[i].addEventListener("click",  openLink,  false);
-  }
-
   navigator.mozApps.mgmt.oninstall = onInstall;
   navigator.mozApps.mgmt.onuninstall = onUninstall;
   updateList();
@@ -108,8 +99,8 @@ function updateList() {
   request.onsuccess = function() {
     for (let i = 0; i < request.result.length; i++)
       addApplication(request.result[i]);
-    if (request.result.length)
-      document.getElementById("main-container").classList.remove("hidden");
+    if (!request.result.length)
+      document.getElementById("noapps").className = "";
   }
 }
 
@@ -127,9 +118,6 @@ function addApplication(aApp) {
   let img = document.createElement("img");
   let origin = Services.io.newURI(aApp.origin, null, null);
   img.src = gChromeWin.WebappsUI.getBiggestIcon(manifest.icons, origin);
-  img.onerror = function() {
-      img.src = "chrome://browser/skin/images/default-app-icon.png";
-  }
   img.setAttribute("title", manifest.name);
 
   let title = document.createElement("div");
@@ -152,7 +140,7 @@ function onInstall(aEvent) {
     return;
 
   addApplication(aEvent.application);
-  document.getElementById("main-container").classList.remove("hidden");
+  document.getElementById("noapps").className = "hidden";
 }
 
 function onUninstall(aEvent) {
@@ -161,7 +149,6 @@ function onUninstall(aEvent) {
     let parent = node.parentNode;
     parent.removeChild(node);
     if (!parent.firstChild)
-      document.getElementById("main-container").classList.add("hidden");
+      document.getElementById("noapps").className = "";
   }
 }
-

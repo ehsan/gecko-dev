@@ -13,6 +13,7 @@
 #include "nsFrame.h"
 #include "nsIFrame.h"
 #include "nsQueryFrame.h"
+#include "nsRect.h"
 
 class gfxContext;
 class nsIContent;
@@ -52,8 +53,7 @@ public:
   }
 
   // nsSVGGeometryFrame methods:
-  virtual gfxMatrix GetCanvasTM(uint32_t aFor,
-                                nsIFrame* aTransformRoot = nullptr) = 0;
+  virtual gfxMatrix GetCanvasTM(uint32_t aFor) = 0;
   uint16_t GetClipRule();
 
 protected:

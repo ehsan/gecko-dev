@@ -8,7 +8,7 @@
 
 #include "mozilla/Attributes.h"
 
-#include "webrtc/common_types.h"
+#include "common_types.h"
 
 namespace mozilla {
 

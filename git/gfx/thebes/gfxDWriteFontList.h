@@ -47,15 +47,12 @@ public:
 
     virtual void LocalizedName(nsAString& aLocalizedName);
 
-    virtual void ReadFaceNames(gfxPlatformFontList *aPlatformFontList,
-                               bool aNeedFullnamePostscriptNames);
-
     void SetForceGDIClassic(bool aForce) { mForceGDIClassic = aForce; }
 
-    virtual void AddSizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
-                                        FontListSizes* aSizes) const;
-    virtual void AddSizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
-                                        FontListSizes* aSizes) const;
+    virtual void SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+                                     FontListSizes*    aSizes) const;
+    virtual void SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+                                     FontListSizes*    aSizes) const;
 
 protected:
     /** This font family's directwrite fontfamily object */
@@ -156,10 +153,10 @@ public:
     void SetForceGDIClassic(bool aForce) { mForceGDIClassic = aForce; }
     bool GetForceGDIClassic() { return mForceGDIClassic; }
 
-    virtual void AddSizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
-                                        FontListSizes* aSizes) const;
-    virtual void AddSizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
-                                        FontListSizes* aSizes) const;
+    virtual void SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+                                     FontListSizes*    aSizes) const;
+    virtual void SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+                                     FontListSizes*    aSizes) const;
 
 protected:
     friend class gfxDWriteFont;
@@ -369,10 +366,10 @@ public:
 
     gfxFloat GetForceGDIClassicMaxFontSize() { return mForceGDIClassicMaxFontSize; }
 
-    virtual void AddSizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
-                                        FontListSizes* aSizes) const;
-    virtual void AddSizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
-                                        FontListSizes* aSizes) const;
+    virtual void SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+                                     FontListSizes*    aSizes) const;
+    virtual void SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+                                     FontListSizes*    aSizes) const;
 
 private:
     friend class gfxDWriteFontFamily;

@@ -5,10 +5,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef XrayWrapper_h
-#define XrayWrapper_h
-
 #include "mozilla/Attributes.h"
+#include "mozilla/GuardObjects.h"
 
 #include "jswrapper.h"
 
@@ -17,6 +15,8 @@
 // Because they work so differently from the rest of the wrapper hierarchy,
 // we pull them out of the Wrapper inheritance hierarchy and create a
 // little world around them.
+
+class XPCWrappedNative;
 
 namespace xpc {
 
@@ -28,7 +28,7 @@ holder_set(JSContext *cx, JS::HandleObject holder, JS::HandleId id, bool strict,
 
 namespace XrayUtils {
 
-extern const JSClass HolderClass;
+extern JSClass HolderClass;
 
 bool CloneExpandoChain(JSContext *cx, JSObject *src, JSObject *dst);
 
@@ -48,6 +48,7 @@ HasNativeProperty(JSContext *cx, JS::HandleObject wrapper, JS::HandleId id,
 
 class XrayTraits;
 class XPCWrappedNativeXrayTraits;
+class ProxyXrayTraits;
 class DOMXrayTraits;
 
 
@@ -106,11 +107,6 @@ class XrayWrapper : public Base {
                               JSType hint, JS::MutableHandleValue vp)
                               MOZ_OVERRIDE;
 
-    virtual bool getPrototypeOf(JSContext *cx, JS::HandleObject wrapper,
-                                JS::MutableHandleObject protop) MOZ_OVERRIDE;
-    virtual bool setPrototypeOf(JSContext *cx, JS::HandleObject wrapper,
-                                JS::HandleObject proto, bool *bp) MOZ_OVERRIDE;
-
     static XrayWrapper singleton;
 
   private:
@@ -123,6 +119,8 @@ class XrayWrapper : public Base {
 #define PermissiveXrayDOM xpc::XrayWrapper<js::CrossCompartmentWrapper, xpc::DOMXrayTraits>
 #define SecurityXrayDOM xpc::XrayWrapper<js::CrossCompartmentSecurityWrapper, xpc::DOMXrayTraits>
 #define SCSecurityXrayXPCWN xpc::XrayWrapper<js::SameCompartmentSecurityWrapper, xpc::XPCWrappedNativeXrayTraits>
+#define SCPermissiveXrayXPCWN xpc::XrayWrapper<js::Wrapper, xpc::XPCWrappedNativeXrayTraits>
+#define SCPermissiveXrayDOM xpc::XrayWrapper<js::Wrapper, xpc::DOMXrayTraits>
 
 class SandboxProxyHandler : public js::Wrapper {
 public:
@@ -198,4 +196,3 @@ private:
 
 }
 
-#endif

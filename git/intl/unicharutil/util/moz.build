@@ -6,6 +6,8 @@
 
 DIRS += ['internal']
 
+MODULE = 'unicharutil'
+
 EXPORTS += [
     'nsBidiUtils.h',
     'nsSpecialCasingData.h',
@@ -14,18 +16,11 @@ EXPORTS += [
     'nsUnicodeScriptCodes.h',
 ]
 
-include('objs.mozbuild')
-
-UNIFIED_SOURCES += intl_unicharutil_util_cppsrcs
-
-LIBRARY_NAME = 'unicharutil_external_s'
-
-FORCE_STATIC_LIB = True
-
-LOCAL_INCLUDES += [
-    '../src',
+CPP_SOURCES += [
+    'nsBidiUtils.cpp',
+    'nsSpecialCasingData.cpp',
+    'nsUnicharUtils.cpp',
+    'nsUnicodeProperties.cpp',
 ]
 
-
-if CONFIG['_MSC_VER']:
-    DEFINES['_USE_ANSI_CPP'] = True
+LIBRARY_NAME = 'unicharutil_external_s'

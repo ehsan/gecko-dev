@@ -35,8 +35,6 @@ const TOPIC_TIMER_CALLBACK = "timer-callback";
 const TOPIC_DELAYED_STARTUP = "browser-delayed-startup-finished";
 const TOPIC_XUL_WINDOW_CLOSED = "xul-window-destroyed";
 
-const FRAME_SCRIPT_URL = "chrome://browser/content/newtab/preloaderContent.js";
-
 function createTimer(obj, delay) {
   let timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
   timer.init(obj, delay, Ci.nsITimer.TYPE_ONE_SHOT);
@@ -63,7 +61,6 @@ this.BrowserNewTabPreloader = {
   },
 
   newTab: function Preloader_newTab(aTab) {
-    let swapped = false;
     let win = aTab.ownerDocument.defaultView;
     if (win.gBrowser) {
       let utils = win.QueryInterface(Ci.nsIInterfaceRequestor)
@@ -72,17 +69,11 @@ this.BrowserNewTabPreloader = {
       let {width, height} = utils.getBoundsWithoutFlushing(win.gBrowser);
       let hiddenBrowser = HiddenBrowsers.get(width, height)
       if (hiddenBrowser) {
-        swapped = hiddenBrowser.swapWithNewTab(aTab);
+        return hiddenBrowser.swapWithNewTab(aTab);
       }
-
-      // aTab's browser is now visible and is therefore allowed to make
-      // background captures.
-      let msgMan = aTab.linkedBrowser.messageManager;
-      msgMan.loadFrameScript(FRAME_SCRIPT_URL, false);
-      msgMan.sendAsyncMessage("BrowserNewTabPreloader:allowBackgroundCaptures");
     }
 
-    return swapped;
+    return false;
   }
 };
 
@@ -332,7 +323,7 @@ HiddenBrowser.prototype = {
     // Load all default frame scripts attached to the target window.
     let mm = aTab.linkedBrowser.messageManager;
     let scripts = win.messageManager.getDelayedFrameScripts();
-    Array.forEach(scripts, ([script, runGlobal]) => mm.loadFrameScript(script, true, runGlobal));
+    Array.forEach(scripts, script => mm.loadFrameScript(script, true));
 
     // Remove the browser, it will be recreated by a timer.
     this._removeBrowser();

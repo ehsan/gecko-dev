@@ -138,7 +138,7 @@ nsPNGDecoder::~nsPNGDecoder()
 // CreateFrame() is used for both simple and animated images
 void nsPNGDecoder::CreateFrame(png_uint_32 x_offset, png_uint_32 y_offset,
                                int32_t width, int32_t height,
-                               gfxImageFormat format)
+                               gfxASurface::gfxImageFormat format)
 {
   // Our first full frame is automatically created by the image decoding
   // infrastructure. Just use it as long as it matches up.
@@ -148,7 +148,7 @@ void nsPNGDecoder::CreateFrame(png_uint_32 x_offset, png_uint_32 y_offset,
     NeedNewFrame(mNumFrames, x_offset, y_offset, width, height, format);
   } else if (mNumFrames == 0) {
     // Our preallocated frame matches up, with the possible exception of alpha.
-    if (format == gfxImageFormatRGB24) {
+    if (format == gfxASurface::ImageFormatRGB24) {
       GetCurrentFrame()->SetHasNoAlpha();
     }
   }
@@ -286,7 +286,7 @@ nsPNGDecoder::InitInternal()
 }
 
 void
-nsPNGDecoder::WriteInternal(const char *aBuffer, uint32_t aCount, DecodeStrategy)
+nsPNGDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
 {
   NS_ABORT_IF_FALSE(!HasError(), "Shouldn't call WriteInternal after error!");
 
@@ -550,7 +550,7 @@ nsPNGDecoder::info_callback(png_structp png_ptr, png_infop info_ptr)
   if (bit_depth == 16)
     png_set_scale_16(png_ptr);
 
-  qcms_data_type inType = QCMS_DATA_RGBA_8;
+  qcms_data_type inType;
   uint32_t intent = -1;
   uint32_t pIntent;
   if (decoder->mCMSMode != eCMSMode_Off) {
@@ -627,9 +627,9 @@ nsPNGDecoder::info_callback(png_structp png_ptr, png_infop info_ptr)
 #endif
 
   if (channels == 1 || channels == 3)
-    decoder->format = gfxImageFormatRGB24;
+    decoder->format = gfxASurface::ImageFormatRGB24;
   else if (channels == 2 || channels == 4)
-    decoder->format = gfxImageFormatARGB32;
+    decoder->format = gfxASurface::ImageFormatARGB32;
 
 #ifdef PNG_APNG_SUPPORTED
   if (png_get_valid(png_ptr, info_ptr, PNG_INFO_acTL))
@@ -743,7 +743,7 @@ nsPNGDecoder::row_callback(png_structp png_ptr, png_bytep new_row,
      }
 
     switch (decoder->format) {
-      case gfxImageFormatRGB24:
+      case gfxASurface::ImageFormatRGB24:
       {
         // counter for while() loops below
         uint32_t idx = iwidth;
@@ -770,7 +770,7 @@ nsPNGDecoder::row_callback(png_structp png_ptr, png_bytep new_row,
         }
       }
       break;
-      case gfxImageFormatARGB32:
+      case gfxASurface::ImageFormatARGB32:
       {
         if (!decoder->mDisablePremultipliedAlpha) {
           for (uint32_t x=width; x>0; --x) {
@@ -805,11 +805,11 @@ nsPNGDecoder::row_callback(png_structp png_ptr, png_bytep new_row,
   }
 }
 
-#ifdef PNG_APNG_SUPPORTED
 // got the header of a new frame that's coming
 void
 nsPNGDecoder::frame_info_callback(png_structp png_ptr, png_uint_32 frame_num)
 {
+#ifdef PNG_APNG_SUPPORTED
   png_uint_32 x_offset, y_offset;
   int32_t width, height;
 
@@ -835,8 +835,8 @@ nsPNGDecoder::frame_info_callback(png_structp png_ptr, png_uint_32 frame_num)
      */
     png_process_data_pause(png_ptr, /* save = */ 1);
   }
-}
 #endif
+}
 
 void
 nsPNGDecoder::end_callback(png_structp png_ptr, png_infop info_ptr)

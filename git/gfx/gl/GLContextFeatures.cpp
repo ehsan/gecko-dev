@@ -7,10 +7,6 @@
 #include "GLContext.h"
 #include "nsPrintfCString.h"
 
-#ifdef XP_MACOSX
-#include "nsCocoaFeatures.h"
-#endif
-
 namespace mozilla {
 namespace gl {
 
@@ -57,8 +53,6 @@ static const FeatureInfo sFeatureInfoArr[] = {
         {
             GLContext::ARB_depth_texture,
             GLContext::OES_depth_texture,
-            // Intentionally avoid putting ANGLE_depth_texture here,
-            // it does not offer quite the same functionality.
             GLContext::Extensions_End
         }
     },
@@ -165,20 +159,6 @@ static const FeatureInfo sFeatureInfoArr[] = {
         }
     },
     {
-        "instanced_non_arrays",
-        330, // OpenGL version
-        300, // OpenGL ES version
-        {
-            GLContext::ARB_instanced_arrays,
-            GLContext::Extensions_End
-        }
-        /* This is an expanded version of `instanced_arrays` that allows for all
-         * enabled active attrib arrays to have non-zero divisors.
-         * ANGLE_instanced_arrays and NV_instanced_arrays forbid this, but GLES3
-         * has no such restriction.
-         */
-    },
-    {
         "occlusion_query",
         200, // OpenGL version
         0,   // OpenGL ES version
@@ -199,7 +179,7 @@ static const FeatureInfo sFeatureInfoArr[] = {
         /*
          * XXX_occlusion_query_boolean provide ANY_SAMPLES_PASSED_CONSERVATIVE,
          * but EXT_occlusion_query_boolean is only a OpenGL ES extension. But
-         * it is supported on desktop if ARB_ES3_compatibility because
+         * it is supported on desktop if ARB_ES3_compatibility because 
          * EXT_occlusion_query_boolean (added in OpenGL ES 3.0).
          */
     },
@@ -250,15 +230,6 @@ static const FeatureInfo sFeatureInfoArr[] = {
         {
             GLContext::ARB_robustness,
             GLContext::EXT_robustness,
-            GLContext::Extensions_End
-        }
-    },
-    {
-        "sRGB",
-        300, // OpenGL version
-        300, // OpenGL ES version
-        {
-            GLContext::EXT_sRGB,
             GLContext::Extensions_End
         }
     },
@@ -370,24 +341,6 @@ GLContext::GetFeatureName(GLFeature::Enum feature)
     return GetFeatureInfo(feature).mName;
 }
 
-static bool
-CanReadSRGBFromFBOTexture(GLContext* gl)
-{
-    if (!gl->WorkAroundDriverBugs())
-        return true;
-
-#ifdef XP_MACOSX
-    // Bug 843668:
-    // MacOSX 10.6 reports to support EXT_framebuffer_sRGB and
-    // EXT_texture_sRGB but fails to convert from sRGB to linear
-    // when writing to an sRGB texture attached to an FBO.
-    if (!nsCocoaFeatures::OnLionOrLater()) {
-        return false;
-    }
-#endif // XP_MACOSX
-    return true;
-}
-
 void
 GLContext::InitFeatures()
 {
@@ -418,18 +371,6 @@ GLContext::InitFeatures()
             }
         }
     }
-
-    // Bug 843668: Work around limitation of the feature system.
-    // For sRGB support under OpenGL to match OpenGL ES spec, check for both
-    // EXT_texture_sRGB and EXT_framebuffer_sRGB is required.
-    const bool aresRGBExtensionsAvailable =
-        IsExtensionSupported(EXT_texture_sRGB) &&
-        (IsExtensionSupported(ARB_framebuffer_sRGB) ||
-         IsExtensionSupported(EXT_framebuffer_sRGB));
-
-    mAvailableFeatures[GLFeature::sRGB] =
-        aresRGBExtensionsAvailable &&
-        CanReadSRGBFromFBOTexture(this);
 }
 
 void

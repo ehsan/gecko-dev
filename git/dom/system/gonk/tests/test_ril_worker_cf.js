@@ -106,7 +106,7 @@ add_test(function test_queryCallForwardStatus_unconditional() {
     });
   };
 
-  worker.Buf.readInt32 = function fakeReadUint32() {
+  worker.Buf.readUint32 = function fakeReadUint32() {
     return worker.Buf.int32Array.pop();
   };
 

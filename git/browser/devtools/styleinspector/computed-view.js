@@ -11,22 +11,18 @@ let {CssLogic} = require("devtools/styleinspector/css-logic");
 let {ELEMENT_STYLE} = require("devtools/server/actors/styles");
 let promise = require("sdk/core/promise");
 let {EventEmitter} = require("devtools/shared/event-emitter");
-const {OutputParser} = require("devtools/output-parser");
-const {Tooltip} = require("devtools/shared/widgets/Tooltip");
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/PluralForm.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/devtools/Templater.jsm");
 
-let {gDevTools} = Cu.import("resource:///modules/devtools/gDevTools.jsm", {});
+Cu.import("resource:///modules/devtools/gDevTools.jsm");
 
 const FILTER_CHANGED_TIMEOUT = 300;
 
 const HTML_NS = "http://www.w3.org/1999/xhtml";
 const XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
-
-const PREF_ORIG_SOURCES = "devtools.styleeditor.source-maps-enabled";
 
 /**
  * Helper for long-running processes that should yield occasionally to
@@ -137,50 +133,29 @@ function CssHtmlTree(aStyleInspector, aPageStyle)
   this.pageStyle = aPageStyle;
   this.propertyViews = [];
 
-  this._outputParser = new OutputParser();
-
   let chromeReg = Cc["@mozilla.org/chrome/chrome-registry;1"].
     getService(Ci.nsIXULChromeRegistry);
   this.getRTLAttr = chromeReg.isLocaleRTL("global") ? "rtl" : "ltr";
 
   // Create bound methods.
-  this.focusWindow = this.focusWindow.bind(this);
-  this._onContextMenu = this._onContextMenu.bind(this);
-  this._contextMenuUpdate = this._contextMenuUpdate.bind(this);
-  this._onSelectAll = this._onSelectAll.bind(this);
-  this._onClick = this._onClick.bind(this);
-  this._onCopy = this._onCopy.bind(this);
+  this.siFocusWindow = this.focusWindow.bind(this);
+  this.siBoundCopy = this.computedViewCopy.bind(this);
 
-  this.styleDocument.addEventListener("copy", this._onCopy);
-  this.styleDocument.addEventListener("mousedown", this.focusWindow);
-  this.styleDocument.addEventListener("contextmenu", this._onContextMenu);
+  this.styleDocument.addEventListener("copy", this.siBoundCopy);
+  this.styleDocument.addEventListener("mousedown", this.siFocusWindow);
 
   // Nodes used in templating
   this.root = this.styleDocument.getElementById("root");
   this.templateRoot = this.styleDocument.getElementById("templateRoot");
   this.propertyContainer = this.styleDocument.getElementById("propertyContainer");
 
-  // Listen for click events
-  this.propertyContainer.addEventListener("click", this._onClick, false);
-
   // No results text.
   this.noResults = this.styleDocument.getElementById("noResults");
-
-  // Refresh panel when color unit changed.
-  this._handlePrefChange = this._handlePrefChange.bind(this);
-  gDevTools.on("pref-changed", this._handlePrefChange);
 
   CssHtmlTree.processTemplate(this.templateRoot, this.root, this);
 
   // The element that we're inspecting, and the document that it comes from.
   this.viewedElement = null;
-
-  // Properties preview tooltip
-  this.tooltip = new Tooltip(this.styleInspector.inspector.panelDoc);
-  this.tooltip.startTogglingOnHover(this.propertyContainer,
-    this._buildTooltipContent.bind(this));
-
-  this._buildContextMenu();
   this.createStyleViews();
 }
 
@@ -231,7 +206,7 @@ CssHtmlTree.processTemplate = function CssHtmlTree_processTemplate(aTemplate,
 };
 
 XPCOMUtils.defineLazyGetter(CssHtmlTree, "_strings", function() Services.strings
-        .createBundle("chrome://global/locale/devtools/styleinspector.properties"));
+        .createBundle("chrome://browser/locale/devtools/styleinspector.properties"));
 
 XPCOMUtils.defineLazyGetter(this, "clipboardHelper", function() {
   return Cc["@mozilla.org/widget/clipboardhelper;1"].
@@ -269,12 +244,6 @@ CssHtmlTree.prototype = {
     return this.includeBrowserStylesCheckbox.checked;
   },
 
-  _handlePrefChange: function(event, data) {
-    if (data.pref == "devtools.defaultColorUnit" && this._computed) {
-      this.refreshPanel();
-    }
-  },
-
   /**
    * Update the highlighted element. The CssHtmlTree panel will show the style
    * information for the given element.
@@ -284,28 +253,19 @@ CssHtmlTree.prototype = {
    */
   highlight: function(aElement) {
     if (!aElement) {
-      this.viewedElement = null;
-      this.noResults.hidden = false;
-
       if (this._refreshProcess) {
         this._refreshProcess.cancel();
       }
-      // Hiding all properties
-      for (let propView of this.propertyViews) {
-        propView.refresh();
-      }
-      return promise.resolve(undefined);
+      return promise.resolve(undefined)
     }
-
-    this.tooltip.hide();
 
     if (aElement === this.viewedElement) {
       return promise.resolve(undefined);
     }
 
     this.viewedElement = aElement;
-    this.refreshSourceFilter();
 
+    this.refreshSourceFilter();
     return this.refreshPanel();
   },
 
@@ -354,10 +314,6 @@ CssHtmlTree.prototype = {
    */
   refreshPanel: function CssHtmlTree_refreshPanel()
   {
-    if (!this.viewedElement) {
-      return promise.resolve();
-    }
-
     return promise.all([
       this._createPropertyViews(),
       this.pageStyle.getComputed(this.viewedElement, {
@@ -385,6 +341,8 @@ CssHtmlTree.prototype = {
 
       // Reset zebra striping.
       this._darkStripe = true;
+
+      let display = this.propertyContainer.style.display;
 
       let deferred = promise.defer();
       this._refreshProcess = new UpdateProcess(this.styleWindow, this.propertyViews, {
@@ -497,166 +455,32 @@ CssHtmlTree.prototype = {
    *
    * @param aEvent The event object
    */
-  focusWindow: function(aEvent)
+  focusWindow: function si_focusWindow(aEvent)
   {
     let win = this.styleDocument.defaultView;
     win.focus();
   },
 
   /**
-   * Verify that target is indeed a css value we want a tooltip on, and if yes
-   * prepare some content for the tooltip
-   */
-  _buildTooltipContent: function(target)
-  {
-    // Test for image url
-    if (target.classList.contains("theme-link")) {
-      let propValue = target.parentNode;
-      let propName = propValue.parentNode.querySelector(".property-name");
-      if (propName.textContent === "background-image") {
-        this.tooltip.setCssBackgroundImageContent(propValue.textContent);
-        return true;
-      }
-    }
-
-    // Test for css transform
-    if (target.classList.contains("property-value")) {
-      let def = promise.defer();
-      let propValue = target;
-      let propName = target.parentNode.querySelector(".property-name");
-      if (propName.textContent === "transform") {
-        this.tooltip.setCssTransformContent(propValue.textContent,
-          this.pageStyle, this.viewedElement).then(def.resolve);
-        return def.promise;
-      }
-    }
-  },
-
-  /**
-   * Create a context menu.
-   */
-  _buildContextMenu: function()
-  {
-    let doc = this.styleDocument.defaultView.parent.document;
-
-    this._contextmenu = this.styleDocument.createElementNS(XUL_NS, "menupopup");
-    this._contextmenu.addEventListener("popupshowing", this._contextMenuUpdate);
-    this._contextmenu.id = "computed-view-context-menu";
-
-    // Select All
-    this.menuitemSelectAll = createMenuItem(this._contextmenu, {
-      label: "computedView.contextmenu.selectAll",
-      accesskey: "computedView.contextmenu.selectAll.accessKey",
-      command: this._onSelectAll
-    });
-
-    // Copy
-    this.menuitemCopy = createMenuItem(this._contextmenu, {
-      label: "computedView.contextmenu.copy",
-      accesskey: "computedView.contextmenu.copy.accessKey",
-      command: this._onCopy
-    });
-
-    let popupset = doc.documentElement.querySelector("popupset");
-    if (!popupset) {
-      popupset = doc.createElementNS(XUL_NS, "popupset");
-      doc.documentElement.appendChild(popupset);
-    }
-    popupset.appendChild(this._contextmenu);
-  },
-
-  /**
-   * Update the context menu. This means enabling or disabling menuitems as
-   * appropriate.
-   */
-  _contextMenuUpdate: function()
-  {
-    let win = this.styleDocument.defaultView;
-    let disable = win.getSelection().isCollapsed;
-    this.menuitemCopy.disabled = disable;
-  },
-
-  /**
-   * Context menu handler.
-   */
-  _onContextMenu: function(event) {
-    try {
-      this.styleDocument.defaultView.focus();
-      this._contextmenu.openPopupAtScreen(event.screenX, event.screenY, true);
-    } catch(e) {
-      console.error(e);
-    }
-  },
-
-  /**
-   * Select all text.
-   */
-  _onSelectAll: function()
-  {
-    try {
-      let win = this.styleDocument.defaultView;
-      let selection = win.getSelection();
-
-      selection.selectAllChildren(this.styleDocument.documentElement);
-    } catch(e) {
-      console.error(e);
-    }
-  },
-
-  _onClick: function(event) {
-    let target = event.target;
-
-    if (target.nodeName === "a") {
-      event.stopPropagation();
-      event.preventDefault();
-      let browserWin = this.styleInspector.inspector.target
-                           .tab.ownerDocument.defaultView;
-      browserWin.openUILinkIn(target.href, "tab");
-    }
-  },
-
-  /**
    * Copy selected text.
    *
-   * @param event The event object
+   * @param aEvent The event object
    */
-  _onCopy: function(event)
+  computedViewCopy: function si_computedViewCopy(aEvent)
   {
-    try {
-      let win = this.styleDocument.defaultView;
-      let text = win.getSelection().toString().trim();
+    let win = this.styleDocument.defaultView;
+    let text = win.getSelection().toString();
 
-      // Tidy up block headings by moving CSS property names and their values onto
-      // the same line and inserting a colon between them.
-      let textArray = text.split(/[\r\n]+/);
-      let result = "";
+    // Tidy up block headings by moving CSS property names and their values onto
+    // the same line and inserting a colon between them.
+    text = text.replace(/(.+)\r\n(.+)/g, "$1: $2;");
+    text = text.replace(/(.+)\n(.+)/g, "$1: $2;");
 
-      // Parse text array to output string.
-      if (textArray.length > 1) {
-        for (let prop of textArray) {
-          if (CssHtmlTree.propertyNames.indexOf(prop) !== -1) {
-            // Property name
-            result += prop;
-          } else {
-            // Property value
-            result += ": " + prop;
-            if (result.length > 0) {
-              result += ";\n";
-            }
-          }
-        }
-      } else {
-        // Short text fragment.
-        result = textArray[0];
-      }
+    let outerDoc = this.styleInspector.outerIFrame.ownerDocument;
+    clipboardHelper.copyString(text, outerDoc);
 
-      clipboardHelper.copyString(result, this.styleDocument);
-
-      if (event) {
-        event.preventDefault();
-      }
-    } catch(e) {
-      console.error(e);
+    if (aEvent) {
+      aEvent.preventDefault();
     }
   },
 
@@ -666,13 +490,11 @@ CssHtmlTree.prototype = {
   destroy: function CssHtmlTree_destroy()
   {
     delete this.viewedElement;
-    delete this._outputParser;
 
     // Remove event listeners
     this.includeBrowserStylesCheckbox.removeEventListener("command",
       this.includeBrowserStylesChanged);
     this.searchField.removeEventListener("command", this.filterChanged);
-    gDevTools.off("pref-changed", this._handlePrefChange);
 
     // Cancel tree construction
     if (this._createViewsProcess) {
@@ -682,31 +504,33 @@ CssHtmlTree.prototype = {
       this._refreshProcess.cancel();
     }
 
-    this.propertyContainer.removeEventListener("click", this._onClick, false);
-
     // Remove context menu
-    if (this._contextmenu) {
-      // Destroy the Select All menuitem.
-      this.menuitemCopy.removeEventListener("command", this._onCopy);
-      this.menuitemCopy = null;
+    let outerDoc = this.styleInspector.outerIFrame.ownerDocument;
+    let menu = outerDoc.querySelector("#computed-view-context-menu");
+    if (menu) {
+      // Copy selected
+      let menuitem = outerDoc.querySelector("#computed-view-copy");
+      menuitem.removeEventListener("command", this.siBoundCopy);
 
-      // Destroy the Copy menuitem.
-      this.menuitemSelectAll.removeEventListener("command", this._onSelectAll);
-      this.menuitemSelectAll = null;
+      // Copy property
+      menuitem = outerDoc.querySelector("#computed-view-copy-declaration");
+      menuitem.removeEventListener("command", this.siBoundCopyDeclaration);
 
-      // Destroy the context menu.
-      this._contextmenu.removeEventListener("popupshowing", this._contextMenuUpdate);
-      this._contextmenu.parentNode.removeChild(this._contextmenu);
-      this._contextmenu = null;
+      // Copy property name
+      menuitem = outerDoc.querySelector("#computed-view-copy-property");
+      menuitem.removeEventListener("command", this.siBoundCopyProperty);
+
+      // Copy property value
+      menuitem = outerDoc.querySelector("#computed-view-copy-property-value");
+      menuitem.removeEventListener("command", this.siBoundCopyPropertyValue);
+
+      menu.removeEventListener("popupshowing", this.siBoundMenuUpdate);
+      menu.parentNode.removeChild(menu);
     }
 
-    this.tooltip.stopTogglingOnHover(this.propertyContainer);
-    this.tooltip.destroy();
-
     // Remove bound listeners
-    this.styleDocument.removeEventListener("contextmenu", this._onContextMenu);
-    this.styleDocument.removeEventListener("copy", this._onCopy);
-    this.styleDocument.removeEventListener("mousedown", this.focusWindow);
+    this.styleDocument.removeEventListener("copy", this.siBoundCopy);
+    this.styleDocument.removeEventListener("mousedown", this.siFocusWindow);
 
     // Nodes used in templating
     delete this.root;
@@ -716,16 +540,12 @@ CssHtmlTree.prototype = {
     // The document in which we display the results (csshtmltree.xul).
     delete this.styleDocument;
 
-    for (let propView of this.propertyViews)  {
-      propView.destroy();
-    }
-
     // The element that we're inspecting, and the document that it comes from.
     delete this.propertyViews;
     delete this.styleWindow;
     delete this.styleDocument;
     delete this.styleInspector;
-  }
+  },
 };
 
 function PropertyInfo(aTree, aName) {
@@ -733,25 +553,7 @@ function PropertyInfo(aTree, aName) {
   this.name = aName;
 }
 PropertyInfo.prototype = {
-  get value() {
-    if (this.tree._computed) {
-      let value = this.tree._computed[this.name].value;
-      return value;
-    }
-  }
-};
-
-function createMenuItem(aMenu, aAttributes)
-{
-  let item = aMenu.ownerDocument.createElementNS(XUL_NS, "menuitem");
-
-  item.setAttribute("label", CssHtmlTree.l10n(aAttributes.label));
-  item.setAttribute("accesskey", CssHtmlTree.l10n(aAttributes.accesskey));
-  item.addEventListener("command", aAttributes.command);
-
-  aMenu.appendChild(item);
-
-  return item;
+  get value() this.tree._computed ? this.tree._computed[this.name].value : ""
 }
 
 /**
@@ -834,10 +636,6 @@ PropertyView.prototype = {
    */
   get visible()
   {
-    if (!this.tree.viewedElement) {
-      return false;
-    }
-
     if (!this.tree.includeBrowserStyles && !this.hasMatchedSelectors) {
       return false;
     }
@@ -853,13 +651,16 @@ PropertyView.prototype = {
 
   /**
    * Returns the className that should be assigned to the propertyView.
+   *
    * @return string
    */
   get propertyHeaderClassName()
   {
     if (this.visible) {
-      let isDark = this.tree._darkStripe = !this.tree._darkStripe;
-      return isDark ? "property-view theme-bg-darker" : "property-view";
+      this.tree._darkStripe = !this.tree._darkStripe;
+      let darkValue = this.tree._darkStripe ?
+                      "property-view theme-bg-darker" : "property-view";
+      return darkValue;
     }
     return "property-view-hidden";
   },
@@ -872,70 +673,49 @@ PropertyView.prototype = {
   get propertyContentClassName()
   {
     if (this.visible) {
-      let isDark = this.tree._darkStripe;
-      return isDark ? "property-content theme-bg-darker" : "property-content";
+      let darkValue = this.tree._darkStripe ?
+                      "property-content theme-bg-darker" : "property-content";
+      return darkValue;
     }
     return "property-content-hidden";
   },
 
-  /**
-   * Build the markup for on computed style
-   * @return Element
-   */
   buildMain: function PropertyView_buildMain()
   {
     let doc = this.tree.styleDocument;
-
-    // Build the container element
-    this.onMatchedToggle = this.onMatchedToggle.bind(this);
     this.element = doc.createElementNS(HTML_NS, "div");
     this.element.setAttribute("class", this.propertyHeaderClassName);
-    this.element.addEventListener("dblclick", this.onMatchedToggle, false);
 
-    // Make it keyboard navigable
-    this.element.setAttribute("tabindex", "0");
-    this.onKeyDown = (aEvent) => {
+    this.matchedExpander = doc.createElementNS(HTML_NS, "div");
+    this.matchedExpander.className = "expander theme-twisty";
+    this.matchedExpander.setAttribute("tabindex", "0");
+    this.matchedExpander.addEventListener("click",
+      this.matchedExpanderClick.bind(this), false);
+    this.matchedExpander.addEventListener("keydown", function(aEvent) {
       let keyEvent = Ci.nsIDOMKeyEvent;
       if (aEvent.keyCode == keyEvent.DOM_VK_F1) {
         this.mdnLinkClick();
       }
       if (aEvent.keyCode == keyEvent.DOM_VK_RETURN ||
         aEvent.keyCode == keyEvent.DOM_VK_SPACE) {
-        this.onMatchedToggle(aEvent);
+        this.matchedExpanderClick(aEvent);
       }
-    };
-    this.element.addEventListener("keydown", this.onKeyDown, false);
-
-    // Build the twisty expand/collapse
-    this.matchedExpander = doc.createElementNS(HTML_NS, "div");
-    this.matchedExpander.className = "expander theme-twisty";
-    this.matchedExpander.addEventListener("click", this.onMatchedToggle, false);
+    }.bind(this), false);
     this.element.appendChild(this.matchedExpander);
 
-    this.focusElement = () => this.element.focus();
-
-    // Build the style name element
     this.nameNode = doc.createElementNS(HTML_NS, "div");
-    this.nameNode.setAttribute("class", "property-name theme-fg-color5");
-    // Reset its tabindex attribute otherwise, if an ellipsis is applied
-    // it will be reachable via TABing
-    this.nameNode.setAttribute("tabindex", "");
-    this.nameNode.textContent = this.nameNode.title = this.name;
-    // Make it hand over the focus to the container
-    this.onFocus = () => this.element.focus();
-    this.nameNode.addEventListener("click", this.onFocus, false);
     this.element.appendChild(this.nameNode);
+    this.nameNode.setAttribute("class", "property-name theme-fg-color5");
+    this.nameNode.textContent = this.nameNode.title = this.name;
+    this.nameNode.addEventListener("click", function(aEvent) {
+      this.matchedExpander.focus();
+    }.bind(this), false);
 
-    // Build the style value element
     this.valueNode = doc.createElementNS(HTML_NS, "div");
-    this.valueNode.setAttribute("class", "property-value theme-fg-color1");
-    // Reset its tabindex attribute otherwise, if an ellipsis is applied
-    // it will be reachable via TABing
-    this.valueNode.setAttribute("tabindex", "");
-    this.valueNode.setAttribute("dir", "ltr");
-    // Make it hand over the focus to the container
-    this.valueNode.addEventListener("click", this.onFocus, false);
     this.element.appendChild(this.valueNode);
+    this.valueNode.setAttribute("class", "property-value theme-fg-color1");
+    this.valueNode.setAttribute("dir", "ltr");
+    this.valueNode.textContent = this.valueNode.title = this.value;
 
     return this.element;
   },
@@ -974,18 +754,7 @@ PropertyView.prototype = {
     }
 
     this.tree.numVisibleProperties++;
-
-    let outputParser = this.tree._outputParser;
-    let frag = outputParser.parseCssProperty(this.propertyInfo.name,
-      this.propertyInfo.value,
-      {
-        colorSwatchClass: "computedview-colorswatch",
-        urlClass: "theme-link"
-        // No need to use baseURI here as computed URIs are never relative.
-      });
-    this.valueNode.innerHTML = "";
-    this.valueNode.appendChild(frag);
-
+    this.valueNode.textContent = this.valueNode.title = this.propertyInfo.value;
     this.refreshMatchedSelectors();
   },
 
@@ -1018,7 +787,6 @@ PropertyView.prototype = {
     } else {
       this.matchedSelectorsContainer.innerHTML = "";
       this.matchedExpander.removeAttribute("open");
-      this.tree.styleInspector.inspector.emit("computed-view-property-collapsed");
       return promise.resolve(undefined);
     }
   },
@@ -1051,7 +819,7 @@ PropertyView.prototype = {
    * @param {Event} aEvent Used to determine the class name of the targets click
    * event.
    */
-  onMatchedToggle: function PropertyView_onMatchedToggle(aEvent)
+  matchedExpanderClick: function PropertyView_matchedExpanderClick(aEvent)
   {
     this.matchedExpanded = !this.matchedExpanded;
     this.refreshMatchedSelectors();
@@ -1071,28 +839,10 @@ PropertyView.prototype = {
     }
     aEvent.preventDefault();
   },
-
-  /**
-   * Destroy this property view, removing event listeners
-   */
-  destroy: function PropertyView_destroy() {
-    this.element.removeEventListener("dblclick", this.onMatchedToggle, false);
-    this.element.removeEventListener("keydown", this.onKeyDown, false);
-    this.element = null;
-
-    this.matchedExpander.removeEventListener("click", this.onMatchedToggle, false);
-    this.matchedExpander = null;
-
-    this.nameNode.removeEventListener("click", this.onFocus, false);
-    this.nameNode = null;
-
-    this.valueNode.removeEventListener("click", this.onFocus, false);
-    this.valueNode = null;
-  }
 };
 
 /**
- * A container to give us easy access to display data from a CssRule
+ * A container to view us easy access to display data from a CssRule
  * @param CssHtmlTree aTree, the owning CssHtmlTree
  * @param aSelectorInfo
  */
@@ -1106,25 +856,6 @@ function SelectorView(aTree, aSelectorInfo)
   if (rule && rule.parentStyleSheet) {
     this.sheet = rule.parentStyleSheet;
     this.source = CssLogic.shortSource(this.sheet) + ":" + rule.line;
-
-    let showOrig = Services.prefs.getBoolPref(PREF_ORIG_SOURCES);
-    if (showOrig && rule.type != ELEMENT_STYLE) {
-      rule.getOriginalLocation().then(({href, line, column}) => {
-        let newSource = CssLogic.shortSource({href: href}) + ":" + line;
-
-        // Really hacky. Setting the 'source' property won't change the
-        // link's text if the link's already been loaded via template, so we
-        // have to retroactively mutate the DOM.
-        if (newSource != this.source && this.tree.propertyContainer) {
-          let selector = '[sourcelocation="' + this.source + '"]';
-          let link = this.tree.propertyContainer.querySelector(selector);
-          if (link) {
-            link.textContent = newSource;
-          }
-        }
-        this.source = newSource;
-      });
-    }
   } else {
     this.source = CssLogic.l10n("rule.sourceElement");
     this.href = "#";
@@ -1207,23 +938,6 @@ SelectorView.prototype = {
     return this.selectorInfo.value;
   },
 
-  get outputFragment()
-  {
-    // Sadly, because this fragment is added to the template by DOM Templater
-    // we lose any events that are attached. This means that URLs will open in a
-    // new window. At some point we should fix this by stopping using the
-    // templater.
-    let outputParser = this.tree._outputParser;
-    let frag = outputParser.parseCssProperty(
-      this.selectorInfo.name,
-      this.selectorInfo.value, {
-      colorSwatchClass: "computedview-colorswatch",
-      urlClass: "theme-link",
-      baseURI: this.selectorInfo.rule.href
-    });
-    return frag;
-  },
-
   maybeOpenStyleEditor: function(aEvent)
   {
     let keyEvent = Ci.nsIDOMKeyEvent;
@@ -1246,42 +960,35 @@ SelectorView.prototype = {
   {
     let inspector = this.tree.styleInspector.inspector;
     let rule = this.selectorInfo.rule;
+    let line = rule.line || 0;
 
     // The style editor can only display stylesheets coming from content because
     // chrome stylesheets are not listed in the editor's stylesheet selector.
     //
     // If the stylesheet is a content stylesheet we send it to the style
     // editor else we display it in the view source window.
+    //
+
+    let href = rule.href;
     let sheet = rule.parentStyleSheet;
-    if (!sheet || sheet.isSystem) {
-      let contentDoc = null;
-      if (this.tree.viewedElement.isLocal_toBeDeprecated()) {
-        let rawNode = this.tree.viewedElement.rawNode();
-        if (rawNode) {
-          contentDoc = rawNode.ownerDocument;
-        }
-      }
-      let viewSourceUtils = inspector.viewSourceUtils;
-      viewSourceUtils.viewSource(rule.href, null, contentDoc, rule.line);
-      return;
-    }
-
-    let location = promise.resolve({
-      href: rule.href,
-      line: rule.line
-    });
-    if (rule.href && Services.prefs.getBoolPref(PREF_ORIG_SOURCES)) {
-      location = rule.getOriginalLocation();
-    }
-
-    location.then(({href, line}) => {
+    if (sheet && href && !sheet.isSystem) {
       let target = inspector.target;
       if (ToolDefinitions.styleEditor.isTargetSupported(target)) {
         gDevTools.showToolbox(target, "styleeditor").then(function(toolbox) {
           toolbox.getCurrentPanel().selectStyleSheet(href, line);
         });
       }
-    });
+      return;
+    }
+
+    let contentDoc = null;
+    let rawNode = this.tree.viewedElement.rawNode();
+    if (rawNode) {
+      contentDoc = rawNode.ownerDocument;
+    }
+
+    let viewSourceUtils = inspector.viewSourceUtils;
+    viewSourceUtils.viewSource(href, null, contentDoc, line);
   }
 };
 

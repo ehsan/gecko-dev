@@ -16,66 +16,39 @@ class nsRegion;
 class nsDisplayListBuilder;
 class nsDisplayItem;
 class nsFontMetrics;
+class nsClientRectList;
 class nsFontFaceList;
 class nsIImageLoadingContent;
 class nsStyleContext;
 class nsBlockFrame;
-class gfxASurface;
 class gfxDrawable;
 class nsView;
 class imgIContainer;
-class nsIFrame;
-class nsStyleCoord;
-class nsStyleCorners;
-class gfxContext;
-class nsPIDOMWindow;
-class imgIRequest;
-class nsIDocument;
-struct nsStyleFont;
-struct nsStyleImageOrientation;
-struct nsOverflowAreas;
 
 #include "mozilla/MemoryReporting.h"
 #include "nsChangeHint.h"
 #include "nsAutoPtr.h"
-#include "nsFrameList.h"
+#include "nsIFrame.h"
 #include "nsThreadUtils.h"
+#include "nsIPresShell.h"
 #include "nsIPrincipal.h"
-#include "GraphicsFilter.h"
+#include "gfxPattern.h"
 #include "nsCSSPseudoElements.h"
 #include "FrameMetrics.h"
 #include "gfx3DMatrix.h"
 #include "nsIWidget.h"
-#include "nsCSSProperty.h"
-#include "nsStyleCoord.h"
-#include "nsStyleConsts.h"
-#include "nsGkAtoms.h"
-#include "nsRuleNode.h"
-#include "mozilla/gfx/2D.h"
 
 #include <limits>
 #include <algorithm>
 
 namespace mozilla {
 class SVGImageContext;
-struct IntrinsicSize;
-struct ContainerLayerParameters;
 namespace dom {
-class DOMRectList;
 class Element;
 class HTMLImageElement;
 class HTMLCanvasElement;
 class HTMLVideoElement;
 } // namespace dom
-namespace layers {
-class Layer;
-}
-
-template <class AnimationsOrTransitions>
-extern AnimationsOrTransitions* HasAnimationOrTransition(nsIContent* aContent,
-                                                         nsIAtom* aAnimationProperty,
-                                                         nsCSSProperty aProperty);
-
 } // namespace mozilla
 
 /**
@@ -85,12 +58,7 @@ extern AnimationsOrTransitions* HasAnimationOrTransition(nsIContent* aContent,
  */
 class nsLayoutUtils
 {
-  typedef ::GraphicsFilter GraphicsFilter;
-  typedef mozilla::dom::DOMRectList DOMRectList;
-  typedef mozilla::layers::Layer Layer;
-  typedef mozilla::ContainerLayerParameters ContainerLayerParameters;
-  typedef mozilla::gfx::SourceSurface SourceSurface;
-  typedef mozilla::gfx::DrawTarget DrawTarget;
+  typedef gfxPattern::GraphicsFilter GraphicsFilter;
 
 public:
   typedef mozilla::layers::FrameMetrics FrameMetrics;
@@ -100,13 +68,14 @@ public:
    * Finds previously assigned ViewID for the given content element, if any.
    * Returns whether a ViewID was previously assigned.
    */
-  static bool FindIDFor(const nsIContent* aContent, ViewID* aOutViewId);
+  static bool FindIDFor(nsIContent* aContent, ViewID* aOutViewId);
 
   /**
    * Finds previously assigned or generates a unique ViewID for the given
-   * content element.
+   * content element. If aRoot is true, the special ID
+   * FrameMetrics::ROOT_SCROLL_ID is used.
    */
-  static ViewID FindOrCreateIDFor(nsIContent* aContent);
+  static ViewID FindOrCreateIDFor(nsIContent* aContent, bool aRoot = false);
 
   /**
    * Find content for given ID.
@@ -121,18 +90,18 @@ public:
   /**
    * Get display port for the given element.
    */
-  static bool GetDisplayPort(nsIContent* aContent, nsRect *aResult = nullptr);
+  static bool GetDisplayPort(nsIContent* aContent, nsRect *aResult);
 
   /**
    * Get the critical display port for the given element.
    */
-  static bool GetCriticalDisplayPort(nsIContent* aContent, nsRect* aResult = nullptr);
+  static bool GetCriticalDisplayPort(nsIContent* aContent, nsRect* aResult);
 
   /**
    * Use heuristics to figure out the child list that
    * aChildFrame is currently in.
    */
-  static mozilla::layout::FrameChildListID GetChildListNameFor(nsIFrame* aChildFrame);
+  static nsIFrame::ChildListID GetChildListNameFor(nsIFrame* aChildFrame);
 
   /**
    * GetBeforeFrame returns the outermost :before frame of the given frame, if
@@ -277,15 +246,6 @@ public:
     return DoCompareTreePosition(aFrame1, aFrame2, -1, 1, aCommonAncestor);
   }
 
-  static int32_t CompareTreePosition(nsIFrame* aFrame1,
-                                     nsIFrame* aFrame2,
-                                     nsTArray<nsIFrame*>& aFrame2Ancestors,
-                                     nsIFrame* aCommonAncestor = nullptr)
-  {
-    return DoCompareTreePosition(aFrame1, aFrame2, aFrame2Ancestors,
-                                 -1, 1, aCommonAncestor);
-  }
-
   /*
    * More generic version of |CompareTreePosition|.  |aIf1Ancestor|
    * gives the value to return when 1 is an ancestor of 2, and likewise
@@ -298,22 +258,28 @@ public:
                                        int32_t aIf2Ancestor,
                                        nsIFrame* aCommonAncestor = nullptr);
 
-  static nsIFrame* FillAncestors(nsIFrame* aFrame,
-                                 nsIFrame* aStopAtAncestor,
-                                 nsTArray<nsIFrame*>* aAncestors);
-
-  static int32_t DoCompareTreePosition(nsIFrame* aFrame1,
-                                       nsIFrame* aFrame2,
-                                       nsTArray<nsIFrame*>& aFrame2Ancestors,
-                                       int32_t aIf1Ancestor,
-                                       int32_t aIf2Ancestor,
-                                       nsIFrame* aCommonAncestor);
+  /**
+   * Sorts the given nsFrameList, so that for every two adjacent frames in the
+   * list, the former is less than or equal to the latter, according to the
+   * templated IsLessThanOrEqual method.
+   *
+   * Note: this method uses a stable merge-sort algorithm.
+   */
+  template<bool IsLessThanOrEqual(nsIFrame*, nsIFrame*)>
+  static void SortFrameList(nsFrameList& aFrameList);
 
   /**
-   * LastContinuationWithChild gets the last continuation in aFrame's chain
+   * Returns true if the given frame list is already sorted, according to the
+   * templated IsLessThanOrEqual function.
+   */
+  template<bool IsLessThanOrEqual(nsIFrame*, nsIFrame*)>
+  static bool IsFrameListSorted(nsFrameList& aFrameList);
+
+  /**
+   * GetLastContinuationWithChild gets the last continuation in aFrame's chain
    * that has a child, or the first continuation if the frame has no children.
    */
-  static nsIFrame* LastContinuationWithChild(nsIFrame* aFrame);
+  static nsIFrame* GetLastContinuationWithChild(nsIFrame* aFrame);
 
   /**
    * GetLastSibling simply finds the last sibling of aFrame, or returns nullptr if
@@ -375,43 +341,27 @@ public:
   static bool IsAncestorFrameCrossDoc(const nsIFrame* aAncestorFrame, const nsIFrame* aFrame,
                                         const nsIFrame* aCommonAncestor = nullptr);
 
-  static void SetFixedPositionLayerData(Layer* aLayer, const nsIFrame* aViewportFrame,
-                                        nsSize aViewportSize,
-                                        const nsIFrame* aFixedPosFrame,
-                                        nsPresContext* aPresContext,
-                                        const ContainerLayerParameters& aContainerParameters);
+  /**
+   * Finds the nearest ancestor frame that is the root of an "actively
+   * scrolled" frame subtree, or aStopAtAncestor if there is no
+   * such ancestor before we reach aStopAtAncestor in the ancestor chain.
+   * We expect frames with the same "active scrolled root" to be
+   * scrolled together, so we'll place them in the same ThebesLayer.
+   */
+  static nsIFrame* GetActiveScrolledRootFor(nsIFrame* aFrame,
+                                            const nsIFrame* aStopAtAncestor);
+
+  static nsIFrame* GetActiveScrolledRootFor(nsDisplayItem* aItem,
+                                            nsDisplayListBuilder* aBuilder,
+                                            bool* aShouldFixToViewport = nullptr);
 
   /**
-   * Return true if aFrame is a fixed-pos frame and is a child of a viewport
-   * which has a displayport. These frames get special treatment from the compositor.
-   * aDisplayPort, if non-null, is set to the display port rectangle (relative to
-   * the viewport).
+   * Returns true if aActiveScrolledRoot is in a content document,
+   * and its topmost content document ancestor has a root scroll frame with
+   * a displayport set, and aActiveScrolledRoot is scrolled by that scrollframe.
    */
-  static bool IsFixedPosFrameInDisplayPort(const nsIFrame* aFrame,
-                                           nsRect* aDisplayPort = nullptr);
-
-  /**
-   * Finds the nearest ancestor frame that is considered to have (or will have)
-   * "animated geometry". For example the scrolled frames of scrollframes which
-   * are actively being scrolled fall into this category. Frames with certain
-   * CSS properties that are being animated (e.g. 'left'/'top' etc) are also
-   * placed in this category. Frames with animated CSS transforms are not
-   * put in this category because they can be handled directly by
-   * nsDisplayTransform.
-   * Stop searching at aStopAtAncestor if there is no such ancestor before it
-   * in the ancestor chain.
-   * Frames with different active geometry roots are in different ThebesLayers,
-   * so that we can animate the geometry root by changing its transform (either
-   * on the main thread or in the compositor).
-   * This function is idempotent: a frame returned by GetAnimatedGeometryRootFor
-   * is always returned again if you pass it to GetAnimatedGeometryRootFor.
-   */
-  static nsIFrame* GetAnimatedGeometryRootFor(nsIFrame* aFrame,
-                                              const nsIFrame* aStopAtAncestor = nullptr);
-
-  static nsIFrame* GetAnimatedGeometryRootFor(nsDisplayItem* aItem,
-                                              nsDisplayListBuilder* aBuilder);
-
+  static bool IsScrolledByRootContentDocumentDisplayportScrolling(const nsIFrame* aActiveScrolledRoot,
+                                                                  nsDisplayListBuilder* aBuilder);
 
   /**
     * GetScrollableFrameFor returns the scrollable frame for a scrolled frame
@@ -491,7 +441,7 @@ public:
 
   /**
    * Get the coordinates of a given DOM mouse event, relative to a given
-   * frame. Works only for DOM events generated by WidgetGUIEvents.
+   * frame. Works only for DOM events generated by nsGUIEvents.
    * @param aDOMEvent the event
    * @param aFrame the frame to make coordinates relative to
    * @return the point, or (NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE) if
@@ -510,9 +460,8 @@ public:
    * for some reason the coordinates for the mouse are not known (e.g.,
    * the event is not a GUI event).
    */
-  static nsPoint GetEventCoordinatesRelativeTo(
-                   const mozilla::WidgetEvent* aEvent,
-                   nsIFrame* aFrame);
+  static nsPoint GetEventCoordinatesRelativeTo(const nsEvent* aEvent,
+                                               nsIFrame* aFrame);
 
   /**
    * Get the coordinates of a given point relative to an event and a
@@ -524,10 +473,9 @@ public:
    * for some reason the coordinates for the mouse are not known (e.g.,
    * the event is not a GUI event).
    */
-  static nsPoint GetEventCoordinatesRelativeTo(
-                   const mozilla::WidgetEvent* aEvent,
-                   const nsIntPoint aPoint,
-                   nsIFrame* aFrame);
+  static nsPoint GetEventCoordinatesRelativeTo(const nsEvent* aEvent,
+                                               const nsIntPoint aPoint,
+                                               nsIFrame* aFrame);
 
   /**
    * Get the coordinates of a given point relative to a widget and a
@@ -550,9 +498,8 @@ public:
    * @return        Null, if there is no popup frame at the point, otherwise,
    *                returns top-most popup frame at the point.
    */
-  static nsIFrame* GetPopupFrameForEventCoordinates(
-                     nsPresContext* aPresContext,
-                     const mozilla::WidgetEvent* aEvent);
+  static nsIFrame* GetPopupFrameForEventCoordinates(nsPresContext* aPresContext,
+                                                    const nsEvent* aEvent);
 
   /**
    * Translate from widget coordinates to the view's coordinates
@@ -607,11 +554,7 @@ public:
      * When set, clipping due to the root scroll frame (and any other viewport-
      * related clipping) is ignored.
      */
-    IGNORE_ROOT_SCROLL_FRAME = 0x02,
-    /**
-     * When set, return only content in the same document as aFrame.
-     */
-    IGNORE_CROSS_DOC = 0x04
+    IGNORE_ROOT_SCROLL_FRAME = 0x02
   };
 
   /**
@@ -875,27 +818,21 @@ public:
   };
 
   struct RectListBuilder : public RectCallback {
-    DOMRectList* mRectList;
+    nsClientRectList* mRectList;
 
-    RectListBuilder(DOMRectList* aList);
+    RectListBuilder(nsClientRectList* aList);
     virtual void AddRect(const nsRect& aRect);
   };
 
   static nsIFrame* GetContainingBlockForClientRect(nsIFrame* aFrame);
 
   enum {
-    RECTS_ACCOUNT_FOR_TRANSFORMS = 0x01,
-    // Two bits for specifying which box type to use.
-    // With neither bit set (default), use the border box.
-    RECTS_USE_CONTENT_BOX = 0x02,
-    RECTS_USE_PADDING_BOX = 0x04,
-    RECTS_USE_MARGIN_BOX = 0x06, // both bits set
-    RECTS_WHICH_BOX_MASK = 0x06 // bitmask for these two bits
+    RECTS_ACCOUNT_FOR_TRANSFORMS = 0x01
   };
   /**
-   * Collect all CSS boxes (content, padding, border, or margin) associated
-   * with aFrame and its continuations, "drilling down" through outer table
-   * frames and some anonymous blocks since they're not real CSS boxes.
+   * Collect all CSS border-boxes associated with aFrame and its
+   * continuations, "drilling down" through outer table frames and
+   * some anonymous blocks since they're not real CSS boxes.
    * The boxes are positioned relative to aRelativeTo (taking scrolling
    * into account) and passed to the callback in frame-tree order.
    * If aFrame is null, no boxes are returned.
@@ -903,9 +840,6 @@ public:
    * If aFlags includes RECTS_ACCOUNT_FOR_TRANSFORMS, then when converting
    * the boxes into aRelativeTo coordinates, transforms (including CSS
    * and SVG transforms) are taken into account.
-   * If aFlags includes one of RECTS_USE_CONTENT_BOX, RECTS_USE_PADDING_BOX,
-   * or RECTS_USE_MARGIN_BOX, the corresponding type of box is used.
-   * Otherwise (by default), the border box is used.
    */
   static void GetAllInFlowRects(nsIFrame* aFrame, nsIFrame* aRelativeTo,
                                 RectCallback* aCallback, uint32_t aFlags = 0);
@@ -916,9 +850,6 @@ public:
    * If aFlags includes RECTS_ACCOUNT_FOR_TRANSFORMS, then when converting
    * the boxes into aRelativeTo coordinates, transforms (including CSS
    * and SVG transforms) are taken into account.
-   * If aFlags includes one of RECTS_USE_CONTENT_BOX, RECTS_USE_PADDING_BOX,
-   * or RECTS_USE_MARGIN_BOX, the corresponding type of box is used.
-   * Otherwise (by default), the border box is used.
    */
   static nsRect GetAllInFlowRectsUnion(nsIFrame* aFrame, nsIFrame* aRelativeTo,
                                        uint32_t aFlags = 0);
@@ -984,7 +915,9 @@ public:
   /*
    * Whether the frame is an nsBlockFrame which is not a wrapper block.
    */
-  static bool IsNonWrapperBlock(nsIFrame* aFrame);
+  static bool IsNonWrapperBlock(nsIFrame* aFrame) {
+    return GetAsBlock(aFrame) && !aFrame->IsBlockWrapper();
+  }
 
   /**
    * If aFrame is an out of flow frame, return its placeholder, otherwise
@@ -1009,14 +942,7 @@ public:
    * containing aFrame.
    */
   static nsIFrame*
-  FirstContinuationOrSpecialSibling(nsIFrame *aFrame);
-
-  /**
-   * Is FirstContinuationOrSpecialSibling(aFrame) going to return
-   * aFrame?
-   */
-  static bool
-  IsFirstContinuationOrSpecialSibling(nsIFrame *aFrame);
+  GetFirstContinuationOrSpecialSibling(nsIFrame *aFrame);
 
   /**
    * Check whether aFrame is a part of the scrollbar or scrollcorner of
@@ -1034,13 +960,9 @@ public:
    * and margin.
    */
   enum IntrinsicWidthType { MIN_WIDTH, PREF_WIDTH };
-  enum {
-    IGNORE_PADDING = 0x01
-  };
   static nscoord IntrinsicForContainer(nsRenderingContext* aRenderingContext,
                                        nsIFrame* aFrame,
-                                       IntrinsicWidthType aType,
-                                       uint32_t aFlags = 0);
+                                       IntrinsicWidthType aType);
 
   /*
    * Convert nsStyleCoord to nscoord when percentages depend on the
@@ -1091,7 +1013,7 @@ public:
                                     nscoord aContentEdgeToBoxSizingBoxEdge,
                                     const nsStyleCoord& aCoord)
   {
-    MOZ_ASSERT(aContainingBlockHeight != nscoord_MAX || !aCoord.HasPercent(),
+    MOZ_ASSERT(aContainingBlockHeight != NS_AUTOHEIGHT || !aCoord.HasPercent(),
                "caller must deal with %% of unconstrained height");
     MOZ_ASSERT(aCoord.IsCoordPercentCalcUnit());
 
@@ -1106,7 +1028,7 @@ public:
     nsStyleUnit unit = aCoord.GetUnit();
     return unit == eStyleUnit_Auto ||  // only for 'height'
            unit == eStyleUnit_None ||  // only for 'max-height'
-           (aCBHeight == nscoord_MAX && aCoord.HasPercent());
+           (aCBHeight == NS_AUTOHEIGHT && aCoord.HasPercent());
   }
 
   static bool IsPaddingZero(const nsStyleCoord &aCoord)
@@ -1139,7 +1061,7 @@ public:
    */
   static nsSize ComputeSizeWithIntrinsicDimensions(
                     nsRenderingContext* aRenderingContext, nsIFrame* aFrame,
-                    const mozilla::IntrinsicSize& aIntrinsicSize,
+                    const nsIFrame::IntrinsicSize& aIntrinsicSize,
                     nsSize aIntrinsicRatio, nsSize aCBSize,
                     nsSize aMargin, nsSize aBorder, nsSize aPadding);
 
@@ -1168,12 +1090,12 @@ public:
   static gfxFloat GetSnappedBaselineY(nsIFrame* aFrame, gfxContext* aContext,
                                       nscoord aY, nscoord aAscent);
 
-  static void DrawString(const nsIFrame*       aFrame,
-                         nsRenderingContext*   aContext,
-                         const PRUnichar*      aString,
-                         int32_t               aLength,
-                         nsPoint               aPoint,
-                         nsStyleContext*       aStyleContext = nullptr);
+  static void DrawString(const nsIFrame*      aFrame,
+                         nsRenderingContext* aContext,
+                         const PRUnichar*     aString,
+                         int32_t              aLength,
+                         nsPoint              aPoint,
+                         uint8_t              aDirection = NS_STYLE_DIRECTION_INHERIT);
 
   static nscoord GetStringWidth(const nsIFrame*      aFrame,
                                 nsRenderingContext* aContext,
@@ -1447,18 +1369,6 @@ public:
                                          const nsRect& aDestArea);
 
   /**
-   * Given an image container and an orientation, returns an image container
-   * that contains the same image, reoriented appropriately. May return the
-   * original image container if no changes are needed.
-   *
-   * @param aContainer   The image container to apply the orientation to.
-   * @param aOrientation The desired orientation.
-   */
-  static already_AddRefed<imgIContainer>
-  OrientImage(imgIContainer* aContainer,
-              const nsStyleImageOrientation& aOrientation);
-
-  /**
    * Determine if any corner radius is of nonzero size
    *   @param aCorners the |nsStyleCorners| object to check
    *   @return true unless all the coordinates are 0%, 0 or null.
@@ -1540,6 +1450,26 @@ public:
   static bool IsReallyFixedPos(nsIFrame* aFrame);
 
   /**
+   * Return true if aFrame is in an {ib} split and is NOT one of the
+   * continuations of the first inline in it.
+   */
+  static bool FrameIsNonFirstInIBSplit(const nsIFrame* aFrame) {
+    return (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL) &&
+      aFrame->GetFirstContinuation()->
+        Properties().Get(nsIFrame::IBSplitSpecialPrevSibling());
+  }
+
+  /**
+   * Return true if aFrame is in an {ib} split and is NOT one of the
+   * continuations of the last inline in it.
+   */
+  static bool FrameIsNonLastInIBSplit(const nsIFrame* aFrame) {
+    return (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL) &&
+      aFrame->GetFirstContinuation()->
+        Properties().Get(nsIFrame::IBSplitSpecialSibling());
+  }
+
+  /**
    * Obtain a gfxASurface from the given DOM element, if possible.
    * This obtains the most natural surface from the element; that
    * is, the one that can be obtained with the fewest conversions.
@@ -1558,26 +1488,28 @@ public:
    */
 
   enum {
+    /* Always create a new surface for the result */
+    SFE_WANT_NEW_SURFACE   = 1 << 0,
     /* When creating a new surface, create an image surface */
-    SFE_WANT_IMAGE_SURFACE = 1 << 0,
+    SFE_WANT_IMAGE_SURFACE = 1 << 1,
     /* Whether to extract the first frame (as opposed to the
        current frame) in the case that the element is an image. */
-    SFE_WANT_FIRST_FRAME = 1 << 1,
+    SFE_WANT_FIRST_FRAME = 1 << 2,
     /* Whether we should skip colorspace/gamma conversion */
-    SFE_NO_COLORSPACE_CONVERSION = 1 << 2,
+    SFE_NO_COLORSPACE_CONVERSION = 1 << 3,
     /* Whether we should skip premultiplication -- the resulting
        image will always be an image surface, and must not be given to
        Thebes for compositing! */
-    SFE_NO_PREMULTIPLY_ALPHA = 1 << 3
+    SFE_NO_PREMULTIPLY_ALPHA = 1 << 4
   };
 
   struct SurfaceFromElementResult {
-    SurfaceFromElementResult();
+    SurfaceFromElementResult() :
+      // Use safe default values here
+      mIsWriteOnly(true), mIsStillLoading(false), mCORSUsed(false) {}
 
-    /* mSurface will contain the resulting surface, or will be nullptr on error */
+    /* mSurface will contain the resulting surface, or will be NULL on error */
     nsRefPtr<gfxASurface> mSurface;
-    mozilla::RefPtr<SourceSurface> mSourceSurface;
-
     /* The size of the surface */
     gfxIntSize mSize;
     /* The principal associated with the element whose surface was returned.
@@ -1595,29 +1527,24 @@ public:
   };
 
   static SurfaceFromElementResult SurfaceFromElement(mozilla::dom::Element *aElement,
-                                                     uint32_t aSurfaceFlags = 0,
-                                                     DrawTarget *aTarget = nullptr);
+                                                     uint32_t aSurfaceFlags = 0);
   static SurfaceFromElementResult SurfaceFromElement(nsIImageLoadingContent *aElement,
-                                                     uint32_t aSurfaceFlags = 0,
-                                                     DrawTarget *aTarget = nullptr);
+                                                     uint32_t aSurfaceFlags = 0);
   // Need an HTMLImageElement overload, because otherwise the
   // nsIImageLoadingContent and mozilla::dom::Element overloads are ambiguous
   // for HTMLImageElement.
   static SurfaceFromElementResult SurfaceFromElement(mozilla::dom::HTMLImageElement *aElement,
-                                                     uint32_t aSurfaceFlags = 0,
-                                                     DrawTarget *aTarget = nullptr);
+                                                     uint32_t aSurfaceFlags = 0);
   static SurfaceFromElementResult SurfaceFromElement(mozilla::dom::HTMLCanvasElement *aElement,
-                                                     uint32_t aSurfaceFlags = 0,
-                                                     DrawTarget *aTarget = nullptr);
+                                                     uint32_t aSurfaceFlags = 0);
   static SurfaceFromElementResult SurfaceFromElement(mozilla::dom::HTMLVideoElement *aElement,
-                                                     uint32_t aSurfaceFlags = 0,
-                                                     DrawTarget *aTarget = nullptr);
+                                                     uint32_t aSurfaceFlags = 0);
 
   /**
    * When the document is editable by contenteditable attribute of its root
    * content or body content.
    *
-   * Be aware, this returns nullptr if it's in designMode.
+   * Be aware, this returns NULL if it's in designMode.
    *
    * For example:
    *
@@ -1631,7 +1558,7 @@ public:
    *          created by script with XHTML.
    *
    *  <body><p contenteditable="true"></p></body>
-   *    returns nullptr because <body> isn't editable.
+   *    returns NULL because <body> isn't editable.
    */
   static nsIContent*
     GetEditableRootContentByContentEditable(nsIDocument* aDocument);
@@ -1640,7 +1567,11 @@ public:
    * Returns true if the passed in prescontext needs the dark grey background
    * that goes behind the page of a print preview presentation.
    */
-  static bool NeedsPrintPreviewBackground(nsPresContext* aPresContext);
+  static bool NeedsPrintPreviewBackground(nsPresContext* aPresContext) {
+    return aPresContext->IsRootPaginatedDocument() &&
+      (aPresContext->Type() == nsPresContext::eContext_PrintPreview ||
+       aPresContext->Type() == nsPresContext::eContext_PageLayout);
+  }
 
   /**
    * Adds all font faces used in the frame tree starting from aFrame
@@ -1684,12 +1615,6 @@ public:
                                          nsCSSProperty aProperty);
 
   /**
-   * Returns true if the content node has animations or transitions for the
-   * property.
-   */
-  static bool HasAnimations(nsIContent* aContent, nsCSSProperty aProperty);
-
-  /**
    * Checks if off-main-thread animations are enabled.
    */
   static bool AreAsyncAnimationsEnabled();
@@ -1729,30 +1654,20 @@ public:
   static bool CSSFiltersEnabled();
 
   /**
-   * Checks whether support for the CSS-wide "unset" value is enabled.
-   */
-  static bool UnsetValueEnabled();
-
-  /**
-   * Checks whether support for the CSS text-align (and -moz-text-align-last)
-   * 'true' value is enabled.
-   */
-  static bool IsTextAlignTrueValueEnabled();
-
-  /**
-   * Checks if CSS variables are currently enabled.
-   */
-  static bool CSSVariablesEnabled()
-  {
-    return sCSSVariablesEnabled;
-  }
-
-  /**
    * Unions the overflow areas of all non-popup children of aFrame with
    * aOverflowAreas.
    */
   static void UnionChildOverflow(nsIFrame* aFrame,
                                  nsOverflowAreas& aOverflowAreas);
+
+  /**
+   * Return whether this is a frame whose width is used when computing
+   * the font size inflation of its descendants.
+   */
+  static bool IsContainerForFontSizeInflation(const nsIFrame *aFrame)
+  {
+    return aFrame->GetStateBits() & NS_FRAME_FONT_INFLATION_CONTAINER;
+  }
 
   /**
    * Return the font size inflation *ratio* for a given frame.  This is
@@ -1957,15 +1872,14 @@ public:
   AssertTreeOnlyEmptyNextInFlows(nsIFrame *aSubtreeRoot);
 #endif
 
-  /**
-   * Determine if aImageFrame (which is an nsImageFrame, nsImageControlFrame, or
-   * nsSVGImageFrame) is visible or close to being visible via scrolling and
-   * update the presshell with this knowledge.
-   */
-  static void
-  UpdateImageVisibilityForFrame(nsIFrame* aImageFrame);
-
 private:
+  // Helper-functions for SortFrameList():
+  template<bool IsLessThanOrEqual(nsIFrame*, nsIFrame*)>
+  static nsIFrame* SortedMerge(nsIFrame *aLeft, nsIFrame *aRight);
+
+  template<bool IsLessThanOrEqual(nsIFrame*, nsIFrame*)>
+  static nsIFrame* MergeSort(nsIFrame *aSource);
+
   static uint32_t sFontSizeInflationEmPerLine;
   static uint32_t sFontSizeInflationMinTwips;
   static uint32_t sFontSizeInflationLineThreshold;
@@ -1974,8 +1888,139 @@ private:
   static bool sFontSizeInflationForceEnabled;
   static bool sFontSizeInflationDisabledInMasterProcess;
   static bool sInvalidationDebuggingIsEnabled;
-  static bool sCSSVariablesEnabled;
 };
+
+// Helper-functions for nsLayoutUtils::SortFrameList()
+// ---------------------------------------------------
+
+template<bool IsLessThanOrEqual(nsIFrame*, nsIFrame*)>
+/* static */ nsIFrame*
+nsLayoutUtils::SortedMerge(nsIFrame *aLeft, nsIFrame *aRight)
+{
+  NS_PRECONDITION(aLeft && aRight, "SortedMerge must have non-empty lists");
+
+  nsIFrame *result;
+  // Unroll first iteration to avoid null-check 'result' inside the loop.
+  if (IsLessThanOrEqual(aLeft, aRight)) {
+    result = aLeft;
+    aLeft = aLeft->GetNextSibling();
+    if (!aLeft) {
+      result->SetNextSibling(aRight);
+      return result;
+    }
+  }
+  else {
+    result = aRight;
+    aRight = aRight->GetNextSibling();
+    if (!aRight) {
+      result->SetNextSibling(aLeft);
+      return result;
+    }
+  }
+
+  nsIFrame *last = result;
+  for (;;) {
+    if (IsLessThanOrEqual(aLeft, aRight)) {
+      last->SetNextSibling(aLeft);
+      last = aLeft;
+      aLeft = aLeft->GetNextSibling();
+      if (!aLeft) {
+        last->SetNextSibling(aRight);
+        return result;
+      }
+    }
+    else {
+      last->SetNextSibling(aRight);
+      last = aRight;
+      aRight = aRight->GetNextSibling();
+      if (!aRight) {
+        last->SetNextSibling(aLeft);
+        return result;
+      }
+    }
+  }
+}
+
+template<bool IsLessThanOrEqual(nsIFrame*, nsIFrame*)>
+/* static */ nsIFrame*
+nsLayoutUtils::MergeSort(nsIFrame *aSource)
+{
+  NS_PRECONDITION(aSource, "MergeSort null arg");
+
+  nsIFrame *sorted[32] = { nullptr };
+  nsIFrame **fill = &sorted[0];
+  nsIFrame **left;
+  nsIFrame *rest = aSource;
+
+  do {
+    nsIFrame *current = rest;
+    rest = rest->GetNextSibling();
+    current->SetNextSibling(nullptr);
+
+    // Merge it with sorted[0] if present; then merge the result with sorted[1] etc.
+    // sorted[0] is a list of length 1 (or nullptr).
+    // sorted[1] is a list of length 2 (or nullptr).
+    // sorted[2] is a list of length 4 (or nullptr). etc.
+    for (left = &sorted[0]; left != fill && *left; ++left) {
+      current = SortedMerge<IsLessThanOrEqual>(*left, current);
+      *left = nullptr;
+    }
+
+    // Fill the empty slot that we couldn't merge with the last result.
+    *left = current;
+
+    if (left == fill)
+      ++fill;
+  } while (rest);
+
+  // Collect and merge the results.
+  nsIFrame *result = nullptr;
+  for (left = &sorted[0]; left != fill; ++left) {
+    if (*left) {
+      result = result ? SortedMerge<IsLessThanOrEqual>(*left, result) : *left;
+    }
+  }
+  return result;
+}
+
+template<bool IsLessThanOrEqual(nsIFrame*, nsIFrame*)>
+/* static */ void
+nsLayoutUtils::SortFrameList(nsFrameList& aFrameList)
+{
+  nsIFrame* head = MergeSort<IsLessThanOrEqual>(aFrameList.FirstChild());
+  aFrameList = nsFrameList(head, GetLastSibling(head));
+  MOZ_ASSERT(IsFrameListSorted<IsLessThanOrEqual>(aFrameList),
+             "After we sort a frame list, it should be in sorted order...");
+}
+
+template<bool IsLessThanOrEqual(nsIFrame*, nsIFrame*)>
+/* static */ bool
+nsLayoutUtils::IsFrameListSorted(nsFrameList& aFrameList)
+{
+  if (aFrameList.IsEmpty()) {
+    // empty lists are trivially sorted.
+    return true;
+  }
+
+  // We'll walk through the list with two iterators, one trailing behind the
+  // other. The list is sorted IFF trailingIter <= iter, across the whole list.
+  nsFrameList::Enumerator trailingIter(aFrameList);
+  nsFrameList::Enumerator iter(aFrameList);
+  iter.Next(); // Skip |iter| past first frame. (List is nonempty, so we can.)
+
+  // Now, advance the iterators in parallel, comparing each adjacent pair.
+  while (!iter.AtEnd()) {
+    MOZ_ASSERT(!trailingIter.AtEnd(), "trailing iter shouldn't finish first");
+    if (!IsLessThanOrEqual(trailingIter.get(), iter.get())) {
+      return false;
+    }
+    trailingIter.Next();
+    iter.Next();
+  }
+
+  // We made it to the end without returning early, so the list is sorted.
+  return true;
+}
 
 template<typename PointType, typename RectType, typename CoordType>
 /* static */ bool
@@ -2029,9 +2074,28 @@ namespace mozilla {
      */
     class AutoMaybeDisableFontInflation {
     public:
-      AutoMaybeDisableFontInflation(nsIFrame *aFrame);
+      AutoMaybeDisableFontInflation(nsIFrame *aFrame)
+      {
+        // FIXME: Now that inflation calculations are based on the flow
+        // root's NCA's (nearest common ancestor of its inflatable
+        // descendants) width, we could probably disable inflation in
+        // fewer cases than we currently do.
+        if (nsLayoutUtils::IsContainerForFontSizeInflation(aFrame)) {
+          mPresContext = aFrame->PresContext();
+          mOldValue = mPresContext->mInflationDisabledForShrinkWrap;
+          mPresContext->mInflationDisabledForShrinkWrap = true;
+        } else {
+          // indicate we have nothing to restore
+          mPresContext = nullptr;
+        }
+      }
 
-      ~AutoMaybeDisableFontInflation();
+      ~AutoMaybeDisableFontInflation()
+      {
+        if (mPresContext) {
+          mPresContext->mInflationDisabledForShrinkWrap = mOldValue;
+        }
+      }
     private:
       nsPresContext *mPresContext;
       bool mOldValue;
@@ -2064,6 +2128,20 @@ public:
 
   nsCOMPtr<nsIContent> mContent;
   nsCOMPtr<nsIAtom> mAttrName;
+};
+
+class nsReflowFrameRunnable : public nsRunnable
+{
+public:
+  nsReflowFrameRunnable(nsIFrame* aFrame,
+                        nsIPresShell::IntrinsicDirty aIntrinsicDirty,
+                        nsFrameState aBitToAdd);
+
+  NS_DECL_NSIRUNNABLE
+
+  nsWeakFrame mWeakFrame;
+  nsIPresShell::IntrinsicDirty mIntrinsicDirty;
+  nsFrameState mBitToAdd;
 };
 
 #endif // nsLayoutUtils_h__

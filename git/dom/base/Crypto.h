@@ -41,10 +41,10 @@ public:
 		  ErrorResult& aRv);
 
 #ifndef MOZ_DISABLE_CRYPTOLEGACY
-  virtual bool EnableSmartCardEvents();
-  virtual void SetEnableSmartCardEvents(bool aEnable, ErrorResult& aRv);
+  virtual bool EnableSmartCardEvents() = 0;
+  virtual void SetEnableSmartCardEvents(bool aEnable, ErrorResult& aRv) = 0;
 
-  virtual void GetVersion(nsString& aVersion);
+  virtual void GetVersion(nsString& aVersion) = 0;
 
   virtual already_AddRefed<nsIDOMCRMFObject>
   GenerateCRMFRequest(JSContext* aContext,
@@ -54,29 +54,29 @@ public:
                       const nsCString& aEaCert,
                       const nsCString& aJsCallback,
                       const Sequence<JS::Value>& aArgs,
-                      ErrorResult& aRv);
+                      ErrorResult& aRv) = 0;
 
   virtual void ImportUserCertificates(const nsAString& aNickname,
                                       const nsAString& aCmmfResponse,
                                       bool aDoForcedBackup,
                                       nsAString& aReturn,
-                                      ErrorResult& aRv);
+                                      ErrorResult& aRv) = 0;
 
   virtual void PopChallengeResponse(const nsAString& aChallenge,
                                     nsAString& aReturn,
-                                    ErrorResult& aRv);
+                                    ErrorResult& aRv) = 0;
 
-  virtual void Random(int32_t aNumBytes, nsAString& aReturn, ErrorResult& aRv);
+  virtual void Random(int32_t aNumBytes, nsAString& aReturn, ErrorResult& aRv) = 0;
 
   virtual void SignText(JSContext* aContext,
                         const nsAString& aStringToSign,
                         const nsAString& aCaOption,
                         const Sequence<nsCString>& aArgs,
-                        nsAString& aReturn);
+                        nsAString& aReturn) = 0;
 
-  virtual void Logout(ErrorResult& aRv);
+  virtual void Logout(ErrorResult& aRv) = 0;
 
-  virtual void DisableRightClick(ErrorResult& aRv);
+  virtual void DisableRightClick(ErrorResult& aRv) = 0;
 #endif
 
   // WebIDL

@@ -7,7 +7,7 @@
 // Dummy bindings that we need to force generation of things that
 // aren't actually referenced anywhere in IDL yet but are used in C++.
 
-interface DummyInterface : EventTarget {
+interface DummyInterface {
   readonly attribute OnErrorEventHandlerNonNull onErrorEventHandler;
   FilePropertyBag fileBag();
   InspectorRGBTriple rgbTriple();
@@ -19,17 +19,10 @@ interface DummyInterface : EventTarget {
   void funcDNSLookupDict(optional DNSLookupDict arg);
   void funcConnStatusDict(optional ConnStatusDict arg);
   void frameRequestCallback(FrameRequestCallback arg);
-  void SmsSendParameters(optional SmsSendParameters arg);
-  void MmsSendParameters(optional MmsSendParameters arg);
   void MmsParameters(optional MmsParameters arg);
   void MmsAttachment(optional MmsAttachment arg);
   void AsyncScrollEventDetail(optional AsyncScrollEventDetail arg);
   void OpenWindowEventDetail(optional OpenWindowEventDetail arg);
-  void DOMWindowResizeEventDetail(optional DOMWindowResizeEventDetail arg);
-  void WifiOptions(optional WifiCommandOptions arg1,
-                   optional WifiResultOptions arg2);
-  void AppNotificationServiceOptions(optional AppNotificationServiceOptions arg);
-  void AppInfo(optional AppInfo arg1);
 };
 
 interface DummyInterfaceWorkers {

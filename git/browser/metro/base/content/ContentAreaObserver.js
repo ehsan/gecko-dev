@@ -70,18 +70,11 @@ var ContentAreaObserver = {
   },
 
   get isKeyboardOpened() {
-    return Services.metro.keyboardVisible;
+    return MetroUtils.keyboardVisible;
   },
 
   get isKeyboardTransitioning() {
     return this._deckTransitioning;
-  },
-
-  get viewstate() {
-    if (this.width < Services.prefs.getIntPref("browser.ui.snapped.maxWidth")) {
-      return "snapped";
-    }
-    return (this.height > this.width) ? "portrait" : "landscape";
   },
 
   /*
@@ -99,7 +92,7 @@ var ContentAreaObserver = {
     Services.obs.addObserver(this, "metro_softkeyboard_hidden", false);
 
     // setup initial values for browser form repositioning
-    this.shiftBrowserDeck(0);
+    this._shiftBrowserDeck(0);
 
     // initialize our custom width and height styles
     this._initStyles();
@@ -129,10 +122,8 @@ var ContentAreaObserver = {
     this.styles["window-height"].height = newHeight + "px";
     this.styles["window-height"].maxHeight = newHeight + "px";
 
-    this._updateViewState();
-
     this.updateContentArea(newWidth, this._getContentHeightForWindow(newHeight));
-    this._dispatchBrowserEvent("SizeChanged");
+    this._disatchBrowserEvent("SizeChanged");
   },
 
   updateContentArea: function cao_updateContentArea (width, height) {
@@ -162,7 +153,7 @@ var ContentAreaObserver = {
     this.styles["content-width"].maxWidth = newWidth + "px";
 
     this.updateViewableArea(newWidth, this._getViewableHeightForContent(newHeight));
-    this._dispatchBrowserEvent("ContentSizeChanged");
+    this._disatchBrowserEvent("ContentSizeChanged");
   },
 
   updateViewableArea: function cao_updateViewableArea (width, height) {
@@ -186,12 +177,12 @@ var ContentAreaObserver = {
     // these are hidden.
     BrowserUI._updateButtons();
 
-    this._dispatchBrowserEvent("ViewableSizeChanged");
+    this._disatchBrowserEvent("ViewableSizeChanged");
   },
 
   updateAppBarPosition: function updateAppBarPosition(aForceDown) {
     // Adjust the app and find bar position above the soft keyboard
-    let keyboardHeight = aForceDown ? 0 : Services.metro.keyboardHeight;
+    let keyboardHeight = aForceDown ? 0 : MetroUtils.keyboardHeight;
     Elements.navbar.style.bottom = keyboardHeight + "px";
     Elements.contextappbar.style.bottom = keyboardHeight + "px";
     Elements.findbar.style.bottom = keyboardHeight + "px";
@@ -226,25 +217,23 @@ var ContentAreaObserver = {
     this.updateViewableArea();
 
     if (!aNewState) {
-      this.shiftBrowserDeck(0);
+      this._shiftBrowserDeck(0);
       return;
     }
 
     // Request info about the target form element to see if we
     // need to reposition the browser above the keyboard.
-    if (SelectionHelperUI.layerMode === 2 /*kContentLayer*/) {
-      Browser.selectedBrowser.messageManager.sendAsyncMessage("Browser:RepositionInfoRequest", {
-        viewHeight: this.viewableHeight,
-      });
-    }
+    Browser.selectedBrowser.messageManager.sendAsyncMessage("Browser:RepositionInfoRequest", {
+      viewHeight: this.viewableHeight,
+    });
   },
 
   _onRepositionResponse: function _onRepositionResponse(aJsonMsg) {
     if (!aJsonMsg.reposition || !this.isKeyboardOpened) {
-      this.shiftBrowserDeck(0);
+      this._shiftBrowserDeck(0);
       return;
     }
-    this.shiftBrowserDeck(aJsonMsg.raiseContent);
+    this._shiftBrowserDeck(aJsonMsg.raiseContent);
   },
 
   observe: function cao_observe(aSubject, aTopic, aData) {
@@ -291,16 +280,7 @@ var ContentAreaObserver = {
    * Internal helpers
    */
 
-  _updateViewState: function (aState) {
-    let oldViewstate = Elements.windowState.getAttribute("viewstate");
-    let viewstate = aState || this.viewstate;
-    if (viewstate != oldViewstate) {
-      Elements.windowState.setAttribute("viewstate", viewstate);
-      Services.obs.notifyObservers(null, "metro_viewstate_changed", viewstate);
-    }
-  },
-
-  shiftBrowserDeck: function (aAmount) {
+  _shiftBrowserDeck: function _shiftBrowserDeck(aAmount) {
     if (aAmount == 0) {
       this._deckTransitioning = false;
       this._dispatchWindowEvent("KeyboardChanged", this.isKeyboardOpened);
@@ -332,7 +312,7 @@ var ContentAreaObserver = {
     window.dispatchEvent(event);
   },
 
-  _dispatchBrowserEvent: function (aName, aDetail) {
+  _disatchBrowserEvent: function (aName, aDetail) {
     setTimeout(function() {
       let event = document.createEvent("Events");
       event.initEvent(aName, true, false);
@@ -355,7 +335,7 @@ var ContentAreaObserver = {
   },
 
   _getViewableHeightForContent: function (contentHeight) {
-    let keyboardHeight = Services.metro.keyboardHeight;
+    let keyboardHeight = MetroUtils.keyboardHeight;
     return contentHeight - keyboardHeight;
   },
 

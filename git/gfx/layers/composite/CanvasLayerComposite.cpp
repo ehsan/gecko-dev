@@ -6,7 +6,8 @@
 #include "CanvasLayerComposite.h"
 #include "composite/CompositableHost.h"  // for CompositableHost
 #include "gfx2DGlue.h"                  // for ToFilter, ToMatrix4x4
-#include "GraphicsFilter.h"             // for GraphicsFilter
+#include "gfxImageSurface.h"            // for gfxImageSurface
+#include "gfxPattern.h"                 // for gfxPattern, etc
 #include "gfxUtils.h"                   // for gfxUtils, etc
 #include "mozilla/gfx/Matrix.h"         // for Matrix4x4
 #include "mozilla/gfx/Point.h"          // for Point
@@ -60,7 +61,8 @@ CanvasLayerComposite::GetRenderState()
 }
 
 void
-CanvasLayerComposite::RenderLayer(const nsIntRect& aClipRect)
+CanvasLayerComposite::RenderLayer(const nsIntPoint& aOffset,
+                                  const nsIntRect& aClipRect)
 {
   if (!mImageHost || !mImageHost->IsAttached()) {
     return;
@@ -70,18 +72,12 @@ CanvasLayerComposite::RenderLayer(const nsIntRect& aClipRect)
 
 #ifdef MOZ_DUMP_PAINTING
   if (gfxUtils::sDumpPainting) {
-    RefPtr<gfx::DataSourceSurface> dSurf = mImageHost->GetAsSurface();
-    gfxPlatform *platform = gfxPlatform::GetPlatform();
-    RefPtr<gfx::DrawTarget> dt = platform->CreateDrawTargetForData(dSurf->GetData(),
-                                                                   dSurf->GetSize(),
-                                                                   dSurf->Stride(),
-                                                                   dSurf->GetFormat());
-    nsRefPtr<gfxASurface> surf = platform->GetThebesSurfaceForDrawTarget(dt);
+    nsRefPtr<gfxImageSurface> surf = mImageHost->GetAsSurface();
     WriteSnapshotToDumpFile(this, surf);
   }
 #endif
 
-  GraphicsFilter filter = mFilter;
+  gfxPattern::GraphicsFilter filter = mFilter;
 #ifdef ANDROID
   // Bug 691354
   // Using the LINEAR filter we get unexplained artifacts.
@@ -89,13 +85,12 @@ CanvasLayerComposite::RenderLayer(const nsIntRect& aClipRect)
   gfxMatrix matrix;
   bool is2D = GetEffectiveTransform().Is2D(&matrix);
   if (is2D && !matrix.HasNonTranslationOrFlip()) {
-    filter = GraphicsFilter::FILTER_NEAREST;
+    filter = gfxPattern::FILTER_NEAREST;
   }
 #endif
 
-  EffectChain effectChain(this);
-
-  LayerManagerComposite::AutoAddMaskEffect autoMaskEffect(mMaskLayer, effectChain);
+  EffectChain effectChain;
+  LayerManagerComposite::AddMaskEffect(mMaskLayer, effectChain);
   gfx::Matrix4x4 transform;
   ToMatrix4x4(GetEffectiveTransform(), transform);
   gfx::Rect clipRect(aClipRect.x, aClipRect.y, aClipRect.width, aClipRect.height);
@@ -103,14 +98,17 @@ CanvasLayerComposite::RenderLayer(const nsIntRect& aClipRect)
   mImageHost->Composite(effectChain,
                         GetEffectiveOpacity(),
                         transform,
+                        gfx::Point(aOffset.x, aOffset.y),
                         gfx::ToFilter(filter),
                         clipRect);
+
+  LayerManagerComposite::RemoveMaskEffect(mMaskLayer);
 }
 
 CompositableHost*
 CanvasLayerComposite::GetCompositableHost()
 {
-  if ( mImageHost && mImageHost->IsAttached()) {
+  if (mImageHost->IsAttached()) {
     return mImageHost.get();
   }
 
@@ -126,6 +124,7 @@ CanvasLayerComposite::CleanupResources()
   mImageHost = nullptr;
 }
 
+#ifdef MOZ_LAYERS_HAVE_LOG
 nsACString&
 CanvasLayerComposite::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
@@ -138,4 +137,5 @@ CanvasLayerComposite::PrintInfo(nsACString& aTo, const char* aPrefix)
   }
   return aTo;
 }
+#endif
 

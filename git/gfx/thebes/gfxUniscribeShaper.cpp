@@ -3,6 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "prtypes.h"
 #include "gfxTypes.h"
 
 #include "gfxContext.h"
@@ -67,7 +68,7 @@ public:
         HRESULT rv;
         HDC shapeDC = nullptr;
 
-        char16ptr_t str = mAlternativeString ? mAlternativeString : mItemString;
+        const PRUnichar *str = mAlternativeString ? mAlternativeString : mItemString;
 
         mScriptItem->a.fLogicalOrder = true; 
         SCRIPT_ANALYSIS sa = mScriptItem->a;
@@ -417,7 +418,7 @@ public:
     }
 
 private:
-    char16ptr_t      mString;
+    const PRUnichar *mString;
     gfxShapedText   *mShapedText;
     uint32_t         mOffset;
     uint32_t         mLength;

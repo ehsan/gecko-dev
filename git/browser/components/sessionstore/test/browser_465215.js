@@ -13,7 +13,8 @@ function test() {
 
   // set a unique value on a new, blank tab
   let tab1 = gBrowser.addTab();
-  whenBrowserLoaded(tab1.linkedBrowser, function() {
+  tab1.linkedBrowser.addEventListener("load", function() {
+    tab1.linkedBrowser.removeEventListener("load", arguments.callee, true);
     ss.setTabValue(tab1, uniqueName, uniqueValue1);
 
     // duplicate the tab with that value
@@ -25,13 +26,14 @@ function test() {
 
     // overwrite the tab with the value which should remove it
     ss.setTabState(tab1, JSON.stringify({ entries: [] }));
-    whenTabRestored(tab1, function() {
+    tab1.linkedBrowser.addEventListener("load", function() {
+      tab1.linkedBrowser.removeEventListener("load", arguments.callee, true);
       is(ss.getTabValue(tab1, uniqueName), "", "tab value was cleared");
 
       // clean up
       gBrowser.removeTab(tab2);
       gBrowser.removeTab(tab1);
       finish();
-    });
-  });
+    }, true);
+  }, true);
 }

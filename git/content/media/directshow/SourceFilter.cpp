@@ -8,9 +8,6 @@
 #include "MediaResource.h"
 #include "mozilla/RefPtr.h"
 #include "DirectShowUtils.h"
-#include "MP3FrameParser.h"
-#include "prlog.h"
-#include <algorithm>
 
 using namespace mozilla::media;
 
@@ -21,9 +18,9 @@ namespace mozilla {
 
 #if defined(PR_LOGGING) && defined (DEBUG_SOURCE_TRACE)
 PRLogModuleInfo* GetDirectShowLog();
-#define DIRECTSHOW_LOG(...) PR_LOG(GetDirectShowLog(), PR_LOG_DEBUG, (__VA_ARGS__))
+#define LOG(...) PR_LOG(GetDirectShowLog(), PR_LOG_DEBUG, (__VA_ARGS__))
 #else
-#define DIRECTSHOW_LOG(...)
+#define LOG(...)
 #endif
 
 static HRESULT
@@ -62,45 +59,6 @@ public:
   uint32_t mCount;
 };
 
-// A wrapper around media resource that presents only a partition of the
-// underlying resource to the caller to use. The partition returned is from
-// an offset to the end of stream, and this object deals with ensuring
-// the offsets and lengths etc are translated from the reduced partition
-// exposed to the caller, to the absolute offsets of the underlying stream.
-class MediaResourcePartition {
-public:
-  MediaResourcePartition(MediaResource* aResource,
-                         int64_t aDataStart)
-    : mResource(aResource),
-      mDataOffset(aDataStart)
-  {}
-
-  int64_t GetLength() {
-    int64_t len = mResource->GetLength();
-    if (len == -1) {
-      return len;
-    }
-    return std::max<int64_t>(0, len - mDataOffset);
-  }
-  nsresult ReadAt(int64_t aOffset, char* aBuffer,
-                  uint32_t aCount, uint32_t* aBytes)
-  {
-    return mResource->ReadAt(aOffset + mDataOffset,
-                             aBuffer,
-                             aCount,
-                             aBytes);
-  }
-  int64_t GetCachedDataEnd() {
-    int64_t tell = mResource->Tell();
-    int64_t dataEnd = mResource->GetCachedDataEnd(tell) - mDataOffset;
-    return dataEnd;
-  }
-private:
-  // MediaResource from which we read data.
-  RefPtr<MediaResource> mResource;
-  int64_t mDataOffset;
-};
-
 
 // Output pin for SourceFilter, which implements IAsyncReader, to
 // allow downstream filters to pull/read data from it. Downstream pins
@@ -108,10 +66,6 @@ private:
 // reads to complete using WaitForNext(). They may also synchronously read
 // using SyncRead(). This class is a delegate (tear off) of
 // SourceFilter.
-//
-// We can expose only a segment of the MediaResource to the filter graph.
-// This is used to strip off the ID3v2 tags from the stream, as DirectShow
-// has trouble parsing some headers.
 //
 // Implements:
 //  * IAsyncReader
@@ -127,8 +81,7 @@ public:
 
   OutputPin(MediaResource* aMediaResource,
             SourceFilter* aParent,
-            CriticalSection& aFilterLock,
-            int64_t aMP3DataStart);
+            CriticalSection& aFilterLock);
   virtual ~OutputPin();
 
   // IUnknown
@@ -201,7 +154,8 @@ private:
   // The filter that owns us. Weak reference, as we're a delegate (tear off).
   SourceFilter* mParentSource;
 
-  MediaResourcePartition mResource;
+  // MediaResource from which we read data.
+  RefPtr<MediaResource> mResource;
 
   // Counter, inc'd in BeginFlush(), dec'd in EndFlush(). Calls to this can
   // come from multiple threads and can interleave, hence the counter.
@@ -222,17 +176,9 @@ private:
 
 };
 
-// For mingw __uuidof support
-#ifdef __CRT_UUID_DECL
-}
-__CRT_UUID_DECL(mozilla::OutputPin, 0x18e5cfb2,0x1015,0x440c,0xa6,0x5c,0xe6,0x38,0x53,0x23,0x58,0x94);
-namespace mozilla {
-#endif
-
 OutputPin::OutputPin(MediaResource* aResource,
                      SourceFilter* aParent,
-                     CriticalSection& aFilterLock,
-                     int64_t aMP3DataStart)
+                     CriticalSection& aFilterLock)
   : BasePin(static_cast<BaseFilter*>(aParent),
             &aFilterLock,
             L"MozillaOutputPin",
@@ -240,19 +186,20 @@ OutputPin::OutputPin(MediaResource* aResource,
     mPinLock(aFilterLock),
     mSignal(&mPinLock),
     mParentSource(aParent),
-    mResource(aResource, aMP3DataStart),
+    mResource(aResource),
     mFlushCount(0),
     mBytesConsumed(0),
     mQueriedForAsyncReader(false)
 {
   MOZ_COUNT_CTOR(OutputPin);
-  DIRECTSHOW_LOG("OutputPin::OutputPin()");
+  LOG("OutputPin::OutputPin()");
+  mResource->Seek(nsISeekableStream::NS_SEEK_SET, 0);
 }
 
 OutputPin::~OutputPin()
 {
   MOZ_COUNT_DTOR(OutputPin);
-  DIRECTSHOW_LOG("OutputPin::~OutputPin()");
+  LOG("OutputPin::~OutputPin()");
 }
 
 HRESULT
@@ -296,21 +243,21 @@ OutputPin::CheckMediaType(const MediaType* aMediaType)
       IsEqualGUID(aMediaType->subtype, myMediaType->subtype) &&
       IsEqualGUID(aMediaType->formattype, myMediaType->formattype))
   {
-    DIRECTSHOW_LOG("OutputPin::CheckMediaType() Match: major=%s minor=%s TC=%d FSS=%d SS=%u",
-                   GetDirectShowGuidName(aMediaType->majortype),
-                   GetDirectShowGuidName(aMediaType->subtype),
-                   aMediaType->TemporalCompression(),
-                   aMediaType->bFixedSizeSamples,
-                   aMediaType->SampleSize());
+    LOG("OutputPin::CheckMediaType() Match: major=%s minor=%s TC=%d FSS=%d SS=%u",
+        GetDirectShowGuidName(aMediaType->majortype),
+        GetDirectShowGuidName(aMediaType->subtype),
+        aMediaType->TemporalCompression(),
+        aMediaType->bFixedSizeSamples,
+        aMediaType->SampleSize());
     return S_OK;
   }
 
-  DIRECTSHOW_LOG("OutputPin::CheckMediaType() Failed to match: major=%s minor=%s TC=%d FSS=%d SS=%u",
-                 GetDirectShowGuidName(aMediaType->majortype),
-                 GetDirectShowGuidName(aMediaType->subtype),
-                 aMediaType->TemporalCompression(),
-                 aMediaType->bFixedSizeSamples,
-                 aMediaType->SampleSize());
+  LOG("OutputPin::CheckMediaType() Failed to match: major=%s minor=%s TC=%d FSS=%d SS=%u",
+      GetDirectShowGuidName(aMediaType->majortype),
+      GetDirectShowGuidName(aMediaType->subtype),
+      aMediaType->TemporalCompression(),
+      aMediaType->bFixedSizeSamples,
+      aMediaType->SampleSize());
   return S_FALSE;
 }
 
@@ -385,7 +332,7 @@ OutputPin::RequestAllocator(IMemAllocator* aPreferred,
                         CLSCTX_INPROC_SERVER,
                         IID_IMemAllocator,
                         getter_AddRefs(allocator));
-  if(FAILED(hr) || (allocator == nullptr)) {
+  if(FAILED(hr) || (allocator == NULL)) {
     NS_WARNING("Can't create our own DirectShow allocator.");
     return hr;
   }
@@ -409,7 +356,7 @@ OutputPin::Request(IMediaSample* aSample, DWORD_PTR aDwUser)
   if (!aSample) return E_FAIL;
 
   CriticalSectionAutoEnter lock(*mLock);
-  NS_ASSERTION(!mFlushCount, "Request() while flushing");
+  NS_ASSERTION(!mFlushCount, __FUNCTION__"() while flushing");
 
   if (mFlushCount)
     return VFW_E_WRONG_STATE;
@@ -451,7 +398,7 @@ OutputPin::WaitForNext(DWORD aTimeout,
   NS_ASSERTION(aTimeout == 0 || aTimeout == INFINITE,
                "Oops, we don't handle this!");
 
-  *aOutSample = nullptr;
+  *aOutSample = NULL;
   *aOutDwUser = 0;
 
   LONGLONG offset = 0;
@@ -470,7 +417,7 @@ OutputPin::WaitForNext(DWORD aTimeout,
       mSignal.Wait();
     }
 
-    nsAutoPtr<ReadRequest> request(reinterpret_cast<ReadRequest*>(mPendingReads.PopFront()));
+    nsAutoPtr<ReadRequest> request = reinterpret_cast<ReadRequest*>(mPendingReads.PopFront());
     if (!request)
       return VFW_E_WRONG_STATE;
 
@@ -519,7 +466,7 @@ OutputPin::SyncReadAligned(IMediaSample* aSample)
 
   // If the range extends off the end of stream, truncate to the end of stream
   // as per IAsyncReader specificiation.
-  int64_t streamLength = mResource.GetLength();
+  int64_t streamLength = mResource->GetLength();
   if (streamLength != -1) {
     // We know the exact length of the stream, fail if the requested offset
     // is beyond it.
@@ -550,7 +497,7 @@ OutputPin::SyncRead(LONGLONG aPosition,
   NS_ENSURE_TRUE(aLength > 0, E_FAIL);
   NS_ENSURE_TRUE(aBuffer, E_POINTER);
 
-  DIRECTSHOW_LOG("OutputPin::SyncRead(%lld, %d)", aPosition, aLength);
+  LOG("OutputPin::SyncRead(%lld, %d)", aPosition, aLength);
   {
     // Ignore reads while flushing.
     CriticalSectionAutoEnter lock(*mLock);
@@ -565,10 +512,10 @@ OutputPin::SyncRead(LONGLONG aPosition,
     BYTE* readBuffer = aBuffer + totalBytesRead;
     uint32_t bytesRead = 0;
     LONG length = aLength - totalBytesRead;
-    nsresult rv = mResource.ReadAt(aPosition + totalBytesRead,
-                                   reinterpret_cast<char*>(readBuffer),
-                                   length,
-                                   &bytesRead);
+    nsresult rv = mResource->ReadAt(aPosition + totalBytesRead,
+                                    reinterpret_cast<char*>(readBuffer),
+                                    length,
+                                    &bytesRead);
     if (NS_FAILED(rv)) {
       return E_FAIL;
     }
@@ -588,7 +535,7 @@ STDMETHODIMP
 OutputPin::Length(LONGLONG* aTotal, LONGLONG* aAvailable)
 {
   HRESULT hr = S_OK;
-  int64_t length = mResource.GetLength();
+  int64_t length = mResource->GetLength();
   if (length == -1) {
     hr = VFW_S_ESTIMATED;
     // Don't have a length. Just lie, it seems to work...
@@ -597,10 +544,10 @@ OutputPin::Length(LONGLONG* aTotal, LONGLONG* aAvailable)
     *aTotal = length;
   }
   if (aAvailable) {
-    *aAvailable = mResource.GetCachedDataEnd();
+    *aAvailable = mResource->GetCachedDataEnd(mResource->Tell());
   }
 
-  DIRECTSHOW_LOG("OutputPin::Length() len=%lld avail=%lld", *aTotal, *aAvailable);
+  LOG("OutputPin::Length() len=%lld avail=%lld", *aTotal, *aAvailable);
 
   return hr;
 }
@@ -639,15 +586,15 @@ SourceFilter::SourceFilter(const GUID& aMajorType,
   mMediaType.majortype = aMajorType;
   mMediaType.subtype = aSubType;
 
-  DIRECTSHOW_LOG("SourceFilter Constructor(%s, %s)",
-                 GetDirectShowGuidName(aMajorType),
-                 GetDirectShowGuidName(aSubType));
+  LOG("SourceFilter Constructor(%s, %s)",
+      GetDirectShowGuidName(aMajorType),
+      GetDirectShowGuidName(aSubType));
 }
 
 SourceFilter::~SourceFilter()
 {
   MOZ_COUNT_DTOR(SourceFilter);
-  DIRECTSHOW_LOG("SourceFilter Destructor()");
+  LOG("SourceFilter Destructor()");
 }
 
 BasePin*
@@ -657,7 +604,7 @@ SourceFilter::GetPin(int n)
     NS_ASSERTION(mOutputPin != 0, "GetPin with no pin!");
     return static_cast<BasePin*>(mOutputPin);
   } else {
-    return nullptr;
+    return NULL;
   }
 }
 
@@ -669,14 +616,13 @@ SourceFilter::GetMediaType() const
 }
 
 nsresult
-SourceFilter::Init(MediaResource* aResource, int64_t aMP3Offset)
+SourceFilter::Init(MediaResource* aResource)
 {
-  DIRECTSHOW_LOG("SourceFilter::Init()");
+  LOG("SourceFilter::Init()");
 
   mOutputPin = new OutputPin(aResource,
                              this,
-                             mLock,
-                             aMP3Offset);
+                             mLock);
   NS_ENSURE_TRUE(mOutputPin != nullptr, NS_ERROR_FAILURE);
 
   return NS_OK;

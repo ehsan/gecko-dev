@@ -11,5 +11,5 @@ XPIDL_SOURCES += [
     'nsITransactionManager.idl',
 ]
 
-XPIDL_MODULE = 'txmgr'
+MODULE = 'txmgr'
 

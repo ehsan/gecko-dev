@@ -13,7 +13,13 @@
 
 [Constructor]
 interface DocumentFragment : Node {
-  Element? getElementById(DOMString elementId);
+  // NEW
+  /*
+    FIXME: not implemented yet
+
+  void prepend((Node or DOMString)... nodes);
+  void append((Node or DOMString)... nodes);
+  */
 };
 
 // http://www.w3.org/TR/2012/WD-selectors-api-20120628/#interface-definitions

@@ -25,8 +25,8 @@
 #include "WinUtils.h"
 #endif
 
-#include "mozilla/ArrayUtils.h"
-#include "mozilla/AutoRestore.h"
+#include "mozilla/Util.h"
+
 #include "nsRefreshDriver.h"
 #include "nsITimer.h"
 #include "nsLayoutUtils.h"
@@ -37,6 +37,7 @@
 #include "nsIDocument.h"
 #include "jsapi.h"
 #include "nsContentUtils.h"
+#include "nsCxPusher.h"
 #include "mozilla/Preferences.h"
 #include "nsViewManager.h"
 #include "GeckoProfiler.h"
@@ -45,9 +46,6 @@
 #include "mozilla/dom/WindowBinding.h"
 #include "RestyleManager.h"
 #include "Layers.h"
-#include "imgIContainer.h"
-#include "nsIFrameRequestCallback.h"
-#include "mozilla/dom/ScriptSettings.h"
 
 using namespace mozilla;
 using namespace mozilla::widget;
@@ -681,15 +679,17 @@ nsRefreshDriver::ChooseTimer() const
 nsRefreshDriver::nsRefreshDriver(nsPresContext* aPresContext)
   : mActiveTimer(nullptr),
     mPresContext(aPresContext),
-    mFreezeCount(0),
+    mFrozen(false),
     mThrottled(false),
     mTestControllingRefreshes(false),
     mViewManagerFlushIsPending(false),
-    mRequestedHighPrecision(false),
-    mInRefresh(false)
+    mRequestedHighPrecision(false)
 {
   mMostRecentRefreshEpochTime = JS_Now();
   mMostRecentRefresh = TimeStamp::Now();
+
+  mRequests.Init();
+  mStartTable.Init();
 }
 
 nsRefreshDriver::~nsRefreshDriver()
@@ -722,7 +722,8 @@ nsRefreshDriver::AdvanceTimeAndRefresh(int64_t aMilliseconds)
   mMostRecentRefreshEpochTime += aMilliseconds * 1000;
   mMostRecentRefresh += TimeDuration::FromMilliseconds((double) aMilliseconds);
 
-  mozilla::dom::AutoSystemCaller asc;
+  nsCxPusher pusher;
+  pusher.PushNull();
   DoTick();
 }
 
@@ -755,7 +756,9 @@ nsRefreshDriver::AddRefreshObserver(nsARefreshObserver* aObserver,
 {
   ObserverArray& array = ArrayFor(aFlushType);
   bool success = array.AppendElement(aObserver) != nullptr;
+
   EnsureTimerStarted(false);
+
   return success;
 }
 
@@ -765,18 +768,6 @@ nsRefreshDriver::RemoveRefreshObserver(nsARefreshObserver* aObserver,
 {
   ObserverArray& array = ArrayFor(aFlushType);
   return array.RemoveElement(aObserver);
-}
-
-void
-nsRefreshDriver::AddPostRefreshObserver(nsAPostRefreshObserver* aObserver)
-{
-  mPostRefreshObservers.AppendElement(aObserver);
-}
-
-void
-nsRefreshDriver::RemovePostRefreshObserver(nsAPostRefreshObserver* aObserver)
-{
-  mPostRefreshObservers.RemoveElement(aObserver);
 }
 
 bool
@@ -826,7 +817,7 @@ nsRefreshDriver::EnsureTimerStarted(bool aAdjustingTimer)
   if (mActiveTimer && !aAdjustingTimer)
     return;
 
-  if (IsFrozen() || !mPresContext) {
+  if (mFrozen || !mPresContext) {
     // If we don't want to start it now, or we've been disconnected.
     StopTimer();
     return;
@@ -999,7 +990,7 @@ NS_IMPL_ISUPPORTS1(nsRefreshDriver, nsISupports)
 void
 nsRefreshDriver::DoTick()
 {
-  NS_PRECONDITION(!IsFrozen(), "Why are we notified while frozen?");
+  NS_PRECONDITION(!mFrozen, "Why are we notified while frozen?");
   NS_PRECONDITION(mPresContext, "Why are we notified after disconnection?");
   NS_PRECONDITION(!nsContentUtils::GetCurrentJSContext(),
                   "Shouldn't have a JSContext on the stack");
@@ -1037,7 +1028,7 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
   // We're either frozen or we were disconnected (likely in the middle
   // of a tick iteration).  Just do nothing here, since our
   // prescontext went away.
-  if (IsFrozen() || !mPresContext) {
+  if (mFrozen || !mPresContext) {
     return;
   }
 
@@ -1059,11 +1050,6 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
     return;
   }
 
-  profiler_tracing("Paint", "RD", TRACING_INTERVAL_START);
-
-  AutoRestore<bool> restoreInRefresh(mInRefresh);
-  mInRefresh = true;
-
   /*
    * The timer holds a reference to |this| while calling |Notify|.
    * However, implementations of |WillRefresh| are permitted to destroy
@@ -1078,7 +1064,6 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
       
       if (!mPresContext || !mPresContext->GetPresShell()) {
         StopTimer();
-        profiler_tracing("Paint", "RD", TRACING_INTERVAL_END);
         return;
       }
     }
@@ -1096,7 +1081,6 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
       // readded as needed.
       mFrameRequestCallbackDocs.Clear();
 
-      profiler_tracing("Paint", "Scripts", TRACING_INTERVAL_START);
       int64_t eventTime = aNowEpoch / PR_USEC_PER_MSEC;
       for (uint32_t i = 0; i < frameRequestCallbacks.Length(); ++i) {
         const DocumentFrameCallbacks& docCallbacks = frameRequestCallbacks[i];
@@ -1123,7 +1107,6 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
           }
         }
       }
-      profiler_tracing("Paint", "Scripts", TRACING_INTERVAL_END);
 
       // This is the Flush_Style case.
       if (mPresContext && mPresContext->GetPresShell()) {
@@ -1177,17 +1160,7 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
   mStartTable.EnumerateRead(nsRefreshDriver::StartTableRefresh, &parms);
 
   if (mRequests.Count()) {
-    // RequestRefresh may run scripts, so it's not safe to directly call it
-    // while using a hashtable enumerator to enumerate mRequests in case
-    // script modifies the hashtable. Instead, we build a (local) array of
-    // images to refresh, and then we refresh each image in that array.
-    nsCOMArray<imgIContainer> imagesToRefresh(mRequests.Count());
-    mRequests.EnumerateEntries(nsRefreshDriver::ImageRequestEnumerator,
-                               &imagesToRefresh);
-
-    for (uint32_t i = 0; i < imagesToRefresh.Length(); i++) {
-      imagesToRefresh[i]->RequestRefresh(aNowTime);
-    }
+    mRequests.EnumerateEntries(nsRefreshDriver::ImageRequestEnumerator, &parms);
   }
 
   for (uint32_t i = 0; i < mPresShellsToInvalidateIfHidden.Length(); i++) {
@@ -1198,7 +1171,14 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
   if (mViewManagerFlushIsPending) {
 #ifdef MOZ_DUMP_PAINTING
     if (nsLayoutUtils::InvalidationDebuggingIsEnabled()) {
-      printf_stderr("Starting ProcessPendingUpdates\n");
+      printf("Starting ProcessPendingUpdates\n");
+    }
+#endif
+#ifndef MOZ_WIDGET_GONK
+    // Waiting for bug 830475 to work on B2G.
+    nsRefPtr<layers::LayerManager> mgr = mPresContext->GetPresShell()->GetLayerManager();
+    if (mgr) {
+      mgr->SetPaintStartTime(mMostRecentRefresh);
     }
 #endif
 
@@ -1207,30 +1187,24 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
     vm->ProcessPendingUpdates();
 #ifdef MOZ_DUMP_PAINTING
     if (nsLayoutUtils::InvalidationDebuggingIsEnabled()) {
-      printf_stderr("Ending ProcessPendingUpdates\n");
+      printf("Ending ProcessPendingUpdates\n");
     }
 #endif
   }
-
-  for (uint32_t i = 0; i < mPostRefreshObservers.Length(); ++i) {
-    mPostRefreshObservers[i]->DidRefresh();
-  }
-  profiler_tracing("Paint", "RD", TRACING_INTERVAL_END);
-
-  NS_ASSERTION(mInRefresh, "Still in refresh");
 }
 
 /* static */ PLDHashOperator
 nsRefreshDriver::ImageRequestEnumerator(nsISupportsHashKey* aEntry,
                                         void* aUserArg)
 {
-  nsCOMArray<imgIContainer>* imagesToRefresh =
-    static_cast<nsCOMArray<imgIContainer>*> (aUserArg);
+  ImageRequestParameters* parms =
+    static_cast<ImageRequestParameters*> (aUserArg);
+  mozilla::TimeStamp mostRecentRefresh = parms->mCurrent;
   imgIRequest* req = static_cast<imgIRequest*>(aEntry->GetKey());
   NS_ABORT_IF_FALSE(req, "Unable to retrieve the image request");
   nsCOMPtr<imgIContainer> image;
   if (NS_SUCCEEDED(req->GetImage(getter_AddRefs(image)))) {
-    imagesToRefresh->AppendElement(image);
+    image->RequestRefresh(mostRecentRefresh);
   }
 
   return PL_DHASH_NEXT;
@@ -1293,28 +1267,23 @@ nsRefreshDriver::StartTableRefresh(const uint32_t& aDelay,
 void
 nsRefreshDriver::Freeze()
 {
+  NS_ASSERTION(!mFrozen, "Freeze called on already-frozen refresh driver");
   StopTimer();
-  mFreezeCount++;
+  mFrozen = true;
 }
 
 void
 nsRefreshDriver::Thaw()
 {
-  NS_ASSERTION(mFreezeCount > 0, "Thaw() called on an unfrozen refresh driver");
-
-  if (mFreezeCount > 0) {
-    mFreezeCount--;
-  }
-
-  if (mFreezeCount == 0) {
-    if (ObserverCount() || ImageRequestCount()) {
-      // FIXME: This isn't quite right, since our EnsureTimerStarted call
-      // updates our mMostRecentRefresh, but the DoRefresh call won't run
-      // and notify our observers until we get back to the event loop.
-      // Thus MostRecentRefresh() will lie between now and the DoRefresh.
-      NS_DispatchToCurrentThread(NS_NewRunnableMethod(this, &nsRefreshDriver::DoRefresh));
-      EnsureTimerStarted(false);
-    }
+  NS_ASSERTION(mFrozen, "Thaw called on an unfrozen refresh driver");
+  mFrozen = false;
+  if (ObserverCount() || ImageRequestCount()) {
+    // FIXME: This isn't quite right, since our EnsureTimerStarted call
+    // updates our mMostRecentRefresh, but the DoRefresh call won't run
+    // and notify our observers until we get back to the event loop.
+    // Thus MostRecentRefresh() will lie between now and the DoRefresh.
+    NS_DispatchToCurrentThread(NS_NewRunnableMethod(this, &nsRefreshDriver::DoRefresh));
+    EnsureTimerStarted(false);
   }
 }
 
@@ -1335,7 +1304,7 @@ void
 nsRefreshDriver::DoRefresh()
 {
   // Don't do a refresh unless we're in a state where we should be refreshing.
-  if (!IsFrozen() && mPresContext && mActiveTimer) {
+  if (!mFrozen && mPresContext && mActiveTimer) {
     DoTick();
   }
 }
@@ -1380,5 +1349,3 @@ nsRefreshDriver::RevokeFrameRequestCallbacks(nsIDocument* aDocument)
   // No need to worry about restarting our timer in slack mode if it's already
   // running; that will happen automatically when it fires.
 }
-
-#undef LOG

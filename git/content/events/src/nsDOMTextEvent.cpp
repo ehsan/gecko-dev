@@ -7,15 +7,12 @@
 #include "nsDOMTextEvent.h"
 #include "nsPrivateTextRange.h"
 #include "prtime.h"
-#include "mozilla/TextEvents.h"
-
-using namespace mozilla;
 
 nsDOMTextEvent::nsDOMTextEvent(mozilla::dom::EventTarget* aOwner,
                                nsPresContext* aPresContext,
-                               WidgetTextEvent* aEvent)
+                               nsTextEvent* aEvent)
   : nsDOMUIEvent(aOwner, aPresContext,
-                 aEvent ? aEvent : new WidgetTextEvent(false, 0, nullptr))
+                 aEvent ? aEvent : new nsTextEvent(false, 0, nullptr))
 {
   NS_ASSERTION(mEvent->eventStructType == NS_TEXT_EVENT, "event type mismatch");
 
@@ -30,7 +27,7 @@ nsDOMTextEvent::nsDOMTextEvent(mozilla::dom::EventTarget* aOwner,
   //
   // extract the IME composition string
   //
-  WidgetTextEvent* te = mEvent->AsTextEvent();
+  nsTextEvent *te = static_cast<nsTextEvent*>(mEvent);
   mText = te->theText;
 
   //
@@ -78,7 +75,7 @@ NS_METHOD_(already_AddRefed<nsIPrivateTextRangeList>) nsDOMTextEvent::GetInputRa
 nsresult NS_NewDOMTextEvent(nsIDOMEvent** aInstancePtrResult,
                             mozilla::dom::EventTarget* aOwner,
                             nsPresContext* aPresContext,
-                            WidgetTextEvent* aEvent)
+                            nsTextEvent *aEvent)
 {
   nsDOMTextEvent* it = new nsDOMTextEvent(aOwner, aPresContext, aEvent);
   return CallQueryInterface(it, aInstancePtrResult);

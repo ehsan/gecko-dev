@@ -2,12 +2,13 @@
 <html>
 <head>
 <style type="text/css">
-.block {
+.separator {
  height: 20px;
  background-color: green;
 }
 #table {
  display: table;
+ background-color: red;
  width: 100px;
  margin: 10px 0;
 }
@@ -15,22 +16,21 @@
  display: table-caption;
  caption-side: top;
  height: 20px;
- margin: 20px 0;
  background-color: blue;
+ margin: 20px 0;
 }
 #cell {
  display: table-cell;
  height: 20px;
- background-color: orange;
 }
 </style>
 </head>
 <body>
-<div class="block"></div>
+<div class="separator"></div>
 <div id="table">
  <div id="caption"></div>
  <div id="cell"></div>
 </div>
-<div class="block"></div>
+<div class="separator"></div>
 </body>
 </html>

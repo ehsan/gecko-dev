@@ -79,7 +79,7 @@ class RefTest(object):
       if len(thispref) < 2:
         print "Error: syntax error in --setpref=" + v
         sys.exit(1)
-      prefs[thispref[0]] = mozprofile.Preferences.cast(thispref[1].strip())
+        prefs[thispref[0]] = thispref[1]
 
     # install the reftest extension bits into the profile
     addons = []
@@ -87,7 +87,7 @@ class RefTest(object):
 
     # I would prefer to use "--install-extension reftest/specialpowers", but that requires tight coordination with
     # release engineering and landing on multiple branches at once.
-    if special_powers and (manifest.endswith('crashtests.list') or manifest.endswith('jstests.list')):
+    if special_powers and manifest.endswith('crashtests.list'):
       addons.append(os.path.join(SCRIPT_DIRECTORY, 'specialpowers'))
 
     # Install distributed extensions, if application has any.

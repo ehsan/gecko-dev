@@ -24,8 +24,8 @@
 class xpcObjectHelper
 {
 public:
-    xpcObjectHelper(nsISupports *aObject, nsWrapperCache *aCache = nullptr)
-      : mCanonical(nullptr)
+    xpcObjectHelper(nsISupports *aObject, nsWrapperCache *aCache = NULL)
+      : mCanonical(NULL)
       , mObject(aObject)
       , mCache(aCache)
     {
@@ -33,7 +33,7 @@ public:
             if (aObject)
                 CallQueryInterface(aObject, &mCache);
             else
-                mCache = nullptr;
+                mCache = NULL;
         }
     }
 
@@ -57,7 +57,7 @@ public:
 
         if (!mCanonicalStrong)
             mCanonicalStrong = mCanonical;
-        mCanonical = nullptr;
+        mCanonical = NULL;
         return mCanonicalStrong.forget();
     }
 

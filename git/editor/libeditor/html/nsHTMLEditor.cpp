@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/DebugOnly.h"
-#include "mozilla/TextEvents.h"
 
 #include "nsCRT.h"
 
@@ -28,7 +27,6 @@
 #include "nsIDocumentInlines.h"
 #include "nsIDOMEventTarget.h" 
 #include "nsIDOMKeyEvent.h"
-#include "nsIDOMMouseEvent.h"
 #include "nsIDOMHTMLAnchorElement.h"
 #include "nsISelectionController.h"
 #include "nsIDOMHTMLDocument.h"
@@ -70,7 +68,6 @@
 #include "nsIParserService.h"
 #include "mozilla/Selection.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/dom/EventTarget.h"
 #include "mozilla/dom/HTMLBodyElement.h"
 #include "nsTextFragment.h"
 
@@ -592,8 +589,7 @@ nsHTMLEditor::HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent)
     return nsEditor::HandleKeyPressEvent(aKeyEvent);
   }
 
-  WidgetKeyboardEvent* nativeKeyEvent =
-    aKeyEvent->GetInternalNSEvent()->AsKeyboardEvent();
+  nsKeyEvent* nativeKeyEvent = GetNativeKeyEvent(aKeyEvent);
   NS_ENSURE_TRUE(nativeKeyEvent, NS_ERROR_UNEXPECTED);
   NS_ASSERTION(nativeKeyEvent->message == NS_KEY_PRESS,
                "HandleKeyPressEvent gets non-keypress event");
@@ -1212,12 +1208,12 @@ nsHTMLEditor::ReplaceHeadContentsWithHTML(const nsAString& aSourceToInsert)
   nsAutoString inputString (aSourceToInsert);  // hope this does copy-on-write
  
   // Windows linebreaks: Map CRLF to LF:
-  inputString.ReplaceSubstring(MOZ_UTF16("\r\n"),
-                               MOZ_UTF16("\n"));
+  inputString.ReplaceSubstring(NS_LITERAL_STRING("\r\n").get(),
+                               NS_LITERAL_STRING("\n").get());
  
   // Mac linebreaks: Map any remaining CR to LF:
-  inputString.ReplaceSubstring(MOZ_UTF16("\r"),
-                               MOZ_UTF16("\n"));
+  inputString.ReplaceSubstring(NS_LITERAL_STRING("\r").get(),
+                               NS_LITERAL_STRING("\n").get());
 
   nsAutoEditBatch beginBatching(this);
 
@@ -2288,7 +2284,7 @@ nsHTMLEditor::GetElementOrParentByTagName(const nsAString& aTagName, nsIDOMNode 
 
     // Try to get the actual selected node
     if (anchorNode->HasChildNodes() && anchorNode->IsContent()) {
-      uint32_t offset = selection->AnchorOffset();
+      int32_t offset = selection->GetAnchorOffset();
       current = anchorNode->GetChildAt(offset);
     }
     // anchor node is probably a text node - just use that
@@ -5219,14 +5215,14 @@ nsHTMLEditor::GetActiveEditingHost()
   return content->GetEditingHost();
 }
 
-already_AddRefed<mozilla::dom::EventTarget>
+already_AddRefed<nsIDOMEventTarget>
 nsHTMLEditor::GetDOMEventTarget()
 {
   // Don't use getDocument here, because we have no way of knowing
   // whether Init() was ever called.  So we need to get the document
   // ourselves, if it exists.
   NS_PRECONDITION(mDocWeak, "This editor has not been initialized yet");
-  nsCOMPtr<mozilla::dom::EventTarget> target = do_QueryReferent(mDocWeak);
+  nsCOMPtr<nsIDOMEventTarget> target = do_QueryReferent(mDocWeak.get());
   return target.forget();
 }
 

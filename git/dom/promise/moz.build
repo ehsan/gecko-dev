@@ -8,21 +8,20 @@ TEST_DIRS += ['tests']
 
 XPIDL_MODULE = 'dom_promise'
 
+MODULE = 'dom'
+
 EXPORTS.mozilla.dom += [
     'Promise.h',
-    'PromiseNativeHandler.h'
+    'PromiseResolver.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'Promise.cpp',
+    'PromiseResolver.cpp',
     'PromiseCallback.cpp',
 ]
 
 FAIL_ON_WARNINGS = True
 
-LOCAL_INCLUDES += [
-    '../base',
-    '../workers',
-]
+LIBXUL_LIBRARY = True
 
-FINAL_LIBRARY = 'gklayout'

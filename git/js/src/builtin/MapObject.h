@@ -7,6 +7,7 @@
 #ifndef builtin_MapObject_h
 #define builtin_MapObject_h
 
+#include "jsapi.h"
 #include "jsobj.h"
 
 #include "vm/Runtime.h"
@@ -88,7 +89,7 @@ class MapObject : public JSObject {
     enum IteratorKind { Keys, Values, Entries };
 
     static JSObject *initClass(JSContext *cx, JSObject *obj);
-    static const Class class_;
+    static Class class_;
   private:
     static const JSPropertySpec properties[];
     static const JSFunctionSpec methods[];
@@ -126,7 +127,7 @@ class SetObject : public JSObject {
   public:
     enum IteratorKind { Values, Entries };
     static JSObject *initClass(JSContext *cx, JSObject *obj);
-    static const Class class_;
+    static Class class_;
   private:
     static const JSPropertySpec properties[];
     static const JSFunctionSpec methods[];

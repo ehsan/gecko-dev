@@ -29,14 +29,11 @@ function consoleOpened(aHud) {
 
     ok(popup.isOpen, "popup is open");
 
-    is(popup.itemCount, jsterm._autocompleteCache.length,
-       "popup.itemCount is correct");
-    isnot(jsterm._autocompleteCache.indexOf("addEventListener"), -1,
-          "addEventListener is in the list of suggestions");
-    isnot(jsterm._autocompleteCache.indexOf("bgColor"), -1,
-          "bgColor is in the list of suggestions");
-    isnot(jsterm._autocompleteCache.indexOf("ATTRIBUTE_NODE"), -1,
-          "ATTRIBUTE_NODE is in the list of suggestions");
+    // expected properties:
+    // __defineGetter__  __defineSetter__ __lookupGetter__ __lookupSetter__
+    // constructor hasOwnProperty isPrototypeOf propertyIsEnumerable
+    // toLocaleString toSource toString unwatch valueOf watch.
+    ok(popup.itemCount >= 14, "popup.itemCount is correct");
 
     popup._panel.addEventListener("popuphidden", autocompletePopupHidden, false);
 
@@ -77,10 +74,21 @@ function testPropertyPanel()
 {
   let jsterm = gHUD.jsterm;
   jsterm.clearOutput();
-  jsterm.execute("document", (msg) => {
-    jsterm.once("variablesview-fetched", onVariablesViewReady);
-    let anchor = msg.querySelector(".body a");
-    EventUtils.synthesizeMouse(anchor, 2, 2, {}, gHUD.iframeWindow);
+  jsterm.execute("document");
+
+  waitForSuccess({
+    name: "jsterm document object output",
+    validatorFn: function()
+    {
+      return gHUD.outputNode.querySelector(".webconsole-msg-output");
+    },
+    successFn: function()
+    {
+      jsterm.once("variablesview-fetched", onVariablesViewReady);
+      let node = gHUD.outputNode.querySelector(".webconsole-msg-output");
+      EventUtils.synthesizeMouse(node, 2, 2, {}, gHUD.iframeWindow);
+    },
+    failureFn: finishTest,
   });
 }
 

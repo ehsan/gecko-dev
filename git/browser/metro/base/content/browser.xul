@@ -9,7 +9,6 @@
 <?xml-stylesheet href="chrome://browser/content/browser.css" type="text/css"?>
 <?xml-stylesheet href="chrome://browser/skin/cssthrobber.css" type="text/css"?>
 <?xml-stylesheet href="chrome://browser/skin/tiles.css" type="text/css"?>
-<?xml-stylesheet href="chrome://branding/content/metro-about.css" type="text/css"?>
 
 <!DOCTYPE window [
 <!ENTITY % globalDTD SYSTEM "chrome://global/locale/global.dtd">
@@ -22,8 +21,6 @@
 %prefsDTD;
 <!ENTITY % aboutPanelDTD SYSTEM "chrome://browser/locale/aboutPanel.dtd">
 %aboutPanelDTD;
-<!ENTITY % searchPanelDTD SYSTEM "chrome://browser/locale/searchPanel.dtd">
-%searchPanelDTD;
 #ifdef MOZ_SERVICES_SYNC
 <!ENTITY % syncBrandDTD SYSTEM "chrome://browser/locale/syncBrand.dtd">
 %syncBrandDTD;
@@ -50,6 +47,7 @@
   <script type="application/javascript" src="chrome://browser/content/Util.js"/>
   <script type="application/javascript" src="chrome://browser/content/input.js"/>
   <script type="application/javascript" src="chrome://browser/content/appbar.js"/>
+  <script type="application/javascript" src="chrome://browser/content/apzc.js"/>
   <broadcasterset id="broadcasterset">
     <broadcaster id="bcast_contentShowing" disabled="false"/>
     <broadcaster id="bcast_urlbarState" mode="editing"/>
@@ -79,7 +77,6 @@
 
     <!-- tabs -->
     <command id="cmd_newTab" oncommand="CommandUpdater.doCommand(this.id);"/>
-    <command id="cmd_newTabKey" oncommand="CommandUpdater.doCommand(this.id);"/>
     <command id="cmd_closeTab" oncommand="CommandUpdater.doCommand(this.id);"/>
     <command id="cmd_undoCloseTab" oncommand="CommandUpdater.doCommand(this.id);"/>
 #ifdef MOZ_SERVICES_SYNC
@@ -146,18 +143,14 @@
     <!-- development/testing -->
     <key id="key_console" key="&jsConsole.key;" modifiers="accel,shift" oncommand="PanelUI.show('console-container')"/>
     <key id="key_options" key="&optionsFlyout.key;" modifiers="accel,shift" oncommand="FlyoutPanelsUI.show('PrefsFlyoutPanel')" />
-    <key id="key_options" key="&aboutFlyout.key;" modifiers="accel,shift" oncommand="FlyoutPanelsUI.show('AboutFlyoutPanel')" />
-<!--
-Temporarily disabled until we can have sync prefs together with the
-Desktop browser's sync prefs.
 #ifdef MOZ_SERVICES_SYNC
     <key id="key_options" key="&syncFlyout.key;" modifiers="accel,shift" oncommand="FlyoutPanelsUI.show('SyncFlyoutPanel')" />
 #endif
--->
+    <key id="key_options" key="&aboutFlyout.key;" modifiers="accel,shift" oncommand="FlyoutPanelsUI.show('AboutFlyoutPanel')" />
 
     <!-- manage tabs -->
-    <key id="key_newTab" key="&newTab.key;" modifiers="accel" command="cmd_newTabKey"/>
-    <key id="key_newTab2" key="&newTab2.key;" modifiers="accel" command="cmd_newTabKey"/>
+    <key id="key_newTab" key="&newTab.key;" modifiers="accel" command="cmd_newTab"/>
+    <key id="key_newTab2" key="&newTab2.key;" modifiers="accel" command="cmd_newTab"/>
     <key id="key_closeTab" key="&closeTab.key;" modifiers="accel" command="cmd_closeTab"/>
     <key id="key_closeTab2" keycode="VK_F4" modifiers="accel" command="cmd_closeTab"/>
     <key id="key_undoCloseTab" key="&newTab.key;" modifiers="accel,shift" command="cmd_undoCloseTab"/>
@@ -180,7 +173,6 @@ Desktop browser's sync prefs.
 
   <stack id="stack" flex="1">
     <observes element="bcast_urlbarState" attribute="*"/>
-    <observes element="bcast_windowState" attribute="*"/>
     <!-- Page Area -->
     <vbox id="page">
       <vbox id="tray" class="tray-toolbar" observes="bcast_windowState" >
@@ -205,9 +197,6 @@ Desktop browser's sync prefs.
 
         <!-- Content touch selection overlay -->
         <box class="selection-overlay-hidden" id="content-selection-overlay"/>
-
-        <!-- Overlay to dim screen when autocomplete shows up -->
-        <hbox id="autocomplete-overlay" onclick="ContextUI.dismiss()"/>
       </stack>
     </vbox>
 
@@ -217,8 +206,8 @@ Desktop browser's sync prefs.
               observes="cmd_back"></html:div>
 
     <!-- Navigation bar -->
-    <appbar id="navbar" mousethrough="never" visible="true">
-      <hbox id="progress-container" layer="true" observes="bcast_windowState">
+    <appbar id="navbar" mousethrough="never" observes="bcast_windowState">
+      <hbox id="progress-container" layer="true">
         <hbox id="progress-control" />
       </hbox>
 
@@ -246,9 +235,7 @@ Desktop browser's sync prefs.
                      autocompletesearch="history"
                      autocompletepopup="urlbar-autocomplete"
                      completeselectedindex="true"
-                     placeholder="&urlbar.emptytext;"
-                     tabscrolling="true"
-                     onclick="SelectionHelperUI.urlbarTextboxClick(this);"/>
+                     placeholder="&urlbar.emptytext;"/>
 
             <toolbarbutton id="go-button" class="urlbar-button"
                            command="cmd_go"/>
@@ -264,12 +251,12 @@ Desktop browser's sync prefs.
             <observes element="bcast_windowState" attribute="*"/>
             <observes element="bcast_urlbarState" attribute="*"/>
             <hbox id="toolbar-context-page" pack="end">
-              <circularprogressindicator id="download-progress" class="appbar-primary"
-                                     oncommand="MetroDownloadsView.onDownloadButton()"/>
-              <toolbarbutton id="star-button" class="appbar-primary hide-on-start"
+              <circularprogressindicator id="download-progress"
+                                     oncommand="Appbar.onDownloadButton()"/>
+              <toolbarbutton id="star-button" class="appbar-primary"
                              type="checkbox"
                              oncommand="Appbar.onStarButton()"/>
-              <toolbarbutton id="pin-button" class="appbar-primary hide-on-start"
+              <toolbarbutton id="pin-button" class="appbar-primary"
                              type="checkbox"
                              oncommand="Appbar.onPinButton()"/>
               <toolbarbutton id="menu-button" class="appbar-primary"
@@ -277,7 +264,7 @@ Desktop browser's sync prefs.
             </hbox>
 
             <hbox id="toolbar-context-autocomplete" pack="end">
-              <toolbarbutton id="close-button" class="appbar-primary"
+              <toolbarbutton id="close-button" class="appbar-secondary"
                              oncommand="Appbar.onAutocompleteCloseButton()"/>
             </hbox>
           </stack>
@@ -363,32 +350,29 @@ Desktop browser's sync prefs.
     <!-- Context button bar -->
     <appbar id="contextappbar">
       <toolbar id="contextualactions-tray" labelled="true" flex="1">
-        <toolbarbutton id="pin-selected-button" class="appbar-primary"
+        <toolbarbutton id="pin-selected-button" class="appbar-secondary"
                        label-uses-set-name="true" hidden="true" fade="true"
                        oncommand="Appbar.dispatchContextualAction('pin')"/>
-        <toolbarbutton id="unpin-selected-button" class="appbar-primary"
+        <toolbarbutton id="unpin-selected-button" class="appbar-secondary"
                        label-uses-set-name="true" hidden="true" fade="true"
                        oncommand="Appbar.dispatchContextualAction('unpin')"/>
-        <toolbarbutton id="hide-selected-button" class="appbar-primary"
-                       label-uses-set-name="true" hidden="true" fade="true"
-                       oncommand="Appbar.dispatchContextualAction('unpin')"/>
-        <toolbarbutton id="delete-selected-button" class="appbar-primary"
+        <toolbarbutton id="delete-selected-button" class="appbar-secondary"
                        hidden="true" fade="true"
                        oncommand="Appbar.dispatchContextualAction('delete')"/>
-        <toolbarbutton id="restore-selected-button" class="appbar-primary"
+        <toolbarbutton id="restore-selected-button" class="appbar-secondary"
                        hidden="true" fade="true"
                        oncommand="Appbar.dispatchContextualAction('restore')"/>
-        <toolbarbutton id="clear-selected-button" class="appbar-primary"
+        <toolbarbutton id="clear-selected-button" class="appbar-secondary"
                        hidden="true" fade="true"
                        oncommand="Appbar.dispatchContextualAction('clear')"/>
       </toolbar>
     </appbar>
+
     <autoscroller class="autoscroller" id="autoscrollerid"/>
+
     <flyoutpanel id="about-flyoutpanel" class="flyout-narrow" headertext="&aboutHeader.title;">
-      <label align="start">
-        <html:img src="chrome://branding/content/metro-about-wordmark.png" alt="&aboutHeader.product.label;"/>
-      </label>
-      <label value="&aboutHeader.company.label;" linewrap="true"/>
+      <label id="about-product-label" value="&aboutHeader.product.label;"/>
+      <label value="&aboutHeader.company.label;"/>
 #expand <label id="about-version-label">__MOZ_APP_VERSION__</label>
       <vbox id="updateBox">
 #ifdef MOZ_UPDATER
@@ -423,24 +407,25 @@ Desktop browser's sync prefs.
             <label>&update.otherInstanceHandlingUpdates;</label>
           </hbox>
           <hbox id="manualUpdate" align="center">
-            <label>&update.manual.start;</label><label id="manualLink" linewrap="true" class="text-link"/><label>&update.manual.end;</label>
+            <label>&update.manual.start;</label><label id="manualLink" class="text-link"/><label>&update.manual.end;</label>
           </hbox>
         </deck>
 #endif
       </vbox>
+
 #if MOZ_UPDATE_CHANNEL != release
 #ifdef MOZ_UPDATER
-      <description class="text-blurb" id="currentChannelText">&channel.description.start;<label id="currentChannel" linewrap="true"/>&channel.description.end;</description>
+      <description class="text-blurb" id="currentChannelText">&channel.description.start;<label id="currentChannel"/>&channel.description.end;</description>
 #endif
 #endif
       <label id="about-policy-label"
-            linewrap="true"
-            onclick="FlyoutPanelsUI.AboutFlyoutPanel.onPolicyClick(event);"
+            onclick="if (event.button == 0) { BrowserUI.onAboutPolicyClick(); }"
             class="text-link" value="&aboutHeader.policy.label;"/>
-      <spacer class="flyoutpanel-hack"/>
     </flyoutpanel>
+
 #ifdef MOZ_SERVICES_SYNC
     <flyoutpanel id="sync-flyoutpanel" class="flyout-narrow" headertext="&sync.flyout.title;">
+
       <vbox id="sync-presetup-container" collapsed="true">
         <description>&sync.flyout.presetup.description1;</description>
         <separator />
@@ -450,11 +435,11 @@ Desktop browser's sync prefs.
           <image src="chrome://browser/skin/images/plus-34.png" />
           <separator />
           <label value="&sync.flyout.presetup.setup.label;"
-                 linewrap="true"
                  class="text-link" />
           <spacer flex="1" />
         </hbox>
       </vbox>
+
       <vbox id="sync-setup-container" collapsed="true">
         <description>&sync.flyout.setup.description1;</description>
         <description>&sync.flyout.setup.description2;</description>
@@ -487,21 +472,21 @@ Desktop browser's sync prefs.
                      flex="1"
                      onclick="FlyoutPanelsUI.SyncFlyoutPanel.abortEasySetup();
                               FlyoutPanelsUI.SyncFlyoutPanel.showManualSetup()">
-          &sync.flyout.setup.manual.label_2;
+          &sync.flyout.setup.manual.label;
         </description>
         <separator />
         <description>&sync.flyout.setup.description3;</description>
-        <description>&sync.flyout.setup.description4_2;</description>
+        <description>&sync.flyout.setup.description4;</description>
         <description class="syncInstructionText">
-          &sync.flyout.setup.description5_2;
+          &sync.flyout.setup.description5;
         </description>
         <description class="syncInstructionText">
-          &sync.flyout.setup.description6_2;
+          &sync.flyout.setup.description6;
         </description>
       </vbox>
 
       <vbox id="sync-manualsetup-container" collapsed="true">
-        <description>&sync.flyout.manualsetup.description1_2;</description>
+        <description>&sync.flyout.manualsetup.description1;</description>
         <separator/>
         <textbox id="sync-manualsetup-account"
                  placeholder="&sync.flyout.manualsetup.account.placeholder;"
@@ -624,9 +609,9 @@ Desktop browser's sync prefs.
           <spacer flex="1" />
         </hbox>
         <description>&sync.flyout.pairNewDevice.note1;</description>
-        <description>&sync.flyout.pairNewDevice.note2_2;</description>
+        <description>&sync.flyout.pairNewDevice.note2;</description>
         <description class="syncInstructionText">
-          &sync.flyout.pairNewDevice.note3_2;
+          &sync.flyout.pairNewDevice.note3;
         </description>
         <description class="syncInstructionText">
           &sync.flyout.pairNewDevice.note4;
@@ -642,6 +627,16 @@ Desktop browser's sync prefs.
 #endif
 
     <flyoutpanel id="prefs-flyoutpanel" class="flyout-narrow" headertext="&optionsHeader.title;">
+      <settings id="prefs-startup" label="&optionsHeader.startup.title;"> <!-- note, this element has a custom margin-top -->
+        <setting id="prefs-homepage" title="&optionsHeader.homepage.title;" type="menulist" pref="browser.startup.sessionRestore" class="setting-expanded">
+          <menulist id="prefs-homepage-options">
+            <menupopup id="prefs-homepage-popup" position="after_end">
+              <menuitem id="prefs-homepage-default" label="&optionsHeader.homepage.startPage.button;" value="false"/>
+              <menuitem id="prefs-homepage-session" label="&optionsHeader.homepage.sessionRestore.button;" value="true"/>
+            </menupopup>
+          </menulist>
+        </setting>
+      </settings>
       <settings id="prefs-charencoding" label="&optionsHeader.char.title;">
         <setting pref="browser.menu.showCharacterEncoding" title="&optionsHeader.char.options.label;" type="bool"/>
       </settings>
@@ -675,33 +670,20 @@ Desktop browser's sync prefs.
       </settings>
       <setting pref="signon.rememberSignons" title="&optionsHeader.privacy.passwords.label;" type="bool"/>
       <settings id="prefs-reporting" label="&optionsHeader.reporting.title;">
-        <setting pref="app.crashreporter.autosubmit"
-                 type="bool"
-                 title="&optionsHeader.reporting.crashes.label;" />
-        <setting pref="app.crashreporter.submitURLs"
-                 id="prefs-reporting-submitURLs"
-                 type="bool"
-                 title="&optionsHeader.reporting.crashes.submitURLs;" />
+        <setting pref="app.crashreporter.autosubmit" type="bool" title="&optionsHeader.reporting.crashes.label;" oncommand="BrowserUI.crashReportingPrefChanged(this.value);"/>
       </settings>
       <settings id="prefs-telemetry" label="&optionsHeader.telemetry.title;">
         <setting pref="toolkit.telemetry.enabled" type="bool" title="&optionsHeader.telemetry.label;"/>
       </settings>
       <settings id="prefs-dnt" label="&doNotTrack.title;">
+        <description>&doNotTrack.desc;</description>
         <setting id="prefs-dnt-value" pref="privacy.donottrackheader.value" type="radio" >
           <radiogroup id="prefs-dnt-options">
-            <radio id="prefs-dnt-notrack" class="flyoutpanel-hack"
-                   label="&doNotTrack.options.doNotTrack;" value="1"/>
-            <radio id="prefs-dnt-oktrack" class="flyoutpanel-hack"
-                   label="&doNotTrack.options.doTrack;" value="0"/>
-            <radio id="prefs-dnt-nopref" class="flyoutpanel-hack"
-                   label="&doNotTrack.options.default;" value="-1"/>
+            <radio id="prefs-dnt-notrack" label="&doNotTrack.options.trackingNotOkay;" value="1"/>
+            <radio id="prefs-dnt-nopref" label="&doNotTrack.options.noPreference;" value="-1"/>
+            <radio id="prefs-dnt-oktrack" label="&doNotTrack.options.trackingOkay;" value="0"/>
           </radiogroup>
         </setting>
-        <label class="text-link" href="https://www.mozilla.org/dnt">&doNotTrack.learnMoreLink;</label>
-      </settings>
-    </flyoutpanel>
-    <flyoutpanel id="search-flyoutpanel" class="flyout-narrow" headertext="&searchFlyoutHeader.title;">
-      <settings id="search-options" label="&searchSetting.title;">
       </settings>
     </flyoutpanel>
 
@@ -807,13 +789,7 @@ Desktop browser's sync prefs.
             <label value="&appbarFindInPage2.label;"/>
           </richlistitem>
           <richlistitem id="context-viewondesktop" type="view-on-desktop" onclick="ContextCommands.viewOnDesktop();">
-            <label value="&appbarRelaunchInDesktop.label;"/>
-          </richlistitem>
-          <richlistitem id="context-msmetadata" type="ms-meta-data" onclick="ContextCommands.openWindowsStoreLink();">
-            <label value="&appbarMSMetaData2.label;"/>
-          </richlistitem>
-          <richlistitem id="context-viewpagesource" type="view-page-source" onclick="ContextCommands.viewPageSource();">
-            <label value="&appbarViewPageSource.label;"/>
+            <label value="&appbarViewOnDesktop2.label;"/>
           </richlistitem>
         </richlistbox>
       </vbox>

@@ -3,9 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsPrefBranch_h
-#define nsPrefBranch_h
-
 #include "nsCOMPtr.h"
 #include "nsIObserver.h"
 #include "nsIPrefBranch.h"
@@ -21,18 +18,14 @@
 #include "nsWeakReference.h"
 #include "nsClassHashtable.h"
 #include "nsCRT.h"
+#include "prbit.h"
 #include "nsTraceRefcnt.h"
 #include "mozilla/HashFunctions.h"
 #include "mozilla/MemoryReporting.h"
 
-namespace mozilla {
-class PreferenceServiceReporter;
-} // namespace mozilla;
-
 class nsPrefBranch;
 
 class PrefCallback : public PLDHashEntryHdr {
-  friend class mozilla::PreferenceServiceReporter;
 
   public:
     typedef PrefCallback* KeyType;
@@ -180,7 +173,6 @@ class nsPrefBranch : public nsIPrefBranchInternal,
                      public nsIObserver,
                      public nsSupportsWeakReference
 {
-  friend class mozilla::PreferenceServiceReporter;
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIPREFBRANCH
@@ -194,7 +186,7 @@ public:
 
   nsresult RemoveObserverFromMap(const char *aDomain, nsISupports *aObserver);
 
-  static void NotifyObserver(const char *newpref, void *data);
+  static nsresult NotifyObserver(const char *newpref, void *data);
 
   size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
 
@@ -263,5 +255,3 @@ private:
   nsCOMPtr<nsIFile> mFile;
   nsCString mRelativeToKey;
 };
-
-#endif

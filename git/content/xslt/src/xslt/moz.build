@@ -4,12 +4,14 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-UNIFIED_SOURCES += [
+MODULE = 'transformiix'
+
+CPP_SOURCES += [
     'txBufferingHandler.cpp',
     'txCurrentFunctionCall.cpp',
     'txDocumentFunctionCall.cpp',
-    'txExecutionState.cpp',
     'txEXSLTFunctions.cpp',
+    'txExecutionState.cpp',
     'txFormatNumberFunctionCall.cpp',
     'txGenerateIdFunctionCall.cpp',
     'txInstructions.cpp',
@@ -42,16 +44,9 @@ EXTRA_COMPONENTS += [
     'txEXSLTRegExFunctions.manifest',
 ]
 
+LIBRARY_NAME = 'txxslt_s'
+
 FAIL_ON_WARNINGS = True
 
-# For nsDependentJSString
-LOCAL_INCLUDES += ["/dom/base"]
+LIBXUL_LIBRARY = True
 
-LOCAL_INCLUDES += [
-    '../base',
-    '../xml',
-    '../xpath',
-    '/content/base/src',
-]
-
-FINAL_LIBRARY = 'gklayout'

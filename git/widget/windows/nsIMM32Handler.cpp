@@ -16,10 +16,6 @@
 #include "KeyboardLayout.h"
 #include <algorithm>
 
-#include "mozilla/MiscEvents.h"
-#include "mozilla/TextEvents.h"
-
-using namespace mozilla;
 using namespace mozilla::widget;
 
 static nsIMM32Handler* gIMM32Handler = nullptr;
@@ -763,8 +759,6 @@ nsIMM32Handler::OnIMEStartCompositionOnPlugin(nsWindow* aWindow,
      aWindow->GetWindowHandle(), mIsComposingOnPlugin ? "TRUE" : "FALSE"));
   mIsComposingOnPlugin = true;
   mComposingWindow = aWindow;
-  nsIMEContext IMEContext(aWindow->GetWindowHandle());
-  SetIMERelatedWindowsPosOnPlugin(aWindow, IMEContext);
   aResult.mConsumed =
     aWindow->DispatchPluginEvent(WM_IME_STARTCOMPOSITION, wParam, lParam,
                                  false);
@@ -797,8 +791,6 @@ nsIMM32Handler::OnIMECompositionOnPlugin(nsWindow* aWindow,
   if (IS_COMPOSING_LPARAM(lParam)) {
     mIsComposingOnPlugin = true;
     mComposingWindow = aWindow;
-    nsIMEContext IMEContext(aWindow->GetWindowHandle());
-    SetIMERelatedWindowsPosOnPlugin(aWindow, IMEContext);
   }
   aResult.mConsumed =
     aWindow->DispatchPluginEvent(WM_IME_COMPOSITION, wParam, lParam, true);
@@ -817,12 +809,6 @@ nsIMM32Handler::OnIMEEndCompositionOnPlugin(nsWindow* aWindow,
 
   mIsComposingOnPlugin = false;
   mComposingWindow = nullptr;
-
-  if (mNativeCaretIsCreated) {
-    ::DestroyCaret();
-    mNativeCaretIsCreated = false;
-  }
-
   aResult.mConsumed =
     aWindow->DispatchPluginEvent(WM_IME_ENDCOMPOSITION, wParam, lParam,
                                  false);
@@ -931,7 +917,7 @@ nsIMM32Handler::HandleStartComposition(nsWindow* aWindow,
   NS_PRECONDITION(!aWindow->PluginHasFocus(),
     "HandleStartComposition should not be called when a plug-in has focus");
 
-  WidgetQueryContentEvent selection(true, NS_QUERY_SELECTED_TEXT, aWindow);
+  nsQueryContentEvent selection(true, NS_QUERY_SELECTED_TEXT, aWindow);
   nsIntPoint point(0, 0);
   aWindow->InitEvent(selection, &point);
   aWindow->DispatchWindowEvent(&selection);
@@ -944,7 +930,7 @@ nsIMM32Handler::HandleStartComposition(nsWindow* aWindow,
   mCompositionStart = selection.mReply.mOffset;
   mLastDispatchedCompositionString.Truncate();
 
-  WidgetCompositionEvent event(true, NS_COMPOSITION_START, aWindow);
+  nsCompositionEvent event(true, NS_COMPOSITION_START, aWindow);
   aWindow->InitEvent(event, &point);
   aWindow->DispatchWindowEvent(&event);
 
@@ -1078,7 +1064,7 @@ nsIMM32Handler::HandleComposition(nsWindow* aWindow,
   // 2. Get GCS_COMPCLAUSE
   //--------------------------------------------------------
   long clauseArrayLength =
-    ::ImmGetCompositionStringW(aIMEContext.get(), GCS_COMPCLAUSE, nullptr, 0);
+    ::ImmGetCompositionStringW(aIMEContext.get(), GCS_COMPCLAUSE, NULL, 0);
   clauseArrayLength /= sizeof(uint32_t);
 
   if (clauseArrayLength > 0) {
@@ -1126,7 +1112,7 @@ nsIMM32Handler::HandleComposition(nsWindow* aWindow,
           mClauseArray[i] = ::MultiByteToWideChar(GetKeyboardCodePage(), 
                                                   MB_PRECOMPOSED,
                                                   (LPCSTR)compANSIStr.get(),
-                                                  len, nullptr, 0);
+                                                  len, NULL, 0);
         }
       }
     }
@@ -1145,7 +1131,7 @@ nsIMM32Handler::HandleComposition(nsWindow* aWindow,
   // This provides us with the attribute string necessary 
   // for doing hiliting
   long attrArrayLength =
-    ::ImmGetCompositionStringW(aIMEContext.get(), GCS_COMPATTR, nullptr, 0);
+    ::ImmGetCompositionStringW(aIMEContext.get(), GCS_COMPATTR, NULL, 0);
   attrArrayLength /= sizeof(uint8_t);
 
   if (attrArrayLength > 0) {
@@ -1171,7 +1157,7 @@ nsIMM32Handler::HandleComposition(nsWindow* aWindow,
   // Some IMEs (e.g., the standard IME for Korean) don't have caret position.
   if (lParam & GCS_CURSORPOS) {
     mCursorPosition =
-      ::ImmGetCompositionStringW(aIMEContext.get(), GCS_CURSORPOS, nullptr, 0);
+      ::ImmGetCompositionStringW(aIMEContext.get(), GCS_CURSORPOS, NULL, 0);
     if (mCursorPosition < 0) {
       mCursorPosition = NO_IME_CARET; // The result is error
     }
@@ -1205,7 +1191,7 @@ nsIMM32Handler::HandleEndComposition(nsWindow* aWindow)
   PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
     ("IMM32: HandleEndComposition\n"));
 
-  WidgetCompositionEvent event(true, NS_COMPOSITION_END, aWindow);
+  nsCompositionEvent event(true, NS_COMPOSITION_END, aWindow);
   nsIntPoint point(0, 0);
 
   if (mNativeCaretIsCreated) {
@@ -1248,7 +1234,7 @@ nsIMM32Handler::HandleReconvert(nsWindow* aWindow,
   *oResult = 0;
   RECONVERTSTRING* pReconv = reinterpret_cast<RECONVERTSTRING*>(lParam);
 
-  WidgetQueryContentEvent selection(true, NS_QUERY_SELECTED_TEXT, aWindow);
+  nsQueryContentEvent selection(true, NS_QUERY_SELECTED_TEXT, aWindow);
   nsIntPoint point(0, 0);
   aWindow->InitEvent(selection, &point);
   aWindow->DispatchWindowEvent(&selection);
@@ -1376,7 +1362,7 @@ nsIMM32Handler::HandleDocumentFeed(nsWindow* aWindow,
 
   int32_t targetOffset, targetLength;
   if (!hasCompositionString) {
-    WidgetQueryContentEvent selection(true, NS_QUERY_SELECTED_TEXT, aWindow);
+    nsQueryContentEvent selection(true, NS_QUERY_SELECTED_TEXT, aWindow);
     aWindow->InitEvent(selection, &point);
     aWindow->DispatchWindowEvent(&selection);
     if (!selection.mSucceeded) {
@@ -1402,7 +1388,7 @@ nsIMM32Handler::HandleDocumentFeed(nsWindow* aWindow,
   }
 
   // Get all contents of the focused editor.
-  WidgetQueryContentEvent textContent(true, NS_QUERY_TEXT_CONTENT, aWindow);
+  nsQueryContentEvent textContent(true, NS_QUERY_TEXT_CONTENT, aWindow);
   textContent.InitForQueryTextContent(0, UINT32_MAX);
   aWindow->InitEvent(textContent, &point);
   aWindow->DispatchWindowEvent(&textContent);
@@ -1579,8 +1565,8 @@ nsIMM32Handler::DispatchTextEvent(nsWindow* aWindow,
   nsIntPoint point(0, 0);
 
   if (mCompositionString != mLastDispatchedCompositionString) {
-    WidgetCompositionEvent compositionUpdate(true, NS_COMPOSITION_UPDATE,
-                                             aWindow);
+    nsCompositionEvent compositionUpdate(true, NS_COMPOSITION_UPDATE,
+                                         aWindow);
     aWindow->InitEvent(compositionUpdate, &point);
     compositionUpdate.data = mCompositionString;
     mLastDispatchedCompositionString = mCompositionString;
@@ -1593,11 +1579,11 @@ nsIMM32Handler::DispatchTextEvent(nsWindow* aWindow,
     SetIMERelatedWindowsPos(aWindow, aIMEContext);
   }
 
-  WidgetTextEvent event(true, NS_TEXT_TEXT, aWindow);
+  nsTextEvent event(true, NS_TEXT_TEXT, aWindow);
 
   aWindow->InitEvent(event, &point);
 
-  nsAutoTArray<TextRange, 4> textRanges;
+  nsAutoTArray<nsTextRange, 4> textRanges;
 
   if (aCheckAttr) {
     SetTextRangeList(textRanges);
@@ -1607,6 +1593,8 @@ nsIMM32Handler::DispatchTextEvent(nsWindow* aWindow,
   event.rangeArray = textRanges.Elements();
 
   event.theText = mCompositionString.get();
+  mozilla::widget::ModifierKeyState modKeyState;
+  modKeyState.InitInputEvent(event);
 
   aWindow->DispatchWindowEvent(&event);
 
@@ -1614,7 +1602,7 @@ nsIMM32Handler::DispatchTextEvent(nsWindow* aWindow,
 }
 
 void
-nsIMM32Handler::SetTextRangeList(nsTArray<TextRange> &aTextRangeList)
+nsIMM32Handler::SetTextRangeList(nsTArray<nsTextRange> &aTextRangeList)
 {
   // Sogou (Simplified Chinese IME) returns contradictory values: The cursor
   // position is actual cursor position. However, other values (composition
@@ -1623,7 +1611,7 @@ nsIMM32Handler::SetTextRangeList(nsTArray<TextRange> &aTextRangeList)
   NS_ASSERTION(ShouldDrawCompositionStringOurselves(),
     "SetTextRangeList is called when we don't need to fire text event");
 
-  TextRange range;
+  nsTextRange range;
   if (mClauseArray.Length() == 0) {
     // Some IMEs don't return clause array information, then, we assume that
     // all characters in the composition string are in one clause.
@@ -1688,7 +1676,7 @@ nsIMM32Handler::GetCompositionString(const nsIMEContext &aIMEContext,
                                      DWORD aIndex)
 {
   // Retrieve the size of the required output buffer.
-  long lRtn = ::ImmGetCompositionStringW(aIMEContext.get(), aIndex, nullptr, 0);
+  long lRtn = ::ImmGetCompositionStringW(aIMEContext.get(), aIndex, NULL, 0);
   if (lRtn < 0 ||
       !mCompositionString.SetLength((lRtn / sizeof(WCHAR)) + 1, mozilla::fallible_t())) {
     PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
@@ -1754,7 +1742,7 @@ nsIMM32Handler::ConvertToANSIString(const nsAFlatString& aStr, UINT aCodePage,
 {
   int len = ::WideCharToMultiByte(aCodePage, 0,
                                   (LPCWSTR)aStr.get(), aStr.Length(),
-                                  nullptr, 0, nullptr, nullptr);
+                                  NULL, 0, NULL, NULL);
   NS_ENSURE_TRUE(len >= 0, false);
 
   if (!aANSIStr.SetLength(len, mozilla::fallible_t())) {
@@ -1763,7 +1751,7 @@ nsIMM32Handler::ConvertToANSIString(const nsAFlatString& aStr, UINT aCodePage,
     return false;
   }
   ::WideCharToMultiByte(aCodePage, 0, (LPCWSTR)aStr.get(), aStr.Length(),
-                        (LPSTR)aANSIStr.BeginWriting(), len, nullptr, nullptr);
+                        (LPSTR)aANSIStr.BeginWriting(), len, NULL, NULL);
   return true;
 }
 
@@ -1774,7 +1762,7 @@ nsIMM32Handler::GetCharacterRectOfSelectedTextAt(nsWindow* aWindow,
 {
   nsIntPoint point(0, 0);
 
-  WidgetQueryContentEvent selection(true, NS_QUERY_SELECTED_TEXT, aWindow);
+  nsQueryContentEvent selection(true, NS_QUERY_SELECTED_TEXT, aWindow);
   aWindow->InitEvent(selection, &point);
   aWindow->DispatchWindowEvent(&selection);
   if (!selection.mSucceeded) {
@@ -1801,7 +1789,7 @@ nsIMM32Handler::GetCharacterRectOfSelectedTextAt(nsWindow* aWindow,
 
   nsIntRect r;
   if (!useCaretRect) {
-    WidgetQueryContentEvent charRect(true, NS_QUERY_TEXT_RECT, aWindow);
+    nsQueryContentEvent charRect(true, NS_QUERY_TEXT_RECT, aWindow);
     charRect.InitForQueryTextRect(offset, 1);
     aWindow->InitEvent(charRect, &point);
     aWindow->DispatchWindowEvent(&charRect);
@@ -1825,7 +1813,7 @@ nsIMM32Handler::GetCaretRect(nsWindow* aWindow, nsIntRect &aCaretRect)
 {
   nsIntPoint point(0, 0);
 
-  WidgetQueryContentEvent selection(true, NS_QUERY_SELECTED_TEXT, aWindow);
+  nsQueryContentEvent selection(true, NS_QUERY_SELECTED_TEXT, aWindow);
   aWindow->InitEvent(selection, &point);
   aWindow->DispatchWindowEvent(&selection);
   if (!selection.mSucceeded) {
@@ -1836,7 +1824,7 @@ nsIMM32Handler::GetCaretRect(nsWindow* aWindow, nsIntRect &aCaretRect)
 
   uint32_t offset = selection.mReply.mOffset;
 
-  WidgetQueryContentEvent caretRect(true, NS_QUERY_CARET_RECT, aWindow);
+  nsQueryContentEvent caretRect(true, NS_QUERY_CARET_RECT, aWindow);
   caretRect.InitForQueryCaretRect(offset);
   aWindow->InitEvent(caretRect, &point);
   aWindow->DispatchWindowEvent(&caretRect);
@@ -1941,68 +1929,6 @@ nsIMM32Handler::SetIMERelatedWindowsPos(nsWindow* aWindow,
 }
 
 void
-nsIMM32Handler::SetIMERelatedWindowsPosOnPlugin(nsWindow* aWindow,
-                                                const nsIMEContext& aIMEContext)
-{
-  WidgetQueryContentEvent editorRectEvent(true, NS_QUERY_EDITOR_RECT, aWindow);
-  aWindow->InitEvent(editorRectEvent);
-  aWindow->DispatchWindowEvent(&editorRectEvent);
-  if (!editorRectEvent.mSucceeded) {
-    PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
-      ("IMM32: SetIMERelatedWindowsPosOnPlugin, "
-       "FAILED (NS_QUERY_EDITOR_RECT)"));
-    return;
-  }
-
-  // Clip the plugin rect by the client rect of the window because composition
-  // window needs to be specified the position in the client area.
-  nsWindow* toplevelWindow = aWindow->GetTopLevelWindow(false);
-  nsIntRect pluginRectInScreen =
-    editorRectEvent.mReply.mRect + toplevelWindow->WidgetToScreenOffset();
-  nsIntRect winRectInScreen;
-  aWindow->GetClientBounds(winRectInScreen);
-  // composition window cannot be positioned on the edge of client area.
-  winRectInScreen.width--;
-  winRectInScreen.height--;
-  nsIntRect clippedPluginRect;
-  clippedPluginRect.x =
-    std::min(std::max(pluginRectInScreen.x, winRectInScreen.x),
-             winRectInScreen.XMost());
-  clippedPluginRect.y =
-    std::min(std::max(pluginRectInScreen.y, winRectInScreen.y),
-             winRectInScreen.YMost());
-  int32_t xMost = std::min(pluginRectInScreen.XMost(), winRectInScreen.XMost());
-  int32_t yMost = std::min(pluginRectInScreen.YMost(), winRectInScreen.YMost());
-  clippedPluginRect.width = std::max(0, xMost - clippedPluginRect.x);
-  clippedPluginRect.height = std::max(0, yMost - clippedPluginRect.y);
-  clippedPluginRect -= aWindow->WidgetToScreenOffset();
-
-  // Cover the plugin with native caret.  This prevents IME's window and plugin
-  // overlap.
-  if (mNativeCaretIsCreated) {
-    ::DestroyCaret();
-  }
-  mNativeCaretIsCreated =
-    ::CreateCaret(aWindow->GetWindowHandle(), nullptr,
-                  clippedPluginRect.width, clippedPluginRect.height);
-  ::SetCaretPos(clippedPluginRect.x, clippedPluginRect.y);
-
-  // Set the composition window to bottom-left of the clipped plugin.
-  // As far as we know, there is no IME for RTL language.  Therefore, this code
-  // must not need to take care of RTL environment.
-  COMPOSITIONFORM compForm;
-  compForm.dwStyle = CFS_POINT;
-  compForm.ptCurrentPos.x = clippedPluginRect.BottomLeft().x;
-  compForm.ptCurrentPos.y = clippedPluginRect.BottomLeft().y;
-  if (!::ImmSetCompositionWindow(aIMEContext.get(), &compForm)) {
-    PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
-      ("IMM32: SetIMERelatedWindowsPosOnPlugin, "
-       "FAILED to set composition window"));
-    return;
-  }
-}
-
-void
 nsIMM32Handler::ResolveIMECaretPos(nsIWidget* aReferenceWidget,
                                    nsIntRect& aCursorRect,
                                    nsIWidget* aNewOriginWidget,
@@ -2032,11 +1958,11 @@ nsIMM32Handler::OnMouseEvent(nsWindow* aWindow, LPARAM lParam, int aAction,
   }
 
   nsIntPoint cursor(LOWORD(lParam), HIWORD(lParam));
-  WidgetQueryContentEvent charAtPt(true, NS_QUERY_CHARACTER_AT_POINT, aWindow);
+  nsQueryContentEvent charAtPt(true, NS_QUERY_CHARACTER_AT_POINT, aWindow);
   aWindow->InitEvent(charAtPt, &cursor);
   aWindow->DispatchWindowEvent(&charAtPt);
   if (!charAtPt.mSucceeded ||
-      charAtPt.mReply.mOffset == WidgetQueryContentEvent::NOT_FOUND ||
+      charAtPt.mReply.mOffset == nsQueryContentEvent::NOT_FOUND ||
       charAtPt.mReply.mOffset < mCompositionStart ||
       charAtPt.mReply.mOffset >
         mCompositionStart + mCompositionString.Length()) {

@@ -20,10 +20,8 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=482260
 <script class="testbody" type="text/javascript">
 
 SimpleTest.waitForExplicitFinish();
-
-resume_geolocationProvider(function() {
-  force_prompt(true, test1);
-});
+resume_geolocationProvider();
+force_prompt(true);
 
 var successCallbackCalled = 0;
 var failureCallbackCalled = 0;
@@ -39,15 +37,14 @@ function failureCallback(code) {
   testPassed();
 }
 
-function test1() {
-  for (var x = 0; x < totalResults; x++)
-    navigator.geolocation.watchPosition(successCallback, failureCallback);
-}
+for (var x = 0; x < totalResults; x++)
+  navigator.geolocation.watchPosition(successCallback, failureCallback);
 
 function testPassed() {
   if (successCallbackCalled + failureCallbackCalled != totalResults)
     return;
   is(failureCallbackCalled, 0, "no failure callbacks should have been received");
+  reset_prompt();
   SimpleTest.finish();
 }
 

@@ -26,7 +26,6 @@
 #include "SharedSurfaceIO.h"
 #endif
 
-using namespace mozilla::gfx;
 using namespace mozilla::gl;
 
 namespace mozilla {
@@ -46,7 +45,7 @@ ClientCanvasLayer::Initialize(const Data& aData)
                                           screen->PreserveBuffer());
     SurfaceFactory_GL* factory = nullptr;
     if (!mForceReadback) {
-      if (ClientManager()->AsShadowForwarder()->GetCompositorBackendType() == mozilla::layers::LAYERS_OPENGL) {
+      if (ClientManager()->GetCompositorBackendType() == mozilla::layers::LAYERS_OPENGL) {
         if (mGLContext->GetEGLContext()) {
           bool isCrossProcess = !(XRE_GetProcessType() == GeckoProcessType_Default);
 
@@ -56,7 +55,7 @@ ClientCanvasLayer::Initialize(const Data& aData)
           } else {
             // [Basic/OGL Layers, OOPC] WebGL layer init. (Out Of Process Compositing)
 #ifdef MOZ_WIDGET_GONK
-            factory = new SurfaceFactory_Gralloc(mGLContext, screen->Caps(), ClientManager()->AsShadowForwarder());
+            factory = new SurfaceFactory_Gralloc(mGLContext, screen->Caps(), ClientManager());
 #else
             // we could do readback here maybe
             NS_NOTREACHED("isCrossProcess but not on native B2G!");
@@ -99,21 +98,21 @@ ClientCanvasLayer::RenderLayer()
     }
 
     if (!mGLContext) {
-      // We don't support locking for buffer surfaces currently
-      flags |= TEXTURE_IMMEDIATE_UPLOAD;
-    } else {
       // GLContext's SurfaceStream handles ownership itself,
       // and doesn't require layers to do any deallocation.
-      flags |= TEXTURE_DEALLOCATE_CLIENT;
+      flags |= TEXTURE_DEALLOCATE_HOST;
+
+      // We don't support locking for buffer surfaces currently
+      flags |= TEXTURE_IMMEDIATE_UPLOAD;
     }
     mCanvasClient = CanvasClient::CreateCanvasClient(GetCanvasClientType(),
-                                                     ClientManager()->AsShadowForwarder(), flags);
+                                                     ClientManager(), flags);
     if (!mCanvasClient) {
       return;
     }
     if (HasShadow()) {
       mCanvasClient->Connect();
-      ClientManager()->AsShadowForwarder()->Attach(mCanvasClient, this);
+      ClientManager()->Attach(mCanvasClient, this);
     }
   }
   

@@ -18,7 +18,7 @@
 
 namespace js {
 
-class ScopeIter;
+/* Implemented in jsdbgapi: */
 
 /*
  * Announce to the debugger that the thread has entered a new JavaScript frame,
@@ -38,7 +38,7 @@ class ScopeIter;
  *   has set |frame|'s return value appropriately.
  */
 extern JSTrapStatus
-ScriptDebugPrologue(JSContext *cx, AbstractFramePtr frame, jsbytecode *pc);
+ScriptDebugPrologue(JSContext *cx, AbstractFramePtr frame);
 
 /*
  * Announce to the debugger that the thread has exited a JavaScript frame, |frame|.
@@ -56,7 +56,7 @@ ScriptDebugPrologue(JSContext *cx, AbstractFramePtr frame, jsbytecode *pc);
  * alternative path, containing its own call to ScriptDebugEpilogue.)
  */
 extern bool
-ScriptDebugEpilogue(JSContext *cx, AbstractFramePtr frame, jsbytecode *pc, bool ok);
+ScriptDebugEpilogue(JSContext *cx, AbstractFramePtr frame, bool ok);
 
 /*
  * Announce to the debugger that an exception has been thrown and propagated
@@ -86,8 +86,8 @@ DebugExceptionUnwind(JSContext *cx, AbstractFramePtr frame, jsbytecode *pc);
 extern bool
 BoxNonStrictThis(JSContext *cx, const CallReceiver &call);
 
-extern JSObject *
-BoxNonStrictThis(JSContext *cx, HandleValue thisv);
+extern bool
+BoxNonStrictThis(JSContext *cx, MutableHandleValue thisv, bool *modified);
 
 /*
  * Ensure that fp->thisValue() is the correct value of |this| for the scripted
@@ -205,7 +205,7 @@ class RunState
 
     JSScript *script() const { return script_; }
 
-    virtual StackFrame *pushInterpreterFrame(JSContext *cx) = 0;
+    virtual StackFrame *pushInterpreterFrame(JSContext *cx, FrameGuard *fg) = 0;
     virtual void setReturnValue(Value v) = 0;
 
   private:
@@ -242,7 +242,7 @@ class ExecuteState : public RunState
     JSObject *scopeChain() const { return scopeChain_; }
     ExecuteType type() const { return type_; }
 
-    virtual StackFrame *pushInterpreterFrame(JSContext *cx);
+    virtual StackFrame *pushInterpreterFrame(JSContext *cx, FrameGuard *fg);
 
     virtual void setReturnValue(Value v) {
         if (result_)
@@ -271,7 +271,7 @@ class InvokeState : public RunState
     bool constructing() const { return InitialFrameFlagsAreConstructing(initial_); }
     CallArgs &args() const { return args_; }
 
-    virtual StackFrame *pushInterpreterFrame(JSContext *cx);
+    virtual StackFrame *pushInterpreterFrame(JSContext *cx, FrameGuard *fg);
 
     virtual void setReturnValue(Value v) {
         args_.rval().set(v);
@@ -290,7 +290,7 @@ class GeneratorState : public RunState
     GeneratorState(JSContext *cx, JSGenerator *gen, JSGeneratorState futureState);
     ~GeneratorState();
 
-    virtual StackFrame *pushInterpreterFrame(JSContext *cx);
+    virtual StackFrame *pushInterpreterFrame(JSContext *cx, FrameGuard *fg);
     virtual void setReturnValue(Value) { }
 
     JSGenerator *gen() const { return gen_; }
@@ -310,17 +310,14 @@ extern bool
 SameValue(JSContext *cx, const Value &v1, const Value &v2, bool *same);
 
 extern JSType
-TypeOfObject(JSObject *obj);
-
-extern JSType
-TypeOfValue(const Value &v);
+TypeOfValue(JSContext *cx, const Value &v);
 
 extern bool
 HasInstance(JSContext *cx, HandleObject obj, HandleValue v, bool *bp);
 
 /* Unwind block and scope chains to match the given depth. */
 extern void
-UnwindScope(JSContext *cx, ScopeIter &si, uint32_t stackDepth);
+UnwindScope(JSContext *cx, AbstractFramePtr frame, uint32_t stackDepth);
 
 /*
  * Unwind for an uncatchable exception. This means not running finalizers, etc;
@@ -357,9 +354,6 @@ bool
 GetProperty(JSContext *cx, HandleValue value, HandlePropertyName name, MutableHandleValue vp);
 
 bool
-CallProperty(JSContext *cx, HandleValue value, HandlePropertyName name, MutableHandleValue vp);
-
-bool
 GetScopeName(JSContext *cx, HandleObject obj, HandlePropertyName name, MutableHandleValue vp);
 
 bool
@@ -387,22 +381,34 @@ InitElementArray(JSContext *cx, jsbytecode *pc,
                  HandleObject obj, uint32_t index, HandleValue value);
 
 bool
-AddValues(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, Value *res);
+AddValues(JSContext *cx, HandleScript script, jsbytecode *pc,
+          MutableHandleValue lhs, MutableHandleValue rhs,
+          Value *res);
 
 bool
-SubValues(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, Value *res);
+SubValues(JSContext *cx, HandleScript script, jsbytecode *pc,
+          MutableHandleValue lhs, MutableHandleValue rhs,
+          Value *res);
 
 bool
-MulValues(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, Value *res);
+MulValues(JSContext *cx, HandleScript script, jsbytecode *pc,
+          MutableHandleValue lhs, MutableHandleValue rhs,
+          Value *res);
 
 bool
-DivValues(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, Value *res);
+DivValues(JSContext *cx, HandleScript script, jsbytecode *pc,
+          MutableHandleValue lhs, MutableHandleValue rhs,
+          Value *res);
 
 bool
-ModValues(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, Value *res);
+ModValues(JSContext *cx, HandleScript script, jsbytecode *pc,
+          MutableHandleValue lhs, MutableHandleValue rhs,
+          Value *res);
 
 bool
-UrshValues(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, Value *res);
+UrshValues(JSContext *cx, HandleScript script, jsbytecode *pc,
+           MutableHandleValue lhs, MutableHandleValue rhs,
+           Value *res);
 
 template <bool strict>
 bool

@@ -8,11 +8,9 @@
 // Moz headers (alphabetical)
 #include "keyboardlayout.h"   // mModifierKeyState
 #include "nsBaseHashtable.h"  // mTouches
+#include "nsGUIEvent.h"       // mTouchEvent (nsTouchEvent)
 #include "nsHashKeys.h"       // type of key for mTouches
 #include "mozwrlbase.h"
-#include "nsDeque.h"
-#include "mozilla/EventForwards.h"
-#include "mozilla/layers/APZCTreeManager.h"
 
 // System headers (alphabetical)
 #include <EventToken.h>     // EventRegistrationToken
@@ -22,6 +20,8 @@
 
 // Moz forward declarations
 class MetroWidget;
+enum nsEventStatus;
+class nsGUIEvent;
 struct nsIntPoint;
 
 namespace mozilla {
@@ -44,6 +44,7 @@ namespace ABI {
     namespace UI {
       namespace Core {
         struct ICoreWindow;
+        struct ICoreDispatcher;
         struct IAcceleratorKeyEventArgs;
         struct IKeyEventArgs;
         struct IPointerEventArgs;
@@ -83,6 +84,7 @@ private:
   typedef ABI::Windows::UI::Core::ICoreWindow ICoreWindow;
   typedef ABI::Windows::UI::Core::IAcceleratorKeyEventArgs \
                                   IAcceleratorKeyEventArgs;
+  typedef ABI::Windows::UI::Core::ICoreDispatcher ICoreDispatcher;
   typedef ABI::Windows::UI::Core::IKeyEventArgs IKeyEventArgs;
   typedef ABI::Windows::UI::Core::IPointerEventArgs IPointerEventArgs;
 
@@ -101,11 +103,10 @@ private:
   typedef ABI::Windows::UI::Input::ITappedEventArgs ITappedEventArgs;
   typedef ABI::Windows::UI::Input::ManipulationDelta ManipulationDelta;
 
-  typedef mozilla::layers::ScrollableLayerGuid ScrollableLayerGuid;
-
 public:
   MetroInput(MetroWidget* aWidget,
-             ICoreWindow* aWindow);
+             ICoreWindow* aWindow,
+             ICoreDispatcher* aDispatcher);
   virtual ~MetroInput();
 
   // These input events are received from our window. These are basic
@@ -133,57 +134,49 @@ public:
   HRESULT OnEdgeGestureCompleted(IEdgeGesture* aSender,
                                  IEdgeGestureEventArgs* aArgs);
 
-  // Swipe gesture callback from the GestureRecognizer.
+  // These events are raised by our GestureRecognizer in response to input
+  // events that we forward to it.  The ManipulationStarted,
+  // ManipulationUpdated, and ManipulationEnded events are sent during
+  // complex input gestures including pinch, swipe, and rotate.  Note that
+  // all three gestures can occur simultaneously.
+  HRESULT OnManipulationStarted(IGestureRecognizer* aSender,
+                                IManipulationStartedEventArgs* aArgs);
+  HRESULT OnManipulationUpdated(IGestureRecognizer* aSender,
+                                IManipulationUpdatedEventArgs* aArgs);
   HRESULT OnManipulationCompleted(IGestureRecognizer* aSender,
                                   IManipulationCompletedEventArgs* aArgs);
-
-  // Tap gesture callback from the GestureRecognizer.
   HRESULT OnTapped(IGestureRecognizer* aSender, ITappedEventArgs* aArgs);
   HRESULT OnRightTapped(IGestureRecognizer* aSender,
                         IRightTappedEventArgs* aArgs);
 
-  void HandleTap(const Point& aPoint, unsigned int aTapCount);
-  void HandleLongTap(const Point& aPoint);
-
-  static bool IsInputModeImprecise();
+  // Used by MetroWidget GeckoContentController callbacks
+  void HandleDoubleTap(const mozilla::LayoutDeviceIntPoint& aPoint);
+  void HandleSingleTap(const mozilla::LayoutDeviceIntPoint& aPoint);
+  void HandleLongTap(const mozilla::LayoutDeviceIntPoint& aPoint);
 
 private:
   Microsoft::WRL::ComPtr<ICoreWindow> mWindow;
   Microsoft::WRL::ComPtr<MetroWidget> mWidget;
+  Microsoft::WRL::ComPtr<ICoreDispatcher> mDispatcher;
   Microsoft::WRL::ComPtr<IGestureRecognizer> mGestureRecognizer;
 
   ModifierKeyState mModifierKeyState;
-
-  // Tracking input level
-  enum InputPrecisionLevel {
-    LEVEL_PRECISE,
-    LEVEL_IMPRECISE
-  };
-  static InputPrecisionLevel sCurrentInputLevel;
-  void UpdateInputLevel(InputPrecisionLevel aInputLevel);
 
   // Initialization/Uninitialization helpers
   void RegisterInputEvents();
   void UnregisterInputEvents();
 
-  // Hit testing for chrome content
-  bool mChromeHitTestCacheForTouch;
-  bool HitTestChrome(const LayoutDeviceIntPoint& pt);
-
   // Event processing helpers.  See function definitions for more info.
-  bool TransformRefPoint(const Point& aPosition,
-                         LayoutDeviceIntPoint& aRefPointOut);
-  void TransformTouchEvent(WidgetTouchEvent* aEvent);
   void OnPointerNonTouch(IPointerPoint* aPoint);
-  void AddPointerMoveDataToRecognizer(IPointerEventArgs* aArgs);
-  void InitGeckoMouseEventFromPointerPoint(WidgetMouseEvent* aEvent,
+  void InitGeckoMouseEventFromPointerPoint(nsMouseEvent& aEvent,
                                            IPointerPoint* aPoint);
   void ProcessManipulationDelta(ManipulationDelta const& aDelta,
                                 Point const& aPosition,
                                 uint32_t aMagEventType,
                                 uint32_t aRotEventType);
-  uint16_t ProcessInputTypeForGesture(IEdgeGestureEventArgs* aArgs);
-  bool ShouldDeliverInputToRecognizer();
+
+  void DispatchEventIgnoreStatus(nsGUIEvent *aEvent);
+  static nsEventStatus sThrowawayStatus;
 
   // The W3C spec states that "whether preventDefault has been called" should
   // be tracked on a per-touchpoint basis, but it also states that touchstart
@@ -208,11 +201,9 @@ private:
   //   events will be generated based on the touchstart and touchend events.
   //   For example, a set of mousemove, mousedown, and mouseup events might
   //   be sent if a tap is detected.
-  bool mContentConsumingTouch;
-  bool mApzConsumingTouch;
-  bool mCancelable;
-  bool mRecognizerWantsEvents;
-  nsTArray<uint32_t> mCanceledIds;
+  bool mTouchStartDefaultPrevented;
+  bool mTouchMoveDefaultPrevented;
+  bool mIsFirstTouchMove;
 
   // In the old Win32 way of doing things, we would receive a WM_TOUCH event
   // that told us the state of every touchpoint on the touch surface.  If
@@ -233,7 +224,10 @@ private:
   // the updated touchpoint info and record the fact that the touchpoint
   // has changed.  If ever we try to update a touchpoint has already
   // changed, we dispatch a touch event containing all the changed touches.
-  void InitTouchEventTouchList(WidgetTouchEvent* aEvent);
+  nsEventStatus mTouchEventStatus;
+  nsTouchEvent mTouchEvent;
+  void DispatchPendingTouchEvent(bool aDispatchToAPZC);
+  void DispatchPendingTouchEvent(nsEventStatus& status, bool aDispatchToAPZC);
   nsBaseHashtable<nsUint32HashKey,
                   nsRefPtr<mozilla::dom::Touch>,
                   nsRefPtr<mozilla::dom::Touch> > mTouches;
@@ -258,33 +252,11 @@ private:
   // events from our GestureRecognizer.  It's probably not a huge deal if we
   // don't unregister ourselves with our GestureRecognizer before destroying
   // the GestureRecognizer, but it can't hurt.
+  EventRegistrationToken mTokenManipulationStarted;
+  EventRegistrationToken mTokenManipulationUpdated;
   EventRegistrationToken mTokenManipulationCompleted;
   EventRegistrationToken mTokenTapped;
   EventRegistrationToken mTokenRightTapped;
-
-  // Due to a limitation added in 8.1 the ui thread can't re-enter the main
-  // native event dispatcher in MetroAppShell. So all events delivered to us
-  // on the ui thread via a native event dispatch call get bounced through
-  // the gecko thread event queue using runnables. Most events can be sent
-  // async without the need to see the status result. Those that do have
-  // specialty callbacks. Note any event that arrives to us on the ui thread
-  // that originates from another thread is safe to send sync.
-
-  // Async event dispatching
-  void DispatchAsyncEventIgnoreStatus(WidgetInputEvent* aEvent);
-  void DispatchAsyncTouchEvent(WidgetTouchEvent* aEvent);
-
-  // Async event callbacks
-  void DeliverNextQueuedEventIgnoreStatus();
-  void DeliverNextQueuedTouchEvent();
-
-  // Sync event dispatching
-  void DispatchEventIgnoreStatus(WidgetGUIEvent* aEvent);
-  void DispatchTouchCancel(WidgetTouchEvent* aEvent);
-
-  nsDeque mInputEventQueue;
-  mozilla::layers::ScrollableLayerGuid mTargetAPZCGuid;
-  static nsEventStatus sThrowawayStatus;
 };
 
 } } }

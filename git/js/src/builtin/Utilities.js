@@ -24,9 +24,9 @@
 */
 
 /* Utility macros */
-#define TO_INT32(x) ((x) | 0)
-#define TO_UINT32(x) ((x) >>> 0)
-#define IS_UINT32(x) ((x) >>> 0 === (x))
+#define TO_INT32(x) (x | 0)
+#define TO_UINT32(x) (x >>> 0)
+#define IS_UINT32(x) (x >>> 0 === x)
 
 /* Assertions */
 #ifdef DEBUG
@@ -39,7 +39,6 @@
 var std_isFinite = isFinite;
 var std_isNaN = isNaN;
 var std_Array_indexOf = ArrayIndexOf;
-var std_Array_iterator = Array.prototype.iterator;
 var std_Array_join = Array.prototype.join;
 var std_Array_push = Array.prototype.push;
 var std_Array_shift = Array.prototype.shift;
@@ -55,7 +54,6 @@ var std_Function_apply = Function.prototype.apply;
 var std_Math_floor = Math.floor;
 var std_Math_max = Math.max;
 var std_Math_min = Math.min;
-var std_Math_imul = Math.imul;
 var std_Number_valueOf = Number.prototype.valueOf;
 var std_Number_POSITIVE_INFINITY = Number.POSITIVE_INFINITY;
 var std_Object_create = Object.create;
@@ -64,7 +62,6 @@ var std_Object_getOwnPropertyNames = Object.getOwnPropertyNames;
 var std_Object_hasOwnProperty = Object.prototype.hasOwnProperty;
 var std_RegExp_test = RegExp.prototype.test;
 var Std_String = String;
-var std_String_charCodeAt = String.prototype.charCodeAt;
 var std_String_indexOf = String.prototype.indexOf;
 var std_String_lastIndexOf = String.prototype.lastIndexOf;
 var std_String_match = String.prototype.match;
@@ -74,18 +71,15 @@ var std_String_startsWith = String.prototype.startsWith;
 var std_String_substring = String.prototype.substring;
 var std_String_toLowerCase = String.prototype.toLowerCase;
 var std_String_toUpperCase = String.prototype.toUpperCase;
-var std_WeakMap = WeakMap;
 var std_WeakMap_get = WeakMap.prototype.get;
 var std_WeakMap_has = WeakMap.prototype.has;
 var std_WeakMap_set = WeakMap.prototype.set;
 var std_Map_has = Map.prototype.has;
 var std_Set_has = Set.prototype.has;
-var std_iterator = '@@iterator'; // FIXME: Change to be a symbol.
-var std_StopIteration = StopIteration;
-var std_Map_iterator = Map.prototype[std_iterator];
-var std_Set_iterator = Set.prototype[std_iterator];
-var std_Map_iterator_next = Object.getPrototypeOf(Map()[std_iterator]()).next;
-var std_Set_iterator_next = Object.getPrototypeOf(Set()[std_iterator]()).next;
+var std_Map_iterator = Map().iterator;
+var std_Set_iterator = Set().iterator;
+var std_Map_iterator_next = Object.getPrototypeOf(Map().iterator()).next;
+var std_Set_iterator_next = Object.getPrototypeOf(Set().iterator()).next;
 
 /********** List specification type **********/
 
@@ -161,69 +155,3 @@ function IsObject(v) {
            typeof v === "function" ||
            (typeof v === "undefined" && v !== undefined);
 }
-
-
-/********** Testing code **********/
-
-// This code enables testing of the custom allow-nothing wrappers used for
-// objects and functions crossing the self-hosting compartment boundaries.
-// Functions marked as wrappable won't be cloned into content compartments;
-// they're called inside the self-hosting compartment itself. Calling is the
-// only valid operation on them. In turn, the only valid way they can use their
-// object arguments is as keys in maps. Doing anything else with them throws.
-var wrappersTestMap = new WeakMap();
-function testWrappersAllowUseAsKey(o) {
-  wrappersTestMap.set(o, o);
-  var mappedO = wrappersTestMap.get(o);
-  wrappersTestMap.clear();
-  return mappedO;
-}
-function testWrappersForbidAccess(o, operation) {
-  try {
-    switch (operation) {
-      case 'get': var result = o.prop; break;
-      case 'set': o.prop2 = 'value'; break;
-      case 'call': o(); break;
-      case '__proto__':
-        Object.getOwnPropertyDescriptor(Object.prototype, '__proto__').set.call(o, new Object());
-        break;
-    }
-  } catch (e) {
-    // Got the expected exception.
-    return /denied/.test(e);
-  }
-  return false;
-}
-
-MakeWrappable(testWrappersAllowUseAsKey);
-MakeWrappable(testWrappersForbidAccess);
-
-#ifdef ENABLE_PARALLEL_JS
-
-/**
- * Internal debugging tool: checks that the given `mode` permits
- * sequential execution
- */
-function AssertSequentialIsOK(mode) {
-  if (mode && mode.mode && mode.mode !== "seq" && ParallelTestsShouldPass())
-    ThrowError(JSMSG_WRONG_VALUE, "parallel execution", "sequential was forced");
-}
-
-function ForkJoinMode(mode) {
-  // WARNING: this must match the enum ForkJoinMode in ForkJoin.cpp
-  if (!mode || !mode.mode) {
-    return 0;
-  } else if (mode.mode === "compile") {
-    return 1;
-  } else if (mode.mode === "par") {
-    return 2;
-  } else if (mode.mode === "recover") {
-    return 3;
-  } else if (mode.mode === "bailout") {
-    return 4;
-  }
-  ThrowError(JSMSG_PAR_ARRAY_BAD_ARG);
-  return undefined;
-}
-
-#endif

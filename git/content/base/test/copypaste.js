@@ -23,25 +23,28 @@ function modifySelection(s) {
 }
 
 function getLoadContext() {
-  var Ci = SpecialPowers.Ci;
+  var Ci = SpecialPowers.wrap(Components).interfaces;
   return SpecialPowers.wrap(window).QueryInterface(Ci.nsIInterfaceRequestor)
                                    .getInterface(Ci.nsIWebNavigation)
                                    .QueryInterface(Ci.nsILoadContext);
 }
 
 function testCopyPaste (isXHTML) {
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
   var suppressUnicodeCheckIfHidden = !!isXHTML;
   var suppressHTMLCheck = !!isXHTML;
 
-  var webnav = SpecialPowers.wrap(window).QueryInterface(SpecialPowers.Ci.nsIInterfaceRequestor)
-                     .getInterface(SpecialPowers.Ci.nsIWebNavigation)
+  var webnav = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                     .getInterface(Components.interfaces.nsIWebNavigation)
 
-  var docShell = webnav.QueryInterface(SpecialPowers.Ci.nsIDocShell);
+  var docShell = webnav.QueryInterface(Components.interfaces.nsIDocShell);
 
   var documentViewer = docShell.contentViewer
-                               .QueryInterface(SpecialPowers.Ci.nsIContentViewerEdit);
+                               .QueryInterface(Components.interfaces.nsIContentViewerEdit);
 
-  var clipboard = SpecialPowers.Services.clipboard;
+  var clipboard = Components.classes["@mozilla.org/widget/clipboard;1"]
+                            .getService(Components.interfaces.nsIClipboard);
 
   var textarea = SpecialPowers.wrap(document.getElementById('input'));
 
@@ -80,21 +83,21 @@ function testCopyPaste (isXHTML) {
     copySelectionToClipboard();
   }
   function getClipboardData(mime) {
-    var transferable = SpecialPowers.Cc['@mozilla.org/widget/transferable;1']
-                                    .createInstance(SpecialPowers.Ci.nsITransferable);
+    var transferable = Components.classes['@mozilla.org/widget/transferable;1']
+                                 .createInstance(Components.interfaces.nsITransferable);
     transferable.init(getLoadContext());
     transferable.addDataFlavor(mime);
     clipboard.getData(transferable, 1);
-    var data = SpecialPowers.createBlankObject();
+    var data = {};
     transferable.getTransferData(mime, data, {}) ;
     return data;
   }
   function testClipboardValue(mime, expected) {
     if (suppressHTMLCheck && mime == "text/html")
       return null;
-    var data = SpecialPowers.wrap(getClipboardData(mime));
+    var data = getClipboardData(mime);
     is (data.value == null ? data.value :
-        data.value.QueryInterface(SpecialPowers.Ci.nsISupportsString).data,
+        data.value.QueryInterface(Components.interfaces.nsISupportsString).data,
       expected,
       mime + " value in the clipboard");
     return data.value;
@@ -254,6 +257,7 @@ if (false) {
   setTimeout(function(){testSelectionToString("div11")},0);
 
   setTimeout(function(){
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
     copyRangeToClipboard($("div12").childNodes[0],0, $("div12").childNodes[1],2);
     testClipboardValue("text/unicode", "Xdiv12");
     testClipboardValue("text/html", "<div><p>X<span>div</span>12</p></div>");

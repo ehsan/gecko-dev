@@ -23,18 +23,12 @@ interface TestExampleInterface {
   void passByte(byte arg);
   byte receiveByte();
   void passOptionalByte(optional byte arg);
-  void passOptionalByteBeforeRequired(optional byte arg1, byte arg2);
+  void passOptionalUndefinedMissingByte([TreatUndefinedAs=Missing] optional byte arg);
   void passOptionalByteWithDefault(optional byte arg = 0);
-  void passOptionalByteWithDefaultBeforeRequired(optional byte arg1 = 0, byte arg2);
+  void passOptionalUndefinedMissingByteWithDefault([TreatUndefinedAs=Missing] optional byte arg = 0);
   void passNullableByte(byte? arg);
   void passOptionalNullableByte(optional byte? arg);
   void passVariadicByte(byte... arg);
-  [Cached, Pure]
-  readonly attribute byte cachedByte;
-  [StoreInSlot, Constant]
-  readonly attribute byte cachedConstantByte;
-  [Cached, Pure]
-  attribute byte cachedWritableByte;
 
   readonly attribute short readonlyShort;
   attribute short writableShort;
@@ -135,17 +129,17 @@ interface TestExampleInterface {
   void passOptionalSelfWithDefault(optional TestInterface? arg = null);
 
   // Non-wrapper-cache interface types
-  [NewObject]
+  [Creator]
   TestNonWrapperCacheInterface receiveNonWrapperCacheInterface();
-  [NewObject]
+  [Creator]
   TestNonWrapperCacheInterface? receiveNullableNonWrapperCacheInterface();
-  [NewObject]
+  [Creator]
   sequence<TestNonWrapperCacheInterface> receiveNonWrapperCacheInterfaceSequence();
-  [NewObject]
+  [Creator]
   sequence<TestNonWrapperCacheInterface?> receiveNullableNonWrapperCacheInterfaceSequence();
-  [NewObject]
+  [Creator]
   sequence<TestNonWrapperCacheInterface>? receiveNonWrapperCacheInterfaceNullableSequence();
-  [NewObject]
+  [Creator]
   sequence<TestNonWrapperCacheInterface?>? receiveNullableNonWrapperCacheInterfaceNullableSequence();
 
   // Non-castable interface types
@@ -195,16 +189,6 @@ interface TestExampleInterface {
   void passConsequentialInterface(IndirectlyImplementedInterface arg);
 
   // Sequence types
-  [Cached, Pure]
-  readonly attribute sequence<long> readonlySequence;
-  [Cached, Pure]
-  readonly attribute sequence<Dict> readonlySequenceOfDictionaries;
-  [Cached, Pure]
-  readonly attribute sequence<Dict>? readonlyNullableSequenceOfDictionaries;
-  [Cached, Pure, Frozen]
-  readonly attribute sequence<long> readonlyFrozenSequence;
-  [Cached, Pure, Frozen]
-  readonly attribute sequence<long>? readonlyFrozenNullableSequence;
   sequence<long> receiveSequence();
   sequence<long>? receiveNullableSequence();
   sequence<long?> receiveSequenceOfNullableInts();
@@ -279,7 +263,9 @@ interface TestExampleInterface {
   void passString(DOMString arg);
   void passNullableString(DOMString? arg);
   void passOptionalString(optional DOMString arg);
+  void passOptionalUndefinedMissingString([TreatUndefinedAs=Missing] optional DOMString arg);
   void passOptionalStringWithDefaultValue(optional DOMString arg = "abc");
+  void passOptionalUndefinedMissingStringWithDefaultValue([TreatUndefinedAs=Missing] optional DOMString arg = "abc");
   void passOptionalNullableString(optional DOMString? arg);
   void passOptionalNullableStringWithDefaultValue(optional DOMString? arg = null);
   void passVariadicString(DOMString... arg);
@@ -342,7 +328,6 @@ interface TestExampleInterface {
   void passOptionalNullableObjectWithDefaultValue(optional object? arg = null);
   void passSequenceOfObject(sequence<object> arg);
   void passSequenceOfNullableObject(sequence<object?> arg);
-  void passNullableSequenceOfObject(sequence<object>? arg);
   void passOptionalNullableSequenceOfNullableSequenceOfObject(optional sequence<sequence<object>?>? arg);
   void passOptionalNullableSequenceOfNullableSequenceOfNullableObject(optional sequence<sequence<object?>?>? arg);
   object receiveObject();
@@ -350,23 +335,15 @@ interface TestExampleInterface {
 
   // Union types
   void passUnion((object or long) arg);
-  // Some union tests are debug-only to avoid creating all those
-  // unused union types in opt builds.
-#ifdef DEBUG
-  void passUnion2((long or boolean) arg);
+  // Commented out tests 2-9 to avoid creating all those unused union types
+  /* void passUnion2((long or boolean) arg);
   void passUnion3((object or long or boolean) arg);
   void passUnion4((Node or long or boolean) arg);
   void passUnion5((object or boolean) arg);
   void passUnion6((object or DOMString) arg);
   void passUnion7((object or DOMString or long) arg);
   void passUnion8((object or DOMString or boolean) arg);
-  void passUnion9((object or DOMString or long or boolean) arg);
-  void passUnion10(optional (EventInit or long) arg);
-  void passUnion11(optional (CustomEventInit or long) arg);
-  void passUnion12(optional (EventInit or long) arg = 5);
-  void passUnion13(optional (object or long?) arg = null);
-  void passUnion14(optional (object or long?) arg = 5);
-#endif
+  void passUnion9((object or DOMString or long or boolean) arg); */
   void passUnionWithNullable((object? or long) arg);
   void passNullableUnion((object or long)? arg);
   void passOptionalUnion(optional (object or long) arg);
@@ -384,44 +361,9 @@ interface TestExampleInterface {
   void passUnionWithObject((object or long) arg);
   //void passUnionWithDict((Dict or long) arg);
 
-  void passUnionWithDefaultValue1(optional (double or DOMString) arg = "");
-  void passUnionWithDefaultValue2(optional (double or DOMString) arg = 1);
-  void passUnionWithDefaultValue3(optional (double or DOMString) arg = 1.5);
-  void passUnionWithDefaultValue4(optional (float or DOMString) arg = "");
-  void passUnionWithDefaultValue5(optional (float or DOMString) arg = 1);
-  void passUnionWithDefaultValue6(optional (float or DOMString) arg = 1.5);
-  void passUnionWithDefaultValue7(optional (unrestricted double or DOMString) arg = "");
-  void passUnionWithDefaultValue8(optional (unrestricted double or DOMString) arg = 1);
-  void passUnionWithDefaultValue9(optional (unrestricted double or DOMString) arg = 1.5);
-  void passUnionWithDefaultValue10(optional (unrestricted double or DOMString) arg = Infinity);
-  void passUnionWithDefaultValue11(optional (unrestricted float or DOMString) arg = "");
-  void passUnionWithDefaultValue12(optional (unrestricted float or DOMString) arg = 1);
-  void passUnionWithDefaultValue13(optional (unrestricted float or DOMString) arg = Infinity);
-
-  void passNullableUnionWithDefaultValue1(optional (double or DOMString)? arg = "");
-  void passNullableUnionWithDefaultValue2(optional (double or DOMString)? arg = 1);
-  void passNullableUnionWithDefaultValue3(optional (double or DOMString)? arg = null);
-  void passNullableUnionWithDefaultValue4(optional (float or DOMString)? arg = "");
-  void passNullableUnionWithDefaultValue5(optional (float or DOMString)? arg = 1);
-  void passNullableUnionWithDefaultValue6(optional (float or DOMString)? arg = null);
-  void passNullableUnionWithDefaultValue7(optional (unrestricted double or DOMString)? arg = "");
-  void passNullableUnionWithDefaultValue8(optional (unrestricted double or DOMString)? arg = 1);
-  void passNullableUnionWithDefaultValue9(optional (unrestricted double or DOMString)? arg = null);
-  void passNullableUnionWithDefaultValue10(optional (unrestricted float or DOMString)? arg = "");
-  void passNullableUnionWithDefaultValue11(optional (unrestricted float or DOMString)? arg = 1);
-  void passNullableUnionWithDefaultValue12(optional (unrestricted float or DOMString)? arg = null);
-
-  void passSequenceOfUnions(sequence<(CanvasPattern or CanvasGradient)> arg);
-  void passVariadicUnion((CanvasPattern or CanvasGradient)... arg);
-
-  void passSequenceOfNullableUnions(sequence<(CanvasPattern or CanvasGradient)?> arg);
-  void passVariadicNullableUnion((CanvasPattern or CanvasGradient)?... arg);
-
   //(CanvasPattern or CanvasGradient) receiveUnion();
-  //(object or long) receiveUnion2();
   //(CanvasPattern? or CanvasGradient) receiveUnionContainingNull();
   //(CanvasPattern or CanvasGradient)? receiveNullableUnion();
-  //(object or long)? receiveNullableUnion2();
 
   //attribute (CanvasPattern or CanvasGradient) writableUnion;
   //attribute (CanvasPattern? or CanvasGradient) writableUnionContainingNull;
@@ -445,8 +387,9 @@ interface TestExampleInterface {
   attribute byte attributeRenamedFrom;
 
   void passDictionary(optional Dict x);
-  Dict receiveDictionary();
-  Dict? receiveNullableDictionary();
+  // FIXME: Bug 863949 no dictionary return values in callbacks
+  // Dict receiveDictionary();
+  // Dict? receiveNullableDictionary();
   void passOtherDictionary(optional GrandparentDict x);
   void passSequenceOfDictionaries(sequence<Dict> x);
   // No support for nullable dictionaries inside a sequence (nor should there be)
@@ -456,14 +399,12 @@ interface TestExampleInterface {
 
   void passDictContainingDict(optional DictContainingDict arg);
   void passDictContainingSequence(optional DictContainingSequence arg);
-  DictContainingSequence receiveDictContainingSequence();
+  //UNSUPPORTED DictContainingSequence receiveDictContainingSequence();
 
   // EnforceRange/Clamp tests
   void dontEnforceRangeOrClamp(byte arg);
   void doEnforceRange([EnforceRange] byte arg);
   void doClamp([Clamp] byte arg);
-  [EnforceRange] attribute byte enforcedByte;
-  [Clamp] attribute byte clampedByte;
 
   // Typedefs
   const myLong myLongConstant = 5;
@@ -500,22 +441,6 @@ interface TestExampleInterface {
   void overload7(ByteString arg);
   void overload8(long arg);
   void overload8(TestInterface arg);
-  void overload9(long? arg);
-  void overload9(DOMString arg);
-  void overload10(long? arg);
-  void overload10(object arg);
-  void overload11(long arg);
-  void overload11(DOMString? arg);
-  void overload12(long arg);
-  void overload12(boolean? arg);
-  void overload13(long? arg);
-  void overload13(boolean arg);
-  void overload14(optional long arg);
-  void overload14(TestInterface arg);
-  void overload15(long arg);
-  void overload15(optional TestInterface arg);
-  void overload16(long arg);
-  void overload16(optional TestInterface? arg);
 
   // Variadic handling
   void passVariadicThirdArg(DOMString arg1, long arg2, TestInterface... arg3);

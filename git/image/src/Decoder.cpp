@@ -5,11 +5,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "Decoder.h"
+#include "nsIServiceManager.h"
 #include "nsIConsoleService.h"
 #include "nsIScriptError.h"
 #include "GeckoProfiler.h"
-#include "nsServiceManagerUtils.h"
-#include "nsComponentManagerUtils.h"
 
 namespace mozilla {
 namespace image {
@@ -29,6 +28,7 @@ Decoder::Decoder(RasterImage &aImage)
   , mSizeDecode(false)
   , mInFrame(false)
   , mIsAnimated(false)
+  , mSynchronous(false)
 {
 }
 
@@ -85,10 +85,9 @@ Decoder::InitSharedDecoder(uint8_t* imageData, uint32_t imageDataLength,
 }
 
 void
-Decoder::Write(const char* aBuffer, uint32_t aCount, DecodeStrategy aStrategy)
+Decoder::Write(const char* aBuffer, uint32_t aCount)
 {
   PROFILER_LABEL("ImageDecoder", "Write");
-  MOZ_ASSERT(NS_IsMainThread() || aStrategy == DECODE_ASYNC);
 
   // We're strict about decoder errors
   NS_ABORT_IF_FALSE(!HasDecoderError(),
@@ -104,16 +103,16 @@ Decoder::Write(const char* aBuffer, uint32_t aCount, DecodeStrategy aStrategy)
   }
 
   // Pass the data along to the implementation
-  WriteInternal(aBuffer, aCount, aStrategy);
+  WriteInternal(aBuffer, aCount);
 
   // If we're a synchronous decoder and we need a new frame to proceed, let's
   // create one and call it again.
-  while (aStrategy == DECODE_SYNC && NeedsNewFrame() && !HasDataError()) {
+  while (mSynchronous && NeedsNewFrame() && !HasDataError()) {
     nsresult rv = AllocateFrame();
 
     if (NS_SUCCEEDED(rv)) {
       // Tell the decoder to use the data it saved when it asked for a new frame.
-      WriteInternal(nullptr, 0, aStrategy);
+      WriteInternal(nullptr, 0);
     }
   }
 }
@@ -121,8 +120,6 @@ Decoder::Write(const char* aBuffer, uint32_t aCount, DecodeStrategy aStrategy)
 void
 Decoder::Finish(RasterImage::eShutdownIntent aShutdownIntent)
 {
-  MOZ_ASSERT(NS_IsMainThread());
-
   // Implementation-specific finalization
   if (!HasError())
     FinishInternal();
@@ -188,8 +185,6 @@ Decoder::Finish(RasterImage::eShutdownIntent aShutdownIntent)
 void
 Decoder::FinishSharedDecoder()
 {
-  MOZ_ASSERT(NS_IsMainThread());
-
   if (!HasError()) {
     FinishInternal();
   }
@@ -284,7 +279,7 @@ Decoder::SetSizeOnImage()
  */
 
 void Decoder::InitInternal() { }
-void Decoder::WriteInternal(const char* aBuffer, uint32_t aCount, DecodeStrategy aStrategy) { }
+void Decoder::WriteInternal(const char* aBuffer, uint32_t aCount) { }
 void Decoder::FinishInternal() { }
 
 /*
@@ -353,7 +348,7 @@ Decoder::PostFrameStop(FrameBlender::FrameAlpha aFrameAlpha /* = FrameBlender::k
   }
 
   mCurrentFrame->SetFrameDisposalMethod(aDisposalMethod);
-  mCurrentFrame->SetRawTimeout(aTimeout);
+  mCurrentFrame->SetTimeout(aTimeout);
   mCurrentFrame->SetBlendMethod(aBlendMethod);
   mCurrentFrame->ImageUpdated(mCurrentFrame->GetRect());
 
@@ -419,7 +414,7 @@ Decoder::PostDecoderError(nsresult aFailureCode)
 void
 Decoder::NeedNewFrame(uint32_t framenum, uint32_t x_offset, uint32_t y_offset,
                       uint32_t width, uint32_t height,
-                      gfxImageFormat format,
+                      gfxASurface::gfxImageFormat format,
                       uint8_t palette_depth /* = 0 */)
 {
   // Decoders should never call NeedNewFrame without yielding back to Write().

@@ -20,11 +20,7 @@
 #include "mozilla/dom/CanvasRenderingContext2DBinding.h"
 #include "mozilla/dom/CanvasPattern.h"
 #include "mozilla/gfx/Rect.h"
-#include "mozilla/gfx/2D.h"
-#include "gfx2DGlue.h"
-#include "imgIEncoder.h"
 
-class nsGlobalWindow;
 class nsXULElement;
 
 namespace mozilla {
@@ -36,7 +32,7 @@ namespace dom {
 class HTMLImageElementOrHTMLCanvasElementOrHTMLVideoElement;
 class ImageData;
 class StringOrCanvasGradientOrCanvasPattern;
-class OwningStringOrCanvasGradientOrCanvasPattern;
+class StringOrCanvasGradientOrCanvasPatternReturnValue;
 class TextMetrics;
 
 extern const mozilla::gfx::Float SIGMA_MAX;
@@ -98,7 +94,7 @@ public:
   void SetGlobalCompositeOperation(const nsAString& op,
                                    mozilla::ErrorResult& error);
 
-  void GetStrokeStyle(OwningStringOrCanvasGradientOrCanvasPattern& value)
+  void GetStrokeStyle(StringOrCanvasGradientOrCanvasPatternReturnValue& value)
   {
     GetStyleAsUnion(value, STYLE_STROKE);
   }
@@ -108,7 +104,7 @@ public:
     SetStyleFromUnion(value, STYLE_STROKE);
   }
 
-  void GetFillStyle(OwningStringOrCanvasGradientOrCanvasPattern& value)
+  void GetFillStyle(StringOrCanvasGradientOrCanvasPatternReturnValue& value)
   {
     GetStyleAsUnion(value, STYLE_FILL);
   }
@@ -171,8 +167,6 @@ public:
   void BeginPath();
   void Fill(const CanvasWindingRule& winding);
   void Stroke();
-  void DrawSystemFocusRing(mozilla::dom::Element& element);
-  bool DrawCustomFocusRing(mozilla::dom::Element& element);
   void Clip(const CanvasWindingRule& winding);
   bool IsPointInPath(double x, double y, const CanvasWindingRule& winding);
   bool IsPointInStroke(double x, double y);
@@ -337,12 +331,6 @@ public:
   void SetMozDash(JSContext* cx, const JS::Value& mozDash,
                   mozilla::ErrorResult& error);
 
-  void SetLineDash(const mozilla::dom::AutoSequence<double>& mSegments);
-  void GetLineDash(nsTArray<double>& mSegments) const;
-
-  void SetLineDashOffset(double mOffset);
-  double LineDashOffset() const;
-
   double MozDashOffset()
   {
     return CurrentState().dashOffset;
@@ -372,7 +360,7 @@ public:
     }
   }
 
-  void DrawWindow(nsGlobalWindow& window, double x, double y, double w, double h,
+  void DrawWindow(nsIDOMWindow* window, double x, double y, double w, double h,
                   const nsAString& bgColor, uint32_t flags,
                   mozilla::ErrorResult& error);
   void AsyncDrawXULElement(nsXULElement& elem, double x, double y, double w,
@@ -383,16 +371,12 @@ public:
 
   nsresult Redraw();
 
-#ifdef DEBUG
-    virtual int32_t GetWidth() const MOZ_OVERRIDE;
-    virtual int32_t GetHeight() const MOZ_OVERRIDE;
-#endif
   // nsICanvasRenderingContextInternal
   NS_IMETHOD SetDimensions(int32_t width, int32_t height) MOZ_OVERRIDE;
   NS_IMETHOD InitializeWithSurface(nsIDocShell *shell, gfxASurface *surface, int32_t width, int32_t height) MOZ_OVERRIDE;
 
   NS_IMETHOD Render(gfxContext *ctx,
-                    GraphicsFilter aFilter,
+                    gfxPattern::GraphicsFilter aFilter,
                     uint32_t aFlags = RenderFlagPremultAlpha) MOZ_OVERRIDE;
   NS_IMETHOD GetInputStream(const char* aMimeType,
                             const PRUnichar* aEncoderOptions,
@@ -464,8 +448,6 @@ public:
 
   friend class CanvasRenderingContext2DUserData;
 
-  virtual void GetImageBuffer(uint8_t** aImageBuffer, int32_t* aFormat);
-
 protected:
   nsresult GetImageDataArray(JSContext* aCx, int32_t aX, int32_t aY,
                              uint32_t aWidth, uint32_t aHeight,
@@ -517,7 +499,7 @@ protected:
     CurrentState().SetPatternStyle(whichStyle, &pattern);
   }
 
-  void GetStyleAsUnion(OwningStringOrCanvasGradientOrCanvasPattern& aValue,
+  void GetStyleAsUnion(StringOrCanvasGradientOrCanvasPatternReturnValue& aValue,
                        Style aWhichStyle);
 
   // Returns whether a color was successfully parsed.
@@ -853,10 +835,6 @@ protected:
   nsAutoTArray<ContextState, 3> mStyleStack;
 
   inline ContextState& CurrentState() {
-    return mStyleStack[mStyleStack.Length() - 1];
-  }
-
-  inline const ContextState& CurrentState() const {
     return mStyleStack[mStyleStack.Length() - 1];
   }
 

@@ -5,7 +5,7 @@
  */
 interface Blob;
 
-[Constructor(DOMString type, optional BlobEventInit eventInitDict)]
+[Constructor(DOMString type, optional BlobEventInit eventInitDict), HeaderFile="GeneratedEventClasses.h"]
 interface BlobEvent : Event
 {
   readonly attribute Blob? data;

@@ -14,12 +14,12 @@
 #include "nsAutoPtr.h"
 #include "nsTArray.h"
 #include "mozilla/dom/EventTarget.h"
-#include "js/TypeDecls.h"
 
 #define DOM_WINDOW_DESTROYED_TOPIC "dom-window-destroyed"
 #define DOM_WINDOW_FROZEN_TOPIC "dom-window-frozen"
 #define DOM_WINDOW_THAWED_TOPIC "dom-window-thawed"
 
+class JSObject;
 class nsIArray;
 class nsIContent;
 class nsIDocShell;
@@ -32,6 +32,10 @@ class nsPerformance;
 class nsPIWindowRoot;
 class nsXBLPrototypeHandler;
 struct nsTimeout;
+
+namespace JS {
+template<typename> class Handle;
+}
 
 namespace mozilla {
 namespace dom {
@@ -52,16 +56,9 @@ enum PopupControlState {
   openOverridden    // disallow window open
 };
 
-enum UIStateChangeType
-{
-  UIStateChangeType_NoChange,
-  UIStateChangeType_Set,
-  UIStateChangeType_Clear
-};
-
 #define NS_PIDOMWINDOW_IID \
-{ 0xf26953de, 0xa799, 0x4a92, \
-  { 0x87, 0x49, 0x7c, 0x37, 0xe5, 0x90, 0x3f, 0x37 } }
+{ 0x4f4eadf9, 0xe795, 0x48e5, \
+  { 0x89, 0x4b, 0x04, 0x40, 0xb2, 0x5d, 0xa6, 0xfa } }
 
 class nsPIDOMWindow : public nsIDOMWindowInternal
 {
@@ -70,37 +67,39 @@ public:
 
   virtual nsPIDOMWindow* GetPrivateRoot() = 0;
 
-  // Outer windows only.
   virtual void ActivateOrDeactivate(bool aActivate) = 0;
 
   // this is called GetTopWindowRoot to avoid conflicts with nsIDOMWindow::GetWindowRoot
   virtual already_AddRefed<nsPIWindowRoot> GetTopWindowRoot() = 0;
 
-  // Inner windows only.
+  virtual void SetActive(bool aActive)
+  {
+    NS_PRECONDITION(IsOuterWindow(),
+                    "active state is only maintained on outer windows");
+    mIsActive = aActive;
+  }
+
   virtual nsresult RegisterIdleObserver(nsIIdleObserver* aIdleObserver) = 0;
   virtual nsresult UnregisterIdleObserver(nsIIdleObserver* aIdleObserver) = 0;
 
-  // Outer windows only.
-  virtual void SetActive(bool aActive)
-  {
-    MOZ_ASSERT(IsOuterWindow());
-    mIsActive = aActive;
-  }
   bool IsActive()
   {
-    MOZ_ASSERT(IsOuterWindow());
+    NS_PRECONDITION(IsOuterWindow(),
+                    "active state is only maintained on outer windows");
     return mIsActive;
   }
 
-  // Outer windows only.
   virtual void SetIsBackground(bool aIsBackground)
   {
-    MOZ_ASSERT(IsOuterWindow());
+    NS_PRECONDITION(IsOuterWindow(),
+                    "background state is only maintained on outer windows");
     mIsBackground = aIsBackground;
   }
+
   bool IsBackground()
   {
-    MOZ_ASSERT(IsOuterWindow());
+    NS_PRECONDITION(IsOuterWindow(),
+                    "background state is only maintained on outer windows");
     return mIsBackground;
   }
 
@@ -186,8 +185,6 @@ public:
     }
     return mDoc;
   }
-
-  virtual NS_HIDDEN_(bool) IsRunningTimeout() = 0;
 
 protected:
   // Lazily instantiate an about:blank document if necessary, and if
@@ -323,26 +320,6 @@ public:
   bool IsInnerWindow() const
   {
     return mIsInnerWindow;
-  }
-
-  // Returns true if this object has an outer window and it is the current inner
-  // window of that outer. Only call this on inner windows.
-  bool IsCurrentInnerWindow() const
-  {
-    MOZ_ASSERT(IsInnerWindow(),
-               "It doesn't make sense to call this on outer windows.");
-    return mOuterWindow && mOuterWindow->GetCurrentInnerWindow() == this;
-  }
-
-  // Returns true if the document of this window is the active document.  This
-  // is not identical to IsCurrentInnerWindow() because document.open() will
-  // keep the same document active but create a new window.
-  bool HasActiveDocument()
-  {
-    return IsCurrentInnerWindow() ||
-      (GetOuterWindow() &&
-       GetOuterWindow()->GetCurrentInnerWindow() &&
-       GetOuterWindow()->GetCurrentInnerWindow()->GetDoc() == mDoc);
   }
 
   bool IsOuterWindow() const
@@ -564,18 +541,12 @@ public:
   virtual nsresult DispatchSyncPopState() = 0;
 
   /**
-   * Tell this window that it should listen for sensor changes of the given
-   * type.
-   *
-   * Inner windows only.
+   * Tell this window that it should listen for sensor changes of the given type.
    */
   virtual void EnableDeviceSensor(uint32_t aType) = 0;
 
   /**
-   * Tell this window that it should remove itself from sensor change
-   * notifications.
-   *
-   * Inner windows only.
+   * Tell this window that it should remove itself from sensor change notifications.
    */
   virtual void DisableDeviceSensor(uint32_t aType) = 0;
 
@@ -586,16 +557,12 @@ public:
   /**
    * Tell the window that it should start to listen to the network event of the
    * given aType.
-   *
-   * Inner windows only.
    */
   virtual void EnableNetworkEvent(uint32_t aType) = 0;
 
   /**
    * Tell the window that it should stop to listen to the network event of the
    * given aType.
-   *
-   * Inner windows only.
    */
   virtual void DisableNetworkEvent(uint32_t aType) = 0;
 #endif // MOZ_B2G
@@ -649,7 +616,6 @@ public:
                  const nsAString& aOptions, nsIDOMWindow **_retval) = 0;
 
   void AddAudioContext(mozilla::dom::AudioContext* aAudioContext);
-  void RemoveAudioContext(mozilla::dom::AudioContext* aAudioContext);
   void MuteAudioContexts();
   void UnmuteAudioContexts();
 
@@ -672,15 +638,6 @@ public:
   // WebIDL-ish APIs
   nsPerformance* GetPerformance();
 
-  void MarkUncollectableForCCGeneration(uint32_t aGeneration)
-  {
-    mMarkedCCGeneration = aGeneration;
-  }
-
-  uint32_t GetMarkedCCGeneration()
-  {
-    return mMarkedCCGeneration;
-  }
 protected:
   // The nsPIDOMWindow constructor. The aOuterWindow argument should
   // be null if and only if the created window itself is an outer
@@ -755,7 +712,7 @@ protected:
   nsCOMPtr<nsIContent> mFocusedNode;
 
   // The AudioContexts created for the current document, if any.
-  nsTArray<mozilla::dom::AudioContext*> mAudioContexts; // Weak
+  nsTArray<nsRefPtr<mozilla::dom::AudioContext> > mAudioContexts;
 
   // A unique (as long as our 64-bit counter doesn't roll over) id for
   // this window.
@@ -764,8 +721,6 @@ protected:
   // This is only used by the inner window. Set to true once we've sent
   // the (chrome|content)-document-global-created notification.
   bool mHasNotifiedGlobalCreated;
-
-  uint32_t mMarkedCCGeneration;
 };
 
 

@@ -11,14 +11,13 @@
 #ifndef WEBRTC_VIDEO_ENGINE_VIE_BASE_IMPL_H_
 #define WEBRTC_VIDEO_ENGINE_VIE_BASE_IMPL_H_
 
-#include "webrtc/video_engine/include/vie_base.h"
-#include "webrtc/video_engine/vie_defines.h"
-#include "webrtc/video_engine/vie_ref_count.h"
-#include "webrtc/video_engine/vie_shared_data.h"
+#include "video_engine/include/vie_base.h"
+#include "video_engine/vie_defines.h"
+#include "video_engine/vie_ref_count.h"
+#include "video_engine/vie_shared_data.h"
 
 namespace webrtc {
 
-class Config;
 class Module;
 class VoiceEngine;
 
@@ -31,8 +30,6 @@ class ViEBaseImpl
   // Implements ViEBase.
   virtual int Init();
   virtual int SetVoiceEngine(VoiceEngine* voice_engine);
-  virtual int RegisterCpuOveruseObserver(int channel,
-                                         CpuOveruseObserver* observer);
   virtual int CreateChannel(int& video_channel);  // NOLINT
   virtual int CreateChannel(int& video_channel,  // NOLINT
                             int original_channel);
@@ -50,7 +47,7 @@ class ViEBaseImpl
   virtual int LastError();
 
  protected:
-  explicit ViEBaseImpl(const Config& config);
+  ViEBaseImpl();
   virtual ~ViEBaseImpl();
 
   ViESharedData* shared_data() { return &shared_data_; }

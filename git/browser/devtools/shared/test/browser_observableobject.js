@@ -49,9 +49,6 @@ function test() {
     oe.off("get", callback);
     ok(event, "event defined");
     ok(path, "path defined");
-    if (index >= expected.length) {
-      return;
-    }
     let e = expected[index];
     is(event, e.type, "[" + index + "] Right event received");
     is(path.join("."), e.path, "[" + index + "] Path valid");
@@ -80,7 +77,6 @@ function test() {
   oe.object.foo[1] = oe.object.bar;
 
   is(index, expected.length, "Event count is right");
-  is(oe.object.bar, oe.object.bar, "Object attributes are wrapped only once");
 
   finish();
 }

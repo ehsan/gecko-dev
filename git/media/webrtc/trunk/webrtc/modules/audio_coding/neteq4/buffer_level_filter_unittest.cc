@@ -12,7 +12,7 @@
 
 #include "webrtc/modules/audio_coding/neteq4/buffer_level_filter.h"
 
-#include <math.h>  // Access to pow function.
+#include <cmath>  // Access to pow function.
 
 #include "gtest/gtest.h"
 

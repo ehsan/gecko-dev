@@ -154,7 +154,7 @@ public:
                        nsIFrame::Cursor& aCursor) MOZ_OVERRIDE;
 
   NS_IMETHOD HandleEvent(nsPresContext* aPresContext,
-                         mozilla::WidgetGUIEvent* aEvent,
+                         nsGUIEvent* aEvent,
                          nsEventStatus* aEventStatus) MOZ_OVERRIDE;
 
   virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
@@ -248,7 +248,8 @@ protected:
                  nsPresContext*      aPresContext,
                  nsRenderingContext& aRenderingContext,
                  const nsRect&        aDirtyRect,
-                 nscoord&             aCurrX);
+                 nscoord&             aCurrX,
+                 bool                 aTextRTL);
 
   // This method paints the checkbox inside a particular cell of the tree.
   void PaintCheckbox(int32_t              aRowIndex, 
@@ -401,9 +402,7 @@ protected:
   // Also calc if we're in the region in which we want to auto-scroll the tree.
   // A positive value of |aScrollLines| means scroll down, a negative value
   // means scroll up, a zero value means that we aren't in drag scroll region.
-  void ComputeDropPosition(mozilla::WidgetGUIEvent* aEvent,
-                           int32_t* aRow,
-                           int16_t* aOrient,
+  void ComputeDropPosition(nsGUIEvent* aEvent, int32_t* aRow, int16_t* aOrient,
                            int16_t* aScrollLines);
 
   // Mark ourselves dirty if we're a select widget
@@ -463,9 +462,6 @@ protected:
 
   void PostScrollEvent();
   void FireScrollEvent();
-
-  virtual void ScrollbarActivityStarted() const MOZ_OVERRIDE;
-  virtual void ScrollbarActivityStopped() const MOZ_OVERRIDE;
 
   /**
    * Clear the pointer to this frame for all nsTreeImageListeners that were
@@ -620,10 +616,6 @@ protected: // Data Members
   bool mHorizontalOverflow;
 
   bool mReflowCallbackPosted;
-
-  // Set while we flush layout to take account of effects of
-  // overflow/underflow event handlers
-  bool mCheckingOverflow;
 
   // Hash table to keep track of which listeners we created and thus
   // have pointers to us.

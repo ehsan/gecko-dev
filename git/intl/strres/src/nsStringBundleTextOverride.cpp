@@ -6,9 +6,13 @@
 
 #include "nsStringBundleTextOverride.h"
 #include "nsString.h"
+#include "nsEscape.h"
 
 #include "nsNetUtil.h"
 #include "nsAppDirectoryServiceDefs.h"
+
+static NS_DEFINE_CID(kPersistentPropertiesCID, NS_IPERSISTENTPROPERTIES_CID);
+
 
 // first we need a simple class which wraps a nsIPropertyElement and
 // cuts out the leading URL from the key
@@ -149,7 +153,6 @@ nsStringBundleTextOverride::Init()
     rv = NS_OpenURI(getter_AddRefs(in), uri);
     if (NS_FAILED(rv)) return rv;
 
-    static NS_DEFINE_CID(kPersistentPropertiesCID, NS_IPERSISTENTPROPERTIES_CID);
     mValues = do_CreateInstance(kPersistentPropertiesCID, &rv);
     if (NS_FAILED(rv)) return rv;
 

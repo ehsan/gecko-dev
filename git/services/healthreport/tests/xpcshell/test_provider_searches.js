@@ -17,10 +17,13 @@ const DEFAULT_ENGINES = [
 ];
 
 function MockSearchCountMeasurement() {
-  bsp.SearchCountMeasurement3.call(this);
+  bsp.SearchCountMeasurement2.call(this);
 }
 MockSearchCountMeasurement.prototype = {
-  __proto__: bsp.SearchCountMeasurement3.prototype,
+  __proto__: bsp.SearchCountMeasurement2.prototype,
+  getDefaultEngines: function () {
+    return DEFAULT_ENGINES;
+  },
 };
 
 function MockSearchesProvider() {
@@ -49,29 +52,24 @@ add_task(function test_record() {
 
   let now = new Date();
 
-  // Record searches for all but one of our defaults, and one engine that's
-  // not a default.
-  for (let engine of DEFAULT_ENGINES.concat([{name: "Not Default", identifier: "notdef"}])) {
-    if (engine.identifier == "yahoo") {
-      continue;
-    }
-    yield provider.recordSearch(engine, "abouthome");
-    yield provider.recordSearch(engine, "contextmenu");
-    yield provider.recordSearch(engine, "searchbar");
-    yield provider.recordSearch(engine, "urlbar");
+  for (let engine of DEFAULT_ENGINES) {
+    yield provider.recordSearch(engine.name, "abouthome");
+    yield provider.recordSearch(engine.name, "contextmenu");
+    yield provider.recordSearch(engine.name, "searchbar");
+    yield provider.recordSearch(engine.name, "urlbar");
   }
 
   // Invalid sources should throw.
   let errored = false;
   try {
-    yield provider.recordSearch(DEFAULT_ENGINES[0], "bad source");
+    yield provider.recordSearch(DEFAULT_ENGINES[0].name, "bad source");
   } catch (ex) {
     errored = true;
   } finally {
     do_check_true(errored);
   }
 
-  let m = provider.getMeasurement("counts", 3);
+  let m = provider.getMeasurement("counts", 2);
   let data = yield m.getValues();
   do_check_eq(data.days.size, 1);
   do_check_true(data.days.hasDay(now));
@@ -79,25 +77,15 @@ add_task(function test_record() {
   let day = data.days.getDay(now);
   for (let engine of DEFAULT_ENGINES) {
     let identifier = engine.identifier;
-    let expected = identifier != "yahoo";
+    if (identifier == "foobar") {
+      identifier = "other";
+    }
 
     for (let source of ["abouthome", "contextmenu", "searchbar", "urlbar"]) {
       let field = identifier + "." + source;
-      if (expected) {
-        do_check_true(day.has(field));
-        do_check_eq(day.get(field), 1);
-      } else {
-        do_check_false(day.has(field));
-      }
+      do_check_true(day.has(field));
+      do_check_eq(day.get(field), 1);
     }
-  }
-
-  // Also, check that our non-default engine contributed, with a computed
-  // identifier.
-  let identifier = "notdef";
-  for (let source of ["abouthome", "contextmenu", "searchbar", "urlbar"]) {
-    let field = identifier + "." + source;
-    do_check_true(day.has(field));
   }
 
   yield storage.close();
@@ -108,7 +96,7 @@ add_task(function test_includes_other_fields() {
   let provider = new MockSearchesProvider();
 
   yield provider.init(storage);
-  let m = provider.getMeasurement("counts", 3);
+  let m = provider.getMeasurement("counts", 2);
 
   // Register a search against a provider that isn't live in this session.
   let id = yield m.storage.registerField(m.id, "test.searchbar",

@@ -7,7 +7,7 @@
 #define nsCoreUtils_h_
 
 #include "nsIContent.h"
-#include "nsIDocument.h"
+#include "nsIBoxObject.h"
 #include "nsIPresShell.h"
 
 #include "nsIDOMDOMStringList.h"
@@ -15,7 +15,6 @@
 #include "nsTArray.h"
 
 class nsRange;
-class nsIBoxObject;
 class nsIFrame;
 class nsIDocShell;
 class nsITreeColumn;
@@ -50,7 +49,7 @@ public:
   /**
    * Send mouse event to the given element.
    *
-   * @param aEventType   [in] an event type (see BasicEvents.h for constants)
+   * @param aEventType   [in] an event type (see nsGUIEvent.h for constants)
    * @param aX           [in] x coordinate in dev pixels
    * @param aY           [in] y coordinate in dev pixels
    * @param aContent     [in] the element
@@ -65,7 +64,7 @@ public:
   /**
    * Send a touch event with a single touch point to the given element.
    *
-   * @param aEventType   [in] an event type (see BasicEvents.h for constants)
+   * @param aEventType   [in] an event type (see nsGUIEvent.h for constants)
    * @param aX           [in] x coordinate in dev pixels
    * @param aY           [in] y coordinate in dev pixels
    * @param aContent     [in] the element

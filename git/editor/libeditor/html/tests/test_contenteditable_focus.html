@@ -45,23 +45,28 @@ SimpleTest.waitForFocus(runTests, window);
 
 function runTests()
 {
-  runTestsInternal();
+  try {
+    runTestsInternal();
+  } catch (e) {
+    ok(false, "Unexpected error happened: " + e);
+  }
   SimpleTest.finish();
 }
 
 function runTestsInternal()
 {
-  var fm = SpecialPowers.Cc["@mozilla.org/focus-manager;1"].
-             getService(SpecialPowers.Ci.nsIFocusManager);
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var fm = Components.classes["@mozilla.org/focus-manager;1"].
+             getService(Components.interfaces.nsIFocusManager);
   // XXX using selCon for checking the visibility of the caret, however,
   // selCon is shared in document, cannot get the element of owner of the
   // caret from javascript?
-  var selCon = SpecialPowers.wrap(window).
-        QueryInterface(SpecialPowers.Ci.nsIInterfaceRequestor).
-        getInterface(SpecialPowers.Ci.nsIWebNavigation).
-        QueryInterface(SpecialPowers.Ci.nsIInterfaceRequestor).
-        getInterface(SpecialPowers.Ci.nsISelectionDisplay).
-        QueryInterface(SpecialPowers.Ci.nsISelectionController);
+  var selCon =
+      window.QueryInterface(Components.interfaces.nsIInterfaceRequestor).
+        getInterface(Components.interfaces.nsIWebNavigation).
+        QueryInterface(Components.interfaces.nsIInterfaceRequestor).
+        getInterface(Components.interfaces.nsISelectionDisplay).
+        QueryInterface(Components.interfaces.nsISelectionController);
   var selection = window.getSelection();
 
   var inputText = document.getElementById("inputText");
@@ -88,13 +93,13 @@ function runTestsInternal()
   ok(!selCon.caretVisible, "caret is visible in the document");
   // Move focus to inputTextInEditor
   inputTextInEditor.focus();
-  is(SpecialPowers.unwrap(fm.focusedElement), inputTextInEditor,
+  is(fm.focusedElement, inputTextInEditor,
      "inputTextInEditor didn't get focus");
   todo_is(selection.rangeCount, 0, "unexpected selection range is there");
   ok(selCon.caretVisible, "caret isn't visible in the inputTextInEditor");
   // Move focus to the editor
   editor.focus();
-  is(SpecialPowers.unwrap(fm.focusedElement), editor,
+  is(fm.focusedElement, editor,
      "editor didn't get focus");
   is(selection.rangeCount, 1,
      "there is no selection range when editor has focus");
@@ -106,7 +111,7 @@ function runTestsInternal()
   ok(selCon.caretVisible, "caret isn't visible in the editor");
   // Move focus to other editor
   otherEditor.focus();
-  is(SpecialPowers.unwrap(fm.focusedElement), otherEditor,
+  is(fm.focusedElement, otherEditor,
      "the other editor didn't get focus");
   is(selection.rangeCount, 1,
      "there is no selection range when the other editor has focus");
@@ -118,7 +123,7 @@ function runTestsInternal()
   ok(selCon.caretVisible, "caret isn't visible in the other editor");
   // Move focus to inputTextInEditor
   inputTextInEditor.focus();
-  is(SpecialPowers.unwrap(fm.focusedElement), inputTextInEditor,
+  is(fm.focusedElement, inputTextInEditor,
      "inputTextInEditor didn't get focus #2");
   is(selection.rangeCount, 1, "selection range is lost from the document");
   range = selection.getRangeAt(0);
@@ -132,7 +137,7 @@ function runTestsInternal()
      "caret isn't visible in the inputTextInEditor");
   // Move focus to the other editor again
   otherEditor.focus();
-  is(SpecialPowers.unwrap(fm.focusedElement), otherEditor,
+  is(fm.focusedElement, otherEditor,
      "the other editor didn't get focus #2");
   // Set selection to the span element in the editor (unfocused)
   range = document.createRange();
@@ -140,12 +145,12 @@ function runTestsInternal()
   selection.removeAllRanges();
   selection.addRange(range);
   is(selection.rangeCount, 1, "selection range is lost from the document");
-  is(SpecialPowers.unwrap(fm.focusedElement), otherEditor,
+  is(fm.focusedElement, otherEditor,
      "the other editor shouldn't lose focus by selection range change");
   ok(selCon.caretVisible, "caret isn't visible in inputTextInEditor");
   // Move focus to the editor
   editor.focus();
-  is(SpecialPowers.unwrap(fm.focusedElement), editor,
+  is(fm.focusedElement, editor,
      "the editor didn't get focus #2");
   is(selection.rangeCount, 1, "selection range is lost from the document");
   range = selection.getRangeAt(0);
@@ -162,17 +167,17 @@ function runTestsInternal()
   function testFocusMove(aSetFocusElementID, aFocusable, aCaretVisible)
   {
     editor.focus();
-    is(SpecialPowers.unwrap(fm.focusedElement), editor,
+    is(fm.focusedElement, editor,
        "testFocusMove: the editor didn't get focus at initializing (" +
        aSetFocusElementID + ")");
     var setFocusElement = document.getElementById(aSetFocusElementID);
     setFocusElement.focus();
     if (aFocusable) {
-      is(SpecialPowers.unwrap(fm.focusedElement), setFocusElement,
+      is(fm.focusedElement, setFocusElement,
          "testFocusMove: the " + aSetFocusElementID +
          " didn't get focus");
     } else {
-      is(SpecialPowers.unwrap(fm.focusedElement), editor,
+      is(fm.focusedElement, editor,
          "testFocusMove: the editor lost focus by focus() of the " +
          aSetFocusElementID);
     }

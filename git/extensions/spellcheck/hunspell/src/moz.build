@@ -4,13 +4,15 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-UNIFIED_SOURCES += [
+MODULE = 'hunspell'
+
+CPP_SOURCES += [
     'mozHunspell.cpp',
     'mozHunspellDirProvider.cpp',
 ]
 
 if not CONFIG['MOZ_NATIVE_HUNSPELL']:
-    SOURCES += [
+    CPP_SOURCES += [
         'affentry.cpp',
         'affixmgr.cpp',
         'csutil.cpp',
@@ -23,8 +25,8 @@ if not CONFIG['MOZ_NATIVE_HUNSPELL']:
         'replist.cpp',
         'suggestmgr.cpp',
     ]
-    # This variable is referenced in configure.in.  Make sure to change that file
-    # too if you need to change this variable.
-    DEFINES['HUNSPELL_STATIC'] = True
 
-FINAL_LIBRARY = 'spellchecker'
+LIBRARY_NAME = 'hunspell_s'
+
+LIBXUL_LIBRARY = True
+

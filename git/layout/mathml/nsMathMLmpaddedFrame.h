@@ -7,6 +7,7 @@
 #define nsMathMLmpaddedFrame_h___
 
 #include "mozilla/Attributes.h"
+#include "nsCOMPtr.h"
 #include "nsMathMLContainerFrame.h"
 
 //
@@ -79,7 +80,7 @@ private:
   UpdateValue(int32_t                  aSign,
               int32_t                  aPseudoUnit,
               const nsCSSValue&        aCSSValue,
-              const nsHTMLReflowMetrics& aDesiredSize,
+              const nsBoundingMetrics& aBoundingMetrics,
               nscoord&                 aValueToUpdate) const;
 };
 

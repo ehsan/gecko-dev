@@ -7,8 +7,6 @@
 "use strict";
 Components.utils.import("resource://gre/modules/NetUtil.jsm");
 
-let wantLogging = Services.prefs.getBoolPref("devtools.debugger.log");
-
 /**
  * An adapter that handles data transfers between the debugger client and
  * server. It can work with both nsIPipe and nsIServerSocket transports so
@@ -61,14 +59,15 @@ this.DebuggerTransport = function DebuggerTransport(aInput, aOutput)
 DebuggerTransport.prototype = {
   /**
    * Transmit a packet.
-   *
+   * 
    * This method returns immediately, without waiting for the entire
    * packet to be transmitted, registering event handlers as needed to
    * transmit the entire packet. Packets are transmitted in the order
    * they are passed to this method.
    */
   send: function DT_send(aPacket) {
-    let data = JSON.stringify(aPacket);
+    // TODO (bug 709088): remove pretty printing when the protocol is done.
+    let data = JSON.stringify(aPacket, null, 2);
     data = this._converter.ConvertFromUnicode(data);
     data = data.length + ':' + data;
     this._outgoing += data;
@@ -190,16 +189,10 @@ DebuggerTransport.prototype = {
       return true;
     }
 
-    if (wantLogging) {
-      dumpn("Got: " + JSON.stringify(parsed, null, 2));
-    }
+    dumpn("Got: " + packet);
     let self = this;
     Services.tm.currentThread.dispatch(makeInfallible(function() {
-      // Ensure the hooks are still around by the time this runs (they will go
-      // away when the transport is closed).
-      if (self.hooks) {
-        self.hooks.onPacket(parsed);
-      }
+      self.hooks.onPacket(parsed);
     }, "DebuggerTransport instance's this.hooks.onPacket"), 0);
 
     return true;
@@ -269,15 +262,11 @@ LocalDebuggerTransport.prototype = {
       // Remove the reference to the other endpoint before calling close(), to
       // avoid infinite recursion.
       let other = this.other;
-      this.other = null;
+      delete this.other;
       other.close();
     }
     if (this.hooks) {
-      try {
-        this.hooks.onClosed();
-      } catch(ex) {
-        Components.utils.reportError(ex);
-      }
+      this.hooks.onClosed();
       this.hooks = null;
     }
   },

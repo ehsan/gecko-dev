@@ -10,12 +10,10 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 
-#include "DrawMode.h"
-#include "gfx2DGlue.h"
+#include "gfxFont.h"
 #include "gfxMatrix.h"
 #include "gfxPoint.h"
 #include "gfxRect.h"
-#include "mozilla/gfx/Rect.h"
 #include "nsAlgorithm.h"
 #include "nsChangeHint.h"
 #include "nsColor.h"
@@ -23,6 +21,8 @@
 #include "nsID.h"
 #include "nsISupportsBase.h"
 #include "nsMathUtils.h"
+#include "nsPoint.h"
+#include "nsRect.h"
 #include "nsStyleStruct.h"
 #include "mozilla/Constants.h"
 #include <algorithm>
@@ -47,13 +47,10 @@ class nsSVGLength2;
 class nsSVGOuterSVGFrame;
 class nsSVGPathGeometryFrame;
 class nsTextFrame;
-class gfxTextContextPaint;
+class gfxTextObjectPaint;
 
 struct nsStyleSVG;
 struct nsStyleSVGPaint;
-struct nsRect;
-struct nsIntRect;
-struct nsPoint;
 
 namespace mozilla {
 class SVGAnimatedPreserveAspectRatio;
@@ -61,9 +58,6 @@ class SVGPreserveAspectRatio;
 namespace dom {
 class Element;
 } // namespace dom
-namespace gfx {
-class SourceSurface;
-}
 } // namespace mozilla
 
 // SVG Frame state bits
@@ -139,26 +133,28 @@ class SourceSurface;
 
 bool NS_SVGDisplayListHitTestingEnabled();
 bool NS_SVGDisplayListPaintingEnabled();
+bool NS_SVGTextCSSFramesEnabled();
 
 /**
  * Sometimes we need to distinguish between an empty box and a box
  * that contains an element that has no size e.g. a point at the origin.
  */
 class SVGBBox {
-  typedef mozilla::gfx::Rect Rect;
-
 public:
   SVGBBox() 
     : mIsEmpty(true) {}
 
-  SVGBBox(const Rect& aRect)
+  SVGBBox(const gfxRect& aRect) 
     : mBBox(aRect), mIsEmpty(false) {}
 
-  SVGBBox(const gfxRect& aRect)
-    : mBBox(ToRect(aRect)), mIsEmpty(false) {}
+  SVGBBox& operator=(const gfxRect& aRect) {
+    mBBox = aRect;
+    mIsEmpty = false;
+    return *this;
+  }
 
-  gfxRect ToThebesRect() const {
-    return ThebesRect(mBBox);
+  operator const gfxRect& () const {
+    return mBBox;
   }
 
   bool IsEmpty() const {
@@ -174,8 +170,8 @@ public:
   }
 
 private:
-  Rect mBBox;
-  bool mIsEmpty;
+  gfxRect mBBox;
+  bool    mIsEmpty;
 };
 
 // GRRR WINDOWS HATE HATE HATE
@@ -294,6 +290,15 @@ public:
                                const nsIntRect &aRect,
                                float aOpacity);
 
+  /*
+   * Converts a nsStyleCoord into a userspace value.  Handles units
+   * Factor (straight userspace), Coord (dimensioned), and Percent (of
+   * the current SVG viewport)
+   */
+  static float CoordToFloat(nsPresContext *aPresContext,
+                            nsSVGElement *aContent,
+                            const nsStyleCoord &aCoord);
+
   /**
    * Gets the nearest nsSVGInnerSVGFrame or nsSVGOuterSVGFrame frame. aFrame
    * must be an SVG frame. If aFrame is of type nsGkAtoms::svgOuterSVGFrame,
@@ -385,8 +390,7 @@ public:
   static void
   PaintFrameWithEffects(nsRenderingContext *aContext,
                         const nsIntRect *aDirtyRect,
-                        nsIFrame *aFrame,
-                        nsIFrame* aTransformRoot = nullptr);
+                        nsIFrame *aFrame);
 
   /* Hit testing - check if point hits the clipPath of indicated
    * frame.  Returns true if no clipPath set. */
@@ -403,8 +407,7 @@ public:
    * child SVG frame, container SVG frame, or a regular frame.
    * For regular frames, we just return an identity matrix.
    */
-  static gfxMatrix GetCanvasTM(nsIFrame* aFrame, uint32_t aFor,
-                               nsIFrame* aTransformRoot = nullptr);
+  static gfxMatrix GetCanvasTM(nsIFrame* aFrame, uint32_t aFor);
 
   /**
    * Returns the transform from aFrame's user space to canvas space. Only call
@@ -476,16 +479,9 @@ public:
   GetClipRectForFrame(nsIFrame *aFrame,
                       float aX, float aY, float aWidth, float aHeight);
 
-  /**
-   * Composites a surface into a context with a given surface offset and an
-   * additional transform. Supports both Thebes and DrawTarget drawing.
-   * If aSurface is null, aSourceSurface will be used instead.
-   */
   static void CompositeSurfaceMatrix(gfxContext *aContext,
                                      gfxASurface *aSurface,
-                                     mozilla::gfx::SourceSurface *aSourceSurface,
-                                     const gfxPoint &aSurfaceOffset,
-                                     const gfxMatrix &aCTM);
+                                     const gfxMatrix &aCTM, float aOpacity);
 
   static void CompositePatternMatrix(gfxContext *aContext,
                                      gfxPattern *aPattern,
@@ -507,6 +503,10 @@ public:
    * push/pop group. */
   static bool
   CanOptimizeOpacity(nsIFrame *aFrame);
+
+  /* Calculate the maximum expansion of a matrix */
+  static float
+  MaxExpansion(const gfxMatrix &aMatrix);
 
   /**
    * Take the CTM to userspace for an element, and adjust it to a CTM to its
@@ -605,58 +605,58 @@ public:
   /**
    * Set up cairo context with an object pattern
    */
-  static bool SetupContextPaint(gfxContext *aContext,
-                                gfxTextContextPaint *aContextPaint,
-                                const nsStyleSVGPaint& aPaint,
-                                float aOpacity);
+  static bool SetupObjectPaint(gfxContext *aContext,
+                               gfxTextObjectPaint *aObjectPaint,
+                               const nsStyleSVGPaint& aPaint,
+                               float aOpacity);
 
   /**
    * Sets the current paint on the specified gfxContent to be the SVG 'fill'
    * for the given frame.
    */
   static bool SetupCairoFillPaint(nsIFrame* aFrame, gfxContext* aContext,
-                                  gfxTextContextPaint *aContextPaint = nullptr);
+                                  gfxTextObjectPaint *aObjectPaint = nullptr);
 
   /**
    * Sets the current paint on the specified gfxContent to be the SVG 'stroke'
    * for the given frame.
    */
   static bool SetupCairoStrokePaint(nsIFrame* aFrame, gfxContext* aContext,
-                                    gfxTextContextPaint *aContextPaint = nullptr);
+                                    gfxTextObjectPaint *aObjectPaint = nullptr);
 
   static float GetOpacity(nsStyleSVGOpacitySource aOpacityType,
                           const float& aOpacity,
-                          gfxTextContextPaint *aOuterContextPaint);
+                          gfxTextObjectPaint *aOuterObjectPaint);
 
   /*
    * @return false if there is no stroke
    */
   static bool HasStroke(nsIFrame* aFrame,
-                        gfxTextContextPaint *aContextPaint = nullptr);
+                        gfxTextObjectPaint *aObjectPaint = nullptr);
 
   static float GetStrokeWidth(nsIFrame* aFrame,
-                              gfxTextContextPaint *aContextPaint = nullptr);
+                              gfxTextObjectPaint *aObjectPaint = nullptr);
 
   /*
    * Set up a cairo context for measuring the bounding box of a stroked path.
    */
   static void SetupCairoStrokeBBoxGeometry(nsIFrame* aFrame,
                                            gfxContext *aContext,
-                                           gfxTextContextPaint *aContextPaint = nullptr);
+                                           gfxTextObjectPaint *aObjectPaint = nullptr);
 
   /*
    * Set up a cairo context for a stroked path (including any dashing that
    * applies).
    */
   static void SetupCairoStrokeGeometry(nsIFrame* aFrame, gfxContext *aContext,
-                                       gfxTextContextPaint *aContextPaint = nullptr);
+                                       gfxTextObjectPaint *aObjectPaint = nullptr);
 
   /*
    * Set up a cairo context for stroking, including setting up any stroke-related
    * properties such as dashing and setting the current paint on the gfxContext.
    */
   static bool SetupCairoStroke(nsIFrame* aFrame, gfxContext *aContext,
-                               gfxTextContextPaint *aContextPaint = nullptr);
+                               gfxTextObjectPaint *aObjectPaint = nullptr);
 
   /**
    * This function returns a set of bit flags indicating which parts of the
@@ -670,12 +670,12 @@ public:
    * Render a SVG glyph.
    * @param aElement the SVG glyph element to render
    * @param aContext the thebes aContext to draw to
-   * @param aDrawMode fill or stroke or both (see DrawMode)
+   * @param aDrawMode fill or stroke or both (see gfxFont::DrawMode)
    * @return true if rendering succeeded
    */
   static bool PaintSVGGlyph(Element* aElement, gfxContext* aContext,
-                            DrawMode aDrawMode,
-                            gfxTextContextPaint* aContextPaint);
+                            gfxFont::DrawMode aDrawMode,
+                            gfxTextObjectPaint* aObjectPaint);
   /**
    * Get the extents of a SVG glyph.
    * @param aElement the SVG glyph element

@@ -76,7 +76,7 @@ struct GenericParseContext
 
 template <typename ParseHandler>
 bool
-GenerateBlockId(TokenStream &ts, ParseContext<ParseHandler> *pc, uint32_t &blockid);
+GenerateBlockId(ParseContext<ParseHandler> *pc, uint32_t &blockid);
 
 /*
  * The struct ParseContext stores information about the current parsing context,
@@ -167,7 +167,7 @@ struct ParseContext : public GenericParseContext
      *    'pn' if they are in the scope of 'pn'.
      *  + Pre-existing placeholders in the scope of 'pn' have been removed.
      */
-    bool define(TokenStream &ts, HandlePropertyName name, Node pn, Definition::Kind);
+    bool define(TokenStream &ts, PropertyName *name, Node pn, Definition::Kind);
 
     /*
      * Let definitions may shadow same-named definitions in enclosing scopes.
@@ -208,8 +208,7 @@ struct ParseContext : public GenericParseContext
                                        |this|'s descendents */
 
     // Value for parserPC to restore at the end. Use 'parent' instead for
-    // information about the parse chain, this may be nullptr if 
-    // parent != nullptr.
+    // information about the parse chain, this may be NULL if parent != NULL.
     ParseContext<ParseHandler> *oldpc;
 
   public:
@@ -226,7 +225,7 @@ struct ParseContext : public GenericParseContext
     // to reflect new directives encountered in the Directive Prologue that
     // require reparsing the function. In global/module/generator-tail contexts,
     // we don't need to reparse when encountering a DirectivePrologue so this
-    // pointer may be nullptr.
+    // pointer may be NULL.
     Directives *newDirectives;
 
     // Set when parsing a declaration-like destructuring pattern.  This flag
@@ -247,8 +246,8 @@ struct ParseContext : public GenericParseContext
       : GenericParseContext(parent, sc),
         bodyid(0),           // initialized in init()
         blockidGen(bodyid),  // used to set |bodyid| and subsequently incremented in init()
-        topStmt(nullptr),
-        topScopeStmt(nullptr),
+        topStmt(NULL),
+        topScopeStmt(NULL),
         blockChain(prs->context),
         maybeFunction(maybeFunction),
         staticLevel(staticLevel),
@@ -260,7 +259,7 @@ struct ParseContext : public GenericParseContext
         parserPC(&prs->pc),
         oldpc(prs->pc),
         lexdeps(prs->context),
-        funcStmts(nullptr),
+        funcStmts(NULL),
         innerFunctions(prs->context),
         newDirectives(newDirectives),
         inDeclDestructuring(false)
@@ -270,7 +269,7 @@ struct ParseContext : public GenericParseContext
 
     ~ParseContext();
 
-    bool init(TokenStream &ts);
+    bool init();
 
     unsigned blockid() { return topStmt ? topStmt->blockid : bodyid; }
 
@@ -282,12 +281,6 @@ struct ParseContext : public GenericParseContext
     //   if (cond) { function f3() { if (cond) { function f4() { } } } }
     //
     bool atBodyLevel() { return !topStmt; }
-
-    // True if this is the ParseContext for the body of a function created by
-    // the Function constructor.
-    bool isFunctionConstructorBody() const {
-        return sc->isFunctionBox() && staticLevel == 0;
-    }
 
     inline bool useAsmOrInsideUseAsm() const {
         return sc->isFunctionBox() && sc->asFunctionBox()->useAsmOrInsideUseAsm();
@@ -329,9 +322,7 @@ class Parser : private AutoGCRooter, public StrictModeGetter
     /* innermost parse context (stack-allocated) */
     ParseContext<ParseHandler> *pc;
 
-    /* Compression token for aborting. */
-    SourceCompressionTask *sct;
-
+    SourceCompressionToken *sct;        /* compression token for aborting */
     ScriptSource        *ss;
 
     /* Root atoms and objects allocated for the parsed tree. */
@@ -367,7 +358,7 @@ class Parser : private AutoGCRooter, public StrictModeGetter
     bool reportWithOffset(ParseReportKind kind, bool strict, uint32_t offset, unsigned errorNumber,
                           ...);
 
-    Parser(ExclusiveContext *cx, LifoAlloc *alloc, const ReadOnlyCompileOptions &options,
+    Parser(ExclusiveContext *cx, LifoAlloc *alloc, const CompileOptions &options,
            const jschar *chars, size_t length, bool foldConstants,
            Parser<SyntaxParseHandler> *syntaxParser,
            LazyScript *lazyOuterFunction);
@@ -408,6 +399,7 @@ class Parser : private AutoGCRooter, public StrictModeGetter
      * cx->tempLifoAlloc.
      */
     ObjectBox *newObjectBox(JSObject *obj);
+    ModuleBox *newModuleBox(Module *module, ParseContext<ParseHandler> *pc);
     FunctionBox *newFunctionBox(Node fn, JSFunction *fun, ParseContext<ParseHandler> *pc,
                                 Directives directives, GeneratorKind generatorKind);
 
@@ -416,7 +408,7 @@ class Parser : private AutoGCRooter, public StrictModeGetter
      * is optional if this is a function expression).
      */
     JSFunction *newFunction(GenericParseContext *pc, HandleAtom atom, FunctionSyntaxKind kind,
-                            JSObject *proto = nullptr);
+                            JSObject *proto = NULL);
 
     void trace(JSTracer *trc);
 
@@ -464,14 +456,9 @@ class Parser : private AutoGCRooter, public StrictModeGetter
     bool functionArgsAndBodyGeneric(Node pn, HandleFunction fun, FunctionType type,
                                     FunctionSyntaxKind kind, Directives *newDirectives);
 
-    // Determine whether |yield| is a valid name in the current context, or
-    // whether it's prohibited due to strictness, JS version, or occurrence
-    // inside a star generator.
-    bool checkYieldNameValidity();
-
     virtual bool strictMode() { return pc->sc->strict; }
 
-    const ReadOnlyCompileOptions &options() const {
+    const CompileOptions &options() const {
         return tokenStream.options();
     }
 
@@ -492,6 +479,7 @@ class Parser : private AutoGCRooter, public StrictModeGetter
      * Some parsers have two versions:  an always-inlined version (with an 'i'
      * suffix) and a never-inlined version (with an 'n' suffix).
      */
+    Node moduleDecl();
     Node functionStmt();
     Node functionExpr();
     Node statements();
@@ -511,13 +499,12 @@ class Parser : private AutoGCRooter, public StrictModeGetter
     Node tryStatement();
     Node debuggerStatement();
 
-    Node letDeclaration();
+#if JS_HAS_BLOCK_SCOPE
     Node letStatement();
-    Node importDeclaration();
-    Node exportDeclaration();
+#endif
     Node expressionStatement();
-    Node variables(ParseNodeKind kind, bool *psimple = nullptr,
-                   StaticBlockObject *blockObj = nullptr,
+    Node variables(ParseNodeKind kind, bool *psimple = NULL,
+                   StaticBlockObject *blockObj = NULL,
                    VarContext varContext = HoistVars);
     Node expr();
     Node assignExpr();
@@ -528,7 +515,7 @@ class Parser : private AutoGCRooter, public StrictModeGetter
     Node unaryExpr();
     Node memberExpr(TokenKind tt, bool allowCallSyntax);
     Node primaryExpr(TokenKind tt);
-    Node parenExpr(bool *genexp = nullptr);
+    Node parenExpr(bool *genexp = NULL);
 
     /*
      * Additional JS parsers.
@@ -550,13 +537,14 @@ class Parser : private AutoGCRooter, public StrictModeGetter
                            ParseNodeKind kind = PNK_SEMI, JSOp op = JSOP_NOP);
     bool arrayInitializerComprehensionTail(Node pn);
     Node generatorExpr(Node kid);
-    bool argumentList(Node listNode, bool *isSpread);
+    bool argumentList(Node listNode);
     Node letBlock(LetContext letContext);
     Node destructuringExpr(BindData<ParseHandler> *data, TokenKind tt);
 
     Node identifierName();
 
     bool matchLabel(MutableHandle<PropertyName*> label);
+    bool checkYieldNameValidity(unsigned errorNumber = JSMSG_SYNTAX_ERROR);
 
     bool allowsForEachIn() {
 #if !JS_HAS_FOR_EACH_IN
@@ -578,18 +566,19 @@ class Parser : private AutoGCRooter, public StrictModeGetter
 
     bool checkFunctionArguments();
     bool makeDefIntoUse(Definition *dn, Node pn, JSAtom *atom);
+    bool checkFunctionName(HandlePropertyName funName);
     bool checkFunctionDefinition(HandlePropertyName funName, Node *pn, FunctionSyntaxKind kind,
                                  bool *pbodyProcessed);
     bool finishFunctionDefinition(Node pn, FunctionBox *funbox, Node prelude, Node body);
     bool addFreeVariablesFromLazyFunction(JSFunction *fun, ParseContext<ParseHandler> *pc);
 
-    bool isValidForStatementLHS(Node pn1, JSVersion version, bool forDecl, bool forEach,
-                                ParseNodeKind headKind);
+    bool isValidForStatementLHS(Node pn1, JSVersion version,
+                                bool forDecl, bool forEach, bool forOf);
     bool checkAndMarkAsIncOperand(Node kid, TokenKind tt, bool preorder);
     bool checkStrictAssignment(Node lhs, AssignmentFlavor flavor);
     bool checkStrictBinding(PropertyName *name, Node pn);
     bool defineArg(Node funcpn, HandlePropertyName name,
-                   bool disallowDuplicateArgs = false, Node *duplicatedArg = nullptr);
+                   bool disallowDuplicateArgs = false, Node *duplicatedArg = NULL);
     Node pushLexicalScope(StmtInfoPC *stmt);
     Node pushLexicalScope(Handle<StaticBlockObject*> blockObj, StmtInfoPC *stmt);
     Node pushLetScope(Handle<StaticBlockObject*> blockObj, StmtInfoPC *stmt);
@@ -635,15 +624,6 @@ class Parser : private AutoGCRooter, public StrictModeGetter
     TokenPos pos() const { return tokenStream.currentToken().pos; }
 
     bool asmJS(Node list);
-
-  public:
-    // This function may only be called from within Parser::asmJS before
-    // parsing any tokens. It returns the canonical offset to be used as the
-    // start of the asm.js module. We use the offset in the char buffer
-    // immediately after the "use asm" processing directive statement (which
-    // includes any semicolons or newlines that end the statement).
-    uint32_t offsetOfCurrentAsmJSModule() const { return tokenStream.currentToken().pos.end; }
-  private:
 
     friend class CompExprTransplanter;
     friend class GenexpGuard<ParseHandler>;

@@ -6,4 +6,6 @@
 
 DIRS += ['chrome']
 
+MODULE = 'test_downloads'
+
 XPCSHELL_TESTS_MANIFESTS += ['unit/xpcshell.ini']

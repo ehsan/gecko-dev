@@ -23,7 +23,6 @@
 #include "nsICacheSession.h"
 #include "nsICachingChannel.h"
 #include "nsIContent.h"
-#include "nsIDocShell.h"
 #include "nsIDocumentLoader.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMWindow.h"
@@ -69,12 +68,19 @@ typedef mozilla::docshell::OfflineCacheUpdateGlue OfflineCacheUpdateGlue;
 //
 PRLogModuleInfo *gOfflineCacheUpdateLog;
 #endif
-
 #undef LOG
 #define LOG(args) PR_LOG(gOfflineCacheUpdateLog, 4, args)
-
-#undef LOG_ENABLED
 #define LOG_ENABLED() PR_LOG_TEST(gOfflineCacheUpdateLog, 4)
+
+class AutoFreeArray {
+public:
+    AutoFreeArray(uint32_t count, char **values)
+        : mCount(count), mValues(values) {};
+    ~AutoFreeArray() { NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(mCount, mValues); }
+private:
+    uint32_t mCount;
+    char **mValues;
+};
 
 namespace { // anon
 
@@ -126,7 +132,6 @@ public:
         : mService(aService)
         , mManifestURI(aManifestURI)
         , mDocumentURI(aDocumentURI)
-        , mDidReleaseThis(false)
         {
             mDocument = do_GetWeakReference(aDocument);
         }
@@ -136,7 +141,6 @@ private:
     nsCOMPtr<nsIURI> mManifestURI;
     nsCOMPtr<nsIURI> mDocumentURI;
     nsCOMPtr<nsIWeakReference> mDocument;
-    bool mDidReleaseThis;
 };
 
 NS_IMPL_ISUPPORTS2(nsOfflineCachePendingUpdate,
@@ -165,16 +169,11 @@ nsOfflineCachePendingUpdate::OnStateChange(nsIWebProgress* aWebProgress,
                                            uint32_t progressStateFlags,
                                            nsresult aStatus)
 {
-    if (mDidReleaseThis) {
-        return NS_OK;
-    }
     nsCOMPtr<nsIDOMDocument> updateDoc = do_QueryReferent(mDocument);
     if (!updateDoc) {
         // The document that scheduled this update has gone away,
         // we don't need to listen anymore.
         aWebProgress->RemoveProgressListener(this);
-        MOZ_ASSERT(!mDidReleaseThis);
-        mDidReleaseThis = true;
         NS_RELEASE_THIS();
         return NS_OK;
     }
@@ -210,14 +209,9 @@ nsOfflineCachePendingUpdate::OnStateChange(nsIWebProgress* aWebProgress,
         mService->Schedule(mManifestURI, mDocumentURI,
                            updateDoc, window, nullptr,
                            appId, isInBrowserElement, getter_AddRefs(update));
-        if (mDidReleaseThis) {
-            return NS_OK;
-        }
     }
 
     aWebProgress->RemoveProgressListener(this);
-    MOZ_ASSERT(!mDidReleaseThis);
-    mDidReleaseThis = true;
     NS_RELEASE_THIS();
 
     return NS_OK;
@@ -372,7 +366,8 @@ nsOfflineCacheUpdateService::ScheduleOnDocumentStop(nsIURI *aManifestURI,
          this, aManifestURI, aDocumentURI, aDocument));
 
     nsCOMPtr<nsIDocument> doc = do_QueryInterface(aDocument);
-    nsCOMPtr<nsIWebProgress> progress = do_QueryInterface(doc->GetContainer());
+    nsCOMPtr<nsISupports> container = doc->GetContainer();
+    nsCOMPtr<nsIWebProgress> progress = do_QueryInterface(container);
     NS_ENSURE_TRUE(progress, NS_ERROR_INVALID_ARG);
 
     // Proceed with cache update

@@ -71,13 +71,13 @@ XPCOMUtils.defineLazyGetter(this, "gTextEncoder", function () {
  * @param aPath
  *        String containing the file path where data should be saved.
  */
-this.DownloadStore = function (aList, aPath)
+function DownloadStore(aList, aPath)
 {
   this.list = aList;
   this.path = aPath;
 }
 
-this.DownloadStore.prototype = {
+DownloadStore.prototype = {
   /**
    * DownloadList object to be populated or serialized.
    */
@@ -132,7 +132,7 @@ this.DownloadStore.prototype = {
           } finally {
             // Add the download to the list if we succeeded in creating it,
             // after we have updated its initial state.
-            yield this.list.add(download);
+            this.list.add(download);
           }
         } catch (ex) {
           // If an item is unrecognized, don't prevent others from being loaded.

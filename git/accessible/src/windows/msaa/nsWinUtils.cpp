@@ -16,14 +16,13 @@
 #include "nsIArray.h"
 #include "nsIDocument.h"
 #include "nsIDocShellTreeItem.h"
-#include "nsIXULRuntime.h"
 
 using namespace mozilla;
 using namespace mozilla::a11y;
 
 // Window property used by ipc related code in identifying accessible
 // tab windows.
-const wchar_t* kPropNameTabContent = L"AccessibleTabWindow";
+const PRUnichar* kPropNameTabContent = L"AccessibleTabWindow";
 
 /**
  * WindowProc to process WM_GETOBJECT messages, used in windows emulation mode.
@@ -31,7 +30,7 @@ const wchar_t* kPropNameTabContent = L"AccessibleTabWindow";
 static LRESULT CALLBACK WindowProc(HWND hWnd, UINT msg,
                                    WPARAM wParam, LPARAM lParam);
 
-nsRefPtrHashtable<nsPtrHashKey<void>, DocAccessible>* nsWinUtils::sHWNDCache = nullptr;
+nsRefPtrHashtable<nsPtrHashKey<void>, DocAccessible> nsWinUtils::sHWNDCache;
 
 already_AddRefed<nsIDOMCSSStyleDeclaration>
 nsWinUtils::GetComputedStyleDeclaration(nsIContent* aContent)
@@ -59,9 +58,9 @@ nsWinUtils::MaybeStartWindowEmulation()
   // with tabs.
   if (Compatibility::IsJAWS() || Compatibility::IsWE() ||
       Compatibility::IsDolphin() ||
-      BrowserTabsRemote()) {
+      Preferences::GetBool("browser.tabs.remote")) {
     RegisterNativeWindow(kClassNameTabContent);
-    sHWNDCache = new nsRefPtrHashtable<nsPtrHashKey<void>, DocAccessible>(4);
+    sHWNDCache.Init(4);
     return true;
   }
 
@@ -80,7 +79,7 @@ nsWinUtils::ShutdownWindowEmulation()
 bool
 nsWinUtils::IsWindowEmulationStarted()
 {
-  return sHWNDCache != nullptr;
+  return sHWNDCache.IsInitialized();
 }
 
 void
@@ -146,7 +145,7 @@ WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
     {
       if (lParam == OBJID_CLIENT) {
         DocAccessible* document =
-          nsWinUtils::sHWNDCache->GetWeak(static_cast<void*>(hWnd));
+          nsWinUtils::sHWNDCache.GetWeak(static_cast<void*>(hWnd));
         if (document) {
           IAccessible* msaaAccessible = nullptr;
           document->GetNativeInterface((void**)&msaaAccessible); // does an addref

@@ -6,19 +6,17 @@
 
 #include "jit/BaselineFrameInfo.h"
 
-#ifdef DEBUG
-# include "jit/BytecodeAnalysis.h"
-#endif
+#include "jit/IonSpewer.h"
+#include "jit/shared/BaselineCompiler-shared.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 bool
-FrameInfo::init(TempAllocator &alloc)
-{
+FrameInfo::init() {
     // One slot is always needed for this/arguments type checks.
-    size_t nstack = Max(script->nslots() - script->nfixed(), size_t(1));
-    if (!stack.init(alloc, nstack))
+    size_t nstack = Max(script->nslots - script->nfixed, 1);
+    if (!stack.init(nstack))
         return false;
 
     return true;

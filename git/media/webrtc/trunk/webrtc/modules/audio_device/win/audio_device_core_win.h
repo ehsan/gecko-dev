@@ -8,24 +8,25 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#ifndef WEBRTC_AUDIO_DEVICE_AUDIO_DEVICE_CORE_WIN_H_
-#define WEBRTC_AUDIO_DEVICE_AUDIO_DEVICE_CORE_WIN_H_
+#ifndef WEBRTC_AUDIO_DEVICE_AUDIO_DEVICE_CORE_WIN_H
+#define WEBRTC_AUDIO_DEVICE_AUDIO_DEVICE_CORE_WIN_H
 
 #if (_MSC_VER >= 1400)  // only include for VS 2005 and higher
 
-#include "webrtc/modules/audio_device/audio_device_generic.h"
+#include "audio_device_generic.h"
 
+#pragma once
 #include <wmcodecdsp.h>      // CLSID_CWMAudioAEC
                              // (must be before audioclient.h)
 #include <Audioclient.h>     // WASAPI
 #include <Audiopolicy.h>
-#include <Mmdeviceapi.h>     // MMDevice
 #include <avrt.h>            // Avrt
 #include <endpointvolume.h>
 #include <mediaobj.h>        // IMediaObject
+#include <Mmdeviceapi.h>     // MMDevice
 
-#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
-#include "webrtc/system_wrappers/interface/scoped_refptr.h"
+#include "critical_section_wrapper.h"
+#include "scoped_refptr.h"
 
 // Use Multimedia Class Scheduler Service (MMCSS) to boost the thread priority
 #pragma comment( lib, "avrt.lib" )
@@ -209,9 +210,6 @@ public:
 public:
     virtual void AttachAudioBuffer(AudioDeviceBuffer* audioBuffer);
 
-private:
-    bool KeyPressed() const;
-
 private:    // avrt function pointers
     PAvRevertMmThreadCharacteristics    _PAvRevertMmThreadCharacteristics;
     PAvSetMmThreadCharacteristicsA      _PAvSetMmThreadCharacteristicsA;
@@ -379,4 +377,5 @@ private:
 
 }  // namespace webrtc
 
-#endif  // WEBRTC_AUDIO_DEVICE_AUDIO_DEVICE_CORE_WIN_H_
+#endif  // WEBRTC_AUDIO_DEVICE_AUDIO_DEVICE_CORE_WIN_H
+

@@ -8,5 +8,5 @@ XPIDL_SOURCES += [
     'nsISemanticUnitScanner.idl',
 ]
 
-XPIDL_MODULE = 'lwbrk'
+MODULE = 'lwbrk'
 

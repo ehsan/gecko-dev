@@ -17,6 +17,8 @@
 
 #include <algorithm>
 
+#include "gtest/gtest.h"
+
 #include "webrtc/modules/audio_processing/include/audio_processing.h"
 #include "webrtc/modules/interface/module_common_types.h"
 #include "webrtc/system_wrappers/interface/cpu_features_wrapper.h"
@@ -25,10 +27,8 @@
 #include "webrtc/test/testsupport/fileutils.h"
 #include "webrtc/test/testsupport/perf_test.h"
 #ifdef WEBRTC_ANDROID_PLATFORM_BUILD
-#include "gtest/gtest.h"
 #include "external/webrtc/webrtc/modules/audio_processing/debug.pb.h"
 #else
-#include "testing/gtest/include/gtest/gtest.h"
 #include "webrtc/audio_processing/debug.pb.h"
 #endif
 
@@ -38,7 +38,6 @@ using webrtc::EchoCancellation;
 using webrtc::GainControl;
 using webrtc::NoiseSuppression;
 using webrtc::scoped_array;
-using webrtc::scoped_ptr;
 using webrtc::TickInterval;
 using webrtc::TickTime;
 using webrtc::VoiceDetection;
@@ -105,7 +104,6 @@ void usage() {
   printf("  --no_drift_compensation\n");
   printf("  --no_echo_metrics\n");
   printf("  --no_delay_logging\n");
-  printf("  --aec_suppression_level LEVEL  [0 - 2]\n");
   printf("\n  -aecm    Echo control mobile\n");
   printf("  --aecm_echo_path_in_file FILE\n");
   printf("  --aecm_echo_path_out_file FILE\n");
@@ -168,8 +166,8 @@ void void_main(int argc, char* argv[]) {
     printf("Try `process_test --help' for more information.\n\n");
   }
 
-  scoped_ptr<AudioProcessing> apm(AudioProcessing::Create(0));
-  ASSERT_TRUE(apm.get() != NULL);
+  AudioProcessing* apm = AudioProcessing::Create(0);
+  ASSERT_TRUE(apm != NULL);
 
   const char* pb_filename = NULL;
   const char* far_filename = NULL;
@@ -278,16 +276,6 @@ void void_main(int argc, char* argv[]) {
 
     } else if (strcmp(argv[i], "--no_level_metrics") == 0) {
       ASSERT_EQ(apm->kNoError, apm->level_estimator()->Enable(false));
-
-    } else if (strcmp(argv[i], "--aec_suppression_level") == 0) {
-      i++;
-      ASSERT_LT(i, argc) << "Specify level after --aec_suppression_level";
-      int suppression_level;
-      ASSERT_EQ(1, sscanf(argv[i], "%d", &suppression_level));
-      ASSERT_EQ(apm->kNoError,
-                apm->echo_cancellation()->set_suppression_level(
-                    static_cast<webrtc::EchoCancellation::SuppressionLevel>(
-                        suppression_level)));
 
     } else if (strcmp(argv[i], "-aecm") == 0) {
       ASSERT_EQ(apm->kNoError, apm->echo_control_mobile()->Enable(true));
@@ -1058,6 +1046,9 @@ void void_main(int argc, char* argv[]) {
       printf("Warning: no capture frames\n");
     }
   }
+
+  AudioProcessing::Destroy(apm);
+  apm = NULL;
 }
 }  // namespace
 

@@ -1,228 +1,195 @@
-/* Any copyright is dedicated to the Public Domain.
-   http://creativecommons.org/publicdomain/zero/1.0/ */
-
-/**
- * Tests that the break-on-dom-events request works.
+/*
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-const TAB_URL = EXAMPLE_URL + "doc_event-listeners.html";
+// Tests that the break-on-dom-events request works.
 
-let gClient, gThreadClient, gInput, gButton;
+var gClient = null;
+var gTab = null;
+var gThreadClient = null;
+var gInput = null;
+var gButton = null;
+const DEBUGGER_TAB_URL = EXAMPLE_URL + "test-event-listeners.html";
 
-function test() {
-  if (!DebuggerServer.initialized) {
-    DebuggerServer.init(() => true);
-    DebuggerServer.addBrowserActors();
-  }
-
+function test()
+{
   let transport = DebuggerServer.connectPipe();
   gClient = new DebuggerClient(transport);
-  gClient.connect((aType, aTraits) => {
-    is(aType, "browser",
-      "Root actor should identify itself as a browser.");
-
-    addTab(TAB_URL)
-      .then(() => attachThreadActorForUrl(gClient, TAB_URL))
-      .then(setupGlobals)
-      .then(pauseDebuggee)
-      .then(testBreakOnAll)
-      .then(testBreakOnDisabled)
-      .then(testBreakOnNone)
-      .then(testBreakOnClick)
-      .then(closeConnection)
-      .then(finish)
-      .then(null, aError => {
-        ok(false, "Got an error: " + aError.message + "\n" + aError.stack);
+  gClient.connect(function(type, traits) {
+    gTab = addTab(DEBUGGER_TAB_URL, function() {
+      attach_thread_actor_for_url(gClient,
+                                  DEBUGGER_TAB_URL,
+                                  function(threadClient) {
+        gThreadClient = threadClient;
+        gInput = content.document.querySelector("input");
+        gButton = content.document.querySelector("button");
+        testBreakOnAll();
       });
+    });
   });
-}
-
-function setupGlobals(aThreadClient) {
-  gThreadClient = aThreadClient;
-  gInput = content.document.querySelector("input");
-  gButton = content.document.querySelector("button");
-}
-
-function pauseDebuggee() {
-  let deferred = promise.defer();
-
-  gClient.addOneTimeListener("paused", (aEvent, aPacket) => {
-    is(aPacket.type, "paused",
-      "We should now be paused.");
-    is(aPacket.why.type, "debuggerStatement",
-      "The debugger statement was hit.");
-
-    deferred.resolve();
-  });
-
-  // Spin the event loop before causing the debuggee to pause, to allow
-  // this function to return first.
-  executeSoon(triggerButtonClick);
-
-  return deferred.promise;
 }
 
 // Test pause on all events.
-function testBreakOnAll() {
-  let deferred = promise.defer();
+function testBreakOnAll()
+{
+  gClient.addOneTimeListener("paused", function(event, packet) {
+    is(packet.why.type, "debuggerStatement", "debugger statement was hit.");
+    // Test calling pauseOnDOMEvents from a paused state.
+    gThreadClient.pauseOnDOMEvents("*", function(packet) {
+      is(packet, undefined, "The pause-on-any-event request completed successfully.");
 
-  // Test calling pauseOnDOMEvents from a paused state.
-  gThreadClient.pauseOnDOMEvents("*", (aPacket) => {
-    is(aPacket, undefined,
-      "The pause-on-any-event request completed successfully.");
+      gClient.addOneTimeListener("paused", function(event, packet) {
+        is(packet.why.type, "pauseOnDOMEvents", "A hidden breakpoint was hit.");
+        is(packet.frame.callee.name, "keyupHandler", "The keyupHandler is entered.");
 
-    gClient.addOneTimeListener("paused", (aEvent, aPacket) => {
-      is(aPacket.why.type, "pauseOnDOMEvents",
-        "A hidden breakpoint was hit.");
-      is(aPacket.frame.callee.name, "keyupHandler",
-        "The keyupHandler is entered.");
+        gClient.addOneTimeListener("paused", function(event, packet) {
+          is(packet.why.type, "pauseOnDOMEvents", "A hidden breakpoint was hit.");
+          is(packet.frame.callee.name, "clickHandler", "The clickHandler is entered.");
 
-      gClient.addOneTimeListener("paused", (aEvent, aPacket) => {
-        is(aPacket.why.type, "pauseOnDOMEvents",
-          "A hidden breakpoint was hit.");
-        is(aPacket.frame.callee.name, "clickHandler",
-          "The clickHandler is entered.");
+          gClient.addOneTimeListener("paused", function(event, packet) {
+            is(packet.why.type, "pauseOnDOMEvents", "A hidden breakpoint was hit.");
+            is(packet.frame.callee.name, "onchange", "The onchange handler is entered.");
 
-        gClient.addOneTimeListener("paused", (aEvent, aPacket) => {
-          is(aPacket.why.type, "pauseOnDOMEvents",
-            "A hidden breakpoint was hit.");
-          is(aPacket.frame.callee.name, "onchange",
-            "The onchange handler is entered.");
+            gThreadClient.resume(testBreakOnDisabled);
+          });
 
-          gThreadClient.resume(deferred.resolve);
+          gThreadClient.resume(function() {
+            gInput.focus();
+            gInput.value = "foo";
+            gInput.blur();
+          });
         });
 
-        gThreadClient.resume(triggerInputChange);
+        gThreadClient.resume(function() {
+          EventUtils.sendMouseEvent({ type: "click" }, gButton);
+        });
       });
 
-      gThreadClient.resume(triggerButtonClick);
-    });
+      gThreadClient.resume(function() {
+        // Make sure that the focus is not on the input box so that a focus event
+        // will be triggered.
+        window.focus();
+        gBrowser.selectedBrowser.focus();
+        gButton.focus();
 
-    gThreadClient.resume(triggerInputKeyup);
+        // Focus the element and wait for focus event.
+        gInput.addEventListener("focus", function onfocus() {
+          gInput.removeEventListener("focus", onfocus, false);
+          executeSoon(function() {
+            EventUtils.synthesizeKey("e", { shiftKey: 1 }, content);
+          });
+        }, false);
+
+        gInput.focus();
+      });
+    });
   });
 
-  return deferred.promise;
+  EventUtils.sendMouseEvent({ type: "click" }, gButton);
 }
 
 // Test that removing events from the array disables them.
-function testBreakOnDisabled() {
-  let deferred = promise.defer();
-
+function testBreakOnDisabled()
+{
   // Test calling pauseOnDOMEvents from a running state.
-  gThreadClient.pauseOnDOMEvents(["click"], (aPacket) => {
-    is(aPacket.error, undefined,
-      "The pause-on-click-only request completed successfully.");
+  gThreadClient.pauseOnDOMEvents(["click"], function(packet) {
+    is(packet.error, undefined, "The pause-on-click-only request completed successfully.");
 
     gClient.addListener("paused", unexpectedListener);
 
     // This non-capturing event listener is guaranteed to run after the page's
     // capturing one had a chance to execute and modify window.foobar.
-    once(gInput, "keyup").then(() => {
-      is(content.wrappedJSObject.foobar, "keyupHandler",
-        "No hidden breakpoint was hit.");
-
+    gInput.addEventListener("keyup", function tempHandler() {
+      gInput.removeEventListener("keyup", tempHandler, false);
+      is(content.wrappedJSObject.foobar, "keyupHandler", "No hidden breakpoint was hit.");
       gClient.removeListener("paused", unexpectedListener);
-      deferred.resolve();
-    });
+      testBreakOnNone();
+    }, false);
 
-    triggerInputKeyup();
+    // Make sure that the focus is not on the input box so that a focus event
+    // will be triggered.
+    window.focus();
+    gBrowser.selectedBrowser.focus();
+    gButton.focus();
+
+    // Focus the element and wait for focus event.
+    gInput.addEventListener("focus", function onfocus() {
+      gInput.removeEventListener("focus", onfocus, false);
+      executeSoon(function() {
+        EventUtils.synthesizeKey("e", { shiftKey: 1 }, content);
+      });
+    }, false);
+
+    gInput.focus();
   });
-
-  return deferred.promise;
 }
 
 // Test that specifying an empty event array clears all hidden breakpoints.
-function testBreakOnNone() {
-  let deferred = promise.defer();
-
+function testBreakOnNone()
+{
   // Test calling pauseOnDOMEvents from a running state.
-  gThreadClient.pauseOnDOMEvents([], (aPacket) => {
-    is(aPacket.error, undefined,
-      "The pause-on-none request completed successfully.");
+  gThreadClient.pauseOnDOMEvents([], function(packet) {
+    is(packet.error, undefined, "The pause-on-none request completed successfully.");
 
     gClient.addListener("paused", unexpectedListener);
 
     // This non-capturing event listener is guaranteed to run after the page's
     // capturing one had a chance to execute and modify window.foobar.
-    once(gInput, "keyup").then(() => {
-      is(content.wrappedJSObject.foobar, "keyupHandler",
-        "No hidden breakpoint was hit.");
-
+    gInput.addEventListener("keyup", function tempHandler() {
+      gInput.removeEventListener("keyup", tempHandler, false);
+      is(content.wrappedJSObject.foobar, "keyupHandler", "No hidden breakpoint was hit.");
       gClient.removeListener("paused", unexpectedListener);
-      deferred.resolve();
-    });
+      testBreakOnClick();
+    }, false);
 
-    triggerInputKeyup();
+    // Make sure that the focus is not on the input box so that a focus event
+    // will be triggered.
+    window.focus();
+    gBrowser.selectedBrowser.focus();
+    gButton.focus();
+
+    // Focus the element and wait for focus event.
+    gInput.addEventListener("focus", function onfocus() {
+      gInput.removeEventListener("focus", onfocus, false);
+      executeSoon(function() {
+        EventUtils.synthesizeKey("g", { shiftKey: 1 }, content);
+      });
+    }, false);
+
+    gInput.focus();
   });
-
-  return deferred.promise;
 }
 
-// Test pause on a single event.
-function testBreakOnClick() {
-  let deferred = promise.defer();
-
-  // Test calling pauseOnDOMEvents from a running state.
-  gThreadClient.pauseOnDOMEvents(["click"], (aPacket) => {
-    is(aPacket.error, undefined,
-      "The pause-on-click request completed successfully.");
-
-    gClient.addOneTimeListener("paused", (aEvent, aPacket) => {
-      is(aPacket.why.type, "pauseOnDOMEvents",
-        "A hidden breakpoint was hit.");
-      is(aPacket.frame.callee.name, "clickHandler",
-        "The clickHandler is entered.");
-
-      gThreadClient.resume(deferred.resolve);
-    });
-
-    triggerButtonClick();
-  });
-
-  return deferred.promise;
-}
-
-function closeConnection() {
-  let deferred = promise.defer();
-  gClient.close(deferred.resolve);
-  return deferred.promise;
-}
-
-function unexpectedListener() {
+function unexpectedListener(event, packet, callback) {
   gClient.removeListener("paused", unexpectedListener);
   ok(false, "An unexpected hidden breakpoint was hit.");
   gThreadClient.resume(testBreakOnClick);
 }
 
-function triggerInputKeyup() {
-  // Make sure that the focus is not on the input box so that a focus event
-  // will be triggered.
-  window.focus();
-  gBrowser.selectedBrowser.focus();
-  gButton.focus();
+// Test pause on a single event.
+function testBreakOnClick()
+{
+  // Test calling pauseOnDOMEvents from a running state.
+  gThreadClient.pauseOnDOMEvents(["click"], function(packet) {
+    is(packet.error, undefined, "The pause-on-click request completed successfully.");
 
-  // Focus the element and wait for focus event.
-  once(gInput, "focus").then(() => {
-    executeSoon(() => {
-      EventUtils.synthesizeKey("e", { shiftKey: 1 }, content);
+    gClient.addOneTimeListener("paused", function(event, packet) {
+      is(packet.why.type, "pauseOnDOMEvents", "A hidden breakpoint was hit.");
+      is(packet.frame.callee.name, "clickHandler", "The clickHandler is entered.");
+
+      gThreadClient.resume(function() {
+        gClient.close(finish);
+      });
     });
+
+    EventUtils.sendMouseEvent({ type: "click" }, gButton);
   });
-
-  gInput.focus();
-}
-
-function triggerButtonClick() {
-  EventUtils.sendMouseEvent({ type: "click" }, gButton);
-}
-
-function triggerInputChange() {
-  gInput.focus();
-  gInput.value = "foo";
-  gInput.blur();
 }
 
 registerCleanupFunction(function() {
-  removeTab(gBrowser.selectedTab);
+  removeTab(gTab);
+  gTab = null;
   gClient = null;
   gThreadClient = null;
   gInput = null;

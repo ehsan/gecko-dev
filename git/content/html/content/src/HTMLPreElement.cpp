@@ -35,6 +35,9 @@ HTMLPreElement::ParseAttribute(int32_t aNamespaceID,
                                nsAttrValue& aResult)
 {
   if (aNamespaceID == kNameSpaceID_None) {
+    if (aAttribute == nsGkAtoms::cols) {
+      return aResult.ParseIntWithBounds(aValue, 0);
+    }
     if (aAttribute == nsGkAtoms::width) {
       return aResult.ParseIntWithBounds(aValue, 0);
     }
@@ -44,15 +47,20 @@ HTMLPreElement::ParseAttribute(int32_t aNamespaceID,
                                               aResult);
 }
 
-void
-HTMLPreElement::MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
-                                      nsRuleData* aData)
+static void
+MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
+                      nsRuleData* aData)
 {
   if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Position)) {
     nsCSSValue* width = aData->ValueForWidth();
     if (width->GetUnit() == eCSSUnit_Null) {
-      // width: int (html4 attribute)
+      // width: int (html4 attribute == nav4 cols)
       const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::width);
+      if (!value || value->Type() != nsAttrValue::eInteger) {
+        // cols: int (nav4 attribute)
+        value = aAttributes->GetAttr(nsGkAtoms::cols);
+      }
+
       if (value && value->Type() == nsAttrValue::eInteger)
         width->SetFloatValue((float)value->GetIntegerValue(), eCSSUnit_Char);
     }
@@ -64,8 +72,13 @@ HTMLPreElement::MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
       if (aAttributes->GetAttr(nsGkAtoms::wrap))
         whiteSpace->SetIntValue(NS_STYLE_WHITESPACE_PRE_WRAP, eCSSUnit_Enumerated);
 
-      // width: int (html4 attribute)
+      // width: int (html4 attribute == nav4 cols)
       const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::width);
+      if (!value || value->Type() != nsAttrValue::eInteger) {
+        // cols: int (nav4 attribute)
+        value = aAttributes->GetAttr(nsGkAtoms::cols);
+      }
+
       if (value && value->Type() == nsAttrValue::eInteger) {
         // Force wrap property on since we want to wrap at a width
         // boundary not just a newline.
@@ -82,6 +95,7 @@ HTMLPreElement::IsAttributeMapped(const nsIAtom* aAttribute) const
 {
   static const MappedAttributeEntry attributes[] = {
     { &nsGkAtoms::wrap },
+    { &nsGkAtoms::cols },
     { &nsGkAtoms::width },
     { nullptr },
   };

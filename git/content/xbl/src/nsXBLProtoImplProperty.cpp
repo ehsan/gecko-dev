@@ -129,24 +129,32 @@ nsXBLProtoImplProperty::InstallMember(JSContext *aCx,
   MOZ_ASSERT(mGetter.IsCompiled() && mSetter.IsCompiled());
   MOZ_ASSERT(js::IsObjectInContextCompartment(aTargetClassObject, aCx));
   JS::Rooted<JSObject*> globalObject(aCx, JS_GetGlobalForObject(aCx, aTargetClassObject));
-  MOZ_ASSERT(xpc::IsInXBLScope(globalObject) ||
-             globalObject == xpc::GetXBLScope(aCx, globalObject));
+  JS::Rooted<JSObject*> scopeObject(aCx, xpc::GetXBLScope(aCx, globalObject));
+  NS_ENSURE_TRUE(scopeObject, NS_ERROR_OUT_OF_MEMORY);
 
-  JS::Rooted<JSObject*> getter(aCx, mGetter.GetJSFunction());
-  JS::Rooted<JSObject*> setter(aCx, mSetter.GetJSFunction());
-  if (getter || setter) {
-    if (getter) {
-      if (!(getter = ::JS_CloneFunctionObject(aCx, getter, globalObject)))
+  if (mGetter.GetJSFunction() || mSetter.GetJSFunction()) {
+    // First, enter the compartment of the scope object and clone the functions.
+    JSAutoCompartment ac(aCx, scopeObject);
+
+    JS::Rooted<JSObject*> getter(aCx, nullptr);
+    if (mGetter.GetJSFunction()) {
+      if (!(getter = ::JS_CloneFunctionObject(aCx, mGetter.GetJSFunction(), scopeObject)))
         return NS_ERROR_OUT_OF_MEMORY;
     }
 
-    if (setter) {
-      if (!(setter = ::JS_CloneFunctionObject(aCx, setter, globalObject)))
+    JS::Rooted<JSObject*> setter(aCx, nullptr);
+    if (mSetter.GetJSFunction()) {
+      if (!(setter = ::JS_CloneFunctionObject(aCx, mSetter.GetJSFunction(), scopeObject)))
         return NS_ERROR_OUT_OF_MEMORY;
     }
 
+    // Now, enter the content compartment, wrap the getter/setter, and define
+    // them on the class object.
+    JSAutoCompartment ac2(aCx, aTargetClassObject);
     nsDependentString name(mName);
-    if (!::JS_DefineUCProperty(aCx, aTargetClassObject,
+    if (!JS_WrapObject(aCx, getter.address()) ||
+        !JS_WrapObject(aCx, setter.address()) ||
+        !::JS_DefineUCProperty(aCx, aTargetClassObject,
                                static_cast<const jschar*>(mName),
                                name.Length(), JSVAL_VOID,
                                JS_DATA_TO_FUNC_PTR(JSPropertyOp, getter.get()),
@@ -194,9 +202,10 @@ nsXBLProtoImplProperty::CompileMember(const nsCString& aClassStr,
       options.setFileAndLine(functionUri.get(), getterText->GetLineNumber())
              .setVersion(JSVERSION_LATEST);
       nsCString name = NS_LITERAL_CSTRING("get_") + NS_ConvertUTF16toUTF8(mName);
-      JS::Rooted<JSObject*> getterObject(cx);
-      rv = nsJSUtils::CompileFunction(cx, JS::NullPtr(), options, name, 0,
-                                      nullptr, getter, getterObject.address());
+      JS::RootedObject rootedNull(cx, nullptr); // See bug 781070.
+      JS::RootedObject getterObject(cx);
+      rv = nsJSUtils::CompileFunction(cx, rootedNull, options, name, 0, nullptr,
+                                      getter, getterObject.address());
 
       delete getterText;
       deletedGetter = true;
@@ -240,10 +249,10 @@ nsXBLProtoImplProperty::CompileMember(const nsCString& aClassStr,
       options.setFileAndLine(functionUri.get(), setterText->GetLineNumber())
              .setVersion(JSVERSION_LATEST);
       nsCString name = NS_LITERAL_CSTRING("set_") + NS_ConvertUTF16toUTF8(mName);
-      JS::Rooted<JSObject*> setterObject(cx);
-      rv = nsJSUtils::CompileFunction(cx, JS::NullPtr(), options, name, 1,
-                                      gPropertyArgs, setter,
-                                      setterObject.address());
+      JS::RootedObject rootedNull(cx, nullptr); // See bug 781070.
+      JS::RootedObject setterObject(cx);
+      rv = nsJSUtils::CompileFunction(cx, rootedNull, options, name, 1,
+                                      gPropertyArgs, setter, setterObject.address());
 
       delete setterText;
       deletedSetter = true;

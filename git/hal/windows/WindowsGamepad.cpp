@@ -232,6 +232,7 @@ public:
     mTimer = do_CreateInstance("@mozilla.org/timer;1", &rv);
     nsCOMPtr<nsIObserverService> observerService =
       mozilla::services::GetObserverService();
+    observerService->AddObserver(this, "devices-changed", false);
     observerService->AddObserver(this,
                                  NS_XPCOM_WILL_SHUTDOWN_OBSERVER_ID,
                                  false);
@@ -244,6 +245,7 @@ public:
     if (mObserving) {
       nsCOMPtr<nsIObserverService> observerService =
         mozilla::services::GetObserverService();
+      observerService->RemoveObserver(this, "devices-changed");
       observerService->RemoveObserver(this, NS_XPCOM_WILL_SHUTDOWN_OBSERVER_ID);
       mObserving = false;
     }
@@ -251,15 +253,6 @@ public:
 
   virtual ~Observer() {
     Stop();
-  }
-
-  void SetDeviceChangeTimer() {
-    // set stable timer, since we will get multiple devices-changed
-    // notifications at once
-    if (mTimer) {
-      mTimer->Cancel();
-      mTimer->Init(this, kDevicesChangedStableDelay, nsITimer::TYPE_ONE_SHOT);
-    }
   }
 
 private:
@@ -284,11 +277,7 @@ public:
     }
   }
 
-  enum DeviceChangeType {
-    DeviceChangeNotification,
-    DeviceChangeStable
-  };
-  void DevicesChanged(DeviceChangeType type);
+  void DevicesChanged();
   void Startup();
   void Shutdown();
 
@@ -321,8 +310,8 @@ private:
 };
 
 WindowsGamepadService::WindowsGamepadService()
-  : mThreadExitEvent(CreateEventW(nullptr, FALSE, FALSE, nullptr)),
-    mThreadRescanEvent(CreateEventW(nullptr, FALSE, FALSE, nullptr)),
+  : mThreadExitEvent(CreateEvent(nullptr, FALSE, FALSE, nullptr)),
+    mThreadRescanEvent(CreateEvent(nullptr, FALSE, FALSE, nullptr)),
     mThread(nullptr),
     dinput(nullptr) {
   mObserver = new Observer(*this);
@@ -416,7 +405,7 @@ WindowsGamepadService::EnumCallback(LPCDIDEVICEINSTANCE lpddi,
     dp.diph.dwHow = DIPH_DEVICE;
     dp.dwData = 64; // arbitrary
     // Create event so DInput can signal us when there's new data.
-    gamepad.event = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+    gamepad.event = CreateEvent(nullptr, FALSE, FALSE, nullptr);
     // Set data format, event notification, and acquire device
     if (gamepad.device->SetDataFormat(&c_dfDIJoystick) == DI_OK &&
         gamepad.device->SetProperty(DIPROP_BUFFERSIZE, &dp.diph) == DI_OK &&
@@ -600,12 +589,8 @@ WindowsGamepadService::CleanupGamepad(Gamepad& gamepad) {
 }
 
 void
-WindowsGamepadService::DevicesChanged(DeviceChangeType type) {
-  if (type == DeviceChangeNotification) {
-    mObserver->SetDeviceChangeTimer();
-  } else if (type == DeviceChangeStable) {
-    SetEvent(mThreadRescanEvent);
-  }
+WindowsGamepadService::DevicesChanged() {
+  SetEvent(mThreadRescanEvent);
 }
 
 NS_IMETHODIMP
@@ -613,38 +598,26 @@ Observer::Observe(nsISupports* aSubject,
                   const char* aTopic,
                   const PRUnichar* aData) {
   if (strcmp(aTopic, "timer-callback") == 0) {
-    mSvc.DevicesChanged(WindowsGamepadService::DeviceChangeStable);
+    mSvc.DevicesChanged();
   } else if (strcmp(aTopic, NS_XPCOM_WILL_SHUTDOWN_OBSERVER_ID) == 0) {
     Stop();
-  }
-  return NS_OK;
-}
-
-WindowsGamepadService* gService = nullptr;
-HWND sHWnd = nullptr;
-
-static
-LRESULT CALLBACK
-GamepadWindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-  const unsigned int DBT_DEVICEARRIVAL        = 0x8000;
-  const unsigned int DBT_DEVICEREMOVECOMPLETE = 0x8004;
-  const unsigned int DBT_DEVNODES_CHANGED     = 0x7;
-
-  if (msg == WM_DEVICECHANGE &&
-      (wParam == DBT_DEVICEARRIVAL ||
-       wParam == DBT_DEVICEREMOVECOMPLETE ||
-       wParam == DBT_DEVNODES_CHANGED)) {
-    if (gService) {
-      gService->DevicesChanged(WindowsGamepadService::DeviceChangeNotification);
+  } else if (strcmp(aTopic, "devices-changed")) {
+    // set stable timer, since we will get multiple devices-changed
+    // notifications at once
+    if (mTimer) {
+      mTimer->Cancel();
+      mTimer->Init(this, kDevicesChangedStableDelay, nsITimer::TYPE_ONE_SHOT);
     }
   }
-  return DefWindowProc(hwnd, msg, wParam, lParam);
+  return NS_OK;
 }
 
 } // namespace
 
 namespace mozilla {
 namespace hal_impl {
+
+WindowsGamepadService* gService = nullptr;
 
 void StartMonitoringGamepadStatus()
 {
@@ -653,34 +626,12 @@ void StartMonitoringGamepadStatus()
 
   gService = new WindowsGamepadService();
   gService->Startup();
-
-  if (sHWnd == nullptr) {
-    WNDCLASSW wc;
-    HMODULE hSelf = GetModuleHandle(nullptr);
-
-    if (!GetClassInfoW(hSelf, L"MozillaGamepadClass", &wc)) {
-      ZeroMemory(&wc, sizeof(WNDCLASSW));
-      wc.hInstance = hSelf;
-      wc.lpfnWndProc = GamepadWindowProc;
-      wc.lpszClassName = L"MozillaGamepadClass";
-      RegisterClassW(&wc);
-    }
-
-    sHWnd = CreateWindowW(L"MozillaGamepadClass", L"Gamepad Watcher",
-                          0, 0, 0, 0, 0,
-                          nullptr, nullptr, hSelf, nullptr);
-  }
 }
 
 void StopMonitoringGamepadStatus()
 {
   if (!gService)
     return;
-
-  if (sHWnd) {
-    DestroyWindow(sHWnd);
-    sHWnd = nullptr;
-  }
 
   gService->Shutdown();
   delete gService;

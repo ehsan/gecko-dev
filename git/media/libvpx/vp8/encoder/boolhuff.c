@@ -16,7 +16,7 @@ unsigned __int64 Sectionbits[500];
 
 #endif
 
-#ifdef VP8_ENTROPY_STATS
+#ifdef ENTROPY_STATS
 unsigned int active_section = 0;
 #endif
 
@@ -45,6 +45,7 @@ void vp8_start_encode(BOOL_CODER *br, unsigned char *source, unsigned char *sour
 
     br->lowvalue   = 0;
     br->range      = 255;
+    br->value      = 0;
     br->count      = -24;
     br->buffer     = source;
     br->buffer_end = source_end;

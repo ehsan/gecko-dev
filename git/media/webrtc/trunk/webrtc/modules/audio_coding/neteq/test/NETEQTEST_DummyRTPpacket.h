@@ -13,10 +13,11 @@
 
 #include "NETEQTEST_RTPpacket.h"
 
-class NETEQTEST_DummyRTPpacket : public NETEQTEST_RTPpacket {
- public:
-  virtual int readFromFile(FILE* fp) OVERRIDE;
-  virtual int writeToFile(FILE* fp) OVERRIDE;
+class NETEQTEST_DummyRTPpacket : public NETEQTEST_RTPpacket
+{
+public:
+    virtual int readFromFile(FILE *fp);
+    virtual int writeToFile(FILE *fp);
 };
 
-#endif  // NETEQTEST_DUMMYRTPPACKET_H
+#endif //NETEQTEST_DUMMYRTPPACKET_H

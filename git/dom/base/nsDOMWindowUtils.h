@@ -9,6 +9,7 @@
 #include "nsWeakReference.h"
 
 #include "nsIDOMWindowUtils.h"
+#include "nsEvent.h"
 #include "mozilla/Attributes.h"
 
 class nsGlobalWindow;
@@ -48,22 +49,7 @@ protected:
                                   bool aToWindow,
                                   bool *aPreventDefault);
 
-  NS_IMETHOD SendTouchEventCommon(const nsAString& aType,
-                                  uint32_t* aIdentifiers,
-                                  int32_t* aXs,
-                                  int32_t* aYs,
-                                  uint32_t* aRxs,
-                                  uint32_t* aRys,
-                                  float* aRotationAngles,
-                                  float* aForces,
-                                  uint32_t aCount,
-                                  int32_t aModifiers,
-                                  bool aIgnoreRootScrollFrame,
-                                  bool aToWindow,
-                                  bool* aPreventDefault);
-
-
-  static mozilla::Modifiers GetWidgetModifiers(int32_t aModifiers);
+  static mozilla::widget::Modifiers GetWidgetModifiers(int32_t aModifiers);
 };
 
 #endif

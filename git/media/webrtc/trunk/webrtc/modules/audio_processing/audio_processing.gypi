@@ -16,7 +16,8 @@
         'aec_debug_dump%': 0,
       },
       'dependencies': [
-        '<(webrtc_root)/common_audio/common_audio.gyp:common_audio',
+        '<(webrtc_root)/common_audio/common_audio.gyp:signal_processing',
+        '<(webrtc_root)/common_audio/common_audio.gyp:vad',
         '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:system_wrappers',
       ],
       'include_dirs': [
@@ -60,7 +61,6 @@
         'audio_processing_impl.h',
         'echo_cancellation_impl.cc',
         'echo_cancellation_impl.h',
-        'echo_cancellation_impl_wrapper.h',
         'echo_control_mobile_impl.cc',
         'echo_control_mobile_impl.h',
         'gain_control_impl.cc',
@@ -119,7 +119,7 @@
         ['target_arch=="ia32" or target_arch=="x64"', {
           'dependencies': ['audio_processing_sse2',],
         }],
-        ['(target_arch=="arm" and armv7==1) or target_arch=="armv7"', {
+        ['target_arch=="arm" and armv7==1', {
           'dependencies': ['audio_processing_neon',],
         }],
       ],
@@ -162,13 +162,13 @@
         },
       ],
     }],
-    ['(target_arch=="arm" and armv7==1) or target_arch=="armv7"', {
+    ['target_arch=="arm" and armv7==1', {
       'targets': [{
         'target_name': 'audio_processing_neon',
         'type': 'static_library',
         'includes': ['../../build/arm_neon.gypi',],
         'dependencies': [
-          '<(webrtc_root)/common_audio/common_audio.gyp:common_audio',
+          '<(webrtc_root)/common_audio/common_audio.gyp:signal_processing',
         ],
         'sources': [
           'aecm/aecm_core_neon.c',

@@ -1,7 +1,6 @@
 "use strict";
 
-const isB2G = ("@mozilla.org/b2g-process-global;1" in Cc);
-
+const isB2G = ("@mozilla.org/b2g-keyboard;1" in Components.classes);
 
 do_get_profile(); // must be called before getting nsIX509CertDB
 const certdb = Cc["@mozilla.org/security/x509certdb;1"].getService(Ci.nsIX509CertDB);

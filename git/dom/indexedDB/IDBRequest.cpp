@@ -8,7 +8,6 @@
 
 #include "nsIScriptContext.h"
 
-#include "mozilla/ContentEvents.h"
 #include "mozilla/dom/IDBOpenDBRequestBinding.h"
 #include "mozilla/dom/UnionTypes.h"
 #include "nsComponentManagerUtils.h"
@@ -19,7 +18,7 @@
 #include "nsEventDispatcher.h"
 #include "nsJSUtils.h"
 #include "nsPIDOMWindow.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "nsThreadUtils.h"
 #include "nsWrapperCacheInlines.h"
 
@@ -34,20 +33,19 @@
 namespace {
 
 #ifdef MOZ_ENABLE_PROFILER_SPS
-uint64_t gNextRequestSerialNumber = 1;
+uint64_t gNextSerialNumber = 1;
 #endif
 
 } // anonymous namespace
 
 USING_INDEXEDDB_NAMESPACE
-using mozilla::dom::OwningIDBObjectStoreOrIDBIndexOrIDBCursor;
-using namespace mozilla;
+using mozilla::dom::IDBObjectStoreOrIDBIndexOrIDBCursorReturnValue;
 
 IDBRequest::IDBRequest()
 : mResultVal(JSVAL_VOID),
   mActorParent(nullptr),
 #ifdef MOZ_ENABLE_PROFILER_SPS
-  mSerialNumber(gNextRequestSerialNumber++),
+  mSerialNumber(gNextSerialNumber++),
 #endif
   mErrorCode(NS_OK),
   mLineNo(0),
@@ -66,20 +64,16 @@ IDBRequest::~IDBRequest()
 
 // static
 already_AddRefed<IDBRequest>
-IDBRequest::Create(IDBDatabase* aDatabase,
+IDBRequest::Create(IDBWrapperCache* aOwnerCache,
                    IDBTransaction* aTransaction)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   nsRefPtr<IDBRequest> request(new IDBRequest());
 
   request->mTransaction = aTransaction;
-  request->BindToOwner(aDatabase);
-  request->SetScriptOwner(aDatabase->GetScriptOwner());
-
-  if (!aDatabase->Factory()->FromIPC()) {
-    request->CaptureCaller();
-  }
-
+  request->BindToOwner(aOwnerCache);
+  request->SetScriptOwner(aOwnerCache->GetScriptOwner());
+  request->CaptureCaller();
 
   return request.forget();
 }
@@ -87,10 +81,10 @@ IDBRequest::Create(IDBDatabase* aDatabase,
 // static
 already_AddRefed<IDBRequest>
 IDBRequest::Create(IDBObjectStore* aSourceAsObjectStore,
-                   IDBDatabase* aDatabase,
+                   IDBWrapperCache* aOwnerCache,
                    IDBTransaction* aTransaction)
 {
-  nsRefPtr<IDBRequest> request = Create(aDatabase, aTransaction);
+  nsRefPtr<IDBRequest> request = Create(aOwnerCache, aTransaction);
 
   request->mSourceAsObjectStore = aSourceAsObjectStore;
 
@@ -100,12 +94,25 @@ IDBRequest::Create(IDBObjectStore* aSourceAsObjectStore,
 // static
 already_AddRefed<IDBRequest>
 IDBRequest::Create(IDBIndex* aSourceAsIndex,
-                   IDBDatabase* aDatabase,
+                   IDBWrapperCache* aOwnerCache,
                    IDBTransaction* aTransaction)
 {
-  nsRefPtr<IDBRequest> request = Create(aDatabase, aTransaction);
+  nsRefPtr<IDBRequest> request = Create(aOwnerCache, aTransaction);
 
   request->mSourceAsIndex = aSourceAsIndex;
+
+  return request.forget();
+}
+
+// static
+already_AddRefed<IDBRequest>
+IDBRequest::Create(IDBCursor* aSourceAsCursor,
+                   IDBWrapperCache* aOwnerCache,
+                   IDBTransaction* aTransaction)
+{
+  nsRefPtr<IDBRequest> request = Create(aOwnerCache, aTransaction);
+
+  request->mSourceAsCursor = aSourceAsCursor;
 
   return request.forget();
 }
@@ -123,7 +130,7 @@ IDBRequest::AssertSourceIsCorrect() const
 #endif
 
 void
-IDBRequest::GetSource(Nullable<OwningIDBObjectStoreOrIDBIndexOrIDBCursor>& aSource) const
+IDBRequest::GetSource(Nullable<IDBObjectStoreOrIDBIndexOrIDBCursorReturnValue>& aSource) const
 {
   MOZ_ASSERT(NS_IsMainThread());
 
@@ -278,6 +285,10 @@ IDBRequest::CaptureCaller()
   const char* filename = nullptr;
   uint32_t lineNo = 0;
   if (!nsJSUtils::GetCallingLocation(cx, &filename, &lineNo)) {
+    // If our caller is in another process, we won't have a JSContext on the
+    // stack, and AutoJSContext will push the SafeJSContext. But that won't have
+    // any script on it (certainly not after the push), so GetCallingLocation
+    // will fail when it calls JS_DescribeScriptedCaller. That's fine.
     NS_WARNING("Failed to get caller.");
     return;
   }
@@ -287,7 +298,7 @@ IDBRequest::CaptureCaller()
 }
 
 void
-IDBRequest::FillScriptErrorEvent(InternalScriptErrorEvent* aEvent) const
+IDBRequest::FillScriptErrorEvent(nsScriptErrorEvent* aEvent) const
 {
   aEvent->lineNr = mLineNo;
   aEvent->fileName = mFilename.get();
@@ -405,11 +416,8 @@ IDBOpenDBRequest::Create(IDBFactory* aFactory,
 
   request->BindToOwner(aOwner);
   request->SetScriptOwner(aScriptOwner);
+  request->CaptureCaller();
   request->mFactory = aFactory;
-
-  if (!aFactory->FromIPC()) {
-    request->CaptureCaller();
-  }
 
   return request.forget();
 }

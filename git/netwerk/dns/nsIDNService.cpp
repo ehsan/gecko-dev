@@ -141,7 +141,7 @@ nsIDNService::nsIDNService()
 
   mMultilingualTestBed = false;
 
-  if (idn_success != idn_nameprep_create(nullptr, &mNamePrepHandle))
+  if (idn_success != idn_nameprep_create(NULL, &mNamePrepHandle))
     mNamePrepHandle = nullptr;
 
   mNormalizer = do_GetService(NS_UNICODE_NORMALIZER_CONTRACTID);
@@ -402,10 +402,7 @@ NS_IMETHODIMP nsIDNService::ConvertToDisplayIDN(const nsACString & input, bool *
 
 //-----------------------------------------------------------------------------
 
-static nsresult utf16ToUcs4(const nsAString& in,
-                            uint32_t *out,
-                            uint32_t outBufLen,
-                            uint32_t *outLen)
+static void utf16ToUcs4(const nsAString& in, uint32_t *out, uint32_t outBufLen, uint32_t *outLen)
 {
   uint32_t i = 0;
   nsAString::const_iterator start, end;
@@ -427,12 +424,15 @@ static nsresult utf16ToUcs4(const nsAString& in,
       out[i] = curChar;
 
     i++;
-    if (i >= outBufLen)
-      return NS_ERROR_FAILURE;
+    if (i >= outBufLen) {
+      NS_ERROR("input too big, the result truncated");
+      out[outBufLen-1] = (uint32_t)'\0';
+      *outLen = outBufLen-1;
+      return;
+    }
   }
   out[i] = (uint32_t)'\0';
   *outLen = i;
-  return NS_OK;
 }
 
 static void ucs4toUtf16(const uint32_t *in, nsAString& out)
@@ -452,8 +452,7 @@ static nsresult punycode(const char* prefix, const nsAString& in, nsACString& ou
 {
   uint32_t ucs4Buf[kMaxDNSNodeLen + 1];
   uint32_t ucs4Len;
-  nsresult rv = utf16ToUcs4(in, ucs4Buf, kMaxDNSNodeLen, &ucs4Len);
-  NS_ENSURE_SUCCESS(rv, rv);
+  utf16ToUcs4(in, ucs4Buf, kMaxDNSNodeLen, &ucs4Len);
 
   // need maximum 20 bits to encode 16 bit Unicode character
   // (include null terminator)
@@ -474,7 +473,7 @@ static nsresult punycode(const char* prefix, const nsAString& in, nsACString& ou
   encodedBuf[encodedLength] = '\0';
   out.Assign(nsDependentCString(prefix) + nsDependentCString(encodedBuf));
 
-  return rv;
+  return NS_OK;
 }
 
 static nsresult encodeToRACE(const char* prefix, const nsAString& in, nsACString& out)
@@ -537,10 +536,10 @@ nsresult nsIDNService::stringPrep(const nsAString& in, nsAString& out,
   if (!mNamePrepHandle || !mNormalizer)
     return NS_ERROR_FAILURE;
 
+  nsresult rv = NS_OK;
   uint32_t ucs4Buf[kMaxDNSNodeLen + 1];
   uint32_t ucs4Len;
-  nsresult rv = utf16ToUcs4(in, ucs4Buf, kMaxDNSNodeLen, &ucs4Len);
-  NS_ENSURE_SUCCESS(rv, rv);
+  utf16ToUcs4(in, ucs4Buf, kMaxDNSNodeLen, &ucs4Len);
 
   // map
   idn_result_t idn_err;

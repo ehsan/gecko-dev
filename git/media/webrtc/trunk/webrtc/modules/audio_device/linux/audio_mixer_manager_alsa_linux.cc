@@ -8,10 +8,10 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include <assert.h>
+#include <cassert>
 
-#include "webrtc/modules/audio_device/linux/audio_mixer_manager_alsa_linux.h"
-#include "webrtc/system_wrappers/interface/trace.h"
+#include "audio_mixer_manager_alsa_linux.h"
+#include "trace.h"
 
 extern webrtc_adm_linux_alsa::AlsaSymbolTable AlsaSymbolTable;
 

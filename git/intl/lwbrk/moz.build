@@ -7,3 +7,5 @@
 DIRS += ['idl', 'public', 'src']
 TEST_TOOL_DIRS += ['tests']
 
+MODULE = 'lwbrk'
+

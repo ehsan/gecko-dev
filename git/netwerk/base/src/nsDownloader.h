@@ -6,10 +6,9 @@
 #define nsDownloader_h__
 
 #include "nsIDownloader.h"
+#include "nsIOutputStream.h"
+#include "nsIFile.h"
 #include "nsCOMPtr.h"
-
-class nsIFile;
-class nsIOutputStream;
 
 class nsDownloader : public nsIDownloader
 {

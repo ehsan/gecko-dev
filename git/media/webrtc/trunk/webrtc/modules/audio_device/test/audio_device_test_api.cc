@@ -8,19 +8,19 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include <math.h>
+#include <cmath>
 #include <stdio.h>
 #include <string.h>
 
-#include "webrtc/modules/audio_device/test/audio_device_test_defines.h"
+#include "audio_device_test_defines.h"
 
-#include "testing/gtest/include/gtest/gtest.h"
-#include "webrtc/test/testsupport/fileutils.h"
+#include "gtest/gtest.h"
+#include "testsupport/fileutils.h"
 
-#include "webrtc/modules/audio_device/audio_device_config.h"
-#include "webrtc/modules/audio_device/audio_device_impl.h"
-#include "webrtc/modules/audio_device/audio_device_utility.h"
-#include "webrtc/system_wrappers/interface/sleep.h"
+#include "modules/audio_device/audio_device_config.h"
+#include "modules/audio_device/audio_device_impl.h"
+#include "modules/audio_device/audio_device_utility.h"
+#include "system_wrappers/interface/sleep.h"
 
 // Helper functions
 #if defined(ANDROID)
@@ -92,7 +92,6 @@ class AudioTransportAPI: public AudioTransport {
       const uint32_t totalDelay,
       const int32_t clockSkew,
       const uint32_t currentMicLevel,
-      const bool keyPressed,
       uint32_t& newMicLevel) {
     rec_count_++;
     if (rec_count_ % 100 == 0) {
@@ -126,19 +125,6 @@ class AudioTransportAPI: public AudioTransport {
       }
     }
     nSamplesOut = 480;
-    return 0;
-  }
-
-  virtual int OnDataAvailable(const int voe_channels[],
-                              int number_of_voe_channels,
-                              const int16_t* audio_data,
-                              int sample_rate,
-                              int number_of_channels,
-                              int number_of_frames,
-                              int audio_delay_milliseconds,
-                              int current_volume,
-                              bool key_pressed,
-                              bool need_audio_processing) {
     return 0;
   }
 
@@ -210,7 +196,7 @@ class AudioDeviceAPITest: public testing::Test {
     // Create default implementation instance
     EXPECT_TRUE((audio_device_ = AudioDeviceModuleImpl::Create(
                 kId, AudioDeviceModule::kPlatformDefaultAudio)) != NULL);
-#elif defined(WEBRTC_LINUX) || defined(WEBRTC_BSD)
+#elif defined(WEBRTC_LINUX)
     EXPECT_TRUE((audio_device_ = AudioDeviceModuleImpl::Create(
                 kId, AudioDeviceModule::kWindowsWaveAudio)) == NULL);
     EXPECT_TRUE((audio_device_ = AudioDeviceModuleImpl::Create(
@@ -1703,7 +1689,7 @@ TEST_F(AudioDeviceAPITest, CPULoad) {
 
 // TODO(kjellander): Fix flakiness causing failures on Windows.
 // TODO(phoglund):  Fix flakiness causing failures on Linux.
-#if !defined(_WIN32) && !defined(WEBRTC_LINUX) && !defined(WEBRTC_BSD)
+#if !defined(_WIN32) && !defined(WEBRTC_LINUX)
 TEST_F(AudioDeviceAPITest, StartAndStopRawOutputFileRecording) {
   // NOTE: this API is better tested in a functional test
   CheckInitialPlayoutStates();
@@ -1772,7 +1758,7 @@ TEST_F(AudioDeviceAPITest, StartAndStopRawInputFileRecording) {
   // - size of raw_input_not_recording.pcm shall be 0
   // - size of raw_input_not_recording.pcm shall be > 0
 }
-#endif  // !WIN32 && !WEBRTC_LINUX && !defined(WEBRTC_BSD)
+#endif  // !WIN32 && !WEBRTC_LINUX
 
 TEST_F(AudioDeviceAPITest, RecordingSampleRate) {
   uint32_t sampleRate(0);

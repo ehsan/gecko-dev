@@ -25,6 +25,21 @@ const STARTPAGE_VERSION = 4;
 this.AboutHomeUtils = {
   get snippetsVersion() STARTPAGE_VERSION,
 
+  /**
+   * Returns an object containing the name and searchURL of the original default
+   * search engine.
+   */
+  get defaultSearchEngine() {
+    let defaultEngine = Services.search.defaultEngine;
+    let submission = defaultEngine.getSubmission("_searchTerms_", null, "homepage");
+
+    return Object.freeze({
+      name: defaultEngine.name,
+      searchURL: submission.uri.spec,
+      postDataString: submission.postDataString
+    });
+  },
+
   /*
    * showKnowYourRights - Determines if the user should be shown the
    * about:rights notification. The notification should *not* be shown if
@@ -158,20 +173,9 @@ let AboutHome = {
         break;
 
       case "AboutHome:Search":
-        let data;
-        try {
-          data = JSON.parse(aMessage.data.searchData);
-        } catch(ex) {
-          Cu.reportError(ex);
-          break;
-        }
-        let engine = Services.search.currentEngine;
 #ifdef MOZ_SERVICES_HEALTHREPORT
-        window.BrowserSearch.recordSearchInHealthReport(engine, "abouthome");
+        window.BrowserSearch.recordSearchInHealthReport(aMessage.data.engineName, "abouthome");
 #endif
-        // Trigger a search through nsISearchEngine.getSubmission()
-        let submission = engine.getSubmission(data.searchTerms, null, "homepage");
-        window.loadURI(submission.uri.spec, null, submission.postData);
         break;
     }
   },
@@ -179,33 +183,27 @@ let AboutHome = {
   // Send all the chrome-privileged data needed by about:home. This
   // gets re-sent when the search engine changes.
   sendAboutHomeData: function(target) {
-    let wrapper = {};
-    Components.utils.import("resource:///modules/sessionstore/SessionStore.jsm",
-      wrapper);
-    let ss = wrapper.SessionStore;
-    ss.promiseInitialized.then(function() {
-      let data = {
-        showRestoreLastSession: ss.canRestoreLastSession,
-        snippetsURL: AboutHomeUtils.snippetsURL,
-        showKnowYourRights: AboutHomeUtils.showKnowYourRights,
-        snippetsVersion: AboutHomeUtils.snippetsVersion,
-        defaultEngineName: Services.search.defaultEngine.name
-      };
+    let ss = Cc["@mozilla.org/browser/sessionstore;1"].
+               getService(Ci.nsISessionStore);
+    let data = {
+      showRestoreLastSession: ss.canRestoreLastSession,
+      snippetsURL: AboutHomeUtils.snippetsURL,
+      showKnowYourRights: AboutHomeUtils.showKnowYourRights,
+      snippetsVersion: AboutHomeUtils.snippetsVersion,
+      defaultSearchEngine: AboutHomeUtils.defaultSearchEngine
+    };
 
-      if (AboutHomeUtils.showKnowYourRights) {
-        // Set pref to indicate we've shown the notification.
-        let currentVersion = Services.prefs.getIntPref("browser.rights.version");
-        Services.prefs.setBoolPref("browser.rights." + currentVersion + ".shown", true);
-      }
+    if (AboutHomeUtils.showKnowYourRights) {
+      // Set pref to indicate we've shown the notification.
+      let currentVersion = Services.prefs.getIntPref("browser.rights.version");
+      Services.prefs.setBoolPref("browser.rights." + currentVersion + ".shown", true);
+    }
 
-      if (target) {
-        target.messageManager.sendAsyncMessage("AboutHome:Update", data);
-      } else {
-        let mm = Cc["@mozilla.org/globalmessagemanager;1"].getService(Ci.nsIMessageListenerManager);
-        mm.broadcastAsyncMessage("AboutHome:Update", data);
-      }
-    }).then(null, function onError(x) {
-      Cu.reportError("Error in AboutHome.sendAboutHomeData " + x);
-    });
+    if (target) {
+      target.messageManager.sendAsyncMessage("AboutHome:Update", data);
+    } else {
+      let mm = Cc["@mozilla.org/globalmessagemanager;1"].getService(Ci.nsIMessageListenerManager);
+      mm.broadcastAsyncMessage("AboutHome:Update", data);
+    }
   },
 };

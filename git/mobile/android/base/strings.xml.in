@@ -19,9 +19,6 @@
 #includesubst @BOOKMARKSPATH@
 <resources>
   <string name="moz_app_displayname">@MOZ_APP_DISPLAYNAME@</string>
-  <string name="android_package_name">@ANDROID_PACKAGE_NAME@</string>
-  <string name="content_authority_db_browser">@ANDROID_PACKAGE_NAME@.db.browser</string>
-  <string name="moz_android_shared_account_type">@MOZ_ANDROID_SHARED_ACCOUNT_TYPE@</string>
 #include ../services/strings.xml.in
   <string name="no_space_to_start_error">&no_space_to_start_error;</string>
   <string name="error_loading_file">&error_loading_file;</string>
@@ -145,10 +142,10 @@
   <string name="pref_private_data_siteSettings">&pref_private_data_siteSettings2;</string>
   <string name="pref_private_data_downloadFiles">&pref_private_data_downloadFiles;</string>
   <string name="pref_import_android">&pref_import_android;</string>
-  <string name="pref_update_autodownload">&pref_update_autodownload2;</string>
+  <string name="pref_update_autodownload">&pref_update_autodownload;</string>
   <string name="pref_update_autodownload_wifi">&pref_update_autodownload_wifi;</string>
-  <string name="pref_update_autodownload_disabled">&pref_update_autodownload_never;</string>
-  <string name="pref_update_autodownload_enabled">&pref_update_autodownload_always;</string>
+  <string name="pref_update_autodownload_disabled">&pref_update_autodownload_disabled;</string>
+  <string name="pref_update_autodownload_enabled">&pref_update_autodownload_enabled;</string>
 
 
   <string name="pref_about_firefox">&pref_about_firefox;</string>
@@ -225,19 +222,17 @@
   <string name="contextmenu_edit_bookmark">&contextmenu_edit_bookmark;</string>
   <string name="contextmenu_subscribe">&contextmenu_subscribe;</string>
   <string name="contextmenu_site_settings">&contextmenu_site_settings;</string>
-  <string name="contextmenu_top_sites_edit">&contextmenu_top_sites_edit;</string>
-  <string name="contextmenu_top_sites_pin">&contextmenu_top_sites_pin;</string>
-  <string name="contextmenu_top_sites_unpin">&contextmenu_top_sites_unpin;</string>
-  <string name="contextmenu_add_search_engine">&contextmenu_add_search_engine;</string>
+  <string name="contextmenu_top_bookmarks_edit">&contextmenu_top_bookmarks_edit;</string>
+  <string name="contextmenu_top_bookmarks_pin">&contextmenu_top_bookmarks_pin;</string>
+  <string name="contextmenu_top_bookmarks_unpin">&contextmenu_top_bookmarks_unpin;</string>
 
   <string name="pref_titlebar_mode">&pref_titlebar_mode;</string>
   <string name="pref_titlebar_mode_title">&pref_titlebar_mode_title;</string>
   <string name="pref_titlebar_mode_url">&pref_titlebar_mode_url;</string>
 
-  <string name="pref_dynamic_toolbar">&pref_dynamic_toolbar;</string>
-
   <string name="history_removed">&history_removed;</string>
 
+  <string name="bookmark_add">&bookmark_add;</string>
   <string name="bookmark_edit_title">&bookmark_edit_title;</string>
   <string name="bookmark_edit_name">&bookmark_edit_name;</string>
   <string name="bookmark_edit_location">&bookmark_edit_location;</string>
@@ -257,19 +252,17 @@
   <string name="button_yes">&button_yes;</string>
   <string name="button_no">&button_no;</string>
 
-  <string name="home_top_sites_title">&home_top_sites_title;</string>
-  <string name="home_top_sites_add">&home_top_sites_add;</string>
   <string name="home_history_title">&home_history_title;</string>
-  <string name="home_bookmarks_empty">&home_bookmarks_empty;</string>
   <string name="home_last_tabs_title">&home_last_tabs_title;</string>
   <string name="home_last_tabs_open">&home_last_tabs_open;</string>
   <string name="home_last_tabs_empty">&home_last_tabs_empty;</string>
   <string name="home_most_recent_title">&home_most_recent_title;</string>
   <string name="home_most_recent_empty">&home_most_recent_empty;</string>
+  <string name="home_most_visited_title">&home_most_visited_title;</string>
+  <string name="home_most_visited_empty">&home_most_visited_empty;</string>
   <string name="home_reading_list_empty">&home_reading_list_empty;</string>
   <string name="home_reading_list_hint">&home_reading_list_hint;</string>
-  <string name="home_reading_list_hint_accessible">&home_reading_list_hint_accessible;</string>
-  <string name="pin_site_dialog_hint">&pin_site_dialog_hint;</string>
+  <string name="pin_bookmark_dialog_hint">&pin_bookmark_dialog_hint;</string>
 
   <string name="filepicker_title">&filepicker_title;</string>
   <string name="filepicker_audio_title">&filepicker_audio_title;</string>
@@ -352,8 +345,4 @@
 
   <string name="exit_guest_session_title">&exit_guest_session_title;</string>
   <string name="exit_guest_session_text">&exit_guest_session_text;</string>
-
-  <string name="actionbar_menu">&actionbar_menu;</string>
-  <string name="actionbar_done">&actionbar_done;</string>
-
 </resources>

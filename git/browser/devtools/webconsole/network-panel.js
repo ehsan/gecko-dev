@@ -1,4 +1,4 @@
-/* -*- js2-basic-offset: 2; indent-tabs-mode: nil; -*- */
+/* -*- Mode: js2; js2-basic-offset: 2; indent-tabs-mode: nil; -*- */
 /* vim: set ft=javascript ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
@@ -675,7 +675,9 @@ NetworkPanel.prototype =
    */
   update: function NP_update()
   {
-    if (!this.document || this.document.readyState != "complete") {
+    // After the iframe's contentWindow is ready, the document object is set.
+    // If the document object is not available yet nothing needs to be updated.
+    if (!this.document || !this.document.getElementById("headUrl")) {
       return;
     }
 

@@ -50,9 +50,6 @@ public:
   NS_DECL_NSIWINDOWMEDIATOR
   NS_DECL_NSIOBSERVER
 
-  static nsresult GetDOMWindow(nsIXULWindow* inWindow,
-                               nsCOMPtr<nsIDOMWindow>& outDOMWindow);
-
 private:
   int32_t AddEnumerator(nsAppShellWindowEnumerator* inEnumerator);
   int32_t RemoveEnumerator(nsAppShellWindowEnumerator* inEnumerator);

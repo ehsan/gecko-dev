@@ -23,10 +23,9 @@
 #include "vpx/vp8cx.h"
 #include "vpx/vp8dx.h"
 
-#include "webrtc/common.h"
 #include "webrtc/common_video/libyuv/include/webrtc_libyuv.h"
 #include "webrtc/modules/interface/module_common_types.h"
-#include "webrtc/modules/video_coding/codecs/vp8/temporal_layers.h"
+#include "webrtc/modules/video_coding/codecs/vp8/default_temporal_layers.h"
 #include "webrtc/modules/video_coding/codecs/vp8/reference_picture_selection.h"
 #include "webrtc/system_wrappers/interface/tick_util.h"
 #include "webrtc/system_wrappers/interface/trace_event.h"
@@ -154,16 +153,10 @@ int VP8EncoderImpl::InitEncode(const VideoCodec* inst,
     codec_ = *inst;
   }
 
-  // TODO(andresp): assert(inst->extra_options) and cleanup.
-  Config default_options;
-  const Config& options =
-      inst->extra_options ? *inst->extra_options : default_options;
-
   int num_temporal_layers = inst->codecSpecific.VP8.numberOfTemporalLayers > 1 ?
       inst->codecSpecific.VP8.numberOfTemporalLayers : 1;
   assert(temporal_layers_ == NULL);
-  temporal_layers_ = options.Get<TemporalLayers::Factory>()
-                         .Create(num_temporal_layers, rand());
+  temporal_layers_ = new DefaultTemporalLayers(num_temporal_layers, rand());
   // random start 16 bits is enough.
   picture_id_ = static_cast<uint16_t>(rand()) & 0x7FFF;
 
@@ -171,9 +164,7 @@ int VP8EncoderImpl::InitEncode(const VideoCodec* inst,
   if (encoded_image_._buffer != NULL) {
     delete [] encoded_image_._buffer;
   }
-  // Reserve 100 extra bytes for overhead at small resolutions.
-  encoded_image_._size = CalcBufferSize(kI420, codec_.width, codec_.height)
-                         + 100;
+  encoded_image_._size = CalcBufferSize(kI420, codec_.width, codec_.height);
   encoded_image_._buffer = new uint8_t[encoded_image_._size];
   encoded_image_._completeFrame = true;
 
@@ -220,12 +211,12 @@ int VP8EncoderImpl::InitEncode(const VideoCodec* inst,
   }
   config_->g_lag_in_frames = 0;  // 0- no frame lagging
 
-  if (codec_.width * codec_.height > 1280 * 960 && number_of_cores >= 6) {
-    config_->g_threads = 3;  // 3 threads for 1080p.
-  } else if (codec_.width * codec_.height > 640 * 480 && number_of_cores >= 3) {
-    config_->g_threads = 2;  // 2 threads for qHD/HD.
+  if (codec_.width * codec_.height > 640 * 480 && number_of_cores >= 4) {
+    config_->g_threads = 4;  // 4 threads for qHD/HD.
+  } else if (codec_.width * codec_.height > 320 * 240 && number_of_cores >= 2) {
+    config_->g_threads = 2;  // 2 threads for HVGA/VGA.
   } else {
-    config_->g_threads = 1;  // 1 thread for VGA or less
+    config_->g_threads = 1;  // 1 thread for QVGA.
   }
 
   // rate control settings
@@ -476,7 +467,6 @@ int VP8EncoderImpl::GetEncodedPartitions(const I420VideoFrame& input_image) {
     }
   }
   if (encoded_image_._length > 0) {
-    TRACE_COUNTER1("webrtc", "EncodedFrameSize", encoded_image_._length);
     encoded_image_._timeStamp = input_image.timestamp();
     encoded_image_.capture_time_ms_ = input_image.render_time_ms();
     encoded_image_._encodedHeight = raw_->h;
@@ -511,8 +501,8 @@ VP8DecoderImpl::VP8DecoderImpl()
       image_format_(VPX_IMG_FMT_NONE),
       ref_frame_(NULL),
       propagation_cnt_(-1),
-      mfqe_enabled_(false),
-      key_frame_required_(true) {
+      latest_keyframe_complete_(false),
+      mfqe_enabled_(false) {
   memset(&codec_, 0, sizeof(codec_));
 }
 
@@ -527,6 +517,7 @@ int VP8DecoderImpl::Reset() {
   }
   InitDecode(&codec_, 1);
   propagation_cnt_ = -1;
+  latest_keyframe_complete_ = false;
   mfqe_enabled_ = false;
   return WEBRTC_VIDEO_CODEC_OK;
 }
@@ -579,12 +570,9 @@ int VP8DecoderImpl::InitDecode(const VideoCodec* inst, int number_of_cores) {
   }
 
   propagation_cnt_ = -1;
+  latest_keyframe_complete_ = false;
 
   inited_ = true;
-
-  // Always start with a complete key frame.
-  key_frame_required_ = true;
-
   return WEBRTC_VIDEO_CODEC_OK;
 }
 
@@ -626,18 +614,6 @@ int VP8DecoderImpl::Decode(const EncodedImage& input_image,
   }
 #endif
 
-
-  // Always start with a complete key frame.
-  if (key_frame_required_) {
-    if (input_image._frameType != kKeyFrame)
-      return WEBRTC_VIDEO_CODEC_ERROR;
-    // We have a key frame - is it complete?
-    if (input_image._completeFrame) {
-      key_frame_required_ = false;
-    } else {
-      return WEBRTC_VIDEO_CODEC_ERROR;
-    }
-  }
   // Restrict error propagation using key frame requests. Disabled when
   // the feedback mode is enabled (RPS).
   // Reset on a key frame refresh.
@@ -731,7 +707,9 @@ int VP8DecoderImpl::Decode(const EncodedImage& input_image,
     // Whenever we receive an incomplete key frame all reference buffers will
     // be corrupt. If that happens we must request new key frames until we
     // decode a complete.
-    if (input_image._frameType == kKeyFrame && !input_image._completeFrame)
+    if (input_image._frameType == kKeyFrame)
+      latest_keyframe_complete_ = input_image._completeFrame;
+    if (!latest_keyframe_complete_)
       return WEBRTC_VIDEO_CODEC_ERROR;
 
     // Check for reference updates and last reference buffer corruption and

@@ -7,6 +7,7 @@
 #define nsMathMLTokenFrame_h___
 
 #include "mozilla/Attributes.h"
+#include "nsCOMPtr.h"
 #include "nsMathMLContainerFrame.h"
 
 //
@@ -58,11 +59,27 @@ public:
         bool                 aPlaceOrigin,
         nsHTMLReflowMetrics& aDesiredSize) MOZ_OVERRIDE;
 
+  virtual void MarkIntrinsicWidthsDirty() MOZ_OVERRIDE;
+
+  virtual nsresult
+  ChildListChanged(int32_t aModType) MOZ_OVERRIDE
+  {
+    ProcessTextData();
+    return nsMathMLContainerFrame::ChildListChanged(aModType);
+  }
+
 protected:
   nsMathMLTokenFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext) {}
   virtual ~nsMathMLTokenFrame();
 
-  void MarkTextFramesAsTokenMathML();
+  // hook to perform MathML-specific actions depending on the tag
+  virtual void ProcessTextData();
+
+  // helper to set the style of <mi> which has to be italic or normal
+  // depending on its textual content
+  bool SetTextStyle();
+
+  void ForceTrimChildTextFrames();
 };
 
 #endif /* nsMathMLTokentFrame_h___ */

@@ -13,20 +13,17 @@
 
 #include <vector>
 
-#include "webrtc/modules/audio_processing/include/audio_processing.h"
+#include "audio_processing.h"
 
 namespace webrtc {
-
 class AudioProcessingImpl;
 
 class ProcessingComponent {
  public:
-  ProcessingComponent();
   explicit ProcessingComponent(const AudioProcessingImpl* apm);
   virtual ~ProcessingComponent();
 
   virtual int Initialize();
-  virtual void SetExtraOptions(const Config& config) {}
   virtual int Destroy();
 
   bool is_component_enabled() const;
@@ -51,7 +48,6 @@ class ProcessingComponent {
   bool enabled_;
   int num_handles_;
 };
-
 }  // namespace webrtc
 
 #endif  // WEBRTC_MODULES_AUDIO_PROCESSING_PROCESSING_COMPONENT_H__

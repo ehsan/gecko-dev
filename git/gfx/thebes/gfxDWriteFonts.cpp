@@ -604,17 +604,17 @@ gfxDWriteFont::ProvidesGlyphWidths()
 int32_t
 gfxDWriteFont::GetGlyphWidth(gfxContext *aCtx, uint16_t aGID)
 {
-    if (!mGlyphWidths) {
-        mGlyphWidths = new nsDataHashtable<nsUint32HashKey,int32_t>(200);
+    if (!mGlyphWidths.IsInitialized()) {
+        mGlyphWidths.Init(200);
     }
 
     int32_t width = -1;
-    if (mGlyphWidths->Get(aGID, &width)) {
+    if (mGlyphWidths.Get(aGID, &width)) {
         return width;
     }
 
     width = NS_lround(MeasureGlyphWidth(aGID) * 65536.0);
-    mGlyphWidths->Put(aGID, width);
+    mGlyphWidths.Put(aGID, width);
     return width;
 }
 
@@ -671,23 +671,20 @@ gfxDWriteFont::MeasureGlyphWidth(uint16_t aGlyph)
 }
 
 void
-gfxDWriteFont::AddSizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
-                                      FontCacheSizes* aSizes) const
+gfxDWriteFont::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
+                                   FontCacheSizes*   aSizes) const
 {
-    gfxFont::AddSizeOfExcludingThis(aMallocSizeOf, aSizes);
-    aSizes->mFontInstances += aMallocSizeOf(mMetrics);
-    if (mGlyphWidths) {
-        aSizes->mFontInstances +=
-            mGlyphWidths->SizeOfExcludingThis(nullptr, aMallocSizeOf);
-    }
+    gfxFont::SizeOfExcludingThis(aMallocSizeOf, aSizes);
+    aSizes->mFontInstances += aMallocSizeOf(mMetrics) +
+        mGlyphWidths.SizeOfExcludingThis(nullptr, aMallocSizeOf);
 }
 
 void
-gfxDWriteFont::AddSizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
-                                      FontCacheSizes* aSizes) const
+gfxDWriteFont::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
+                                   FontCacheSizes*   aSizes) const
 {
     aSizes->mFontInstances += aMallocSizeOf(this);
-    AddSizeOfExcludingThis(aMallocSizeOf, aSizes);
+    SizeOfExcludingThis(aMallocSizeOf, aSizes);
 }
 
 TemporaryRef<ScaledFont>

@@ -69,22 +69,13 @@ PORTCharConversionFunc ucs4Utf8ConvertFunc;
 PORTCharConversionFunc ucs2Utf8ConvertFunc;
 PORTCharConversionWSwapFunc  ucs2AsciiConvertFunc;
 
-/* NSPR memory allocation functions (PR_Malloc, PR_Calloc, and PR_Realloc)
- * use the PRUint32 type for the size parameter. Before we pass a size_t or
- * unsigned long size to these functions, we need to ensure it is <= half of
- * the maximum PRUint32 value to avoid truncation and catch a negative size.
- */
-#define MAX_SIZE (PR_UINT32_MAX >> 1)
-
 void *
 PORT_Alloc(size_t bytes)
 {
-    void *rv = NULL;
+    void *rv;
 
-    if (bytes <= MAX_SIZE) {
-	/* Always allocate a non-zero amount of bytes */
-	rv = PR_Malloc(bytes ? bytes : 1);
-    }
+    /* Always allocate a non-zero amount of bytes */
+    rv = (void *)PR_Malloc(bytes ? bytes : 1);
     if (!rv) {
 	++port_allocFailures;
 	PORT_SetError(SEC_ERROR_NO_MEMORY);
@@ -95,11 +86,9 @@ PORT_Alloc(size_t bytes)
 void *
 PORT_Realloc(void *oldptr, size_t bytes)
 {
-    void *rv = NULL;
+    void *rv;
 
-    if (bytes <= MAX_SIZE) {
-	rv = PR_Realloc(oldptr, bytes);
-    }
+    rv = (void *)PR_Realloc(oldptr, bytes);
     if (!rv) {
 	++port_allocFailures;
 	PORT_SetError(SEC_ERROR_NO_MEMORY);
@@ -110,12 +99,10 @@ PORT_Realloc(void *oldptr, size_t bytes)
 void *
 PORT_ZAlloc(size_t bytes)
 {
-    void *rv = NULL;
+    void *rv;
 
-    if (bytes <= MAX_SIZE) {
-	/* Always allocate a non-zero amount of bytes */
-	rv = PR_Calloc(1, bytes ? bytes : 1);
-    }
+    /* Always allocate a non-zero amount of bytes */
+    rv = (void *)PR_Calloc(1, bytes ? bytes : 1);
     if (!rv) {
 	++port_allocFailures;
 	PORT_SetError(SEC_ERROR_NO_MEMORY);
@@ -222,10 +209,6 @@ PORT_NewArena(unsigned long chunksize)
 {
     PORTArenaPool *pool;
     
-    if (chunksize > MAX_SIZE) {
-	PORT_SetError(SEC_ERROR_NO_MEMORY);
-	return NULL;
-    }
     pool = PORT_ZNew(PORTArenaPool);
     if (!pool) {
 	return NULL;
@@ -240,6 +223,8 @@ PORT_NewArena(unsigned long chunksize)
     PL_InitArenaPool(&pool->arena, "security", chunksize, sizeof(double));
     return(&pool->arena);
 }
+
+#define MAX_SIZE 0x7fffffffUL
 
 void *
 PORT_ArenaAlloc(PLArenaPool *arena, size_t size)
@@ -345,11 +330,6 @@ PORT_ArenaGrow(PLArenaPool *arena, void *ptr, size_t oldsize, size_t newsize)
     PORTArenaPool *pool = (PORTArenaPool *)arena;
     PORT_Assert(newsize >= oldsize);
     
-    if (newsize > MAX_SIZE) {
-	PORT_SetError(SEC_ERROR_NO_MEMORY);
-	return NULL;
-    }
-
     if (ARENAPOOL_MAGIC == pool->magic ) {
 	PZ_Lock(pool->lock);
 	/* Do we do a THREADMARK check here? */

@@ -10,11 +10,9 @@ import subprocess
 import runxpcshelltests as xpcshell
 import tempfile
 from automationutils import replaceBackSlashes
-from mozdevice import devicemanagerADB, devicemanagerSUT, devicemanager
+import devicemanagerADB, devicemanagerSUT, devicemanager
 from zipfile import ZipFile
 import shutil
-import mozfile
-import mozinfo
 
 here = os.path.dirname(os.path.abspath(__file__))
 
@@ -134,17 +132,6 @@ class RemoteXPCShellTestThread(xpcshell.XPCShellTestThread):
         self.device.killProcess("xpcshell")
         return outputFile
 
-    def checkForCrashes(self,
-                        dump_directory,
-                        symbols_path,
-                        test_name=None):
-        with mozfile.TemporaryDirectory() as dumpDir:
-            self.device.getDirectory(self.remoteMinidumpDir, dumpDir)
-            crashed = xpcshell.XPCShellTestThread.checkForCrashes(self, dumpDir, symbols_path, test_name)
-            self.device.removeDir(self.remoteMinidumpDir)
-            self.device.mkDir(self.remoteMinidumpDir)
-        return crashed
-
     def communicate(self, proc):
         f = open(proc, "r")
         contents = f.read()
@@ -188,14 +175,8 @@ class RemoteXPCShellTestThread(xpcshell.XPCShellTestThread):
 # via devicemanager.
 class XPCShellRemote(xpcshell.XPCShellTests, object):
 
-    def __init__(self, devmgr, options, args, log=None):
-        xpcshell.XPCShellTests.__init__(self, log)
-
-        # Add Android version (SDK level) to mozinfo so that manifest entries
-        # can be conditional on android_version.
-        androidVersion = devmgr.shellCheckOutput(['getprop', 'ro.build.version.sdk'])
-        mozinfo.info['android_version'] = androidVersion
-
+    def __init__(self, devmgr, options, args):
+        xpcshell.XPCShellTests.__init__(self)
         self.localLib = options.localLib
         self.localBin = options.localBin
         self.options = options
@@ -216,13 +197,10 @@ class XPCShellRemote(xpcshell.XPCShellTests, object):
         self.remoteScriptsDir = self.remoteTestRoot
         self.remoteComponentsDir = remoteJoin(self.remoteTestRoot, "c")
         self.remoteModulesDir = remoteJoin(self.remoteTestRoot, "m")
-        self.remoteMinidumpDir = remoteJoin(self.remoteTestRoot, "minidumps")
         self.profileDir = remoteJoin(self.remoteTestRoot, "p")
         self.remoteDebugger = options.debugger
         self.remoteDebuggerArgs = options.debuggerArgs
         self.testingModulesDir = options.testingModulesDir
-
-        self.env = {}
 
         if self.options.objdir:
             self.xpcDir = os.path.join(self.options.objdir, "_tests/xpcshell")
@@ -238,7 +216,6 @@ class XPCShellRemote(xpcshell.XPCShellTests, object):
             self.setupUtilities()
             self.setupModules()
             self.setupTestDir()
-        self.setupMinidumpDir()
         self.remoteAPK = None
         if options.localAPK:
             self.remoteAPK = remoteJoin(self.remoteBinDir, os.path.basename(options.localAPK))
@@ -256,13 +233,12 @@ class XPCShellRemote(xpcshell.XPCShellTests, object):
             'pathMapping': self.pathMapping,
             'profileDir': self.profileDir,
             'remoteTmpDir': self.remoteTmpDir,
-            'remoteMinidumpDir': self.remoteMinidumpDir,
         }
         if self.remoteAPK:
             self.mobileArgs['remoteAPK'] = self.remoteAPK
 
-    def setLD_LIBRARY_PATH(self):
-        self.env["LD_LIBRARY_PATH"] = self.remoteBinDir
+    def setLD_LIBRARY_PATH(self, env):
+        env["LD_LIBRARY_PATH"]=self.remoteBinDir
 
     def pushWrapper(self):
         # Rather than executing xpcshell directly, this wrapper script is
@@ -287,8 +263,9 @@ class XPCShellRemote(xpcshell.XPCShellTests, object):
         self.device.chmodDir(self.remoteBinDir)
 
     def buildEnvironment(self):
+        self.env = {}
         self.buildCoreEnvironment()
-        self.setLD_LIBRARY_PATH()
+        self.setLD_LIBRARY_PATH(self.env)
         self.env["MOZ_LINKER_CACHE"] = self.remoteBinDir
         if self.options.localAPK and self.appRoot:
             self.env["GRE_HOME"] = self.appRoot
@@ -296,7 +273,6 @@ class XPCShellRemote(xpcshell.XPCShellTests, object):
         self.env["TMPDIR"] = self.remoteTmpDir
         self.env["HOME"] = self.profileDir
         self.env["XPCSHELL_TEST_TEMP_DIR"] = self.remoteTmpDir
-        self.env["XPCSHELL_MINIDUMP_DIR"] = self.remoteMinidumpDir
         if self.options.setup:
             self.pushWrapper()
 
@@ -363,7 +339,6 @@ class XPCShellRemote(xpcshell.XPCShellTests, object):
         self.pushLibs()
 
     def pushLibs(self):
-        pushed_libs_count = 0
         if self.options.localAPK:
             try:
                 dir = tempfile.mkdtemp()
@@ -384,10 +359,9 @@ class XPCShellRemote(xpcshell.XPCShellTests, object):
                         if szip:
                             out = subprocess.check_output([szip, '-d', file], stderr=subprocess.STDOUT)
                         self.device.pushFile(os.path.join(dir, info.filename), remoteFile)
-                        pushed_libs_count += 1
             finally:
                 shutil.rmtree(dir)
-            return pushed_libs_count
+            return
 
         for file in os.listdir(self.localLib):
             if (file.endswith(".so")):
@@ -396,7 +370,6 @@ class XPCShellRemote(xpcshell.XPCShellTests, object):
                     print >> sys.stderr, "This is a big file, it could take a while."
                 remoteFile = remoteJoin(self.remoteBinDir, file)
                 self.device.pushFile(os.path.join(self.localLib, file), remoteFile)
-                pushed_libs_count += 1
 
         # Additional libraries may be found in a sub-directory such as "lib/armeabi-v7a"
         localArmLib = os.path.join(self.localLib, "lib")
@@ -407,9 +380,6 @@ class XPCShellRemote(xpcshell.XPCShellTests, object):
                         print >> sys.stderr, "Pushing %s.." % file
                         remoteFile = remoteJoin(self.remoteBinDir, file)
                         self.device.pushFile(os.path.join(root, file), remoteFile)
-                        pushed_libs_count += 1
-
-        return pushed_libs_count
 
     def setupModules(self):
         if self.testingModulesDir:
@@ -422,11 +392,6 @@ class XPCShellRemote(xpcshell.XPCShellTests, object):
         except TypeError:
             # Foopies have an older mozdevice ver without retryLimit
             self.device.pushDir(self.xpcDir, self.remoteScriptsDir)
-
-    def setupMinidumpDir(self):
-        if self.device.dirExists(self.remoteMinidumpDir):
-            self.device.removeDir(self.remoteMinidumpDir)
-        self.device.mkDir(self.remoteMinidumpDir)
 
     def buildTestList(self):
         xpcshell.XPCShellTests.buildTestList(self)

@@ -17,7 +17,6 @@
 #include "mozilla/gfx/Rect.h"           // for Rect, IntRect
 #include "mozilla/gfx/Types.h"          // for Float, etc
 #include "mozilla/layers/LayersTypes.h"
-#include "mozilla/Preferences.h"
 #include "nsAutoPtr.h"                  // for nsRefPtr
 #include "nsCOMPtr.h"                   // for already_AddRefed
 #include "nsISupportsImpl.h"            // for Layer::AddRef, etc
@@ -27,6 +26,39 @@ using namespace mozilla::gfx;
 
 namespace mozilla {
 namespace layers {
+
+static void
+SetAntialiasingFlags(Layer* aLayer, gfxContext* aTarget)
+{
+  if (!aTarget->IsCairo()) {
+    RefPtr<DrawTarget> dt = aTarget->GetDrawTarget();
+
+    if (dt->GetFormat() != FORMAT_B8G8R8A8) {
+      return;
+    }
+
+    const nsIntRect& bounds = aLayer->GetVisibleRegion().GetBounds();
+    gfx::Rect transformedBounds = dt->GetTransform().TransformBounds(gfx::Rect(Float(bounds.x), Float(bounds.y),
+                                                                     Float(bounds.width), Float(bounds.height)));
+    transformedBounds.RoundOut();
+    IntRect intTransformedBounds;
+    transformedBounds.ToIntRect(&intTransformedBounds);
+    dt->SetPermitSubpixelAA(!(aLayer->GetContentFlags() & Layer::CONTENT_COMPONENT_ALPHA) ||
+                            dt->GetOpaqueRect().Contains(intTransformedBounds));
+  } else {
+    nsRefPtr<gfxASurface> surface = aTarget->CurrentSurface();
+    if (surface->GetContentType() != gfxASurface::CONTENT_COLOR_ALPHA) {
+      // Destination doesn't have alpha channel; no need to set any special flags
+      return;
+    }
+
+    const nsIntRect& bounds = aLayer->GetVisibleRegion().GetBounds();
+    surface->SetSubpixelAntialiasingEnabled(
+        !(aLayer->GetContentFlags() & Layer::CONTENT_COMPONENT_ALPHA) ||
+        surface->GetOpaqueRect().Contains(
+          aTarget->UserToDevice(gfxRect(bounds.x, bounds.y, bounds.width, bounds.height))));
+  }
+}
 
 void
 ClientThebesLayer::PaintThebes()
@@ -42,18 +74,18 @@ ClientThebesLayer::PaintThebes()
 
   bool canUseOpaqueSurface = CanUseOpaqueSurface();
   ContentType contentType =
-    canUseOpaqueSurface ? GFX_CONTENT_COLOR :
-                          GFX_CONTENT_COLOR_ALPHA;
+    canUseOpaqueSurface ? gfxASurface::CONTENT_COLOR :
+                          gfxASurface::CONTENT_COLOR_ALPHA;
 
   {
     uint32_t flags = 0;
 #ifndef MOZ_WIDGET_ANDROID
     if (ClientManager()->CompositorMightResample()) {
-      flags |= RotatedContentBuffer::PAINT_WILL_RESAMPLE;
+      flags |= ThebesLayerBuffer::PAINT_WILL_RESAMPLE;
     }
-    if (!(flags & RotatedContentBuffer::PAINT_WILL_RESAMPLE)) {
+    if (!(flags & ThebesLayerBuffer::PAINT_WILL_RESAMPLE)) {
       if (MayResample()) {
-        flags |= RotatedContentBuffer::PAINT_WILL_RESAMPLE;
+        flags |= ThebesLayerBuffer::PAINT_WILL_RESAMPLE;
       }
     }
 #endif
@@ -73,7 +105,7 @@ ClientThebesLayer::PaintThebes()
 
       PaintBuffer(state.mContext,
                   state.mRegionToDraw, extendedDrawRegion, state.mRegionToInvalidate,
-                  state.mDidSelfCopy, state.mClip);
+                  state.mDidSelfCopy);
       MOZ_LAYERS_LOG_IF_SHADOWABLE(this, ("Layer::Mutated(%p) PaintThebes", this));
       Mutated();
     } else {
@@ -94,30 +126,18 @@ ClientThebesLayer::RenderLayer()
   }
   
   if (!mContentClient) {
-    mContentClient = ContentClient::CreateContentClient(ClientManager()->AsShadowForwarder());
+    mContentClient = ContentClient::CreateContentClient(ClientManager());
     if (!mContentClient) {
       return;
     }
     mContentClient->Connect();
-    ClientManager()->AsShadowForwarder()->Attach(mContentClient, this);
+    ClientManager()->Attach(mContentClient, this);
     MOZ_ASSERT(mContentClient->GetForwarder());
   }
 
   mContentClient->BeginPaint();
   PaintThebes();
   mContentClient->EndPaint();
-  // It is very important that this is called after EndPaint, because destroying
-  // textures is a three stage process:
-  // 1. We are done with the buffer and move it to ContentClient::mOldTextures,
-  // that happens in DestroyBuffers which is may be called indirectly from
-  // PaintThebes.
-  // 2. The content client calls RemoveTextureClient on the texture clients in
-  // mOldTextures and forgets them. They then become invalid. The compositable
-  // client keeps a record of IDs. This happens in EndPaint.
-  // 3. An IPC message is sent to destroy the corresponding texture host. That
-  // happens from OnTransaction.
-  // It is important that these steps happen in order.
-  mContentClient->OnTransaction();
 }
 
 void
@@ -125,7 +145,7 @@ ClientThebesLayer::PaintBuffer(gfxContext* aContext,
                                const nsIntRegion& aRegionToDraw,
                                const nsIntRegion& aExtendedRegionToDraw,
                                const nsIntRegion& aRegionToInvalidate,
-                               bool aDidSelfCopy, DrawRegionClip aClip)
+                               bool aDidSelfCopy)
 {
   ContentClientRemote* contentClientRemote = static_cast<ContentClientRemote*>(mContentClient.get());
   MOZ_ASSERT(contentClientRemote->GetIPDLActor());
@@ -140,8 +160,7 @@ ClientThebesLayer::PaintBuffer(gfxContext* aContext,
   }
   ClientManager()->GetThebesLayerCallback()(this, 
                                             aContext, 
-                                            aExtendedRegionToDraw,
-                                            aClip,
+                                            aExtendedRegionToDraw, 
                                             aRegionToInvalidate,
                                             ClientManager()->GetThebesLayerCallbackData());
 
@@ -165,23 +184,15 @@ ClientThebesLayer::PaintBuffer(gfxContext* aContext,
 already_AddRefed<ThebesLayer>
 ClientLayerManager::CreateThebesLayer()
 {
-  return CreateThebesLayerWithHint(NONE);
-}
-
-already_AddRefed<ThebesLayer>
-ClientLayerManager::CreateThebesLayerWithHint(ThebesLayerCreationHint aHint)
-{
   NS_ASSERTION(InConstruction(), "Only allowed in construction phase");
-  if (
-#ifdef MOZ_B2G
-      aHint == SCROLLABLE &&
-#endif
-      gfxPlatform::GetPrefLayersEnableTiles() && AsShadowForwarder()->GetCompositorBackendType() == LAYERS_OPENGL) {
+#ifdef FORCE_BASICTILEDTHEBESLAYER
+  if (GetCompositorBackendType() == LAYERS_OPENGL) {
     nsRefPtr<ClientTiledThebesLayer> layer =
       new ClientTiledThebesLayer(this);
     CREATE_SHADOW(Thebes);
     return layer.forget();
   } else
+#endif
   {
     nsRefPtr<ClientThebesLayer> layer =
       new ClientThebesLayer(this);

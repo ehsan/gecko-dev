@@ -10,6 +10,7 @@
 #include "nsString.h"
 #include "nsTArray.h"
 #include "nsWrapperCache.h"
+#include "nsIWeakReferenceUtils.h"
 #include "nsAutoPtr.h"
 #include "nsPIDOMWindow.h"
 
@@ -20,7 +21,7 @@ class nsMimeTypeArray MOZ_FINAL : public nsISupports,
                                   public nsWrapperCache
 {
 public:
-  nsMimeTypeArray(nsPIDOMWindow* aWindow);
+  nsMimeTypeArray(nsWeakPtr aWindow);
   virtual ~nsMimeTypeArray();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -41,21 +42,20 @@ public:
   void GetSupportedNames(nsTArray< nsString >& retval);
 
 protected:
-  void EnsurePluginMimeTypes();
+  void EnsureMimeTypes();
   void Clear();
 
-  nsCOMPtr<nsPIDOMWindow> mWindow;
+  nsWeakPtr mWindow;
 
-  // mMimeTypes contains MIME types handled by non-hidden plugins, those
-  // popular plugins that must be exposed in navigator.plugins enumeration to
-  // avoid breaking web content. Likewise, mMimeTypes are exposed in
-  // navigator.mimeTypes enumeration.
+  // mMimeTypes contains all mime types handled by plugins followed by
+  // any other mime types that we handle internally and have been
+  // looked up before.
   nsTArray<nsRefPtr<nsMimeType> > mMimeTypes;
 
-  // mHiddenMimeTypes contains MIME types handled by plugins hidden from
-  // navigator.plugins enumeration or by an OS PreferredApplicationHandler.
-  // mHiddenMimeTypes are hidden from navigator.mimeTypes enumeration.
-  nsTArray<nsRefPtr<nsMimeType> > mHiddenMimeTypes;
+  // mPluginMimeTypeCount is the number of plugin mime types that we
+  // have in mMimeTypes. The plugin mime types are always at the
+  // beginning of the list.
+  uint32_t mPluginMimeTypeCount;
 };
 
 class nsMimeType MOZ_FINAL : public nsWrapperCache
@@ -64,9 +64,9 @@ public:
   NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(nsMimeType)
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(nsMimeType)
 
-  nsMimeType(nsPIDOMWindow* aWindow, nsPluginElement* aPluginElement,
+  nsMimeType(nsWeakPtr aWindow, nsPluginElement* aPluginElement,
              uint32_t aPluginTagMimeIndex, const nsAString& aMimeType);
-  nsMimeType(nsPIDOMWindow* aWindow, const nsAString& aMimeType);
+  nsMimeType(nsWeakPtr aWindow, const nsAString& aMimeType);
   virtual ~nsMimeType();
 
   nsPIDOMWindow* GetParentObject() const;
@@ -85,7 +85,7 @@ public:
   void GetType(nsString& retval) const;
 
 protected:
-  nsCOMPtr<nsPIDOMWindow> mWindow;
+  nsWeakPtr mWindow;
 
   // Strong reference to the active plugin, if any. Note that this
   // creates an explicit reference cycle through the plugin element's

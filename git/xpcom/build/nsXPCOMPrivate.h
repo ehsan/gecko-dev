@@ -15,7 +15,6 @@
 class nsStringContainer;
 class nsCStringContainer;
 class nsIComponentLoader;
-class nsPurpleBufferEntry;
 
 /**
  * During this shutdown notification all threads which run XPCOM code must

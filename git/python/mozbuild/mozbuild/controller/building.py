@@ -53,7 +53,6 @@ class TierStatus(object):
         self.tiers = OrderedDict()
         self.active_tier = None
         self.active_subtiers = set()
-        self.active_dirs = {}
         self.resources = resources
 
     def set_tiers(self, tiers):
@@ -96,7 +95,6 @@ class TierStatus(object):
     def begin_subtier(self, tier, subtier, dirs):
         """Record that execution of a subtier has begun."""
         self.resources.begin_phase(self._phase(tier, subtier))
-
         st = self.tiers[tier]['subtiers'][subtier]
         st['begin_time'] = time.time()
 
@@ -164,9 +162,6 @@ class TierStatus(object):
             yield tier, active, finished
 
     def current_subtier_status(self):
-        if self.active_tier not in self.tiers:
-            return
-
         for subtier, state in self.tiers[self.active_tier]['subtiers'].items():
             active = subtier in self.active_subtiers
             finished = state['finish_time'] is not None
@@ -297,12 +292,6 @@ class BuildMonitor(MozbuildObject):
 
     def start_resource_recording(self):
         # This should be merged into start() once bug 892342 lands.
-
-        # Resource monitoring on Windows is currently busted because of
-        # multiprocessing issues. Bug 914563.
-        if self._is_windows():
-            return
-
         self.resources.start()
         self._resources_started = True
 
@@ -384,17 +373,12 @@ class BuildMonitor(MozbuildObject):
         if not record_usage:
             return
 
-        try:
-            usage = self.record_resource_usage()
-            if not usage:
-                return
+        usage = self.record_resource_usage()
+        if not usage:
+            return
 
-            with open(self._get_state_filename('build_resources.json'), 'w') as fh:
-                json.dump(usage, fh, indent=2)
-        except Exception as e:
-            self.log(logging.WARNING, 'build_resources_error',
-                {'msg': str(e)},
-                'Exception when writing resource usage file: {msg}')
+        with open(self._get_state_filename('build_resources.json'), 'w') as fh:
+            json.dump(usage, fh, indent=2)
 
     def _get_finder_cpu_usage(self):
         """Obtain the CPU usage of the Finder app on OS X.
@@ -453,28 +437,6 @@ class BuildMonitor(MozbuildObject):
 
         return finder_percent > 25, finder_percent
 
-    def have_excessive_swapping(self):
-        """Determine whether there was excessive swapping during the build.
-
-        Returns a tuple of (excessive, swap_in, swap_out). All values are None
-        if no swap information is available.
-        """
-        if not self.have_resource_usage:
-            return None, None, None
-
-        swap_in = sum(m.swap.sin for m in self.resources.measurements)
-        swap_out = sum(m.swap.sout for m in self.resources.measurements)
-
-        # The threshold of 1024 MB has been arbitrarily chosen.
-        #
-        # Choosing a proper value that is ideal for everyone is hard. We will
-        # likely iterate on the logic until people are generally satisfied.
-        # If a value is too low, the eventual warning produced does not carry
-        # much meaning. If the threshold is too high, people may not see the
-        # warning and the warning will thus be ineffective.
-        excessive = swap_in > 512 * 1048576 or swap_out > 512 * 1048576
-        return excessive, swap_in, swap_out
-
     @property
     def have_resource_usage(self):
         """Whether resource usage is available."""
@@ -501,14 +463,6 @@ class BuildMonitor(MozbuildObject):
 
         self._log_resource_usage('Overall system resources', 'resource_usage',
             self.end_time - self.start_time, cpu_percent, cpu_times, io)
-
-        excessive, sin, sout = self.have_excessive_swapping()
-        if excessive is not None and (sin or sout):
-            sin /= 1048576
-            sout /= 1048576
-            self.log(logging.WARNING, 'swap_activity',
-                {'sin': sin, 'sout': sout},
-                'Swap in/out (MB): {sin}/{sout}')
 
         o = dict(
             version=1,
@@ -567,17 +521,3 @@ class BuildMonitor(MozbuildObject):
             'Read time: {io_read_time}; Write time: {io_write_time}'
 
         self.log(logging.WARNING, m_type, params, message)
-
-
-class BuildDriver(MozbuildObject):
-    """Provides a high-level API for build actions."""
-
-    def install_tests(self, remove=True):
-        """Install test files (through manifest)."""
-
-        env = {}
-        if not remove:
-            env[b'NO_REMOVE'] = b'1'
-
-        self._run_make(target='install-tests', append_env=env, pass_thru=True,
-            print_directory=False)

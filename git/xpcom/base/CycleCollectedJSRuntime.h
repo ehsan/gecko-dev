@@ -9,6 +9,7 @@
 
 #include "mozilla/MemoryReporting.h"
 #include "jsapi.h"
+#include "jsclass.h"
 
 #include "nsCycleCollector.h"
 #include "nsCycleCollectionParticipant.h"
@@ -17,27 +18,26 @@
 #include "nsTArray.h"
 
 class nsCycleCollectionNoteRootCallback;
-class nsIException;
-
-namespace js {
-class Class;
-}
+class nsScriptObjectTracer;
 
 namespace mozilla {
 
 class JSGCThingParticipant: public nsCycleCollectionParticipant
 {
 public:
-  NS_IMETHOD_(void) Root(void *n)
+  NS_IMETHOD Root(void *n)
   {
+    return NS_OK;
   }
 
-  NS_IMETHOD_(void) Unlink(void *n)
+  NS_IMETHOD Unlink(void *n)
   {
+    return NS_OK;
   }
 
-  NS_IMETHOD_(void) Unroot(void *n)
+  NS_IMETHOD Unroot(void *n)
   {
+    return NS_OK;
   }
 
   NS_IMETHOD_(void) DeleteCycleCollectable(void *n)
@@ -52,16 +52,19 @@ class JSZoneParticipant : public nsCycleCollectionParticipant
 public:
   MOZ_CONSTEXPR JSZoneParticipant(): nsCycleCollectionParticipant() {}
 
-  NS_IMETHOD_(void) Root(void *p)
+  NS_IMETHOD Root(void *p)
   {
+    return NS_OK;
   }
 
-  NS_IMETHOD_(void) Unlink(void *p)
+  NS_IMETHOD Unlink(void *p)
   {
+    return NS_OK;
   }
 
-  NS_IMETHOD_(void) Unroot(void *p)
+  NS_IMETHOD Unroot(void *p)
   {
+    return NS_OK;
   }
 
   NS_IMETHOD_(void) DeleteCycleCollectable(void *n)
@@ -73,27 +76,6 @@ public:
 
 class IncrementalFinalizeRunnable;
 
-// Contains various stats about the cycle collection.
-struct CycleCollectorResults
-{
-  void Init()
-  {
-    mForcedGC = false;
-    mMergedZones = false;
-    mVisitedRefCounted = 0;
-    mVisitedGCed = 0;
-    mFreedRefCounted = 0;
-    mFreedGCed = 0;
-  }
-
-  bool mForcedGC;
-  bool mMergedZones;
-  uint32_t mVisitedRefCounted;
-  uint32_t mVisitedGCed;
-  uint32_t mFreedRefCounted;
-  uint32_t mFreedGCed;
-};
-
 class CycleCollectedJSRuntime
 {
   friend class JSGCThingParticipant;
@@ -101,8 +83,15 @@ class CycleCollectedJSRuntime
   friend class IncrementalFinalizeRunnable;
 protected:
   CycleCollectedJSRuntime(uint32_t aMaxbytes,
-                          JSUseHelperThreads aUseHelperThreads);
+                          JSUseHelperThreads aUseHelperThreads,
+                          bool aExpectUnrootedGlobals);
   virtual ~CycleCollectedJSRuntime();
+
+  JSRuntime* Runtime() const
+  {
+    MOZ_ASSERT(mJSRuntime);
+    return mJSRuntime;
+  }
 
   size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
   void UnmarkSkippableJSHolders();
@@ -123,7 +112,7 @@ private:
                   nsCycleCollectionTraversalCallback& aCb) const;
 
   virtual bool
-  DescribeCustomObjects(JSObject* aObject, const js::Class* aClasp,
+  DescribeCustomObjects(JSObject* aObject, js::Class* aClasp,
                         char (&aName)[72]) const
   {
     return false; // We did nothing.
@@ -134,11 +123,11 @@ private:
                         nsCycleCollectionTraversalCallback& aCb) const;
 
   void
-  NoteGCThingXPCOMChildren(const js::Class* aClasp, JSObject* aObj,
+  NoteGCThingXPCOMChildren(js::Class* aClasp, JSObject* aObj,
                            nsCycleCollectionTraversalCallback& aCb) const;
 
   virtual bool
-  NoteCustomGCThingXPCOMChildren(const js::Class* aClasp, JSObject* aObj,
+  NoteCustomGCThingXPCOMChildren(js::Class* aClasp, JSObject* aObj,
                                  nsCycleCollectionTraversalCallback& aCb) const
   {
     return false; // We did nothing.
@@ -160,7 +149,12 @@ private:
   static void
   TraverseObjectShim(void* aData, void* aThing);
 
+  void MaybeTraverseGlobals(nsCycleCollectionNoteRootCallback& aCb) const;
+
   void TraverseNativeRoots(nsCycleCollectionNoteRootCallback& aCb);
+
+  void MaybeTraceGlobals(JSTracer* aTracer) const;
+
 
   static void TraceBlackJS(JSTracer* aTracer, void* aData);
   static void TraceGrayJS(JSTracer* aTracer, void* aData);
@@ -179,17 +173,19 @@ private:
   void FinalizeDeferredThings(DeferredFinalizeType aType);
 
   void OnGC(JSGCStatus aStatus);
+  bool OnContext(JSContext* aCx, unsigned aOperation);
 
 public:
   void AddJSHolder(void* aHolder, nsScriptObjectTracer* aTracer);
   void RemoveJSHolder(void* aHolder);
 #ifdef DEBUG
   bool IsJSHolder(void* aHolder);
+  void SetObjectToUnlink(void* aObject) { mObjectToUnlink = aObject; }
   void AssertNoObjectsToTrace(void* aPossibleJSHolder);
 #endif
 
-  already_AddRefed<nsIException> GetPendingException() const;
-  void SetPendingException(nsIException* aException);
+  // This returns the singleton nsCycleCollectionParticipant for JSContexts.
+  static nsCycleCollectionParticipant* JSContextParticipant();
 
   nsCycleCollectionParticipant* GCThingParticipant();
   nsCycleCollectionParticipant* ZoneParticipant();
@@ -200,27 +196,17 @@ public:
   bool NeedCollect() const;
   void Collect(uint32_t reason) const;
 
+  virtual void PrepareForForgetSkippable() {}
+  virtual void PrepareForCollection() {}
+
   void DeferredFinalize(DeferredFinalizeAppendFunction aAppendFunc,
                         DeferredFinalizeFunction aFunc,
                         void* aThing);
   void DeferredFinalize(nsISupports* aSupports);
 
   void DumpJSHeap(FILE* aFile);
-
-  virtual void PrepareForForgetSkippable() = 0;
-  virtual void BeginCycleCollectionCallback() = 0;
-  virtual void EndCycleCollectionCallback(CycleCollectorResults &aResults) = 0;
+  
   virtual void DispatchDeferredDeletion(bool aContinuation) = 0;
-
-  JSRuntime* Runtime() const
-  {
-    MOZ_ASSERT(mJSRuntime);
-    return mJSRuntime;
-  }
-
-  // Get the current thread's CycleCollectedJSRuntime.  Returns null if there
-  // isn't one.
-  static CycleCollectedJSRuntime* Get();
 
 private:
   JSGCThingParticipant mGCThingCycleCollectorGlobal;
@@ -238,7 +224,11 @@ private:
 
   nsRefPtr<IncrementalFinalizeRunnable> mFinalizeRunnable;
 
-  nsCOMPtr<nsIException> mPendingException;
+  bool mExpectUnrootedGlobals;
+
+#ifdef DEBUG
+  void* mObjectToUnlink;
+#endif
 };
 
 } // namespace mozilla

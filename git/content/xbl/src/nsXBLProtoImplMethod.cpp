@@ -104,15 +104,25 @@ nsXBLProtoImplMethod::InstallMember(JSContext* aCx,
   MOZ_ASSERT(js::IsObjectInContextCompartment(aTargetClassObject, aCx));
 
   JS::Rooted<JSObject*> globalObject(aCx, JS_GetGlobalForObject(aCx, aTargetClassObject));
-  MOZ_ASSERT(xpc::IsInXBLScope(globalObject) ||
-             globalObject == xpc::GetXBLScope(aCx, globalObject));
+  JS::Rooted<JSObject*> scopeObject(aCx, xpc::GetXBLScope(aCx, globalObject));
+  NS_ENSURE_TRUE(scopeObject, NS_ERROR_OUT_OF_MEMORY);
 
   JS::Rooted<JSObject*> jsMethodObject(aCx, GetCompiledMethod());
   if (jsMethodObject) {
     nsDependentString name(mName);
 
-    JS::Rooted<JSObject*> method(aCx, JS_CloneFunctionObject(aCx, jsMethodObject, globalObject));
-    NS_ENSURE_TRUE(method, NS_ERROR_OUT_OF_MEMORY);
+    // First, make the function in the compartment of the scope object.
+    JSAutoCompartment ac(aCx, scopeObject);
+    JS::Rooted<JSObject*> method(aCx, ::JS_CloneFunctionObject(aCx, jsMethodObject, scopeObject));
+    if (!method) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+
+    // Then, enter the content compartment, wrap the method pointer, and define
+    // the wrapped version on the class object.
+    JSAutoCompartment ac2(aCx, aTargetClassObject);
+    if (!JS_WrapObject(aCx, method.address()))
+      return NS_ERROR_OUT_OF_MEMORY;
 
     JS::Rooted<JS::Value> value(aCx, JS::ObjectValue(*method));
     if (!::JS_DefineUCProperty(aCx, aTargetClassObject,
@@ -195,8 +205,9 @@ nsXBLProtoImplMethod::CompileMember(const nsCString& aClassStr,
   options.setFileAndLine(functionUri.get(),
                          uncompiledMethod->mBodyText.GetLineNumber())
          .setVersion(JSVERSION_LATEST);
-  JS::Rooted<JSObject*> methodObject(cx);
-  nsresult rv = nsJSUtils::CompileFunction(cx, JS::NullPtr(), options, cname,
+  JS::RootedObject rootedNull(cx, nullptr); // See bug 781070.
+  JS::RootedObject methodObject(cx);
+  nsresult rv = nsJSUtils::CompileFunction(cx, rootedNull, options, cname,
                                            paramCount,
                                            const_cast<const char**>(args),
                                            body, methodObject.address());
@@ -217,7 +228,7 @@ nsXBLProtoImplMethod::CompileMember(const nsCString& aClassStr,
 void
 nsXBLProtoImplMethod::Trace(const TraceCallbacks& aCallbacks, void *aClosure)
 {
-  if (IsCompiled() && GetCompiledMethodPreserveColor()) {
+  if (IsCompiled() && GetCompiledMethod()) {
     aCallbacks.Trace(&mMethod.AsHeapObject(), "mMethod", aClosure);
   }
 }
@@ -246,7 +257,7 @@ nsXBLProtoImplMethod::Write(nsIObjectOutputStream* aStream)
 {
   AssertInCompilationScope();
   MOZ_ASSERT(IsCompiled());
-  if (GetCompiledMethodPreserveColor()) {
+  if (GetCompiledMethod()) {
     nsresult rv = aStream->Write8(XBLBinding_Serialize_Method);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -298,7 +309,7 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
   nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
   JS::Rooted<JS::Value> v(cx);
   nsresult rv =
-    nsContentUtils::WrapNative(cx, globalObject, aBoundElement, &v,
+    nsContentUtils::WrapNative(cx, globalObject, aBoundElement, v.address(),
                                getter_AddRefs(wrapper));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -316,7 +327,7 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
   NS_ENSURE_TRUE(scopeObject, NS_ERROR_OUT_OF_MEMORY);
 
   JSAutoCompartment ac(cx, scopeObject);
-  if (!JS_WrapObject(cx, &thisObject))
+  if (!JS_WrapObject(cx, thisObject.address()))
       return NS_ERROR_OUT_OF_MEMORY;
 
   // Clone the function object, using thisObject as the parent so "this" is in
@@ -328,12 +339,12 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
 
   // Now call the method
 
-  // Check whether script is enabled.
-  bool scriptAllowed = nsContentUtils::GetSecurityManager()->
-                         ScriptAllowed(js::GetGlobalForObjectCrossCompartment(method));
+  // Check whether it's OK to call the method.
+  rv = nsContentUtils::GetSecurityManager()->CheckFunctionAccess(cx, method,
+                                                                 thisObject);
 
   bool ok = true;
-  if (scriptAllowed) {
+  if (NS_SUCCEEDED(rv)) {
     JS::Rooted<JS::Value> retval(cx);
     ok = ::JS_CallFunctionValue(cx, thisObject, OBJECT_TO_JSVAL(method),
                                 0 /* argc */, nullptr /* argv */, retval.address());
@@ -357,7 +368,7 @@ nsXBLProtoImplAnonymousMethod::Write(nsIObjectOutputStream* aStream,
 {
   AssertInCompilationScope();
   MOZ_ASSERT(IsCompiled());
-  if (GetCompiledMethodPreserveColor()) {
+  if (GetCompiledMethod()) {
     nsresult rv = aStream->Write8(aType);
     NS_ENSURE_SUCCESS(rv, rv);
 

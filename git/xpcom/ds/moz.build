@@ -37,18 +37,20 @@ if CONFIG['OS_ARCH'] == 'WINNT':
     ]
     EXPORTS += ['nsWindowsRegKey.h']
     EXPORTS.mozilla += ['TimeStamp_windows.h']
-    SOURCES += [
+    CPP_SOURCES += [
         'nsWindowsRegKey.cpp'
     ]
 
 XPIDL_MODULE = 'xpcom_ds'
 
+MODULE = 'xpcom'
+
 EXPORTS += [
     'nsArray.h',
     'nsAtomService.h',
+    'nsCRT.h',
     'nsCharSeparatedTokenizer.h',
     'nsCheapSets.h',
-    'nsCRT.h',
     'nsExpirationTracker.h',
     'nsHashPropertyBag.h',
     'nsHashtable.h',
@@ -70,7 +72,7 @@ EXPORTS.mozilla += [
     'TimeStamp.h',
 ]
 
-UNIFIED_SOURCES += [
+CPP_SOURCES += [
     'nsArray.cpp',
     'nsAtomService.cpp',
     'nsAtomTable.cpp',
@@ -80,7 +82,9 @@ UNIFIED_SOURCES += [
     'nsINIParserImpl.cpp',
     'nsObserverList.cpp',
     'nsObserverService.cpp',
+    'nsPersistentProperties.cpp',
     'nsProperties.cpp',
+    'nsStaticNameTable.cpp',
     'nsStringEnumerator.cpp',
     'nsSupportsArray.cpp',
     'nsSupportsArrayEnumerator.cpp',
@@ -89,26 +93,19 @@ UNIFIED_SOURCES += [
     'TimeStamp.cpp',
 ]
 
-# These two files cannot be built in unified mode because they use the
-# PL_ARENA_CONST_ALIGN_MASK macro with plarena.h.
-SOURCES += [
-    'nsPersistentProperties.cpp',
-    'nsStaticNameTable.cpp',
-]
-
 if CONFIG['OS_ARCH'] == 'WINNT':
-    SOURCES += [
+    CPP_SOURCES += [
         'TimeStamp_windows.cpp',
     ]
 elif CONFIG['HAVE_CLOCK_MONOTONIC']:
-    SOURCES += [
+    CPP_SOURCES += [
         'TimeStamp_posix.cpp',
     ]
 elif CONFIG['OS_ARCH'] == 'Darwin':
-    SOURCES += [
+    CPP_SOURCES += [
         'TimeStamp_darwin.cpp',
     ]
-elif CONFIG['COMPILE_ENVIRONMENT']:
+else:
     error('No TimeStamp implementation on this platform.  Build will not succeed')
 
 EXTRA_COMPONENTS += [
@@ -116,12 +113,9 @@ EXTRA_COMPONENTS += [
     'nsINIProcessor.manifest',
 ]
 
-FAIL_ON_WARNINGS = True
+LIBRARY_NAME = 'xpcomds_s'
+
+LIBXUL_LIBRARY = True
 
 MSVC_ENABLE_PGO = True
 
-LOCAL_INCLUDES += [
-    '../io',
-]
-
-FINAL_LIBRARY = 'xpcom_core'

@@ -7,15 +7,15 @@
 #include "DOMRequest.h"
 
 #include "DOMError.h"
+#include "nsContentUtils.h"
 #include "nsCxPusher.h"
 #include "nsThreadUtils.h"
 #include "DOMCursor.h"
-#include "nsIDOMEvent.h"
 
 using mozilla::dom::DOMRequest;
 using mozilla::dom::DOMRequestService;
 using mozilla::dom::DOMCursor;
-using mozilla::AutoSafeJSContext;
+using mozilla::AutoPushJSContext;
 
 DOMRequest::DOMRequest(nsIDOMWindow* aWindow)
   : mResult(JSVAL_VOID)
@@ -189,7 +189,10 @@ DOMRequest::FireEvent(const nsAString& aType, bool aBubble, bool aCancelable)
 void
 DOMRequest::RootResultVal()
 {
-  mozilla::HoldJSObjects(this);
+  nsXPCOMCycleCollectionParticipant *participant;
+  CallQueryInterface(this, &participant);
+  nsContentUtils::HoldJSObjects(NS_CYCLE_COLLECTION_UPCAST(this, DOMRequest),
+                                participant);
 }
 
 NS_IMPL_ISUPPORTS1(DOMRequestService, nsIDOMRequestService)
@@ -257,12 +260,21 @@ class FireSuccessAsyncTask : public nsRunnable
 
 public:
 
-  void
+  nsresult
   Setup()
   {
-    AutoSafeJSContext cx;
+    nsresult rv;
+    nsIScriptContext* sc = mReq->GetContextForEventHandlers(&rv);
+    if (!NS_SUCCEEDED(rv)) {
+      return rv;
+    }
+    AutoPushJSContext cx(sc->GetNativeContext());
+    if (!cx) {
+      return NS_ERROR_FAILURE;
+    }
     JS_AddValueRoot(cx, &mResult);
     mIsSetup = true;
+    return NS_OK;
   }
 
   // Due to the fact that initialization can fail during shutdown (since we
@@ -274,7 +286,8 @@ public:
   {
     NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
     nsRefPtr<FireSuccessAsyncTask> asyncTask = new FireSuccessAsyncTask(aRequest, aResult);
-    asyncTask->Setup();
+    nsresult rv = asyncTask->Setup();
+    NS_ENSURE_SUCCESS(rv, rv);
     if (NS_FAILED(NS_DispatchToMainThread(asyncTask))) {
       NS_WARNING("Failed to dispatch to main thread!");
       return NS_ERROR_FAILURE;
@@ -296,8 +309,12 @@ public:
       // If we never set up, no reason to unroot
       return;
     }
+    nsresult rv;
+    nsIScriptContext* sc = mReq->GetContextForEventHandlers(&rv);
+    MOZ_ASSERT(NS_SUCCEEDED(rv));
+    AutoPushJSContext cx(sc->GetNativeContext());
+    MOZ_ASSERT(cx);
 
-    AutoSafeJSContext cx;
     JS_RemoveValueRoot(cx, &mResult);
   }
 private:

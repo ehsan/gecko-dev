@@ -10,13 +10,12 @@
 
 #include "nsRect.h"
 #include "imgIContainer.h"
+#include "nsEvent.h"
 #include "npapi.h"
 #include "nsTArray.h"
 
 // This must be the last include:
 #include "nsObjCExceptions.h"
-
-#include "mozilla/EventForwards.h"
 
 // Declare the backingScaleFactor method that we want to call
 // on NSView/Window/Screen objects, if they recognize it.
@@ -242,10 +241,9 @@ class nsCocoaUtils
       @param aImage the image to extract a frame from
       @param aWhichFrame the frame to extract (see imgIContainer FRAME_*)
       @param aResult the resulting NSImage
-      @param scaleFactor the desired scale factor of the NSImage (2 for a retina display)
       @return NS_OK if the conversion worked, NS_ERROR_FAILURE otherwise
    */  
-  static nsresult CreateNSImageFromImageContainer(imgIContainer *aImage, uint32_t aWhichFrame, NSImage **aResult, CGFloat scaleFactor);
+  static nsresult CreateNSImageFromImageContainer(imgIContainer *aImage, uint32_t aWhichFrame, NSImage **aResult);
 
   /**
    * Returns nsAString for aSrc.
@@ -287,14 +285,14 @@ class nsCocoaUtils
   /**
    * Initializes aPluginEvent for aCocoaEvent.
    */
-  static void InitPluginEvent(mozilla::WidgetPluginEvent &aPluginEvent,
+  static void InitPluginEvent(nsPluginEvent &aPluginEvent,
                               NPCocoaEvent &aCocoaEvent);
   /**
-   * Initializes WidgetInputEvent for aNativeEvent or aModifiers.
+   * Initializes nsInputEvent for aNativeEvent or aModifiers.
    */
-  static void InitInputEvent(mozilla::WidgetInputEvent &aInputEvent,
+  static void InitInputEvent(nsInputEvent &aInputEvent,
                              NSEvent* aNativeEvent);
-  static void InitInputEvent(mozilla::WidgetInputEvent &aInputEvent,
+  static void InitInputEvent(nsInputEvent &aInputEvent,
                              NSUInteger aModifiers);
 
   /**

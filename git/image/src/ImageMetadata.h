@@ -4,11 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ImageMetadata_h___
-#define ImageMetadata_h___
-
 #include <stdint.h>
-#include "mozilla/Maybe.h"
+#include "mozilla/Util.h"
 #include "nsSize.h"
 #include "Orientation.h"
 
@@ -75,5 +72,3 @@ private:
 
 } // namespace image
 } // namespace mozilla
-
-#endif // ImageMetadata_h___

@@ -60,10 +60,8 @@ struct DeviceAttachmentsD3D11
 };
 
 CompositorD3D11::CompositorD3D11(nsIWidget* aWidget)
-  : mAttachments(nullptr)
-  , mWidget(aWidget)
-  , mHwnd(nullptr)
-  , mDisableSequenceForNextFrame(false)
+  : mWidget(aWidget)
+  , mAttachments(nullptr)
 {
   sBackend = LAYERS_D3D11;
 }
@@ -109,8 +107,6 @@ CompositorD3D11::Initialize()
   if (!mContext) {
     return false;
   }
-
-  mHwnd = (HWND)mWidget->GetNativeData(NS_NATIVE_WINDOW);
 
   memset(&mVSConstants, 0, sizeof(VertexShaderConstants));
 
@@ -271,7 +267,7 @@ CompositorD3D11::Initialize()
     swapDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     // Use double buffering to enable flip
     swapDesc.BufferCount = 2;
-    swapDesc.Scaling = DXGI_SCALING_NONE;
+    swapDesc.Scaling = DXGI_SCALING_STRETCH;
     // All Metro style apps must use this SwapEffect
     swapDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
     swapDesc.Flags = 0;
@@ -306,7 +302,7 @@ CompositorD3D11::Initialize()
     swapDesc.SampleDesc.Quality = 0;
     swapDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     swapDesc.BufferCount = 1;
-    swapDesc.OutputWindow = mHwnd;
+    swapDesc.OutputWindow = (HWND)mWidget->GetNativeData(NS_NATIVE_WINDOW);
     swapDesc.Windowed = TRUE;
     // We don't really need this flag, however it seems on some NVidia hardware
     // smaller area windows do not present properly without this flag. This flag
@@ -349,7 +345,7 @@ CompositorD3D11::GetTextureFactoryIdentifier()
 }
 
 bool
-CompositorD3D11::CanUseCanvasLayerForSize(const gfx::IntSize& aSize)
+CompositorD3D11::CanUseCanvasLayerForSize(const gfxIntSize& aSize)
 {
   int32_t maxTextureSize = GetMaxTextureSize();
 
@@ -375,12 +371,8 @@ CompositorD3D11::CreateRenderTarget(const gfx::IntRect& aRect,
 
   RefPtr<ID3D11Texture2D> texture;
   mDevice->CreateTexture2D(&desc, nullptr, byRef(texture));
-  NS_ASSERTION(texture, "Could not create texture");
-  if (!texture) {
-    return nullptr;
-  }
 
-  RefPtr<CompositingRenderTargetD3D11> rt = new CompositingRenderTargetD3D11(texture, aRect.TopLeft());
+  RefPtr<CompositingRenderTargetD3D11> rt = new CompositingRenderTargetD3D11(texture);
   rt->SetSize(IntSize(aRect.width, aRect.height));
 
   if (aInit == INIT_MODE_CLEAR) {
@@ -393,8 +385,7 @@ CompositorD3D11::CreateRenderTarget(const gfx::IntRect& aRect,
 
 TemporaryRef<CompositingRenderTarget>
 CompositorD3D11::CreateRenderTargetFromSource(const gfx::IntRect &aRect,
-                                              const CompositingRenderTarget* aSource,
-                                              const gfx::IntPoint &aSourcePoint)
+                                              const CompositingRenderTarget* aSource)
 {
   CD3D11_TEXTURE2D_DESC desc(DXGI_FORMAT_B8G8R8A8_UNORM,
                              aRect.width, aRect.height, 1, 1,
@@ -402,21 +393,17 @@ CompositorD3D11::CreateRenderTargetFromSource(const gfx::IntRect &aRect,
 
   RefPtr<ID3D11Texture2D> texture;
   mDevice->CreateTexture2D(&desc, nullptr, byRef(texture));
-  NS_ASSERTION(texture, "Could not create texture");
-  if (!texture) {
-    return nullptr;
-  }
 
   if (aSource) {
     const CompositingRenderTargetD3D11* sourceD3D11 =
       static_cast<const CompositingRenderTargetD3D11*>(aSource);
 
     D3D11_BOX srcBox;
-    srcBox.left = aSourcePoint.x;
-    srcBox.top = aSourcePoint.y;
+    srcBox.left = aRect.x;
+    srcBox.top = aRect.y;
     srcBox.front = 0;
-    srcBox.right = aSourcePoint.x + aRect.width;
-    srcBox.bottom = aSourcePoint.y + aRect.height;
+    srcBox.right = aRect.XMost();
+    srcBox.bottom = aRect.YMost();
     srcBox.back = 0;
 
     const IntSize& srcSize = sourceD3D11->GetSize();
@@ -432,8 +419,8 @@ CompositorD3D11::CreateRenderTargetFromSource(const gfx::IntRect &aRect,
   }
 
   RefPtr<CompositingRenderTargetD3D11> rt =
-    new CompositingRenderTargetD3D11(texture, aRect.TopLeft());
-  rt->SetSize(aRect.Size());
+    new CompositingRenderTargetD3D11(texture);
+  rt->SetSize(IntSize(aRect.width, aRect.height));
 
   return rt;
 }
@@ -481,13 +468,13 @@ CompositorD3D11::DrawQuad(const gfx::Rect& aRect,
                           const gfx::Rect& aClipRect,
                           const EffectChain& aEffectChain,
                           gfx::Float aOpacity,
-                          const gfx::Matrix4x4& aTransform)
+                          const gfx::Matrix4x4& aTransform,
+                          const gfx::Point& aOffset)
 {
   MOZ_ASSERT(mCurrentRT, "No render target");
   memcpy(&mVSConstants.layerTransform, &aTransform._11, 64);
-  IntPoint origin = mCurrentRT->GetOrigin();
-  mVSConstants.renderTargetOffset[0] = origin.x;
-  mVSConstants.renderTargetOffset[1] = origin.y;
+  mVSConstants.renderTargetOffset[0] = aOffset.x;
+  mVSConstants.renderTargetOffset[1] = aOffset.y;
   mVSConstants.layerQuad = aRect;
 
   mPSConstants.layerOpacity[0] = aOpacity;
@@ -623,22 +610,12 @@ CompositorD3D11::DrawQuad(const gfx::Rect& aRect,
 }
 
 void
-CompositorD3D11::BeginFrame(const nsIntRegion& aInvalidRegion,
-                            const Rect* aClipRectIn,
+CompositorD3D11::BeginFrame(const Rect* aClipRectIn,
                             const gfxMatrix& aTransform,
                             const Rect& aRenderBounds,
                             Rect* aClipRectOut,
                             Rect* aRenderBoundsOut)
 {
-  // Don't composite if we are minimised. Other than for the sake of efficency,
-  // this is important because resizing our buffers when mimised will fail and
-  // cause a crash when we're restored.
-  NS_ASSERTION(mHwnd, "Couldn't find an HWND when initialising?");
-  if (::IsIconic(mHwnd)) {
-    *aRenderBoundsOut = Rect();
-    return;
-  }
-
   UpdateRenderTarget();
 
   // Failed to create a render target.
@@ -692,13 +669,13 @@ CompositorD3D11::EndFrame()
   nsIntSize oldSize = mSize;
   EnsureSize();
   if (oldSize == mSize) {
-    mSwapChain->Present(0, mDisableSequenceForNextFrame ? DXGI_PRESENT_DO_NOT_SEQUENCE : 0);
-    mDisableSequenceForNextFrame = false;
+    mSwapChain->Present(0, 0);
+
     if (mTarget) {
       PaintToTarget();
     }
   }
-  
+
   mCurrentRT = nullptr;
 }
 
@@ -752,15 +729,16 @@ CompositorD3D11::VerifyBufferSize()
 
   mDefaultRT = nullptr;
 
-  if (IsRunningInWindowsMetro()) {
-    mSwapChain->ResizeBuffers(2, mSize.width, mSize.height,
-                              DXGI_FORMAT_B8G8R8A8_UNORM,
-                              0);
-    mDisableSequenceForNextFrame = true;
-  } else if (gfxWindowsPlatform::IsOptimus()) {
+  if (gfxWindowsPlatform::IsOptimus()) {
     mSwapChain->ResizeBuffers(1, mSize.width, mSize.height,
                               DXGI_FORMAT_B8G8R8A8_UNORM,
                               0);
+#ifdef MOZ_METRO
+  } else if (IsRunningInWindowsMetro()) {
+    mSwapChain->ResizeBuffers(2, mSize.width, mSize.height,
+                              DXGI_FORMAT_B8G8R8A8_UNORM,
+                              0);
+#endif
   } else {
     mSwapChain->ResizeBuffers(1, mSize.width, mSize.height,
                               DXGI_FORMAT_B8G8R8A8_UNORM,
@@ -787,7 +765,7 @@ CompositorD3D11::UpdateRenderTarget()
     return;
   }
 
-  mDefaultRT = new CompositingRenderTargetD3D11(backBuf, IntPoint(0, 0));
+  mDefaultRT = new CompositingRenderTargetD3D11(backBuf);
   mDefaultRT->SetSize(mSize);
 }
 
@@ -909,15 +887,17 @@ CompositorD3D11::PaintToTarget()
 
   D3D11_MAPPED_SUBRESOURCE map;
   mContext->Map(readTexture, 0, D3D11_MAP_READ, 0, &map);
-  RefPtr<DataSourceSurface> sourceSurface =
-    Factory::CreateWrappingDataSourceSurface((uint8_t*)map.pData,
-                                             map.RowPitch,
-                                             IntSize(bbDesc.Width, bbDesc.Height),
-                                             FORMAT_B8G8R8A8);
-  mTarget->CopySurface(sourceSurface,
-                       IntRect(0, 0, bbDesc.Width, bbDesc.Height),
-                       IntPoint());
-  mTarget->Flush();
+
+  nsRefPtr<gfxImageSurface> tmpSurface =
+    new gfxImageSurface((unsigned char*)map.pData,
+                        gfxIntSize(bbDesc.Width, bbDesc.Height),
+                        map.RowPitch,
+                        gfxASurface::ImageFormatARGB32);
+
+  mTarget->SetSource(tmpSurface);
+  mTarget->SetOperator(gfxContext::OPERATOR_SOURCE);
+  mTarget->Paint();
+
   mContext->Unmap(readTexture, 0);
 }
 

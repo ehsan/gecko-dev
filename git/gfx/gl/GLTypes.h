@@ -5,35 +5,23 @@
 #if !defined(GLTYPES_H_)
 #define GLTYPES_H_
 
-#include <stddef.h>
-#include <stdint.h>
-
-#ifndef GLAPIENTRY
-# ifdef WIN32
-#  include <windef.h>
-#  define GLAPIENTRY APIENTRY
-#  define GLAPI
-# else
-#  define GLAPIENTRY
-#  define GLAPI
-# endif
-#endif
-
-typedef int8_t realGLboolean;
-
 #if !defined(__gltypes_h_) && !defined(__gl_h_)
 #define __gltypes_h_
 #define __gl_h_
 
-typedef uint32_t GLenum;
-typedef uint32_t GLbitfield;
-typedef uint32_t GLuint;
-typedef int32_t GLint;
-typedef int32_t GLsizei;
-typedef int8_t GLbyte;
-typedef int16_t GLshort;
-typedef uint8_t GLubyte;
-typedef uint16_t GLushort;
+#include <stddef.h>
+#include <stdint.h>
+
+typedef unsigned int GLenum;
+typedef unsigned int GLbitfield;
+typedef unsigned int GLuint;
+typedef int GLint;
+typedef int GLsizei;
+typedef char realGLboolean;
+typedef signed char GLbyte;
+typedef short GLshort;
+typedef unsigned char GLubyte;
+typedef unsigned short GLushort;
 typedef float GLfloat;
 typedef float GLclampf;
 #ifndef GLdouble_defined
@@ -60,15 +48,6 @@ typedef uint64_t GLuint64;
 // OES_EGL_image (GLES)
 typedef void* GLeglImage;
 
-// KHR_debug
-typedef void (GLAPIENTRY *GLDEBUGPROC)(GLenum source,
-                                       GLenum type,
-                                       GLuint id,
-                                       GLenum severity,
-                                       GLsizei length,
-                                       const GLchar* message,
-                                       const GLvoid* userParam);
-
 // EGL types
 typedef void* EGLImage;
 typedef int EGLint;
@@ -90,5 +69,15 @@ typedef uint64_t EGLTime;
 #define EGL_NO_CONFIG        ((EGLConfig)nullptr)
 #define EGL_NO_SYNC          ((EGLSync)0)
 #define EGL_NO_IMAGE         ((EGLImage)0)
+
+#ifndef GLAPIENTRY
+# ifdef WIN32
+#  define GLAPIENTRY APIENTRY
+#  define GLAPI
+# else
+#  define GLAPIENTRY
+#  define GLAPI
+# endif
+#endif
 
 #endif

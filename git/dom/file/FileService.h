@@ -159,6 +159,8 @@ private:
   private:
     FileStorageInfo()
     {
+      mFilesReading.Init();
+      mFilesWriting.Init();
     }
 
     nsTArray<nsRefPtr<LockedFileQueue> > mLockedFileQueues;
@@ -186,7 +188,7 @@ private:
   MaybeFireCallback(StoragesCompleteCallback& aCallback);
 
   nsCOMPtr<nsIEventTarget> mStreamTransportTarget;
-  nsClassHashtable<nsCStringHashKey, FileStorageInfo> mFileStorageInfos;
+  nsClassHashtable<nsISupportsHashKey, FileStorageInfo> mFileStorageInfos;
   nsTArray<StoragesCompleteCallback> mCompleteCallbacks;
 };
 

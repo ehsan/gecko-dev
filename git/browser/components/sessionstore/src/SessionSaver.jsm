@@ -18,8 +18,8 @@ Cu.import("resource://gre/modules/TelemetryStopwatch.jsm", this);
 XPCOMUtils.defineLazyModuleGetter(this, "SessionStore",
   "resource:///modules/sessionstore/SessionStore.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "SessionFile",
-  "resource:///modules/sessionstore/SessionFile.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "_SessionFile",
+  "resource:///modules/sessionstore/_SessionFile.jsm");
 
 // Minimal interval between two save operations (in milliseconds).
 XPCOMUtils.defineLazyGetter(this, "gInterval", function () {
@@ -72,7 +72,7 @@ this.SessionSaver = Object.freeze({
    * Immediately saves the current session to disk.
    */
   run: function () {
-    return SessionSaverInternal.run();
+    SessionSaverInternal.run();
   },
 
   /**
@@ -129,7 +129,7 @@ let SessionSaverInternal = {
    * Immediately saves the current session to disk.
    */
   run: function () {
-    return this._saveState(true /* force-update all windows */);
+    this._saveState(true /* force-update all windows */);
   },
 
   /**
@@ -151,7 +151,7 @@ let SessionSaverInternal = {
     delay = Math.max(this._lastSaveTime + gInterval - Date.now(), delay, 0);
 
     // Schedule a state save.
-    this._timeoutID = setTimeout(() => this._saveStateAsync(), delay);
+    this._timeoutID = setTimeout(() => this._saveState(), delay);
   },
 
   /**
@@ -186,50 +186,42 @@ let SessionSaverInternal = {
    *        update the corresponding caches.
    */
   _saveState: function (forceUpdateAllWindows = false) {
-    // Cancel any pending timeouts.
+    // Cancel any pending timeouts or just clear
+    // the timeout if this is why we've been called.
     this.cancel();
 
     stopWatchStart("COLLECT_DATA_MS", "COLLECT_DATA_LONGEST_OP_MS");
-    let state = SessionStore.getCurrentState(forceUpdateAllWindows);
 
-    // Forget about private windows and tabs.
+    let state = SessionStore.getCurrentState(forceUpdateAllWindows);
+    if (!state) {
+      stopWatchCancel("COLLECT_DATA_MS", "COLLECT_DATA_LONGEST_OP_MS");
+      return;
+    }
+
+    // Forget about private windows.
     for (let i = state.windows.length - 1; i >= 0; i--) {
-      let win = state.windows[i];
-      if (win.isPrivate || false) { // The whole window is private, remove it
-         state.windows.splice(i, 1);
-         if (state.selectedWindow >= i) {
-           state.selectedWindow--;
-         }
-        continue;
-      }
-      // The window is not private, but its tabs still might
-      for (let j = win.tabs.length - 1; j >= 0 ; --j) {
-        let tab = win.tabs[j];
-        if (tab.isPrivate || false) {
-          win.tabs.splice(j, 1);
-          if (win.selected >= j) {
-            win.selected--;
-          }
+      if (state.windows[i].isPrivate) {
+        state.windows.splice(i, 1);
+        if (state.selectedWindow >= i) {
+          state.selectedWindow--;
         }
       }
     }
+
+#ifndef XP_MACOSX
+    // Don't save invalid states.
+    // Looks like we currently have private windows, only.
+    if (state.windows.length == 0) {
+      stopWatchCancel("COLLECT_DATA_MS", "COLLECT_DATA_LONGEST_OP_MS");
+      return;
+    }
+#endif
 
     // Remove private windows from the list of closed windows.
     for (let i = state._closedWindows.length - 1; i >= 0; i--) {
       if (state._closedWindows[i].isPrivate) {
         state._closedWindows.splice(i, 1);
       }
-    }
-
-    // Note that closed private tabs are never stored (see
-    // SessionStoreInternal.onTabClose), so we do not need to remove
-    // them.
-
-    // Make sure that we keep the previous session if we started with a single
-    // private window and no non-private windows have been opened, yet.
-    if (state.deferredInitialState) {
-      state.windows = state.deferredInitialState.windows || [];
-      delete state.deferredInitialState;
     }
 
 #ifndef XP_MACOSX
@@ -251,34 +243,7 @@ let SessionSaverInternal = {
 #endif
 
     stopWatchFinish("COLLECT_DATA_MS", "COLLECT_DATA_LONGEST_OP_MS");
-    return this._writeState(state);
-  },
-
-  /**
-   * Saves the current session state. Collects data asynchronously and calls
-   * _saveState() to collect data again (with a cache hit rate of hopefully
-   * 100%) and write to disk afterwards.
-   */
-  _saveStateAsync: function () {
-    // Allow scheduling delayed saves again.
-    this._timeoutID = null;
-
-    // Check whether asynchronous data collection is disabled.
-    if (!Services.prefs.getBoolPref("browser.sessionstore.async")) {
-      this._saveState();
-      return;
-    }
-
-    // Update the last save time to make sure we wait at least another interval
-    // length until we call _saveStateAsync() again.
-    this.updateLastSaveTime();
-
-    // Save state synchronously after all tab caches have been filled. The data
-    // for the tab caches is collected asynchronously. We will reuse this
-    // cached data if the tab hasn't been invalidated in the meantime. In that
-    // case we will just fall back to synchronous data collection for single
-    // tabs.
-    SessionStore.fillTabCachesAsynchronously().then(() => this._saveState());
+    this._writeState(state);
   },
 
   /**
@@ -294,7 +259,7 @@ let SessionSaverInternal = {
 
     // Don't touch the file if an observer has deleted all state data.
     if (!data) {
-      return Promise.resolve();
+      return;
     }
 
     // We update the time stamp before writing so that we don't write again
@@ -306,7 +271,7 @@ let SessionSaverInternal = {
     // Write (atomically) to a session file, using a tmp file. Once the session
     // file is successfully updated, save the time stamp of the last save and
     // notify the observers.
-    return SessionFile.write(data).then(() => {
+    _SessionFile.write(data).then(() => {
       this.updateLastSaveTime();
       notify(null, "sessionstore-state-write-complete");
     }, Cu.reportError);

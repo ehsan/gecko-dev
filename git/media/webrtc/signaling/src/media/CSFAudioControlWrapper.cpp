@@ -11,7 +11,7 @@ namespace CSF {
 
 	std::vector<std::string> AudioControlWrapper::getRecordingDevices()
 	{
-		if (_realAudioControl != nullptr)
+		if (_realAudioControl != NULL)
 		{
 			return _realAudioControl->getRecordingDevices();
 		}
@@ -25,7 +25,7 @@ namespace CSF {
 
 	std::vector<std::string> AudioControlWrapper::getPlayoutDevices()
 	{
-		if (_realAudioControl != nullptr)
+		if (_realAudioControl != NULL)
 		{
 			return _realAudioControl->getPlayoutDevices();
 		}
@@ -39,7 +39,7 @@ namespace CSF {
 
 	std::string AudioControlWrapper::getRecordingDevice()
 	{
-		if (_realAudioControl != nullptr)
+		if (_realAudioControl != NULL)
 		{
 			return _realAudioControl->getRecordingDevice();
 		}
@@ -52,7 +52,7 @@ namespace CSF {
 
 	std::string AudioControlWrapper::getPlayoutDevice()
 	{
-		if (_realAudioControl != nullptr)
+		if (_realAudioControl != NULL)
 		{
 			return _realAudioControl->getPlayoutDevice();
 		}
@@ -65,7 +65,7 @@ namespace CSF {
 
 	bool AudioControlWrapper::setRecordingDevice( const std::string& name )
 	{
-		if (_realAudioControl != nullptr)
+		if (_realAudioControl != NULL)
 		{
 			return _realAudioControl->setRecordingDevice(name);
 		}
@@ -79,7 +79,7 @@ namespace CSF {
 
 	bool AudioControlWrapper::setPlayoutDevice( const std::string& name )
 	{
-		if (_realAudioControl != nullptr)
+		if (_realAudioControl != NULL)
 		{
 			return _realAudioControl->setPlayoutDevice(name);
 		}
@@ -93,7 +93,7 @@ namespace CSF {
 
     bool AudioControlWrapper::setDefaultVolume( int volume )
     {
-		if (_realAudioControl != nullptr)
+		if (_realAudioControl != NULL)
 		{
 			return _realAudioControl->setDefaultVolume(volume);
 		}
@@ -106,7 +106,7 @@ namespace CSF {
 
     int AudioControlWrapper::getDefaultVolume()
     {
-		if (_realAudioControl != nullptr)
+		if (_realAudioControl != NULL)
 		{
 			return _realAudioControl->getDefaultVolume();
 		}
@@ -119,7 +119,7 @@ namespace CSF {
 
     bool AudioControlWrapper::setRingerVolume( int volume )
     {
-		if (_realAudioControl != nullptr)
+		if (_realAudioControl != NULL)
 		{
 			return _realAudioControl->setRingerVolume(volume);
 		}
@@ -132,7 +132,7 @@ namespace CSF {
 
     int AudioControlWrapper::getRingerVolume()
     {
-		if (_realAudioControl != nullptr)
+		if (_realAudioControl != NULL)
 		{
 			return _realAudioControl->getRingerVolume();
 		}

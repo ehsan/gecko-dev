@@ -12,7 +12,7 @@
 #include "nsCOMPtr.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
-#include "nsDocShell.h"
+#include "nsIDocShell.h"
 #include "nsIContentViewer.h"
 #include "nsPIDOMWindow.h"
 #include "nsStyleSet.h"
@@ -45,13 +45,12 @@
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/Element.h"
 #include "nsIMessageManager.h"
-#include "mozilla/dom/MediaQueryList.h"
+#include "nsDOMMediaQueryList.h"
 #include "nsSMILAnimationController.h"
 #include "mozilla/css/ImageLoader.h"
 #include "mozilla/dom/TabChild.h"
 #include "nsRefreshDriver.h"
 #include "Layers.h"
-#include "nsIDOMEvent.h"
 
 #include "nsContentUtils.h"
 #include "nsCxPusher.h"
@@ -63,8 +62,6 @@
 #include "nsIImageLoadingContent.h"
 
 #include "nsCSSParser.h"
-#include "nsBidiUtils.h"
-#include "nsServiceManagerUtils.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -123,47 +120,11 @@ nsPresContext::MakeColorPref(const nsString& aColor)
     : NS_RGB(0, 0, 0);
 }
 
-static void DumpPresContextState(nsPresContext* aPC)
-{
-  printf_stderr("PresContext(%p) ", aPC);
-  nsIURI* uri = aPC->Document()->GetDocumentURI();
-  if (uri) {
-    nsAutoCString uriSpec;
-    nsresult rv = uri->GetSpec(uriSpec);
-    if (NS_SUCCEEDED(rv)) {
-      printf_stderr("%s ", uriSpec.get());
-    }
-  }
-  nsIPresShell* shell = aPC->GetPresShell();
-  if (shell) {
-    printf_stderr("PresShell(%p) - IsDestroying(%i) IsFrozen(%i) IsActive(%i) IsVisible(%i) IsNeverPainting(%i) GetRootFrame(%p)",
-                  shell->IsDestroying(),
-                  shell->IsFrozen(),
-                  shell->IsActive(),
-                  shell->IsVisible(),
-                  shell->IsNeverPainting(),
-                  shell->GetRootFrame());
-  }
-  printf_stderr("\n");
-}
-
 bool
 nsPresContext::IsDOMPaintEventPending() 
 {
   if (mFireAfterPaintEvents) {
     return true;
-  }
-  if (!GetDisplayRootPresContext() ||
-      !GetDisplayRootPresContext()->GetRootPresContext()) {
-    printf_stderr("Failed to find root pres context, dumping pres context and ancestors\n");
-    nsPresContext* pc = this;
-    for (;;) {
-      DumpPresContextState(pc);
-      nsPresContext* parent = pc->GetParentPresContext();
-      if (!parent)
-        break;
-      pc = parent;
-    }
   }
   if (GetDisplayRootPresContext()->GetRootPresContext()->mRefreshDriver->ViewManagerFlushIsPending()) {
     // Since we're promising that there will be a MozAfterPaint event
@@ -176,16 +137,16 @@ nsPresContext::IsDOMPaintEventPending()
   return false;
 }
 
-void
+int
 nsPresContext::PrefChangedCallback(const char* aPrefName, void* instance_data)
 {
-  nsRefPtr<nsPresContext>  presContext =
-    static_cast<nsPresContext*>(instance_data);
+  nsPresContext*  presContext = (nsPresContext*)instance_data;
 
   NS_ASSERTION(nullptr != presContext, "bad instance data");
   if (nullptr != presContext) {
     presContext->PreferenceChanged(aPrefName);
   }
+  return 0;  // PREF_OK
 }
 
 
@@ -269,12 +230,6 @@ nsPresContext::nsPresContext(nsIDocument* aDocument, nsPresContextType aType)
   NS_ASSERTION(mDocument, "Null document");
   mUserFontSet = nullptr;
   mUserFontSetDirty = true;
-
-  // if text perf logging enabled, init stats struct
-  PRLogModuleInfo *log = gfxPlatform::GetLog(eGfxLog_textperf);
-  if (log && PR_LOG_TEST(log, PR_LOG_WARNING)) {
-    mTextPerf = new gfxTextPerfMetrics();
-  }
 
   PR_INIT_CLIST(&mDOMMediaQueryLists);
 }
@@ -381,7 +336,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsPresContext)
   // methods.
   for (PRCList *l = PR_LIST_HEAD(&tmp->mDOMMediaQueryLists);
        l != &tmp->mDOMMediaQueryLists; l = PR_NEXT_LINK(l)) {
-    MediaQueryList *mql = static_cast<MediaQueryList*>(l);
+    nsDOMMediaQueryList *mql = static_cast<nsDOMMediaQueryList*>(l);
     if (mql->HasListeners()) {
       NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mDOMMediaQueryLists item");
       cb.NoteXPCOMChild(mql);
@@ -410,7 +365,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsPresContext)
   for (PRCList *l = PR_LIST_HEAD(&tmp->mDOMMediaQueryLists);
        l != &tmp->mDOMMediaQueryLists; ) {
     PRCList *next = PR_NEXT_LINK(l);
-    MediaQueryList *mql = static_cast<MediaQueryList*>(l);
+    nsDOMMediaQueryList *mql = static_cast<nsDOMMediaQueryList*>(l);
     mql->RemoveAllListeners();
     l = next;
   }
@@ -657,7 +612,7 @@ nsPresContext::GetDocumentColorPreferences()
 {
   int32_t useAccessibilityTheme = 0;
   bool usePrefColors = true;
-  nsCOMPtr<nsIDocShellTreeItem> docShell(mContainer);
+  nsCOMPtr<nsIDocShellTreeItem> docShell(do_QueryReferent(mContainer));
   if (docShell) {
     int32_t docShellType;
     docShell->GetItemType(&docShellType);
@@ -784,6 +739,10 @@ nsPresContext::GetUserPreferences()
   mUseDocumentFonts =
     Preferences::GetInt("browser.display.use_document_fonts") != 0;
 
+  // * replace backslashes with Yen signs? (bug 245770)
+  mEnableJapaneseTransform =
+    Preferences::GetBool("layout.enable_japanese_specific_transform");
+
   mPrefScrollbarSide = Preferences::GetInt("layout.scrollbar.side");
 
   ResetCachedFontPrefs();
@@ -848,9 +807,7 @@ nsPresContext::AppUnitsPerDevPixelChanged()
 {
   InvalidateThebesLayers();
 
-  if (mDeviceContext) {
-    mDeviceContext->FlushFontCache();
-  }
+  mDeviceContext->FlushFontCache();
 
   if (HasCachedStyleData()) {
     // All cached style data must be recomputed.
@@ -868,14 +825,10 @@ nsPresContext::PreferenceChanged(const char* aPrefName)
       prefName.EqualsLiteral("layout.css.devPixelsPerPx")) {
     int32_t oldAppUnitsPerDevPixel = AppUnitsPerDevPixel();
     if (mDeviceContext->CheckDPIChange() && mShell) {
-      nsCOMPtr<nsIPresShell> shell = mShell;
       // Re-fetch the view manager's window dimensions in case there's a deferred
       // resize which hasn't affected our mVisibleArea yet
       nscoord oldWidthAppUnits, oldHeightAppUnits;
-      nsRefPtr<nsViewManager> vm = shell->GetViewManager();
-      if (!vm) {
-        return;
-      }
+      nsViewManager* vm = mShell->GetViewManager();
       vm->GetWindowDimensions(&oldWidthAppUnits, &oldHeightAppUnits);
       float oldWidthDevPixels = oldWidthAppUnits/oldAppUnitsPerDevPixel;
       float oldHeightDevPixels = oldHeightAppUnits/oldAppUnitsPerDevPixel;
@@ -930,7 +883,7 @@ nsPresContext::UpdateAfterPreferencesChanged()
 {
   mPrefChangedTimer = nullptr;
 
-  nsCOMPtr<nsIDocShellTreeItem> docShell(mContainer);
+  nsCOMPtr<nsIDocShellTreeItem> docShell(do_QueryReferent(mContainer));
   if (docShell) {
     int32_t docShellType;
     docShell->GetItemType(&docShellType);
@@ -999,7 +952,9 @@ nsPresContext::Init(nsDeviceContext* aDeviceContext)
                    "How did we get a presshell?");
 
       // We don't have our container set yet at this point
-      nsCOMPtr<nsIDocShellTreeItem> ourItem = mDocument->GetDocShell();
+      nsCOMPtr<nsISupports> ourContainer = mDocument->GetContainer();
+
+      nsCOMPtr<nsIDocShellTreeItem> ourItem = do_QueryInterface(ourContainer);
       if (ourItem) {
         nsCOMPtr<nsIDocShellTreeItem> parentItem;
         ourItem->GetSameTypeParent(getter_AddRefs(parentItem));
@@ -1515,35 +1470,26 @@ nsPresContext::ScreenWidthInchesForFontInflation(bool* aChanged)
 }
 
 void
-nsPresContext::SetContainer(nsIDocShell* aDocShell)
+nsPresContext::SetContainer(nsISupports* aHandler)
 {
-  if (aDocShell) {
-    mContainer = static_cast<nsDocShell*>(aDocShell)->asWeakPtr();
-  } else {
-    mContainer = WeakPtr<nsDocShell>();
-  }
+  mContainer = do_GetWeakReference(aHandler);
   InvalidateIsChromeCache();
   if (mContainer) {
     GetDocumentColorPreferences();
   }
 }
 
-nsISupports*
-nsPresContext::GetContainerWeakInternal() const
+already_AddRefed<nsISupports>
+nsPresContext::GetContainerInternal() const
 {
-  return static_cast<nsIDocShell*>(mContainer);
+  nsCOMPtr<nsISupports> result = do_QueryReferent(mContainer);
+  return result.forget();
 }
 
-nsISupports*
-nsPresContext::GetContainerWeakExternal() const
+already_AddRefed<nsISupports>
+nsPresContext::GetContainerExternal() const
 {
-  return GetContainerWeakInternal();
-}
-
-nsIDocShell*
-nsPresContext::GetDocShell() const
-{
-  return mContainer;
+  return GetContainerInternal();
 }
 
 bool
@@ -1641,7 +1587,7 @@ nsPresContext::GetBidi() const
 bool
 nsPresContext::IsTopLevelWindowInactive()
 {
-  nsCOMPtr<nsIDocShellTreeItem> treeItem(mContainer);
+  nsCOMPtr<nsIDocShellTreeItem> treeItem(do_QueryReferent(mContainer));
   if (!treeItem)
     return false;
 
@@ -1878,10 +1824,10 @@ nsPresContext::MediaFeatureValuesChanged(StyleRebuildType aShouldRebuild,
     // Note that we intentionally send the notifications to media query
     // list in the order they were created and, for each list, to the
     // listeners in the order added.
-    MediaQueryList::NotifyList notifyList;
+    nsDOMMediaQueryList::NotifyList notifyList;
     for (PRCList *l = PR_LIST_HEAD(&mDOMMediaQueryLists);
          l != &mDOMMediaQueryLists; l = PR_NEXT_LINK(l)) {
-      MediaQueryList *mql = static_cast<MediaQueryList*>(l);
+      nsDOMMediaQueryList *mql = static_cast<nsDOMMediaQueryList*>(l);
       mql->MediumFeaturesChanged(notifyList);
     }
 
@@ -1893,9 +1839,8 @@ nsPresContext::MediaFeatureValuesChanged(StyleRebuildType aShouldRebuild,
       for (uint32_t i = 0, i_end = notifyList.Length(); i != i_end; ++i) {
         if (pusher.RePush(et)) {
           nsAutoMicroTask mt;
-          MediaQueryList::HandleChangeData &d = notifyList[i];
-          ErrorResult result;
-          d.callback->Call(*d.mql, result);
+          nsDOMMediaQueryList::HandleChangeData &d = notifyList[i];
+          d.listener->HandleChange(d.mql);
         }
       }
     }
@@ -1930,15 +1875,17 @@ nsPresContext::HandleMediaFeatureValuesChangedEvent()
   }
 }
 
-already_AddRefed<MediaQueryList>
-nsPresContext::MatchMedia(const nsAString& aMediaQueryList)
+void
+nsPresContext::MatchMedia(const nsAString& aMediaQueryList,
+                          nsIDOMMediaQueryList** aResult)
 {
-  nsRefPtr<MediaQueryList> result = new MediaQueryList(this, aMediaQueryList);
+  nsRefPtr<nsDOMMediaQueryList> result =
+    new nsDOMMediaQueryList(this, aMediaQueryList);
 
   // Insert the new item at the end of the linked list.
   PR_INSERT_BEFORE(result, &mDOMMediaQueryLists);
 
-  return result.forget();
+  result.forget(aResult);
 }
 
 nsCompatibility
@@ -1964,7 +1911,7 @@ nsPresContext::SetPrintSettings(nsIPrintSettings *aPrintSettings)
 bool
 nsPresContext::EnsureVisible()
 {
-  nsCOMPtr<nsIDocShell> docShell(mContainer);
+  nsCOMPtr<nsIDocShell> docShell(do_QueryReferent(mContainer));
   if (docShell) {
     nsCOMPtr<nsIContentViewer> cv;
     docShell->GetContentViewer(getter_AddRefs(cv));
@@ -1998,12 +1945,16 @@ bool
 nsPresContext::IsChromeSlow() const
 {
   bool isChrome = false;
-  nsCOMPtr<nsIDocShellTreeItem> docShell(mContainer);
-  if (docShell) {
-    int32_t docShellType;
-    nsresult result = docShell->GetItemType(&docShellType);
-    if (NS_SUCCEEDED(result)) {
-      isChrome = nsIDocShellTreeItem::typeChrome == docShellType;
+  nsCOMPtr<nsISupports> container = GetContainer();
+  if (container) {
+    nsresult result;
+    nsCOMPtr<nsIDocShellTreeItem> docShell(do_QueryInterface(container, &result));
+    if (NS_SUCCEEDED(result) && docShell) {
+      int32_t docShellType;
+      result = docShell->GetItemType(&docShellType);
+      if (NS_SUCCEEDED(result)) {
+        isChrome = nsIDocShellTreeItem::typeChrome == docShellType;
+      }
     }
   }
   mIsChrome = isChrome;
@@ -2166,18 +2117,23 @@ nsPresContext::UserFontSetUpdated()
   PostRebuildAllStyleDataEvent(NS_STYLE_HINT_REFLOW);
 }
 
-void
+bool
 nsPresContext::EnsureSafeToHandOutCSSRules()
 {
   nsCSSStyleSheet::EnsureUniqueInnerResult res =
     mShell->StyleSet()->EnsureUniqueInnerOnCSSSheets();
   if (res == nsCSSStyleSheet::eUniqueInner_AlreadyUnique) {
     // Nothing to do.
-    return;
+    return true;
+  }
+  if (res == nsCSSStyleSheet::eUniqueInner_CloneFailed) {
+    return false;
   }
 
-  MOZ_ASSERT(res == nsCSSStyleSheet::eUniqueInner_ClonedInner);
+  NS_ABORT_IF_FALSE(res == nsCSSStyleSheet::eUniqueInner_ClonedInner,
+                    "unexpected result");
   RebuildAllStyleData(nsChangeHint(0));
+  return true;
 }
 
 void
@@ -2250,7 +2206,7 @@ MayHavePaintEventListener(nsPIDOMWindow* aInnerWindow)
     return false;
 
   nsEventListenerManager* manager = nullptr;
-  if ((manager = parentTarget->GetExistingListenerManager()) &&
+  if ((manager = parentTarget->GetListenerManager(false)) &&
       manager->MayHavePaintEventListener()) {
     return true;
   }
@@ -2278,7 +2234,7 @@ MayHavePaintEventListener(nsPIDOMWindow* aInnerWindow)
   EventTarget* tabChildGlobal;
   return root &&
          (tabChildGlobal = root->GetParentTarget()) &&
-         (manager = tabChildGlobal->GetExistingListenerManager()) &&
+         (manager = tabChildGlobal->GetListenerManager(false)) &&
          manager->MayHavePaintEventListener();
 }
 
@@ -2699,7 +2655,7 @@ nsPresContext::IsCrossProcessRootContentDocument()
     return true;
   }
 
-  TabChild* tabChild = TabChild::GetFrom(mShell);
+  TabChild* tabChild = GetTabChildFrom(mShell);
   return (tabChild && tabChild->IsRootContentDocument());
 }
 
@@ -2716,40 +2672,12 @@ bool nsPresContext::GetPaintFlashing() const
   return mPaintFlashing;
 }
 
-int32_t
-nsPresContext::AppUnitsPerDevPixel() const
-{
-  return mDeviceContext->AppUnitsPerDevPixel();
-}
-
-nscoord
-nsPresContext::GfxUnitsToAppUnits(gfxFloat aGfxUnits) const
-{
-  return mDeviceContext->GfxUnitsToAppUnits(aGfxUnits);
-}
-
-gfxFloat
-nsPresContext::AppUnitsToGfxUnits(nscoord aAppUnits) const
-{
-  return mDeviceContext->AppUnitsToGfxUnits(aAppUnits);
-}
-
-bool
-nsPresContext::IsDeviceSizePageSize()
-{
-  bool isDeviceSizePageSize = false;
-  nsCOMPtr<nsIDocShell> docShell(mContainer);
-  if (docShell) {
-    isDeviceSizePageSize = docShell->GetDeviceSizeIsPageSize();
-  }
-  return isDeviceSizePageSize;
-}
-
 nsRootPresContext::nsRootPresContext(nsIDocument* aDocument,
                                      nsPresContextType aType)
   : nsPresContext(aDocument, aType),
     mDOMGeneration(0)
 {
+  mRegisteredPlugins.Init();
 }
 
 nsRootPresContext::~nsRootPresContext()

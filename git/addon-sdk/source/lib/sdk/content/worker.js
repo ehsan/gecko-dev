@@ -130,13 +130,13 @@ const WorkerSandbox = EventEmitter.compose({
     // Even if this principal is for a domain that is specified in the multiple
     // domain principal.
     let principals  = window;
-    let wantGlobalProperties = []
+    let wantXHRConstructor = false;
     if (EXPANDED_PRINCIPALS.length > 0 && !worker._injectInDocument) {
       principals = EXPANDED_PRINCIPALS.concat(window);
       // We have to replace XHR constructor of the content document
       // with a custom cross origin one, automagically added by platform code:
       delete proto.XMLHttpRequest;
-      wantGlobalProperties.push("XMLHttpRequest");
+      wantXHRConstructor = true;
     }
 
     // Instantiate trusted code in another Sandbox in order to prevent content
@@ -149,9 +149,8 @@ const WorkerSandbox = EventEmitter.compose({
     let content = this._sandbox = sandbox(principals, {
       sandboxPrototype: proto,
       wantXrays: true,
-      wantGlobalProperties: wantGlobalProperties,
-      sameZoneAs: window,
-      metadata: { SDKContentScript: true }
+      wantXHRConstructor: wantXHRConstructor,
+      sameZoneAs: window
     });
     // We have to ensure that window.top and window.parent are the exact same
     // object than window object, i.e. the sandbox global object. But not
@@ -202,15 +201,8 @@ const WorkerSandbox = EventEmitter.compose({
           clearInterval: 'r'
         }
       },
-      sandbox: {
-        evaluate: evaluate,
-        __exposedProps__: {
-          evaluate: 'r',
-        }
-      },
       __exposedProps__: {
-        timers: 'r',
-        sandbox: 'r',
+        timers: 'r'
       }
     };
     let onEvent = this._onContentEvent.bind(this);
@@ -238,19 +230,6 @@ const WorkerSandbox = EventEmitter.compose({
       // destroyed?
       if (self._addonWorker)
         self._addonWorker._onContentScriptEvent.apply(self._addonWorker, arguments);
-    });
-
-    // unwrap, recreate and propagate async Errors thrown from content-script
-    this.on("error", function onError({instanceOfError, value}) {
-      if (self._addonWorker) {
-        let error = value;
-        if (instanceOfError) {
-          error = new Error(value.message, value.fileName, value.lineNumber);
-          error.stack = value.stack;
-          error.name = value.name;
-        }
-        self._addonWorker._emit('error', error);
-      }
     });
 
     // Inject `addon` global into target document if document is trusted,
@@ -575,7 +554,6 @@ const Worker = EventEmitter.compose({
    */
   destroy: function destroy() {
     this._workerCleanup();
-    this._inited = true;
     this._removeAllListeners();
   },
 
@@ -602,7 +580,6 @@ const Worker = EventEmitter.compose({
       this._earlyEvents.length = 0;
       this._emit("detach");
     }
-    this._inited = false;
   },
 
   /**

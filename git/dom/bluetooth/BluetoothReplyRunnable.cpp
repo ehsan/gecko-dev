@@ -8,7 +8,6 @@
 #include "BluetoothReplyRunnable.h"
 #include "DOMRequest.h"
 #include "mozilla/dom/bluetooth/BluetoothTypes.h"
-#include "nsServiceManagerUtils.h"
 
 USING_BLUETOOTH_NAMESPACE
 
@@ -32,7 +31,7 @@ BluetoothReplyRunnable::~BluetoothReplyRunnable()
 {}
 
 nsresult
-BluetoothReplyRunnable::FireReply(JS::Handle<JS::Value> aVal)
+BluetoothReplyRunnable::FireReply(const JS::Value& aVal)
 {
   nsCOMPtr<nsIDOMRequestService> rs =
     do_GetService(DOMREQUEST_SERVICE_CONTRACTID);
@@ -62,12 +61,10 @@ BluetoothReplyRunnable::Run()
 
   nsresult rv;
 
-  AutoSafeJSContext cx;
-  JS::Rooted<JS::Value> v(cx, JSVAL_VOID);
-
   if (mReply->type() != BluetoothReply::TBluetoothReplySuccess) {
-    rv = FireReply(v);
+    rv = FireReply(JSVAL_VOID);
   } else {
+    JS::Value v; 
     if (!ParseSuccessfulReply(&v)) {
       rv = FireErrorString();
     } else {
@@ -76,7 +73,7 @@ BluetoothReplyRunnable::Run()
   }
 
   if (NS_FAILED(rv)) {
-    BT_WARNING("Could not fire DOMRequest!");
+    NS_WARNING("Could not fire DOMRequest!");
   }
 
   ReleaseMembers();

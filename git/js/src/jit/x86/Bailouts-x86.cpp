@@ -8,23 +8,23 @@
 #include "jscompartment.h"
 
 #include "jit/Bailouts.h"
-#include "jit/JitCompartment.h"
+#include "jit/IonCompartment.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 #if defined(_WIN32)
 # pragma pack(push, 1)
 #endif
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class BailoutStack
 {
     uintptr_t frameClassId_;
-    mozilla::Array<double, FloatRegisters::Total> fpregs_;
-    mozilla::Array<uintptr_t, Registers::Total> regs_;
+    double    fpregs_[FloatRegisters::Total];
+    uintptr_t regs_[Registers::Total];
     union {
         uintptr_t frameSize_;
         uintptr_t tableOffset_;
@@ -58,7 +58,7 @@ class BailoutStack
     }
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #if defined(_WIN32)
@@ -86,7 +86,7 @@ IonBailoutIterator::IonBailoutIterator(const JitActivationIterator &activations,
     // Compute the snapshot offset from the bailout ID.
     JitActivation *activation = activations.activation()->asJit();
     JSRuntime *rt = activation->compartment()->runtimeFromMainThread();
-    JitCode *code = rt->jitRuntime()->getBailoutTable(bailout->frameClass());
+    IonCode *code = rt->ionRuntime()->getBailoutTable(bailout->frameClass());
     uintptr_t tableOffset = bailout->tableOffset();
     uintptr_t tableStart = reinterpret_cast<uintptr_t>(code->raw());
 

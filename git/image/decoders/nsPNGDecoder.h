@@ -9,7 +9,7 @@
 
 #include "Decoder.h"
 
-#include "gfxTypes.h"
+#include "gfxASurface.h"
 
 #include "nsCOMPtr.h"
 
@@ -28,12 +28,12 @@ public:
   virtual ~nsPNGDecoder();
 
   virtual void InitInternal();
-  virtual void WriteInternal(const char* aBuffer, uint32_t aCount, DecodeStrategy aStrategy);
+  virtual void WriteInternal(const char* aBuffer, uint32_t aCount);
   virtual Telemetry::ID SpeedHistogram();
 
   void CreateFrame(png_uint_32 x_offset, png_uint_32 y_offset,
                    int32_t width, int32_t height,
-                   gfxImageFormat format);
+                   gfxASurface::gfxImageFormat format);
   void EndImageFrame();
 
   // Check if PNG is valid ICO (32bpp RGBA)
@@ -76,7 +76,7 @@ public:
   qcms_profile *mInProfile;
   qcms_transform *mTransform;
 
-  gfxImageFormat format;
+  gfxASurface::gfxImageFormat format;
 
   // For size decodes
   uint8_t mSizeBytes[8]; // Space for width and height, both 4 bytes

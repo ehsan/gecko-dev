@@ -10,17 +10,18 @@
 #include "nscore.h"
 #include "nsDebug.h"
 #include "mozilla/Assertions.h"
-#include "mozilla/EventForwards.h"
 #include "mozilla/TimeStamp.h"
 #include <windows.h>
 
 class nsWindowBase;
+class nsGUIEvent;
 struct nsIntPoint;
 
 namespace mozilla {
 namespace widget {
 
 class ModifierKeyState;
+class WheelEvent;
 
 struct MSGResult;
 
@@ -31,7 +32,6 @@ public:
   static void Initialize();
   static void Shutdown();
 
-  static bool NeedsMessage(UINT aMsg);
   static bool ProcessMessage(nsWindowBase* aWidget,
                              UINT msg,
                              WPARAM wParam,
@@ -72,14 +72,14 @@ private:
    *
    * @return TRUE if the event was consumed.  Otherwise, FALSE.
    */
-  static bool DispatchEvent(nsWindowBase* aWidget, WidgetGUIEvent& aEvent);
+  static bool DispatchEvent(nsWindowBase* aWidget, nsGUIEvent& aEvent);
 
   /**
    * InitEvent() initializes the aEvent.  If aPoint is null, the result of
    * GetCurrentMessagePos() will be used.
    */
   static void InitEvent(nsWindowBase* aWidget,
-                        WidgetGUIEvent& aEvent,
+                        nsGUIEvent& aEvent,
                         nsIntPoint* aPoint = nullptr);
 
   /**
@@ -260,7 +260,7 @@ private:
      *                          Otherwise, FALSE.
      */
     bool InitWheelEvent(nsWindowBase* aWidget,
-                        WidgetWheelEvent& aWheelEvent,
+                        WheelEvent& aWheelEvent,
                         const ModifierKeyState& aModKeyState);
 
   private:
@@ -334,9 +334,10 @@ private:
   private:
     void Init();
 
-    static void OnChange(const char* aPrefName, void* aClosure)
+    static int OnChange(const char* aPrefName, void* aClosure)
     {
       static_cast<UserPrefs*>(aClosure)->MarkDirty();
+      return 0;
     }
 
     bool mInitialized;
@@ -351,7 +352,7 @@ private:
   class SynthesizingEvent {
   public:
     SynthesizingEvent() :
-      mWnd(nullptr), mMessage(0), mWParam(0), mLParam(0),
+      mWnd(NULL), mMessage(0), mWParam(0), mLParam(0),
       mStatus(NOT_SYNTHESIZING)
     {
     }

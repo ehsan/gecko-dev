@@ -3,9 +3,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "base/basictypes.h"
 #include "CanvasRenderingContext2D.h"
 
 #include "nsXULElement.h"
+
+#include "prenv.h"
 
 #include "nsIServiceManager.h"
 #include "nsMathUtils.h"
@@ -17,10 +20,12 @@
 #include "nsSVGEffects.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
+#include "nsIVariant.h"
 
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIFrame.h"
 #include "nsError.h"
+#include "nsIScriptError.h"
 
 #include "nsCSSParser.h"
 #include "mozilla/css/StyleRule.h"
@@ -34,15 +39,16 @@
 
 #include "nsColor.h"
 #include "nsGfxCIID.h"
+#include "nsIScriptSecurityManager.h"
 #include "nsIDocShell.h"
 #include "nsIDOMWindow.h"
 #include "nsPIDOMWindow.h"
+#include "nsIXPConnect.h"
 #include "nsDisplayList.h"
-#include "nsFocusManager.h"
 
 #include "nsTArray.h"
 
-#include "ImageEncoder.h"
+#include "imgIEncoder.h"
 
 #include "gfxContext.h"
 #include "gfxASurface.h"
@@ -76,7 +82,6 @@
 #include "mozilla/dom/TypedArray.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/gfx/PathHelpers.h"
-#include "mozilla/gfx/DataSurfaceHelpers.h"
 #include "mozilla/ipc/DocumentRendererParent.h"
 #include "mozilla/ipc/PDocumentRendererParent.h"
 #include "mozilla/MathAlgorithms.h"
@@ -85,24 +90,26 @@
 #include "mozilla/unused.h"
 #include "nsCCUncollectableMarker.h"
 #include "nsWrapperCacheInlines.h"
+#include "nsJSUtils.h"
+#include "XPCQuickStubs.h"
+#include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/CanvasRenderingContext2DBinding.h"
 #include "mozilla/dom/HTMLImageElement.h"
 #include "mozilla/dom/HTMLVideoElement.h"
 #include "mozilla/dom/TextMetrics.h"
 #include "mozilla/dom/UnionTypes.h"
-#include "nsGlobalWindow.h"
-#include "GLContext.h"
-#include "GLContextProvider.h"
 
 #ifdef USE_SKIA_GPU
 #undef free // apparently defined by some windows header, clashing with a free()
             // method in SkTypes.h
+#include "GLContext.h"
+#include "GLContextProvider.h"
 #include "GLContextSkia.h"
 #include "SurfaceTypes.h"
 #include "nsIGfxInfo.h"
-#endif
 using mozilla::gl::GLContext;
 using mozilla::gl::GLContextProvider;
+#endif
 
 #ifdef XP_WIN
 #include "gfxWindowsPlatform.h"
@@ -133,19 +140,20 @@ const Float SIGMA_MAX = 100;
 /* Memory reporter stuff */
 static int64_t gCanvasAzureMemoryUsed = 0;
 
+static int64_t GetCanvasAzureMemoryUsed() {
+  return gCanvasAzureMemoryUsed;
+}
+
 // This is KIND_OTHER because it's not always clear where in memory the pixels
 // of a canvas are stored.  Furthermore, this memory will be tracked by the
 // underlying surface implementations.  See bug 655638 for details.
-class Canvas2dPixelsReporter MOZ_FINAL : public MemoryUniReporter
-{
-  public:
-    Canvas2dPixelsReporter()
-      : MemoryUniReporter("canvas-2d-pixels", KIND_OTHER, UNITS_BYTES,
-"Memory used by 2D canvases. Each canvas requires (width * height * 4) bytes.")
-    {}
-private:
-    int64_t Amount() MOZ_OVERRIDE { return gCanvasAzureMemoryUsed; }
-};
+NS_MEMORY_REPORTER_IMPLEMENT(CanvasAzureMemory,
+  "canvas-2d-pixel-bytes",
+  KIND_OTHER,
+  UNITS_BYTES,
+  GetCanvasAzureMemoryUsed,
+  "Memory used by 2D canvases. Each canvas requires (width * height * 4) "
+  "bytes.")
 
 class CanvasRadialGradient : public CanvasGradient
 {
@@ -641,7 +649,7 @@ CanvasRenderingContext2D::SetStyleFromString(const nsAString& str,
 }
 
 void
-CanvasRenderingContext2D::GetStyleAsUnion(OwningStringOrCanvasGradientOrCanvasPattern& aValue,
+CanvasRenderingContext2D::GetStyleAsUnion(StringOrCanvasGradientOrCanvasPatternReturnValue& aValue,
                                           Style aWhichStyle)
 {
   const ContextState &state = CurrentState();
@@ -739,7 +747,7 @@ CanvasRenderingContext2D::RedrawUser(const gfxRect& r)
 void CanvasRenderingContext2D::Demote()
 {
 #ifdef  USE_SKIA_GPU
-  if (!IsTargetValid() || mForceSoftware || !mTarget->GetGLContext())
+  if (!IsTargetValid() || mForceSoftware)
     return;
 
   RemoveDemotableContext(this);
@@ -812,10 +820,11 @@ CanvasRenderingContext2D::RemoveDemotableContext(CanvasRenderingContext2D* conte
     DemotableContexts().erase(iter);
 }
 
+#define MIN_SKIA_GL_DIMENSION 16
+
 bool
 CheckSizeForSkiaGL(IntSize size) {
-  int minsize = Preferences::GetInt("gfx.canvas.min-size-for-skia-gl", 128);
-  return size.width >= minsize && size.height >= minsize;
+  return size.width > MIN_SKIA_GL_DIMENSION && size.height > MIN_SKIA_GL_DIMENSION;
 }
 
 #endif
@@ -866,7 +875,7 @@ CanvasRenderingContext2D::EnsureTarget()
         if (!mForceSoftware && CheckSizeForSkiaGL(size))
         {
           glContext = GLContextProvider::CreateOffscreen(gfxIntSize(size.width, size.height),
-                                                         caps, gl::ContextFlagsNone);
+                                                         caps, GLContext::ContextFlagsNone);
         }
 
         if (glContext) {
@@ -888,7 +897,7 @@ CanvasRenderingContext2D::EnsureTarget()
     static bool registered = false;
     if (!registered) {
       registered = true;
-      RegisterStrongMemoryReporter(new Canvas2dPixelsReporter());
+      NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(CanvasAzureMemory));
     }
 
     gCanvasAzureMemoryUsed += mWidth * mHeight * 4;
@@ -912,37 +921,21 @@ CanvasRenderingContext2D::EnsureTarget()
   }
 }
 
-#ifdef DEBUG
-int32_t
-CanvasRenderingContext2D::GetWidth() const
-{
-  return mWidth;
-}
-
-int32_t
-CanvasRenderingContext2D::GetHeight() const
-{
-  return mHeight;
-}
-#endif
-
 NS_IMETHODIMP
 CanvasRenderingContext2D::SetDimensions(int32_t width, int32_t height)
 {
   ClearTarget();
 
-  // Zero sized surfaces can cause problems.
-  mZero = false;
-  if (height == 0) {
-    height = 1;
+  // Zero sized surfaces cause issues, so just go with 1x1.
+  if (height == 0 || width == 0) {
     mZero = true;
+    mWidth = 1;
+    mHeight = 1;
+  } else {
+    mZero = false;
+    mWidth = width;
+    mHeight = height;
   }
-  if (width == 0) {
-    width = 1;
-    mZero = true;
-  }
-  mWidth = width;
-  mHeight = height;
 
   return NS_OK;
 }
@@ -1011,7 +1004,7 @@ CanvasRenderingContext2D::SetIsIPC(bool isIPC)
 }
 
 NS_IMETHODIMP
-CanvasRenderingContext2D::Render(gfxContext *ctx, GraphicsFilter aFilter, uint32_t aFlags)
+CanvasRenderingContext2D::Render(gfxContext *ctx, gfxPattern::GraphicsFilter aFilter, uint32_t aFlags)
 {
   nsresult rv = NS_OK;
 
@@ -1047,7 +1040,7 @@ CanvasRenderingContext2D::Render(gfxContext *ctx, GraphicsFilter aFilter, uint32
   if (!(aFlags & RenderFlagPremultAlpha)) {
       nsRefPtr<gfxASurface> curSurface = ctx->CurrentSurface();
       nsRefPtr<gfxImageSurface> gis = curSurface->GetAsImageSurface();
-      MOZ_ASSERT(gis, "If non-premult alpha, must be able to get image surface!");
+      NS_ABORT_IF_FALSE(gis, "If non-premult alpha, must be able to get image surface!");
 
       gfxUtils::UnpremultiplyImageSurface(gis);
   }
@@ -1055,49 +1048,71 @@ CanvasRenderingContext2D::Render(gfxContext *ctx, GraphicsFilter aFilter, uint32
   return rv;
 }
 
-void
-CanvasRenderingContext2D::GetImageBuffer(uint8_t** aImageBuffer,
-                                         int32_t* aFormat)
-{
-  *aImageBuffer = nullptr;
-  *aFormat = 0;
-
-  EnsureTarget();
-  RefPtr<SourceSurface> snapshot = mTarget->Snapshot();
-  if (!snapshot) {
-    return;
-  }
-
-  RefPtr<DataSourceSurface> data = snapshot->GetDataSurface();
-  if (!data || data->GetSize() != IntSize(mWidth, mHeight)) {
-    return;
-  }
-
-  *aImageBuffer = SurfaceToPackedBGRA(data);
-  *aFormat = imgIEncoder::INPUT_FORMAT_HOSTARGB;
-}
-
 NS_IMETHODIMP
 CanvasRenderingContext2D::GetInputStream(const char *aMimeType,
                                          const PRUnichar *aEncoderOptions,
                                          nsIInputStream **aStream)
 {
-  nsCString enccid("@mozilla.org/image/encoder;2?type=");
-  enccid += aMimeType;
-  nsCOMPtr<imgIEncoder> encoder = do_CreateInstance(enccid.get());
+  EnsureTarget();
+  if (!IsTargetValid()) {
+    return NS_ERROR_FAILURE;
+  }
+
+  nsRefPtr<gfxASurface> surface;
+
+  if (NS_FAILED(GetThebesSurface(getter_AddRefs(surface)))) {
+    return NS_ERROR_FAILURE;
+  }
+
+  nsresult rv;
+  const char encoderPrefix[] = "@mozilla.org/image/encoder;2?type=";
+  static const fallible_t fallible = fallible_t();
+  nsAutoArrayPtr<char> conid(new (fallible) char[strlen(encoderPrefix) + strlen(aMimeType) + 1]);
+
+  if (!conid) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
+  strcpy(conid, encoderPrefix);
+  strcat(conid, aMimeType);
+
+  nsCOMPtr<imgIEncoder> encoder = do_CreateInstance(conid);
   if (!encoder) {
     return NS_ERROR_FAILURE;
   }
 
-  nsAutoArrayPtr<uint8_t> imageBuffer;
-  int32_t format = 0;
-  GetImageBuffer(getter_Transfers(imageBuffer), &format);
+  nsAutoArrayPtr<uint8_t> imageBuffer(new (fallible) uint8_t[mWidth * mHeight * 4]);
   if (!imageBuffer) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
+  nsRefPtr<gfxImageSurface> imgsurf =
+    new gfxImageSurface(imageBuffer.get(),
+                        gfxIntSize(mWidth, mHeight),
+                        mWidth * 4,
+                        gfxASurface::ImageFormatARGB32);
+
+  if (!imgsurf || imgsurf->CairoStatus()) {
     return NS_ERROR_FAILURE;
   }
 
-  return ImageEncoder::GetInputStream(mWidth, mHeight, imageBuffer, format,
-                                      encoder, aEncoderOptions, aStream);
+  nsRefPtr<gfxContext> ctx = new gfxContext(imgsurf);
+
+  if (!ctx || ctx->HasError()) {
+    return NS_ERROR_FAILURE;
+  }
+
+  ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
+  ctx->SetSource(surface, gfxPoint(0, 0));
+  ctx->Paint();
+
+  rv = encoder->InitFromData(imageBuffer.get(),
+                              mWidth * mHeight * 4, mWidth, mHeight, mWidth * 4,
+                              imgIEncoder::INPUT_FORMAT_HOSTARGB,
+                              nsDependentString(aEncoderOptions));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return CallQueryInterface(encoder, aStream);
 }
 
 SurfaceFormat
@@ -1450,21 +1465,29 @@ CanvasRenderingContext2D::CreatePattern(const HTMLImageOrCanvasOrVideoElement& e
     htmlElement = &element.GetAsHTMLVideoElement();
   }
 
-  EnsureTarget();
-
   // The canvas spec says that createPattern should use the first frame
   // of animated images
   nsLayoutUtils::SurfaceFromElementResult res =
     nsLayoutUtils::SurfaceFromElement(htmlElement,
-      nsLayoutUtils::SFE_WANT_FIRST_FRAME, mTarget);
+      nsLayoutUtils::SFE_WANT_FIRST_FRAME | nsLayoutUtils::SFE_WANT_NEW_SURFACE);
 
-  if (!res.mSourceSurface) {
+  if (!res.mSurface) {
     error.Throw(NS_ERROR_NOT_AVAILABLE);
     return nullptr;
   }
 
+  // Ignore nullptr cairo surfaces! See bug 666312.
+  if (!res.mSurface->CairoSurface() || res.mSurface->CairoStatus()) {
+    error.Throw(NS_ERROR_NOT_AVAILABLE);
+    return nullptr;
+  }
+
+  EnsureTarget();
+  RefPtr<SourceSurface> srcSurf =
+    gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(mTarget, res.mSurface);
+
   nsRefPtr<CanvasPattern> pat =
-    new CanvasPattern(this, res.mSourceSurface, repeatMode, res.mPrincipal,
+    new CanvasPattern(this, srcSurf, repeatMode, res.mPrincipal,
                              res.mIsWriteOnly, res.mCORSUsed);
 
   return pat.forget();
@@ -1703,90 +1726,6 @@ CanvasRenderingContext2D::Stroke()
   Redraw();
 }
 
-void CanvasRenderingContext2D::DrawSystemFocusRing(mozilla::dom::Element& aElement)
-{
-  EnsureUserSpacePath();
-
-  if (!mPath) {
-    return;
-  }
-
-  if(DrawCustomFocusRing(aElement)) {
-    Save();
-
-    // set state to conforming focus state
-    ContextState& state = CurrentState();
-    state.globalAlpha = 1.0;
-    state.shadowBlur = 0;
-    state.shadowOffset.x = 0;
-    state.shadowOffset.y = 0;
-    state.op = mozilla::gfx::OP_OVER;
-
-    state.lineCap = CAP_BUTT;
-    state.lineJoin = mozilla::gfx::JOIN_MITER_OR_BEVEL;
-    state.lineWidth = 1;
-    CurrentState().dash.Clear();
-
-    // color and style of the rings is the same as for image maps
-    // set the background focus color
-    CurrentState().SetColorStyle(STYLE_STROKE, NS_RGBA(255, 255, 255, 255));
-    // draw the focus ring
-    Stroke();
-
-    // set dashing for foreground
-    FallibleTArray<mozilla::gfx::Float>& dash = CurrentState().dash;
-    dash.AppendElement(1);
-    dash.AppendElement(1);
-
-    // set the foreground focus color
-    CurrentState().SetColorStyle(STYLE_STROKE, NS_RGBA(0,0,0, 255));
-    // draw the focus ring
-    Stroke();
-
-    Restore();
-  }
-}
-
-bool CanvasRenderingContext2D::DrawCustomFocusRing(mozilla::dom::Element& aElement)
-{
-  EnsureUserSpacePath();
-
-  HTMLCanvasElement* canvas = GetCanvas();
-
-  if (!canvas|| !nsContentUtils::ContentIsDescendantOf(&aElement, canvas)) {
-    return false;
-  }
-
-  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-  if (fm) {
-    // check that the element i focused
-    nsCOMPtr<nsIDOMElement> focusedElement;
-    fm->GetFocusedElement(getter_AddRefs(focusedElement));
-    if (SameCOMIdentity(aElement.AsDOMNode(), focusedElement)) {
-      // get the bounds of the current path
-      mgfx::Rect bounds;
-      bounds = mPath->GetBounds(mTarget->GetTransform());
-
-      // and set them as the accessible area
-      nsRect rect(canvas->ClientLeft() + bounds.x, canvas->ClientTop() + bounds.y,
-               bounds.width, bounds.height);
-      rect.x *= AppUnitsPerCSSPixel();
-      rect.y *= AppUnitsPerCSSPixel();
-      rect.width *= AppUnitsPerCSSPixel();
-      rect.height *= AppUnitsPerCSSPixel();
-
-      nsIFrame* frame = aElement.GetPrimaryFrame();
-      if(frame) {
-        frame->SetRect(rect);
-      }
-
-      return true;
-    }
-  }
-
-  return false;
-}
-
 void
 CanvasRenderingContext2D::Clip(const CanvasWindingRule& winding)
 {
@@ -1890,7 +1829,7 @@ CanvasRenderingContext2D::Arc(double x, double y, double r,
 
   EnsureWritablePath();
 
-  ArcToBezier(this, Point(x, y), Size(r, r), startAngle, endAngle, anticlockwise);
+  ArcToBezier(this, Point(x, y), r, startAngle, endAngle, anticlockwise);
 }
 
 void
@@ -1993,7 +1932,6 @@ CanvasRenderingContext2D::EnsureUserSpacePath(const CanvasWindingRule& winding)
   if (mPath && mPath->GetFillRule() != fillRule) {
     mPathBuilder = mPath->CopyToBuilder(fillRule);
     mPath = mPathBuilder->Finish();
-    mPathBuilder = nullptr;
   }
 
   NS_ASSERTION(mPath, "mPath should exist");
@@ -2200,13 +2138,11 @@ CanvasRenderingContext2D::SetFont(const nsAString& font,
 
   fontStyle->mFont.AddFontFeaturesToStyle(&style);
 
-  nsPresContext *c = presShell->GetPresContext();
   CurrentState().fontGroup =
       gfxPlatform::GetPlatform()->CreateFontGroup(fontStyle->mFont.name,
                                                   &style,
-                                                  c->GetUserFontSet());
+                                                  presShell->GetPresContext()->GetUserFontSet());
   NS_ASSERTION(CurrentState().fontGroup, "Could not get font group");
-  CurrentState().fontGroup->SetTextPerfMetrics(c->GetTextPerfMetrics());
 
   // The font getter is required to be reserialized based on what we
   // parsed (including having line-height removed).  (Older drafts of
@@ -2434,8 +2370,6 @@ struct MOZ_STACK_CLASS CanvasBidiProcessor : public nsBidiPresUtils::BidiProcess
         return;
       }
 
-      RefPtr<GlyphRenderingOptions> renderingOptions = font->GetGlyphRenderingOptions();
-
       GlyphBuffer buffer;
 
       std::vector<Glyph> glyphBuf;
@@ -2507,8 +2441,7 @@ struct MOZ_STACK_CLASS CanvasBidiProcessor : public nsBidiPresUtils::BidiProcess
           FillGlyphs(scaledFont, buffer,
                      CanvasGeneralPattern().
                        ForStyle(mCtx, CanvasRenderingContext2D::STYLE_FILL, mCtx->mTarget),
-                     DrawOptions(mState->globalAlpha, mCtx->UsedOperation()),
-                     renderingOptions);
+                     DrawOptions(mState->globalAlpha, mCtx->UsedOperation()));
       } else if (mOp == CanvasRenderingContext2D::TEXT_DRAW_OPERATION_STROKE) {
         // stroke glyphs one at a time to avoid poor CoreGraphics performance
         // when stroking a path with a very large number of points
@@ -2620,10 +2553,6 @@ CanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
   gfxFontGroup* currentFontStyle = GetCurrentFontStyle();
   NS_ASSERTION(currentFontStyle, "font group is null");
 
-  // ensure user font set is up to date
-  currentFontStyle->
-    SetUserFontSet(presShell->GetPresContext()->GetUserFontSet());
-
   if (currentFontStyle->GetStyle()->size == 0.0F) {
     if (aWidth) {
       *aWidth = 0;
@@ -2641,7 +2570,7 @@ CanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
   GetAppUnitsValues(&processor.mAppUnitsPerDevPixel, nullptr);
   processor.mPt = gfxPoint(aX, aY);
   processor.mThebes =
-    new gfxContext(gfxPlatform::GetPlatform()->ScreenReferenceDrawTarget());
+    new gfxContext(gfxPlatform::GetPlatform()->ScreenReferenceSurface());
 
   // If we don't have a target then we don't have a transform. A target won't
   // be needed in the case where we're measuring the text size. This allows
@@ -2804,12 +2733,6 @@ gfxFontGroup *CanvasRenderingContext2D::GetCurrentFontStyle()
                                                     nullptr);
       if (CurrentState().fontGroup) {
         CurrentState().font = kDefaultFontStyle;
-
-        nsIPresShell* presShell = GetPresShell();
-        if (presShell) {
-          CurrentState().fontGroup->SetTextPerfMetrics(
-            presShell->GetPresContext()->GetTextPerfMetrics());
-        }
       } else {
         NS_ERROR("Default canvas font is invalid");
       }
@@ -2925,41 +2848,6 @@ CanvasRenderingContext2D::SetMozDashOffset(double mozDashOffset)
   if (!state.dash.IsEmpty()) {
     state.dashOffset = mozDashOffset;
   }
-}
-
-void
-CanvasRenderingContext2D::SetLineDash(const mozilla::dom::AutoSequence<double>& aSegments) {
-  FallibleTArray<mozilla::gfx::Float>& dash = CurrentState().dash;
-  dash.Clear();
-
-  for (uint32_t x = 0; x < aSegments.Length(); x++) {
-    dash.AppendElement(aSegments[x]);
-  }
-  if (aSegments.Length() % 2) { // If the number of elements is odd, concatenate again
-    for (uint32_t x = 0; x < aSegments.Length(); x++) {
-      dash.AppendElement(aSegments[x]);
-    }
-  }
-}
-
-void
-CanvasRenderingContext2D::GetLineDash(nsTArray<double>& aSegments) const {
-  const FallibleTArray<mozilla::gfx::Float>& dash = CurrentState().dash;
-  aSegments.Clear();
-
-  for (uint32_t x = 0; x < dash.Length(); x++) {
-    aSegments.AppendElement(dash[x]);
-  }
-}
-
-void
-CanvasRenderingContext2D::SetLineDashOffset(double mOffset) {
-  CurrentState().dashOffset = mOffset;
-}
-
-double
-CanvasRenderingContext2D::LineDashOffset() const {
-  return CurrentState().dashOffset;
 }
 
 bool
@@ -3080,8 +2968,11 @@ CanvasRenderingContext2D::DrawImage(const HTMLImageOrCanvasOrVideoElement& image
       element = video;
     }
 
-    srcSurf =
+    gfxASurface* imgsurf =
       CanvasImageCache::Lookup(element, mCanvasElement, &imgSize);
+    if (imgsurf) {
+      srcSurf = gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(mTarget, imgsurf);
+    }
   }
 
   if (!srcSurf) {
@@ -3089,9 +2980,9 @@ CanvasRenderingContext2D::DrawImage(const HTMLImageOrCanvasOrVideoElement& image
     // of animated images
     uint32_t sfeFlags = nsLayoutUtils::SFE_WANT_FIRST_FRAME;
     nsLayoutUtils::SurfaceFromElementResult res =
-      nsLayoutUtils::SurfaceFromElement(element, sfeFlags, mTarget);
+      nsLayoutUtils::SurfaceFromElement(element, sfeFlags);
 
-    if (!res.mSourceSurface) {
+    if (!res.mSurface) {
       // Spec says to silently do nothing if the element is still loading.
       if (!res.mIsStillLoading) {
         error.Throw(NS_ERROR_NOT_AVAILABLE);
@@ -3099,16 +2990,12 @@ CanvasRenderingContext2D::DrawImage(const HTMLImageOrCanvasOrVideoElement& image
       return;
     }
 
-    imgSize = res.mSize;
-
-    // Scale sw/sh based on aspect ratio
-    if (image.IsHTMLVideoElement()) {
-      HTMLVideoElement* video = &image.GetAsHTMLVideoElement();
-      int32_t displayWidth = video->VideoWidth();
-      int32_t displayHeight = video->VideoHeight();
-      sw *= (double)imgSize.width / (double)displayWidth;
-      sh *= (double)imgSize.height / (double)displayHeight;
+    // Ignore cairo surfaces that are bad! See bug 666312.
+    if (res.mSurface->CairoStatus()) {
+      return;
     }
+
+    imgSize = res.mSize;
 
     if (mCanvasElement) {
       CanvasUtils::DoDrawImageSecurityCheck(mCanvasElement,
@@ -3117,11 +3004,11 @@ CanvasRenderingContext2D::DrawImage(const HTMLImageOrCanvasOrVideoElement& image
     }
 
     if (res.mImageRequest) {
-      CanvasImageCache::NotifyDrawImage(element, mCanvasElement, res.mImageRequest,
-                                        res.mSourceSurface, imgSize);
+      CanvasImageCache::NotifyDrawImage(element, mCanvasElement,
+                                        res.mImageRequest, res.mSurface, imgSize);
     }
 
-    srcSurf = res.mSourceSurface;
+    srcSurf = gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(mTarget, res.mSurface);
   }
 
   if (optional_argc == 0) {
@@ -3295,7 +3182,7 @@ CanvasRenderingContext2D::GetGlobalCompositeOperation(nsAString& op,
 }
 
 void
-CanvasRenderingContext2D::DrawWindow(nsGlobalWindow& window, double x,
+CanvasRenderingContext2D::DrawWindow(nsIDOMWindow* window, double x,
                                      double y, double w, double h,
                                      const nsAString& bgColor,
                                      uint32_t flags, ErrorResult& error)
@@ -3324,13 +3211,16 @@ CanvasRenderingContext2D::DrawWindow(nsGlobalWindow& window, double x,
 
   // Flush layout updates
   if (!(flags & nsIDOMCanvasRenderingContext2D::DRAWWINDOW_DO_NOT_FLUSH)) {
-    nsContentUtils::FlushLayoutForTree(&window);
+    nsContentUtils::FlushLayoutForTree(window);
   }
 
   nsRefPtr<nsPresContext> presContext;
-  nsIDocShell* docshell = window.GetDocShell();
-  if (docshell) {
-    docshell->GetPresContext(getter_AddRefs(presContext));
+  nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(window);
+  if (win) {
+    nsIDocShell* docshell = win->GetDocShell();
+    if (docshell) {
+      docshell->GetPresContext(getter_AddRefs(presContext));
+    }
   }
   if (!presContext) {
     error.Throw(NS_ERROR_FAILURE);
@@ -3371,79 +3261,47 @@ CanvasRenderingContext2D::DrawWindow(nsGlobalWindow& window, double x,
   Matrix matrix = mTarget->GetTransform();
   double sw = matrix._11 * w;
   double sh = matrix._22 * h;
-  if (!sw || !sh) {
-    return;
-  }
   nsRefPtr<gfxContext> thebes;
   nsRefPtr<gfxASurface> drawSurf;
-  RefPtr<DrawTarget> drawDT;
   if (gfxPlatform::GetPlatform()->SupportsAzureContentForDrawTarget(mTarget)) {
     thebes = new gfxContext(mTarget);
     thebes->SetMatrix(gfxMatrix(matrix._11, matrix._12, matrix._21,
                                 matrix._22, matrix._31, matrix._32));
-  } else if (gfxPlatform::GetPlatform()->SupportsAzureContent()) {
-    drawDT =
-      gfxPlatform::GetPlatform()->CreateOffscreenContentDrawTarget(IntSize(ceil(sw), ceil(sh)),
-                                                                   FORMAT_B8G8R8A8);
-    if (!drawDT) {
-      error.Throw(NS_ERROR_FAILURE);
-      return;
-    }
-
-    thebes = new gfxContext(drawDT);
-    thebes->Scale(matrix._11, matrix._22);
   } else {
     drawSurf =
       gfxPlatform::GetPlatform()->CreateOffscreenSurface(gfxIntSize(ceil(sw), ceil(sh)),
-                                                         GFX_CONTENT_COLOR_ALPHA);
+                                                         gfxASurface::CONTENT_COLOR_ALPHA);
     if (!drawSurf) {
       error.Throw(NS_ERROR_FAILURE);
       return;
     }
 
+    drawSurf->SetDeviceOffset(gfxPoint(-floor(x), -floor(y)));
     thebes = new gfxContext(drawSurf);
+    thebes->Translate(gfxPoint(floor(x), floor(y)));
     thebes->Scale(matrix._11, matrix._22);
   }
 
   nsCOMPtr<nsIPresShell> shell = presContext->PresShell();
   unused << shell->RenderDocument(r, renderDocFlags, backgroundColor, thebes);
-  if (drawSurf || drawDT) {
-    RefPtr<SourceSurface> source;
+  if (drawSurf) {
+    gfxIntSize size = drawSurf->GetSize();
 
-    if (drawSurf) {
-      gfxIntSize size = drawSurf->GetSize();
-
-      drawSurf->SetDeviceOffset(gfxPoint(0, 0));
-      nsRefPtr<gfxImageSurface> img = drawSurf->GetAsReadableARGB32ImageSurface();
-      if (!img || !img->Data()) {
-        error.Throw(NS_ERROR_FAILURE);
-        return;
-      }
-
-      source =
-        mTarget->CreateSourceSurfaceFromData(img->Data(),
-                                             IntSize(size.width, size.height),
-                                             img->Stride(),
-                                             FORMAT_B8G8R8A8);
-    } else {
-      RefPtr<SourceSurface> snapshot = drawDT->Snapshot();
-      RefPtr<DataSourceSurface> data = snapshot->GetDataSurface();
-
-      source =
-        mTarget->CreateSourceSurfaceFromData(data->GetData(),
-                                             data->GetSize(),
-                                             data->Stride(),
-                                             data->GetFormat());
-    }
-
-    if (!source) {
+    drawSurf->SetDeviceOffset(gfxPoint(0, 0));
+    nsRefPtr<gfxImageSurface> img = drawSurf->GetAsReadableARGB32ImageSurface();
+    if (!img || !img->Data()) {
       error.Throw(NS_ERROR_FAILURE);
       return;
     }
 
+    RefPtr<SourceSurface> data =
+      mTarget->CreateSourceSurfaceFromData(img->Data(),
+                                           IntSize(size.width, size.height),
+                                           img->Stride(),
+                                           FORMAT_B8G8R8A8);
     mgfx::Rect destRect(0, 0, w, h);
     mgfx::Rect sourceRect(0, 0, sw, sh);
-    mTarget->DrawSurface(source, destRect, sourceRect,
+    mTarget->DrawSurface(data, destRect, sourceRect,
                          DrawSurfaceOptions(mgfx::FILTER_POINT),
                          DrawOptions(1.0f, OP_SOURCE, AA_NONE));
     mTarget->Flush();
@@ -3724,7 +3582,7 @@ CanvasRenderingContext2D::EnsureErrorTarget()
   }
 
   RefPtr<DrawTarget> errorTarget = gfxPlatform::GetPlatform()->CreateOffscreenCanvasDrawTarget(IntSize(1, 1), FORMAT_B8G8R8A8);
-  MOZ_ASSERT(errorTarget, "Failed to allocate the error target!");
+  NS_ABORT_IF_FALSE(errorTarget, "Failed to allocate the error target!");
 
   sErrorTarget = errorTarget;
   NS_ADDREF(sErrorTarget);
@@ -3832,7 +3690,7 @@ CanvasRenderingContext2D::PutImageData_explicit(int32_t x, int32_t y, uint32_t w
   }
 
   nsRefPtr<gfxImageSurface> imgsurf = new gfxImageSurface(gfxIntSize(w, h),
-                                                          gfxImageFormatARGB32,
+                                                          gfxASurface::ImageFormatARGB32,
                                                           false);
   if (!imgsurf || imgsurf->CairoStatus()) {
     return NS_ERROR_FAILURE;
@@ -3893,9 +3751,6 @@ NS_IMETHODIMP
 CanvasRenderingContext2D::GetThebesSurface(gfxASurface **surface)
 {
   EnsureTarget();
-  if (!IsTargetValid()) {
-    return NS_ERROR_FAILURE;
-  }
 
   nsRefPtr<gfxASurface> thebesSurface =
       gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(mTarget);
@@ -3987,10 +3842,7 @@ CanvasRenderingContext2D::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
     CanvasRenderingContext2DUserData* userData =
       static_cast<CanvasRenderingContext2DUserData*>(
         aOldLayer->GetUserData(&g2DContextLayerUserData));
-
-    CanvasLayer::Data data;
-    data.mGLContext = static_cast<GLContext*>(mTarget->GetGLContext());
-    if (userData && userData->IsForContext(this) && aOldLayer->IsDataValid(data)) {
+    if (userData && userData->IsForContext(this)) {
       nsRefPtr<CanvasLayer> ret = aOldLayer;
       return ret.forget();
     }

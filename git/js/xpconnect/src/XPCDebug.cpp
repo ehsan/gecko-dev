@@ -5,8 +5,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "xpcprivate.h"
+#include "jsdbgapi.h"
 #include "jsprf.h"
-#include "js/OldDebugAPI.h"
 
 #ifdef XP_WIN
 #include <windows.h>
@@ -106,7 +106,7 @@ xpc_DumpEvalInJSStackFrame(JSContext* cx, uint32_t frameno, const char* text)
     JSString* str;
     JSAutoByteString bytes;
     if (frame.evaluateInStackFrame(cx, text, strlen(text), "eval", 1, &rval) &&
-        nullptr != (str = ToString(cx, rval)) &&
+        nullptr != (str = JS_ValueToString(cx, rval)) &&
         bytes.encodeLatin1(cx, str)) {
         DebugDump("%s\n", bytes.ptr());
     } else

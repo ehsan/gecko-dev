@@ -410,12 +410,12 @@ private:
   // Pass in either a media string or the nsMediaList from the
   // CSSParser.  Don't pass both.
   // This method will set the sheet's enabled state based on isAlternate
-  void PrepareSheet(nsCSSStyleSheet* aSheet,
-                    const nsAString& aTitle,
-                    const nsAString& aMediaString,
-                    nsMediaList* aMediaList,
-                    dom::Element* aScopeElement,
-                    bool isAlternate);
+  nsresult PrepareSheet(nsCSSStyleSheet* aSheet,
+                        const nsAString& aTitle,
+                        const nsAString& aMediaString,
+                        nsMediaList* aMediaList,
+                        mozilla::dom::Element* aScopeElement,
+                        bool isAlternate);
 
   nsresult InsertSheetInDoc(nsCSSStyleSheet* aSheet,
                             nsIContent* aLinkingContent,
@@ -475,15 +475,12 @@ private:
   void DoSheetComplete(SheetLoadData* aLoadData, nsresult aStatus,
                        LoadDataArray& aDatasToNotify);
 
-  struct Sheets {
-    nsRefPtrHashtable<URIPrincipalAndCORSModeHashKey, nsCSSStyleSheet>
-                      mCompleteSheets;
-    nsDataHashtable<URIPrincipalAndCORSModeHashKey, SheetLoadData*>
-                      mLoadingDatas; // weak refs
-    nsDataHashtable<URIPrincipalAndCORSModeHashKey, SheetLoadData*>
-                      mPendingDatas; // weak refs
-  };
-  nsAutoPtr<Sheets> mSheets;
+  nsRefPtrHashtable<URIPrincipalAndCORSModeHashKey, nsCSSStyleSheet>
+                    mCompleteSheets;
+  nsDataHashtable<URIPrincipalAndCORSModeHashKey, SheetLoadData*>
+                    mLoadingDatas; // weak refs
+  nsDataHashtable<URIPrincipalAndCORSModeHashKey, SheetLoadData*>
+                    mPendingDatas; // weak refs
 
   // We're not likely to have many levels of @import...  But likely to have
   // some.  Allocate some storage, what the hell.

@@ -7,8 +7,6 @@
 #include "GLContext.h"
 #include "gfxImageSurface.h"
 #include "mozilla/gfx/MacIOSurface.h"
-#include "mozilla/DebugOnly.h"
-#include "ScopedGLHelpers.h"
 
 namespace mozilla {
 namespace gl {
@@ -18,9 +16,6 @@ using namespace gfx;
 /* static */ SharedSurface_IOSurface*
 SharedSurface_IOSurface::Create(MacIOSurface* surface, GLContext *gl, bool hasAlpha)
 {
-    MOZ_ASSERT(surface);
-    MOZ_ASSERT(gl);
-
     gfxIntSize size(surface->GetWidth(), surface->GetHeight());
     return new SharedSurface_IOSurface(surface, gl, size, hasAlpha);
 }
@@ -80,10 +75,10 @@ SharedSurface_IOSurface::SharedSurface_IOSurface(MacIOSurface* surface,
                         LOCAL_GL_TEXTURE_WRAP_T,
                         LOCAL_GL_CLAMP_TO_EDGE);
 
-    CGLContextObj ctx = static_cast<CGLContextObj>(mGL->GetNativeData(GLContext::NativeCGLContext));
-    MOZ_ASSERT(ctx);
+    void *nativeCtx = mGL->GetNativeData(GLContext::NativeGLContext);
+    MOZ_ASSERT(nativeCtx);
 
-    surface->CGLTexImageIOSurface2D(ctx);
+    surface->CGLTexImageIOSurface2D(nativeCtx);
 }
 
 SharedSurface_IOSurface::~SharedSurface_IOSurface()
@@ -101,11 +96,6 @@ SurfaceFactory_IOSurface::CreateShared(const gfxIntSize& size)
     bool hasAlpha = mReadCaps.alpha;
     RefPtr<MacIOSurface> surf =
         MacIOSurface::CreateIOSurface(size.width, size.height, 1.0, hasAlpha);
-
-    if (!surf) {
-        NS_WARNING("Failed to create MacIOSurface.");
-        return nullptr;
-    }
 
     return SharedSurface_IOSurface::Create(surf, mGL, hasAlpha);
 }

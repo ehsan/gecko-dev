@@ -4,7 +4,9 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-UNIFIED_SOURCES += [
+MODULE = 'content'
+
+CPP_SOURCES += [
     'Biquad.cpp',
     'DirectConvolver.cpp',
     'DynamicsCompressor.cpp',
@@ -15,7 +17,6 @@ UNIFIED_SOURCES += [
     'HRTFElevation.cpp',
     'HRTFKernel.cpp',
     'HRTFPanner.cpp',
-    'PeriodicWave.cpp',
     'Reverb.cpp',
     'ReverbAccumulationBuffer.cpp',
     'ReverbConvolver.cpp',
@@ -24,10 +25,5 @@ UNIFIED_SOURCES += [
     'ZeroPole.cpp',
 ]
 
-include('/ipc/chromium/chromium-config.mozbuild')
-
-FINAL_LIBRARY = 'gklayout'
-LOCAL_INCLUDES += [
-    '/content/media/webaudio',
-]
+LIBXUL_LIBRARY = True
 

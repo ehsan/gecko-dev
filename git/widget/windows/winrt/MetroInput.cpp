@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 // Moz headers (alphabetical)
-#include "MetroInput.h"
 #include "MetroUtils.h" // Logging, POINT_CEIL_*, ActivateGenericInstance, etc
 #include "MetroWidget.h" // MetroInput::mWidget
 #include "mozilla/dom/Touch.h"  // Touch
@@ -12,12 +11,6 @@
 #include "nsIDOMSimpleGestureEvent.h" // Constants for gesture events
 #include "InputData.h"
 #include "UIABridgePrivate.h"
-#include "MetroAppShell.h"
-#include "mozilla/MouseEvents.h"
-#include "mozilla/TouchEvents.h"
-#include "WinUtils.h"
-#include "nsIPresShell.h"
-#include "nsEventStateManager.h"
 
 // System headers (alphabetical)
 #include <windows.ui.core.h> // ABI::Window::UI::Core namespace
@@ -29,7 +22,6 @@
 using namespace ABI::Windows; // UI, System, Foundation namespaces
 using namespace Microsoft; // WRL namespace (ComPtr, possibly others)
 using namespace mozilla;
-using namespace mozilla::widget;
 using namespace mozilla::widget::winrt;
 using namespace mozilla::dom;
 
@@ -79,8 +71,8 @@ namespace {
 
     nsIntPoint touchPoint = MetroUtils::LogToPhys(position);
     nsIntPoint touchRadius;
-    touchRadius.x = WinUtils::LogToPhys(contactRect.Width) / 2;
-    touchRadius.y = WinUtils::LogToPhys(contactRect.Height) / 2;
+    touchRadius.x = MetroUtils::LogToPhys(contactRect.Width) / 2;
+    touchRadius.y = MetroUtils::LogToPhys(contactRect.Height) / 2;
     return new Touch(pointerId,
                      touchPoint,
                      // Rotation radius and angle.
@@ -103,38 +95,6 @@ namespace {
                      // draft says that the value should be 0.0 if no value
                      // known.
                      pressure);
-  }
-
-  /**
-   * Test if a touchpoint position has moved. See Touch.Equals for
-   * criteria.
-   *
-   * @param aTouch previous touch point
-   * @param aPoint new winrt touch point
-   * @return true if the point has moved
-   */
-  bool
-  HasPointMoved(Touch* aTouch, UI::Input::IPointerPoint* aPoint) {
-    WRL::ComPtr<UI::Input::IPointerPointProperties> props;
-    Foundation::Point position;
-    Foundation::Rect contactRect;
-    float pressure;
-
-    aPoint->get_Properties(props.GetAddressOf());
-    aPoint->get_Position(&position);
-    props->get_ContactRect(&contactRect);
-    props->get_Pressure(&pressure);
-    nsIntPoint touchPoint = MetroUtils::LogToPhys(position);
-    nsIntPoint touchRadius;
-    touchRadius.x = WinUtils::LogToPhys(contactRect.Width) / 2;
-    touchRadius.y = WinUtils::LogToPhys(contactRect.Height) / 2;
-
-    // from Touch.Equals
-    return touchPoint != aTouch->mRefPoint ||
-           pressure != aTouch->Force() ||
-           /* mRotationAngle == aTouch->RotationAngle() || */
-           touchRadius.x != aTouch->RadiusX() ||
-           touchRadius.y != aTouch->RadiusY();
   }
 
   /**
@@ -182,47 +142,29 @@ namespace {
   {
     nsTArray<nsRefPtr<Touch> > *touches =
               static_cast<nsTArray<nsRefPtr<Touch> > *>(aTouchList);
-    nsRefPtr<Touch> copy = new Touch(aData->mIdentifier,
-               aData->mRefPoint,
-               aData->mRadius,
-               aData->mRotationAngle,
-               aData->mForce);
-    touches->AppendElement(copy);
+    touches->AppendElement(aData);
     aData->mChanged = false;
     return PL_DHASH_NEXT;
   }
-
-  // Helper for making sure event ptrs get freed.
-  class AutoDeleteEvent
-  {
-  public:
-    AutoDeleteEvent(WidgetGUIEvent* aPtr) :
-      mPtr(aPtr) {}
-    ~AutoDeleteEvent() {
-      if (mPtr) {
-        delete mPtr;
-      }
-    }
-    WidgetGUIEvent* mPtr;
-  };
 }
 
 namespace mozilla {
 namespace widget {
 namespace winrt {
 
-MetroInput::InputPrecisionLevel MetroInput::sCurrentInputLevel =
-  MetroInput::InputPrecisionLevel::LEVEL_IMPRECISE;
-
 MetroInput::MetroInput(MetroWidget* aWidget,
-                       UI::Core::ICoreWindow* aWindow)
+                       UI::Core::ICoreWindow* aWindow,
+                       UI::Core::ICoreDispatcher* aDispatcher)
               : mWidget(aWidget),
-                mChromeHitTestCacheForTouch(false),
-                mWindow(aWindow)
+                mWindow(aWindow),
+                mDispatcher(aDispatcher),
+                mTouchEvent(true, NS_TOUCH_MOVE, aWidget)
 {
   LogFunction();
   NS_ASSERTION(aWidget, "Attempted to create MetroInput for null widget!");
   NS_ASSERTION(aWindow, "Attempted to create MetroInput for null window!");
+
+  mWidget->SetMetroInput(this);
 
   mTokenPointerPressed.value = 0;
   mTokenPointerReleased.value = 0;
@@ -232,9 +174,13 @@ MetroInput::MetroInput(MetroWidget* aWidget,
   mTokenEdgeStarted.value = 0;
   mTokenEdgeCanceled.value = 0;
   mTokenEdgeCompleted.value = 0;
+  mTokenManipulationStarted.value = 0;
+  mTokenManipulationUpdated.value = 0;
   mTokenManipulationCompleted.value = 0;
   mTokenTapped.value = 0;
   mTokenRightTapped.value = 0;
+
+  mTouches.Init();
 
   // Create our Gesture Recognizer
   ActivateGenericInstance(RuntimeClass_Windows_UI_Input_GestureRecognizer,
@@ -248,56 +194,6 @@ MetroInput::~MetroInput()
 {
   LogFunction();
   UnregisterInputEvents();
-}
-
-/* static */
-bool MetroInput::IsInputModeImprecise()
-{
-  return sCurrentInputLevel == LEVEL_IMPRECISE;
-}
-
-/**
- * Tracks the current input level (precise/imprecise) and fires an observer
- * when the mode changes.
- */
-void
-MetroInput::UpdateInputLevel(InputPrecisionLevel aInputLevel)
-{
-  // ignore mouse input if we have active touch input.
-  if (aInputLevel == LEVEL_PRECISE && mTouches.Count() > 0) {
-    return;
-  }
-  if (sCurrentInputLevel != aInputLevel) {
-    sCurrentInputLevel = aInputLevel;
-    MetroUtils::FireObserver(sCurrentInputLevel == LEVEL_PRECISE ?
-                               "metro_precise_input" : "metro_imprecise_input");
-  }
-}
-
-/**
- * Processes an IEdgeGestureEventArgs and returns the input source type
- * for the event. Also updates input level via UpdateInputLevel.
- */
-uint16_t
-MetroInput::ProcessInputTypeForGesture(UI::Input::IEdgeGestureEventArgs* aArgs)
-{
-  MOZ_ASSERT(aArgs);
-  UI::Input::EdgeGestureKind kind;
-  aArgs->get_Kind(&kind);
-  switch(kind) {
-    case UI::Input::EdgeGestureKind::EdgeGestureKind_Touch:
-      UpdateInputLevel(LEVEL_IMPRECISE);
-      return nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
-    break;
-    case UI::Input::EdgeGestureKind::EdgeGestureKind_Keyboard:
-      return nsIDOMMouseEvent::MOZ_SOURCE_KEYBOARD;
-    break;
-    case UI::Input::EdgeGestureKind::EdgeGestureKind_Mouse:
-      UpdateInputLevel(LEVEL_PRECISE);
-      return nsIDOMMouseEvent::MOZ_SOURCE_MOUSE;
-    break;
-  }
-  return nsIDOMMouseEvent::MOZ_SOURCE_UNKNOWN;
 }
 
 /**
@@ -315,17 +211,17 @@ MetroInput::OnEdgeGestureStarted(UI::Input::IEdgeGesture* sender,
 #ifdef DEBUG_INPUT
   LogFunction();
 #endif
-  WidgetSimpleGestureEvent geckoEvent(true,
-                                      NS_SIMPLE_GESTURE_EDGE_STARTED,
-                                      mWidget.Get(),
-                                      0,
-                                      0.0);
+  nsSimpleGestureEvent geckoEvent(true,
+                                  NS_SIMPLE_GESTURE_EDGE_STARTED,
+                                  mWidget.Get(),
+                                  0,
+                                  0.0);
   mModifierKeyState.Update();
   mModifierKeyState.InitInputEvent(geckoEvent);
   geckoEvent.time = ::GetMessageTime();
-  geckoEvent.inputSource = ProcessInputTypeForGesture(aArgs);
 
-  // Safe
+  geckoEvent.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
+
   DispatchEventIgnoreStatus(&geckoEvent);
   return S_OK;
 }
@@ -346,17 +242,17 @@ MetroInput::OnEdgeGestureCanceled(UI::Input::IEdgeGesture* sender,
 #ifdef DEBUG_INPUT
   LogFunction();
 #endif
-  WidgetSimpleGestureEvent geckoEvent(true,
-                                      NS_SIMPLE_GESTURE_EDGE_CANCELED,
-                                      mWidget.Get(),
-                                      0,
-                                      0.0);
+  nsSimpleGestureEvent geckoEvent(true,
+                                  NS_SIMPLE_GESTURE_EDGE_CANCELED,
+                                  mWidget.Get(),
+                                  0,
+                                  0.0);
   mModifierKeyState.Update();
   mModifierKeyState.InitInputEvent(geckoEvent);
   geckoEvent.time = ::GetMessageTime();
-  geckoEvent.inputSource = ProcessInputTypeForGesture(aArgs);
 
-  // Safe
+  geckoEvent.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
+
   DispatchEventIgnoreStatus(&geckoEvent);
   return S_OK;
 }
@@ -376,17 +272,24 @@ MetroInput::OnEdgeGestureCompleted(UI::Input::IEdgeGesture* sender,
 #ifdef DEBUG_INPUT
   LogFunction();
 #endif
-  WidgetSimpleGestureEvent geckoEvent(true,
-                                      NS_SIMPLE_GESTURE_EDGE_COMPLETED,
-                                      mWidget.Get(),
-                                      0,
-                                      0.0);
+  nsSimpleGestureEvent geckoEvent(true,
+                                  NS_SIMPLE_GESTURE_EDGE_COMPLETED,
+                                  mWidget.Get(),
+                                  0,
+                                  0.0);
   mModifierKeyState.Update();
   mModifierKeyState.InitInputEvent(geckoEvent);
   geckoEvent.time = ::GetMessageTime();
-  geckoEvent.inputSource = ProcessInputTypeForGesture(aArgs);
 
-  // Safe
+  UI::Input::EdgeGestureKind value;
+  aArgs->get_Kind(&value);
+
+  if (value == UI::Input::EdgeGestureKind::EdgeGestureKind_Keyboard) {
+    geckoEvent.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_KEYBOARD;
+  } else {
+    geckoEvent.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
+  }
+
   DispatchEventIgnoreStatus(&geckoEvent);
   return S_OK;
 }
@@ -408,56 +311,43 @@ MetroInput::OnPointerNonTouch(UI::Input::IPointerPoint* aPoint) {
   aPoint->get_Properties(props.GetAddressOf());
   props->get_PointerUpdateKind(&pointerUpdateKind);
 
-  WidgetMouseEvent* event =
-    new WidgetMouseEvent(true, NS_MOUSE_MOVE, mWidget.Get(),
-                         WidgetMouseEvent::eReal,
-                         WidgetMouseEvent::eNormal);
+  nsMouseEvent mouseEvent(true,
+                          NS_MOUSE_MOVE,
+                          mWidget.Get(),
+                          nsMouseEvent::eReal,
+                          nsMouseEvent::eNormal);
 
   switch (pointerUpdateKind) {
     case UI::Input::PointerUpdateKind::PointerUpdateKind_LeftButtonPressed:
       // We don't bother setting mouseEvent.button because it is already
-      // set to WidgetMouseEvent::buttonType::eLeftButton whose value is 0.
-      event->message = NS_MOUSE_BUTTON_DOWN;
+      // set to nsMouseEvent::buttonType::eLeftButton whose value is 0.
+      mouseEvent.message = NS_MOUSE_BUTTON_DOWN;
       break;
     case UI::Input::PointerUpdateKind::PointerUpdateKind_MiddleButtonPressed:
-      event->button = WidgetMouseEvent::buttonType::eMiddleButton;
-      event->message = NS_MOUSE_BUTTON_DOWN;
+      mouseEvent.button = nsMouseEvent::buttonType::eMiddleButton;
+      mouseEvent.message = NS_MOUSE_BUTTON_DOWN;
       break;
     case UI::Input::PointerUpdateKind::PointerUpdateKind_RightButtonPressed:
-      event->button = WidgetMouseEvent::buttonType::eRightButton;
-      event->message = NS_MOUSE_BUTTON_DOWN;
+      mouseEvent.button = nsMouseEvent::buttonType::eRightButton;
+      mouseEvent.message = NS_MOUSE_BUTTON_DOWN;
       break;
     case UI::Input::PointerUpdateKind::PointerUpdateKind_LeftButtonReleased:
       // We don't bother setting mouseEvent.button because it is already
-      // set to WidgetMouseEvent::buttonType::eLeftButton whose value is 0.
-      event->message = NS_MOUSE_BUTTON_UP;
+      // set to nsMouseEvent::buttonType::eLeftButton whose value is 0.
+      mouseEvent.message = NS_MOUSE_BUTTON_UP;
       break;
     case UI::Input::PointerUpdateKind::PointerUpdateKind_MiddleButtonReleased:
-      event->button = WidgetMouseEvent::buttonType::eMiddleButton;
-      event->message = NS_MOUSE_BUTTON_UP;
+      mouseEvent.button = nsMouseEvent::buttonType::eMiddleButton;
+      mouseEvent.message = NS_MOUSE_BUTTON_UP;
       break;
     case UI::Input::PointerUpdateKind::PointerUpdateKind_RightButtonReleased:
-      event->button = WidgetMouseEvent::buttonType::eRightButton;
-      event->message = NS_MOUSE_BUTTON_UP;
+      mouseEvent.button = nsMouseEvent::buttonType::eRightButton;
+      mouseEvent.message = NS_MOUSE_BUTTON_UP;
       break;
   }
-  UpdateInputLevel(LEVEL_PRECISE);
-  InitGeckoMouseEventFromPointerPoint(event, aPoint);
-  DispatchAsyncEventIgnoreStatus(event);
-}
-
-void
-MetroInput::InitTouchEventTouchList(WidgetTouchEvent* aEvent)
-{
-  MOZ_ASSERT(aEvent);
-  mTouches.Enumerate(&AppendToTouchList,
-                      static_cast<void*>(&aEvent->touches));
-}
-
-bool
-MetroInput::ShouldDeliverInputToRecognizer()
-{
-  return mRecognizerWantsEvents;
+  InitGeckoMouseEventFromPointerPoint(mouseEvent, aPoint);
+  DispatchEventIgnoreStatus(&mouseEvent);
+  return;
 }
 
 // This event is raised when the user pushes the left mouse button, presses a
@@ -487,111 +377,34 @@ MetroInput::OnPointerPressed(UI::Core::ICoreWindow* aSender,
   }
 
   // This is touch input.
-  UpdateInputLevel(LEVEL_IMPRECISE);
-
   // Create the new touch point and add it to our event.
   uint32_t pointerId;
   currentPoint->get_PointerId(&pointerId);
   nsRefPtr<Touch> touch = CreateDOMTouch(currentPoint.Get());
   touch->mChanged = true;
   mTouches.Put(pointerId, touch);
+  mTouchEvent.message = NS_TOUCH_START;
 
-  WidgetTouchEvent* touchEvent =
-    new WidgetTouchEvent(true, NS_TOUCH_START, mWidget.Get());
-
+  // If this is the first touchstart of a touch session,
+  // dispatch it now so we can see if preventDefault gets called on it.
   if (mTouches.Count() == 1) {
-    // If this is the first touchstart of a touch session reset some
-    // tracking flags.
-    mContentConsumingTouch = false;
-    mApzConsumingTouch = false;
-    mRecognizerWantsEvents = true;
-    mCancelable = true;
-    mCanceledIds.Clear();
-  } else {
-    mCancelable = false;
+    nsEventStatus status;
+    DispatchPendingTouchEvent(status, true);
+    mTouchStartDefaultPrevented = (nsEventStatus_eConsumeNoDefault == status);
+    // If the first touchstart event has preventDefault called on it, then
+    // we will not perform any default actions associated with any touch
+    // events for this session, including touchmove events.
+    // Thus, mTouchStartDefaultPrevented implies mTouchMoveDefaultPrevented.
+    mTouchMoveDefaultPrevented = mTouchStartDefaultPrevented;
+    mIsFirstTouchMove = !mTouchStartDefaultPrevented;
   }
 
-  InitTouchEventTouchList(touchEvent);
-  DispatchAsyncTouchEvent(touchEvent);
-
-  if (ShouldDeliverInputToRecognizer()) {
+  // If the first touchstart of this touch session had its preventDefault
+  // called on it, we will not perform any default actions for any of the
+  // touches in this touch session.
+  if (!mTouchStartDefaultPrevented) {
     mGestureRecognizer->ProcessDownEvent(currentPoint.Get());
   }
-  return S_OK;
-}
-
-void
-MetroInput::AddPointerMoveDataToRecognizer(UI::Core::IPointerEventArgs* aArgs)
-{
-  if (ShouldDeliverInputToRecognizer()) {
-    WRL::ComPtr<Foundation::Collections::IVector<UI::Input::PointerPoint*>>
-        pointerPoints;
-    aArgs->GetIntermediatePoints(pointerPoints.GetAddressOf());
-    mGestureRecognizer->ProcessMoveEvents(pointerPoints.Get());
-  }
-}
-
-// This event is raised when the user moves the mouse, moves a pen that is
-// in contact with the surface, or moves a finger that is in contact with
-// a touch screen.
-HRESULT
-MetroInput::OnPointerMoved(UI::Core::ICoreWindow* aSender,
-                           UI::Core::IPointerEventArgs* aArgs)
-{
-#ifdef DEBUG_INPUT
-  LogFunction();
-#endif
-
-  WRL::ComPtr<UI::Input::IPointerPoint> currentPoint;
-  WRL::ComPtr<Devices::Input::IPointerDevice> device;
-  Devices::Input::PointerDeviceType deviceType;
-
-  aArgs->get_CurrentPoint(currentPoint.GetAddressOf());
-  currentPoint->get_PointerDevice(device.GetAddressOf());
-  device->get_PointerDeviceType(&deviceType);
-
-  // For mouse and pen input, simply call our helper function
-  if (deviceType !=
-          Devices::Input::PointerDeviceType::PointerDeviceType_Touch) {
-    OnPointerNonTouch(currentPoint.Get());
-    AddPointerMoveDataToRecognizer(aArgs);
-    return S_OK;
-  }
-
-  // This is touch input.
-  UpdateInputLevel(LEVEL_IMPRECISE);
-
-  // Get the touch associated with this touch point.
-  uint32_t pointerId;
-  currentPoint->get_PointerId(&pointerId);
-  nsRefPtr<Touch> touch = mTouches.Get(pointerId);
-
-  // Some old drivers cause us to receive a PointerMoved event for a touchId
-  // after we've already received a PointerReleased event for that touchId.
-  // To work around those busted drivers, we simply ignore TouchMoved events
-  // for touchIds that we are not currently tracking.  See bug 819223.
-  if (!touch) {
-    return S_OK;
-  }
-
-  AddPointerMoveDataToRecognizer(aArgs);
-
-  // If the point hasn't moved, filter it out per the spec. Pres shell does
-  // this as well, but we need to know when our first touchmove is going to
-  // get delivered so we can check the result.
-  if (!HasPointMoved(touch, currentPoint.Get())) {
-    return S_OK;
-  }
-
-  touch = CreateDOMTouch(currentPoint.Get());
-  touch->mChanged = true;
-  // replacing old touch point in mTouches map
-  mTouches.Put(pointerId, touch);
-
-  WidgetTouchEvent* touchEvent =
-    new WidgetTouchEvent(true, NS_TOUCH_MOVE, mWidget.Get());
-  InitTouchEventTouchList(touchEvent);
-  DispatchAsyncTouchEvent(touchEvent);
 
   return S_OK;
 }
@@ -623,102 +436,134 @@ MetroInput::OnPointerReleased(UI::Core::ICoreWindow* aSender,
   }
 
   // This is touch input.
-  UpdateInputLevel(LEVEL_IMPRECISE);
-
   // Get the touch associated with this touch point.
   uint32_t pointerId;
   currentPoint->get_PointerId(&pointerId);
   nsRefPtr<Touch> touch = mTouches.Get(pointerId);
 
-  // Purge any pending moves for this pointer
+  // We are about to dispatch a touchend.  Before we do that, we should make
+  // sure that we don't have a touchmove or touchstart sitting around for this
+  // point.
   if (touch->mChanged) {
-    WidgetTouchEvent* touchEvent =
-      new WidgetTouchEvent(true, NS_TOUCH_MOVE, mWidget.Get());
-    InitTouchEventTouchList(touchEvent);
-    DispatchAsyncTouchEvent(touchEvent);
+    DispatchPendingTouchEvent(true);
   }
-
-  // Remove this touch point from our map. Eventually all touch points are
-  // removed for this session since we receive released events for every
-  // point. 
   mTouches.Remove(pointerId);
 
   // touchend events only have a single touch; the touch that has been removed
-  WidgetTouchEvent* touchEvent =
-    new WidgetTouchEvent(true, NS_TOUCH_END, mWidget.Get());
-  touchEvent->touches.AppendElement(CreateDOMTouch(currentPoint.Get()));
-  DispatchAsyncTouchEvent(touchEvent);
+  mTouchEvent.message = NS_TOUCH_END;
+  mTouchEvent.touches.Clear();
+  mTouchEvent.touches.AppendElement(CreateDOMTouch(currentPoint.Get()));
+  mTouchEvent.time = ::GetMessageTime();
+  mModifierKeyState.Update();
+  mModifierKeyState.InitInputEvent(mTouchEvent);
 
-  if (ShouldDeliverInputToRecognizer()) {
+  nsEventStatus status;
+  mWidget->DispatchEvent(&mTouchEvent, status);
+  if (status != nsEventStatus_eConsumeNoDefault) {
+    MultiTouchInput inputData(mTouchEvent);
+    if (MetroWidget::sAPZC) {
+      status = MetroWidget::sAPZC->ReceiveInputEvent(inputData);
+    }
+  }
+  
+  // mTouchEvent.message should always be set to NS_TOUCH_MOVE
+  mTouchEvent.message = NS_TOUCH_MOVE;
+
+  // If the first touchstart of this touch session had its preventDefault
+  // called on it, we will not perform any default actions for any of the
+  // touches in this touch session.  Note that we don't check
+  // mTouchMoveDefaultPrevented here.  The reason is that, even if
+  // preventDefault was called on the first touchmove event, we might still
+  // want to dispatch a click (mousemove, mousedown, mouseup) in response to
+  // this touch.
+  if (!mTouchStartDefaultPrevented) {
     mGestureRecognizer->ProcessUpEvent(currentPoint.Get());
   }
 
   return S_OK;
 }
 
-// Tests for chrome vs. content target so we know whether input coordinates need
-// to be transformed through the apz. Eventually this hit testing should move
-// into the apz (bug 918288).
-bool
-MetroInput::HitTestChrome(const LayoutDeviceIntPoint& pt)
+// This event is raised when the user moves the mouse, moves a pen that is
+// in contact with the surface, or moves a finger that is in contact with
+// a touch screen.
+HRESULT
+MetroInput::OnPointerMoved(UI::Core::ICoreWindow* aSender,
+                           UI::Core::IPointerEventArgs* aArgs)
 {
-  // Confirm this event targets content. We pick this up in browser's input.js.
-  WidgetMouseEvent hittest(true, NS_MOUSE_MOZHITTEST, mWidget.Get(),
-                           WidgetMouseEvent::eReal, WidgetMouseEvent::eNormal);
-  hittest.refPoint = pt;
-  nsEventStatus status;
-  mWidget->DispatchEvent(&hittest, status);
-  return (status == nsEventStatus_eConsumeNoDefault);
-}
+#ifdef DEBUG_INPUT
+  LogFunction();
+#endif
 
-/**
- * Returns true if the position is in chrome, false otherwise.
- */
-bool
-MetroInput::TransformRefPoint(const Foundation::Point& aPosition, LayoutDeviceIntPoint& aRefPointOut)
-{
-  // If this event is destined for content we need to transform our ref point through
-  // the apz so that zoom can be accounted for.
-  aRefPointOut = LayoutDeviceIntPoint::FromUntyped(MetroUtils::LogToPhys(aPosition));
-  ScreenIntPoint spt;
-  spt.x = aRefPointOut.x;
-  spt.y = aRefPointOut.y;
-  // This is currently a general contained rect hit test, it may produce a false positive for
-  // overlay chrome elements.
-  bool apzIntersect = mWidget->ApzHitTest(spt);
-  if (!apzIntersect) {
-    return true;
-  }
-  if (HitTestChrome(aRefPointOut)) {
-    return true;
-  }
-  mWidget->ApzTransformGeckoCoordinate(spt, &aRefPointOut);
-  return false;
-}
+  WRL::ComPtr<UI::Input::IPointerPoint> currentPoint;
+  WRL::ComPtr<Devices::Input::IPointerDevice> device;
+  Devices::Input::PointerDeviceType deviceType;
 
-void
-MetroInput::TransformTouchEvent(WidgetTouchEvent* aEvent)
-{
-  nsTArray< nsRefPtr<dom::Touch> >& touches = aEvent->touches;
-  for (uint32_t i = 0; i < touches.Length(); ++i) {
-    dom::Touch* touch = touches[i];
-    if (touch) {
-      LayoutDeviceIntPoint lpt;
-      ScreenIntPoint spt;
-      spt.x = touch->mRefPoint.x;
-      spt.y = touch->mRefPoint.y;
-      mWidget->ApzTransformGeckoCoordinate(spt, &lpt);
-      touch->mRefPoint.x = lpt.x;
-      touch->mRefPoint.y = lpt.y;
-    }
+  aArgs->get_CurrentPoint(currentPoint.GetAddressOf());
+  currentPoint->get_PointerDevice(device.GetAddressOf());
+  device->get_PointerDeviceType(&deviceType);
+
+  // For mouse and pen input, simply call our helper function
+  if (deviceType !=
+          Devices::Input::PointerDeviceType::PointerDeviceType_Touch) {
+    OnPointerNonTouch(currentPoint.Get());
+    WRL::ComPtr<Foundation::Collections::IVector<UI::Input::PointerPoint*>>
+        pointerPoints;
+    aArgs->GetIntermediatePoints(pointerPoints.GetAddressOf());
+    mGestureRecognizer->ProcessMoveEvents(pointerPoints.Get());
+    return S_OK;
   }
+
+  // This is touch input.
+  // Get the touch associated with this touch point.
+  uint32_t pointerId;
+  currentPoint->get_PointerId(&pointerId);
+  nsRefPtr<Touch> touch = mTouches.Get(pointerId);
+
+  // Some old drivers cause us to receive a PointerMoved event for a touchId
+  // after we've already received a PointerReleased event for that touchId.
+  // To work around those busted drivers, we simply ignore TouchMoved events
+  // for touchIds that we are not currently tracking.  See bug 819223.
+  if (!touch) {
+    return S_OK;
+  }
+
+  // If we're modifying a touch entry that has a pending update, go through
+  // with the update.
+  if (touch->mChanged) {
+    DispatchPendingTouchEvent(true);
+  }
+
+  touch = CreateDOMTouch(currentPoint.Get());
+  touch->mChanged = true;
+  mTouches.Put(pointerId, touch);
+
+  // If this is the first touch move of our session, we should dispatch it
+  // and store our mTouchMoveDefaultPrevented value
+  if (mIsFirstTouchMove) {
+    nsEventStatus status;
+    DispatchPendingTouchEvent(status, true);
+    mTouchMoveDefaultPrevented = (nsEventStatus_eConsumeNoDefault == status);
+    mIsFirstTouchMove = false;
+  }
+
+  // We will perform default actions for touchmove events only if
+  // preventDefault was not called on the first touchmove event and
+  // preventDefault was not called on the first touchstart event.  Checking
+  // mTouchMoveDefaultPrevented is enough here because it will be set if
+  // mTouchStartDefaultPrevented is true.
+  if (!mTouchMoveDefaultPrevented) {
+    WRL::ComPtr<Foundation::Collections::IVector<UI::Input::PointerPoint*>>
+        pointerPoints;
+    aArgs->GetIntermediatePoints(pointerPoints.GetAddressOf());
+    mGestureRecognizer->ProcessMoveEvents(pointerPoints.Get());
+  }
+  return S_OK;
 }
 
 void
 MetroInput::InitGeckoMouseEventFromPointerPoint(
-                                  WidgetMouseEvent* aEvent,
-                                  UI::Input::IPointerPoint* aPointerPoint)
-{
+                                  nsMouseEvent& aEvent,
+                                  UI::Input::IPointerPoint* aPointerPoint) {
   NS_ASSERTION(aPointerPoint, "InitGeckoMouseEventFromPointerPoint "
                               "called with null PointerPoint!");
 
@@ -738,16 +583,19 @@ MetroInput::InitGeckoMouseEventFromPointerPoint(
   props->get_Pressure(&pressure);
   mGestureRecognizer->CanBeDoubleTap(aPointerPoint, &canBeDoubleTap);
 
-  TransformRefPoint(position, aEvent->refPoint);
+  mModifierKeyState.Update();
+  mModifierKeyState.InitInputEvent(aEvent);
+  aEvent.refPoint = LayoutDeviceIntPoint::FromUntyped(MetroUtils::LogToPhys(position));
+  aEvent.time = timestamp;
 
   if (!canBeDoubleTap) {
-    aEvent->clickCount = 1;
+    aEvent.clickCount = 1;
   } else {
-    aEvent->clickCount = 2;
+    aEvent.clickCount = 2;
   }
-  aEvent->pressure = pressure;
+  aEvent.pressure = pressure;
 
-  MozInputSourceFromDeviceType(deviceType, aEvent->inputSource);
+  MozInputSourceFromDeviceType(deviceType, aEvent.inputSource);
 }
 
 // This event is raised when a precise pointer moves into the bounding box of
@@ -772,15 +620,14 @@ MetroInput::OnPointerEntered(UI::Core::ICoreWindow* aSender,
   // We only dispatch mouseenter and mouseexit events for mouse and pen input.
   if (deviceType !=
           Devices::Input::PointerDeviceType::PointerDeviceType_Touch) {
-    WidgetMouseEvent* event =
-      new WidgetMouseEvent(true, NS_MOUSE_ENTER, mWidget.Get(),
-                           WidgetMouseEvent::eReal, WidgetMouseEvent::eNormal);
-    UpdateInputLevel(LEVEL_PRECISE);
-    InitGeckoMouseEventFromPointerPoint(event, currentPoint.Get());
-    DispatchAsyncEventIgnoreStatus(event);
-    return S_OK;
+    nsMouseEvent mouseEvent(true,
+                            NS_MOUSE_ENTER,
+                            mWidget.Get(),
+                            nsMouseEvent::eReal,
+                            nsMouseEvent::eNormal);
+    InitGeckoMouseEventFromPointerPoint(mouseEvent, currentPoint.Get());
+    DispatchEventIgnoreStatus(&mouseEvent);
   }
-  UpdateInputLevel(LEVEL_IMPRECISE);
   return S_OK;
 }
 
@@ -806,15 +653,122 @@ MetroInput::OnPointerExited(UI::Core::ICoreWindow* aSender,
   // We only dispatch mouseenter and mouseexit events for mouse and pen input.
   if (deviceType !=
           Devices::Input::PointerDeviceType::PointerDeviceType_Touch) {
-    WidgetMouseEvent* event =
-      new WidgetMouseEvent(true, NS_MOUSE_EXIT, mWidget.Get(),
-                           WidgetMouseEvent::eReal, WidgetMouseEvent::eNormal);
-    UpdateInputLevel(LEVEL_PRECISE);
-    InitGeckoMouseEventFromPointerPoint(event, currentPoint.Get());
-    DispatchAsyncEventIgnoreStatus(event);
-    return S_OK;
+    nsMouseEvent mouseEvent(true,
+                            NS_MOUSE_EXIT,
+                            mWidget.Get(),
+                            nsMouseEvent::eReal,
+                            nsMouseEvent::eNormal);
+    InitGeckoMouseEventFromPointerPoint(mouseEvent, currentPoint.Get());
+    DispatchEventIgnoreStatus(&mouseEvent);
   }
-  UpdateInputLevel(LEVEL_IMPRECISE);
+  return S_OK;
+}
+
+/**
+ * This helper function is called by our processing of "manipulation events".
+ * Manipulation events are how Windows sends us information about swipes,
+ * magnification gestures, and rotation gestures.
+ *
+ * @param aDelta the gesture change since the last update
+ * @param aPosition the position at which the gesture is taking place
+ * @param aMagEventType the event type of the gecko magnification gesture to
+ *                      send
+ * @param aRotEventType the event type of the gecko rotation gesture to send
+ */
+void
+MetroInput::ProcessManipulationDelta(
+                            UI::Input::ManipulationDelta const& aDelta,
+                            Foundation::Point const& aPosition,
+                            uint32_t aMagEventType,
+                            uint32_t aRotEventType) {
+  // If we ONLY have translation (no rotation, no expansion), then this
+  // gesture isn't a two-finger gesture.  We ignore it here, since the only
+  // thing it could eventually be is a swipe, and we deal with swipes in
+  // OnManipulationCompleted.
+  if ((aDelta.Translation.X != 0.0f
+    || aDelta.Translation.Y != 0.0f)
+   && (aDelta.Rotation == 0.0f
+    && aDelta.Expansion == 0.0f)) {
+    return;
+  }
+
+  // Send a gecko event indicating the magnification since the last update.
+  nsSimpleGestureEvent magEvent(true,
+                                aMagEventType,
+                                mWidget.Get(), 0, 0.0);
+  magEvent.delta = aDelta.Expansion;
+  mModifierKeyState.Update();
+  mModifierKeyState.InitInputEvent(magEvent);
+  magEvent.time = ::GetMessageTime();
+  magEvent.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
+  magEvent.refPoint = LayoutDeviceIntPoint::FromUntyped(MetroUtils::LogToPhys(aPosition));
+  DispatchEventIgnoreStatus(&magEvent);
+
+  // Send a gecko event indicating the rotation since the last update.
+  nsSimpleGestureEvent rotEvent(true,
+                                aRotEventType,
+                                mWidget.Get(), 0, 0.0);
+  rotEvent.delta = aDelta.Rotation;
+  mModifierKeyState.Update();
+  mModifierKeyState.InitInputEvent(rotEvent);
+  rotEvent.time = ::GetMessageTime();
+  rotEvent.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
+  rotEvent.refPoint = LayoutDeviceIntPoint::FromUntyped(MetroUtils::LogToPhys(aPosition));
+  if (rotEvent.delta >= 0) {
+    rotEvent.direction = nsIDOMSimpleGestureEvent::ROTATION_COUNTERCLOCKWISE;
+  } else {
+    rotEvent.direction = nsIDOMSimpleGestureEvent::ROTATION_CLOCKWISE;
+  }
+  DispatchEventIgnoreStatus(&rotEvent);
+}
+
+// This event is raised when a gesture is detected to have started.  The
+// data that is in "aArgs->Cumulative" represents the initial update, so
+// it is equivalent to what we will receive later during ManipulationUpdated
+// events.
+HRESULT
+MetroInput::OnManipulationStarted(
+                      UI::Input::IGestureRecognizer* aSender,
+                      UI::Input::IManipulationStartedEventArgs* aArgs)
+{
+#ifdef DEBUG_INPUT
+  LogFunction();
+#endif
+  UI::Input::ManipulationDelta delta;
+  Foundation::Point position;
+
+  aArgs->get_Cumulative(&delta);
+  aArgs->get_Position(&position);
+
+  ProcessManipulationDelta(delta,
+                           position,
+                           NS_SIMPLE_GESTURE_MAGNIFY_START,
+                           NS_SIMPLE_GESTURE_ROTATE_START);
+  return S_OK;
+}
+
+// This event is raised to inform us of changes in the gesture
+// that is occurring.  We simply pass "aArgs->Delta" (which gives us the
+// changes since the last update or start event), and "aArgs->Position"
+// to our helper function.
+HRESULT
+MetroInput::OnManipulationUpdated(
+                        UI::Input::IGestureRecognizer* aSender,
+                        UI::Input::IManipulationUpdatedEventArgs* aArgs)
+{
+#ifdef DEBUG_INPUT
+  LogFunction();
+#endif
+  UI::Input::ManipulationDelta delta;
+  Foundation::Point position;
+
+  aArgs->get_Delta(&delta);
+  aArgs->get_Position(&position);
+
+  ProcessManipulationDelta(delta,
+                           position,
+                           NS_SIMPLE_GESTURE_MAGNIFY_UPDATE,
+                           NS_SIMPLE_GESTURE_ROTATE_UPDATE);
   return S_OK;
 }
 
@@ -835,22 +789,38 @@ MetroInput::OnManipulationCompleted(
   LogFunction();
 #endif
 
+  UI::Input::ManipulationDelta delta;
+  Foundation::Point position;
   Devices::Input::PointerDeviceType deviceType;
+
+  aArgs->get_Position(&position);
+  aArgs->get_Cumulative(&delta);
   aArgs->get_PointerDeviceType(&deviceType);
-  if (deviceType ==
+
+  // Send the "finished" events.  Note that we are setting
+  // delta to the cumulative ManipulationDelta.
+  ProcessManipulationDelta(delta,
+                           position,
+                           NS_SIMPLE_GESTURE_MAGNIFY,
+                           NS_SIMPLE_GESTURE_ROTATE);
+
+  // If any rotation or expansion has occurred, we know we're not dealing
+  // with a swipe gesture, so let's bail early.  Also, the GestureRecognizer
+  // will send us Manipulation events even for mouse input under certain
+  // conditions.  I was able to initiate swipe events consistently by
+  // clicking as I threw the mouse from one side of the screen to the other.
+  // Thus the check for mouse input here.
+  if (delta.Rotation != 0.0f
+   || delta.Expansion != 0.0f
+   || deviceType ==
               Devices::Input::PointerDeviceType::PointerDeviceType_Mouse) {
     return S_OK;
   }
 
-  UI::Input::ManipulationDelta delta;
-  Foundation::Point position;
-
-  aArgs->get_Position(&position);
-  aArgs->get_Cumulative(&delta);
-
-  // We check that the distance the user's finger traveled and the
-  // velocity with which it traveled exceed our thresholds for
-  // classifying the movement as a swipe.
+  // No rotation or expansion occurred, so it is possible that we have a
+  // swipe gesture.  We must check that the distance the user's finger
+  // traveled and the velocity with which it traveled exceed our thresholds
+  // for classifying the movement as a swipe.
   UI::Input::ManipulationVelocities velocities;
   aArgs->get_Velocities(&velocities);
 
@@ -869,29 +839,33 @@ MetroInput::OnManipulationCompleted(
   }
 
   if (isHorizontalSwipe) {
-    WidgetSimpleGestureEvent* swipeEvent =
-      new WidgetSimpleGestureEvent(true, NS_SIMPLE_GESTURE_SWIPE,
-                                   mWidget.Get(), 0, 0.0);
-    swipeEvent->direction = delta.Translation.X > 0
+    nsSimpleGestureEvent swipeEvent(true, NS_SIMPLE_GESTURE_SWIPE,
+                                    mWidget.Get(), 0, 0.0);
+    swipeEvent.direction = delta.Translation.X > 0
                          ? nsIDOMSimpleGestureEvent::DIRECTION_RIGHT
                          : nsIDOMSimpleGestureEvent::DIRECTION_LEFT;
-    swipeEvent->delta = delta.Translation.X;
-    swipeEvent->inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
-    swipeEvent->refPoint = LayoutDeviceIntPoint::FromUntyped(MetroUtils::LogToPhys(position));
-    DispatchAsyncEventIgnoreStatus(swipeEvent);
+    swipeEvent.delta = delta.Translation.X;
+    mModifierKeyState.Update();
+    mModifierKeyState.InitInputEvent(swipeEvent);
+    swipeEvent.time = ::GetMessageTime();
+    swipeEvent.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
+    swipeEvent.refPoint = LayoutDeviceIntPoint::FromUntyped(MetroUtils::LogToPhys(position));
+    DispatchEventIgnoreStatus(&swipeEvent);
   }
 
   if (isVerticalSwipe) {
-    WidgetSimpleGestureEvent* swipeEvent =
-      new WidgetSimpleGestureEvent(true, NS_SIMPLE_GESTURE_SWIPE,
-                                   mWidget.Get(), 0, 0.0);
-    swipeEvent->direction = delta.Translation.Y > 0
+    nsSimpleGestureEvent swipeEvent(true, NS_SIMPLE_GESTURE_SWIPE,
+                                    mWidget.Get(), 0, 0.0);
+    swipeEvent.direction = delta.Translation.Y > 0
                          ? nsIDOMSimpleGestureEvent::DIRECTION_DOWN
                          : nsIDOMSimpleGestureEvent::DIRECTION_UP;
-    swipeEvent->delta = delta.Translation.Y;
-    swipeEvent->inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
-    swipeEvent->refPoint = LayoutDeviceIntPoint::FromUntyped(MetroUtils::LogToPhys(position));
-    DispatchAsyncEventIgnoreStatus(swipeEvent);
+    swipeEvent.delta = delta.Translation.Y;
+    mModifierKeyState.Update();
+    mModifierKeyState.InitInputEvent(swipeEvent);
+    swipeEvent.time = ::GetMessageTime();
+    swipeEvent.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
+    swipeEvent.refPoint = LayoutDeviceIntPoint::FromUntyped(MetroUtils::LogToPhys(position));
+    DispatchEventIgnoreStatus(&swipeEvent);
   }
 
   return S_OK;
@@ -911,9 +885,6 @@ MetroInput::OnTapped(UI::Input::IGestureRecognizer* aSender,
   Devices::Input::PointerDeviceType deviceType;
   aArgs->get_PointerDeviceType(&deviceType);
 
-  unsigned int tapCount;
-  aArgs->get_TapCount(&tapCount);
-
   // For mouse and pen input, we send mousedown/mouseup/mousemove
   // events as soon as we detect the input event.  For touch input, a set of
   // mousedown/mouseup events will be sent only once a tap has been detected.
@@ -923,7 +894,8 @@ MetroInput::OnTapped(UI::Input::IGestureRecognizer* aSender,
 
   Foundation::Point position;
   aArgs->get_Position(&position);
-  HandleTap(position, tapCount);
+  HandleSingleTap(
+    LayoutDeviceIntPoint::FromUntyped(MetroUtils::LogToPhys(position)));
   return S_OK;
 }
 
@@ -944,68 +916,96 @@ MetroInput::OnRightTapped(UI::Input::IGestureRecognizer* aSender,
 
   Foundation::Point position;
   aArgs->get_Position(&position);
-  HandleLongTap(position);
+  HandleLongTap(
+    LayoutDeviceIntPoint::FromUntyped(MetroUtils::LogToPhys(position)));
 
   return S_OK;
 }
 
+// Used by MetroWidget GeckoContentController callbacks
 void
-MetroInput::HandleTap(const Foundation::Point& aPoint, unsigned int aTapCount)
+MetroInput::HandleDoubleTap(const LayoutDeviceIntPoint& aPoint)
 {
 #ifdef DEBUG_INPUT
   LogFunction();
 #endif
-
-  LayoutDeviceIntPoint refPoint;
-  TransformRefPoint(aPoint, refPoint);
-
-  WidgetMouseEvent* mouseEvent =
-    new WidgetMouseEvent(true, NS_MOUSE_MOVE, mWidget.Get(),
-                         WidgetMouseEvent::eReal, WidgetMouseEvent::eNormal);
-  mouseEvent->refPoint = refPoint;
-  mouseEvent->clickCount = aTapCount;
-  mouseEvent->inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
-  DispatchAsyncEventIgnoreStatus(mouseEvent);
-
-  mouseEvent =
-    new WidgetMouseEvent(true, NS_MOUSE_BUTTON_DOWN, mWidget.Get(),
-                         WidgetMouseEvent::eReal, WidgetMouseEvent::eNormal);
-  mouseEvent->refPoint = refPoint;
-  mouseEvent->clickCount = aTapCount;
-  mouseEvent->inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
-  mouseEvent->button = WidgetMouseEvent::buttonType::eLeftButton;
-  DispatchAsyncEventIgnoreStatus(mouseEvent);
-
-  mouseEvent =
-    new WidgetMouseEvent(true, NS_MOUSE_BUTTON_UP, mWidget.Get(),
-                         WidgetMouseEvent::eReal, WidgetMouseEvent::eNormal);
-  mouseEvent->refPoint = refPoint;
-  mouseEvent->clickCount = aTapCount;
-  mouseEvent->inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
-  mouseEvent->button = WidgetMouseEvent::buttonType::eLeftButton;
-  DispatchAsyncEventIgnoreStatus(mouseEvent);
-
-  // Make sure all gecko events are dispatched and the dom is up to date
-  // so that when ui automation comes in looking for focus info it gets
-  // the right information.
-  MetroAppShell::MarkEventQueueForPurge();
+  nsSimpleGestureEvent geckoEvent(true, NS_SIMPLE_GESTURE_TAP, mWidget.Get(), 0, 0.0);
+  mModifierKeyState.Update();
+  mModifierKeyState.InitInputEvent(geckoEvent);
+  geckoEvent.time = ::GetMessageTime();
+  geckoEvent.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
+  geckoEvent.refPoint = aPoint;
+  geckoEvent.clickCount = 2;
+  geckoEvent.pressure = 1;
+  DispatchEventIgnoreStatus(&geckoEvent);
 }
 
 void
-MetroInput::HandleLongTap(const Foundation::Point& aPoint)
+MetroInput::HandleSingleTap(const LayoutDeviceIntPoint& aPoint)
 {
 #ifdef DEBUG_INPUT
   LogFunction();
 #endif
-  LayoutDeviceIntPoint refPoint;
-  TransformRefPoint(aPoint, refPoint);
 
-  WidgetMouseEvent* contextEvent =
-    new WidgetMouseEvent(true, NS_CONTEXTMENU, mWidget.Get(),
-                         WidgetMouseEvent::eReal, WidgetMouseEvent::eNormal);
-  contextEvent->refPoint = refPoint;
-  contextEvent->inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
-  DispatchAsyncEventIgnoreStatus(contextEvent);
+  // Set up the mouse event that we'll reuse for mousemove, mousedown, and
+  // mouseup
+  nsMouseEvent mouseEvent(true,
+                          NS_MOUSE_MOVE,
+                          mWidget.Get(),
+                          nsMouseEvent::eReal,
+                          nsMouseEvent::eNormal);
+  mModifierKeyState.Update();
+  mModifierKeyState.InitInputEvent(mouseEvent);
+  mouseEvent.refPoint = aPoint;
+  mouseEvent.time = ::GetMessageTime();
+  mouseEvent.clickCount = 1;
+  mouseEvent.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
+
+  // Send the mousemove
+  DispatchEventIgnoreStatus(&mouseEvent);
+
+  // Send the mousedown
+  mouseEvent.message = NS_MOUSE_BUTTON_DOWN;
+  mouseEvent.button = nsMouseEvent::buttonType::eLeftButton;
+  DispatchEventIgnoreStatus(&mouseEvent);
+
+  // Send the mouseup
+  mouseEvent.message = NS_MOUSE_BUTTON_UP;
+  DispatchEventIgnoreStatus(&mouseEvent);
+
+  // Send one more mousemove to avoid getting a hover state.
+  // In the Metro environment for any application, a tap does not imply a
+  // mouse cursor move.  In desktop environment for any application a tap
+  // does imply a cursor move.
+  POINT point;
+  if (GetCursorPos(&point)) {
+    ScreenToClient((HWND)mWidget->GetNativeData(NS_NATIVE_WINDOW), &point);
+    mouseEvent.refPoint = LayoutDeviceIntPoint(point.x, point.y);
+    mouseEvent.message = NS_MOUSE_MOVE;
+    mouseEvent.button = 0;
+    DispatchEventIgnoreStatus(&mouseEvent);
+  }
+
+}
+
+void
+MetroInput::HandleLongTap(const LayoutDeviceIntPoint& aPoint)
+{
+#ifdef DEBUG_INPUT
+  LogFunction();
+#endif
+
+  nsMouseEvent contextMenu(true,
+                           NS_CONTEXTMENU,
+                           mWidget.Get(),
+                           nsMouseEvent::eReal,
+                           nsMouseEvent::eNormal);
+  mModifierKeyState.Update();
+  mModifierKeyState.InitInputEvent(contextMenu);
+  contextMenu.refPoint = aPoint;
+  contextMenu.time = ::GetMessageTime();
+  contextMenu.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
+  DispatchEventIgnoreStatus(&contextMenu);
 }
 
 /**
@@ -1013,283 +1013,37 @@ MetroInput::HandleLongTap(const Foundation::Point& aPoint)
  */
 nsEventStatus MetroInput::sThrowawayStatus;
 
+// This function allows us to call MetroWidget's DispatchEvent function
+// without passing in a status.  It uses a static nsEventStatus whose value
+// is never read.  This allows us to avoid the (admittedly small) overhead
+// of creating a new nsEventStatus every time we dispatch an event.
 void
-MetroInput::DispatchAsyncEventIgnoreStatus(WidgetInputEvent* aEvent)
-{
-  aEvent->time = ::GetMessageTime();
-  mModifierKeyState.Update();
-  mModifierKeyState.InitInputEvent(*aEvent);
-  mInputEventQueue.Push(aEvent);
-  nsCOMPtr<nsIRunnable> runnable =
-    NS_NewRunnableMethod(this, &MetroInput::DeliverNextQueuedEventIgnoreStatus);
-  NS_DispatchToCurrentThread(runnable);
-}
-
-void
-MetroInput::DeliverNextQueuedEventIgnoreStatus()
-{
-  nsAutoPtr<WidgetGUIEvent> event =
-    static_cast<WidgetGUIEvent*>(mInputEventQueue.PopFront());
-  MOZ_ASSERT(event.get());
-  DispatchEventIgnoreStatus(event.get());
-
-  // Let app shell know we've delivered that last input we wanted purged
-  // via a call to MarkEventQueueForPurge().
-  if (event->message == NS_MOUSE_BUTTON_UP) {
-    MetroAppShell::InputEventsDispatched();
-  }
-
-  // Clear :hover/:active states for mouse events generated by HandleTap
-  WidgetMouseEvent* mouseEvent = event.get()->AsMouseEvent();
-  if (!mouseEvent) {
-    return;
-  }
-  if (mouseEvent->message != NS_MOUSE_BUTTON_UP ||
-      mouseEvent->inputSource != nsIDOMMouseEvent::MOZ_SOURCE_TOUCH) {
-    return;
-  }
-  nsCOMPtr<nsIPresShell> presShell = mWidget->GetPresShell();
-  if (presShell) {
-    nsEventStateManager* esm = presShell->GetPresContext()->EventStateManager();
-    if (esm) {
-      esm->SetContentState(nullptr, NS_EVENT_STATE_HOVER);
-    }
-  }
-}
-
-void
-MetroInput::DispatchAsyncTouchEvent(WidgetTouchEvent* aEvent)
-{
-  aEvent->time = ::GetMessageTime();
-  mModifierKeyState.Update();
-  mModifierKeyState.InitInputEvent(*aEvent);
-  mInputEventQueue.Push(aEvent);
-  nsCOMPtr<nsIRunnable> runnable =
-    NS_NewRunnableMethod(this, &MetroInput::DeliverNextQueuedTouchEvent);
-  NS_DispatchToCurrentThread(runnable);
-}
-
-static void DumpTouchIds(const char* aTarget, WidgetTouchEvent* aEvent)
-{
-  // comment out for touch moves
-  if (aEvent->message == NS_TOUCH_MOVE) {
-    return;
-  }
-  switch(aEvent->message) {
-    case NS_TOUCH_START:
-    WinUtils::Log("DumpTouchIds: NS_TOUCH_START block");
-    break;
-    case NS_TOUCH_MOVE:
-    WinUtils::Log("DumpTouchIds: NS_TOUCH_MOVE block");
-    break;
-    case NS_TOUCH_END:
-    WinUtils::Log("DumpTouchIds: NS_TOUCH_END block");
-    break;
-    case NS_TOUCH_CANCEL:
-    WinUtils::Log("DumpTouchIds: NS_TOUCH_CANCEL block");
-    break;
-  }
-  nsTArray< nsRefPtr<dom::Touch> >& touches = aEvent->touches;
-  for (uint32_t i = 0; i < touches.Length(); ++i) {
-    dom::Touch* touch = touches[i];
-    if (!touch) {
-      continue;
-    }
-    int32_t id = touch->Identifier();
-    WinUtils::Log("   id=%d target=%s", id, aTarget);
-  }
-}
-
-/*
- * nsPreShell's processing of WidgetTouchEvent events:
- *
- * NS_TOUCH_START:
- *  Interprets a single touch point as the first touch point of a block and will reset its
- *  queue when it receives this. For multiple touch points it sets all points in its queue
- *  and marks new points as changed.
- * NS_TOUCH_MOVE:
- *  Uses the equality tests in dom::Touch to test if a touch point has changed (moved).
- *  If a point has moved, keeps this touch point in the event, otherwise it removes
- *  the touch point. Note if no points have changed, it exits without sending a dom event.
- * NS_TOUCH_CANCEL/NS_TOUCH_END
- *  Assumes any point in touchEvent->touches has been removed or canceled.
-*/
-
-//#define DUMP_TOUCH_IDS(aTarget, aEvent) DumpTouchIds(aTarget, aEvent)
-#define DUMP_TOUCH_IDS(...)
-
-void
-MetroInput::DeliverNextQueuedTouchEvent()
-{
-  nsEventStatus status;
-  WidgetTouchEvent* event =
-    static_cast<WidgetTouchEvent*>(mInputEventQueue.PopFront());
-  MOZ_ASSERT(event);
-
-  AutoDeleteEvent wrap(event);
-
-  /*
-   * We go through states here and make different decisions in each:
-   *
-   * 1) Hit test chrome on first touchstart
-   *  If chrome is the target simplify event delivery from that point
-   *  on by directing all input to chrome, bypassing the apz.
-   * 2) Process first touchpoint touchstart and touchmove
-   *  Check the result and set mContentConsumingTouch appropriately. Deliver
-   *  touch events to the apz (ignoring return result) and to content.
-   * 3) If mContentConsumingTouch is true: deliver touch to content after
-   *  transforming through the apz. Also let the apz know content is
-   *  consuming touch.
-   * 4) If mContentConsumingTouch is false: check the result from the apz and
-   *  set mApzConsumingTouch appropriately.
-   * 5) If mApzConsumingTouch is true: send a touchcancel to content
-   *  and deliver all events to the apz. If the apz is doing something with
-   *  the events we can save ourselves the overhead of delivering dom events.
-   *
-   * Notes:
-   * - never rely on the contents of mTouches here, since this is a delayed
-   *   callback. mTouches will likely have been modified.
-   */
-
-  // Test for chrome vs. content target. To do this we only use the first touch
-  // point since that will be the input batch target. Cache this for touch events
-  // since HitTestChrome has to send a dom event.
-  if (mCancelable && event->message == NS_TOUCH_START) {
-    nsRefPtr<Touch> touch = event->touches[0];
-    LayoutDeviceIntPoint pt = LayoutDeviceIntPoint::FromUntyped(touch->mRefPoint);
-    bool apzIntersect = mWidget->ApzHitTest(mozilla::ScreenIntPoint(pt.x, pt.y));
-    mChromeHitTestCacheForTouch = (apzIntersect && HitTestChrome(pt));
-  }
-
-  // If this event is destined for chrome, deliver it directly there bypassing
-  // the apz.
-  if (mChromeHitTestCacheForTouch) {
-    DUMP_TOUCH_IDS("DOM(1)", event);
-    mWidget->DispatchEvent(event, status);
-    if (mCancelable) {
-      // Disable gesture based events (taps, swipes, rotation) if
-      // preventDefault is called on touchstart.
-      if (nsEventStatus_eConsumeNoDefault == status) {
-        mRecognizerWantsEvents = false;
-        mGestureRecognizer->CompleteGesture();
-      }
-      if (event->message == NS_TOUCH_MOVE) {
-        mCancelable = false;
-      }
-    }
-    return;
-  }
-
-  // If we have yet to deliver the first touch start and touch move, deliver the
-  // event to both content and the apz. Ignore the apz's return result since we
-  // give content the option of saying it wants to consume touch for both events.
-  if (mCancelable) {
-    WidgetTouchEvent transformedEvent(*event);
-    DUMP_TOUCH_IDS("APZC(1)", event);
-    mWidget->ApzReceiveInputEvent(event, &mTargetAPZCGuid, &transformedEvent);
-    DUMP_TOUCH_IDS("DOM(2)", event);
-    mWidget->DispatchEvent(&transformedEvent, status);
-    if (event->message == NS_TOUCH_START) {
-      mContentConsumingTouch = (nsEventStatus_eConsumeNoDefault == status);
-      // If we know content wants touch here, we can bail early on mCancelable
-      // processing. This insures the apz gets an update when the user touches
-      // the screen, but doesn't move soon after.
-      if (mContentConsumingTouch) {
-        mCancelable = false;
-        mWidget->ApzContentConsumingTouch(mTargetAPZCGuid);
-        DispatchTouchCancel(event);
-      }
-      // Disable gesture based events (taps, swipes, rotation) if
-      // preventDefault is called on touchstart.
-      mRecognizerWantsEvents = !(nsEventStatus_eConsumeNoDefault == status);
-    } else if (event->message == NS_TOUCH_MOVE) {
-      mCancelable = false;
-      // Add this result to to our content comsuming flag
-      if (!mContentConsumingTouch) {
-        mContentConsumingTouch = (nsEventStatus_eConsumeNoDefault == status);
-      }
-      // Let the apz know if content wants to consume touch events, or cancel
-      // the touch block for content.
-      if (mContentConsumingTouch) {
-        mWidget->ApzContentConsumingTouch(mTargetAPZCGuid);
-        DispatchTouchCancel(event);
-      } else {
-        mWidget->ApzContentIgnoringTouch(mTargetAPZCGuid);
-      }
-    }
-    // If content is consuming touch don't generate any gesture based
-    // input - clear the recognizer state without sending any events.
-    if (!ShouldDeliverInputToRecognizer()) {
-      mGestureRecognizer->CompleteGesture();
-    }
-    return;
-  }
-
-  // If content is consuming touch, we may need to transform event coords
-  // through the apzc before sending to the dom. Otherwise send the event
-  // to apzc.
-  if (mContentConsumingTouch) {
-    // Only translate if we're dealing with web content that's transformed
-    // by the apzc.
-    TransformTouchEvent(event);
-    DUMP_TOUCH_IDS("DOM(3)", event);
-    mWidget->DispatchEvent(event, status);
-    return;
-  }
-
-  DUMP_TOUCH_IDS("APZC(2)", event);
-  status = mWidget->ApzReceiveInputEvent(event, nullptr);
-
-  // Send the event to content unless APZC is consuming it.
-  if (!mApzConsumingTouch) {
-    if (status == nsEventStatus_eConsumeNoDefault) {
-      mApzConsumingTouch = true;
-      DispatchTouchCancel(event);
-      return;
-    }
-    TransformTouchEvent(event);
-    DUMP_TOUCH_IDS("DOM(4)", event);
-    mWidget->DispatchEvent(event, status);
-  }
-}
-
-void
-MetroInput::DispatchTouchCancel(WidgetTouchEvent* aEvent)
-{
-  MOZ_ASSERT(aEvent);
-  // Send a touchcancel for each pointer id we have a corresponding start
-  // for. Note we can't rely on mTouches here since touchends remove points
-  // from it.
-  WidgetTouchEvent touchEvent(true, NS_TOUCH_CANCEL, mWidget.Get());
-  nsTArray< nsRefPtr<dom::Touch> >& touches = aEvent->touches;
-  for (uint32_t i = 0; i < touches.Length(); ++i) {
-    dom::Touch* touch = touches[i];
-    if (!touch) {
-      continue;
-    }
-    int32_t id = touch->Identifier();
-    if (mCanceledIds.Contains(id)) {
-      continue;
-    }
-    mCanceledIds.AppendElement(id);
-    touchEvent.touches.AppendElement(touch);
-  }
-  if (!touchEvent.touches.Length()) {
-    return;
-  }
-  if (mContentConsumingTouch) {
-    DUMP_TOUCH_IDS("APZC(3)", &touchEvent);
-    mWidget->ApzReceiveInputEvent(&touchEvent, nullptr);
-  } else {
-    DUMP_TOUCH_IDS("DOM(5)", &touchEvent);
-    mWidget->DispatchEvent(&touchEvent, sThrowawayStatus);
-  }
-}
-
-void
-MetroInput::DispatchEventIgnoreStatus(WidgetGUIEvent *aEvent)
-{
+MetroInput::DispatchEventIgnoreStatus(nsGUIEvent *aEvent) {
   mWidget->DispatchEvent(aEvent, sThrowawayStatus);
+}
+
+void
+MetroInput::DispatchPendingTouchEvent(nsEventStatus& aStatus, bool aDispatchToAPZC) {
+  mTouchEvent.touches.Clear();
+  mTouches.Enumerate(&AppendToTouchList,
+                     static_cast<void*>(&mTouchEvent.touches));
+  mTouchEvent.time = ::GetMessageTime();
+  mModifierKeyState.Update();
+  mModifierKeyState.InitInputEvent(mTouchEvent);
+
+  mWidget->DispatchEvent(&mTouchEvent, aStatus);
+  if (aStatus != nsEventStatus_eConsumeNoDefault && aDispatchToAPZC && MetroWidget::sAPZC) {
+    MultiTouchInput inputData(mTouchEvent);
+    aStatus = MetroWidget::sAPZC->ReceiveInputEvent(inputData);
+  }
+
+  // mTouchEvent.message should always be set to NS_TOUCH_MOVE
+  mTouchEvent.message = NS_TOUCH_MOVE;
+}
+
+void
+MetroInput::DispatchPendingTouchEvent(bool aDispatchToAPZC) {
+  DispatchPendingTouchEvent(sThrowawayStatus, aDispatchToAPZC);
 }
 
 void
@@ -1319,6 +1073,8 @@ MetroInput::UnregisterInputEvents() {
   // Unregistering from the gesture recognizer events probably isn't as
   // necessary since we're about to destroy the gesture recognizer, but
   // it can't hurt.
+  mGestureRecognizer->remove_ManipulationStarted(mTokenManipulationStarted);
+  mGestureRecognizer->remove_ManipulationUpdated(mTokenManipulationUpdated);
   mGestureRecognizer->remove_ManipulationCompleted(
                                         mTokenManipulationCompleted);
   mGestureRecognizer->remove_Tapped(mTokenTapped);
@@ -1331,6 +1087,8 @@ MetroInput::RegisterInputEvents()
   NS_ASSERTION(mWindow, "Must have a window to register for input events!");
   NS_ASSERTION(mGestureRecognizer,
                "Must have a GestureRecognizer for input events!");
+  NS_ASSERTION(mDispatcher,
+               "Must have a CoreDispatcher to register for input events!");
   // Register for edge swipe
   WRL::ComPtr<UI::Input::IEdgeGestureStatics> edgeStatics;
   Foundation::GetActivationFactory(
@@ -1367,7 +1125,9 @@ MetroInput::RegisterInputEvents()
           | UI::Input::GestureSettings::GestureSettings_RightTap
           | UI::Input::GestureSettings::GestureSettings_Hold
           | UI::Input::GestureSettings::GestureSettings_ManipulationTranslateX
-          | UI::Input::GestureSettings::GestureSettings_ManipulationTranslateY);
+          | UI::Input::GestureSettings::GestureSettings_ManipulationTranslateY
+          | UI::Input::GestureSettings::GestureSettings_ManipulationScale
+          | UI::Input::GestureSettings::GestureSettings_ManipulationRotate);
 
   // Register for the pointer events on our Window
   mWindow->add_PointerPressed(
@@ -1412,6 +1172,18 @@ MetroInput::RegisterInputEvents()
         this,
         &MetroInput::OnRightTapped).Get(),
       &mTokenRightTapped);
+
+  mGestureRecognizer->add_ManipulationStarted(
+      WRL::Callback<ManipulationStartedEventHandler>(
+       this,
+       &MetroInput::OnManipulationStarted).Get(),
+     &mTokenManipulationStarted);
+
+  mGestureRecognizer->add_ManipulationUpdated(
+      WRL::Callback<ManipulationUpdatedEventHandler>(
+        this,
+        &MetroInput::OnManipulationUpdated).Get(),
+      &mTokenManipulationUpdated);
 
   mGestureRecognizer->add_ManipulationCompleted(
       WRL::Callback<ManipulationCompletedEventHandler>(

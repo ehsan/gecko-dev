@@ -13,7 +13,7 @@
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsDebug.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 
 #define BEGIN_WORKERS_NAMESPACE \
   namespace mozilla { namespace dom { namespace workers {
@@ -95,12 +95,11 @@ struct JSSettings
   // Settings that change based on chrome/content context.
   struct JSContentChromeSettings
   {
-    JS::ContextOptions contextOptions;
-    JS::CompartmentOptions compartmentOptions;
+    uint32_t options;
     int32_t maxScriptRuntime;
 
     JSContentChromeSettings()
-    : contextOptions(), compartmentOptions(), maxScriptRuntime(0)
+    : options(0), maxScriptRuntime(0)
     { }
   };
 
@@ -163,71 +162,53 @@ struct JSSettings
   }
 };
 
-enum WorkerPreference
-{
-  WORKERPREF_DUMP = 0, // browser.dom.window.dump.enabled
-  WORKERPREF_PROMISE,  // dom.promise.enabled
-  WORKERPREF_COUNT
-};
-
 // All of these are implemented in RuntimeService.cpp
 bool
 ResolveWorkerClasses(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aId,
                      unsigned aFlags, JS::MutableHandle<JSObject*> aObjp);
 
 void
-CancelWorkersForWindow(nsPIDOMWindow* aWindow);
+CancelWorkersForWindow(JSContext* aCx, nsPIDOMWindow* aWindow);
 
 void
-SuspendWorkersForWindow(nsPIDOMWindow* aWindow);
+SuspendWorkersForWindow(JSContext* aCx, nsPIDOMWindow* aWindow);
 
 void
-ResumeWorkersForWindow(nsPIDOMWindow* aWindow);
+ResumeWorkersForWindow(nsIScriptContext* aCx, nsPIDOMWindow* aWindow);
 
-class WorkerTask
-{
-protected:
-  WorkerTask()
-  { }
-
-  virtual ~WorkerTask()
-  { }
-
+class WorkerTask {
 public:
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(WorkerTask)
+    NS_INLINE_DECL_THREADSAFE_REFCOUNTING(WorkerTask)
 
-  virtual bool
-  RunTask(JSContext* aCx) = 0;
+    virtual ~WorkerTask() { }
+
+    virtual bool RunTask(JSContext* aCx) = 0;
 };
 
-class WorkerCrossThreadDispatcher
-{
-   friend class WorkerPrivate;
-
-  // Must be acquired *before* the WorkerPrivate's mutex, when they're both
-  // held.
-  Mutex mMutex;
-  WorkerPrivate* mWorkerPrivate;
-
-private:
-  // Only created by WorkerPrivate.
-  WorkerCrossThreadDispatcher(WorkerPrivate* aWorkerPrivate);
-
-  // Only called by WorkerPrivate.
-  void
-  Forget()
-  {
-    MutexAutoLock lock(mMutex);
-    mWorkerPrivate = nullptr;
-  }
-
+class WorkerCrossThreadDispatcher {
 public:
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(WorkerCrossThreadDispatcher)
 
-  // Generically useful function for running a bit of C++ code on the worker
-  // thread.
-  bool
-  PostTask(WorkerTask* aTask);
+  WorkerCrossThreadDispatcher(WorkerPrivate* aPrivate) :
+    mMutex("WorkerCrossThreadDispatcher"), mPrivate(aPrivate) {}
+  void Forget()
+  {
+    mozilla::MutexAutoLock lock(mMutex);
+    mPrivate = nullptr;
+  }
+
+  /**
+   * Generically useful function for running a bit of C++ code on the worker
+   * thread.
+   */
+  bool PostTask(WorkerTask* aTask);
+
+protected:
+  friend class WorkerPrivate;
+
+  // Must be acquired *before* the WorkerPrivate's mutex, when they're both held.
+  mozilla::Mutex mMutex;
+  WorkerPrivate* mPrivate;
 };
 
 WorkerCrossThreadDispatcher*
@@ -243,14 +224,6 @@ void
 ThrowDOMExceptionForNSResult(JSContext* aCx, nsresult aNSResult);
 
 } // namespace exceptions
-
-// Throws the JSMSG_GETTER_ONLY exception.  This shouldn't be used going
-// forward -- getter-only properties should just use JS_PSG for the setter
-// (implying no setter at all), which will not throw when set in non-strict
-// code but will in strict code.  Old code should use this only for temporary
-// compatibility reasons.
-extern bool
-GetterOnlyJSNative(JSContext* aCx, unsigned aArgc, JS::Value* aVp);
 
 END_WORKERS_NAMESPACE
 

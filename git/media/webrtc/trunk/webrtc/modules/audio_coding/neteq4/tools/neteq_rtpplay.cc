@@ -8,10 +8,9 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include <assert.h>
-#include <stdio.h>
-
 #include <algorithm>
+#include <cassert>
+#include <cstdio>
 #include <iostream>
 #include <string>
 
@@ -145,12 +144,13 @@ int main(int argc, char* argv[]) {
   webrtc::Trace::CreateTrace();
   webrtc::Trace::SetTraceFile((webrtc::test::OutputPath() +
       "neteq_trace.txt").c_str());
-  webrtc::Trace::set_level_filter(webrtc::kTraceAll);
+  webrtc::Trace::SetLevelFilter(webrtc::kTraceAll);
 
   // Initialize NetEq instance.
   int sample_rate_hz = 16000;
   NetEq* neteq = NetEq::Create(sample_rate_hz);
   RegisterPayloadTypes(neteq);
+  neteq->EnableDtmf();
 
   // Read first packet.
   NETEQTEST_RTPpacket *rtp;

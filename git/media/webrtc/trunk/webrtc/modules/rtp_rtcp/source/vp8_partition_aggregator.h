@@ -13,9 +13,9 @@
 
 #include <vector>
 
-#include "webrtc/modules/interface/module_common_types.h"
-#include "webrtc/system_wrappers/interface/constructor_magic.h"
-#include "webrtc/typedefs.h"
+#include "modules/interface/module_common_types.h"
+#include "system_wrappers/interface/constructor_magic.h"
+#include "typedefs.h"  // NOLINT(build/include)
 
 namespace webrtc {
 

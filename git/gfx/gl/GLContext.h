@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* vim: set ts=8 sts=4 et sw=4 tw=80: */
+/* -*- Mode: c++; c-basic-offset: 4; indent-tabs-mode: nil; tab-width: 40; -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -8,14 +7,15 @@
 #define GLCONTEXT_H_
 
 #include <stdio.h>
+#include <algorithm>
+#if defined(XP_UNIX)
 #include <stdint.h>
-#include <ctype.h>
-#include <map>
-#include <bitset>
-
-#ifdef DEBUG
-#include <string.h>
 #endif
+#include <string.h>
+#include <ctype.h>
+#include <set>
+#include <stack>
+#include <map>
 
 #ifdef WIN32
 #include <windows.h>
@@ -27,28 +27,34 @@
 
 #include "GLDefs.h"
 #include "GLLibraryLoader.h"
+#include "gfxASurface.h"
 #include "gfxImageSurface.h"
+#include "gfxContext.h"
+#include "gfxRect.h"
 #include "gfx3DMatrix.h"
 #include "nsISupportsImpl.h"
+#include "prlink.h"
 #include "plstr.h"
+
 #include "nsDataHashtable.h"
 #include "nsHashKeys.h"
+#include "nsRegion.h"
 #include "nsAutoPtr.h"
+#include "nsThreadUtils.h"
 #include "GLContextTypes.h"
 #include "GLTextureImage.h"
 #include "SurfaceTypes.h"
 #include "GLScreenBuffer.h"
+
+typedef char realGLboolean;
+
 #include "GLContextSymbols.h"
+
+#include "mozilla/mozalloc.h"
+#include "mozilla/Preferences.h"
+#include <stdint.h>
+#include "mozilla/Mutex.h"
 #include "mozilla/GenericRefCounted.h"
-#include "mozilla/Scoped.h"
-
-#ifdef DEBUG
-#define MOZ_ENABLE_GL_TRACKING 1
-#endif
-
-class nsIntRegion;
-class nsIRunnable;
-class nsIThread;
 
 namespace android {
     class GraphicBuffer;
@@ -57,7 +63,6 @@ namespace android {
 namespace mozilla {
     namespace gfx {
         class SharedSurface;
-        class SourceSurface;
         class DataSourceSurface;
         struct SurfaceCaps;
     }
@@ -67,12 +72,11 @@ namespace mozilla {
         class GLLibraryEGL;
         class GLScreenBuffer;
         class TextureGarbageBin;
-        class GLBlitHelper;
-        class GLBlitTextureImageHelper;
     }
 
     namespace layers {
         class ColorTextureLayerProgram;
+        class LayerManagerOGL;
     }
 }
 
@@ -98,14 +102,12 @@ namespace GLFeature {
         framebuffer_object,
         get_query_object_iv,
         instanced_arrays,
-        instanced_non_arrays,
         occlusion_query,
         occlusion_query_boolean,
         occlusion_query2,
         packed_depth_stencil,
         query_objects,
         robustness,
-        sRGB,
         standard_derivatives,
         texture_float,
         texture_float_linear,
@@ -116,6 +118,8 @@ namespace GLFeature {
     };
 }
 
+typedef uintptr_t SharedTextureHandle;
+
 MOZ_BEGIN_ENUM_CLASS(ContextProfile, uint8_t)
     Unknown = 0,
     OpenGL, // only for IsAtLeast's <profile> parameter
@@ -123,6 +127,7 @@ MOZ_BEGIN_ENUM_CLASS(ContextProfile, uint8_t)
     OpenGLCompatibility,
     OpenGLES
 MOZ_END_ENUM_CLASS(ContextProfile)
+
 
 class GLContext
     : public GLLibraryLoader
@@ -150,8 +155,21 @@ public:
         RendererSGX530,
         RendererSGX540,
         RendererTegra,
-        RendererAndroidEmulator,
         RendererOther
+    };
+
+    enum ContextFlags {
+        ContextFlagsNone = 0x0,
+        ContextFlagsGlobal = 0x1,
+        ContextFlagsMesaLLVMPipe = 0x2
+    };
+
+    enum GLContextType {
+        ContextTypeUnknown,
+        ContextTypeWGL,
+        ContextTypeCGL,
+        ContextTypeGLX,
+        ContextTypeEGL
     };
 
 
@@ -234,16 +252,14 @@ public:
         MOZ_ASSERT(mProfile != ContextProfile::Unknown, "unknown context profile");
         MOZ_ASSERT(mVersion != 0, "unknown context version");
 
-        if (version > mVersion) {
-            return false;
-        }
-
         if (profile == ContextProfile::OpenGL) {
-            return profile == ContextProfile::OpenGLCore ||
-                   profile == ContextProfile::OpenGLCompatibility;
+            return (profile == ContextProfile::OpenGLCore ||
+                    profile == ContextProfile::OpenGLCompatibility) &&
+                   version >= mVersion;
         }
 
-        return profile == mProfile;
+        return profile == mProfile &&
+               version >= mVersion;
     }
 
     /**
@@ -401,12 +417,6 @@ public:
         ARB_occlusion_query2,
         EXT_transform_feedback,
         NV_transform_feedback,
-        ANGLE_depth_texture,
-        EXT_sRGB,
-        EXT_texture_sRGB,
-        ARB_framebuffer_sRGB,
-        EXT_framebuffer_sRGB,
-        KHR_debug,
         Extensions_Max,
         Extensions_End
     };
@@ -426,41 +436,66 @@ public:
 
 public:
 
-    template<size_t N>
-    static void InitializeExtensionsBitSet(std::bitset<N>& extensionsBitset, const char* extStr, const char** extList, bool verbose = false)
+    // this should just be a std::bitset, but that ended up breaking
+    // MacOS X builds; see bug 584919.  We can replace this with one
+    // later on.  This is handy to use in WebGL contexts as well,
+    // so making it public.
+    template<size_t Size>
+    struct ExtensionBitset
     {
-        char* exts = strdup(extStr);
-
-        if (verbose)
-            printf_stderr("Extensions: %s\n", exts);
-
-        char* cur = exts;
-        bool done = false;
-        while (!done) {
-            char* space = strchr(cur, ' ');
-            if (space) {
-                *space = '\0';
-            } else {
-                done = true;
-            }
-
-            for (int i = 0; extList[i]; ++i) {
-                if (PL_strcasecmp(cur, extList[i]) == 0) {
-                    if (verbose)
-                        printf_stderr("Found extension %s\n", cur);
-                    extensionsBitset[i] = true;
-                }
-            }
-
-            cur = space + 1;
+        ExtensionBitset()
+        {
+            for (size_t i = 0; i < Size; ++i)
+                extensions[i] = false;
         }
 
-        free(exts);
-    }
+        void Load(const char* extStr, const char** extList, bool verbose = false)
+        {
+            char* exts = strdup(extStr);
+
+            if (verbose)
+                printf_stderr("Extensions: %s\n", exts);
+
+            char* cur = exts;
+            bool done = false;
+            while (!done) {
+                char* space = strchr(cur, ' ');
+                if (space) {
+                    *space = '\0';
+                } else {
+                    done = true;
+                }
+
+                for (int i = 0; extList[i]; ++i) {
+                    if (PL_strcasecmp(cur, extList[i]) == 0) {
+                        if (verbose)
+                            printf_stderr("Found extension %s\n", cur);
+                        extensions[i] = 1;
+                    }
+                }
+
+                cur = space + 1;
+            }
+
+            free(exts);
+        }
+
+        bool& operator[](size_t index) {
+            MOZ_ASSERT(index < Size, "out of range");
+            return extensions[index];
+        }
+
+        const bool& operator[](size_t index) const {
+            MOZ_ASSERT(index < Size, "out of range");
+            return extensions[index];
+        }
+
+        bool extensions[Size];
+    };
 
 
 protected:
-    std::bitset<Extensions_Max> mAvailableExtensions;
+    ExtensionBitset<Extensions_Max> mAvailableExtensions;
 
 
 // -----------------------------------------------------------------------------
@@ -479,7 +514,7 @@ public:
 
 
 private:
-    std::bitset<GLFeature::EnumMax> mAvailableFeatures;
+    ExtensionBitset<GLFeature::EnumMax> mAvailableFeatures;
 
     /**
      * Init features regarding OpenGL extension and context version and profile
@@ -584,10 +619,7 @@ private:
 // MOZ_GL_DEBUG implementation
 private:
 
-#undef BEFORE_GL_CALL
-#undef AFTER_GL_CALL
-
-#ifdef MOZ_ENABLE_GL_TRACKING
+#ifdef DEBUG
 
 #ifndef MOZ_FUNCTION_NAME
 # ifdef __GNUC__
@@ -908,27 +940,6 @@ public:
         AFTER_GL_CALL;
     }
 
-    void fDebugMessageCallback(GLDEBUGPROC callback, const GLvoid* userParam) {
-        BEFORE_GL_CALL;
-        ASSERT_SYMBOL_PRESENT(fDebugMessageCallback);
-        mSymbols.fDebugMessageCallback(callback, userParam);
-        AFTER_GL_CALL;
-    }
-
-    void fDebugMessageControl(GLenum source, GLenum type, GLenum severity, GLsizei count, const GLuint* ids, realGLboolean enabled) {
-        BEFORE_GL_CALL;
-        ASSERT_SYMBOL_PRESENT(fDebugMessageControl);
-        mSymbols.fDebugMessageControl(source, type, severity, count, ids, enabled);
-        AFTER_GL_CALL;
-    }
-
-    void fDebugMessageInsert(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* buf) {
-        BEFORE_GL_CALL;
-        ASSERT_SYMBOL_PRESENT(fDebugMessageInsert);
-        mSymbols.fDebugMessageInsert(source, type, id, severity, length, buf);
-        AFTER_GL_CALL;
-    }
-
     void fDetachShader(GLuint program, GLuint shader) {
         BEFORE_GL_CALL;
         mSymbols.fDetachShader(program, shader);
@@ -1127,35 +1138,6 @@ public:
         AFTER_GL_CALL;
     }
 
-    GLuint fGetDebugMessageLog(GLuint count, GLsizei bufsize, GLenum* sources, GLenum* types, GLuint* ids, GLenum* severities, GLsizei* lengths, GLchar* messageLog) {
-        BEFORE_GL_CALL;
-        ASSERT_SYMBOL_PRESENT(fGetDebugMessageLog);
-        GLuint ret = mSymbols.fGetDebugMessageLog(count, bufsize, sources, types, ids, severities, lengths, messageLog);
-        AFTER_GL_CALL;
-        return ret;
-    }
-
-    void fGetPointerv(GLenum pname, GLvoid** params) {
-        BEFORE_GL_CALL;
-        ASSERT_SYMBOL_PRESENT(fGetPointerv);
-        mSymbols.fGetPointerv(pname, params);
-        AFTER_GL_CALL;
-    }
-
-    void fGetObjectLabel(GLenum identifier, GLuint name, GLsizei bufSize, GLsizei* length, GLchar* label) {
-        BEFORE_GL_CALL;
-        ASSERT_SYMBOL_PRESENT(fGetObjectLabel);
-        mSymbols.fGetObjectLabel(identifier, name, bufSize, length, label);
-        AFTER_GL_CALL;
-    }
-
-    void fGetObjectPtrLabel(GLvoid* ptr, GLsizei bufSize, GLsizei* length, GLchar* label) {
-        BEFORE_GL_CALL;
-        ASSERT_SYMBOL_PRESENT(fGetObjectPtrLabel);
-        mSymbols.fGetObjectPtrLabel(ptr, bufSize, length, label);
-        AFTER_GL_CALL;
-    }
-
     void fGenerateMipmap(GLenum target) {
         BEFORE_GL_CALL;
         mSymbols.fGenerateMipmap(target);
@@ -1316,20 +1298,6 @@ public:
         AFTER_GL_CALL;
     }
 
-    void fObjectLabel(GLenum identifier, GLuint name, GLsizei length, const GLchar* label) {
-        BEFORE_GL_CALL;
-        ASSERT_SYMBOL_PRESENT(fObjectLabel);
-        mSymbols.fObjectLabel(identifier, name, length, label);
-        AFTER_GL_CALL;
-    }
-
-    void fObjectPtrLabel(GLvoid* ptr, GLsizei length, const GLchar* label) {
-        BEFORE_GL_CALL;
-        ASSERT_SYMBOL_PRESENT(fObjectPtrLabel);
-        mSymbols.fObjectPtrLabel(ptr, length, label);
-        AFTER_GL_CALL;
-    }
-
     void fPixelStorei(GLenum pname, GLint param) {
         BEFORE_GL_CALL;
         mSymbols.fPixelStorei(pname, param);
@@ -1345,20 +1313,6 @@ public:
     void fPolygonOffset(GLfloat factor, GLfloat bias) {
         BEFORE_GL_CALL;
         mSymbols.fPolygonOffset(factor, bias);
-        AFTER_GL_CALL;
-    }
-
-    void fPopDebugGroup() {
-        BEFORE_GL_CALL;
-        ASSERT_SYMBOL_PRESENT(fPopDebugGroup);
-        mSymbols.fPopDebugGroup();
-        AFTER_GL_CALL;
-    }
-
-    void fPushDebugGroup(GLenum source, GLuint id, GLsizei length, const GLchar* message) {
-        BEFORE_GL_CALL;
-        ASSERT_SYMBOL_PRESENT(fPushDebugGroup);
-        mSymbols.fPushDebugGroup(source, id, length, message);
         AFTER_GL_CALL;
     }
 
@@ -2362,13 +2316,64 @@ public:
 protected:
     GLContext(const SurfaceCaps& caps,
               GLContext* sharedContext = nullptr,
-              bool isOffscreen = false);
+              bool isOffscreen = false)
+      : mInitialized(false),
+        mIsOffscreen(isOffscreen),
+        mIsGlobalSharedContext(false),
+        mContextLost(false),
+        mVersion(0),
+        mProfile(ContextProfile::Unknown),
+        mVendor(-1),
+        mRenderer(-1),
+        mHasRobustness(false),
+#ifdef DEBUG
+        mGLError(LOCAL_GL_NO_ERROR),
+#endif
+        mTexBlit_Buffer(0),
+        mTexBlit_VertShader(0),
+        mTex2DBlit_FragShader(0),
+        mTex2DRectBlit_FragShader(0),
+        mTex2DBlit_Program(0),
+        mTex2DRectBlit_Program(0),
+        mTexBlit_UseDrawNotCopy(false),
+        mSharedContext(sharedContext),
+        mFlipped(false),
+        mBlitProgram(0),
+        mBlitFramebuffer(0),
+        mCaps(caps),
+        mScreen(nullptr),
+        mLockedSurface(nullptr),
+        mMaxTextureSize(0),
+        mMaxCubeMapTextureSize(0),
+        mMaxTextureImageSize(0),
+        mMaxRenderbufferSize(0),
+        mNeedsTextureSizeChecks(false),
+        mWorkAroundDriverBugs(true)
+    {
+        mUserData.Init();
+        mOwningThread = NS_GetCurrentThread();
+
+        mTexBlit_UseDrawNotCopy = Preferences::GetBool("gl.blit-draw-not-copy", false);
+    }
 
 
 // -----------------------------------------------------------------------------
 // Destructor
 public:
-    virtual ~GLContext();
+    virtual ~GLContext() {
+        NS_ASSERTION(IsDestroyed(), "GLContext implementation must call MarkDestroyed in destructor!");
+#ifdef DEBUG
+        if (mSharedContext) {
+            GLContext *tip = mSharedContext;
+            while (tip->mSharedContext)
+                tip = tip->mSharedContext;
+            tip->SharedContextDestroyed(this);
+            tip->ReportOutstandingNames();
+        } else {
+            ReportOutstandingNames();
+        }
+#endif
+    }
 
 
 // -----------------------------------------------------------------------------
@@ -2377,24 +2382,21 @@ protected:
 
     typedef class gfx::SharedSurface SharedSurface;
     typedef gfx::SharedSurfaceType SharedSurfaceType;
-    typedef gfxImageFormat ImageFormat;
+    typedef gfxASurface::gfxImageFormat ImageFormat;
     typedef gfx::SurfaceFormat SurfaceFormat;
 
 public:
 
     virtual bool MakeCurrentImpl(bool aForce = false) = 0;
 
-#ifdef MOZ_ENABLE_GL_TRACKING
+#ifdef DEBUG
     static void StaticInit() {
         PR_NewThreadPrivateIndex(&sCurrentGLContextTLS, nullptr);
     }
 #endif
 
     bool MakeCurrent(bool aForce = false) {
-        if (IsDestroyed()) {
-            return false;
-        }
-#ifdef MOZ_ENABLE_GL_TRACKING
+#ifdef DEBUG
     PR_SetThreadPrivate(sCurrentGLContextTLS, this);
 
     // XXX this assertion is disabled because it's triggering on Mac;
@@ -2415,6 +2417,16 @@ public:
 
     virtual void ReleaseSurface() {}
 
+    void *GetUserData(void *aKey) {
+        void *result = nullptr;
+        mUserData.Get(aKey, &result);
+        return result;
+    }
+
+    void SetUserData(void *aKey, void *aValue) {
+        mUserData.Put(aKey, aValue);
+    }
+
     // Mark this context as destroyed.  This will nullptr out all
     // the GL function pointers!
     void MarkDestroyed();
@@ -2428,7 +2440,6 @@ public:
       NativeGLContext,
       NativeImageSurface,
       NativeThebesSurface,
-      NativeCGLContext,
       NativeDataTypeMax
     };
 
@@ -2442,30 +2453,40 @@ public:
      * Returns true if the thread on which this context was created is the currently
      * executing thread.
      */
-    bool IsOwningThreadCurrent();
-    void DispatchToOwningThread(nsIRunnable *event);
+    bool IsOwningThreadCurrent() { return NS_GetCurrentThread() == mOwningThread; }
+
+    void DispatchToOwningThread(nsIRunnable *event) {
+        // Before dispatching, we need to ensure we're not in the middle of
+        // shutting down. Dispatching runnables in the middle of shutdown
+        // (that is, when the main thread is no longer get-able) can cause them
+        // to leak. See Bug 741319, and Bug 744115.
+        nsCOMPtr<nsIThread> mainThread;
+        if (NS_SUCCEEDED(NS_GetMainThread(getter_AddRefs(mainThread)))) {
+            mOwningThread->Dispatch(event, NS_DISPATCH_NORMAL);
+        }
+    }
 
     virtual EGLContext GetEGLContext() { return nullptr; }
     virtual GLLibraryEGL* GetLibraryEGL() { return nullptr; }
 
-    /**
-     * Only on EGL.
-     *
-     * If surf is non-null, this sets it to temporarily override this context's
-     * primary surface. This makes this context current against this surface,
-     * and subsequent MakeCurrent calls will continue using this surface as long
-     * as this override is set.
-     *
-     * If surf is null, this removes any previously set override, and makes the
-     * context current again against its primary surface.
-     */
-    virtual void SetEGLSurfaceOverride(EGLSurface surf) {
+    virtual void MakeCurrent_EGLSurface(void* surf) {
         MOZ_CRASH("Must be called against a GLContextEGL.");
     }
 
+    bool CanUploadSubTextures();
+
     static void PlatformStartup();
 
+protected:
+    static bool sPowerOfTwoForced;
+    static bool sPowerOfTwoPrefCached;
+    static void CacheCanUploadNPOT();
+
 public:
+    bool CanUploadNonPowerOfTwo();
+
+    bool WantsSmallTiles();
+
     /**
      * If this context wraps a double-buffered target, swap the back
      * and front buffers.  It should be assumed that after a swap, the
@@ -2482,8 +2503,72 @@ public:
      */
     virtual bool ReleaseTexImage() { return false; }
 
+    /**
+     * Applies aFilter to the texture currently bound to GL_TEXTURE_2D.
+     */
+    void ApplyFilterToBoundTexture(gfxPattern::GraphicsFilter aFilter);
+
+    /**
+     * Applies aFilter to the texture currently bound to aTarget.
+     */
+    void ApplyFilterToBoundTexture(GLuint aTarget,
+                                   gfxPattern::GraphicsFilter aFilter);
+
+    virtual bool BindExternalBuffer(GLuint texture, void* buffer) { return false; }
+    virtual bool UnbindExternalBuffer(GLuint texture) { return false; }
+
+#ifdef MOZ_WIDGET_GONK
+    virtual EGLImage CreateEGLImageForNativeBuffer(void* buffer) = 0;
+    virtual void DestroyEGLImage(EGLImage image) = 0;
+    virtual EGLImage GetNullEGLImage() = 0;
+#endif
+
+    virtual already_AddRefed<TextureImage>
+    CreateDirectTextureImage(android::GraphicBuffer* aBuffer, GLenum aWrapMode)
+    { return nullptr; }
+
     // Before reads from offscreen texture
     void GuaranteeResolve();
+
+protected:
+    GLuint mTexBlit_Buffer;
+    GLuint mTexBlit_VertShader;
+    GLuint mTex2DBlit_FragShader;
+    GLuint mTex2DRectBlit_FragShader;
+    GLuint mTex2DBlit_Program;
+    GLuint mTex2DRectBlit_Program;
+
+    bool mTexBlit_UseDrawNotCopy;
+
+    bool UseTexQuadProgram(GLenum target = LOCAL_GL_TEXTURE_2D,
+                           const gfxIntSize& srcSize = gfxIntSize());
+    bool InitTexQuadProgram(GLenum target = LOCAL_GL_TEXTURE_2D);
+    void DeleteTexBlitProgram();
+
+public:
+    // If you don't have |srcFormats| for the 2nd definition,
+    // then you'll need the framebuffer_blit extensions to use
+    // the first BlitFramebufferToFramebuffer.
+    void BlitFramebufferToFramebuffer(GLuint srcFB, GLuint destFB,
+                                      const gfxIntSize& srcSize,
+                                      const gfxIntSize& destSize);
+    void BlitFramebufferToFramebuffer(GLuint srcFB, GLuint destFB,
+                                      const gfxIntSize& srcSize,
+                                      const gfxIntSize& destSize,
+                                      const GLFormats& srcFormats);
+    void BlitTextureToFramebuffer(GLuint srcTex, GLuint destFB,
+                                  const gfxIntSize& srcSize,
+                                  const gfxIntSize& destSize,
+                                  GLenum srcTarget = LOCAL_GL_TEXTURE_2D);
+    void BlitFramebufferToTexture(GLuint srcFB, GLuint destTex,
+                                  const gfxIntSize& srcSize,
+                                  const gfxIntSize& destSize,
+                                  GLenum destTarget = LOCAL_GL_TEXTURE_2D);
+    void BlitTextureToTexture(GLuint srcTex, GLuint destTex,
+                              const gfxIntSize& srcSize,
+                              const gfxIntSize& destSize,
+                              GLenum srcTarget = LOCAL_GL_TEXTURE_2D,
+                              GLenum destTarget = LOCAL_GL_TEXTURE_2D);
 
     /*
      * Resize the current offscreen buffer.  Returns true on success.
@@ -2503,6 +2588,87 @@ public:
      * Only valid if IsOffscreen() returns true.
      */
     const gfxIntSize& OffscreenSize() const;
+
+
+    enum SharedTextureShareType {
+        SameProcess = 0,
+        CrossProcess
+    };
+
+    enum SharedTextureBufferType {
+        TextureID
+#ifdef MOZ_WIDGET_ANDROID
+        , SurfaceTexture
+#endif
+#ifdef XP_MACOSX
+        , IOSurface
+#endif
+    };
+
+    /*
+     * Create a new shared GLContext content handle, using the passed buffer as a source.
+     * Must be released by ReleaseSharedHandle. UpdateSharedHandle will have no effect
+     * on handles created with this method, as the caller owns the source (the passed buffer)
+     * and is responsible for updating it accordingly.
+     */
+    virtual SharedTextureHandle CreateSharedHandle(SharedTextureShareType shareType,
+                                                   void* buffer,
+                                                   SharedTextureBufferType bufferType)
+    { return 0; }
+    /**
+     * Publish GLContext content to intermediate buffer attached to shared handle.
+     * Shared handle content is ready to be used after call returns, and no need extra Flush/Finish are required.
+     * GLContext must be current before this call
+     */
+    virtual void UpdateSharedHandle(SharedTextureShareType shareType,
+                                    SharedTextureHandle sharedHandle)
+    { }
+    /**
+     * - It is better to call ReleaseSharedHandle before original GLContext destroyed,
+     *     otherwise warning will be thrown on attempt to destroy Texture associated with SharedHandle, depends on backend implementation.
+     * - It does not require to be called on context where it was created,
+     *     because SharedHandle suppose to keep Context reference internally,
+     *     or don't require specific context at all, for example IPC SharedHandle.
+     * - Not recommended to call this between AttachSharedHandle and Draw Target call.
+     *      if it is really required for some special backend, then DetachSharedHandle API must be added with related implementation.
+     * - It is recommended to stop any possible access to SharedHandle (Attachments, pending GL calls) before calling Release,
+     *      otherwise some artifacts might appear or even crash if API backend implementation does not expect that.
+     * SharedHandle (currently EGLImage) does not require GLContext because it is EGL call, and can be destroyed
+     *   at any time, unless EGLImage have siblings (which are not expected with current API).
+     */
+    virtual void ReleaseSharedHandle(SharedTextureShareType shareType,
+                                     SharedTextureHandle sharedHandle)
+    { }
+
+
+    typedef struct {
+        GLenum mTarget;
+        SurfaceFormat mTextureFormat;
+        gfx3DMatrix mTextureTransform;
+    } SharedHandleDetails;
+
+    /**
+     * Returns information necessary for rendering a shared handle.
+     * These values change depending on what sharing mechanism is in use
+     */
+    virtual bool GetSharedHandleDetails(SharedTextureShareType shareType,
+                                        SharedTextureHandle sharedHandle,
+                                        SharedHandleDetails& details)
+    { return false; }
+    /**
+     * Attach Shared GL Handle to GL_TEXTURE_2D target
+     * GLContext must be current before this call
+     */
+    virtual bool AttachSharedHandle(SharedTextureShareType shareType,
+                                    SharedTextureHandle sharedHandle)
+    { return false; }
+
+    /**
+     * Detach Shared GL Handle from GL_TEXTURE_2D target
+     */
+    virtual void DetachSharedHandle(SharedTextureShareType shareType,
+                                    SharedTextureHandle sharedHandle)
+    { }
 
     void BindFB(GLuint fb) {
         fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, fb);
@@ -2580,42 +2746,70 @@ public:
     void ForceDirtyScreen();
     void CleanDirtyScreen();
 
+    virtual bool TextureImageSupportsGetBackingSurface() {
+        return false;
+    }
+
     virtual GLenum GetPreferredARGB32Format() { return LOCAL_GL_RGBA; }
 
     virtual bool RenewSurface() { return false; }
 
-private:
     /**
-     * Helpers for ReadTextureImage
+     * Return a valid, allocated TextureImage of |aSize| with
+     * |aContentType|.  If |aContentType| is COLOR, |aImageFormat| can be used
+     * to hint at the preferred RGB format, however it is not necessarily
+     * respected.  The TextureImage's texture is configured to use
+     * |aWrapMode| (usually GL_CLAMP_TO_EDGE or GL_REPEAT) and by
+     * default, GL_LINEAR filtering.  Specify
+     * |aFlags=UseNearestFilter| for GL_NEAREST filtering. Specify
+     * |aFlags=NeedsYFlip| if the image is flipped. Return
+     * nullptr if creating the TextureImage fails.
+     *
+     * The returned TextureImage may only be used with this GLContext.
+     * Attempting to use the returned TextureImage after this
+     * GLContext is destroyed will result in undefined (and likely
+     * crashy) behavior.
      */
-    GLuint TextureImageProgramFor(GLenum aTextureTarget, int aShader);
-    bool ReadBackPixelsIntoSurface(gfxImageSurface* aSurface, const gfxIntSize& aSize);
+    virtual already_AddRefed<TextureImage>
+    CreateTextureImage(const nsIntSize& aSize,
+                       TextureImage::ContentType aContentType,
+                       GLenum aWrapMode,
+                       TextureImage::Flags aFlags = TextureImage::NoFlags,
+                       TextureImage::ImageFormat aImageFormat = gfxASurface::ImageFormatUnknown);
 
-public:
+    /**
+     * In EGL we want to use Tiled Texture Images, which we return
+     * from CreateTextureImage above.
+     * Inside TiledTextureImage we need to create actual images and to
+     * prevent infinite recursion we need to differentiate the two
+     * functions.
+     **/
+    virtual already_AddRefed<TextureImage>
+    TileGenFunc(const nsIntSize& aSize,
+                TextureImage::ContentType aContentType,
+                TextureImage::Flags aFlags = TextureImage::NoFlags,
+                TextureImage::ImageFormat aImageFormat = gfxASurface::ImageFormatUnknown)
+    {
+        return nullptr;
+    }
+
     /**
      * Read the image data contained in aTexture, and return it as an ImageSurface.
-     * If GL_RGBA is given as the format, a gfxImageFormatARGB32 surface is returned.
+     * If GL_RGBA is given as the format, a ImageFormatARGB32 surface is returned.
      * Not implemented yet:
-     * If GL_RGB is given as the format, a gfxImageFormatRGB24 surface is returned.
-     * If GL_LUMINANCE is given as the format, a gfxImageFormatA8 surface is returned.
+     * If GL_RGB is given as the format, a ImageFormatRGB24 surface is returned.
+     * If GL_LUMINANCE is given as the format, a ImageFormatA8 surface is returned.
      *
      * THIS IS EXPENSIVE.  It is ridiculously expensive.  Only do this
      * if you absolutely positively must, and never in any performance
      * critical path.
-     *
-     * NOTE: aShaderProgram is really mozilla::layers::ShaderProgramType. It is
-     * passed as int to eliminate including LayerManagerOGLProgram.h in this
-     * hub header.
      */
-    already_AddRefed<gfxImageSurface> ReadTextureImage(GLuint aTextureId,
-                                                       GLenum aTextureTarget,
+    already_AddRefed<gfxImageSurface> ReadTextureImage(GLuint aTexture,
                                                        const gfxIntSize& aSize,
-                               /* ShaderProgramType */ int aShaderProgram,
+                                                       GLenum aTextureFormat,
                                                        bool aYInvert = false);
 
-    already_AddRefed<gfxImageSurface> GetTexImage(GLuint aTexture,
-                                                  bool aYInvert,
-                                                  SurfaceFormat aFormat);
+    already_AddRefed<gfxImageSurface> GetTexImage(GLuint aTexture, bool aYInvert, SurfaceFormat aFormat);
 
     /**
      * Call ReadPixels into an existing gfxImageSurface.
@@ -2630,7 +2824,184 @@ public:
     // instead of the currently bound framebuffer.
     void ReadScreenIntoImageSurface(gfxImageSurface* dest);
 
-    TemporaryRef<gfx::SourceSurface> ReadPixelsToSourceSurface(const gfx::IntSize &aSize);
+    /**
+     * Copy a rectangle from one TextureImage into another.  The
+     * source and destination are given in integer coordinates, and
+     * will be converted to texture coordinates.
+     *
+     * For the source texture, the wrap modes DO apply -- it's valid
+     * to use REPEAT or PAD and expect appropriate behaviour if the source
+     * rectangle extends beyond its bounds.
+     *
+     * For the destination texture, the wrap modes DO NOT apply -- the
+     * destination will be clipped by the bounds of the texture.
+     *
+     * Note: calling this function will cause the following OpenGL state
+     * to be changed:
+     *
+     *   - current program
+     *   - framebuffer binding
+     *   - viewport
+     *   - blend state (will be enabled at end)
+     *   - scissor state (will be enabled at end)
+     *   - vertex attrib 0 and 1 (pointer and enable state [enable state will be disabled at exit])
+     *   - array buffer binding (will be 0)
+     *   - active texture (will be 0)
+     *   - texture 0 binding
+     */
+    void BlitTextureImage(TextureImage *aSrc, const nsIntRect& aSrcRect,
+                          TextureImage *aDst, const nsIntRect& aDstRect);
+
+    /**
+     * Creates a RGB/RGBA texture (or uses one provided) and uploads the surface
+     * contents to it within aSrcRect.
+     *
+     * aSrcRect.x/y will be uploaded to 0/0 in the texture, and the size
+     * of the texture with be aSrcRect.width/height.
+     *
+     * If an existing texture is passed through aTexture, it is assumed it
+     * has already been initialised with glTexImage2D (or this function),
+     * and that its size is equal to or greater than aSrcRect + aDstPoint.
+     * You can alternatively set the overwrite flag to true and have a new
+     * texture memory block allocated.
+     *
+     * The aDstPoint parameter is ignored if no texture was provided
+     * or aOverwrite is true.
+     *
+     * \param aData Image data to upload.
+     * \param aDstRegion Region of texture to upload to.
+     * \param aTexture Texture to use, or 0 to have one created for you.
+     * \param aOverwrite Over an existing texture with a new one.
+     * \param aSrcPoint Offset into aSrc where the region's bound's
+     *  TopLeft() sits.
+     * \param aPixelBuffer Pass true to upload texture data with an
+     *  offset from the base data (generally for pixel buffer objects),
+     *  otherwise textures are upload with an absolute pointer to the data.
+     * \param aTextureUnit, the texture unit used temporarily to upload the
+     *  surface. This testure may be overridden, clients should not rely on
+     *  the contents of this texture after this call or even on this
+     *  texture unit being active.
+     * \return Surface format of this texture.
+     */
+    SurfaceFormat UploadImageDataToTexture(unsigned char* aData,
+                                           int32_t aStride,
+                                           gfxASurface::gfxImageFormat aFormat,
+                                           const nsIntRegion& aDstRegion,
+                                           GLuint& aTexture,
+                                           bool aOverwrite = false,
+                                           bool aPixelBuffer = false,
+                                           GLenum aTextureUnit = LOCAL_GL_TEXTURE0,
+                                           GLenum aTextureTarget = LOCAL_GL_TEXTURE_2D);
+
+    /**
+     * Convenience wrapper around UploadImageDataToTexture for gfxASurfaces. 
+     */
+    SurfaceFormat UploadSurfaceToTexture(gfxASurface *aSurface,
+                                         const nsIntRegion& aDstRegion,
+                                         GLuint& aTexture,
+                                         bool aOverwrite = false,
+                                         const nsIntPoint& aSrcPoint = nsIntPoint(0, 0),
+                                         bool aPixelBuffer = false,
+                                         GLenum aTextureUnit = LOCAL_GL_TEXTURE0,
+                                         GLenum aTextureTarget = LOCAL_GL_TEXTURE_2D);
+
+    /**
+     * Same as above, for DataSourceSurfaces.
+     */
+    SurfaceFormat UploadSurfaceToTexture(gfx::DataSourceSurface *aSurface,
+                                         const nsIntRegion& aDstRegion,
+                                         GLuint& aTexture,
+                                         bool aOverwrite = false,
+                                         const nsIntPoint& aSrcPoint = nsIntPoint(0, 0),
+                                         bool aPixelBuffer = false,
+                                         GLenum aTextureUnit = LOCAL_GL_TEXTURE0,
+                                         GLenum aTextureTarget = LOCAL_GL_TEXTURE_2D);
+
+    void TexImage2D(GLenum target, GLint level, GLint internalformat,
+                    GLsizei width, GLsizei height, GLsizei stride,
+                    GLint pixelsize, GLint border, GLenum format,
+                    GLenum type, const GLvoid *pixels);
+
+    void TexSubImage2D(GLenum target, GLint level,
+                       GLint xoffset, GLint yoffset,
+                       GLsizei width, GLsizei height, GLsizei stride,
+                       GLint pixelsize, GLenum format,
+                       GLenum type, const GLvoid* pixels);
+
+    /**
+     * Uses the Khronos GL_EXT_unpack_subimage extension, working around
+     * quirks in the Tegra implementation of this extension.
+     */
+    void TexSubImage2DWithUnpackSubimageGLES(GLenum target, GLint level,
+                                             GLint xoffset, GLint yoffset,
+                                             GLsizei width, GLsizei height,
+                                             GLsizei stride, GLint pixelsize,
+                                             GLenum format, GLenum type,
+                                             const GLvoid* pixels);
+
+    void TexSubImage2DWithoutUnpackSubimage(GLenum target, GLint level,
+                                            GLint xoffset, GLint yoffset,
+                                            GLsizei width, GLsizei height,
+                                            GLsizei stride, GLint pixelsize,
+                                            GLenum format, GLenum type,
+                                            const GLvoid* pixels);
+
+    /** Helper for DecomposeIntoNoRepeatTriangles
+     */
+    struct RectTriangles {
+        RectTriangles() { }
+
+        // Always pass texture coordinates upright. If you want to flip the
+        // texture coordinates emitted to the tex_coords array, set flip_y to
+        // true.
+        void addRect(GLfloat x0, GLfloat y0, GLfloat x1, GLfloat y1,
+                     GLfloat tx0, GLfloat ty0, GLfloat tx1, GLfloat ty1,
+                     bool flip_y = false);
+
+        /**
+         * these return a float pointer to the start of each array respectively.
+         * Use it for glVertexAttribPointer calls.
+         * We can return nullptr if we choose to use Vertex Buffer Objects here.
+         */
+        float* vertexPointer() {
+            return &vertexCoords[0].x;
+        }
+
+        float* texCoordPointer() {
+            return &texCoords[0].u;
+        }
+
+        unsigned int elements() {
+            return vertexCoords.Length();
+        }
+
+        typedef struct { GLfloat x,y; } vert_coord;
+        typedef struct { GLfloat u,v; } tex_coord;
+    private:
+        // default is 4 rectangles, each made up of 2 triangles (3 coord vertices each)
+        nsAutoTArray<vert_coord, 6> vertexCoords;
+        nsAutoTArray<tex_coord, 6>  texCoords;
+    };
+
+    /**
+     * Decompose drawing the possibly-wrapped aTexCoordRect rectangle
+     * of a texture of aTexSize into one or more rectangles (represented
+     * as 2 triangles) and associated tex coordinates, such that
+     * we don't have to use the REPEAT wrap mode. If aFlipY is true, the
+     * texture coordinates will be specified vertically flipped.
+     *
+     * The resulting triangle vertex coordinates will be in the space of
+     * (0.0, 0.0) to (1.0, 1.0) -- transform the coordinates appropriately
+     * if you need a different space.
+     *
+     * The resulting vertex coordinates should be drawn using GL_TRIANGLES,
+     * and rects.numRects * 3 * 6
+     */
+    static void DecomposeIntoNoRepeatTriangles(const nsIntRect& aTexCoordRect,
+                                               const nsIntSize& aTexSize,
+                                               RectTriangles& aRects,
+                                               bool aFlipY = false);
+
 
     // Shared code for GL extensions and GLX extensions.
     static bool ListHasExtension(const GLubyte *extensions,
@@ -2690,14 +3061,12 @@ protected:
 #endif
     bool mFlipped;
 
-    ScopedDeletePtr<GLBlitHelper> mBlitHelper;
-    ScopedDeletePtr<GLBlitTextureImageHelper> mBlitTextureImageHelper;
+    // lazy-initialized things
+    GLuint mBlitProgram, mBlitFramebuffer;
+    void UseBlitProgram();
+    void SetBlitFramebufferForDestTexture(GLuint aTexture);
 
 public:
-
-    GLBlitHelper* BlitHelper();
-    GLBlitTextureImageHelper* BlitTextureImageHelper();
-
     // Assumes shares are created by all sharing with the same global context.
     bool SharesWith(const GLContext* other) const {
         MOZ_ASSERT(!this->mSharedContext || !this->mSharedContext->mSharedContext);
@@ -2793,7 +3162,24 @@ public:
         return *mPixelFormat;
     }
 
+
+    GLuint CreateTextureForOffscreen(const GLFormats& formats,
+                                     const gfxIntSize& size);
+    GLuint CreateTexture(GLenum internalFormat,
+                         GLenum format, GLenum type,
+                         const gfxIntSize& size);
+    GLuint CreateRenderbuffer(GLenum format,
+                              GLsizei samples,
+                              const gfxIntSize& size);
     bool IsFramebufferComplete(GLuint fb, GLenum* status = nullptr);
+
+    // Pass null to an RB arg to disable its creation.
+    void CreateRenderbuffersForOffscreen(const GLFormats& formats,
+                                         const gfxIntSize& size,
+                                         bool multisample,
+                                         GLuint* colorMSRB,
+                                         GLuint* depthRB,
+                                         GLuint* stencilRB);
 
     // Does not check completeness.
     void AttachBuffersToFB(GLuint colorTex, GLuint colorRB,
@@ -2861,14 +3247,18 @@ public:
 
     void EmptyTexGarbageBin();
 
-    bool IsOffscreenSizeAllowed(const gfxIntSize& aSize) const;
-
 protected:
-    GLuint mReadTextureImagePrograms[4];
+    nsDataHashtable<nsPtrHashKey<void>, void*> mUserData;
 
     bool InitWithPrefix(const char *prefix, bool trygl);
 
     void InitExtensions();
+
+    bool IsOffscreenSizeAllowed(const gfxIntSize& aSize) const {
+        int32_t biggerDimension = std::max(aSize.width, aSize.height);
+        int32_t maxAllowed = std::min(mMaxRenderbufferSize, mMaxTextureSize);
+        return biggerDimension <= maxAllowed;
+    }
 
     nsTArray<nsIntRect> mViewportStack;
     nsTArray<nsIntRect> mScissorStack;
@@ -2999,7 +3389,7 @@ public:
 
 #undef ASSERT_SYMBOL_PRESENT
 
-#ifdef MOZ_ENABLE_GL_TRACKING
+#ifdef DEBUG
     void CreatedProgram(GLContext *aOrigin, GLuint aName);
     void CreatedShader(GLContext *aOrigin, GLuint aName);
     void CreatedBuffers(GLContext *aOrigin, GLsizei aCount, GLuint *aNames);
@@ -3054,10 +3444,413 @@ public:
     nsTArray<NamedResource> mTrackedBuffers;
     nsTArray<NamedResource> mTrackedQueries;
 #endif
+
+public:
+    enum MemoryUse {
+        // when memory being allocated is reported to a memory reporter
+        MemoryAllocated,
+        // when memory being freed is reported to a memory reporter
+        MemoryFreed
+    };
+
+    // When memory is used/freed for tile textures, call this method
+    // to update the value reported by the memory reporter.
+    static void UpdateTextureMemoryUsage(MemoryUse action,
+                                         GLenum format,
+                                         GLenum type,
+                                         uint16_t tileSize);
 };
 
-bool DoesStringMatch(const char* aString, const char *aWantedString);
+inline bool
+DoesStringMatch(const char* aString, const char *aWantedString)
+{
+    if (!aString || !aWantedString)
+        return false;
 
+    const char *occurrence = strstr(aString, aWantedString);
+
+    // aWanted not found
+    if (!occurrence)
+        return false;
+
+    // aWantedString preceded by alpha character
+    if (occurrence != aString && isalpha(*(occurrence-1)))
+        return false;
+
+    // aWantedVendor followed by alpha character
+    const char *afterOccurrence = occurrence + strlen(aWantedString);
+    if (isalpha(*afterOccurrence))
+        return false;
+
+    return true;
+}
+
+//RAII via CRTP!
+template <class Derived>
+struct ScopedGLWrapper
+{
+private:
+    bool mIsUnwrapped;
+
+protected:
+    GLContext* const mGL;
+
+    ScopedGLWrapper(GLContext* gl)
+        : mIsUnwrapped(false)
+        , mGL(gl)
+    {
+        MOZ_ASSERT(&ScopedGLWrapper<Derived>::Unwrap == &Derived::Unwrap);
+        MOZ_ASSERT(&Derived::UnwrapImpl);
+        MOZ_ASSERT(mGL->IsCurrent());
+    }
+
+    virtual ~ScopedGLWrapper() {
+        if (!mIsUnwrapped)
+            Unwrap();
+    }
+
+public:
+    void Unwrap() {
+        MOZ_ASSERT(!mIsUnwrapped);
+
+        Derived* derived = static_cast<Derived*>(this);
+        derived->UnwrapImpl();
+
+        mIsUnwrapped = true;
+    }
+};
+
+// Wraps glEnable/Disable.
+struct ScopedGLState
+    : public ScopedGLWrapper<ScopedGLState>
+{
+    friend struct ScopedGLWrapper<ScopedGLState>;
+
+protected:
+    const GLenum mCapability;
+    bool mOldState;
+
+public:
+    // Use |newState = true| to enable, |false| to disable.
+    ScopedGLState(GLContext* gl, GLenum capability, bool newState)
+        : ScopedGLWrapper<ScopedGLState>(gl)
+        , mCapability(capability)
+    {
+        mOldState = mGL->fIsEnabled(mCapability);
+
+        // Early out if we're already in the right state.
+        if (newState == mOldState)
+            return;
+
+        if (newState)
+            mGL->fEnable(mCapability);
+        else
+            mGL->fDisable(mCapability);
+    }
+
+protected:
+    void UnwrapImpl() {
+        if (mOldState)
+            mGL->fEnable(mCapability);
+        else
+            mGL->fDisable(mCapability);
+    }
+};
+
+// Saves and restores with GetUserBoundFB and BindUserFB.
+struct ScopedBindFramebuffer
+    : public ScopedGLWrapper<ScopedBindFramebuffer>
+{
+    friend struct ScopedGLWrapper<ScopedBindFramebuffer>;
+
+protected:
+    GLuint mOldFB;
+
+private:
+    void Init() {
+        mOldFB = mGL->GetFB();
+    }
+
+public:
+    explicit ScopedBindFramebuffer(GLContext* gl)
+        : ScopedGLWrapper<ScopedBindFramebuffer>(gl)
+    {
+        Init();
+    }
+
+    ScopedBindFramebuffer(GLContext* gl, GLuint newFB)
+        : ScopedGLWrapper<ScopedBindFramebuffer>(gl)
+    {
+        Init();
+        mGL->BindFB(newFB);
+    }
+
+protected:
+    void UnwrapImpl() {
+        // Check that we're not falling out of scope after
+        // the current context changed.
+        MOZ_ASSERT(mGL->IsCurrent());
+
+        mGL->BindFB(mOldFB);
+    }
+};
+
+struct ScopedBindTextureUnit
+    : public ScopedGLWrapper<ScopedBindTextureUnit>
+{
+    friend struct ScopedGLWrapper<ScopedBindTextureUnit>;
+
+protected:
+    GLenum mOldTexUnit;
+
+public:
+    ScopedBindTextureUnit(GLContext* gl, GLenum texUnit)
+        : ScopedGLWrapper<ScopedBindTextureUnit>(gl)
+    {
+        MOZ_ASSERT(texUnit >= LOCAL_GL_TEXTURE0);
+        mGL->GetUIntegerv(LOCAL_GL_ACTIVE_TEXTURE, &mOldTexUnit);
+        mGL->fActiveTexture(texUnit);
+    }
+
+protected:
+    void UnwrapImpl() {
+        // Check that we're not falling out of scope after
+        // the current context changed.
+        MOZ_ASSERT(mGL->IsCurrent());
+
+        mGL->fActiveTexture(mOldTexUnit);
+    }
+};
+
+struct ScopedTexture
+    : public ScopedGLWrapper<ScopedTexture>
+{
+    friend struct ScopedGLWrapper<ScopedTexture>;
+
+protected:
+    GLuint mTexture;
+
+public:
+    ScopedTexture(GLContext* gl)
+        : ScopedGLWrapper<ScopedTexture>(gl)
+    {
+        mGL->fGenTextures(1, &mTexture);
+    }
+
+    GLuint Texture() { return mTexture; }
+
+protected:
+    void UnwrapImpl() {
+        // Check that we're not falling out of scope after
+        // the current context changed.
+        MOZ_ASSERT(mGL->IsCurrent());
+
+        mGL->fDeleteTextures(1, &mTexture);
+    }
+};
+
+struct ScopedBindTexture
+    : public ScopedGLWrapper<ScopedBindTexture>
+{
+    friend struct ScopedGLWrapper<ScopedBindTexture>;
+
+protected:
+    GLuint mOldTex;
+    GLenum mTarget;
+
+private:
+    void Init(GLenum target) {
+        MOZ_ASSERT(target == LOCAL_GL_TEXTURE_2D ||
+                   target == LOCAL_GL_TEXTURE_RECTANGLE_ARB);
+        mTarget = target;
+        mOldTex = 0;
+        GLenum bindingTarget = (target == LOCAL_GL_TEXTURE_2D) ?
+                               LOCAL_GL_TEXTURE_BINDING_2D :
+                               LOCAL_GL_TEXTURE_BINDING_RECTANGLE_ARB;
+        mGL->GetUIntegerv(bindingTarget, &mOldTex);
+    }
+
+public:
+    ScopedBindTexture(GLContext* gl, GLuint newTex, GLenum target = LOCAL_GL_TEXTURE_2D)
+        : ScopedGLWrapper<ScopedBindTexture>(gl)
+    {
+        Init(target);
+        mGL->fBindTexture(target, newTex);
+    }
+
+protected:
+    void UnwrapImpl() {
+        // Check that we're not falling out of scope after
+        // the current context changed.
+        MOZ_ASSERT(mGL->IsCurrent());
+
+        mGL->fBindTexture(mTarget, mOldTex);
+    }
+};
+
+
+struct ScopedBindRenderbuffer
+    : public ScopedGLWrapper<ScopedBindRenderbuffer>
+{
+    friend struct ScopedGLWrapper<ScopedBindRenderbuffer>;
+
+protected:
+    GLuint mOldRB;
+
+private:
+    void Init() {
+        mOldRB = 0;
+        mGL->GetUIntegerv(LOCAL_GL_RENDERBUFFER_BINDING, &mOldRB);
+    }
+
+public:
+    explicit ScopedBindRenderbuffer(GLContext* gl)
+        : ScopedGLWrapper<ScopedBindRenderbuffer>(gl)
+    {
+        Init();
+    }
+
+    ScopedBindRenderbuffer(GLContext* gl, GLuint newRB)
+        : ScopedGLWrapper<ScopedBindRenderbuffer>(gl)
+    {
+        Init();
+        mGL->fBindRenderbuffer(LOCAL_GL_RENDERBUFFER, newRB);
+    }
+
+protected:
+    void UnwrapImpl() {
+        // Check that we're not falling out of scope after
+        // the current context changed.
+        MOZ_ASSERT(mGL->IsCurrent());
+
+        mGL->fBindRenderbuffer(LOCAL_GL_RENDERBUFFER, mOldRB);
+    }
+};
+
+struct ScopedFramebufferForTexture
+    : public ScopedGLWrapper<ScopedFramebufferForTexture>
+{
+    friend struct ScopedGLWrapper<ScopedFramebufferForTexture>;
+
+protected:
+    bool mComplete; // True if the framebuffer we create is complete.
+    GLuint mFB;
+
+public:
+    ScopedFramebufferForTexture(GLContext* gl, GLuint texture,
+                                GLenum target = LOCAL_GL_TEXTURE_2D)
+        : ScopedGLWrapper<ScopedFramebufferForTexture>(gl)
+        , mComplete(false)
+        , mFB(0)
+    {
+        mGL->fGenFramebuffers(1, &mFB);
+        ScopedBindFramebuffer autoFB(gl, mFB);
+        mGL->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER,
+                                   LOCAL_GL_COLOR_ATTACHMENT0,
+                                   target,
+                                   texture,
+                                   0);
+
+        GLenum status = mGL->fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER);
+        if (status == LOCAL_GL_FRAMEBUFFER_COMPLETE) {
+            mComplete = true;
+        } else {
+            mGL->fDeleteFramebuffers(1, &mFB);
+            mFB = 0;
+        }
+    }
+
+protected:
+    void UnwrapImpl() {
+        if (!mFB)
+            return;
+
+        mGL->fDeleteFramebuffers(1, &mFB);
+        mFB = 0;
+    }
+
+public:
+    GLuint FB() const {
+        MOZ_ASSERT(IsComplete());
+        return mFB;
+    }
+
+    bool IsComplete() const {
+        return mComplete;
+    }
+};
+
+struct ScopedFramebufferForRenderbuffer
+    : public ScopedGLWrapper<ScopedFramebufferForRenderbuffer>
+{
+    friend struct ScopedGLWrapper<ScopedFramebufferForRenderbuffer>;
+
+protected:
+    bool mComplete; // True if the framebuffer we create is complete.
+    GLuint mFB;
+
+public:
+    ScopedFramebufferForRenderbuffer(GLContext* gl, GLuint rb)
+        : ScopedGLWrapper<ScopedFramebufferForRenderbuffer>(gl)
+        , mComplete(false)
+        , mFB(0)
+    {
+        mGL->fGenFramebuffers(1, &mFB);
+        ScopedBindFramebuffer autoFB(gl, mFB);
+        mGL->fFramebufferRenderbuffer(LOCAL_GL_FRAMEBUFFER,
+                                      LOCAL_GL_COLOR_ATTACHMENT0,
+                                      LOCAL_GL_RENDERBUFFER,
+                                      rb);
+
+        GLenum status = mGL->fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER);
+        if (status == LOCAL_GL_FRAMEBUFFER_COMPLETE) {
+            mComplete = true;
+        } else {
+            mGL->fDeleteFramebuffers(1, &mFB);
+            mFB = 0;
+        }
+    }
+
+protected:
+    void UnwrapImpl() {
+        if (!mFB)
+            return;
+
+        mGL->fDeleteFramebuffers(1, &mFB);
+        mFB = 0;
+    }
+
+public:
+    GLuint FB() const {
+        return mFB;
+    }
+
+    bool IsComplete() const {
+        return mComplete;
+    }
+};
+
+
+class TextureGarbageBin {
+    NS_INLINE_DECL_THREADSAFE_REFCOUNTING(TextureGarbageBin)
+
+protected:
+    GLContext* mGL;
+    Mutex mMutex;
+    std::stack<GLuint> mGarbageTextures;
+
+public:
+    TextureGarbageBin(GLContext* gl)
+        : mGL(gl)
+        , mMutex("TextureGarbageBin mutex")
+    {}
+
+    void GLContextTeardown();
+    void Trash(GLuint tex);
+    void EmptyGarbage();
+};
+
+uint32_t GetBitsPerTexel(GLenum format, GLenum type);
 
 } /* namespace gl */
 } /* namespace mozilla */

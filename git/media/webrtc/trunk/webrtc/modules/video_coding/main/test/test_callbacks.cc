@@ -8,16 +8,13 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/video_coding/main/test/test_callbacks.h"
+#include "test_callbacks.h"
 
-#include <math.h>
+#include <cmath>
 
-#include "webrtc/common_video/libyuv/include/webrtc_libyuv.h"
-#include "webrtc/modules/rtp_rtcp/interface/rtp_header_parser.h"
-#include "webrtc/modules/rtp_rtcp/interface/rtp_payload_registry.h"
-#include "webrtc/modules/rtp_rtcp/interface/rtp_receiver.h"
-#include "webrtc/modules/utility/interface/rtp_dump.h"
-#include "webrtc/modules/video_coding/main/test/test_macros.h"
+#include "common_video/libyuv/include/webrtc_libyuv.h"
+#include "rtp_dump.h"
+#include "test_macros.h"
 #include "webrtc/system_wrappers/interface/clock.h"
 
 namespace webrtc {
@@ -36,7 +33,7 @@ VCMEncodeCompleteCallback::VCMEncodeCompleteCallback(FILE* encodedFile):
     _encodeComplete(false),
     _width(0),
     _height(0),
-    _codecType(kRtpVideoNone)
+    _codecType(kRTPVideoNoVideo)
 {
     //
 }
@@ -75,12 +72,14 @@ VCMEncodeCompleteCallback::SendData(
     rtpInfo.type.Video.width = (uint16_t)_width;
     switch (_codecType)
     {
-    case webrtc::kRtpVideoVp8:
+    case webrtc::kRTPVideoVP8:
         rtpInfo.type.Video.codecHeader.VP8.InitRTPVideoHeaderVP8();
         rtpInfo.type.Video.codecHeader.VP8.nonReference =
             videoHdr->codecHeader.VP8.nonReference;
         rtpInfo.type.Video.codecHeader.VP8.pictureId =
             videoHdr->codecHeader.VP8.pictureId;
+        break;
+    case webrtc::kRTPVideoI420:
         break;
     default:
         assert(false);
@@ -209,8 +208,6 @@ RTPSendCompleteCallback::RTPSendCompleteCallback(Clock* clock,
                                                  const char* filename):
     _clock(clock),
     _sendCount(0),
-    rtp_payload_registry_(NULL),
-    rtp_receiver_(NULL),
     _rtp(NULL),
     _lossPct(0),
     _burstLength(0),
@@ -295,22 +292,12 @@ RTPSendCompleteCallback::SendPacket(int channel, const void *data, int len)
         _rtpPackets.pop_front();
         assert(_rtp);  // We must have a configured RTP module for this test.
         // Send to receive side
-        RTPHeader header;
-        scoped_ptr<RtpHeaderParser> parser(RtpHeaderParser::Create());
-        if (!parser->Parse(packet->data, packet->length, &header)) {
-          delete packet;
-          return -1;
-        }
-        PayloadUnion payload_specific;
-        if (!rtp_payload_registry_->GetPayloadSpecifics(
-            header.payloadType, &payload_specific)) {
-          return -1;
-        }
-        if (!rtp_receiver_->IncomingRtpPacket(header, packet->data,
-                                              packet->length, payload_specific,
-                                              true))
+        if (_rtp->IncomingPacket((const uint8_t*)packet->data,
+                                 packet->length) < 0)
         {
             delete packet;
+            packet = NULL;
+            // Will return an error after the first packet that goes wrong
             return -1;
         }
         delete packet;

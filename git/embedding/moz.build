@@ -5,11 +5,9 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 DIRS += ['base', 'components', 'browser']
-
-if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'android':
-    DIRS += ['android/geckoview_example']
-
 TEST_DIRS += ['test']
+
+MODULE = 'embed'
 
 if CONFIG['ENABLE_TESTS']:
     XPCSHELL_TESTS_MANIFESTS += ['tests/unit/xpcshell.ini']

@@ -4,7 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
@@ -42,6 +42,8 @@
 
 using namespace mozilla;
 
+#define COMPONENT_DIRECTORY     NS_LITERAL_CSTRING("components")
+
 // define home directory
 // For Windows platform, We are choosing Appdata folder as HOME
 #if defined (XP_WIN)
@@ -59,8 +61,7 @@ nsresult
 nsDirectoryService::GetCurrentProcessDirectory(nsIFile** aFile)
 //----------------------------------------------------------------------------------------
 {
-    if (NS_WARN_IF(!aFile))
-        return NS_ERROR_INVALID_ARG;
+    NS_ENSURE_ARG_POINTER(aFile);
     *aFile = nullptr;
     
    //  Set the component registry location:
@@ -97,12 +98,12 @@ nsDirectoryService::GetCurrentProcessDirectory(nsIFile** aFile)
 
 
 #ifdef XP_WIN
-    wchar_t buf[MAX_PATH + 1];
+    PRUnichar buf[MAX_PATH + 1];
     SetLastError(ERROR_SUCCESS);
     if (GetModuleFileNameW(0, buf, mozilla::ArrayLength(buf)) &&
         GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
         // chop off the executable name by finding the rightmost backslash
-        wchar_t* lastSlash = wcsrchr(buf, L'\\');
+        PRUnichar* lastSlash = wcsrchr(buf, L'\\');
         if (lastSlash)
             *(lastSlash + 1) = L'\0';
 
@@ -219,17 +220,15 @@ nsDirectoryService::GetCurrentProcessDirectory(nsIFile** aFile)
 nsDirectoryService* nsDirectoryService::gService = nullptr;
 
 nsDirectoryService::nsDirectoryService()
-    : mHashtable(256)
 {
+    mHashtable.Init(256);
 }
 
 nsresult
 nsDirectoryService::Create(nsISupports *outer, REFNSIID aIID, void **aResult)
 {
-    if (NS_WARN_IF(!aResult))
-        return NS_ERROR_INVALID_ARG;
-    if (NS_WARN_IF(outer))
-        return NS_ERROR_NO_AGGREGATION;
+    NS_ENSURE_ARG_POINTER(aResult);
+    NS_ENSURE_NO_AGGREGATION(outer);
 
     if (!gService)
     {
@@ -287,8 +286,7 @@ NS_IMPL_ISUPPORTS4(nsDirectoryService, nsIProperties, nsIDirectoryService, nsIDi
 NS_IMETHODIMP
 nsDirectoryService::Undefine(const char* prop)
 {
-    if (NS_WARN_IF(!prop))
-        return NS_ERROR_INVALID_ARG;
+    NS_ENSURE_ARG(prop);
 
     nsDependentCString key(prop);
     if (!mHashtable.Get(key, nullptr))
@@ -364,8 +362,7 @@ static bool FindProviderFile(nsIDirectoryServiceProvider* aElement,
 NS_IMETHODIMP
 nsDirectoryService::Get(const char* prop, const nsIID & uuid, void* *result)
 {
-    if (NS_WARN_IF(!prop))
-        return NS_ERROR_INVALID_ARG;
+    NS_ENSURE_ARG(prop);
 
     nsDependentCString key(prop);
 
@@ -414,8 +411,7 @@ nsDirectoryService::Get(const char* prop, const nsIID & uuid, void* *result)
 NS_IMETHODIMP
 nsDirectoryService::Set(const char* prop, nsISupports* value)
 {
-    if (NS_WARN_IF(!prop))
-        return NS_ERROR_INVALID_ARG;
+    NS_ENSURE_ARG(prop);
 
     nsDependentCString key(prop);
     if (mHashtable.Get(key, nullptr) || !value) {
@@ -437,8 +433,7 @@ nsDirectoryService::Set(const char* prop, nsISupports* value)
 NS_IMETHODIMP
 nsDirectoryService::Has(const char *prop, bool *_retval)
 {
-    if (NS_WARN_IF(!prop))
-        return NS_ERROR_INVALID_ARG;
+    NS_ENSURE_ARG(prop);
 
     *_retval = false;
     nsCOMPtr<nsIFile> value;
@@ -917,8 +912,7 @@ nsDirectoryService::GetFile(const char *prop, bool *persistent, nsIFile **_retva
 NS_IMETHODIMP
 nsDirectoryService::GetFiles(const char *prop, nsISimpleEnumerator **_retval)
 {
-    if (NS_WARN_IF(!_retval))
-        return NS_ERROR_INVALID_ARG;
+    NS_ENSURE_ARG_POINTER(_retval);
     *_retval = nullptr;
         
     return NS_ERROR_FAILURE;

@@ -3,11 +3,11 @@ namespace mozilla {
 namespace _ipdltest {
 
 
-intr protocol PTestNestedLoops {
+rpc protocol PTestNestedLoops {
 
 child:
     async Start();
-    intr R();
+    rpc R();
     __delete__();
 
 parent:

@@ -7,7 +7,17 @@
 #define MOZILLA_AUDIONODEEXTERNALINPUTSTREAM_H_
 
 #include "MediaStreamGraph.h"
+#include "AudioChannelFormat.h"
+#include "AudioNodeEngine.h"
 #include "AudioNodeStream.h"
+#include "mozilla/dom/AudioParam.h"
+#include <deque>
+
+#ifdef PR_LOGGING
+#define LOG(type, msg) PR_LOG(gMediaStreamGraphLog, type, msg)
+#else
+#define LOG(type, msg)
+#endif
 
 // Forward declaration for mResamplerMap
 typedef struct SpeexResamplerState_ SpeexResamplerState;

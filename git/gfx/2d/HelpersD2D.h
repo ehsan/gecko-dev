@@ -86,21 +86,6 @@ static inline D2D1_INTERPOLATION_MODE D2DInterpolationMode(const Filter &aFilter
     return D2D1_INTERPOLATION_MODE_LINEAR;
   }
 }
-
-static inline D2D1_MATRIX_5X4_F D2DMatrix5x4(const Matrix5x4 &aMatrix)
-{
-  return D2D1::Matrix5x4F(aMatrix._11, aMatrix._12, aMatrix._13, aMatrix._14,
-                          aMatrix._21, aMatrix._22, aMatrix._23, aMatrix._24,
-                          aMatrix._31, aMatrix._32, aMatrix._33, aMatrix._34,
-                          aMatrix._41, aMatrix._42, aMatrix._43, aMatrix._44,
-                          aMatrix._51, aMatrix._52, aMatrix._53, aMatrix._54);
-}
-
-static inline D2D1_VECTOR_3F D2DVector3D(const Point3D &aPoint)
-{
-  return D2D1::Vector3F(aPoint.x, aPoint.y, aPoint.z);
-}
-
 #endif
 
 static inline D2D1_ANTIALIAS_MODE D2DAAMode(AntialiasMode aMode)
@@ -158,11 +143,6 @@ static inline Matrix ToMatrix(const D2D1_MATRIX_3X2_F &aTransform)
                 aTransform._31, aTransform._32);
 }
 
-static inline Point ToPoint(const D2D1_POINT_2F &aPoint)
-{
-  return Point(aPoint.x, aPoint.y);
-}
-
 static inline DXGI_FORMAT DXGIFormat(SurfaceFormat aFormat)
 {
   switch (aFormat) {
@@ -177,7 +157,7 @@ static inline DXGI_FORMAT DXGIFormat(SurfaceFormat aFormat)
   }
 }
 
-static inline D2D1_ALPHA_MODE D2DAlphaModeForFormat(SurfaceFormat aFormat)
+static inline D2D1_ALPHA_MODE AlphaMode(SurfaceFormat aFormat)
 {
   switch (aFormat) {
   case FORMAT_B8G8R8X8:
@@ -189,7 +169,7 @@ static inline D2D1_ALPHA_MODE D2DAlphaModeForFormat(SurfaceFormat aFormat)
 
 static inline D2D1_PIXEL_FORMAT D2DPixelFormat(SurfaceFormat aFormat)
 {
-  return D2D1::PixelFormat(DXGIFormat(aFormat), D2DAlphaModeForFormat(aFormat));
+  return D2D1::PixelFormat(DXGIFormat(aFormat), AlphaMode(aFormat));
 }
 
 #ifdef USE_D2D1_1
@@ -425,7 +405,7 @@ CreateStrokeStyleForOptions(const StrokeOptions &aStrokeOptions)
                                   capStyle, joinStyle,
                                   aStrokeOptions.mMiterLimit,
                                   D2D1_DASH_STYLE_CUSTOM,
-                                  aStrokeOptions.mDashOffset / lineWidth),
+                                  aStrokeOptions.mDashOffset),
       &dash[0], // data() is not C++98, although it's in recent gcc
                 // and VC10's STL
       dash.size(),

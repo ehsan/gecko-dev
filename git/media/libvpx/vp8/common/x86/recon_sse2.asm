@@ -17,7 +17,7 @@
 ;    unsigned char *dst,
 ;    int dst_stride
 ;    )
-global sym(vp8_copy_mem16x16_sse2) PRIVATE
+global sym(vp8_copy_mem16x16_sse2)
 sym(vp8_copy_mem16x16_sse2):
     push        rbp
     mov         rbp, rsp
@@ -119,37 +119,35 @@ sym(vp8_copy_mem16x16_sse2):
 ;void vp8_intra_pred_uv_dc_mmx2(
 ;    unsigned char *dst,
 ;    int dst_stride
-;    unsigned char *above,
-;    unsigned char *left,
-;    int left_stride,
+;    unsigned char *src,
+;    int src_stride,
 ;    )
-global sym(vp8_intra_pred_uv_dc_mmx2) PRIVATE
+global sym(vp8_intra_pred_uv_dc_mmx2)
 sym(vp8_intra_pred_uv_dc_mmx2):
     push        rbp
     mov         rbp, rsp
-    SHADOW_ARGS_TO_STACK 5
+    SHADOW_ARGS_TO_STACK 4
     push        rsi
     push        rdi
     ; end prolog
 
     ; from top
-    mov         rdi,        arg(2) ;above;
-    mov         rsi,        arg(3) ;left;
-    movsxd      rax,        dword ptr arg(4) ;left_stride;
+    mov         rsi,        arg(2) ;src;
+    movsxd      rax,        dword ptr arg(3) ;src_stride;
+    sub         rsi,        rax
     pxor        mm0,        mm0
-    movq        mm1,        [rdi]
-    lea         rdi,        [rax*3]
+    movq        mm1,        [rsi]
     psadbw      mm1,        mm0
+
     ; from left
-    movzx       ecx,        byte [rsi]
-    movzx       edx,        byte [rsi+rax*1]
-    add         ecx,        edx
+    dec         rsi
+    lea         rdi,        [rax*3]
+    movzx       ecx,        byte [rsi+rax]
     movzx       edx,        byte [rsi+rax*2]
     add         ecx,        edx
-
     movzx       edx,        byte [rsi+rdi]
-    lea         rsi,        [rsi+rax*4]
     add         ecx,        edx
+    lea         rsi,        [rsi+rax*4]
     movzx       edx,        byte [rsi]
     add         ecx,        edx
     movzx       edx,        byte [rsi+rax]
@@ -158,29 +156,31 @@ sym(vp8_intra_pred_uv_dc_mmx2):
     add         ecx,        edx
     movzx       edx,        byte [rsi+rdi]
     add         ecx,        edx
+    movzx       edx,        byte [rsi+rax*4]
+    add         ecx,        edx
 
     ; add up
     pextrw      edx,        mm1, 0x0
     lea         edx,        [edx+ecx+8]
     sar         edx,        4
     movd        mm1,        edx
-    movsxd      rcx,        dword ptr arg(1) ;dst_stride
     pshufw      mm1,        mm1, 0x0
-    mov         rdi,        arg(0) ;dst;
     packuswb    mm1,        mm1
 
     ; write out
+    mov         rdi,        arg(0) ;dst;
+    movsxd      rcx,        dword ptr arg(1) ;dst_stride
     lea         rax,        [rcx*3]
-    lea         rdx,        [rdi+rcx*4]
 
     movq [rdi      ],       mm1
     movq [rdi+rcx  ],       mm1
     movq [rdi+rcx*2],       mm1
     movq [rdi+rax  ],       mm1
-    movq [rdx      ],       mm1
-    movq [rdx+rcx  ],       mm1
-    movq [rdx+rcx*2],       mm1
-    movq [rdx+rax  ],       mm1
+    lea         rdi,        [rdi+rcx*4]
+    movq [rdi      ],       mm1
+    movq [rdi+rcx  ],       mm1
+    movq [rdi+rcx*2],       mm1
+    movq [rdi+rax  ],       mm1
 
     ; begin epilog
     pop         rdi
@@ -192,24 +192,23 @@ sym(vp8_intra_pred_uv_dc_mmx2):
 ;void vp8_intra_pred_uv_dctop_mmx2(
 ;    unsigned char *dst,
 ;    int dst_stride
-;    unsigned char *above,
-;    unsigned char *left,
-;    int left_stride,
+;    unsigned char *src,
+;    int src_stride,
 ;    )
-global sym(vp8_intra_pred_uv_dctop_mmx2) PRIVATE
+global sym(vp8_intra_pred_uv_dctop_mmx2)
 sym(vp8_intra_pred_uv_dctop_mmx2):
     push        rbp
     mov         rbp, rsp
-    SHADOW_ARGS_TO_STACK 5
+    SHADOW_ARGS_TO_STACK 4
     GET_GOT     rbx
     push        rsi
     push        rdi
     ; end prolog
 
-    ;arg(3), arg(4) not used
-
     ; from top
-    mov         rsi,        arg(2) ;above;
+    mov         rsi,        arg(2) ;src;
+    movsxd      rax,        dword ptr arg(3) ;src_stride;
+    sub         rsi,        rax
     pxor        mm0,        mm0
     movq        mm1,        [rsi]
     psadbw      mm1,        mm0
@@ -246,24 +245,22 @@ sym(vp8_intra_pred_uv_dctop_mmx2):
 ;void vp8_intra_pred_uv_dcleft_mmx2(
 ;    unsigned char *dst,
 ;    int dst_stride
-;    unsigned char *above,
-;    unsigned char *left,
-;    int left_stride,
+;    unsigned char *src,
+;    int src_stride,
 ;    )
-global sym(vp8_intra_pred_uv_dcleft_mmx2) PRIVATE
+global sym(vp8_intra_pred_uv_dcleft_mmx2)
 sym(vp8_intra_pred_uv_dcleft_mmx2):
     push        rbp
     mov         rbp, rsp
-    SHADOW_ARGS_TO_STACK 5
+    SHADOW_ARGS_TO_STACK 4
     push        rsi
     push        rdi
     ; end prolog
 
-    ;arg(2) not used
-
     ; from left
-    mov         rsi,        arg(3) ;left;
-    movsxd      rax,        dword ptr arg(4) ;left_stride;
+    mov         rsi,        arg(2) ;src;
+    movsxd      rax,        dword ptr arg(3) ;src_stride;
+    dec         rsi
     lea         rdi,        [rax*3]
     movzx       ecx,        byte [rsi]
     movzx       edx,        byte [rsi+rax]
@@ -313,19 +310,16 @@ sym(vp8_intra_pred_uv_dcleft_mmx2):
 ;void vp8_intra_pred_uv_dc128_mmx(
 ;    unsigned char *dst,
 ;    int dst_stride
-;    unsigned char *above,
-;    unsigned char *left,
-;    int left_stride,
+;    unsigned char *src,
+;    int src_stride,
 ;    )
-global sym(vp8_intra_pred_uv_dc128_mmx) PRIVATE
+global sym(vp8_intra_pred_uv_dc128_mmx)
 sym(vp8_intra_pred_uv_dc128_mmx):
     push        rbp
     mov         rbp, rsp
-    SHADOW_ARGS_TO_STACK 5
+    SHADOW_ARGS_TO_STACK 4
     GET_GOT     rbx
     ; end prolog
-
-    ;arg(2), arg(3), arg(4) not used
 
     ; write out
     movq        mm1,        [GLOBAL(dc_128)]
@@ -352,16 +346,15 @@ sym(vp8_intra_pred_uv_dc128_mmx):
 ;void vp8_intra_pred_uv_tm_sse2(
 ;    unsigned char *dst,
 ;    int dst_stride
-;    unsigned char *above,
-;    unsigned char *left,
-;    int left_stride,
+;    unsigned char *src,
+;    int src_stride,
 ;    )
 %macro vp8_intra_pred_uv_tm 1
-global sym(vp8_intra_pred_uv_tm_%1) PRIVATE
+global sym(vp8_intra_pred_uv_tm_%1)
 sym(vp8_intra_pred_uv_tm_%1):
     push        rbp
     mov         rbp, rsp
-    SHADOW_ARGS_TO_STACK 5
+    SHADOW_ARGS_TO_STACK 4
     GET_GOT     rbx
     push        rsi
     push        rdi
@@ -369,8 +362,9 @@ sym(vp8_intra_pred_uv_tm_%1):
 
     ; read top row
     mov         edx,        4
-    mov         rsi,        arg(2) ;above
-    movsxd      rax,        dword ptr arg(4) ;left_stride;
+    mov         rsi,        arg(2) ;src;
+    movsxd      rax,        dword ptr arg(3) ;src_stride;
+    sub         rsi,        rax
     pxor        xmm0,       xmm0
 %ifidn %1, ssse3
     movdqa      xmm2,       [GLOBAL(dc_1024)]
@@ -380,7 +374,7 @@ sym(vp8_intra_pred_uv_tm_%1):
 
     ; set up left ptrs ans subtract topleft
     movd        xmm3,       [rsi-1]
-    mov         rsi,        arg(3) ;left;
+    lea         rsi,        [rsi+rax-1]
 %ifidn %1, sse2
     punpcklbw   xmm3,       xmm0
     pshuflw     xmm3,       xmm3, 0x0
@@ -433,22 +427,20 @@ vp8_intra_pred_uv_tm ssse3
 ;void vp8_intra_pred_uv_ve_mmx(
 ;    unsigned char *dst,
 ;    int dst_stride
-;    unsigned char *above,
-;    unsigned char *left,
-;    int left_stride,
+;    unsigned char *src,
+;    int src_stride,
 ;    )
-global sym(vp8_intra_pred_uv_ve_mmx) PRIVATE
+global sym(vp8_intra_pred_uv_ve_mmx)
 sym(vp8_intra_pred_uv_ve_mmx):
     push        rbp
     mov         rbp, rsp
-    SHADOW_ARGS_TO_STACK 5
+    SHADOW_ARGS_TO_STACK 4
     ; end prolog
-
-    ; arg(3), arg(4) not used
 
     ; read from top
     mov         rax,        arg(2) ;src;
-
+    movsxd      rdx,        dword ptr arg(3) ;src_stride;
+    sub         rax,        rdx
     movq        mm1,        [rax]
 
     ; write out
@@ -474,16 +466,15 @@ sym(vp8_intra_pred_uv_ve_mmx):
 ;void vp8_intra_pred_uv_ho_mmx2(
 ;    unsigned char *dst,
 ;    int dst_stride
-;    unsigned char *above,
-;    unsigned char *left,
-;    int left_stride
+;    unsigned char *src,
+;    int src_stride,
 ;    )
 %macro vp8_intra_pred_uv_ho 1
-global sym(vp8_intra_pred_uv_ho_%1) PRIVATE
+global sym(vp8_intra_pred_uv_ho_%1)
 sym(vp8_intra_pred_uv_ho_%1):
     push        rbp
     mov         rbp, rsp
-    SHADOW_ARGS_TO_STACK 5
+    SHADOW_ARGS_TO_STACK 4
     push        rsi
     push        rdi
 %ifidn %1, ssse3
@@ -494,14 +485,12 @@ sym(vp8_intra_pred_uv_ho_%1):
 %endif
     ; end prolog
 
-    ;arg(2) not used
-
     ; read from left and write out
 %ifidn %1, mmx2
     mov         edx,        4
 %endif
-    mov         rsi,        arg(3) ;left
-    movsxd      rax,        dword ptr arg(4) ;left_stride;
+    mov         rsi,        arg(2) ;src;
+    movsxd      rax,        dword ptr arg(3) ;src_stride;
     mov         rdi,        arg(0) ;dst;
     movsxd      rcx,        dword ptr arg(1) ;dst_stride
 %ifidn %1, ssse3
@@ -509,7 +498,7 @@ sym(vp8_intra_pred_uv_ho_%1):
     movdqa      xmm2,       [GLOBAL(dc_00001111)]
     lea         rbx,        [rax*3]
 %endif
-
+    dec         rsi
 %ifidn %1, mmx2
 .vp8_intra_pred_uv_ho_%1_loop:
     movd        mm0,        [rsi]
@@ -573,43 +562,38 @@ vp8_intra_pred_uv_ho ssse3
 ;void vp8_intra_pred_y_dc_sse2(
 ;    unsigned char *dst,
 ;    int dst_stride
-;    unsigned char *above,
-;    unsigned char *left,
-;    int left_stride
+;    unsigned char *src,
+;    int src_stride,
 ;    )
-global sym(vp8_intra_pred_y_dc_sse2) PRIVATE
+global sym(vp8_intra_pred_y_dc_sse2)
 sym(vp8_intra_pred_y_dc_sse2):
     push        rbp
     mov         rbp, rsp
-    SHADOW_ARGS_TO_STACK 5
+    SHADOW_ARGS_TO_STACK 4
     push        rsi
     push        rdi
     ; end prolog
 
     ; from top
-    mov         rdi,        arg(2) ;above
-    mov         rsi,        arg(3) ;left
-    movsxd      rax,        dword ptr arg(4) ;left_stride;
-
+    mov         rsi,        arg(2) ;src;
+    movsxd      rax,        dword ptr arg(3) ;src_stride;
+    sub         rsi,        rax
     pxor        xmm0,       xmm0
-    movdqa      xmm1,       [rdi]
+    movdqa      xmm1,       [rsi]
     psadbw      xmm1,       xmm0
     movq        xmm2,       xmm1
     punpckhqdq  xmm1,       xmm1
     paddw       xmm1,       xmm2
 
     ; from left
+    dec         rsi
     lea         rdi,        [rax*3]
-
-    movzx       ecx,        byte [rsi]
-    movzx       edx,        byte [rsi+rax]
-    add         ecx,        edx
+    movzx       ecx,        byte [rsi+rax]
     movzx       edx,        byte [rsi+rax*2]
     add         ecx,        edx
     movzx       edx,        byte [rsi+rdi]
     add         ecx,        edx
     lea         rsi,        [rsi+rax*4]
-
     movzx       edx,        byte [rsi]
     add         ecx,        edx
     movzx       edx,        byte [rsi+rax]
@@ -619,7 +603,6 @@ sym(vp8_intra_pred_y_dc_sse2):
     movzx       edx,        byte [rsi+rdi]
     add         ecx,        edx
     lea         rsi,        [rsi+rax*4]
-
     movzx       edx,        byte [rsi]
     add         ecx,        edx
     movzx       edx,        byte [rsi+rax]
@@ -629,7 +612,6 @@ sym(vp8_intra_pred_y_dc_sse2):
     movzx       edx,        byte [rsi+rdi]
     add         ecx,        edx
     lea         rsi,        [rsi+rax*4]
-
     movzx       edx,        byte [rsi]
     add         ecx,        edx
     movzx       edx,        byte [rsi+rax]
@@ -637,6 +619,8 @@ sym(vp8_intra_pred_y_dc_sse2):
     movzx       edx,        byte [rsi+rax*2]
     add         ecx,        edx
     movzx       edx,        byte [rsi+rdi]
+    add         ecx,        edx
+    movzx       edx,        byte [rsi+rax*4]
     add         ecx,        edx
 
     ; add up
@@ -679,23 +663,22 @@ sym(vp8_intra_pred_y_dc_sse2):
 ;void vp8_intra_pred_y_dctop_sse2(
 ;    unsigned char *dst,
 ;    int dst_stride
-;    unsigned char *above,
-;    unsigned char *left,
-;    int left_stride
+;    unsigned char *src,
+;    int src_stride,
 ;    )
-global sym(vp8_intra_pred_y_dctop_sse2) PRIVATE
+global sym(vp8_intra_pred_y_dctop_sse2)
 sym(vp8_intra_pred_y_dctop_sse2):
     push        rbp
     mov         rbp, rsp
-    SHADOW_ARGS_TO_STACK 5
+    SHADOW_ARGS_TO_STACK 4
     push        rsi
     GET_GOT     rbx
     ; end prolog
 
-    ;arg(3), arg(4) not used
-
     ; from top
-    mov         rcx,        arg(2) ;above;
+    mov         rcx,        arg(2) ;src;
+    movsxd      rax,        dword ptr arg(3) ;src_stride;
+    sub         rcx,        rax
     pxor        xmm0,       xmm0
     movdqa      xmm1,       [rcx]
     psadbw      xmm1,       xmm0
@@ -741,25 +724,22 @@ sym(vp8_intra_pred_y_dctop_sse2):
 ;void vp8_intra_pred_y_dcleft_sse2(
 ;    unsigned char *dst,
 ;    int dst_stride
-;    unsigned char *above,
-;    unsigned char *left,
-;    int left_stride
+;    unsigned char *src,
+;    int src_stride,
 ;    )
-global sym(vp8_intra_pred_y_dcleft_sse2) PRIVATE
+global sym(vp8_intra_pred_y_dcleft_sse2)
 sym(vp8_intra_pred_y_dcleft_sse2):
     push        rbp
     mov         rbp, rsp
-    SHADOW_ARGS_TO_STACK 5
+    SHADOW_ARGS_TO_STACK 4
     push        rsi
     push        rdi
     ; end prolog
 
-    ;arg(2) not used
-
     ; from left
-    mov         rsi,        arg(3) ;left;
-    movsxd      rax,        dword ptr arg(4) ;left_stride;
-
+    mov         rsi,        arg(2) ;src;
+    movsxd      rax,        dword ptr arg(3) ;src_stride;
+    dec         rsi
     lea         rdi,        [rax*3]
     movzx       ecx,        byte [rsi]
     movzx       edx,        byte [rsi+rax]
@@ -834,20 +814,17 @@ sym(vp8_intra_pred_y_dcleft_sse2):
 ;void vp8_intra_pred_y_dc128_sse2(
 ;    unsigned char *dst,
 ;    int dst_stride
-;    unsigned char *above,
-;    unsigned char *left,
-;    int left_stride
+;    unsigned char *src,
+;    int src_stride,
 ;    )
-global sym(vp8_intra_pred_y_dc128_sse2) PRIVATE
+global sym(vp8_intra_pred_y_dc128_sse2)
 sym(vp8_intra_pred_y_dc128_sse2):
     push        rbp
     mov         rbp, rsp
-    SHADOW_ARGS_TO_STACK 5
+    SHADOW_ARGS_TO_STACK 4
     push        rsi
     GET_GOT     rbx
     ; end prolog
-
-    ;arg(2), arg(3), arg(4) not used
 
     ; write out
     mov         rsi,        2
@@ -880,17 +857,15 @@ sym(vp8_intra_pred_y_dc128_sse2):
 ;void vp8_intra_pred_y_tm_sse2(
 ;    unsigned char *dst,
 ;    int dst_stride
-;    unsigned char *above,
-;    unsigned char *left,
-;    int left_stride
+;    unsigned char *src,
+;    int src_stride,
 ;    )
 %macro vp8_intra_pred_y_tm 1
-global sym(vp8_intra_pred_y_tm_%1) PRIVATE
+global sym(vp8_intra_pred_y_tm_%1)
 sym(vp8_intra_pred_y_tm_%1):
     push        rbp
     mov         rbp, rsp
-    SHADOW_ARGS_TO_STACK 5
-    SAVE_XMM 7
+    SHADOW_ARGS_TO_STACK 4
     push        rsi
     push        rdi
     GET_GOT     rbx
@@ -898,8 +873,9 @@ sym(vp8_intra_pred_y_tm_%1):
 
     ; read top row
     mov         edx,        8
-    mov         rsi,        arg(2) ;above
-    movsxd      rax,        dword ptr arg(4) ;left_stride;
+    mov         rsi,        arg(2) ;src;
+    movsxd      rax,        dword ptr arg(3) ;src_stride;
+    sub         rsi,        rax
     pxor        xmm0,       xmm0
 %ifidn %1, ssse3
     movdqa      xmm3,       [GLOBAL(dc_1024)]
@@ -911,7 +887,7 @@ sym(vp8_intra_pred_y_tm_%1):
 
     ; set up left ptrs ans subtract topleft
     movd        xmm4,       [rsi-1]
-    mov         rsi,        arg(3) ;left
+    lea         rsi,        [rsi+rax-1]
 %ifidn %1, sse2
     punpcklbw   xmm4,       xmm0
     pshuflw     xmm4,       xmm4, 0x0
@@ -958,7 +934,6 @@ vp8_intra_pred_y_tm_%1_loop:
     RESTORE_GOT
     pop         rdi
     pop         rsi
-    RESTORE_XMM
     UNSHADOW_ARGS
     pop         rbp
     ret
@@ -970,29 +945,27 @@ vp8_intra_pred_y_tm ssse3
 ;void vp8_intra_pred_y_ve_sse2(
 ;    unsigned char *dst,
 ;    int dst_stride
-;    unsigned char *above,
-;    unsigned char *left,
-;    int left_stride
+;    unsigned char *src,
+;    int src_stride,
 ;    )
-global sym(vp8_intra_pred_y_ve_sse2) PRIVATE
+global sym(vp8_intra_pred_y_ve_sse2)
 sym(vp8_intra_pred_y_ve_sse2):
     push        rbp
     mov         rbp, rsp
-    SHADOW_ARGS_TO_STACK 5
+    SHADOW_ARGS_TO_STACK 4
     push        rsi
     ; end prolog
 
-    ;arg(3), arg(4) not used
-
-    mov         rax,        arg(2) ;above;
-    mov         rsi,        2
-    movsxd      rdx,        dword ptr arg(1) ;dst_stride
-
     ; read from top
+    mov         rax,        arg(2) ;src;
+    movsxd      rdx,        dword ptr arg(3) ;src_stride;
+    sub         rax,        rdx
     movdqa      xmm1,       [rax]
 
     ; write out
+    mov         rsi,        2
     mov         rax,        arg(0) ;dst;
+    movsxd      rdx,        dword ptr arg(1) ;dst_stride
     lea         rcx,        [rdx*3]
 
 .label
@@ -1018,27 +991,25 @@ sym(vp8_intra_pred_y_ve_sse2):
 ;void vp8_intra_pred_y_ho_sse2(
 ;    unsigned char *dst,
 ;    int dst_stride
-;    unsigned char *above,
-;    unsigned char *left,
-;    int left_stride,
+;    unsigned char *src,
+;    int src_stride,
 ;    )
-global sym(vp8_intra_pred_y_ho_sse2) PRIVATE
+global sym(vp8_intra_pred_y_ho_sse2)
 sym(vp8_intra_pred_y_ho_sse2):
     push        rbp
     mov         rbp, rsp
-    SHADOW_ARGS_TO_STACK 5
+    SHADOW_ARGS_TO_STACK 4
     push        rsi
     push        rdi
     ; end prolog
 
-    ;arg(2) not used
-
     ; read from left and write out
     mov         edx,        8
-    mov         rsi,        arg(3) ;left;
-    movsxd      rax,        dword ptr arg(4) ;left_stride;
+    mov         rsi,        arg(2) ;src;
+    movsxd      rax,        dword ptr arg(3) ;src_stride;
     mov         rdi,        arg(0) ;dst;
     movsxd      rcx,        dword ptr arg(1) ;dst_stride
+    dec         rsi
 
 vp8_intra_pred_y_ho_sse2_loop:
     movd        xmm0,       [rsi]

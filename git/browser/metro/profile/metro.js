@@ -9,25 +9,20 @@
 pref("nglayout.debug.disable_xul_cache", true);
 pref("nglayout.debug.disable_xul_fastload", true);
 pref("devtools.errorconsole.enabled", true);
-pref("devtools.chrome.enabled", true);
-#else
-pref("devtools.errorconsole.enabled", false);
-pref("devtools.chrome.enabled", false);
 #endif
 
 // Automatically submit crash reports
 #ifdef RELEASE_BUILD
 pref("app.crashreporter.autosubmit", false);
-pref("app.crashreporter.submitURLs", false);
 #else
 // For Nightly and Aurora we turn this on by default
 pref("app.crashreporter.autosubmit", true);
-pref("app.crashreporter.submitURLs", false);
 #endif
 // Has the user been prompted about crash reporting?
 pref("app.crashreporter.prompted", false);
 
 // Debug prefs, see input.js
+pref("metro.debug.treatmouseastouch", false);
 pref("metro.debug.colorizeInputOverlay", false);
 pref("metro.debug.selection.displayRanges", false);
 pref("metro.debug.selection.dumpRanges", false);
@@ -39,18 +34,10 @@ pref("prompts.tab_modal.enabled", true);
 
 // Enable off main thread compositing
 pref("layers.offmainthreadcomposition.enabled", true);
-pref("layers.async-pan-zoom.enabled", true);
+pref("layers.async-pan-zoom.enabled", false);
 pref("layers.componentalpha.enabled", false);
-
-// Prefs to control the async pan/zoom behaviour
-pref("apz.touch_start_tolerance", "0.1"); // dpi * tolerance = pixel threshold
-pref("apz.pan_repaint_interval", 50);   // prefer 20 fps
-pref("apz.fling_repaint_interval", 50); // prefer 20 fps
-pref("apz.fling_stopped_threshold", "0.2");
-
-// 0 = free, 1 = standard, 2 = sticky
-pref("apz.axis_lock_mode", 2);
-pref("apz.cross_slide.enabled", true);
+pref("gfx.azpc.touch_start_tolerance", "0.1"); // dpi * tolerance = pixel threshold
+pref("gfx.axis.fling_friction", "0.002");
 
 // Enable Microsoft TSF support by default for imes.
 pref("intl.enable_tsf_support", true);
@@ -91,10 +78,10 @@ pref("toolkit.telemetry.prompted", 2);
 
 pref("toolkit.screen.lock", false);
 
-// From libpref/src/init/all.js. Disabling text zoom in favor of APZ zoom. See bug 936940.
-pref("zoom.minPercent", 100);
-pref("zoom.maxPercent", 100);
-pref("toolkit.zoomManager.zoomValues", "1");
+// From libpref/src/init/all.js, extended to allow a slightly wider zoom range.
+pref("zoom.minPercent", 20);
+pref("zoom.maxPercent", 400);
+pref("toolkit.zoomManager.zoomValues", ".2,.3,.5,.67,.8,.9,1,1.1,1.2,1.33,1.5,1.7,2,2.4,3,4");
 
 // Device pixel to CSS px ratio, in percent. Set to -1 to calculate based on display density.
 pref("browser.viewport.scaleRatio", -1);
@@ -192,6 +179,10 @@ pref("browser.helperApps.deleteTempFileOnExit", false);
 
 /* password manager */
 pref("signon.rememberSignons", true);
+pref("signon.SignonFileName", "signons.txt");
+
+/* find helper */
+pref("findhelper.autozoom", true);
 
 // this will automatically enable inline spellchecking (if it is available) for
 // editable elements in HTML
@@ -201,10 +192,6 @@ pref("signon.rememberSignons", true);
 pref("layout.spellcheckDefault", 1);
 
 /* extension manager and xpinstall */
-// Completely disable extensions
-pref("extensions.defaultProviders.enabled", false);
-// Disable version checks making addons compatible by default
-pref("extensions.strictCompatibility", false);
 // Disable all add-on locations other than the profile
 pref("extensions.enabledScopes", 1);
 // Auto-disable any add-ons that are "dropped in" to the profile
@@ -220,14 +207,10 @@ pref("extensions.blocklist.enabled", true);
 pref("extensions.blocklist.interval", 86400);
 pref("extensions.blocklist.url", "https://addons.mozilla.org/blocklist/3/%APP_ID%/%APP_VERSION%/%PRODUCT%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/%PING_COUNT%/%TOTAL_PING_COUNT%/%DAYS_SINCE_LAST_PING%/");
 pref("extensions.blocklist.detailsURL", "https://www.mozilla.org/%LOCALE%/blocklist/");
-pref("extensions.showMismatchUI", false);
 
 /* block popups by default, and notify the user about blocked popups */
 pref("dom.disable_open_during_load", true);
 pref("privacy.popups.showBrowserMessage", true);
-
-// Metro Firefox keeps this set to -1 when donottrackheader.enabled is false.
-pref("privacy.donottrackheader.value", -1);
 
 /* disable opening windows with the dialog feature */
 pref("dom.disable_window_open_dialog_feature", true);
@@ -389,8 +372,8 @@ pref("privacy.sanitize.migrateFx3Prefs",    false);
 pref("geo.enabled", true);
 pref("geo.wifi.uri", "https://www.googleapis.com/geolocation/v1/geolocate?key=%GOOGLE_API_KEY%");
 
-// snapped view
-pref("browser.ui.snapped.maxWidth", 600);
+// JS error console
+pref("devtools.errorconsole.enabled", false);
 
 // kinetic tweakables
 pref("browser.ui.kinetic.updateInterval", 16);
@@ -398,6 +381,11 @@ pref("browser.ui.kinetic.exponentialC", 1400);
 pref("browser.ui.kinetic.polynomialC", 100);
 pref("browser.ui.kinetic.swipeLength", 160);
 pref("browser.ui.zoom.animationDuration", 200); // ms duration of double-tap zoom animation
+
+// pinch gesture
+pref("browser.ui.pinch.maxGrowth", 150);     // max pinch distance growth
+pref("browser.ui.pinch.maxShrink", 200);     // max pinch distance shrinkage
+pref("browser.ui.pinch.scalingFactor", 500); // scaling factor for above pinch limits
 
 pref("ui.mouse.radius.enabled", true);
 pref("ui.touch.radius.enabled", true);
@@ -454,11 +442,7 @@ pref("app.update.silent", true);
 pref("app.update.staging.enabled", true);
 
 // Update service URL:
-#ifndef RELEASE_BUILD
-pref("app.update.url", "https://aus4.mozilla.org/update/3/%PRODUCT%/%VERSION%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/update.xml");
-#else
 pref("app.update.url", "https://aus3.mozilla.org/update/3/%PRODUCT%/%VERSION%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/update.xml");
-#endif
 
 // Show the Update Checking/Ready UI when the user was idle for x seconds
 pref("app.update.idletime", 60);
@@ -494,22 +478,42 @@ pref("app.update.log", false);
 // the failure.
 pref("app.update.backgroundMaxErrors", 10);
 
-// The aus update xml certificate checks for application update are disabled on
-// Windows since the mar signature check which is currently only implemented on
-// Windows is sufficient for preventing us from applying a mar that is not
-// valid.
-
 // When |app.update.cert.requireBuiltIn| is true or not specified the
 // final certificate and all certificates the connection is redirected to before
 // the final certificate for the url specified in the |app.update.url|
 // preference must be built-in.
-pref("app.update.cert.requireBuiltIn", false);
+pref("app.update.cert.requireBuiltIn", true);
 
 // When |app.update.cert.checkAttributes| is true or not specified the
 // certificate attributes specified in the |app.update.certs.| preference branch
 // are checked against the certificate for the url specified by the
 // |app.update.url| preference.
-pref("app.update.cert.checkAttributes", false);
+pref("app.update.cert.checkAttributes", true);
+
+// The number of certificate attribute check failures to allow for background
+// update checks before notifying the user of the failure. User initiated update
+// checks always notify the user of the certificate attribute check failure.
+pref("app.update.cert.maxErrors", 5);
+
+// The |app.update.certs.| preference branch contains branches that are
+// sequentially numbered starting at 1 that contain attribute name / value
+// pairs for the certificate used by the server that hosts the update xml file
+// as specified in the |app.update.url| preference. When these preferences are
+// present the following conditions apply for a successful update check:
+// 1. the uri scheme must be https
+// 2. the preference name must exist as an attribute name on the certificate and
+//    the value for the name must be the same as the value for the attribute name
+//    on the certificate.
+// If these conditions aren't met it will be treated the same as when there is
+// no update available. This validation will not be performed when the
+// |app.update.url.override| user preference has been set for testing updates or
+// when the |app.update.cert.checkAttributes| preference is set to false. Also,
+// the |app.update.url.override| preference should ONLY be used for testing.
+// IMPORTANT! firefox.js should also be updated for updates to certs.X.issuerName
+pref("app.update.certs.1.issuerName", "OU=Equifax Secure Certificate Authority,O=Equifax,C=US");
+pref("app.update.certs.1.commonName", "aus3.mozilla.org");
+pref("app.update.certs.2.issuerName", "CN=Thawte SSL CA,O=\"Thawte, Inc.\",C=US");
+pref("app.update.certs.2.commonName", "aus3.mozilla.org");
 
 // User-settable override to app.update.url for testing purposes.
 //pref("app.update.url.override", "");
@@ -543,10 +547,10 @@ pref("browser.chrome.toolbar_tips", false);
 // Completely disable pdf.js as an option to preview pdfs within firefox.
 // Note: if this is not disabled it does not necessarily mean pdf.js is the pdf
 // handler just that it is an option.
-pref("pdfjs.disabled", true);
+pref("pdfjs.disabled", false);
 // Used by pdf.js to know the first time firefox is run with it installed so it
 // can become the default pdf viewer.
-pref("pdfjs.firstRun", false);
+pref("pdfjs.firstRun", true);
 // The values of preferredAction and alwaysAskBeforeHandling before pdf.js
 // became the default.
 pref("pdfjs.previousHandler.preferredAction", 0);
@@ -588,6 +592,7 @@ pref("browser.safebrowsing.provider.0.reportMalwareURL", "http://{moz:locale}.ma
 pref("browser.safebrowsing.provider.0.reportMalwareErrorURL", "http://{moz:locale}.malware-error.mozilla.com/?hl={moz:locale}");
 
 // FAQ URLs
+pref("browser.safebrowsing.warning.infoURL", "https://www.mozilla.org/%LOCALE%/firefox/phishing-protection/");
 pref("browser.geolocation.warning.infoURL", "https://www.mozilla.org/%LOCALE%/firefox/geolocation/");
 
 // Name of the about: page contributed by safebrowsing to handle display of error
@@ -596,6 +601,9 @@ pref("urlclassifier.alternate_error_page", "blocked");
 
 // The number of random entries to send with a gethash request.
 pref("urlclassifier.gethashnoise", 4);
+
+// The list of tables that use the gethash request to confirm partial results.
+pref("urlclassifier.gethashtables", "goog-phish-shavar,goog-malware-shavar");
 
 // If an urlclassifier table has not been updated in this number of seconds,
 // a gethash request will be forced to check that the result is still in
@@ -644,14 +652,3 @@ pref("full-screen-api.content-only", true);
 // the window, the window size doesn't change. This pref has no effect when
 // running in actual Metro mode, as the widget will already be fullscreen then.
 pref("full-screen-api.ignore-widgets", true);
-
-// image visibility prefs.
-// image visibility tries to only keep images near the viewport decoded instead
-// of keeping all images decoded.
-pref("layout.imagevisibility.enabled", true);
-pref("layout.imagevisibility.numscrollportwidths", 1);
-pref("layout.imagevisibility.numscrollportheights", 1);
-
-// Don't enable <input type=color> yet as we don't have a color picker
-// implemented for Windows Metro (bug 895464)
-pref("dom.forms.color", false);

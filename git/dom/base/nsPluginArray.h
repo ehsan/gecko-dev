@@ -12,8 +12,8 @@
 #include "nsIObserver.h"
 #include "nsWrapperCache.h"
 #include "nsPluginTags.h"
-#include "nsPIDOMWindow.h"
 
+class nsPIDOMWindow;
 class nsPluginElement;
 class nsMimeType;
 
@@ -29,7 +29,7 @@ public:
   // nsIObserver
   NS_DECL_NSIOBSERVER
 
-  nsPluginArray(nsPIDOMWindow* aWindow);
+  nsPluginArray(nsWeakPtr aWindow);
   virtual ~nsPluginArray();
 
   nsPIDOMWindow* GetParentObject() const;
@@ -43,8 +43,7 @@ public:
   void Init();
   void Invalidate();
 
-  void GetMimeTypes(nsTArray<nsRefPtr<nsMimeType> >& aMimeTypes,
-                    nsTArray<nsRefPtr<nsMimeType> >& aHiddenMimeTypes);
+  void GetPlugins(nsTArray<nsRefPtr<nsPluginElement> >& aPlugins);
 
   // PluginArray WebIDL methods
 
@@ -60,19 +59,8 @@ private:
   bool AllowPlugins() const;
   void EnsurePlugins();
 
-  nsCOMPtr<nsPIDOMWindow> mWindow;
-
-  // Many sites check whether a particular plugin is installed by enumerating
-  // all navigator.plugins, checking each plugin's name. These sites should
-  // just check navigator.plugins["Popular Plugin Name"] instead. mPlugins
-  // contains those popular plugins that must be exposed in navigator.plugins
-  // enumeration to avoid breaking web content.
+  nsWeakPtr mWindow;
   nsTArray<nsRefPtr<nsPluginElement> > mPlugins;
-
-  // mHiddenPlugins contains plugins that can be queried by
-  // navigator.plugins["Hidden Plugin Name"] but do not need to be exposed in
-  // navigator.plugins enumeration.
-  nsTArray<nsRefPtr<nsPluginElement> > mHiddenPlugins;
 };
 
 class nsPluginElement MOZ_FINAL : public nsISupports,
@@ -82,7 +70,7 @@ public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsPluginElement)
 
-  nsPluginElement(nsPIDOMWindow* aWindow, nsPluginTag* aPluginTag);
+  nsPluginElement(nsWeakPtr aWindow, nsPluginTag* aPluginTag);
 
   nsPIDOMWindow* GetParentObject() const;
   virtual JSObject* WrapObject(JSContext* aCx,
@@ -109,9 +97,9 @@ public:
   nsTArray<nsRefPtr<nsMimeType> >& MimeTypes();
 
 protected:
-  void EnsurePluginMimeTypes();
+  void EnsureMimeTypes();
 
-  nsCOMPtr<nsPIDOMWindow> mWindow;
+  nsWeakPtr mWindow;
   nsRefPtr<nsPluginTag> mPluginTag;
   nsTArray<nsRefPtr<nsMimeType> > mMimeTypes;
 };

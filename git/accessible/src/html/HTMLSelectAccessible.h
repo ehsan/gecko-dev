@@ -175,8 +175,10 @@ public:
   NS_IMETHOD DoAction(uint8_t index);
   NS_IMETHOD GetActionName(uint8_t aIndex, nsAString& aName);
 
-  // Accessible
+  // nsAccessNode
   virtual void Shutdown();
+
+  // Accessible
   virtual void Description(nsString& aDescription);
   virtual void Value(nsString& aValue);
   virtual a11y::role NativeRole();
@@ -219,8 +221,10 @@ public:
                              DocAccessible* aDoc);
   virtual ~HTMLComboboxListAccessible() {}
 
-  // Accessible
+  // nsAccessNode
   virtual nsIFrame* GetFrame() const;
+
+  // Accessible
   virtual a11y::role NativeRole();
   virtual uint64_t NativeState();
   virtual void GetBoundsRect(nsRect& aBounds, nsIFrame** aBoundingFrame);

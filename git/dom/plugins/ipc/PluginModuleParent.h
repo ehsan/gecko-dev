@@ -10,16 +10,13 @@
 #include "base/process.h"
 #include "mozilla/FileUtils.h"
 #include "mozilla/PluginLibrary.h"
-#include "mozilla/plugins/ScopedMethodFactory.h"
 #include "mozilla/plugins/PluginProcessParent.h"
 #include "mozilla/plugins/PPluginModuleParent.h"
-#include "mozilla/plugins/PluginMessageUtils.h"
 #include "npapi.h"
 #include "npfunctions.h"
 #include "nsAutoPtr.h"
 #include "nsDataHashtable.h"
 #include "nsHashKeys.h"
-#include "nsIObserver.h"
 
 #ifdef MOZ_CRASHREPORTER
 #include "nsExceptionHandler.h"
@@ -125,7 +122,7 @@ public:
     PluginIdentifierParent*
     GetIdentifierForNPIdentifier(NPP npp, NPIdentifier aIdentifier);
 
-    void ProcessRemoteNativeEventsInInterruptCall();
+    void ProcessRemoteNativeEventsInRPCCall();
 
     void TerminateChildProcess(MessageLoop* aMsgLoop);
 
@@ -135,8 +132,8 @@ public:
 #endif // XP_WIN
 
 protected:
-    virtual mozilla::ipc::RacyInterruptPolicy
-    MediateInterruptRace(const Message& parent, const Message& child) MOZ_OVERRIDE
+    virtual mozilla::ipc::RPCChannel::RacyRPCPolicy
+    MediateRPCRace(const Message& parent, const Message& child) MOZ_OVERRIDE
     {
         return MediateRace(parent, child);
     }
@@ -159,7 +156,7 @@ protected:
     virtual bool AnswerProcessSomeEvents() MOZ_OVERRIDE;
 
     virtual bool
-    RecvProcessNativeEventsInInterruptCall() MOZ_OVERRIDE;
+    RecvProcessNativeEventsInRPCCall() MOZ_OVERRIDE;
 
     virtual bool
     RecvPluginShowWindow(const uint32_t& aWindowId, const bool& aModal,
@@ -277,6 +274,10 @@ private:
     virtual nsresult IsRemoteDrawingCoreAnimation(NPP instance, bool *aDrawing);
     virtual nsresult ContentsScaleFactorChanged(NPP instance, double aContentsScaleFactor);
 #endif
+#if defined(MOZ_WIDGET_QT) && (MOZ_PLATFORM_MAEMO == 6)
+    virtual nsresult HandleGUIEvent(NPP instance, const nsGUIEvent& anEvent,
+                                    bool* handled);
+#endif
 
 private:
     CrashReporterParent* CrashReporter();
@@ -287,7 +288,7 @@ private:
 #endif
     void CleanupFromTimeout(const bool aByHangUI);
     void SetChildTimeout(const int32_t aChildTimeout);
-    static void TimeoutChanged(const char* aPref, void* aModule);
+    static int TimeoutChanged(const char* aPref, void* aModule);
     void NotifyPluginCrashed();
 
 #ifdef MOZ_ENABLE_PROFILER_SPS
@@ -296,13 +297,15 @@ private:
 #endif
 
     PluginProcessParent* mSubprocess;
+    // the plugin thread in mSubprocess
+    NativeThreadId mPluginThread;
     bool mShutdown;
     bool mClearSiteDataSupported;
     bool mGetSitesWithDataSupported;
     const NPNetscapeFuncs* mNPNIface;
     nsDataHashtable<nsPtrHashKey<void>, PluginIdentifierParent*> mIdentifiers;
     nsNPAPIPlugin* mPlugin;
-    ScopedMethodFactory<PluginModuleParent> mTaskFactory;
+    ScopedRunnableMethodFactory<PluginModuleParent> mTaskFactory;
     nsString mPluginDumpID;
     nsString mBrowserDumpID;
     nsString mHangID;
@@ -312,17 +315,6 @@ private:
     PluginHangUIParent *mHangUIParent;
     bool mHangUIEnabled;
     bool mIsTimerReset;
-#ifdef MOZ_CRASHREPORTER
-    /**
-     * This mutex protects the crash reporter when the Plugin Hang UI event
-     * handler is executing off main thread. It is intended to protect both
-     * the mCrashReporter variable in addition to the CrashReporterParent object
-     * that mCrashReporter refers to.
-     */
-    mozilla::Mutex mCrashReporterMutex;
-    CrashReporterParent* mCrashReporter;
-#endif // MOZ_CRASHREPORTER
-
 
     void
     EvaluateHangUIState(const bool aReset);

@@ -4,7 +4,6 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "CEHHelper.h"
-#include <tlhelp32.h>
 
 #ifdef SHOW_CONSOLE
 #include <io.h> // _open_osfhandle
@@ -12,7 +11,6 @@
 
 HANDLE sCon;
 LPCWSTR metroDX10Available = L"MetroD3DAvailable";
-LPCWSTR metroLastAHE = L"MetroLastAHE";
 
 typedef HRESULT (WINAPI*D3D10CreateDevice1Func)
   (IDXGIAdapter *, D3D10_DRIVER_TYPE, HMODULE, UINT,
@@ -58,70 +56,6 @@ SetupConsole()
   setvbuf(stdout, nullptr, _IONBF, 0);
 }
 #endif
-
-bool
-IsImmersiveProcessDynamic(HANDLE process)
-{
-  HMODULE user32DLL = LoadLibraryW(L"user32.dll");
-  if (!user32DLL) {
-    return false;
-  }
-
-  typedef BOOL (WINAPI* IsImmersiveProcessFunc)(HANDLE process);
-  IsImmersiveProcessFunc IsImmersiveProcessPtr =
-    (IsImmersiveProcessFunc)GetProcAddress(user32DLL,
-                                           "IsImmersiveProcess");
-  if (!IsImmersiveProcessPtr) {
-    FreeLibrary(user32DLL);
-    return false;
-  }
-
-  BOOL bImmersiveProcess = IsImmersiveProcessPtr(process);
-  FreeLibrary(user32DLL);
-  return bImmersiveProcess;
-}
-
-bool
-IsProcessRunning(const wchar_t *processName, bool bCheckIfMetro)
-{
-  bool exists = false;
-  PROCESSENTRY32W entry;
-  entry.dwSize = sizeof(PROCESSENTRY32W);
-
-  HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-
-  if (Process32First(snapshot, &entry)) {
-    while (!exists && Process32Next(snapshot, &entry)) {
-      if (!_wcsicmp(entry.szExeFile, processName)) {
-        HANDLE process = OpenProcess(GENERIC_READ, FALSE, entry.th32ProcessID);
-        bool isImmersiveProcess = IsImmersiveProcessDynamic(process);
-        if ((bCheckIfMetro && isImmersiveProcess) ||
-            (!bCheckIfMetro && !isImmersiveProcess)) {
-          exists = true;
-        }
-        CloseHandle(process);
-      }
-    }
-  }
-
-  CloseHandle(snapshot);
-  return exists;
-}
-
-/*
- * Retrieve the last front end ui we launched so we can target it
- * again. This value is updated down in nsAppRunner when the browser
- * starts up.
- */
-AHE_TYPE
-GetLastAHE()
-{
-  DWORD ahe;
-  if (GetDWORDRegKey(metroLastAHE, ahe)) {
-    return (AHE_TYPE) ahe;
-  }
-  return AHE_DESKTOP;
-}
 
 bool
 IsDX10Available()

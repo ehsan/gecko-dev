@@ -54,7 +54,7 @@ TemporaryRef<DataSourceSurface>
 SourceSurfaceD2DTarget::GetDataSurface()
 {
   RefPtr<DataSourceSurfaceD2DTarget> dataSurf =
-    new DataSourceSurfaceD2DTarget(mFormat);
+    new DataSourceSurfaceD2DTarget();
 
   D3D10_TEXTURE2D_DESC desc;
   mTexture->GetDesc(&desc);
@@ -138,13 +138,15 @@ SourceSurfaceD2DTarget::GetBitmap(ID2D1RenderTarget *aRT)
     return nullptr;
   }
 
-  D2D1_BITMAP_PROPERTIES props = D2D1::BitmapProperties(D2DPixelFormat(mFormat));
+  D2D1_BITMAP_PROPERTIES props =
+    D2D1::BitmapProperties(D2D1::PixelFormat(DXGIFormat(mFormat), AlphaMode(mFormat)));
   hr = aRT->CreateSharedBitmap(IID_IDXGISurface, surf, &props, byRef(mBitmap));
 
   if (FAILED(hr)) {
     // This seems to happen for FORMAT_A8 sometimes...
     aRT->CreateBitmap(D2D1::SizeU(desc.Width, desc.Height),
-                      D2D1::BitmapProperties(D2DPixelFormat(mFormat)),
+                      D2D1::BitmapProperties(D2D1::PixelFormat(DXGIFormat(mFormat),
+                                             AlphaMode(mFormat))),
                       byRef(mBitmap));
 
     RefPtr<ID2D1RenderTarget> rt;
@@ -167,7 +169,7 @@ SourceSurfaceD2DTarget::GetBitmap(ID2D1RenderTarget *aRT)
       }
 
       D2D1_RENDER_TARGET_PROPERTIES props =
-        D2D1::RenderTargetProperties(D2D1_RENDER_TARGET_TYPE_DEFAULT, D2DPixelFormat(mFormat));
+        D2D1::RenderTargetProperties(D2D1_RENDER_TARGET_TYPE_DEFAULT, D2D1::PixelFormat(DXGIFormat(mFormat), AlphaMode(mFormat)));
       hr = DrawTargetD2D::factory()->CreateDxgiSurfaceRenderTarget(surface, props, byRef(rt));
 
       if (FAILED(hr)) {
@@ -193,8 +195,8 @@ SourceSurfaceD2DTarget::MarkIndependent()
   }
 }
 
-DataSourceSurfaceD2DTarget::DataSourceSurfaceD2DTarget(SurfaceFormat aFormat)
-  : mFormat(aFormat)
+DataSourceSurfaceD2DTarget::DataSourceSurfaceD2DTarget()
+  : mFormat(FORMAT_B8G8R8A8)
   , mMapped(false)
 {
 }

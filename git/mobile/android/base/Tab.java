@@ -5,9 +5,9 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.SiteIdentity.SecurityMode;
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.gfx.Layer;
+import org.mozilla.gecko.home.HomePager;
 import org.mozilla.gecko.util.ThreadUtils;
 
 import org.json.JSONException;
@@ -43,18 +43,18 @@ public class Tab {
     private Bitmap mFavicon;
     private String mFaviconUrl;
     private int mFaviconSize;
-    private boolean mHasFeeds;
-    private boolean mHasOpenSearch;
-    private SiteIdentity mSiteIdentity;
+    private boolean mFeedsEnabled;
+    private JSONObject mIdentityData;
     private boolean mReaderEnabled;
     private BitmapDrawable mThumbnail;
     private int mHistoryIndex;
     private int mHistorySize;
     private int mParentId;
+    private HomePager.Page mAboutHomePage;
     private boolean mExternal;
     private boolean mBookmark;
     private boolean mReadingListItem;
-    private int mFaviconLoadId;
+    private long mFaviconLoadId;
     private String mContentType;
     private boolean mHasTouchListeners;
     private ZoomConstraints mZoomConstraints;
@@ -93,13 +93,13 @@ public class Tab {
         mUserSearch = "";
         mExternal = external;
         mParentId = parentId;
+        mAboutHomePage = HomePager.Page.BOOKMARKS;
         mTitle = title == null ? "" : title;
         mFavicon = null;
         mFaviconUrl = null;
         mFaviconSize = 0;
-        mHasFeeds = false;
-        mHasOpenSearch = false;
-        mSiteIdentity = new SiteIdentity();
+        mFeedsEnabled = false;
+        mIdentityData = null;
         mReaderEnabled = false;
         mEnteringReaderMode = false;
         mThumbnail = null;
@@ -144,6 +144,15 @@ public class Tab {
         return mParentId;
     }
 
+    public HomePager.Page getAboutHomePage() {
+        return mAboutHomePage;
+    }
+
+    private void setAboutHomePage(HomePager.Page page) {
+        mAboutHomePage = page;
+    }
+
+
     // may be null if user-entered query hasn't yet been resolved to a URI
     public synchronized String getURL() {
         return mUrl;
@@ -175,7 +184,7 @@ public class Tab {
         return mFavicon;
     }
 
-    public BitmapDrawable getThumbnail() {
+    public Drawable getThumbnail() {
         return mThumbnail;
     }
 
@@ -227,20 +236,21 @@ public class Tab {
         return mFaviconUrl;
     }
 
-    public boolean hasFeeds() {
-        return mHasFeeds;
+    public boolean getFeedsEnabled() {
+        return mFeedsEnabled;
     }
 
-    public boolean hasOpenSearch() {
-        return mHasOpenSearch;
+    public String getSecurityMode() {
+        try {
+            return mIdentityData.getString("mode");
+        } catch (Exception e) {
+            // If mIdentityData is null, or we get a JSONException
+            return SiteIdentityPopup.UNKNOWN;
+        }
     }
 
-    public SecurityMode getSecurityMode() {
-        return mSiteIdentity.getSecurityMode();
-    }
-
-    public SiteIdentity getSiteIdentity() {
-        return mSiteIdentity;
+    public JSONObject getIdentityData() {
+        return mIdentityData;
     }
 
     public boolean getReaderEnabled() {
@@ -298,16 +308,9 @@ public class Tab {
     }
 
     public synchronized void updateTitle(String title) {
-        // Keep the title unchanged while entering reader mode.
-        if (mEnteringReaderMode) {
+        // Keep the title unchanged while entering reader mode
+        if (mEnteringReaderMode)
             return;
-        }
-
-        // If there was a title, but it hasn't changed, do nothing.
-        if (mTitle != null &&
-            TextUtils.equals(mTitle, title)) {
-            return;
-        }
 
         mTitle = (title == null ? "" : title);
         Tabs.getInstance().notifyListeners(this, Tabs.TabEvents.TITLE);
@@ -348,23 +351,16 @@ public class Tab {
         return mHasTouchListeners;
     }
 
-    public void setFaviconLoadId(int faviconLoadId) {
+    public void setFaviconLoadId(long faviconLoadId) {
         mFaviconLoadId = faviconLoadId;
     }
 
-    public int getFaviconLoadId() {
+    public long getFaviconLoadId() {
         return mFaviconLoadId;
     }
 
-    /**
-     * Returns true if the favicon changed.
-     */
-    public boolean updateFavicon(Bitmap favicon) {
-        if (mFavicon == favicon) {
-            return false;
-        }
+    public void updateFavicon(Bitmap favicon) {
         mFavicon = favicon;
-        return true;
     }
 
     public synchronized void updateFaviconURL(String faviconUrl, int size) {
@@ -390,16 +386,12 @@ public class Tab {
         mFaviconSize = 0;
     }
 
-    public void setHasFeeds(boolean hasFeeds) {
-        mHasFeeds = hasFeeds;
-    }
-
-    public void setHasOpenSearch(boolean hasOpenSearch) {
-        mHasOpenSearch = hasOpenSearch;
+    public void setFeedsEnabled(boolean feedsEnabled) {
+        mFeedsEnabled = feedsEnabled;
     }
 
     public void updateIdentityData(JSONObject identityData) {
-        mSiteIdentity.update(identityData);
+        mIdentityData = identityData;
     }
 
     public void setReaderEnabled(boolean readerEnabled) {
@@ -468,11 +460,11 @@ public class Tab {
     }
 
     public void toggleReaderMode() {
-        if (AboutPages.isAboutReader(mUrl)) {
+        if (ReaderModeUtils.isAboutReader(mUrl)) {
             Tabs.getInstance().loadUrl(ReaderModeUtils.getUrlFromAboutReader(mUrl));
         } else if (mReaderEnabled) {
             mEnteringReaderMode = true;
-            Tabs.getInstance().loadUrl(ReaderModeUtils.getAboutReaderForUrl(mUrl, mId));
+            Tabs.getInstance().loadUrl(ReaderModeUtils.getAboutReaderForUrl(mUrl, mId, mReadingListItem));
         }
     }
 
@@ -609,14 +601,7 @@ public class Tab {
 
     void handleLocationChange(JSONObject message) throws JSONException {
         final String uri = message.getString("uri");
-        final String oldUrl = getURL();
-        mEnteringReaderMode = ReaderModeUtils.isEnteringReaderMode(oldUrl, uri);
-
-        if (TextUtils.equals(oldUrl, uri)) {
-            Log.d(LOGTAG, "Ignoring location change event: URIs are the same.");
-            return;
-        }
-
+        mEnteringReaderMode = ReaderModeUtils.isEnteringReaderMode(mUrl, uri);
         updateURL(uri);
         updateUserSearch(message.getString("userSearch"));
 
@@ -624,19 +609,13 @@ public class Tab {
         if (message.getBoolean("sameDocument")) {
             // We can get a location change event for the same document with an anchor tag
             // Notify listeners so that buttons like back or forward will update themselves
-            Tabs.getInstance().notifyListeners(this, Tabs.TabEvents.LOCATION_CHANGE, oldUrl);
+            Tabs.getInstance().notifyListeners(this, Tabs.TabEvents.LOCATION_CHANGE, uri);
             return;
         }
 
         setContentType(message.getString("contentType"));
-
-        // We can unconditionally clear the favicon here: we already
-        // short-circuited for both cases in which this was a (pseudo-)
-        // spurious location change, so we're definitely loading a new page.
-        // The same applies to all of the other fields we're wiping out.
         clearFavicon();
-
-        setHasFeeds(false);
+        setFeedsEnabled(false);
         updateTitle(null);
         updateIdentityData(null);
         setReaderEnabled(false);
@@ -645,16 +624,20 @@ public class Tab {
         setBackgroundColor(DEFAULT_BACKGROUND_COLOR);
         setErrorType(ErrorType.NONE);
 
-        Tabs.getInstance().notifyListeners(this, Tabs.TabEvents.LOCATION_CHANGE, oldUrl);
+        final String homePage = message.getString("aboutHomePage");
+        if (!TextUtils.isEmpty(homePage)) {
+            setAboutHomePage(HomePager.Page.valueOf(homePage));
+        }
+
+        Tabs.getInstance().notifyListeners(this, Tabs.TabEvents.LOCATION_CHANGE, uri);
     }
 
-    private static boolean shouldShowProgress(final String url) {
-        return AboutPages.isAboutHome(url) ||
-               AboutPages.isAboutReader(url);
+    private boolean shouldShowProgress(String url) {
+        return "about:home".equals(url) || ReaderModeUtils.isAboutReader(url);
     }
 
     void handleDocumentStart(boolean showProgress, String url) {
-        setState(showProgress ? STATE_LOADING : STATE_SUCCESS);
+        setState(shouldShowProgress(url) ? STATE_SUCCESS : STATE_LOADING);
         updateIdentityData(null);
         setReaderEnabled(false);
     }

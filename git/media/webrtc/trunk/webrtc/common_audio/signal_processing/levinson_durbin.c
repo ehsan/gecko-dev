@@ -15,7 +15,7 @@
  *
  */
 
-#include "webrtc/common_audio/signal_processing/include/signal_processing_library.h"
+#include "signal_processing_library.h"
 
 #define SPL_LEVINSON_MAXORDER 20
 

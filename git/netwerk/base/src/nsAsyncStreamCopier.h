@@ -6,11 +6,12 @@
 #define nsAsyncStreamCopier_h__
 
 #include "nsIAsyncStreamCopier.h"
+#include "nsIAsyncInputStream.h"
+#include "nsIAsyncOutputStream.h"
+#include "nsIRequestObserver.h"
 #include "mozilla/Mutex.h"
 #include "nsStreamUtils.h"
 #include "nsCOMPtr.h"
-
-class nsIRequestObserver;
 
 //-----------------------------------------------------------------------------
 

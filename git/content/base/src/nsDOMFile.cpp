@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -12,6 +11,7 @@
 #include "nsDOMClassInfoID.h"
 #include "nsError.h"
 #include "nsICharsetDetector.h"
+#include "nsICharsetConverterManager.h"
 #include "nsIClassInfo.h"
 #include "nsIConverterInputStream.h"
 #include "nsIDocument.h"
@@ -35,7 +35,6 @@
 #include "mozilla/CheckedInt.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Attributes.h"
-#include "nsThreadUtils.h"
 
 #include "mozilla/dom/FileListBinding.h"
 using namespace mozilla;
@@ -128,14 +127,6 @@ nsDOMFileBase::GetName(nsAString &aFileName)
 }
 
 NS_IMETHODIMP
-nsDOMFileBase::GetPath(nsAString &aPath)
-{
-  NS_ASSERTION(mIsFile, "Should only be called on files");
-  aPath = mPath;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsDOMFileBase::GetLastModifiedDate(JSContext* cx, JS::Value *aLastModifiedDate)
 {
   JSObject* date = JS_NewDateObjectMsec(cx, JS_Now() / PR_USEC_PER_MSEC);
@@ -163,10 +154,7 @@ nsDOMFileBase::GetMozFullPath(nsAString &aFileName)
 NS_IMETHODIMP
 nsDOMFileBase::GetMozFullPathInternal(nsAString &aFileName)
 {
-  if (!mIsFile) {
-    return NS_ERROR_FAILURE;
-  }
-
+  NS_ASSERTION(mIsFile, "Should only be called on files");
   aFileName.Truncate();
   return NS_OK;
 }
@@ -603,15 +591,6 @@ nsDOMFileFile::GetInternalStream(nsIInputStream **aStream)
                                       -1, -1, sFileStreamFlags);
 }
 
-void
-nsDOMFileFile::SetPath(const nsAString& aPath)
-{
-  MOZ_ASSERT(aPath.IsEmpty() ||
-             aPath[aPath.Length() - 1] == PRUnichar('/'),
-             "Path must end with a path separator");
-  mPath = aPath;
-}
-
 ////////////////////////////////////////////////////////////////////////////
 // nsDOMMemoryFile implementation
 
@@ -642,15 +621,20 @@ nsDOMMemoryFile::DataOwner::sDataOwners;
 /* static */ bool
 nsDOMMemoryFile::DataOwner::sMemoryReporterRegistered;
 
-MOZ_DEFINE_MALLOC_SIZE_OF(DOMMemoryFileDataOwnerMallocSizeOf)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(DOMMemoryFileDataOwnerMallocSizeOf)
 
 class nsDOMMemoryFileDataOwnerMemoryReporter MOZ_FINAL
-  : public nsIMemoryReporter
+  : public nsIMemoryMultiReporter
 {
-public:
   NS_DECL_THREADSAFE_ISUPPORTS
 
-  NS_IMETHOD CollectReports(nsIMemoryReporterCallback *aCallback,
+  NS_IMETHOD GetName(nsACString& aName)
+  {
+    aName.AssignASCII("dom-memory-file-data-owner");
+    return NS_OK;
+  }
+
+  NS_IMETHOD CollectReports(nsIMemoryMultiReporterCallback *aCallback,
                             nsISupports *aClosure)
   {
     typedef nsDOMMemoryFile::DataOwner DataOwner;
@@ -723,7 +707,8 @@ public:
   }
 };
 
-NS_IMPL_ISUPPORTS1(nsDOMMemoryFileDataOwnerMemoryReporter, nsIMemoryReporter)
+NS_IMPL_ISUPPORTS1(nsDOMMemoryFileDataOwnerMemoryReporter,
+                   nsIMemoryMultiReporter)
 
 /* static */ void
 nsDOMMemoryFile::DataOwner::EnsureMemoryReporterRegistered()
@@ -733,7 +718,9 @@ nsDOMMemoryFile::DataOwner::EnsureMemoryReporterRegistered()
     return;
   }
 
-  RegisterStrongMemoryReporter(new nsDOMMemoryFileDataOwnerMemoryReporter());
+  nsRefPtr<nsDOMMemoryFileDataOwnerMemoryReporter> reporter = new
+    nsDOMMemoryFileDataOwnerMemoryReporter();
+  NS_RegisterMemoryMultiReporter(reporter);
 
   sMemoryReporterRegistered = true;
 }

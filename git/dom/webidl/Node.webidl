@@ -41,9 +41,8 @@ interface Node : EventTarget {
   readonly attribute Node? parentNode;
   [Pure]
   readonly attribute Element? parentElement;
-  [Pure]
   boolean hasChildNodes();
-  [SameObject]
+  [Constant]
   readonly attribute NodeList childNodes;
   [Pure]
   readonly attribute Node? firstChild;
@@ -69,10 +68,7 @@ interface Node : EventTarget {
   void normalize();
 
   [Throws]
-  Node cloneNode();
-  [Throws]
-  Node cloneNode(boolean deep);
-  [Pure]
+  Node cloneNode(optional boolean deep = true);
   boolean isEqualNode(Node? node);
 
   const unsigned short DOCUMENT_POSITION_DISCONNECTED = 0x01;
@@ -81,16 +77,11 @@ interface Node : EventTarget {
   const unsigned short DOCUMENT_POSITION_CONTAINS = 0x08;
   const unsigned short DOCUMENT_POSITION_CONTAINED_BY = 0x10;
   const unsigned short DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC = 0x20; // historical
-  [Pure]
   unsigned short compareDocumentPosition(Node other);
-  [Pure]
   boolean contains(Node? other);
 
-  [Pure]
   DOMString? lookupPrefix(DOMString? namespace);
-  [Pure]
   DOMString? lookupNamespaceURI(DOMString? prefix);
-  [Pure]
   boolean isDefaultNamespace(DOMString? namespace);
 
   // Mozilla-specific stuff
@@ -104,7 +95,6 @@ interface Node : EventTarget {
   [Constant]
   readonly attribute DOMString? localName;
 
-  [Pure]
   boolean hasAttributes();
   [Throws, Func="IsChromeOrXBL"]
   any setUserData(DOMString key, any data, UserDataHandler? handler);
@@ -114,6 +104,4 @@ interface Node : EventTarget {
   readonly attribute Principal nodePrincipal;
   [ChromeOnly]
   readonly attribute URI? baseURIObject;
-  [ChromeOnly]
-  sequence<MutationObserver> getBoundMutationObservers();
 };

@@ -17,48 +17,58 @@
 
 #include "jit/CompileInfo.h"
 #include "jit/IonAllocPolicy.h"
-#include "jit/JitCompartment.h"
-#ifdef JS_ION_PERF
+#include "jit/IonCompartment.h"
+#if defined(JS_ION_PERF)
 # include "jit/PerfSpewer.h"
 #endif
 #include "jit/RegisterSets.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class MBasicBlock;
 class MIRGraph;
 class MStart;
-class OptimizationInfo;
+
+struct AsmJSGlobalAccess
+{
+    unsigned offset;
+    unsigned globalDataOffset;
+
+    AsmJSGlobalAccess(unsigned offset, unsigned globalDataOffset)
+      : offset(offset), globalDataOffset(globalDataOffset)
+    {}
+};
+
+typedef Vector<AsmJSGlobalAccess, 0, IonAllocPolicy> AsmJSGlobalAccessVector;
 
 class MIRGenerator
 {
   public:
-    MIRGenerator(CompileCompartment *compartment, TempAllocator *alloc, MIRGraph *graph,
-                 CompileInfo *info, const OptimizationInfo *optimizationInfo);
+    MIRGenerator(JSCompartment *compartment, TempAllocator *temp, MIRGraph *graph, CompileInfo *info);
 
-    TempAllocator &alloc() {
-        return *alloc_;
+    TempAllocator &temp() {
+        return *temp_;
     }
     MIRGraph &graph() {
         return *graph_;
     }
     bool ensureBallast() {
-        return alloc().ensureBallast();
+        return temp().ensureBallast();
     }
-    const JitRuntime *jitRuntime() const {
-        return GetIonContext()->runtime->jitRuntime();
+    IonCompartment *ionCompartment() const {
+        return compartment->ionCompartment();
+    }
+    IonRuntime *ionRuntime() const {
+        return GetIonContext()->runtime->ionRuntime();
     }
     CompileInfo &info() {
         return *info_;
     }
-    const OptimizationInfo &optimizationInfo() const {
-        return *optimizationInfo_;
-    }
 
     template <typename T>
     T * allocate(size_t count = 1) {
-        return reinterpret_cast<T *>(alloc().allocate(sizeof(T) * count));
+        return reinterpret_cast<T *>(temp().allocate(sizeof(T) * count));
     }
 
     // Set an error state and prints a message. Returns false so errors can be
@@ -71,7 +81,7 @@ class MIRGenerator
     }
 
     bool instrumentedProfiling() {
-        return GetIonContext()->runtime->spsProfiler().enabled();
+        return GetIonContext()->runtime->spsProfiler.enabled();
     }
 
     // Whether the main thread is trying to cancel this build.
@@ -83,7 +93,7 @@ class MIRGenerator
     }
 
     bool compilingAsmJS() const {
-        return info_->script() == nullptr;
+        return info_->script() == NULL;
     }
 
     uint32_t maxAsmJSStackArgBytes() const {
@@ -114,12 +124,6 @@ class MIRGenerator
     const Vector<AsmJSHeapAccess, 0, IonAllocPolicy> &heapAccesses() const {
         return asmJSHeapAccesses_;
     }
-    void noteMinAsmJSHeapLength(uint32_t len) {
-        minAsmJSHeapLength_ = len;
-    }
-    uint32_t minAsmJSHeapLength() const {
-        return minAsmJSHeapLength_;
-    }
     bool noteGlobalAccess(unsigned offset, unsigned globalDataOffset) {
         return asmJSGlobalAccesses_.append(AsmJSGlobalAccess(offset, globalDataOffset));
     }
@@ -128,12 +132,11 @@ class MIRGenerator
     }
 
   public:
-    CompileCompartment *compartment;
+    JSCompartment *compartment;
 
   protected:
     CompileInfo *info_;
-    const OptimizationInfo *optimizationInfo_;
-    TempAllocator *alloc_;
+    TempAllocator *temp_;
     JSFunction *fun_;
     uint32_t nslots_;
     MIRGraph *graph_;
@@ -144,7 +147,6 @@ class MIRGenerator
     bool performsAsmJSCall_;
     AsmJSHeapAccessVector asmJSHeapAccesses_;
     AsmJSGlobalAccessVector asmJSGlobalAccesses_;
-    uint32_t minAsmJSHeapLength_;
 
 #if defined(JS_ION_PERF)
     AsmJSPerfSpewer asmJSPerfSpewer_;
@@ -154,7 +156,7 @@ class MIRGenerator
 #endif
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_MIRGenerator_h */

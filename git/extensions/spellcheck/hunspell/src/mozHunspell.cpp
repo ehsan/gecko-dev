@@ -74,16 +74,17 @@
 #include "mozInlineSpellChecker.h"
 #include "mozilla/Services.h"
 #include <stdlib.h>
+#include "nsIMemoryReporter.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 
+static NS_DEFINE_CID(kCharsetConverterManagerCID, NS_ICHARSETCONVERTERMANAGER_CID);
 static NS_DEFINE_CID(kUnicharUtilCID, NS_UNICHARUTIL_CID);
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(mozHunspell)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(mozHunspell)
 
 NS_INTERFACE_MAP_BEGIN(mozHunspell)
-  NS_INTERFACE_MAP_ENTRY(nsIMemoryReporter)
   NS_INTERFACE_MAP_ENTRY(mozISpellCheckingEngine)
   NS_INTERFACE_MAP_ENTRY(nsIObserver)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
@@ -96,33 +97,35 @@ NS_IMPL_CYCLE_COLLECTION_3(mozHunspell,
                            mEncoder,
                            mDecoder)
 
-int64_t mozHunspell::sAmount = 0;
+// Memory reporting stuff.
+static int64_t gHunspellAllocatedSize = 0;
 
-// WARNING: hunspell_alloc_hooks.h uses these two functions.
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_ON_ALLOC_FUN(HunspellMallocSizeOfOnAlloc)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_ON_FREE_FUN(HunspellMallocSizeOfOnFree)
+
 void HunspellReportMemoryAllocation(void* ptr) {
-  mozHunspell::OnAlloc(ptr);
+  gHunspellAllocatedSize += HunspellMallocSizeOfOnAlloc(ptr);
 }
 void HunspellReportMemoryDeallocation(void* ptr) {
-  mozHunspell::OnFree(ptr);
+  gHunspellAllocatedSize -= HunspellMallocSizeOfOnFree(ptr);
+}
+static int64_t HunspellGetCurrentAllocatedSize() {
+  return gHunspellAllocatedSize;
 }
 
-mozHunspell::mozHunspell()
-  : MemoryUniReporter("explicit/spell-check", KIND_HEAP, UNITS_BYTES,
-"Memory used by the spell-checking engine's internal data structures."),
-    mHunspell(nullptr)
-{
-#ifdef DEBUG
-  // There must be only one instance of this class, due to |sAmount|
-  // being static.
-  static bool hasRun = false;
-  MOZ_ASSERT(!hasRun);
-  hasRun = true;
-#endif
-}
+NS_MEMORY_REPORTER_IMPLEMENT(Hunspell,
+  "explicit/spell-check",
+  KIND_HEAP,
+  UNITS_BYTES,
+  HunspellGetCurrentAllocatedSize,
+  "Memory used by the Hunspell spell checking engine.  This number accounts "
+  "for the memory in use by Hunspell's internal data structures."
+)
 
 nsresult
 mozHunspell::Init()
 {
+  mDictionaries.Init();
   LoadDictionaryList();
 
   nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
@@ -131,17 +134,18 @@ mozHunspell::Init()
     obs->AddObserver(this, "profile-after-change", true);
   }
 
-  RegisterWeakMemoryReporter(this);
+  mHunspellReporter = new NS_MEMORY_REPORTER_NAME(Hunspell);
+  NS_RegisterMemoryReporter(mHunspellReporter);
 
   return NS_OK;
 }
 
 mozHunspell::~mozHunspell()
 {
-  UnregisterWeakMemoryReporter(this);
-
   mPersonalDictionary = nullptr;
   delete mHunspell;
+
+  NS_UnregisterMemoryReporter(mHunspellReporter);
 }
 
 /* attribute wstring dictionary; */

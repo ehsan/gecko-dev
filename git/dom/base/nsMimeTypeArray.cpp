@@ -13,7 +13,6 @@
 #include "nsIMIMEService.h"
 #include "nsIMIMEInfo.h"
 #include "Navigator.h"
-#include "nsServiceManagerUtils.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -25,13 +24,12 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsMimeTypeArray)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_3(nsMimeTypeArray,
-                                        mWindow,
-                                        mMimeTypes,
-                                        mHiddenMimeTypes)
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(nsMimeTypeArray,
+                                        mMimeTypes)
 
-nsMimeTypeArray::nsMimeTypeArray(nsPIDOMWindow* aWindow)
-  : mWindow(aWindow)
+nsMimeTypeArray::nsMimeTypeArray(nsWeakPtr aWindow)
+  : mWindow(aWindow),
+    mPluginMimeTypeCount(0)
 {
   SetIsDOMBinding();
 }
@@ -50,14 +48,15 @@ void
 nsMimeTypeArray::Refresh()
 {
   mMimeTypes.Clear();
-  mHiddenMimeTypes.Clear();
+  mPluginMimeTypeCount = 0;
 }
 
-nsPIDOMWindow*
+nsPIDOMWindow *
 nsMimeTypeArray::GetParentObject() const
 {
-  MOZ_ASSERT(mWindow);
-  return mWindow;
+  nsCOMPtr<nsPIDOMWindow> win(do_QueryReferent(mWindow));
+  MOZ_ASSERT(win);
+  return win;
 }
 
 nsMimeType*
@@ -79,9 +78,13 @@ nsMimeTypeArray::IndexedGetter(uint32_t aIndex, bool &aFound)
 {
   aFound = false;
 
-  EnsurePluginMimeTypes();
+  if (mMimeTypes.IsEmpty()) {
+    EnsureMimeTypes();
+  }
 
-  if (aIndex >= mMimeTypes.Length()) {
+  MOZ_ASSERT(mMimeTypes.Length() >= mPluginMimeTypeCount);
+
+  if (aIndex >= mPluginMimeTypeCount) {
     return nullptr;
   }
 
@@ -90,35 +93,21 @@ nsMimeTypeArray::IndexedGetter(uint32_t aIndex, bool &aFound)
   return mMimeTypes[aIndex];
 }
 
-static nsMimeType*
-FindMimeType(const nsTArray<nsRefPtr<nsMimeType> >& aMimeTypes,
-             const nsAString& aType)
-{
-  for (uint32_t i = 0; i < aMimeTypes.Length(); ++i) {
-    nsMimeType* mimeType = aMimeTypes[i];
-    if (aType.Equals(mimeType->Type())) {
-      return mimeType;
-    }
-  }
-
-  return nullptr;
-}
-
 nsMimeType*
 nsMimeTypeArray::NamedGetter(const nsAString& aName, bool &aFound)
 {
   aFound = false;
 
-  EnsurePluginMimeTypes();
-
-  nsMimeType* mimeType = FindMimeType(mMimeTypes, aName);
-  if (!mimeType) {
-    mimeType = FindMimeType(mHiddenMimeTypes, aName);
+  if (mMimeTypes.IsEmpty()) {
+    EnsureMimeTypes();
   }
 
-  if (mimeType) {
-    aFound = true;
-    return mimeType;
+  for (uint32_t i = 0; i < mMimeTypes.Length(); ++i) {
+    if (aName.Equals(mMimeTypes[i]->Type())) {
+      aFound = true;
+
+      return mMimeTypes[i];
+    }
   }
 
   // Now let's check with the MIME service.
@@ -162,10 +151,8 @@ nsMimeTypeArray::NamedGetter(const nsAString& aName, bool &aFound)
   // If we got here, we support this type!  Say so.
   aFound = true;
 
-  // We don't want navigator.mimeTypes enumeration to expose MIME types with
-  // application handlers, so add them to the list of hidden MIME types.
   nsMimeType *mt = new nsMimeType(mWindow, aName);
-  mHiddenMimeTypes.AppendElement(mt);
+  mMimeTypes.AppendElement(mt);
 
   return mt;
 }
@@ -173,15 +160,21 @@ nsMimeTypeArray::NamedGetter(const nsAString& aName, bool &aFound)
 uint32_t
 nsMimeTypeArray::Length()
 {
-  EnsurePluginMimeTypes();
+  if (mMimeTypes.IsEmpty()) {
+    EnsureMimeTypes();
+  }
 
-  return mMimeTypes.Length();
+  MOZ_ASSERT(mMimeTypes.Length() >= mPluginMimeTypeCount);
+
+  return mPluginMimeTypeCount;
 }
 
 void
 nsMimeTypeArray::GetSupportedNames(nsTArray< nsString >& aRetval)
 {
-  EnsurePluginMimeTypes();
+  if (mMimeTypes.IsEmpty()) {
+    EnsureMimeTypes();
+  }
 
   for (uint32_t i = 0; i < mMimeTypes.Length(); ++i) {
     aRetval.AppendElement(mMimeTypes[i]->Type());
@@ -189,14 +182,16 @@ nsMimeTypeArray::GetSupportedNames(nsTArray< nsString >& aRetval)
 }
 
 void
-nsMimeTypeArray::EnsurePluginMimeTypes()
+nsMimeTypeArray::EnsureMimeTypes()
 {
-  if (!mMimeTypes.IsEmpty() || !mHiddenMimeTypes.IsEmpty() || !mWindow) {
+  nsCOMPtr<nsPIDOMWindow> win(do_QueryReferent(mWindow));
+
+  if (!mMimeTypes.IsEmpty() || !win) {
     return;
   }
 
   nsCOMPtr<nsIDOMNavigator> navigator;
-  mWindow->GetNavigator(getter_AddRefs(navigator));
+  win->GetNavigator(getter_AddRefs(navigator));
 
   if (!navigator) {
     return;
@@ -209,15 +204,24 @@ nsMimeTypeArray::EnsurePluginMimeTypes()
     return;
   }
 
-  pluginArray->GetMimeTypes(mMimeTypes, mHiddenMimeTypes);
+  nsTArray<nsRefPtr<nsPluginElement> > plugins;
+  pluginArray->GetPlugins(plugins);
+
+  for (uint32_t i = 0; i < plugins.Length(); ++i) {
+    nsPluginElement *plugin = plugins[i];
+
+    mMimeTypes.AppendElements(plugin->MimeTypes());
+  }
+
+  mPluginMimeTypeCount = mMimeTypes.Length();
 }
 
 NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(nsMimeType, AddRef)
 NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(nsMimeType, Release)
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_2(nsMimeType, mWindow, mPluginElement)
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(nsMimeType, mPluginElement)
 
-nsMimeType::nsMimeType(nsPIDOMWindow* aWindow, nsPluginElement* aPluginElement,
+nsMimeType::nsMimeType(nsWeakPtr aWindow, nsPluginElement* aPluginElement,
                        uint32_t aPluginTagMimeIndex, const nsAString& aType)
   : mWindow(aWindow),
     mPluginElement(aPluginElement),
@@ -227,7 +231,7 @@ nsMimeType::nsMimeType(nsPIDOMWindow* aWindow, nsPluginElement* aPluginElement,
   SetIsDOMBinding();
 }
 
-nsMimeType::nsMimeType(nsPIDOMWindow* aWindow, const nsAString& aType)
+nsMimeType::nsMimeType(nsWeakPtr aWindow, const nsAString& aType)
   : mWindow(aWindow),
     mPluginElement(nullptr),
     mPluginTagMimeIndex(0),
@@ -240,11 +244,12 @@ nsMimeType::~nsMimeType()
 {
 }
 
-nsPIDOMWindow*
+nsPIDOMWindow *
 nsMimeType::GetParentObject() const
 {
-  MOZ_ASSERT(mWindow);
-  return mWindow;
+  nsCOMPtr<nsPIDOMWindow> win(do_QueryReferent(mWindow));
+  MOZ_ASSERT(win);
+  return win;
 }
 
 JSObject*

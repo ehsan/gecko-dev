@@ -5,35 +5,17 @@
 from __future__ import unicode_literals
 
 from configobj import ConfigObj
-import re
-import os
 
 
-HOST_FINGERPRINTS = {
-    'bitbucket.org': '24:9c:45:8b:9c:aa:ba:55:4e:01:6d:58:ff:e4:28:7d:2a:14:ae:3b',
-    'bugzilla.mozilla.org': '47:13:a2:14:0c:46:45:53:12:0d:e5:36:16:a5:60:26:3e:da:3a:60',
-    'hg.mozilla.org': 'af:27:b9:34:47:4e:e5:98:01:f6:83:2b:51:c9:aa:d8:df:fb:1a:27',
-}
+BUGZILLA_FINGERPRINT = '45:77:35:fd:6f:2c:1c:c2:90:4b:f7:b4:4d:60:c6:97:c5:5c:47:27'
+HG_FINGERPRINT = '10:78:e8:57:2d:95:de:7c:de:90:bd:22:e1:38:17:67:c5:a7:9c:14'
 
 
 class MercurialConfig(object):
     """Interface for manipulating a Mercurial config file."""
 
-    def __init__(self, infiles=None):
+    def __init__(self, infile=None):
         """Create a new instance, optionally from an existing hgrc file."""
-
-        if infiles:
-            # If multiple files were specified, figure out which file we're using:
-            if len(infiles) > 1:
-                picky_infiles = filter(os.path.isfile, infiles)
-                if picky_infiles:
-                    picky_infiles = [(os.path.getsize(path), path) for path in picky_infiles]
-                    infiles = [max(picky_infiles)[1]]
-
-            infile = infiles[0]
-            self.config_path = infile
-        else:
-            infile = None
 
         # write_empty_values is necessary to prevent built-in extensions (which
         # have no value) from being dropped on write.
@@ -70,8 +52,9 @@ class MercurialConfig(object):
         if 'hostfingerprints' not in self._c:
             self._c['hostfingerprints'] = {}
 
-        for k, v in HOST_FINGERPRINTS.items():
-            self._c['hostfingerprints'][k] = v
+        self._c['hostfingerprints']['bugzilla.mozilla.org'] = \
+            BUGZILLA_FINGERPRINT
+        self._c['hostfingerprints']['hg.mozilla.org'] = HG_FINGERPRINT
 
     def set_username(self, name, email):
         """Set the username to use for commits.
@@ -132,30 +115,3 @@ class MercurialConfig(object):
                 del self._c['mqext']['mqcommit']
             except KeyError:
                 pass
-
-
-    def have_qnew_currentuser_default(self):
-        if 'defaults' not in self._c:
-            return False
-        d = self._c['defaults']
-        if 'qnew' not in d:
-            return False
-        argv = d['qnew'].split(' ')
-        for arg in argv:
-            if arg == '--currentuser' or re.match("-[^-]*U.*", arg):
-                return True
-        return False
-
-    def ensure_qnew_currentuser_default(self):
-        if self.have_qnew_currentuser_default():
-            return
-        if 'defaults' not in self._c:
-            self._c['defaults'] = {}
-
-        d = self._c['defaults']
-        if 'qnew' not in d:
-          d['qnew'] = '-U'
-        else:
-          d['qnew'] = '-U ' + d['qnew']
-
-

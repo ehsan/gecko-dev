@@ -16,12 +16,12 @@ LRESULT CALLBACK WndProc(HWND wnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 void ErrorBox(LPSTR text)
 {
-	MessageBox(nullptr, text, "XP Event Loop", MB_OK | MB_ICONSTOP);
+	MessageBox(NULL, text, "XP Event Loop", MB_OK | MB_ICONSTOP);
 }
 
 void InfoBox(LPSTR text)
 {
-	MessageBox(nullptr, text, "XP Event Loop", MB_OK | MB_ICONINFORMATION);
+	MessageBox(NULL, text, "XP Event Loop", MB_OK | MB_ICONINFORMATION);
 }
 
 int WINAPI WinMain(HINSTANCE inst, 
@@ -61,12 +61,12 @@ int WINAPI WinMain(HINSTANCE inst,
       wndclass.cbClsExtra    = 0;
       wndclass.cbWndExtra    = 0;
       wndclass.hInstance     = inst;
-      wndclass.hIcon         = LoadIcon(nullptr, IDI_APPLICATION);
-      wndclass.hCursor       = LoadCursor(nullptr, IDC_ARROW);
+      wndclass.hIcon         = LoadIcon(NULL, IDI_APPLICATION);
+      wndclass.hCursor       = LoadCursor(NULL, IDC_ARROW);
       wndclass.hbrBackground = (HBRUSH)GetStockObject(WHITE_BRUSH);
-      wndclass.lpszMenuName  = nullptr;
+      wndclass.lpszMenuName  = NULL;
       wndclass.lpszClassName = lpszAppName;
-      wndclass.hIconSm       = LoadIcon(nullptr, IDI_APPLICATION);
+      wndclass.hIconSm       = LoadIcon(NULL, IDI_APPLICATION);
 
       RegisterClassEx(&wndclass) ;
       
@@ -74,7 +74,7 @@ int WINAPI WinMain(HINSTANCE inst,
                          WS_OVERLAPPEDWINDOW,
                          CW_USEDEFAULT, CW_USEDEFAULT,
                          CW_USEDEFAULT, CW_USEDEFAULT,
-                         nullptr, nullptr, inst, nullptr);		     
+                         NULL, NULL, inst, NULL);		     
       
       ShowWindow(wnd, nShowCmd);
       UpdateWindow(wnd);

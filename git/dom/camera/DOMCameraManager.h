@@ -85,7 +85,8 @@ protected:
    * 'mActiveWindows' is only ever accessed while in the main thread,
    * so it is not otherwise protected.
    */
-  static ::WindowTable* sActiveWindows;
+  static WindowTable sActiveWindows;
+  static bool sActiveWindowsInitialized;
 };
 
 class GetCameraTask : public nsRunnable

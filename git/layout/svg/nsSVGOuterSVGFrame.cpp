@@ -18,6 +18,7 @@
 #include "nsSVGIntegrationUtils.h"
 #include "nsSVGForeignObjectFrame.h"
 #include "mozilla/dom/SVGSVGElement.h"
+#include "nsSVGTextFrame.h"
 #include "mozilla/dom/SVGViewElement.h"
 #include "nsSubDocumentFrame.h"
 
@@ -67,6 +68,12 @@ nsSVGMutationObserver::AttributeChanged(nsIDocument* aDocument,
     return;
   }
 
+  // is the content a child of a text element
+  nsSVGTextContainerFrame* containerFrame = do_QueryFrame(frame);
+  if (containerFrame) {
+    containerFrame->NotifyGlyphMetricsChange();
+    return;
+  }
   // if not, are there text elements amongst its descendents
   UpdateTextFragmentTrees(frame);
 }
@@ -79,16 +86,16 @@ nsSVGOuterSVGFrame::RegisterForeignObject(nsSVGForeignObjectFrame* aFrame)
 {
   NS_ASSERTION(aFrame, "Who on earth is calling us?!");
 
-  if (!mForeignObjectHash) {
-    mForeignObjectHash = new nsTHashtable<nsPtrHashKey<nsSVGForeignObjectFrame> >();
+  if (!mForeignObjectHash.IsInitialized()) {
+    mForeignObjectHash.Init();
   }
 
-  NS_ASSERTION(!mForeignObjectHash->GetEntry(aFrame),
+  NS_ASSERTION(!mForeignObjectHash.GetEntry(aFrame),
                "nsSVGForeignObjectFrame already registered!");
 
-  mForeignObjectHash->PutEntry(aFrame);
+  mForeignObjectHash.PutEntry(aFrame);
 
-  NS_ASSERTION(mForeignObjectHash->GetEntry(aFrame),
+  NS_ASSERTION(mForeignObjectHash.GetEntry(aFrame),
                "Failed to register nsSVGForeignObjectFrame!");
 }
 
@@ -96,9 +103,9 @@ void
 nsSVGOuterSVGFrame::UnregisterForeignObject(nsSVGForeignObjectFrame* aFrame)
 {
   NS_ASSERTION(aFrame, "Who on earth is calling us?!");
-  NS_ASSERTION(mForeignObjectHash && mForeignObjectHash->GetEntry(aFrame),
+  NS_ASSERTION(mForeignObjectHash.GetEntry(aFrame),
                "nsSVGForeignObjectFrame not in registry!");
-  return mForeignObjectHash->RemoveEntry(aFrame);
+  return mForeignObjectHash.RemoveEntry(aFrame);
 }
 
 void
@@ -106,7 +113,12 @@ nsSVGMutationObserver::UpdateTextFragmentTrees(nsIFrame *aFrame)
 {
   nsIFrame* kid = aFrame->GetFirstPrincipalChild();
   while (kid) {
-    UpdateTextFragmentTrees(kid);
+    if (kid->GetType() == nsGkAtoms::svgTextFrame) {
+      nsSVGTextFrame* textFrame = static_cast<nsSVGTextFrame*>(kid);
+      textFrame->NotifyGlyphMetricsChange();
+    } else {
+      UpdateTextFragmentTrees(kid);
+    }
     kid = kid->GetNextSibling();
   }
 }
@@ -219,7 +231,7 @@ nsSVGOuterSVGFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
   return result;
 }
 
-/* virtual */ IntrinsicSize
+/* virtual */ nsIFrame::IntrinsicSize
 nsSVGOuterSVGFrame::GetIntrinsicSize()
 {
   // XXXjwatt Note that here we want to return the CSS width/height if they're
@@ -653,8 +665,8 @@ nsRegion
 nsSVGOuterSVGFrame::FindInvalidatedForeignObjectFrameChildren(nsIFrame* aFrame)
 {
   nsRegion result;
-  if (mForeignObjectHash && mForeignObjectHash->Count()) {
-    mForeignObjectHash->EnumerateEntries(CheckForeignObjectInvalidatedArea, &result);
+  if (mForeignObjectHash.Count()) {
+    mForeignObjectHash.EnumerateEntries(CheckForeignObjectInvalidatedArea, &result);
   }
   return result;
 }
@@ -853,8 +865,7 @@ nsSVGOuterSVGFrame::NotifyViewportOrTransformChanged(uint32_t aFlags)
 
 NS_IMETHODIMP
 nsSVGOuterSVGFrame::PaintSVG(nsRenderingContext* aContext,
-                             const nsIntRect *aDirtyRect,
-                             nsIFrame* aTransformRoot)
+                             const nsIntRect *aDirtyRect)
 {
   NS_ASSERTION(GetFirstPrincipalChild()->GetType() ==
                  nsGkAtoms::svgOuterSVGAnonChildFrame &&
@@ -862,7 +873,7 @@ nsSVGOuterSVGFrame::PaintSVG(nsRenderingContext* aContext,
                "We should have a single, anonymous, child");
   nsSVGOuterSVGAnonChildFrame *anonKid =
     static_cast<nsSVGOuterSVGAnonChildFrame*>(GetFirstPrincipalChild());
-  return anonKid->PaintSVG(aContext, aDirtyRect, aTransformRoot);
+  return anonKid->PaintSVG(aContext, aDirtyRect);
 }
 
 SVGBBox
@@ -884,16 +895,15 @@ nsSVGOuterSVGFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
 // nsSVGContainerFrame methods:
 
 gfxMatrix
-nsSVGOuterSVGFrame::GetCanvasTM(uint32_t aFor, nsIFrame* aTransformRoot)
+nsSVGOuterSVGFrame::GetCanvasTM(uint32_t aFor)
 {
-  if (!(GetStateBits() & NS_FRAME_IS_NONDISPLAY) && !aTransformRoot) {
+  if (!(GetStateBits() & NS_FRAME_IS_NONDISPLAY)) {
     if ((aFor == FOR_PAINTING && NS_SVGDisplayListPaintingEnabled()) ||
         (aFor == FOR_HIT_TESTING && NS_SVGDisplayListHitTestingEnabled())) {
       return nsSVGIntegrationUtils::GetCSSPxToDevPxMatrix(this);
     }
   }
   if (!mCanvasTM) {
-    NS_ASSERTION(!aTransformRoot, "transform root will be ignored here");
     SVGSVGElement *content = static_cast<SVGSVGElement*>(mContent);
 
     float devPxPerCSSPx =
@@ -915,7 +925,7 @@ nsSVGOuterSVGFrame::IsRootOfReplacedElementSubDoc(nsIFrame **aEmbeddingFrame)
 {
   if (!mContent->GetParent()) {
     // Our content is the document element
-    nsCOMPtr<nsISupports> container = PresContext()->GetContainerWeak();
+    nsCOMPtr<nsISupports> container = PresContext()->GetContainer();
     nsCOMPtr<nsIDOMWindow> window = do_GetInterface(container);
     if (window) {
       nsCOMPtr<nsIDOMElement> frameElement;

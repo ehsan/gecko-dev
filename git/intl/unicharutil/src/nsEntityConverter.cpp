@@ -4,11 +4,16 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsEntityConverter.h"
-#include "nsLiteralString.h"
-#include "nsString.h"
-#include "mozilla/Services.h"
-#include "nsServiceManagerUtils.h"
+#include "nsIProperties.h"
+#include "nsIServiceManager.h"
+#include "nsIComponentManager.h"
+#include "nsReadableUtils.h"
 #include "nsCRT.h"
+#include "nsLiteralString.h"
+#include "nsXPIDLString.h"
+#include "nsString.h"
+#include "nsUnicharUtils.h"
+#include "mozilla/Services.h"
 
 //
 // implementation methods
@@ -43,7 +48,7 @@ nsEntityConverter::LoadVersionPropertyFile()
 
     nsAutoString key;
     nsXPIDLString value;
-    rv = entities->GetStringFromName(MOZ_UTF16("length"),
+    rv = entities->GetStringFromName(NS_LITERAL_STRING("length").get(),
                                      getter_Copies(value));
     NS_ASSERTION(NS_SUCCEEDED(rv),"nsEntityConverter: malformed entity table\n");
     if (NS_FAILED(rv)) return rv;

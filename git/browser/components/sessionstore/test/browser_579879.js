@@ -4,7 +4,9 @@ function test() {
   var tab1 = gBrowser.addTab("data:text/plain;charset=utf-8,foo");
   gBrowser.pinTab(tab1);
 
-  whenBrowserLoaded(tab1.linkedBrowser, function() {
+  tab1.linkedBrowser.addEventListener("load", function () {
+    tab1.linkedBrowser.removeEventListener("load", arguments.callee, true);
+
     var tab2 = gBrowser.addTab();
     gBrowser.pinTab(tab2);
 
@@ -17,5 +19,5 @@ function test() {
     gBrowser.removeTab(tab1);
     gBrowser.removeTab(tab2);
     finish();
-  });
+  }, true);
 }

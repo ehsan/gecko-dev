@@ -7,8 +7,6 @@
 "use strict";
 
 let promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js", {}).Promise;
-XPCOMUtils.defineLazyModuleGetter(this, "Services", "resource://gre/modules/Services.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "AddonManager", "resource://gre/modules/AddonManager.jsm");
 
 /**
  * Browser-specific actors.
@@ -21,7 +19,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "AddonManager", "resource://gre/modules/
  */
 function allAppShellDOMWindows(aWindowType)
 {
-  let e = Services.wm.getEnumerator(aWindowType);
+  let e = windowMediator.getEnumerator(aWindowType);
   while (e.hasMoreElements()) {
     yield e.getNext();
   }
@@ -39,7 +37,7 @@ function appShellDOMWindowType(aWindow) {
  * Send Debugger:Shutdown events to all "navigator:browser" windows.
  */
 function sendShutdownEvent() {
-  for (let win of allAppShellDOMWindows(DebuggerServer.chromeWindowType)) {
+  for (let win of allAppShellDOMWindows("navigator:browser")) {
     let evt = win.document.createEvent("Event");
     evt.initEvent("Debugger:Shutdown", true, false);
     win.document.documentElement.dispatchEvent(evt);
@@ -67,6 +65,9 @@ function createRootActor(aConnection)
                          onShutdown: sendShutdownEvent
                        });
 }
+
+var windowMediator = Cc["@mozilla.org/appshell/window-mediator;1"]
+                     .getService(Ci.nsIWindowMediator);
 
 /**
  * A live list of BrowserTabActors representing the current browser tabs,
@@ -185,27 +186,8 @@ function BrowserTabList(aConnection)
 
 BrowserTabList.prototype.constructor = BrowserTabList;
 
-
-/**
- * Get the selected browser for the given navigator:browser window.
- * @private
- * @param aWindow nsIChromeWindow
- *        The navigator:browser window for which you want the selected browser.
- * @return nsIDOMElement|null
- *         The currently selected xul:browser element, if any. Note that the
- *         browser window might not be loaded yet - the function will return
- *         |null| in such cases.
- */
-BrowserTabList.prototype._getSelectedBrowser = function(aWindow) {
-  return aWindow.gBrowser ? aWindow.gBrowser.selectedBrowser : null;
-};
-
-BrowserTabList.prototype._getChildren = function(aWindow) {
-  return aWindow.gBrowser.browsers;
-};
-
 BrowserTabList.prototype.getList = function() {
-  let topXULWindow = Services.wm.getMostRecentWindow(DebuggerServer.chromeWindowType);
+  let topXULWindow = windowMediator.getMostRecentWindow("navigator:browser");
 
   // As a sanity check, make sure all the actors presently in our map get
   // picked up when we iterate over all windows' tabs.
@@ -218,17 +200,14 @@ BrowserTabList.prototype.getList = function() {
   // actors that were live when we began the iteration.
 
   // Iterate over all navigator:browser XUL windows.
-  for (let win of allAppShellDOMWindows(DebuggerServer.chromeWindowType)) {
-    let selectedBrowser = this._getSelectedBrowser(win);
-    if (!selectedBrowser) {
-      continue;
-    }
+  for (let win of allAppShellDOMWindows("navigator:browser")) {
+    let selectedTab = win.gBrowser.selectedBrowser;
 
     // For each tab in this XUL window, ensure that we have an actor for
     // it, reusing existing actors where possible. We actually iterate
     // over 'browser' XUL elements, and BrowserTabActor uses
     // browser.contentWindow.wrappedJSObject as the debuggee global.
-    for (let browser of this._getChildren(win)) {
+    for (let browser of win.gBrowser.browsers) {
       // Do we have an existing actor for this browser? If not, create one.
       let actor = this._actorByBrowser.get(browser);
       if (actor) {
@@ -239,7 +218,7 @@ BrowserTabList.prototype.getList = function() {
       }
 
       // Set the 'selected' properties on all actors correctly.
-      actor.selected = (win === topXULWindow && browser === selectedBrowser);
+      actor.selected = (win === topXULWindow && browser === selectedTab);
     }
   }
 
@@ -345,7 +324,7 @@ BrowserTabList.prototype._checkListening = function() {
 BrowserTabList.prototype._listenForEventsIf = function(aShouldListen, aGuard, aEventNames) {
   if (!aShouldListen !== !this[aGuard]) {
     let op = aShouldListen ? "addEventListener" : "removeEventListener";
-    for (let win of allAppShellDOMWindows(DebuggerServer.chromeWindowType)) {
+    for (let win of allAppShellDOMWindows("navigator:browser")) {
       for (let name of aEventNames) {
         win[op](name, this, false);
       }
@@ -382,7 +361,7 @@ BrowserTabList.prototype.handleEvent = makeInfallible(function(aEvent) {
 BrowserTabList.prototype._listenToMediatorIf = function(aShouldListen) {
   if (!aShouldListen !== !this._listeningToMediator) {
     let op = aShouldListen ? "addListener" : "removeListener";
-    Services.wm[op](this);
+    windowMediator[op](this);
     this._listeningToMediator = aShouldListen;
   }
 };
@@ -403,7 +382,7 @@ BrowserTabList.prototype.onOpenWindow = makeInfallible(function(aWindow) {
     /* We don't want any further load events from this window. */
     aWindow.removeEventListener("load", handleLoad, false);
 
-    if (appShellDOMWindowType(aWindow) !== DebuggerServer.chromeWindowType)
+    if (appShellDOMWindowType(aWindow) !== "navigator:browser")
       return;
 
     // Listen for future tab activity.
@@ -437,7 +416,7 @@ BrowserTabList.prototype.onCloseWindow = makeInfallible(function(aWindow) {
   aWindow = aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
                    .getInterface(Ci.nsIDOMWindow);
 
-  if (appShellDOMWindowType(aWindow) !== DebuggerServer.chromeWindowType)
+  if (appShellDOMWindowType(aWindow) !== "navigator:browser")
     return;
 
   /*
@@ -500,6 +479,28 @@ BrowserTabActor.prototype = {
 
   _pendingNavigation: null,
 
+  /**
+   * Add the specified actor to the default actor pool connection, in order to
+   * keep it alive as long as the server is. This is used by breakpoints in the
+   * thread actor.
+   *
+   * @param actor aActor
+   *        The actor object.
+   */
+  addToParentPool: function BTA_addToParentPool(aActor) {
+    this.conn.addActor(aActor);
+  },
+
+  /**
+   * Remove the specified actor from the default actor pool.
+   *
+   * @param BreakpointActor aActor
+   *        The actor object.
+   */
+  removeFromParentPool: function BTA_removeFromParentPool(aActor) {
+    this.conn.removeActor(aActor);
+  },
+
   // A constant prefix that will be used to form the actor ID by the server.
   actorPrefix: "tab",
 
@@ -526,12 +527,7 @@ BrowserTabActor.prototype = {
    *         Tab URL.
    */
   get url() {
-    if (this.browser.currentURI) {
-      return this.browser.currentURI.spec;
-    }
-    // Abrupt closing of the browser window may leave callbacks without a
-    // currentURI.
-    return null;
+    return this.browser.currentURI.spec;
   },
 
   /**
@@ -550,32 +546,16 @@ BrowserTabActor.prototype = {
     }
   },
 
-  /**
-   * Getter for the best nsIWebProgress for to watching this window.
-   */
-  get webProgress() {
-    return this.window
-      .QueryInterface(Ci.nsIInterfaceRequestor)
-      .getInterface(Ci.nsIDocShell)
-      .QueryInterface(Ci.nsIInterfaceRequestor)
-      .getInterface(Ci.nsIWebProgress);
-  },
-
   form: function BTA_form() {
     dbg_assert(!this.exited,
                "grip() shouldn't be called on exited browser actor.");
     dbg_assert(this.actorID,
                "tab should have an actorID.");
 
-    let windowUtils = this.window
-      .QueryInterface(Ci.nsIInterfaceRequestor)
-      .getInterface(Ci.nsIDOMWindowUtils);
-
     let response = {
       actor: this.actorID,
       title: this.title,
-      url: this.url,
-      outerWindowID: windowUtils.outerWindowID
+      url: this.url
     };
 
     // Walk over tab actors added by extensions and add them to a new ActorPool.
@@ -606,7 +586,8 @@ BrowserTabActor.prototype = {
       return;
     }
 
-    if (this._detach()) {
+    if (this.attached) {
+      this._detach();
       this.conn.send({ from: this.actorID,
                        type: "tabDetached" });
     }
@@ -674,12 +655,10 @@ BrowserTabActor.prototype = {
 
   /**
    * Does the actual work of detaching from a tab.
-   *
-   * @returns false if the tab wasn't attached or true of detahing succeeds.
    */
   _detach: function BTA_detach() {
     if (!this.attached) {
-      return false;
+      return;
     }
 
     if (this._progressListener) {
@@ -700,7 +679,6 @@ BrowserTabActor.prototype = {
     }
 
     this._attached = false;
-    return true;
   },
 
   // Protocol Request Handlers
@@ -712,18 +690,15 @@ BrowserTabActor.prototype = {
 
     this._attach();
 
-    return {
-      type: "tabAttached",
-      threadActor: this.threadActor.actorID,
-      cacheEnabled: this._getCacheEnabled(),
-      javascriptEnabled: this._getJavascriptEnabled()
-    };
+    return { type: "tabAttached", threadActor: this.threadActor.actorID };
   },
 
   onDetach: function BTA_onDetach(aRequest) {
-    if (!this._detach()) {
+    if (!this.attached) {
       return { error: "wrongState" };
     }
+
+    this._detach();
 
     return { type: "detached" };
   },
@@ -753,103 +728,10 @@ BrowserTabActor.prototype = {
   },
 
   /**
-   * Reconfigure options.
-   */
-  onReconfigure: function (aRequest) {
-    let options = aRequest.options || {};
-
-    this._toggleJsOrCache(options);
-    return {};
-  },
-
-  /**
-   * Handle logic to enable/disable JS/cache.
-   */
-  _toggleJsOrCache: function(options) {
-    // Wait a tick so that the response packet can be dispatched before the
-    // subsequent navigation event packet.
-    let reload = false;
-
-    if (typeof options.javascriptEnabled !== "undefined" &&
-        options.javascriptEnabled !== this._getJavascriptEnabled()) {
-      this._setJavascriptEnabled(options.javascriptEnabled);
-      reload = true;
-    }
-    if (typeof options.cacheEnabled !== "undefined" &&
-        options.cacheEnabled !== this._getCacheEnabled()) {
-      this._setCacheEnabled(options.cacheEnabled);
-      reload = true;
-    }
-
-    if (reload) {
-      this.onReload();
-    }
-  },
-
-  /**
-   * Disable or enable the cache via docShell.
-   */
-  _setCacheEnabled: function(allow) {
-    let enable =  Ci.nsIRequest.LOAD_NORMAL;
-    let disable = Ci.nsIRequest.LOAD_BYPASS_CACHE |
-                  Ci.nsIRequest.INHIBIT_CACHING;
-    let docShell = this.window
-                       .QueryInterface(Ci.nsIInterfaceRequestor)
-                       .getInterface(Ci.nsIDocShell);
-
-    docShell.defaultLoadFlags = allow ? enable : disable;
-  },
-
-  /**
-   * Disable or enable JS via docShell.
-   */
-  _setJavascriptEnabled: function(allow) {
-    let docShell = this.window
-                       .QueryInterface(Ci.nsIInterfaceRequestor)
-                       .getInterface(Ci.nsIDocShell);
-
-    docShell.allowJavascript = allow;
-  },
-
-  /**
-   * Return cache allowed status.
-   */
-  _getCacheEnabled: function() {
-    if (!this.window) {
-      // The tab is already closed.
-      return null;
-    }
-
-    let disable = Ci.nsIRequest.LOAD_BYPASS_CACHE |
-                  Ci.nsIRequest.INHIBIT_CACHING;
-    let docShell = this.window
-                       .QueryInterface(Ci.nsIInterfaceRequestor)
-                       .getInterface(Ci.nsIDocShell);
-
-    return docShell.defaultLoadFlags !== disable;
-  },
-
-  /**
-   * Return JS allowed status.
-   */
-  _getJavascriptEnabled: function() {
-    if (!this.window) {
-      // The tab is already closed.
-      return null;
-    }
-
-    let docShell = this.window
-                       .QueryInterface(Ci.nsIInterfaceRequestor)
-                       .getInterface(Ci.nsIDocShell);
-
-    return docShell.allowJavascript;
-  },
-
-  /**
    * Prepare to enter a nested event loop by disabling debuggee events.
    */
   preNest: function BTA_preNest() {
-    if (!this.window) {
+    if (!this.browser) {
       // The tab is already closed.
       return;
     }
@@ -864,7 +746,7 @@ BrowserTabActor.prototype = {
    * Prepare to exit a nested event loop by enabling debuggee events.
    */
   postNest: function BTA_postNest(aNestData) {
-    if (!this.window) {
+    if (!this.browser) {
       // The tab is already closed.
       return;
     }
@@ -936,9 +818,10 @@ BrowserTabActor.prototype.requestTypes = {
   "attach": BrowserTabActor.prototype.onAttach,
   "detach": BrowserTabActor.prototype.onDetach,
   "reload": BrowserTabActor.prototype.onReload,
-  "navigateTo": BrowserTabActor.prototype.onNavigateTo,
-  "reconfigure": BrowserTabActor.prototype.onReconfigure
+  "navigateTo": BrowserTabActor.prototype.onNavigateTo
 };
+
+Components.utils.import("resource://gre/modules/AddonManager.jsm");
 
 function BrowserAddonList(aConnection)
 {

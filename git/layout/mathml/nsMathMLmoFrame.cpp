@@ -3,12 +3,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsMathMLmoFrame.h"
+#include "nsCOMPtr.h"
+#include "nsFrame.h"
 #include "nsPresContext.h"
+#include "nsStyleContext.h"
+#include "nsStyleConsts.h"
 #include "nsRenderingContext.h"
 #include "nsContentUtils.h"
 #include "nsFrameSelection.h"
-#include "nsMathMLElement.h"
+
+#include "nsMathMLmoFrame.h"
 #include <algorithm>
 
 //
@@ -33,6 +37,7 @@ nsMathMLmoFrame::~nsMathMLmoFrame()
 static const PRUnichar kInvisibleComma = PRUnichar(0x200B); // a.k.a. ZERO WIDTH SPACE
 static const PRUnichar kApplyFunction  = PRUnichar(0x2061);
 static const PRUnichar kInvisibleTimes = PRUnichar(0x2062);
+static const PRUnichar kNullCh         = PRUnichar('\0');
 
 eMathMLFrameType
 nsMathMLmoFrame::GetMathMLFrameType()
@@ -118,7 +123,7 @@ nsMathMLmoFrame::ProcessTextData()
   nsContentUtils::GetNodeTextContent(mContent, false, data);
   data.CompressWhitespace();
   int32_t length = data.Length();
-  PRUnichar ch = (length == 0) ? PRUnichar('\0') : data[0];
+  PRUnichar ch = (length == 0) ? kNullCh : data[0];
 
   if ((length == 1) && 
       (ch == kInvisibleComma || 
@@ -916,7 +921,6 @@ nsMathMLmoFrame::InheritAutomaticData(nsIFrame* aParent)
   // retain our native direction, it only changes if our text content changes
   nsStretchDirection direction = mEmbellishData.direction;
   nsMathMLTokenFrame::InheritAutomaticData(aParent);
-  ProcessTextData();
   mEmbellishData.direction = direction;
   return NS_OK;
 }
@@ -930,19 +934,6 @@ nsMathMLmoFrame::TransmitAutomaticData()
   mEmbellishData.coreFrame = nullptr;
   ProcessOperatorData();
   return NS_OK;
-}
-
-NS_IMETHODIMP
-nsMathMLmoFrame::SetInitialChildList(ChildListID     aListID,
-                                     nsFrameList&    aChildList)
-{
-  // First, let the parent class do its work
-  nsresult rv = nsMathMLTokenFrame::SetInitialChildList(aListID, aChildList);
-  if (NS_FAILED(rv))
-    return rv;
-
-  ProcessTextData();
-  return rv;
 }
 
 NS_IMETHODIMP
@@ -1000,36 +991,28 @@ nsMathMLmoFrame::MarkIntrinsicWidthsDirty()
   nsMathMLContainerFrame::MarkIntrinsicWidthsDirty();
 }
 
-/* virtual */ void
-nsMathMLmoFrame::GetIntrinsicWidthMetrics(nsRenderingContext *aRenderingContext, nsHTMLReflowMetrics& aDesiredSize)
+/* virtual */ nscoord
+nsMathMLmoFrame::GetIntrinsicWidth(nsRenderingContext *aRenderingContext)
 {
   ProcessOperatorData();
+  nscoord width;
   if (UseMathMLChar()) {
     uint32_t stretchHint = GetStretchHint(mFlags, mPresentationData, true);
-    aDesiredSize.width = mMathMLChar.
+    width = mMathMLChar.
       GetMaxWidth(PresContext(), *aRenderingContext,
                   stretchHint, mMaxSize,
                   NS_MATHML_OPERATOR_MAXSIZE_IS_ABSOLUTE(mFlags));
   }
   else {
-    nsMathMLTokenFrame::GetIntrinsicWidthMetrics(aRenderingContext,
-                                                 aDesiredSize);
+    width = nsMathMLTokenFrame::GetIntrinsicWidth(aRenderingContext);
   }
 
   // leadingSpace and trailingSpace are actually applied to the outermost
   // embellished container but for determining total intrinsic width it should
   // be safe to include it for the core here instead.
-  bool isRTL = StyleVisibility()->mDirection;
-  aDesiredSize.width +=
-    mEmbellishData.leadingSpace + mEmbellishData.trailingSpace;
-  aDesiredSize.mBoundingMetrics.width = aDesiredSize.width;
-  if (isRTL) {
-    aDesiredSize.mBoundingMetrics.leftBearing += mEmbellishData.trailingSpace;
-    aDesiredSize.mBoundingMetrics.rightBearing += mEmbellishData.trailingSpace;
-  } else {
-    aDesiredSize.mBoundingMetrics.leftBearing += mEmbellishData.leadingSpace;
-    aDesiredSize.mBoundingMetrics.rightBearing += mEmbellishData.leadingSpace;
-  }
+  width += mEmbellishData.leadingSpace + mEmbellishData.trailingSpace;
+
+  return width;
 }
 
 NS_IMETHODIMP

@@ -65,23 +65,15 @@ function Template(root, store, l10nResolver) {
 
   this._nodeListeners = new Map();
   this._loopListeners = new Map();
-  this._forListeners = new Map();
   this._root = root;
   this._doc = this._root.ownerDocument;
 
-  this._storeChanged = this._storeChanged.bind(this);
-  this._store.on("set", this._storeChanged);
+  this._store.on("set", (event,path,value) => this._storeChanged(path,value));
 }
 
 Template.prototype = {
   start: function() {
     this._processTree(this._root);
-  },
-
-  destroy: function() {
-    this._store.off("set", this._storeChanged);
-    this._root = null;
-    this._doc = null;
   },
 
   _resolvePath: function(path, defaultValue=null) {
@@ -117,7 +109,7 @@ Template.prototype = {
     return obj;
   },
 
-  _storeChanged: function(event, path, value) {
+  _storeChanged: function(path, value) {
 
     // The store has changed (a "set" event has been emitted).
     // We need to invalidate and rebuild the affected elements.
@@ -139,14 +131,6 @@ Template.prototype = {
     if (set) {
       for (let elt of set) {
         this._processLoop(elt);
-      }
-    }
-
-    // For:
-    set = this._forListeners.get(path);
-    if (set) {
-      for (let elt of set) {
-        this._processFor(elt);
       }
     }
 
@@ -189,14 +173,6 @@ Template.prototype = {
       this._loopListeners.set(path, new Set());
     }
     let set = this._loopListeners.get(path);
-    set.add(element);
-  },
-
-  _registerFor: function(path, element) {
-    if (!this._forListeners.has(path)) {
-      this._forListeners.set(path, new Set());
-    }
-    let set = this._forListeners.get(path);
     set.add(element);
   },
 
@@ -287,8 +263,8 @@ Template.prototype = {
     // through the array, and build one child per
     // item. The template for this child is pointed
     // by the childSelector property.
-    let e = element;
     try {
+      let e = element;
       let template, count;
       let str = e.getAttribute("template-loop");
       let json = JSON.parse(str);
@@ -328,58 +304,11 @@ Template.prototype = {
     }
   },
 
-  _processFor: function(element, rootPath="") {
-    let e = element;
-    try {
-      let template;
-      let str = e.getAttribute("template-for");
-      let json = JSON.parse(str);
-      if (!("path" in json) ||
-          !("childSelector" in json)) {
-        throw new Error("missing property");
-      }
-
-      if (rootPath) {
-        json.path = rootPath + "." + json.path;
-      }
-
-      if (!json.path) {
-        // Nothing to show.
-        this._unregisterNodes(e.querySelectorAll("[template]"));
-        e.innerHTML = "";
-        return;
-      }
-
-      let templateParent = this._doc.querySelector(json.childSelector);
-      if (!templateParent) {
-        throw new Error("can't find child");
-      }
-      let content = this._doc.createElement("div");
-      content.innerHTML = templateParent.innerHTML;
-      content = content.firstElementChild;
-
-      this._processTree(content, json.path);
-
-      this._unregisterNodes(e.querySelectorAll("[template]"));
-      this._registerFor(json.path, e);
-
-      e.innerHTML = "";
-      e.appendChild(content);
-
-    } catch(exception) {
-      console.error("Invalid template: " + e.outerHTML + " (" + exception + ")");
-    }
-  },
-
   _processTree: function(parent, rootPath="") {
     let loops = parent.querySelectorAll(":not(template) [template-loop]");
-    let fors = parent.querySelectorAll(":not(template) [template-for]");
     let nodes = parent.querySelectorAll(":not(template) [template]");
     for (let e of loops) {
       this._processLoop(e, rootPath);
-    }
-    for (let e of fors) {
-      this._processFor(e, rootPath);
     }
     for (let e of nodes) {
       this._processNode(e, rootPath);

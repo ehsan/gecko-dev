@@ -8,16 +8,15 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/video_engine/test/auto_test/primitives/framedrop_primitives.h"
+#include "framedrop_primitives.h"
 
-#include <stdio.h>
-
+#include <cstdio>
 #include <vector>
 
-#include "testing/gtest/include/gtest/gtest.h"
-#include "webrtc/test/testsupport/fileutils.h"
-#include "webrtc/test/testsupport/frame_reader.h"
-#include "webrtc/test/testsupport/frame_writer.h"
+#include "gtest/gtest.h"
+#include "testsupport/fileutils.h"
+#include "testsupport/frame_reader.h"
+#include "testsupport/frame_writer.h"
 
 namespace webrtc {
 
@@ -30,11 +29,11 @@ class FrameDropPrimitivesTest: public testing::Test {
   virtual ~FrameDropPrimitivesTest() {}
   void SetUp() {
     // Cleanup any previous output file.
-    remove(kOutputFilename.c_str());
+    std::remove(kOutputFilename.c_str());
   }
   void TearDown() {
     // Cleanup the temporary file.
-    remove(kOutputFilename.c_str());
+    std::remove(kOutputFilename.c_str());
   }
 };
 

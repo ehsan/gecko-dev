@@ -11,7 +11,7 @@ namespace mozilla {
 namespace image {
 
 // Constructor
-ImageResource::ImageResource(ImageURL* aURI) :
+ImageResource::ImageResource(imgStatusTracker* aStatusTracker, nsIURI* aURI) :
   mURI(aURI),
   mInnerWindowId(0),
   mAnimationConsumers(0),
@@ -20,6 +20,12 @@ ImageResource::ImageResource(ImageURL* aURI) :
   mAnimating(false),
   mError(false)
 {
+  if (aStatusTracker) {
+    mStatusTracker = aStatusTracker;
+    mStatusTracker->SetImage(this);
+  } else {
+    mStatusTracker = new imgStatusTracker(this);
+  }
 }
 
 uint32_t
@@ -29,8 +35,8 @@ ImageResource::SizeOfData()
     return 0;
 
   // This is not used by memory reporters, but for sizing the cache, which is
-  // why it uses |moz_malloc_size_of| rather than a
-  // |MOZ_DEFINE_MALLOC_SIZE_OF|.
+  // why it uses |moz_malloc_size_of| rather than an
+  // |NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN|.
   return uint32_t(HeapSizeOfSourceWithComputedFallback(moz_malloc_size_of) +
                   HeapSizeOfDecodedWithComputedFallback(moz_malloc_size_of) +
                   NonHeapSizeOfDecoded() +
@@ -86,16 +92,12 @@ Image::GetDecoderType(const char *aMimeType)
 void
 ImageResource::IncrementAnimationConsumers()
 {
-  MOZ_ASSERT(NS_IsMainThread(), "Main thread only to encourage serialization "
-                                "with DecrementAnimationConsumers");
   mAnimationConsumers++;
 }
 
 void
 ImageResource::DecrementAnimationConsumers()
 {
-  MOZ_ASSERT(NS_IsMainThread(), "Main thread only to encourage serialization "
-                                "with IncrementAnimationConsumers");
   NS_ABORT_IF_FALSE(mAnimationConsumers >= 1, "Invalid no. of animation consumers!");
   mAnimationConsumers--;
 }
@@ -136,6 +138,7 @@ ImageResource::EvaluateAnimation()
     mAnimating = NS_SUCCEEDED(rv);
   } else if (mAnimating && !ShouldAnimate()) {
     StopAnimation();
+    mAnimating = false;
   }
 }
 

@@ -6,14 +6,19 @@
 #ifndef nsContentEventHandler_h__
 #define nsContentEventHandler_h__
 
+#include "nscore.h"
 #include "nsCOMPtr.h"
 
 #include "nsISelection.h"
 #include "nsRange.h"
-#include "mozilla/EventForwards.h"
+#include "nsIDOMTreeWalker.h"
 
 class nsCaret;
+class nsIContent;
+class nsIPresShell;
 class nsPresContext;
+class nsQueryContentEvent;
+class nsSelectionEvent;
 
 struct nsRect;
 
@@ -30,27 +35,26 @@ public:
   nsContentEventHandler(nsPresContext *aPresContext);
 
   // NS_QUERY_SELECTED_TEXT event handler
-  nsresult OnQuerySelectedText(mozilla::WidgetQueryContentEvent* aEvent);
+  nsresult OnQuerySelectedText(nsQueryContentEvent* aEvent);
   // NS_QUERY_TEXT_CONTENT event handler
-  nsresult OnQueryTextContent(mozilla::WidgetQueryContentEvent* aEvent);
+  nsresult OnQueryTextContent(nsQueryContentEvent* aEvent);
   // NS_QUERY_CARET_RECT event handler
-  nsresult OnQueryCaretRect(mozilla::WidgetQueryContentEvent* aEvent);
+  nsresult OnQueryCaretRect(nsQueryContentEvent* aEvent);
   // NS_QUERY_TEXT_RECT event handler
-  nsresult OnQueryTextRect(mozilla::WidgetQueryContentEvent* aEvent);
+  nsresult OnQueryTextRect(nsQueryContentEvent* aEvent);
   // NS_QUERY_EDITOR_RECT event handler
-  nsresult OnQueryEditorRect(mozilla::WidgetQueryContentEvent* aEvent);
+  nsresult OnQueryEditorRect(nsQueryContentEvent* aEvent);
   // NS_QUERY_CONTENT_STATE event handler
-  nsresult OnQueryContentState(mozilla::WidgetQueryContentEvent* aEvent);
+  nsresult OnQueryContentState(nsQueryContentEvent* aEvent);
   // NS_QUERY_SELECTION_AS_TRANSFERABLE event handler
-  nsresult OnQuerySelectionAsTransferable(
-             mozilla::WidgetQueryContentEvent* aEvent);
+  nsresult OnQuerySelectionAsTransferable(nsQueryContentEvent* aEvent);
   // NS_QUERY_CHARACTER_AT_POINT event handler
-  nsresult OnQueryCharacterAtPoint(mozilla::WidgetQueryContentEvent* aEvent);
+  nsresult OnQueryCharacterAtPoint(nsQueryContentEvent* aEvent);
   // NS_QUERY_DOM_WIDGET_HITTEST event handler
-  nsresult OnQueryDOMWidgetHittest(mozilla::WidgetQueryContentEvent* aEvent);
+  nsresult OnQueryDOMWidgetHittest(nsQueryContentEvent* aEvent);
 
   // NS_SELECTION_* event
-  nsresult OnSelectionEvent(mozilla::WidgetSelectionEvent* aEvent);
+  nsresult OnSelectionEvent(nsSelectionEvent* aEvent);
 
 protected:
   nsPresContext* mPresContext;
@@ -59,8 +63,8 @@ protected:
   nsRefPtr<nsRange> mFirstSelectedRange;
   nsCOMPtr<nsIContent> mRootContent;
 
-  nsresult Init(mozilla::WidgetQueryContentEvent* aEvent);
-  nsresult Init(mozilla::WidgetSelectionEvent* aEvent);
+  nsresult Init(nsQueryContentEvent* aEvent);
+  nsresult Init(nsSelectionEvent* aEvent);
 
   // InitCommon() is called from each Init().
   nsresult InitCommon();
@@ -81,13 +85,6 @@ public:
   static uint32_t GetNativeTextLength(nsIContent* aContent,
                                       uint32_t aMaxLength = UINT32_MAX);
 protected:
-  // Returns focused content (including its descendant documents).
-  nsIContent* GetFocusedContent();
-  // Returns true if the content is a plugin host.
-  bool IsPlugin(nsIContent* aContent);
-  // QueryContentRect() sets the rect of aContent's frame(s) to aEvent.
-  nsresult QueryContentRect(nsIContent* aContent,
-                            mozilla::WidgetQueryContentEvent* aEvent);
   // Make the DOM range from the offset of FlatText and the text length.
   // If aExpandToClusterBoundaries is true, the start offset and the end one are
   // expanded to nearest cluster boundaries.

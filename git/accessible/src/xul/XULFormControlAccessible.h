@@ -52,9 +52,11 @@ public:
   virtual bool AreItemsOperable() const;
   virtual Accessible* ContainerWidget() const;
 
-  virtual bool IsAcceptableChild(Accessible* aPossibleChild) const MOZ_OVERRIDE;
-
 protected:
+
+  // Accessible
+  virtual void CacheChildren();
+
   // XULButtonAccessible
   bool ContainsMenu();
 };
@@ -115,7 +117,7 @@ public:
 
   // Accessible
   virtual mozilla::a11y::role NativeRole();
-  virtual Relation RelationByType(RelationType aType) MOZ_OVERRIDE;
+  virtual Relation RelationByType(uint32_t aRelationType);
 
 protected:
   // Accessible
@@ -213,6 +215,46 @@ public:
   // Accessible
   virtual mozilla::a11y::role NativeRole();
   virtual uint64_t NativeState();
+};
+
+/**
+ * Used for XUL textbox element.
+ */
+class XULTextFieldAccessible : public HyperTextAccessibleWrap
+{
+public:
+  enum { eAction_Click = 0 };
+
+  XULTextFieldAccessible(nsIContent* aContent, DocAccessible* aDoc);
+
+  NS_DECL_ISUPPORTS_INHERITED
+
+  // nsIAccessible
+  NS_IMETHOD GetActionName(uint8_t aIndex, nsAString& aName);
+  NS_IMETHOD DoAction(uint8_t index);
+
+  // HyperTextAccessible
+  virtual already_AddRefed<nsIEditor> GetEditor() const;
+
+  // Accessible
+  virtual void Value(nsString& aValue);
+  virtual void ApplyARIAState(uint64_t* aState) const;
+  virtual mozilla::a11y::role NativeRole();
+  virtual uint64_t NativeState();
+  virtual bool CanHaveAnonChildren();
+
+  // ActionAccessible
+  virtual uint8_t ActionCount();
+
+protected:
+  // Accessible
+  virtual void CacheChildren();
+
+  // HyperTextAccessible
+  virtual already_AddRefed<nsFrameSelection> FrameSelection();
+
+  // nsXULTextFieldAccessible
+  already_AddRefed<nsIContent> GetInputField() const;
 };
 
 } // namespace a11y

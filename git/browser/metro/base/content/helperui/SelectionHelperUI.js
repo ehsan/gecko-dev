@@ -164,6 +164,14 @@ Marker.prototype = {
   },
 
   position: function position(aX, aY) {
+    if (aX < 0) {
+      Util.dumpLn("Marker: aX is negative");
+      aX = 0;
+    }
+    if (aY < 0) {
+      Util.dumpLn("Marker: aY is negative");
+      aY = 0;
+    }
     this._xPos = aX;
     this._yPos = aY;
     this._setPosition();
@@ -245,7 +253,7 @@ var SelectionHelperUI = {
   _endMark: null,
   _caretMark: null,
   _target: null,
-  _showAfterUpdate: false,
+  _movement: { active: false, x:0, y: 0 },
   _activeSelectionRect: null,
   _selectionMarkIds: [],
   _targetIsEditable: false,
@@ -334,37 +342,6 @@ var SelectionHelperUI = {
         (this._endMark && this._endMark.dragging))
       return true;
     return false;
-  },
-
-
-  /*
-   * Observers
-   */
-
-  observe: function (aSubject, aTopic, aData) {
-    switch (aTopic) {
-      case "attach_edit_session_to_content":
-        // We receive this from text input bindings when this module
-        // isn't accessible.
-        this.chromeTextboxClick(aSubject);
-        break;
-
-      case "apzc-transform-begin":
-        if (this.isActive && this.layerMode == kContentLayer) {
-          this._hideMonocles();
-        }
-        break;
-
-      case "apzc-transform-end":
-        // The selection range callback will check to see if the new
-        // position is off the screen, in which case it shuts down and
-        // clears the selection.
-        if (this.isActive && this.layerMode == kContentLayer) {
-          this._showAfterUpdate = true;
-          this._sendAsyncMessage("Browser:SelectionUpdate", {});
-        }
-        break;
-      }
   },
 
   /*
@@ -515,68 +492,8 @@ var SelectionHelperUI = {
   },
 
   /*
-   * Event handler on the navbar text input. Called from navbar bindings
-   * when focus is applied to the edit.
-   */
-  urlbarTextboxClick: function(aEdit) {
-    // workaround for bug 925457: taping browser chrome resets last tap
-    // co-ordinates to 'undefined' so that we know not to shift the browser
-    // when the keyboard is up in SelectionHandler's _calcNewContentPosition().
-    Browser.selectedTab.browser.messageManager.sendAsyncMessage("Browser:ResetLastPos", {
-      xPos: null,
-      yPos: null
-    });
-
-    if (InputSourceHelper.isPrecise || !aEdit.textLength) {
-      return;
-    }
-
-    // Enable selection when there's text in the control
-    let innerRect = aEdit.inputField.getBoundingClientRect();
-    this.attachEditSession(ChromeSelectionHandler,
-                           innerRect.left,
-                           innerRect.top);
-  },
-
-  /*
-   * Click handler for chrome pages loaded into the browser (about:config).
-   * Called from the text input bindings via the attach_edit_session_to_content
-   * observer.
-   */
-  chromeTextboxClick: function (aEvent) {
-    this.attachEditSession(Browser.selectedTab.browser,
-                           aEvent.clientX, aEvent.clientY);
-  },
-
-  /*
-   * Handy debug routines that work independent of selection. They
-   * make use of the selection overlay for drawing points.
-   */
-
-  debugDisplayDebugPoint: function (aLeft, aTop, aSize, aCssColorStr, aFill) {
-    this.overlay.enabled = true;
-    this.overlay.displayDebugLayer = true;
-    this.overlay.addDebugRect(aLeft, aTop, aLeft + aSize, aTop + aSize,
-                              aCssColorStr, aFill);
-  },
-
-  debugClearDebugPoints: function () {
-    this.overlay.displayDebugLayer = false;
-    if (!this._msgTarget) {
-      this.overlay.enabled = false;
-    }
-  },
-
-  /*
    * Init and shutdown
    */
-
-  init: function () {
-    let os = Services.obs;
-    os.addObserver(this, "attach_edit_session_to_content", false);
-    os.addObserver(this, "apzc-transform-begin", false);
-    os.addObserver(this, "apzc-transform-end", false);
-  },
 
   _init: function _init(aMsgTarget) {
     // store the target message manager
@@ -607,9 +524,12 @@ var SelectionHelperUI = {
     // bubble phase
     window.addEventListener("click", this, false);
     window.addEventListener("touchstart", this, false);
+    window.addEventListener("touchend", this, false);
+    window.addEventListener("touchmove", this, false);
 
     Elements.browsers.addEventListener("URLChanged", this, true);
     Elements.browsers.addEventListener("SizeChanged", this, true);
+    Elements.browsers.addEventListener("ZoomChanged", this, true);
 
     Elements.navbar.addEventListener("transitionend", this, true);
     Elements.navbar.addEventListener("MozAppbarDismissing", this, true);
@@ -626,16 +546,18 @@ var SelectionHelperUI = {
     messageManager.removeMessageListener("Content:SelectionHandlerPong", this);
 
     window.removeEventListener("keypress", this, true);
+    window.removeEventListener("click", this, false);
+    window.removeEventListener("touchstart", this, false);
+    window.removeEventListener("touchend", this, false);
+    window.removeEventListener("touchmove", this, false);
     window.removeEventListener("MozPrecisePointer", this, true);
     window.removeEventListener("MozDeckOffsetChanging", this, true);
     window.removeEventListener("MozDeckOffsetChanged", this, true);
     window.removeEventListener("KeyboardChanged", this, true);
 
-    window.removeEventListener("click", this, false);
-    window.removeEventListener("touchstart", this, false);
-
     Elements.browsers.removeEventListener("URLChanged", this, true);
     Elements.browsers.removeEventListener("SizeChanged", this, true);
+    Elements.browsers.removeEventListener("ZoomChanged", this, true);
 
     Elements.navbar.removeEventListener("transitionend", this, true);
     Elements.navbar.removeEventListener("MozAppbarDismissing", this, true);
@@ -840,29 +762,11 @@ var SelectionHelperUI = {
 
   _showMonocles: function _showMonocles(aSelection) {
     if (!aSelection) {
-      if (this._checkMonocleVisibility(this.caretMark.xPos, this.caretMark.yPos)) {
-        this.caretMark.show();
-      }
+      this.caretMark.show();
     } else {
-      if (this._checkMonocleVisibility(this.endMark.xPos, this.endMark.yPos)) {
-        this.endMark.show();
-      }
-      if (this._checkMonocleVisibility(this.startMark.xPos, this.startMark.yPos)) {
-        this.startMark.show();
-      }
+      this.endMark.show();
+      this.startMark.show();
     }
-  },
-
-  _checkMonocleVisibility: function(aX, aY) {
-    let viewport = Browser.selectedBrowser.contentViewportBounds;
-    aX = this._msgTarget.ctobx(aX);
-    aY = this._msgTarget.ctoby(aY);
-    if (aX < viewport.x || aY < viewport.y ||
-        aX > (viewport.x + viewport.width) ||
-        aY > (viewport.y + viewport.height)) {
-      return false;
-    }
-    return true;
   },
 
   /*
@@ -872,7 +776,7 @@ var SelectionHelperUI = {
   /*
    * Handles taps that move the current caret around in text edits,
    * clear active selection and focus when neccessary, or change
-   * modes. Only active afer SelectionHandlerUI is initialized.
+   * modes.
    */
   _onClick: function(aEvent) {
     if (this.layerMode == kChromeLayer && this._targetIsEditable) {
@@ -968,33 +872,24 @@ var SelectionHelperUI = {
     let haveSelectionRect = true;
 
     if (json.updateStart) {
-      let x = this._msgTarget.btocx(json.start.xPos, true);
-      let y = this._msgTarget.btocx(json.start.yPos, true);
-      this.startMark.position(x, y);
+      this.startMark.position(this._msgTarget.btocx(json.start.xPos, true),
+                              this._msgTarget.btocy(json.start.yPos, true));
     }
-
     if (json.updateEnd) {
-      let x = this._msgTarget.btocx(json.end.xPos, true);
-      let y = this._msgTarget.btocx(json.end.yPos, true);
-      this.endMark.position(x, y);
+      this.endMark.position(this._msgTarget.btocx(json.end.xPos, true),
+                            this._msgTarget.btocy(json.end.yPos, true));
     }
 
     if (json.updateCaret) {
-      let x = this._msgTarget.btocx(json.caret.xPos, true);
-      let y = this._msgTarget.btocx(json.caret.yPos, true);
       // If selectionRangeFound is set SelectionHelper found a range we can
       // attach to. If not, there's no text in the control, and hence no caret
       // position information we can use.
       haveSelectionRect = json.selectionRangeFound;
       if (json.selectionRangeFound) {
-        this.caretMark.position(x, y);
-        this._showMonocles(false);
+        this.caretMark.position(this._msgTarget.btocx(json.caret.xPos, true),
+                                this._msgTarget.btocy(json.caret.yPos, true));
+        this.caretMark.show();
       }
-    }
-
-    if (this._showAfterUpdate) {
-      this._showAfterUpdate = false;
-      this._showMonocles(!json.updateCaret);
     }
 
     this._targetIsEditable = json.targetIsEditable;
@@ -1004,7 +899,7 @@ var SelectionHelperUI = {
     this._targetElementRect =
       this._msgTarget.rectBrowserToClient(json.element, true);
 
-    // If this is the end of a selection move show the appropriate
+    // Ifd this is the end of a selection move show the appropriate
     // monocle images. src=(start, update, end, caret)
     if (json.src == "start" || json.src == "end") {
       this._showMonocles(true);
@@ -1052,6 +947,29 @@ var SelectionHelperUI = {
         if (this._checkForActiveDrag()) {
           aEvent.preventDefault();
         }
+        let touch = aEvent.touches[0];
+        this._movement.x = touch.clientX;
+        this._movement.y = touch.clientY;
+        this._movement.active = true;
+        break;
+      }
+
+      case "touchend":
+        if (aEvent.touches.length == 0)
+          this._movement.active = false;
+        break;
+
+      case "touchmove": {
+        if (aEvent.touches.length != 1)
+          break;
+        let touch = aEvent.touches[0];
+        // Clear selection when the user pans the page
+        if (!this._checkForActiveDrag() && this._movement.active) {
+          if (Math.abs(touch.clientX - this._movement.x) > kDisableOnScrollDistance ||
+              Math.abs(touch.clientY - this._movement.y) > kDisableOnScrollDistance) {
+            this.closeEditSession(true);
+          }
+        }
         break;
       }
 
@@ -1067,6 +985,7 @@ var SelectionHelperUI = {
         this._shutdown();
         break;
 
+      case "ZoomChanged":
       case "MozPrecisePointer":
         this.closeEditSession(true);
         break;

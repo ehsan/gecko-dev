@@ -66,11 +66,6 @@ function injectController(doc, topic, data) {
       return;
     }
 
-    // we always handle window.close on social content, even if they are not
-    // "enabled".  "enabled" is about the worker state and a provider may
-    // still be in e.g. the share panel without having their worker enabled.
-    handleWindowClose(window);
-
     SocialService.getProvider(doc.nodePrincipal.origin, function(provider) {
       if (provider && provider.enabled) {
         attachToWindow(provider, window);
@@ -219,9 +214,7 @@ function attachToWindow(provider, targetWindow) {
       schedule(function () { port.close(); });
     });
   }
-}
 
-function handleWindowClose(targetWindow) {
   // We allow window.close() to close the panel, so add an event handler for
   // this, then cancel the event (so the window itself doesn't die) and
   // close the panel instead.
@@ -237,10 +230,10 @@ function handleWindowClose(targetWindow) {
                 .QueryInterface(Ci.nsIDocShell)
                 .chromeEventHandler;
     while (elt) {
-      if (elt.localName == "panel") {
+      if (elt.nodeName == "panel") {
         elt.hidePopup();
         break;
-      } else if (elt.localName == "chatbox") {
+      } else if (elt.nodeName == "chatbox") {
         elt.close();
         break;
       }
@@ -282,23 +275,12 @@ function findChromeWindowForChats(preferredWindow) {
   // no good - we just use the "most recent" browser window which can host
   // chats (we used to try and "group" all chats in the same browser window,
   // but that didn't work out so well - see bug 835111
-
-  // Try first the most recent window as getMostRecentWindow works
-  // even on platforms where getZOrderDOMWindowEnumerator is broken
-  // (ie. Linux).  This will handle most cases, but won't work if the
-  // foreground window is a popup.
-
-  let mostRecent = Services.wm.getMostRecentWindow("navigator:browser");
-  if (isWindowGoodForChats(mostRecent))
-    return mostRecent;
-
   let topMost, enumerator;
-  // *sigh* - getZOrderDOMWindowEnumerator is broken except on Mac and
-  // Windows.  We use BROKEN_WM_Z_ORDER as that is what some other code uses
+  // *sigh* - getZOrderDOMWindowEnumerator is broken everywhere other than
+  // Windows.  We use BROKEN_WM_Z_ORDER as that is what the c++ code uses
   // and a few bugs recommend searching mxr for this symbol to identify the
   // workarounds - we want this code to be hit in such searches.
-  let os = Services.appinfo.OS;
-  const BROKEN_WM_Z_ORDER = os != "WINNT" && os != "Darwin";
+  const BROKEN_WM_Z_ORDER = Services.appinfo.OS != "WINNT";
   if (BROKEN_WM_Z_ORDER) {
     // this is oldest to newest and no way to change the order.
     enumerator = Services.wm.getEnumerator("navigator:browser");
@@ -309,7 +291,7 @@ function findChromeWindowForChats(preferredWindow) {
   }
   while (enumerator.hasMoreElements()) {
     let win = enumerator.getNext();
-    if (!win.closed && isWindowGoodForChats(win))
+    if (win && isWindowGoodForChats(win))
       topMost = win;
   }
   return topMost;

@@ -8,7 +8,6 @@
 #define dom_plugins_PluginScriptableObjectParent_h 1
 
 #include "mozilla/plugins/PPluginScriptableObjectParent.h"
-#include "mozilla/plugins/PluginMessageUtils.h"
 
 #include "npfunctions.h"
 #include "npruntime.h"
@@ -23,7 +22,7 @@ class PPluginIdentifierParent;
 struct ParentNPObject : NPObject
 {
   ParentNPObject()
-    : NPObject(), parent(nullptr), invalidated(false) { }
+    : NPObject(), parent(NULL), invalidated(false) { }
 
   // |parent| is always valid as long as the actor is alive. Once the actor is
   // destroyed this will be set to null.

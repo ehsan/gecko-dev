@@ -6,14 +6,17 @@
 #ifndef MOZILLA_GFX_COMPOSITOROGL_H
 #define MOZILLA_GFX_COMPOSITOROGL_H
 
-#include "GLContextTypes.h"             // for GLContext, etc
-#include "GLDefs.h"                     // for GLuint, LOCAL_GL_TEXTURE_2D, etc
-#include "OGLShaderProgram.h"           // for ShaderProgramOGL, etc
+#include "./../mozilla-config.h"        // for MOZ_DUMP_PAINTING
+#include "GLContext.h"                  // for GLContext
+#include "GLContextTypes.h"             // for GLuint, GLenum, GLint
+#include "GLDefs.h"                     // for GLintptr, GLvoid, etc
+#include "LayerManagerOGLProgram.h"     // for ShaderProgramOGL, etc
 #include "Units.h"                      // for ScreenPoint
+#include "gfxContext.h"                 // for gfxContext
+#include "gfxPoint.h"                   // for gfxIntSize
 #include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
 #include "mozilla/Attributes.h"         // for MOZ_OVERRIDE, MOZ_FINAL
 #include "mozilla/RefPtr.h"             // for TemporaryRef, RefPtr
-#include "mozilla/gfx/2D.h"             // for DrawTarget
 #include "mozilla/gfx/BaseSize.h"       // for BaseSize
 #include "mozilla/gfx/Point.h"          // for IntSize, Point
 #include "mozilla/gfx/Rect.h"           // for Rect, IntRect
@@ -24,6 +27,7 @@
 #include "nsAutoPtr.h"                  // for nsRefPtr, nsAutoPtr
 #include "nsCOMPtr.h"                   // for already_AddRefed
 #include "nsDebug.h"                    // for NS_ASSERTION, NS_WARNING
+#include "nsISupportsImpl.h"            // for gfxContext::AddRef, etc
 #include "nsSize.h"                     // for nsIntSize
 #include "nsTArray.h"                   // for nsAutoTArray, nsTArray, etc
 #include "nsThreadUtils.h"              // for nsRunnable
@@ -88,44 +92,42 @@ public:
 
   virtual TemporaryRef<CompositingRenderTarget>
   CreateRenderTargetFromSource(const gfx::IntRect &aRect,
-                               const CompositingRenderTarget *aSource,
-                               const gfx::IntPoint &aSourcePoint) MOZ_OVERRIDE;
+                               const CompositingRenderTarget *aSource) MOZ_OVERRIDE;
 
   virtual void SetRenderTarget(CompositingRenderTarget *aSurface) MOZ_OVERRIDE;
   virtual CompositingRenderTarget* GetCurrentRenderTarget() MOZ_OVERRIDE;
 
-  virtual void DrawQuad(const gfx::Rect& aRect,
-                        const gfx::Rect& aClipRect,
+  virtual void DrawQuad(const gfx::Rect& aRect, const gfx::Rect& aClipRect,
                         const EffectChain &aEffectChain,
-                        gfx::Float aOpacity,
-                        const gfx::Matrix4x4 &aTransform) MOZ_OVERRIDE
-  {
-    DrawQuadInternal(aRect, aClipRect, aEffectChain,
-                     aOpacity, aTransform, LOCAL_GL_TRIANGLE_STRIP);
-  }
-
-  virtual void DrawLines(const std::vector<gfx::Point>& aLines,
-                         const gfx::Rect& aClipRect,
-                         const gfx::Color& aColor,
-                         gfx::Float aOpacity,
-                         const gfx::Matrix4x4 &aTransform) MOZ_OVERRIDE;
-
+                        gfx::Float aOpacity, const gfx::Matrix4x4 &aTransform,
+                        const gfx::Point& aOffset) MOZ_OVERRIDE;
 
   virtual void EndFrame() MOZ_OVERRIDE;
   virtual void EndFrameForExternalComposition(const gfxMatrix& aTransform) MOZ_OVERRIDE;
   virtual void AbortFrame() MOZ_OVERRIDE;
 
-  virtual bool SupportsPartialTextureUpdate() MOZ_OVERRIDE;
+  virtual bool SupportsPartialTextureUpdate() MOZ_OVERRIDE
+  {
+    return mGLContext->CanUploadSubTextures();
+  }
 
-  virtual bool CanUseCanvasLayerForSize(const gfx::IntSize &aSize) MOZ_OVERRIDE
+  virtual bool CanUseCanvasLayerForSize(const gfxIntSize &aSize) MOZ_OVERRIDE
   {
     if (!mGLContext)
       return false;
     int32_t maxSize = GetMaxTextureSize();
-    return aSize <= gfx::IntSize(maxSize, maxSize);
+    return aSize <= gfxIntSize(maxSize, maxSize);
   }
 
-  virtual int32_t GetMaxTextureSize() const MOZ_OVERRIDE;
+  virtual int32_t GetMaxTextureSize() const MOZ_OVERRIDE
+  {
+    MOZ_ASSERT(mGLContext);
+    GLint texSize = 0;
+    mGLContext->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_SIZE,
+                             &texSize);
+    MOZ_ASSERT(texSize != 0);
+    return texSize;
+  }
 
   /**
    * Set the size of the EGL surface we're rendering to, if we're rendering to
@@ -137,9 +139,15 @@ public:
     mRenderOffset = aOffset;
   }
 
-  virtual void MakeCurrent(MakeCurrentFlags aFlags = 0) MOZ_OVERRIDE;
+  virtual void MakeCurrent(MakeCurrentFlags aFlags = 0) MOZ_OVERRIDE {
+    if (mDestroyed) {
+      NS_WARNING("Call on destroyed layer manager");
+      return;
+    }
+    mGLContext->MakeCurrent(aFlags & ForceMakeCurrent);
+  }
 
-  virtual void SetTargetContext(gfx::DrawTarget* aTarget) MOZ_OVERRIDE
+  virtual void SetTargetContext(gfxContext* aTarget) MOZ_OVERRIDE
   {
     mTarget = aTarget;
   }
@@ -158,6 +166,9 @@ public:
   virtual bool Resume() MOZ_OVERRIDE;
 
   virtual nsIWidget* GetWidget() const MOZ_OVERRIDE { return mWidget; }
+  virtual const nsIntSize& GetWidgetSize() MOZ_OVERRIDE {
+    return mWidgetSize;
+  }
 
   GLContext* gl() const { return mGLContext; }
   ShaderProgramType GetFBOLayerProgramType() const {
@@ -168,9 +179,6 @@ public:
     return gfx::FORMAT_R8G8B8A8;
   }
 
-  virtual void SaveState() MOZ_OVERRIDE;
-  virtual void RestoreState() MOZ_OVERRIDE;
-
   /**
    * The compositor provides with temporary textures for use with direct
    * textruing like gralloc texture.
@@ -179,17 +187,10 @@ public:
    */
   GLuint GetTemporaryTexture(GLenum aUnit);
 private:
-  virtual void DrawQuadInternal(const gfx::Rect& aRect,
-                                const gfx::Rect& aClipRect,
-                                const EffectChain &aEffectChain,
-                                gfx::Float aOpacity,
-                                const gfx::Matrix4x4 &aTransformi,
-                                GLuint aDrawMode);
-
   /** 
    * Context target, nullptr when drawing directly to our swap chain.
    */
-  RefPtr<gfx::DrawTarget> mTarget;
+  nsRefPtr<gfxContext> mTarget;
 
   /** Widget associated with this compositor */
   nsIWidget *mWidget;
@@ -258,8 +259,7 @@ private:
   /* Start a new frame. If aClipRectIn is null and aClipRectOut is non-null,
    * sets *aClipRectOut to the screen dimensions.
    */
-  virtual void BeginFrame(const nsIntRegion& aInvalidRegion,
-                          const gfx::Rect *aClipRectIn,
+  virtual void BeginFrame(const gfx::Rect *aClipRectIn,
                           const gfxMatrix& aTransform,
                           const gfx::Rect& aRenderBounds, 
                           gfx::Rect *aClipRectOut = nullptr,
@@ -292,7 +292,7 @@ private:
    * shaders are required to sample from the different
    * texture types.
    */
-  void CreateFBOWithTexture(const gfx::IntRect& aRect, bool aCopyFromSource,
+  void CreateFBOWithTexture(const gfx::IntRect& aRect, SurfaceInitMode aInit,
                             GLuint aSourceFrameBuffer,
                             GLuint *aFBO, GLuint *aTexture);
 
@@ -300,17 +300,62 @@ private:
   GLintptr QuadVBOTexCoordOffset() { return sizeof(float)*4*2; }
   GLintptr QuadVBOFlippedTexCoordOffset() { return sizeof(float)*8*2; }
 
-  void BindQuadVBO();
-  void QuadVBOVerticesAttrib(GLuint aAttribIndex);
-  void QuadVBOTexCoordsAttrib(GLuint aAttribIndex);
-  void QuadVBOFlippedTexCoordsAttrib(GLuint aAttribIndex);
+  void BindQuadVBO() {
+    mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, mQuadVBO);
+  }
+
+  void QuadVBOVerticesAttrib(GLuint aAttribIndex) {
+    mGLContext->fVertexAttribPointer(aAttribIndex, 2,
+                                     LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0,
+                                     (GLvoid*) QuadVBOVertexOffset());
+  }
+
+  void QuadVBOTexCoordsAttrib(GLuint aAttribIndex) {
+    mGLContext->fVertexAttribPointer(aAttribIndex, 2,
+                                     LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0,
+                                     (GLvoid*) QuadVBOTexCoordOffset());
+  }
+
+  void QuadVBOFlippedTexCoordsAttrib(GLuint aAttribIndex) {
+    mGLContext->fVertexAttribPointer(aAttribIndex, 2,
+                                     LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0,
+                                     (GLvoid*) QuadVBOFlippedTexCoordOffset());
+  }
+
   void BindAndDrawQuad(GLuint aVertAttribIndex,
                        GLuint aTexCoordAttribIndex,
-                       bool aFlipped = false,
-                       GLuint aDrawMode = LOCAL_GL_TRIANGLE_STRIP);
+                       bool aFlipped = false)
+  {
+    BindQuadVBO();
+    QuadVBOVerticesAttrib(aVertAttribIndex);
+
+    if (aTexCoordAttribIndex != GLuint(-1)) {
+      if (aFlipped)
+        QuadVBOFlippedTexCoordsAttrib(aTexCoordAttribIndex);
+      else
+        QuadVBOTexCoordsAttrib(aTexCoordAttribIndex);
+
+      mGLContext->fEnableVertexAttribArray(aTexCoordAttribIndex);
+    }
+
+    mGLContext->fEnableVertexAttribArray(aVertAttribIndex);
+    mGLContext->fDrawArrays(LOCAL_GL_TRIANGLE_STRIP, 0, 4);
+    mGLContext->fDisableVertexAttribArray(aVertAttribIndex);
+
+    if (aTexCoordAttribIndex != GLuint(-1)) {
+      mGLContext->fDisableVertexAttribArray(aTexCoordAttribIndex);
+    }
+  }
+
   void BindAndDrawQuad(ShaderProgramOGL *aProg,
-                       bool aFlipped = false,
-                       GLuint aDrawMode = LOCAL_GL_TRIANGLE_STRIP);
+                       bool aFlipped = false)
+  {
+    NS_ASSERTION(aProg->HasInitialized(), "Shader program not correctly initialized");
+    BindAndDrawQuad(aProg->AttribLocation(ShaderProgramOGL::VertexCoordAttrib),
+                    aProg->AttribLocation(ShaderProgramOGL::TexCoordAttrib),
+                    aFlipped);
+  }
+
   void BindAndDrawQuadWithTextureRect(ShaderProgramOGL *aProg,
                                       const gfx::Rect& aTexCoordRect,
                                       TextureSource *aTexture);
@@ -321,7 +366,7 @@ private:
    * Copies the content of our backbuffer to the set transaction target.
    * Does not restore the target FBO, so only call from EndFrame.
    */
-  void CopyToTarget(gfx::DrawTarget* aTarget, const gfxMatrix& aWorldMatrix);
+  void CopyToTarget(gfxContext *aTarget, const gfxMatrix& aWorldMatrix);
 
   /**
    * Records the passed frame timestamp and returns the current estimated FPS.

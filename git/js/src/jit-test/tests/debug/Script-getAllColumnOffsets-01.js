@@ -1,6 +1,6 @@
 // getColumnOffsets correctly places the various parts of a ForStatement.
 
-var global = newGlobal();
+var global = newGlobal('new-compartment');
 Debugger(global).onDebuggerStatement = function (frame) {
     var script = frame.eval("f").return.script;
     script.getAllColumnOffsets().forEach(function (offset) {

@@ -16,7 +16,7 @@
 #include "nsContentListDeclarations.h"
 #include "nsISupports.h"
 #include "nsTArray.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "nsIHTMLCollection.h"
 #include "nsIDOMNodeList.h"
 #include "nsINodeList.h"
@@ -95,19 +95,7 @@ public:
   virtual JSObject* WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
     MOZ_OVERRIDE = 0;
 
-  void SetCapacity(uint32_t aCapacity)
-  {
-    mElements.SetCapacity(aCapacity);
-  }
 protected:
-  /**
-   * To be called from non-destructor locations (e.g. unlink) that want to
-   * remove from caches.  Cacheable subclasses should override.
-   */
-  virtual void RemoveFromCaches()
-  {
-  }
-
   nsTArray< nsCOMPtr<nsIContent> > mElements;
 };
 
@@ -147,29 +135,26 @@ struct nsContentListKey
                    const nsAString& aTagname)
     : mRootNode(aRootNode),
       mMatchNameSpaceId(aMatchNameSpaceId),
-      mTagname(aTagname),
-      mHash(mozilla::AddToHash(mozilla::HashString(aTagname), mRootNode,
-                               mMatchNameSpaceId))
+      mTagname(aTagname)
   {
   }
 
   nsContentListKey(const nsContentListKey& aContentListKey)
     : mRootNode(aContentListKey.mRootNode),
       mMatchNameSpaceId(aContentListKey.mMatchNameSpaceId),
-      mTagname(aContentListKey.mTagname),
-      mHash(aContentListKey.mHash)
+      mTagname(aContentListKey.mTagname)
   {
   }
 
   inline uint32_t GetHash(void) const
   {
-    return mHash;
+    uint32_t hash = mozilla::HashString(mTagname);
+    return mozilla::AddToHash(hash, mRootNode, mMatchNameSpaceId);
   }
   
   nsINode* const mRootNode; // Weak ref
   const int32_t mMatchNameSpaceId;
   const nsAString& mTagname;
-  const uint32_t mHash;
 };
 
 /**
@@ -253,14 +238,8 @@ public:
 
   // nsWrapperCache
   using nsWrapperCache::GetWrapperPreserveColor;
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
-protected:
-  virtual JSObject* GetWrapperPreserveColorInternal() MOZ_OVERRIDE
-  {
-    return nsWrapperCache::GetWrapperPreserveColor();
-  }
-public:
+  virtual JSObject* WrapObject(JSContext *cx,
+                               JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
 
   // nsIDOMHTMLCollection
   NS_DECL_NSIDOMHTMLCOLLECTION
@@ -275,20 +254,14 @@ public:
 
   virtual nsIContent* Item(uint32_t aIndex) MOZ_OVERRIDE;
   virtual mozilla::dom::Element* GetElementAt(uint32_t index) MOZ_OVERRIDE;
-  virtual mozilla::dom::Element*
-  GetFirstNamedElement(const nsAString& aName, bool& aFound) MOZ_OVERRIDE
-  {
-    mozilla::dom::Element* item = NamedItem(aName, true);
-    aFound = !!item;
-    return item;
-  }
+  virtual JSObject* NamedItem(JSContext* cx, const nsAString& name,
+                              mozilla::ErrorResult& error) MOZ_OVERRIDE;
   virtual void GetSupportedNames(nsTArray<nsString>& aNames) MOZ_OVERRIDE;
 
   // nsContentList public methods
   NS_HIDDEN_(uint32_t) Length(bool aDoFlush);
   NS_HIDDEN_(nsIContent*) Item(uint32_t aIndex, bool aDoFlush);
-  NS_HIDDEN_(mozilla::dom::Element*)
-  NamedItem(const nsAString& aName, bool aDoFlush);
+  NS_HIDDEN_(nsIContent*) NamedItem(const nsAString& aName, bool aDoFlush);
 
   // nsIMutationObserver
   NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED
@@ -324,16 +297,6 @@ public:
       mXMLMatchAtom->Equals(aKey.mTagname) &&
       mRootNode == aKey.mRootNode &&
       mMatchNameSpaceId == aKey.mMatchNameSpaceId;
-  }
-
-  /**
-   * Sets the state to LIST_DIRTY and clears mElements array.
-   * @note This is the only acceptable way to set state to LIST_DIRTY.
-   */
-  void SetDirty()
-  {
-    mState = LIST_DIRTY;
-    Reset();
   }
 
 protected:
@@ -388,12 +351,21 @@ protected:
   inline void BringSelfUpToDate(bool aDoFlush);
 
   /**
+   * Sets the state to LIST_DIRTY and clears mElements array.
+   * @note This is the only acceptable way to set state to LIST_DIRTY.
+   */
+  void SetDirty()
+  {
+    mState = LIST_DIRTY;
+    Reset();
+  }
+
+  /**
    * To be called from non-destructor locations that want to remove from caches.
    * Needed because if subclasses want to have cache behavior they can't just
    * override RemoveFromHashtable(), since we call that in our destructor.
    */
-  virtual void RemoveFromCaches() MOZ_OVERRIDE
-  {
+  virtual void RemoveFromCaches() {
     RemoveFromHashtable();
   }
 

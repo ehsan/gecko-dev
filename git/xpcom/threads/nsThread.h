@@ -15,11 +15,10 @@
 #include "nsString.h"
 #include "nsTObserverArray.h"
 #include "mozilla/Attributes.h"
-#include "nsAutoPtr.h"
 
 // A native thread
-class nsThread : public nsIThreadInternal,
-                 public nsISupportsPriority
+class nsThread MOZ_FINAL : public nsIThreadInternal,
+                           public nsISupportsPriority
 {
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
@@ -54,17 +53,12 @@ public:
   static nsresult
   SetMainThreadObserver(nsIThreadObserver* aObserver);
 
-protected:
+private:
   static nsIThreadObserver* sMainThreadObserver;
-
-  class nsChainedEventQueue;
-
-  class nsNestedEventTarget;
-  friend class nsNestedEventTarget;
 
   friend class nsThreadShutdownEvent;
 
-  virtual ~nsThread();
+  ~nsThread();
 
   bool ShuttingDown() { return mShutdownContext != nullptr; }
 
@@ -79,56 +73,9 @@ protected:
 
   // Wrappers for event queue methods:
   bool GetEvent(bool mayWait, nsIRunnable **event) {
-    return mEvents->GetEvent(mayWait, event);
+    return mEvents.GetEvent(mayWait, event);
   }
-  nsresult PutEvent(nsIRunnable *event, nsNestedEventTarget *target);
-
-  nsresult DispatchInternal(nsIRunnable *event, uint32_t flags,
-                            nsNestedEventTarget *target);
-
-  // Wrapper for nsEventQueue that supports chaining.
-  class nsChainedEventQueue {
-  public:
-    nsChainedEventQueue()
-      : mNext(nullptr) {
-    }
-
-    bool GetEvent(bool mayWait, nsIRunnable **event) {
-      return mQueue.GetEvent(mayWait, event);
-    }
-
-    bool PutEvent(nsIRunnable *event) {
-      return mQueue.PutEvent(event);
-    }
-
-    bool HasPendingEvent() {
-      return mQueue.HasPendingEvent();
-    }
-
-    nsChainedEventQueue *mNext;
-    nsRefPtr<nsNestedEventTarget> mEventTarget;
-
-  private:
-    nsEventQueue mQueue;
-  };
-
-  class nsNestedEventTarget MOZ_FINAL : public nsIEventTarget {
-  public:
-    NS_DECL_THREADSAFE_ISUPPORTS
-    NS_DECL_NSIEVENTTARGET
-
-    nsNestedEventTarget(nsThread *thread, nsChainedEventQueue *queue)
-      : mThread(thread), mQueue(queue) {
-    }
-
-    nsRefPtr<nsThread> mThread;
-
-    // This is protected by mThread->mLock.
-    nsChainedEventQueue* mQueue;
-
-  private:
-    ~nsNestedEventTarget() {}
-  };
+  nsresult PutEvent(nsIRunnable *event);
 
   // This lock protects access to mObserver, mEvents and mEventsAreDoomed.
   // All of those fields are only modified on the thread itself (never from
@@ -142,8 +89,7 @@ protected:
   // Only accessed on the target thread.
   nsAutoTObserverArray<nsCOMPtr<nsIThreadObserver>, 2> mEventObservers;
 
-  nsChainedEventQueue *mEvents;   // never null
-  nsChainedEventQueue  mEventsRoot;
+  nsEventQueue  mEvents;
 
   int32_t   mPriority;
   PRThread *mThread;
@@ -181,12 +127,5 @@ private:
   nsCOMPtr<nsIRunnable> mSyncTask;
   nsresult mResult;
 };
-
-#if defined(XP_UNIX) && !defined(ANDROID) && !defined(DEBUG) && HAVE_UALARM \
-  && defined(_GNU_SOURCE)
-# define MOZ_CANARY
-
-extern int sCanaryOutputFD;
-#endif
 
 #endif  // nsThread_h__

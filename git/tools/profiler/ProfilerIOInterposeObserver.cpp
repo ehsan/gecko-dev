@@ -2,42 +2,34 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "GeckoProfiler.h"
 #include "ProfilerIOInterposeObserver.h"
-#include "ProfilerMarkers.h"
+
+#include "GeckoProfiler.h"
 
 using namespace mozilla;
 
-void ProfilerIOInterposeObserver::Observe(Observation& aObservation)
+ProfilerIOInterposeObserver::ProfilerIOInterposeObserver()
 {
-  const char* str = nullptr;
-
-  switch (aObservation.ObservedOperation()) {
-    case IOInterposeObserver::OpCreateOrOpen:
-      str = "create/open";
-      break;
-    case IOInterposeObserver::OpRead:
-      str = "read";
-      break;
-    case IOInterposeObserver::OpWrite:
-      str = "write";
-      break;
-    case IOInterposeObserver::OpFSync:
-      str = "fsync";
-      break;
-    case IOInterposeObserver::OpStat:
-      str = "stat";
-      break;
-    case IOInterposeObserver::OpClose:
-      str = "close";
-      break;
-    default:
-      return;
+  IOInterposer* interposer = IOInterposer::GetInstance();
+  if (interposer) {
+    interposer->Register(IOInterposeObserver::OpAll, this);
   }
-  ProfilerBacktrace* stack = profiler_get_backtrace();
-  IOMarkerPayload* markerPayload = new IOMarkerPayload(aObservation.Reference(),
-                                                       aObservation.Start(),
-                                                       aObservation.End(),
-                                                       stack);
-  PROFILER_MARKER_PAYLOAD(str, markerPayload);
 }
+
+ProfilerIOInterposeObserver::~ProfilerIOInterposeObserver()
+{
+  IOInterposer* interposer = IOInterposer::GetInstance();
+  if (interposer) {
+    interposer->Deregister(IOInterposeObserver::OpAll, this);
+  }
+}
+
+void ProfilerIOInterposeObserver::Observe(IOInterposeObserver::Operation aOp,
+                                          double& aDuration,
+                                          const char* aModuleInfo)
+{
+  MOZ_ASSERT(NS_IsMainThread());
+  const char* ops[] = {"none", "read", "write", "invalid", "fsync"};
+  PROFILER_MARKER(ops[aOp]);
+}
+

@@ -4,25 +4,24 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozJSComponentLoader_h
-#define mozJSComponentLoader_h
-
-#include "mozilla/MemoryReporting.h"
+#include "plhash.h"
 #include "mozilla/ModuleLoader.h"
+#include "nsIJSRuntimeService.h"
 #include "nsISupports.h"
+#include "nsIXPConnect.h"
+#include "nsIFile.h"
+#include "nsAutoPtr.h"
+#include "nsIObjectInputStream.h"
+#include "nsIObjectOutputStream.h"
+#include "nsITimer.h"
 #include "nsIObserver.h"
-#include "nsIURI.h"
 #include "xpcIJSModuleLoader.h"
 #include "nsClassHashtable.h"
 #include "nsDataHashtable.h"
-#include "jsapi.h"
+#include "nsIPrincipal.h"
+#include "mozilla/scache/StartupCache.h"
 
 #include "xpcIJSGetFactory.h"
-
-class nsIFile;
-class nsIJSRuntimeService;
-class nsIPrincipal;
-class nsIXPConnectJSObjectHolder;
 
 /* 6bd13476-1dd2-11b2-bbef-f0ccb5fa64b6 (thanks, mozbot) */
 
@@ -56,8 +55,6 @@ class mozJSComponentLoader : public mozilla::ModuleLoader,
 
     void NoteSubScript(JS::HandleScript aScript, JS::HandleObject aThisObject);
 
-    size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
-
  protected:
     static mozJSComponentLoader* sSelf;
 
@@ -73,7 +70,6 @@ class mozJSComponentLoader : public mozilla::ModuleLoader,
     nsresult ObjectForLocation(nsIFile* aComponentFile,
                                nsIURI *aComponent,
                                JSObject **aObject,
-                               JSScript **aTableScript,
                                char **location,
                                bool aCatchException,
                                JS::MutableHandleValue aException);
@@ -95,15 +91,14 @@ class mozJSComponentLoader : public mozilla::ModuleLoader,
     public:
         ModuleEntry() : mozilla::Module() {
             mVersion = mozilla::Module::kVersion;
-            mCIDs = nullptr;
-            mContractIDs = nullptr;
-            mCategoryEntries = nullptr;
+            mCIDs = NULL;
+            mContractIDs = NULL;
+            mCategoryEntries = NULL;
             getFactoryProc = GetFactory;
-            loadProc = nullptr;
-            unloadProc = nullptr;
+            loadProc = NULL;
+            unloadProc = NULL;
 
             obj = nullptr;
-            thisObjectKey = nullptr;
             location = nullptr;
         }
 
@@ -112,7 +107,7 @@ class mozJSComponentLoader : public mozilla::ModuleLoader,
         }
 
         void Clear() {
-            getfactoryobj = nullptr;
+            getfactoryobj = NULL;
 
             if (obj) {
                 JSAutoRequest ar(sSelf->mContext);
@@ -121,36 +116,24 @@ class mozJSComponentLoader : public mozilla::ModuleLoader,
 
                 JS_SetAllNonReservedSlotsToUndefined(sSelf->mContext, obj);
                 JS_RemoveObjectRoot(sSelf->mContext, &obj);
-                if (thisObjectKey)
-                    JS_RemoveScriptRoot(sSelf->mContext, &thisObjectKey);
             }
 
             if (location)
                 NS_Free(location);
 
-            obj = nullptr;
-            thisObjectKey = nullptr;
-            location = nullptr;
+            obj = NULL;
+            location = NULL;
         }
-
-        size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 
         static already_AddRefed<nsIFactory> GetFactory(const mozilla::Module& module,
                                                        const mozilla::Module::CIDEntry& entry);
 
         nsCOMPtr<xpcIJSGetFactory> getfactoryobj;
         JSObject            *obj;
-        JSScript            *thisObjectKey;
         char                *location;
     };
 
     friend class ModuleEntry;
-
-    static size_t DataEntrySizeOfExcludingThis(const nsACString& aKey, ModuleEntry* const& aData,
-                                               mozilla::MallocSizeOf aMallocSizeOf, void* arg);
-    static size_t ClassEntrySizeOfExcludingThis(const nsACString& aKey,
-                                                const nsAutoPtr<ModuleEntry>& aData,
-                                                mozilla::MallocSizeOf aMallocSizeOf, void* arg);
 
     // Modules are intentionally leaked, but still cleared.
     static PLDHashOperator ClearModules(const nsACString& key, ModuleEntry*& entry, void* cx);
@@ -163,5 +146,3 @@ class mozJSComponentLoader : public mozilla::ModuleLoader,
     bool mInitialized;
     bool mReuseLoaderGlobal;
 };
-
-#endif

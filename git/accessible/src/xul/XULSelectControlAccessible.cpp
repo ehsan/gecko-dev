@@ -36,7 +36,7 @@ XULSelectControlAccessible::
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// XULSelectControlAccessible: Accessible
+// XULSelectControlAccessible: nsAccessNode
 
 void
 XULSelectControlAccessible::Shutdown()

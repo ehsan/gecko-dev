@@ -10,6 +10,9 @@
 #include "nsCOMPtr.h"
 #include "nsIDOMTCPSocket.h"
 
+struct JSContext;
+struct JSObject;
+
 namespace mozilla {
 namespace dom {
 

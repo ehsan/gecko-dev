@@ -48,47 +48,48 @@ interface BluetoothAdapter : EventTarget {
   [GetterThrows]
   readonly attribute any            uuids;
 
+  [SetterThrows]
            attribute EventHandler   ondevicefound;
-           attribute EventHandler   ondiscoverystatechanged;
 
   // Fired when pairing process is completed
+  [SetterThrows]
            attribute EventHandler   onpairedstatuschanged;
 
   // Fired when a2dp connection status changed
+  [SetterThrows]
            attribute EventHandler   ona2dpstatuschanged;
 
   // Fired when handsfree connection status changed
+  [SetterThrows]
            attribute EventHandler   onhfpstatuschanged;
 
   // Fired when sco connection status changed
+  [SetterThrows]
            attribute EventHandler   onscostatuschanged;
 
-  // Fired when remote devices query current media play status
-           attribute EventHandler   onrequestmediaplaystatus;
-
-  [NewObject, Throws]
+  [Creator, Throws]
   DOMRequest setName(DOMString name);
-  [NewObject, Throws]
+  [Creator, Throws]
   DOMRequest setDiscoverable(boolean discoverable);
-  [NewObject, Throws]
+  [Creator, Throws]
   DOMRequest setDiscoverableTimeout(unsigned long timeout);
-  [NewObject, Throws]
+  [Creator, Throws]
   DOMRequest startDiscovery();
-  [NewObject, Throws]
+  [Creator, Throws]
   DOMRequest stopDiscovery();
-  [NewObject, Throws]
-  DOMRequest pair(DOMString deviceAddress);
-  [NewObject, Throws]
-  DOMRequest unpair(DOMString deviceAddress);
-  [NewObject, Throws]
+  [Creator, Throws]
+  DOMRequest pair(BluetoothDevice device);
+  [Creator, Throws]
+  DOMRequest unpair(BluetoothDevice device);
+  [Creator, Throws]
   DOMRequest getPairedDevices();
-  [NewObject, Throws]
-  DOMRequest getConnectedDevices(unsigned short serviceUuid);
-  [NewObject, Throws]
+  [Creator, Throws]
+  DOMRequest getConnectedDevices(unsigned short profile);
+  [Creator, Throws]
   DOMRequest setPinCode(DOMString deviceAddress, DOMString pinCode);
-  [NewObject, Throws]
+  [Creator, Throws]
   DOMRequest setPasskey(DOMString deviceAddress, unsigned long passkey);
-  [NewObject, Throws]
+  [Creator, Throws]
   DOMRequest setPairingConfirmation(DOMString deviceAddress, boolean confirmation);
 
   /**
@@ -96,60 +97,33 @@ interface BluetoothAdapter : EventTarget {
    * To check the value of service UUIDs, please check "Bluetooth Assigned
    * Numbers" / "Service Discovery Protocol" for more information.
    *
-   * Note that service UUID is optional. If it isn't passed when calling
-   * Connect, multiple profiles are tried sequentially based on the class of
-   * device (CoD). If it isn't passed when calling Disconnect, all connected
-   * profiles are going to be closed.
-   *
-   * Reply success if the connection of any profile is successfully
-   * established/released; reply error if we failed to connect/disconnect all
-   * of the planned profiles.
-   *
-   * @param device Remote device
-   * @param profile 2-octets service UUID. This is optional.
+   * @param deviceAddress Remote device address
+   * @param profile 2-octets service UUID
    */
-  [NewObject, Throws]
-  DOMRequest connect(BluetoothDevice device, optional unsigned short serviceUuid);
-
-  [NewObject, Throws]
-  DOMRequest disconnect(BluetoothDevice device, optional unsigned short serviceUuid);
+  [Creator, Throws]
+  DOMRequest connect(DOMString deviceAddress, unsigned short profile);
+  [Creator, Throws]
+  DOMRequest disconnect(unsigned short profile);
 
   // One device can only send one file at a time
-  [NewObject, Throws]
+  [Creator, Throws]
   DOMRequest sendFile(DOMString deviceAddress, Blob blob);
-  [NewObject, Throws]
+  [Creator, Throws]
   DOMRequest stopSendingFile(DOMString deviceAddress);
-  [NewObject, Throws]
+  [Creator, Throws]
   DOMRequest confirmReceivingFile(DOMString deviceAddress, boolean confirmation);
 
   // Connect/Disconnect SCO (audio) connection
-  [NewObject, Throws]
+  [Creator, Throws]
   DOMRequest connectSco();
-  [NewObject, Throws]
+  [Creator, Throws]
   DOMRequest disconnectSco();
-  [NewObject, Throws]
+  [Creator, Throws]
   DOMRequest isScoConnected();
 
-  /**
-   * Additional HFP methods to handle CDMA network.
-   *
-   * In GSM network we observe call operations from RIL call state changes;
-   * however in CDMA network RIL call states do not change under some call
-   * operations, so we need these additional methods to be informed of these
-   * operations from dialer.
-   *
-   * For more information please refer to bug 912005 and 925638.
-   */
-  [NewObject, Throws]
-  DOMRequest answerWaitingCall();
-  [NewObject, Throws]
-  DOMRequest ignoreWaitingCall();
-  [NewObject, Throws]
-  DOMRequest toggleCalls();
-
   // AVRCP 1.3 methods
-  [NewObject,Throws]
+  [Creator,Throws]
   DOMRequest sendMediaMetaData(optional MediaMetaData mediaMetaData);
-  [NewObject,Throws]
+  [Creator,Throws]
   DOMRequest sendMediaPlayStatus(optional MediaPlayStatus mediaPlayStatus);
 };

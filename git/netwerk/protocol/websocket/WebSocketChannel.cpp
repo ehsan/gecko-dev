@@ -7,11 +7,7 @@
 #include "WebSocketLog.h"
 #include "WebSocketChannel.h"
 
-#include "mozilla/Atomics.h"
-#include "mozilla/Attributes.h"
-#include "mozilla/Endian.h"
-#include "mozilla/MathAlgorithms.h"
-
+#include "nsISocketTransportService.h"
 #include "nsIURI.h"
 #include "nsIChannel.h"
 #include "nsICryptoHash.h"
@@ -26,18 +22,12 @@
 #include "nsIProtocolProxyService.h"
 #include "nsIProxyInfo.h"
 #include "nsIProxiedChannel.h"
-#include "nsIAsyncVerifyRedirectCallback.h"
-#include "nsIDashboardEventNotifier.h"
-#include "nsIEventTarget.h"
-#include "nsIHttpChannel.h"
-#include "nsILoadGroup.h"
-#include "nsIProtocolHandler.h"
-#include "nsIRandomGenerator.h"
-#include "nsISocketTransport.h"
 
 #include "nsAutoPtr.h"
+#include "nsStandardURL.h"
 #include "nsNetCID.h"
 #include "nsServiceManagerUtils.h"
+#include "nsXPIDLString.h"
 #include "nsCRT.h"
 #include "nsThreadUtils.h"
 #include "nsError.h"
@@ -45,18 +35,17 @@
 #include "nsAlgorithm.h"
 #include "nsProxyRelease.h"
 #include "nsNetUtil.h"
+#include "mozilla/Atomics.h"
+#include "mozilla/Attributes.h"
 #include "mozilla/Telemetry.h"
 #include "mozilla/TimeStamp.h"
 
 #include "plbase64.h"
 #include "prmem.h"
 #include "prnetdb.h"
+#include "prbit.h"
 #include "zlib.h"
 #include <algorithm>
-
-#ifdef MOZ_WIDGET_GONK
-#include "nsINetworkStatsServiceProxy.h"
-#endif
 
 // rather than slurp up all of nsIWebSocket.idl, which lives outside necko, just
 // dupe one constant we need from it
@@ -963,11 +952,7 @@ WebSocketChannel::WebSocketChannel() :
   mCompressor(nullptr),
   mDynamicOutputSize(0),
   mDynamicOutput(nullptr),
-  mPrivateBrowsing(false),
-  mConnectionLogService(nullptr),
-  mCountRecv(0),
-  mCountSent(0),
-  mAppId(NECKO_NO_APP_ID)
+  mConnectionLogService(nullptr)
 {
   NS_ABORT_IF_FALSE(NS_IsMainThread(), "not main thread");
 
@@ -1075,20 +1060,6 @@ WebSocketChannel::BeginOpen()
     AbortSession(NS_ERROR_UNEXPECTED);
     return;
   }
-
-  if (localChannel) {
-    bool isInBrowser;
-    NS_GetAppInfo(localChannel, &mAppId, &isInBrowser);
-  }
-
-#ifdef MOZ_WIDGET_GONK
-  if (mAppId != NECKO_NO_APP_ID) {
-    nsCOMPtr<nsINetworkInterface> activeNetwork;
-    NS_GetActiveNetworkInterface(activeNetwork);
-    mActiveNetwork =
-      new nsMainThreadPtrHolder<nsINetworkInterface>(activeNetwork);
-  }
-#endif
 
   rv = localChannel->AsyncOpen(this, mHttpChannel);
   if (NS_FAILED(rv)) {
@@ -1237,7 +1208,9 @@ WebSocketChannel::ProcessInput(uint8_t *buffer, uint32_t count)
       }
 
       // copy this in case it is unaligned
-      payloadLength64 = NetworkEndian::readInt64(mFramePtr + 2);
+      uint64_t tempLen;
+      memcpy(&tempLen, mFramePtr + 2, 8);
+      payloadLength64 = PR_ntohll(tempLen);
     }
 
     payload = mFramePtr + framingLength;
@@ -1262,7 +1235,9 @@ WebSocketChannel::ProcessInput(uint8_t *buffer, uint32_t count)
       // frames to the client, but it is allowed
       LOG(("WebSocketChannel:: Client RECEIVING masked frame."));
 
-      uint32_t mask = NetworkEndian::readUint32(payload - 4);
+      uint32_t mask;
+      memcpy(&mask, payload - 4, 4);
+      mask = PR_ntohl(mask);
       ApplyMask(mask, payload, payloadLength);
     }
 
@@ -1353,7 +1328,7 @@ WebSocketChannel::ProcessInput(uint8_t *buffer, uint32_t count)
 
         NS_DispatchToMainThread(new CallOnMessageAvailable(this, utf8Data, -1));
         nsresult rv;
-        if (mConnectionLogService && !mPrivateBrowsing) {
+        if (mConnectionLogService) {
           nsAutoCString host;
           rv = mURI->GetHostPort(host);
           if (NS_SUCCEEDED(rv)) {
@@ -1376,7 +1351,8 @@ WebSocketChannel::ProcessInput(uint8_t *buffer, uint32_t count)
 
         mServerCloseCode = CLOSE_NO_STATUS;
         if (payloadLength >= 2) {
-          mServerCloseCode = NetworkEndian::readUint16(payload);
+          memcpy(&mServerCloseCode, payload, 2);
+          mServerCloseCode = PR_ntohs(mServerCloseCode);
           LOG(("WebSocketChannel:: close recvd code %u\n", mServerCloseCode));
           uint16_t msglen = static_cast<uint16_t>(payloadLength - 2);
           if (msglen > 0) {
@@ -1443,7 +1419,7 @@ WebSocketChannel::ProcessInput(uint8_t *buffer, uint32_t count)
                                                            payloadLength));
         // To add the header to 'Networking Dashboard' log
         nsresult rv;
-        if (mConnectionLogService && !mPrivateBrowsing) {
+        if (mConnectionLogService) {
           nsAutoCString host;
           rv = mURI->GetHostPort(host);
           if (NS_SUCCEEDED(rv)) {
@@ -1515,7 +1491,7 @@ WebSocketChannel::ApplyMask(uint32_t mask, uint8_t *data, uint64_t len)
 
   while (len && (reinterpret_cast<uintptr_t>(data) & 3)) {
     *data ^= mask >> 24;
-    mask = RotateLeft(mask, 8);
+    mask = PR_ROTATE_LEFT32(mask, 8);
     data++;
     len--;
   }
@@ -1524,10 +1500,10 @@ WebSocketChannel::ApplyMask(uint32_t mask, uint8_t *data, uint64_t len)
 
   uint32_t *iData = (uint32_t *) data;
   uint32_t *end = iData + (len / 4);
-  NetworkEndian::writeUint32(&mask, mask);
+  mask = PR_htonl(mask);
   for (; iData < end; iData++)
     *iData ^= mask;
-  mask = NetworkEndian::readUint32(&mask);
+  mask = PR_ntohl(mask);
   data = (uint8_t *)iData;
   len  = len % 4;
 
@@ -1536,7 +1512,7 @@ WebSocketChannel::ApplyMask(uint32_t mask, uint8_t *data, uint64_t len)
 
   while (len) {
     *data ^= mask >> 24;
-    mask = RotateLeft(mask, 8);
+    mask = PR_ROTATE_LEFT32(mask, 8);
     data++;
     len--;
   }
@@ -1657,7 +1633,8 @@ WebSocketChannel::PrimeNewOutgoingMessage()
     // and there isn't an internal error, use that.
     if (NS_SUCCEEDED(mStopOnClose)) {
       if (mScriptCloseCode) {
-        NetworkEndian::writeUint16(payload, mScriptCloseCode);
+        uint16_t temp = PR_htons(mScriptCloseCode);
+        memcpy(payload, &temp, 2);
         mOutHeader[1] += 2;
         mHdrOutToSend = 8;
         if (!mScriptCloseReason.IsEmpty()) {
@@ -1676,7 +1653,8 @@ WebSocketChannel::PrimeNewOutgoingMessage()
         mHdrOutToSend = 6;
       }
     } else {
-      NetworkEndian::writeUint16(payload, ResultToCloseCode(mStopOnClose));
+      uint16_t temp = PR_htons(ResultToCloseCode(mStopOnClose));
+      memcpy(payload, &temp, 2);
       mOutHeader[1] += 2;
       mHdrOutToSend = 8;
     }
@@ -1735,12 +1713,14 @@ WebSocketChannel::PrimeNewOutgoingMessage()
       mHdrOutToSend = 6;
     } else if (mCurrentOut->Length() <= 0xffff) {
       mOutHeader[1] = 126 | kMaskBit;
-      NetworkEndian::writeUint16(mOutHeader + sizeof(uint16_t),
-                                 mCurrentOut->Length());
+      ((uint16_t *)mOutHeader)[1] =
+        PR_htons(mCurrentOut->Length());
       mHdrOutToSend = 8;
     } else {
       mOutHeader[1] = 127 | kMaskBit;
-      NetworkEndian::writeUint64(mOutHeader + 2, mCurrentOut->Length());
+      uint64_t tempLen = mCurrentOut->Length();
+      tempLen = PR_htonll(tempLen);
+      memcpy(mOutHeader + 2, &tempLen, 8);
       mHdrOutToSend = 14;
     }
     payload = mOutHeader + mHdrOutToSend;
@@ -1762,7 +1742,8 @@ WebSocketChannel::PrimeNewOutgoingMessage()
     mask = * reinterpret_cast<uint32_t *>(buffer);
     NS_Free(buffer);
   } while (!mask);
-  NetworkEndian::writeUint32(payload - sizeof(uint32_t), mask);
+  uint32_t temp = PR_htonl(mask);
+  memcpy(payload - 4, &temp, 4);
 
   LOG(("WebSocketChannel::PrimeNewOutgoingMessage() using mask %08x\n", mask));
 
@@ -1774,7 +1755,7 @@ WebSocketChannel::PrimeNewOutgoingMessage()
 
   while (payload < (mOutHeader + mHdrOutToSend)) {
     *payload ^= mask >> 24;
-    mask = RotateLeft(mask, 8);
+    mask = PR_ROTATE_LEFT32(mask, 8);
     payload++;
   }
 
@@ -1863,7 +1844,7 @@ WebSocketChannel::CleanupConnection()
   }
 
   nsresult rv;
-  if (mConnectionLogService && !mPrivateBrowsing) {
+  if (mConnectionLogService) {
     nsAutoCString host;
     rv = mURI->GetHostPort(host);
     if (NS_SUCCEEDED(rv))
@@ -2697,9 +2678,7 @@ WebSocketChannel::AsyncOpen(nsIURI *aURI,
   if (NS_FAILED(rv))
     return rv;
 
-  mPrivateBrowsing = NS_UsePrivateBrowsing(localChannel);
-
-  if (mConnectionLogService && !mPrivateBrowsing) {
+  if (mConnectionLogService) {
     nsAutoCString host;
     rv = mURI->GetHostPort(host);
     if (NS_SUCCEEDED(rv)) {
@@ -2726,9 +2705,6 @@ WebSocketChannel::Close(uint16_t code, const nsACString & reason)
 {
   LOG(("WebSocketChannel::Close() %p\n", this));
   NS_ABORT_IF_FALSE(NS_IsMainThread(), "not main thread");
-
-  // save the networkstats (bug 855949)
-  SaveNetworkStats(true);
 
   if (mRequestedClose) {
     return NS_OK;
@@ -2807,7 +2783,7 @@ WebSocketChannel::SendMsgCommon(const nsACString *aMsg, bool aIsBinary,
   }
 
   nsresult rv;
-  if (mConnectionLogService && !mPrivateBrowsing) {
+  if (mConnectionLogService) {
     nsAutoCString host;
     rv = mURI->GetHostPort(host);
     if (NS_SUCCEEDED(rv)) {
@@ -3056,9 +3032,6 @@ WebSocketChannel::OnInputStreamReady(nsIAsyncInputStream *aStream)
     rv = mSocketIn->Read((char *)buffer, 2048, &count);
     LOG(("WebSocketChannel::OnInputStreamReady: read %u rv %x\n", count, rv));
 
-    // accumulate received bytes
-    CountRecvBytes(count);
-
     if (rv == NS_BASE_STREAM_WOULD_BLOCK) {
       mSocketIn->AsyncWait(this, 0, 0, mSocketThread);
       return NS_OK;
@@ -3137,9 +3110,6 @@ WebSocketChannel::OnOutputStreamReady(nsIAsyncOutputStream *aStream)
       rv = mSocketOut->Write(sndBuf, toSend, &amtSent);
       LOG(("WebSocketChannel::OnOutputStreamReady: write %u rv %x\n",
            amtSent, rv));
-
-      // accumulate sent bytes
-      CountSentBytes(amtSent);
 
       if (rv == NS_BASE_STREAM_WOULD_BLOCK) {
         mSocketOut->AsyncWait(this, 0, 0, nullptr);
@@ -3264,96 +3234,6 @@ WebSocketChannel::OnDataAvailable(nsIRequest *aRequest,
          aCount));
 
   return NS_OK;
-}
-
-//-----------------------------------------------------------------------------
-// WebSocketChannel save network statistics event
-//-----------------------------------------------------------------------------
-
-#ifdef MOZ_WIDGET_GONK
-namespace {
-class SaveNetworkStatsEvent : public nsRunnable {
-public:
-    SaveNetworkStatsEvent(uint32_t aAppId,
-                          nsMainThreadPtrHandle<nsINetworkInterface> &aActiveNetwork,
-                          uint64_t aCountRecv,
-                          uint64_t aCountSent)
-        : mAppId(aAppId),
-          mActiveNetwork(aActiveNetwork),
-          mCountRecv(aCountRecv),
-          mCountSent(aCountSent)
-    {
-        MOZ_ASSERT(mAppId != NECKO_NO_APP_ID);
-        MOZ_ASSERT(mActiveNetwork);
-    }
-
-    NS_IMETHOD Run()
-    {
-        MOZ_ASSERT(NS_IsMainThread());
-
-        nsresult rv;
-        nsCOMPtr<nsINetworkStatsServiceProxy> mNetworkStatsServiceProxy =
-            do_GetService("@mozilla.org/networkstatsServiceProxy;1", &rv);
-        if (NS_FAILED(rv)) {
-            return rv;
-        }
-
-        // save the network stats through NetworkStatsServiceProxy
-        mNetworkStatsServiceProxy->SaveAppStats(mAppId,
-                                                mActiveNetwork,
-                                                PR_Now() / 1000,
-                                                mCountRecv,
-                                                mCountSent,
-                                                nullptr);
-
-        return NS_OK;
-    }
-private:
-    uint32_t mAppId;
-    nsMainThreadPtrHandle<nsINetworkInterface> mActiveNetwork;
-    uint64_t mCountRecv;
-    uint64_t mCountSent;
-};
-};
-#endif
-
-nsresult
-WebSocketChannel::SaveNetworkStats(bool enforce)
-{
-#ifdef MOZ_WIDGET_GONK
-  // Check if the active network and app id are valid.
-  if(!mActiveNetwork || mAppId == NECKO_NO_APP_ID) {
-    return NS_OK;
-  }
-
-  if (mCountRecv <= 0 && mCountSent <= 0) {
-    // There is no traffic, no need to save.
-    return NS_OK;
-  }
-
-  // If |enforce| is false, the traffic amount is saved
-  // only when the total amount exceeds the predefined
-  // threshold.
-  uint64_t totalBytes = mCountRecv + mCountSent;
-  if (!enforce && totalBytes < NETWORK_STATS_THRESHOLD) {
-    return NS_OK;
-  }
-
-  // Create the event to save the network statistics.
-  // the event is then dispathed to the main thread.
-  nsRefPtr<nsRunnable> event =
-    new SaveNetworkStatsEvent(mAppId, mActiveNetwork,
-                              mCountRecv, mCountSent);
-  NS_DispatchToMainThread(event);
-
-  // Reset the counters after saving.
-  mCountSent = 0;
-  mCountRecv = 0;
-
-  return NS_OK;
-#else
-  return NS_ERROR_NOT_IMPLEMENTED;
-#endif
 }
 
 } // namespace mozilla::net

@@ -10,7 +10,7 @@
 #include "Layers.h"                     // for Layer, ContainerLayer, etc
 #include "gfx3DMatrix.h"                // for gfx3DMatrix
 #include "gfxColor.h"                   // for gfxRGBA
-#include "GraphicsFilter.h"             // for GraphicsFilter
+#include "gfxPattern.h"                 // for gfxPattern, etc
 #include "gfxPoint.h"                   // for gfxIntSize
 #include "gfxPoint3D.h"                 // for gfxPoint3D
 #include "gfxRect.h"                    // for gfxRect
@@ -110,7 +110,6 @@ struct LayerPropertiesBase : public LayerProperties
     : mLayer(aLayer)
     , mMaskLayer(nullptr)
     , mVisibleRegion(aLayer->GetVisibleRegion())
-    , mInvalidRegion(aLayer->GetInvalidRegion())
     , mTransform(aLayer->GetTransform())
     , mOpacity(aLayer->GetOpacity())
     , mUseClipRect(!!aLayer->GetClipRect())
@@ -169,7 +168,7 @@ struct LayerPropertiesBase : public LayerProperties
     AddTransformedRegion(result, visible, mTransform);
 
     AddRegion(result, ComputeChangeInternal(aCallback));
-    AddTransformedRegion(result, mLayer->GetInvalidRegion(), mTransform);
+    AddTransformedRegion(result, mLayer->GetInvalidRegion().GetBounds(), mTransform);
 
     if (mMaskLayer && otherMask) {
       AddTransformedRegion(result, mMaskLayer->ComputeChange(aCallback), mTransform);
@@ -202,7 +201,6 @@ struct LayerPropertiesBase : public LayerProperties
   nsRefPtr<Layer> mLayer;
   nsAutoPtr<LayerPropertiesBase> mMaskLayer;
   nsIntRegion mVisibleRegion;
-  nsIntRegion mInvalidRegion;
   gfx3DMatrix mTransform;
   float mOpacity;
   nsIntRect mClipRect;
@@ -233,7 +231,8 @@ struct ContainerLayerProperties : public LayerPropertiesBase
     // TODO: Consider how we could avoid unnecessary invalidation when children
     // change order, and whether the overhead would be worth it.
 
-    nsDataHashtable<nsPtrHashKey<Layer>, uint32_t> oldIndexMap(mChildren.Length());
+    nsDataHashtable<nsPtrHashKey<Layer>, uint32_t> oldIndexMap;
+    oldIndexMap.Init(mChildren.Length());
     for (uint32_t i = 0; i < mChildren.Length(); ++i) {
       oldIndexMap.Put(mChildren[i]->mLayer, i);
     }
@@ -322,6 +321,7 @@ struct ImageLayerProperties : public LayerPropertiesBase
 {
   ImageLayerProperties(ImageLayer* aImage)
     : LayerPropertiesBase(aImage)
+    , mVisibleRegion(aImage->GetVisibleRegion())
     , mContainer(aImage->GetContainer())
     , mFilter(aImage->GetFilter())
     , mScaleToSize(aImage->GetScaleToSize())
@@ -349,8 +349,9 @@ struct ImageLayerProperties : public LayerPropertiesBase
     return nsIntRect();
   }
 
+  nsIntRegion mVisibleRegion;
   nsRefPtr<ImageContainer> mContainer;
-  GraphicsFilter mFilter;
+  gfxPattern::GraphicsFilter mFilter;
   gfxIntSize mScaleToSize;
   ScaleMode mScaleMode;
 };

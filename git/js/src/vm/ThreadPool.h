@@ -11,13 +11,18 @@
 #include <stdint.h>
 
 #include "jsalloc.h"
-#include "jslock.h"
-#include "jspubtd.h"
+#ifdef JS_THREADSAFE
+# include "prcvar.h"
+# include "prlock.h"
+# include "prtypes.h"
+#endif
 
 #include "js/Vector.h"
 
+struct JSContext;
 struct JSRuntime;
 struct JSCompartment;
+class JSScript;
 
 namespace js {
 
@@ -58,8 +63,13 @@ class ThreadPool
     friend class ThreadPoolWorker;
 
     // Initialized at startup only:
+#if defined(JS_THREADSAFE) || defined(DEBUG)
     JSRuntime *const runtime_;
+#endif
     js::Vector<ThreadPoolWorker*, 8, SystemAllocPolicy> workers_;
+
+    // Number of workers we will start, when we actually start them
+    size_t numWorkers_;
 
     bool lazyStartWorkers(JSContext *cx);
     void terminateWorkers();
@@ -69,8 +79,10 @@ class ThreadPool
     ThreadPool(JSRuntime *rt);
     ~ThreadPool();
 
+    bool init();
+
     // Return number of worker threads in the pool.
-    size_t numWorkers() const;
+    size_t numWorkers() { return numWorkers_; }
 
     // See comment on class:
     bool submitAll(JSContext *cx, TaskExecutor *executor);

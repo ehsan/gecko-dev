@@ -73,9 +73,6 @@ public:
                            void* aCallbackData,
                            ReadbackProcessor* aReadback) {}
 
-  virtual void Validate(LayerManager::DrawThebesLayerCallback aCallback,
-                        void* aCallbackData) {}
-
   /**
    * Layers will get this call when their layer manager is destroyed, this
    * indicates they should clear resources they don't really need after their

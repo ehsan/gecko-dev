@@ -466,7 +466,7 @@ class nsPointerRefTraits
 public:
     // The handle is a pointer to T.
     typedef T* RawRef;
-    // A nullptr does not have a resource.
+    // A NULL pointer does not have a resource.
     static RawRef Void() { return nullptr; }
 };
 

@@ -106,9 +106,9 @@ public:
 
     MOZ_ASSERT(mBuffer.Length() == outSamples);
 
-    WebAudioUtils::SpeexResamplerProcess(mUpSampler, aChannel,
-                                         aInputData, &inSamples,
-                                         outputData, &outSamples);
+    speex_resampler_process_float(mUpSampler, aChannel,
+                                  aInputData, &inSamples,
+                                  outputData, &outSamples);
 
     MOZ_ASSERT(inSamples == WEBAUDIO_BLOCK_SIZE && outSamples == WEBAUDIO_BLOCK_SIZE*aBlocks);
 
@@ -123,9 +123,9 @@ public:
 
     MOZ_ASSERT(mBuffer.Length() == inSamples);
 
-    WebAudioUtils::SpeexResamplerProcess(mDownSampler, aChannel,
-                                         inputData, &inSamples,
-                                         aOutputData, &outSamples);
+    speex_resampler_process_float(mDownSampler, aChannel,
+                                  inputData, &inSamples,
+                                  aOutputData, &outSamples);
 
     MOZ_ASSERT(inSamples == WEBAUDIO_BLOCK_SIZE*aBlocks && outSamples == WEBAUDIO_BLOCK_SIZE);
   }
@@ -258,7 +258,7 @@ WaveShaperNode::WaveShaperNode(AudioContext* aContext)
   , mCurve(nullptr)
   , mType(OverSampleType::None)
 {
-  mozilla::HoldJSObjects(this);
+  NS_HOLD_JS_OBJECTS(this, WaveShaperNode);
 
   WaveShaperNodeEngine* engine = new WaveShaperNodeEngine(this);
   mStream = aContext->Graph()->CreateAudioNodeStream(engine, MediaStreamGraph::INTERNAL_STREAM);
@@ -273,7 +273,7 @@ void
 WaveShaperNode::ClearCurve()
 {
   mCurve = nullptr;
-  mozilla::DropJSObjects(this);
+  NS_DROP_JS_OBJECTS(this, WaveShaperNode);
 }
 
 JSObject*

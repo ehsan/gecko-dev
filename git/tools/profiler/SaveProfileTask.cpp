@@ -4,7 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "SaveProfileTask.h"
-#include "GeckoProfiler.h"
+#include "GeckoProfilerImpl.h"
 
 static bool
 WriteCallback(const jschar *buf, uint32_t len, void *data)
@@ -58,12 +58,12 @@ SaveProfileTask::Run() {
 
   {
     JSAutoRequest ar(cx);
-    static const JSClass c = {
+    static JSClass c = {
       "global", JSCLASS_GLOBAL_FLAGS,
       JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
       JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub
     };
-    JSObject *obj = JS_NewGlobalObject(cx, &c, nullptr, JS::FireOnNewGlobalHook);
+    JSObject *obj = JS_NewGlobalObject(cx, &c, NULL, JS::FireOnNewGlobalHook);
 
     std::ofstream stream;
     stream.open(tmpPath.get());
@@ -71,7 +71,7 @@ SaveProfileTask::Run() {
       JSAutoCompartment autoComp(cx, obj);
       JSObject* profileObj = profiler_get_profile_jsobject(cx);
       JS::Rooted<JS::Value> val(cx, OBJECT_TO_JSVAL(profileObj));
-      JS_Stringify(cx, &val, JS::NullPtr(), JS::NullHandleValue, WriteCallback, &stream);
+      JS_Stringify(cx, val.address(), nullptr, JSVAL_NULL, WriteCallback, &stream);
       stream.close();
       LOGF("Saved to %s", tmpPath.get());
     } else {

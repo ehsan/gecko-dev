@@ -34,7 +34,6 @@ class CentOSBootstrapper(BaseBootstrapper):
             'libXt-devel',
             'mercurial',
             'mesa-libGL-devel',
-            'pulseaudio-libs-devel',
             'wireless-tools-devel',
             'yasm')
 

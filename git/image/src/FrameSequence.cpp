@@ -89,7 +89,7 @@ FrameSequence::SwapFrame(uint32_t framenum, imgFrame* aFrame)
 }
 
 size_t
-FrameSequence::SizeOfDecodedWithComputedFallbackIfHeap(gfxMemoryLocation aLocation,
+FrameSequence::SizeOfDecodedWithComputedFallbackIfHeap(gfxASurface::MemoryLocation aLocation,
                                                        MallocSizeOf aMallocSizeOf) const
 {
   size_t n = 0;

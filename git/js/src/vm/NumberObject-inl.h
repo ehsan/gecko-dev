@@ -18,7 +18,7 @@ NumberObject::create(JSContext *cx, double d)
 {
     JSObject *obj = NewBuiltinClassInstance(cx, &class_);
     if (!obj)
-        return nullptr;
+        return NULL;
     NumberObject &numobj = obj->as<NumberObject>();
     numobj.setPrimitiveValue(d);
     return &numobj;

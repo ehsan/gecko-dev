@@ -52,8 +52,7 @@ class CompositingRenderTargetD3D11 : public CompositingRenderTarget,
                                      public TextureSourceD3D11
 {
 public:
-  CompositingRenderTargetD3D11(ID3D11Texture2D* aTexture,
-                               const gfx::IntPoint& aOrigin);
+  CompositingRenderTargetD3D11(ID3D11Texture2D* aTexture);
 
   virtual TextureSourceD3D11* AsSourceD3D11() MOZ_OVERRIDE { return this; }
 
@@ -80,7 +79,7 @@ public:
   }
 
   virtual bool EnsureAllocated(gfx::IntSize aSize,
-                               gfxContentType aType) MOZ_OVERRIDE;
+                               gfxASurface::gfxContentType aType) MOZ_OVERRIDE;
 
   virtual gfxASurface* LockSurface() MOZ_OVERRIDE;
   virtual gfx::DrawTarget* LockDrawTarget() MOZ_OVERRIDE;
@@ -92,7 +91,7 @@ public:
   virtual void Unlock() MOZ_OVERRIDE;
 
   virtual void SetDescriptor(const SurfaceDescriptor& aDescriptor) MOZ_OVERRIDE;
-  virtual gfxContentType GetContentType() MOZ_OVERRIDE
+  virtual gfxASurface::gfxContentType GetContentType() MOZ_OVERRIDE
   {
     return mContentType;
   }
@@ -144,15 +143,17 @@ public:
 
   virtual bool Lock() MOZ_OVERRIDE { return true; }
 
-  virtual TemporaryRef<gfx::DataSourceSurface> GetAsSurface() MOZ_OVERRIDE
+  virtual already_AddRefed<gfxImageSurface> GetAsSurface() MOZ_OVERRIDE
   {
     return nullptr; // TODO: cf bug 872568
   }
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() MOZ_OVERRIDE
   {
     return "DeprecatedTextureHostShmemD3D11";
   }
+#endif
 
   virtual void BeginTileIteration() MOZ_OVERRIDE
   {
@@ -207,12 +208,14 @@ public:
   virtual bool Lock() MOZ_OVERRIDE;
   virtual void Unlock() MOZ_OVERRIDE;
 
-  virtual TemporaryRef<gfx::DataSourceSurface> GetAsSurface() MOZ_OVERRIDE
+  virtual already_AddRefed<gfxImageSurface> GetAsSurface() MOZ_OVERRIDE
   {
     return nullptr; // TODO: cf bug 872568
   }
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() { return "DeprecatedTextureHostDXGID3D11"; }
+#endif
 
 protected:
   virtual void UpdateImpl(const SurfaceDescriptor& aSurface,
@@ -243,15 +246,17 @@ public:
 
   virtual bool IsYCbCrSource() const MOZ_OVERRIDE { return true; }
 
-  virtual TemporaryRef<gfx::DataSourceSurface> GetAsSurface() MOZ_OVERRIDE
+  virtual already_AddRefed<gfxImageSurface> GetAsSurface() MOZ_OVERRIDE
   {
     return nullptr; // TODO: cf bug 872568
   }
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() MOZ_OVERRIDE
   {
     return "TextureImageDeprecatedTextureHostD3D11";
   }
+#endif
 
 protected:
   virtual void UpdateImpl(const SurfaceDescriptor& aSurface,

@@ -8,7 +8,6 @@ this.EXPORTED_SYMBOLS = ["View"];
 Components.utils.import("resource://gre/modules/PlacesUtils.jsm");
 Components.utils.import("resource:///modules/colorUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
-Components.utils.import("resource://gre/modules/Task.jsm");
 
 // --------------------------------
 // module helpers
@@ -24,47 +23,29 @@ function makeURI(aURL, aOriginCharset, aBaseURI) {
 // --------------------------------
 // View prototype for shared functionality
 
-function View(aSet) {
-  this._set = aSet;
-  this._set.controller = this;
-  this._window = aSet.ownerDocument.defaultView;
-
-  this.onResize = () => this._adjustDOMforViewState();
-  this._window.addEventListener("resize", this.onResize);
-
-  ColorUtils.init();
-  this._adjustDOMforViewState();
+function View() {
 }
 
 View.prototype = {
-  destruct: function () {
-    this._window.removeEventListener("resize", this.onResize);
+  _adjustDOMforViewState: function _adjustDOMforViewState(aState) {
+    if (this._set) {
+      if (undefined == aState)
+        aState = this._set.getAttribute("viewstate");
+
+      this._set.setAttribute("suppressonselect", (aState == "snapped"));
+
+      if (aState == "portrait") {
+        this._set.setAttribute("vertical", true);
+      } else {
+        this._set.removeAttribute("vertical");
+      }
+
+      this._set.arrangeItems();
+    }
   },
 
-  _adjustDOMforViewState: function _adjustDOMforViewState(aState) {
-    let grid = this._set;
-    if (!grid) {
-      return;
-    }
-    if (!aState) {
-      aState = grid.getAttribute("viewstate");
-    }
-    switch (aState) {
-      case "snapped":
-        grid.setAttribute("nocontext", true);
-        grid.selectNone();
-        break;
-      case "portrait":
-        grid.removeAttribute("nocontext");
-        grid.setAttribute("vertical", true);
-        break;
-      default:
-        grid.removeAttribute("nocontext");
-        grid.removeAttribute("vertical");
-    }
-    if ("arrangeItems" in grid) {
-      grid.arrangeItems();
-    }
+  onViewStateChange: function (aState) {
+    this._adjustDOMforViewState(aState);
   },
 
   _updateFavicon: function pv__updateFavicon(aItem, aUri) {
@@ -85,16 +66,10 @@ View.prototype = {
     if ("string" == typeof aIconUri) {
       aIconUri = makeURI(aIconUri);
     }
+    aItem.iconSrc = aIconUri.spec;
     let faviconURL = (PlacesUtils.favicons.getFaviconLinkForIcon(aIconUri)).spec;
-    aItem.iconSrc = faviconURL;
-
     let xpFaviconURI = makeURI(faviconURL.replace("moz-anno:favicon:",""));
-    Task.spawn(function() {
-      let colorInfo = yield ColorUtils.getForegroundAndBackgroundIconColors(xpFaviconURI);
-      if (!(colorInfo && colorInfo.background && colorInfo.foreground)) {
-        return;
-      }
-      let { background, foreground } = colorInfo;
+    let successAction = function(foreground, background) {
       aItem.style.color = foreground; //color text
       aItem.setAttribute("customColor", background);
       let matteColor =  0xffffff; // white
@@ -103,11 +78,13 @@ View.prototype = {
       // get the rgb value that represents this color at given opacity over a white matte
       let tintColor = ColorUtils.addRgbColors(matteColor, ColorUtils.createDecimalColorWord(r,g,b,alpha));
       aItem.setAttribute("tintColor", ColorUtils.convertDecimalToRgbColor(tintColor));
-      // when bound, use the setter to propogate the color change through the tile
-      if ('color' in aItem) {
-        aItem.color = background;
+
+      if (aItem.refresh) {
+        aItem.refresh();
       }
-    });
+    };
+    let failureAction = function() {};
+    ColorUtils.getForegroundAndBackgroundIconColors(xpFaviconURI, successAction, failureAction);
   }
 
 };

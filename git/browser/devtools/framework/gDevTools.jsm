@@ -52,7 +52,6 @@ DevTools.prototype = {
    * - id: Unique identifier for this tool (string|required)
    * - visibilityswitch: Property name to allow us to hide this tool from the
    *                     DevTools Toolbox.
-   *                     A falsy value indicates that it cannot be hidden.
    * - icon: URL pointing to a graphic which will be used as the src for an
    *         16x16 img tag (string|required)
    * - url: URL pointing to a XUL/XHTML document containing the user interface
@@ -70,13 +69,8 @@ DevTools.prototype = {
       throw new Error("Invalid definition.id");
     }
 
-    // Make sure that additional tools will always be able to be hidden.
-    // When being called from main.js, defaultTools has not yet been exported.
-    // But, we can assume that in this case, it is a default tool.
-    if (devtools.defaultTools && devtools.defaultTools.indexOf(toolDefinition) == -1) {
-      toolDefinition.visibilityswitch = "devtools." + toolId + ".enabled";
-    }
-
+    toolDefinition.visibilityswitch = toolDefinition.visibilityswitch ||
+        "devtools." + toolId + ".enabled";
     this._tools.set(toolId, toolDefinition);
 
     this.emit("tool-registered", toolId);
@@ -133,33 +127,6 @@ DevTools.prototype = {
   },
 
   /**
-   * Get a tool definition if it exists and is enabled.
-   *
-   * @param {string} toolId
-   *        The id of the tool to show
-   *
-   * @return {ToolDefinition|null} tool
-   *         The ToolDefinition for the id or null.
-   */
-  getToolDefinition: function DT_getToolDefinition(toolId) {
-    let tool = this._tools.get(toolId);
-    if (!tool) {
-      return null;
-    } else if (!tool.visibilityswitch) {
-      return tool;
-    }
-
-    let enabled;
-    try {
-      enabled = Services.prefs.getBoolPref(tool.visibilityswitch);
-    } catch (e) {
-      enabled = true;
-    }
-
-    return enabled ? tool : null;
-  },
-
-  /**
    * Allow ToolBoxes to get at the list of tools that they should populate
    * themselves with.
    *
@@ -169,12 +136,19 @@ DevTools.prototype = {
   getToolDefinitionMap: function DT_getToolDefinitionMap() {
     let tools = new Map();
 
-    for (let [id, definition] of this._tools) {
-      if (this.getToolDefinition(id)) {
-        tools.set(id, definition);
+    for (let [key, value] of this._tools) {
+      let enabled;
+
+      try {
+        enabled = Services.prefs.getBoolPref(value.visibilityswitch);
+      } catch(e) {
+        enabled = true;
+      }
+
+      if (enabled || value.id == "options") {
+        tools.set(key, value);
       }
     }
-
     return tools;
   },
 
@@ -188,11 +162,8 @@ DevTools.prototype = {
    */
   getToolDefinitionArray: function DT_getToolDefinitionArray() {
     let definitions = [];
-
-    for (let [id, definition] of this._tools) {
-      if (this.getToolDefinition(id)) {
-        definitions.push(definition);
-      }
+    for (let [id, definition] of this.getToolDefinitionMap()) {
+      definitions.push(definition);
     }
 
     return definitions.sort(this.ordinalSort);
@@ -212,13 +183,11 @@ DevTools.prototype = {
    *        The id of the tool to show
    * @param {Toolbox.HostType} hostType
    *        The type of host (bottom, window, side)
-   * @param {object} hostOptions
-   *        Options for host specifically
    *
    * @return {Toolbox} toolbox
    *        The toolbox that was opened
    */
-  showToolbox: function(target, toolId, hostType, hostOptions) {
+  showToolbox: function(target, toolId, hostType) {
     let deferred = promise.defer();
 
     let toolbox = this._toolboxes.get(target);
@@ -241,7 +210,7 @@ DevTools.prototype = {
     }
     else {
       // No toolbox for target, create one
-      toolbox = new devtools.Toolbox(target, toolId, hostType, hostOptions);
+      toolbox = new devtools.Toolbox(target, toolId, hostType);
 
       this._toolboxes.set(target, toolbox);
 
@@ -318,15 +287,6 @@ DevTools.prototype = {
     //   for (let [target, toolbox] of this._toolboxes) toolbox.destroy();
     // Is taken care of by the gDevToolsBrowser.forgetBrowserWindow
   },
-
-  /**
-   * Iterator that yields each of the toolboxes.
-   */
-  '@@iterator': function*() {
-    for (let toolbox of this._toolboxes) {
-      yield toolbox;
-    }
-  }
 };
 
 /**
@@ -370,75 +330,6 @@ let gDevToolsBrowser = {
   },
 
   /**
-   * This function ensures the right commands are enabled in a window,
-   * depending on their relevant prefs. It gets run when a window is registered,
-   * or when any of the devtools prefs change.
-   */
-  updateCommandAvailability: function(win) {
-    let doc = win.document;
-
-    function toggleCmd(id, isEnabled) {
-      let cmd = doc.getElementById(id);
-      if (isEnabled) {
-        cmd.removeAttribute("disabled");
-        cmd.removeAttribute("hidden");
-      } else {
-        cmd.setAttribute("disabled", "true");
-        cmd.setAttribute("hidden", "true");
-      }
-    };
-
-    // Enable developer toolbar?
-    let devToolbarEnabled = Services.prefs.getBoolPref("devtools.toolbar.enabled");
-    toggleCmd("Tools:DevToolbar", devToolbarEnabled);
-    let focusEl = doc.getElementById("Tools:DevToolbarFocus");
-    if (devToolbarEnabled) {
-      focusEl.removeAttribute("disabled");
-    } else {
-      focusEl.setAttribute("disabled", "true");
-    }
-    if (devToolbarEnabled && Services.prefs.getBoolPref("devtools.toolbar.visible")) {
-      win.DeveloperToolbar.show(false);
-    }
-
-    // Enable App Manager?
-    let appMgrEnabled = Services.prefs.getBoolPref("devtools.appmanager.enabled");
-    toggleCmd("Tools:DevAppMgr", appMgrEnabled);
-
-    // Enable Browser Toolbox?
-    let chromeEnabled = Services.prefs.getBoolPref("devtools.chrome.enabled");
-    let devtoolsRemoteEnabled = Services.prefs.getBoolPref("devtools.debugger.remote-enabled");
-    let remoteEnabled = chromeEnabled && devtoolsRemoteEnabled &&
-                        Services.prefs.getBoolPref("devtools.debugger.chrome-enabled");
-    toggleCmd("Tools:BrowserToolbox", remoteEnabled);
-
-    // Enable Error Console?
-    let consoleEnabled = Services.prefs.getBoolPref("devtools.errorconsole.enabled");
-    toggleCmd("Tools:ErrorConsole", consoleEnabled);
-
-    // Enable DevTools connection screen, if the preference allows this.
-    toggleCmd("Tools:DevToolsConnect", devtoolsRemoteEnabled);
-  },
-
-  observe: function(subject, topic, prefName) {
-    if (prefName.endsWith("enabled")) {
-      for (let win of this._trackedBrowserWindows) {
-        this.updateCommandAvailability(win);
-      }
-    }
-  },
-
-  _prefObserverRegistered: false,
-
-  ensurePrefObserver: function() {
-    if (!this._prefObserverRegistered) {
-      this._prefObserverRegistered = true;
-      Services.prefs.addObserver("devtools.", this, false);
-    }
-  },
-
-
-  /**
    * This function is for the benefit of Tools:{toolId} commands,
    * triggered from the WebDeveloper menu and keyboard shortcuts.
    *
@@ -455,7 +346,8 @@ let gDevToolsBrowser = {
   selectToolCommand: function(gBrowser, toolId) {
     let target = devtools.TargetFactory.forTab(gBrowser.selectedTab);
     let toolbox = gDevTools.getToolbox(target);
-    let toolDefinition = gDevTools.getToolDefinition(toolId);
+    let tools = gDevTools.getToolDefinitionMap();
+    let toolDefinition = tools.get(toolId);
 
     if (toolbox && toolbox.currentToolId == toolId) {
       toolbox.fireCustomKey(toolId);
@@ -483,21 +375,12 @@ let gDevToolsBrowser = {
   },
 
   /**
-   * Open the App Manager
-   */
-  openAppManager: function(gBrowser) {
-    gBrowser.selectedTab = gBrowser.addTab("about:app-manager");
-  },
-
-  /**
    * Add this DevTools's presence to a browser window's document
    *
    * @param {XULDocument} doc
    *        The document to which menuitems and handlers are to be added
    */
   registerBrowserWindow: function DT_registerBrowserWindow(win) {
-    this.updateCommandAvailability(win);
-    this.ensurePrefObserver();
     gDevToolsBrowser._trackedBrowserWindows.add(win);
     gDevToolsBrowser._addAllToolsToMenu(win.document);
 
@@ -553,14 +436,13 @@ let gDevToolsBrowser = {
    */
   _addToolToWindows: function DT_addToolToWindows(toolDefinition) {
     // No menu item or global shortcut is required for options panel.
-    if (!toolDefinition.inMenu) {
+    if (toolDefinition.id == "options") {
       return;
     }
 
     // Skip if the tool is disabled.
     try {
-      if (toolDefinition.visibilityswitch &&
-         !Services.prefs.getBoolPref(toolDefinition.visibilityswitch)) {
+      if (!Services.prefs.getBoolPref(toolDefinition.visibilityswitch)) {
         return;
       }
     } catch(e) {}
@@ -570,7 +452,7 @@ let gDevToolsBrowser = {
     let allDefs = gDevTools.getToolDefinitionArray();
     let prevDef;
     for (let def of allDefs) {
-      if (!def.inMenu) {
+      if (def.id == "options") {
         continue;
       }
       if (def === toolDefinition) {
@@ -639,9 +521,16 @@ let gDevToolsBrowser = {
     let fragMenuItems = doc.createDocumentFragment();
 
     for (let toolDefinition of gDevTools.getToolDefinitionArray()) {
-      if (!toolDefinition.inMenu) {
+      if (toolDefinition.id == "options") {
         continue;
       }
+
+      // Skip if the tool is disabled.
+      try {
+        if (!Services.prefs.getBoolPref(toolDefinition.visibilityswitch)) {
+          continue;
+        }
+      } catch(e) {}
 
       let elements = gDevToolsBrowser._createToolMenuElements(toolDefinition, doc);
 
@@ -860,7 +749,6 @@ let gDevToolsBrowser = {
    */
   destroy: function() {
     gDevTools.off("toolbox-ready", gDevToolsBrowser._connectToProfiler);
-    Services.prefs.removeObserver("devtools.", gDevToolsBrowser);
     Services.obs.removeObserver(gDevToolsBrowser.destroy, "quit-application");
   },
 }

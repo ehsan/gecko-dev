@@ -2,13 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-Cu.import("resource://gre/modules/Log.jsm");
+Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-common/utils.js");
 Cu.import("resource://testing-common/httpd.js");
 Cu.import("resource://testing-common/services-common/logging.js");
 
-let btoa = Cu.import("resource://gre/modules/Log.jsm").btoa;
-let atob = Cu.import("resource://gre/modules/Log.jsm").atob;
+let btoa = Cu.import("resource://services-common/log4moz.js").btoa;
+let atob = Cu.import("resource://services-common/log4moz.js").atob;
 
 function do_check_empty(obj) {
   do_check_attribute_count(obj, 0);
@@ -33,26 +33,6 @@ function do_check_throws(aFunc, aResult, aStack) {
     return;
   }
   do_throw("Expected result " + aResult + ", none thrown.", aStack);
-}
-
-
-/**
- * Test whether specified function throws exception with expected
- * result.
- *
- * @param func
- *        Function to be tested.
- * @param message
- *        Message of expected exception. <code>null</code> for no throws.
- */
-function do_check_throws_message(aFunc, aResult) {
-  try {
-    aFunc();
-  } catch (e) {
-    do_check_eq(e.message, aResult);
-    return;
-  }
-  do_throw("Expected an error, none thrown.");
 }
 
 /**

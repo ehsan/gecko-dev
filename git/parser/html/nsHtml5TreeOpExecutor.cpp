@@ -17,6 +17,7 @@
 #include "nsStyleLinkElement.h"
 #include "nsIDocShell.h"
 #include "nsIScriptGlobalObject.h"
+#include "nsIScriptGlobalObjectOwner.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIWebShellServices.h"
 #include "nsContentUtils.h"
@@ -66,9 +67,9 @@ static mozilla::LinkedList<nsHtml5TreeOpExecutor>* gBackgroundFlushList = nullpt
 static nsITimer* gFlushTimer = nullptr;
 
 nsHtml5TreeOpExecutor::nsHtml5TreeOpExecutor(bool aRunsToCompletion)
-  : mPreloadedURLs(23)  // Mean # of preloadable resources per page on dmoz
 {
   mRunsToCompletion = aRunsToCompletion;
+  mPreloadedURLs.Init(23); // Mean # of preloadable resources per page on dmoz
   // zeroing operator new for everything else
 }
 
@@ -219,6 +220,39 @@ nsHtml5TreeOpExecutor::SetDocumentCharsetAndSource(nsACString& aCharset, int32_t
   if (mDocument) {
     mDocument->SetDocumentCharacterSetSource(aCharsetSource);
     mDocument->SetDocumentCharacterSet(aCharset);
+  }
+  if (mDocShell) {
+    // the following logic to get muCV is copied from
+    // nsHTMLDocument::StartDocumentLoad
+    // We need to call muCV->SetPrevDocCharacterSet here in case
+    // the charset is detected by parser DetectMetaTag
+    nsCOMPtr<nsIMarkupDocumentViewer> mucv;
+    nsCOMPtr<nsIContentViewer> cv;
+    mDocShell->GetContentViewer(getter_AddRefs(cv));
+    if (cv) {
+      mucv = do_QueryInterface(cv);
+    } else {
+      // in this block of code, if we get an error result, we return
+      // it but if we get a null pointer, that's perfectly legal for
+      // parent and parentContentViewer
+      if (!mDocShell) {
+    	  return;
+      }
+      nsCOMPtr<nsIDocShellTreeItem> parentAsItem;
+      mDocShell->GetSameTypeParent(getter_AddRefs(parentAsItem));
+      nsCOMPtr<nsIDocShell> parent(do_QueryInterface(parentAsItem));
+      if (parent) {
+        nsCOMPtr<nsIContentViewer> parentContentViewer;
+        nsresult rv =
+          parent->GetContentViewer(getter_AddRefs(parentContentViewer));
+        if (NS_SUCCEEDED(rv) && parentContentViewer) {
+          mucv = do_QueryInterface(parentContentViewer);
+        }
+      }
+    }
+    if (mucv) {
+      mucv->SetPrevDocCharacterSet(aCharset);
+    }
   }
 }
 
@@ -520,11 +554,7 @@ nsHtml5TreeOpExecutor::RunFlushLoop()
       }
       NS_ASSERTION(mFlushState == eInDocUpdate, 
         "Tried to perform tree op outside update batch.");
-      nsresult rv = iter->Perform(this, &scriptElement);
-      if (NS_FAILED(rv)) {
-        MarkAsBroken(rv);
-        break;
-      }
+      iter->Perform(this, &scriptElement);
 
       // Be sure not to check the deadline if the last op was just performed.
       if (MOZ_UNLIKELY(iter == last)) {
@@ -626,11 +656,7 @@ nsHtml5TreeOpExecutor::FlushDocumentWrite()
     }
     NS_ASSERTION(mFlushState == eInDocUpdate, 
       "Tried to perform tree op outside update batch.");
-    nsresult rv = iter->Perform(this, &scriptElement);
-    if (NS_FAILED(rv)) {
-      MarkAsBroken(rv);
-      break;
-    }
+    iter->Perform(this, &scriptElement);
   }
 
   mOpQueue.Clear();
@@ -656,16 +682,23 @@ nsHtml5TreeOpExecutor::IsScriptEnabled()
 {
   if (!mDocument || !mDocShell)
     return true;
-  nsCOMPtr<nsIScriptGlobalObject> globalObject = do_QueryInterface(mDocument->GetInnerWindow());
+  nsCOMPtr<nsIScriptGlobalObject> globalObject = do_QueryInterface(mDocument->GetWindow());
   // Getting context is tricky if the document hasn't had its
   // GlobalObject set yet
   if (!globalObject) {
-    globalObject = mDocShell->GetScriptGlobalObject();
+    nsCOMPtr<nsIScriptGlobalObjectOwner> owner = do_GetInterface(mDocShell);
+    NS_ENSURE_TRUE(owner, true);
+    globalObject = do_QueryInterface(mDocument->GetWindow());
     NS_ENSURE_TRUE(globalObject, true);
   }
-  NS_ENSURE_TRUE(globalObject && globalObject->GetGlobalJSObject(), true);
-  return nsContentUtils::GetSecurityManager()->
-           ScriptAllowed(globalObject->GetGlobalJSObject());
+  nsIScriptContext *scriptContext = globalObject->GetContext();
+  NS_ENSURE_TRUE(scriptContext, true);
+  JSContext* cx = scriptContext->GetNativeContext();
+  NS_ENSURE_TRUE(cx, true);
+  bool enabled = true;
+  nsContentUtils::GetSecurityManager()->
+    CanExecuteScripts(cx, mDocument->NodePrincipal(), &enabled);
+  return enabled;
 }
 
 void

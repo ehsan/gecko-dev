@@ -138,11 +138,6 @@ SettingsListener.observe('language.current', 'en-US', function(value) {
       Services.prefs.setBoolPref('dom.mms.requestStatusReport', value);
   });
 
-  SettingsListener.observe('ril.mms.requestReadReport.enabled', true,
-    function(value) {
-      Services.prefs.setBoolPref('dom.mms.requestReadReport', value);
-  });
-
   SettingsListener.observe('ril.cellbroadcast.disabled', false,
     function(value) {
       Services.prefs.setBoolPref('ril.cellbroadcast.disabled', value);
@@ -162,32 +157,32 @@ SettingsListener.observe('language.current', 'en-US', function(value) {
     function(value) {
       Services.prefs.setCharPref('wap.UAProf.tagname', value);
   });
-
-  // DSDS default service IDs
-  ['mms', 'sms', 'telephony', 'voicemail'].forEach(function(key) {
-    SettingsListener.observe('ril.' + key + '.defaultServiceId', 0,
-                             function(value) {
-      if (value != null) {
-        Services.prefs.setIntPref('dom.' + key + '.defaultServiceId', value);
-      }
-    });
-  });
 })();
 
 //=================== DeviceInfo ====================
 Components.utils.import('resource://gre/modules/XPCOMUtils.jsm');
 Components.utils.import('resource://gre/modules/ctypes.jsm');
 (function DeviceInfoToSettings() {
+  XPCOMUtils.defineLazyServiceGetter(this, 'gSettingsService',
+                                     '@mozilla.org/settingsService;1',
+                                     'nsISettingsService');
+  let lock = gSettingsService.createLock();
   // MOZ_B2G_VERSION is set in b2g/confvars.sh, and is output as a #define value
   // from configure.in, defaults to 1.0.0 if this value is not exist.
 #filter attemptSubstitution
   let os_version = '@MOZ_B2G_VERSION@';
   let os_name = '@MOZ_B2G_OS_NAME@';
 #unfilter attemptSubstitution
+  lock.set('deviceinfo.os', os_version, null, null);
+  lock.set('deviceinfo.software', os_name + ' ' + os_version, null, null);
 
   let appInfo = Cc["@mozilla.org/xre/app-info;1"]
                   .getService(Ci.nsIXULAppInfo);
+  lock.set('deviceinfo.platform_version', appInfo.platformVersion, null, null);
+  lock.set('deviceinfo.platform_build_id', appInfo.platformBuildID, null, null);
+
   let update_channel = Services.prefs.getCharPref('app.update.channel');
+  lock.set('deviceinfo.update_channel', update_channel, null, null);
 
   // Get the hardware info and firmware revision from device properties.
   let hardware_info = null;
@@ -198,19 +193,9 @@ Components.utils.import('resource://gre/modules/ctypes.jsm');
     firmware_revision = libcutils.property_get('ro.firmware_revision');
     product_model = libcutils.property_get('ro.product.model');
 #endif
-
-  let software = os_name + ' ' + os_version;
-  let setting = {
-    'deviceinfo.os': os_version,
-    'deviceinfo.software': software,
-    'deviceinfo.platform_version': appInfo.platformVersion,
-    'deviceinfo.platform_build_id': appInfo.platformBuildID,
-    'deviceinfo.update_channel': update_channel,
-    'deviceinfo.hardware': hardware_info,
-    'deviceinfo.firmware_revision': firmware_revision,
-    'deviceinfo.product_model': product_model
-  }
-  window.navigator.mozSettings.createLock().set(setting);
+  lock.set('deviceinfo.hardware', hardware_info, null, null);
+  lock.set('deviceinfo.firmware_revision', firmware_revision, null, null);
+  lock.set('deviceinfo.product_model', product_model, null, null);
 })();
 
 // =================== Debugger / ADB ====================
@@ -223,7 +208,6 @@ let AdbController = {
   lockEnabled: undefined,
   disableAdbTimer: null,
   disableAdbTimeoutHours: 12,
-  umsActive: false,
 
   debug: function(str) {
     dump("AdbController: " + str + "\n");
@@ -305,51 +289,6 @@ let AdbController = {
   },
 
   updateState: function() {
-    this.umsActive = false;
-    this.storages = navigator.getDeviceStorages('sdcard');
-    this.updateStorageState(0);
-  },
-
-  updateStorageState: function(storageIndex) {
-    if (storageIndex >= this.storages.length) {
-      // We've iterated through all of the storage objects, now we can
-      // really do updateStateInternal.
-      this.updateStateInternal();
-      return;
-    }
-    let storage = this.storages[storageIndex];
-    if (this.DEBUG) {
-      this.debug("Checking availability of storage: '" +
-                 storage.storageName);
-    }
-
-    let req = storage.available();
-    req.onsuccess = function(e) {
-      if (this.DEBUG) {
-        this.debug("Storage: '" + storage.storageName + "' is '" +
-                   e.target.result);
-      }
-      if (e.target.result == 'shared') {
-        // We've found a storage area that's being shared with the PC.
-        // We can stop looking now.
-        this.umsActive = true;
-        this.updateStateInternal();
-        return;
-      }
-      this.updateStorageState(storageIndex + 1);
-    }.bind(this);
-    req.onerror = function(e) {
-      dump("AdbController: error querying storage availability for '" +
-           this.storages[storageIndex].storageName + "' (ignoring)\n");
-      this.updateStorageState(storageIndex + 1);
-    }.bind(this);
-  },
-
-  updateStateInternal: function() {
-    if (this.DEBUG) {
-      this.debug("updateStateInternal: called");
-    }
-
     if (this.remoteDebuggerEnabled === undefined ||
         this.lockEnabled === undefined ||
         this.locked === undefined) {
@@ -375,25 +314,8 @@ let AdbController = {
       }
       return;
     }
-
-    // Check if we have a remote debugging session going on. If so, we won't
-    // disable adb even if the screen is locked.
-    let isDebugging = DebuggerServer._connections &&
-                      Object.keys(DebuggerServer._connections).length > 0;
-    if (this.DEBUG) {
-      this.debug("isDebugging=" + isDebugging);
-    }
-
-    // If USB Mass Storage, USB tethering, or a debug session is active,
-    // then we don't want to disable adb in an automatic fashion (i.e.
-    // when the screen locks or due to timeout).
-    let sysUsbConfig = libcutils.property_get("sys.usb.config");
-    let rndisActive = (sysUsbConfig.split(",").indexOf("rndis") >= 0);
-    let usbFuncActive = rndisActive || this.umsActive || isDebugging;
-
     let enableAdb = this.remoteDebuggerEnabled &&
-      (!(this.lockEnabled && this.locked) || usbFuncActive);
-
+      !(this.lockEnabled && this.locked);
     let useDisableAdbTimer = true;
     try {
       if (Services.prefs.getBoolPref("marionette.defaultPrefs.enabled")) {
@@ -412,8 +334,7 @@ let AdbController = {
       this.debug("updateState: enableAdb = " + enableAdb +
                  " remoteDebuggerEnabled = " + this.remoteDebuggerEnabled +
                  " lockEnabled = " + this.lockEnabled +
-                 " locked = " + this.locked +
-                 " usbFuncActive = " + usbFuncActive);
+                 " locked = " + this.locked);
     }
 
     // Configure adb.
@@ -445,7 +366,7 @@ let AdbController = {
       }
     }
     if (useDisableAdbTimer) {
-      if (enableAdb && !usbFuncActive) {
+      if (enableAdb) {
         this.startDisableAdbTimer();
       } else {
         this.stopDisableAdbTimer();
@@ -494,10 +415,6 @@ SettingsListener.observe('privacy.donottrackheader.enabled', false, function(val
   Services.prefs.setBoolPref('privacy.donottrackheader.enabled', value);
 });
 
-SettingsListener.observe('privacy.donottrackheader.value', 1, function(value) {
-  Services.prefs.setIntPref('privacy.donottrackheader.value', value);
-});
-
 // =================== Crash Reporting ====================
 SettingsListener.observe('app.reportCrashes', 'ask', function(value) {
   if (value == 'always') {
@@ -507,8 +424,6 @@ SettingsListener.observe('app.reportCrashes', 'ask', function(value) {
   } else {
     Services.prefs.clearUserPref('app.reportCrashes');
   }
-  // This preference is consulted during startup.
-  Services.prefs.savePrefFile(null);
 });
 
 // ================ Updates ================
@@ -526,12 +441,4 @@ SettingsListener.observe("debug.paint-flashing.enabled", false, function(value) 
 });
 SettingsListener.observe("layers.draw-borders", false, function(value) {
   Services.prefs.setBoolPref("layers.draw-borders", value);
-});
-
-// ================ Accessibility ============
-SettingsListener.observe("accessibility.screenreader", false, function(value) {
-  if (value && !("AccessFu" in this)) {
-    Cu.import('resource://gre/modules/accessibility/AccessFu.jsm');
-    AccessFu.attach(window);
-  }
 });

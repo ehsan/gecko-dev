@@ -3,9 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsXBLResourceLoader_h
-#define nsXBLResourceLoader_h
-
 #include "mozilla/Attributes.h"
 #include "nsCOMPtr.h"
 #include "nsICSSLoaderObserver.h"
@@ -65,4 +62,3 @@ public:
   nsCOMArray<nsIContent> mBoundElements;
 };
 
-#endif

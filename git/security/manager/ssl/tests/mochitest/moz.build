@@ -11,3 +11,5 @@ TEST_DIRS += [
     'stricttransportsecurity',
 ]
 
+MODULE = 'pipnss'
+

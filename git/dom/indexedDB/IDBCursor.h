@@ -24,7 +24,7 @@ class nsPIDOMWindow;
 
 namespace mozilla {
 namespace dom {
-class OwningIDBObjectStoreOrIDBIndex;
+class IDBObjectStoreOrIDBIndexReturnValue;
 }
 }
 
@@ -55,7 +55,6 @@ public:
   enum Type
   {
     OBJECTSTORE = 0,
-    OBJECTSTOREKEY,
     INDEXKEY,
     INDEXOBJECT
   };
@@ -83,18 +82,6 @@ public:
          const nsACString& aContinueToQuery,
          const Key& aKey,
          StructuredCloneReadInfo& aCloneReadInfo);
-
-  // For OBJECTSTOREKEY cursors.
-  static
-  already_AddRefed<IDBCursor>
-  Create(IDBRequest* aRequest,
-         IDBTransaction* aTransaction,
-         IDBObjectStore* aObjectStore,
-         Direction aDirection,
-         const Key& aRangeKey,
-         const nsACString& aContinueQuery,
-         const nsACString& aContinueToQuery,
-         const Key& aKey);
 
   // For INDEXKEY cursors.
   static
@@ -179,7 +166,7 @@ public:
   }
 
   void
-  GetSource(OwningIDBObjectStoreOrIDBIndex& aSource) const;
+  GetSource(IDBObjectStoreOrIDBIndexReturnValue& aSource) const;
 
   IDBCursorDirection
   GetDirection() const;

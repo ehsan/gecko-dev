@@ -19,7 +19,7 @@
 #include "mozilla/dom/Element.h"
 #include "nsServiceManagerUtils.h"
 
-using namespace mozilla;
+namespace dom = mozilla::dom;
 
 #define NS_ENSURE_NATIVE_COLUMN(_col)                                \
   nsRefPtr<nsTreeColumn> col = nsTreeBodyFrame::GetColumnImpl(_col); \

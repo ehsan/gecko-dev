@@ -11,8 +11,8 @@
 #ifndef WEBRTC_AUDIO_DEVICE_AUDIO_DEVICE_WAVE_WIN_H
 #define WEBRTC_AUDIO_DEVICE_AUDIO_DEVICE_WAVE_WIN_H
 
-#include "webrtc/modules/audio_device/audio_device_generic.h"
-#include "webrtc/modules/audio_device/win/audio_mixer_manager_win.h"
+#include "audio_device_generic.h"
+#include "audio_mixer_manager_win.h"
 
 #pragma comment( lib, "winmm.lib" )
 
@@ -176,9 +176,6 @@ private:
 private:
     inline int32_t InputSanityCheckAfterUnlockedPeriod() const;
     inline int32_t OutputSanityCheckAfterUnlockedPeriod() const;
-
-private:
-    bool KeyPressed() const;
 
 private:
     int32_t EnumeratePlayoutDevices();

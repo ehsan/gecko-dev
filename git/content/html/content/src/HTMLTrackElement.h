@@ -22,7 +22,7 @@ namespace mozilla {
 namespace dom {
 
 // Map html attribute string values to TextTrackKind enums.
-static MOZ_CONSTEXPR nsAttrValue::EnumTable kKindTable[] = {
+static const nsAttrValue::EnumTable kKindTable[] = {
   { "subtitles", static_cast<int16_t>(TextTrackKind::Subtitles) },
   { "captions", static_cast<int16_t>(TextTrackKind::Captions) },
   { "descriptions", static_cast<int16_t>(TextTrackKind::Descriptions) },
@@ -31,7 +31,7 @@ static MOZ_CONSTEXPR nsAttrValue::EnumTable kKindTable[] = {
   { 0 }
 };
 
-class WebVTTListener;
+class WebVTTLoadListener;
 
 class HTMLTrackElement MOZ_FINAL : public nsGenericHTMLElement
 {
@@ -102,7 +102,10 @@ public:
     LOADED = 2U,
     ERROR = 3U
   };
-  uint16_t ReadyState() const;
+  uint16_t ReadyState() const
+  {
+    return mReadyState;
+  }
 
   TextTrack* Track();
 
@@ -143,17 +146,19 @@ protected:
                              JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
   void OnChannelRedirect(nsIChannel* aChannel, nsIChannel* aNewChannel,
                          uint32_t aFlags);
-  // Open a new channel to the HTMLTrackElement's src attribute and call
-  // mListener's LoadResource().
+  // Will open a new channel for the HTMLTrackElement's src attribute and load
+  // HTMLTrackElement's WebVTTLoadListener by calling WebVTTLoadListener's
+  // LoadResource().
   void LoadResource();
 
   friend class TextTrackCue;
-  friend class WebVTTListener;
+  friend class WebVTTLoadListener;
 
   nsRefPtr<TextTrack> mTrack;
   nsCOMPtr<nsIChannel> mChannel;
   nsRefPtr<HTMLMediaElement> mMediaParent;
-  nsRefPtr<WebVTTListener> mListener;
+  nsRefPtr<WebVTTLoadListener> mLoadListener;
+  uint16_t mReadyState;
 
   void CreateTextTrack();
 };

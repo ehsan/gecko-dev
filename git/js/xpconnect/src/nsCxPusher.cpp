@@ -8,7 +8,9 @@
 
 #include "nsIScriptContext.h"
 #include "mozilla/dom/EventTarget.h"
+#include "nsJSUtils.h"
 #include "nsDOMJSUtils.h"
+#include "mozilla/Util.h"
 #include "xpcprivate.h"
 
 using mozilla::dom::EventTarget;
@@ -122,14 +124,14 @@ AutoCxPusher::AutoCxPusher(JSContext* cx, bool allowNull)
 
   // Enter a request and a compartment for the duration that the cx is on the
   // stack if non-null.
+  //
+  // NB: We call UnmarkGrayContext so that this can obsolete the need for the
+  // old XPCAutoRequest as well.
   if (cx) {
     mAutoRequest.construct(cx);
-
-    // DOM JSContexts don't store their default compartment object on the cx.
-    JSObject *compartmentObject = mScx ? mScx->GetWindowProxy()
-                                       : js::DefaultObjectForContextOrNull(cx);
-    if (compartmentObject)
-      mAutoCompartment.construct(cx, compartmentObject);
+    if (js::DefaultObjectForContextOrNull(cx))
+      mAutoCompartment.construct(cx, js::DefaultObjectForContextOrNull(cx));
+    xpc_UnmarkGrayContext(cx);
   }
 }
 
@@ -177,7 +179,6 @@ AutoJSContext::AutoJSContext(bool aSafe MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL)
 void
 AutoJSContext::Init(bool aSafe MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL)
 {
-  JS::AutoAssertNoGC nogc;
   MOZ_ASSERT(!mCx, "mCx should not be initialized!");
 
   MOZ_GUARD_OBJECT_NOTIFIER_INIT;

@@ -4,6 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/Util.h"
+
 #include "nsIDOMHTMLVideoElement.h"
 #include "nsIDOMHTMLSourceElement.h"
 #include "mozilla/dom/HTMLVideoElement.h"
@@ -22,6 +24,7 @@
 
 #include "nsIScriptSecurityManager.h"
 #include "nsIXPConnect.h"
+#include "jsapi.h"
 
 #include "nsITimer.h"
 
@@ -31,9 +34,6 @@
 #include "MediaError.h"
 #include "MediaDecoder.h"
 #include "mozilla/Preferences.h"
-#include "nsIDOMWakeLock.h"
-#include "nsPerformance.h"
-#include "mozilla/dom/VideoPlaybackQuality.h"
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Video)
 
@@ -100,9 +100,9 @@ HTMLVideoElement::ParseAttribute(int32_t aNamespaceID,
                                            aResult);
 }
 
-void
-HTMLVideoElement::MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
-                                        nsRuleData* aData)
+static void
+MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
+                      nsRuleData* aData)
 {
   nsGenericHTMLElement::MapImageSizeAttributesInto(aAttributes, aData);
   nsGenericHTMLElement::MapCommonAttributesInto(aAttributes, aData);

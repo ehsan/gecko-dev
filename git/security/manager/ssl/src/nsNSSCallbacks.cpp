@@ -18,9 +18,8 @@
 #include "nsProxyRelease.h"
 #include "PSMRunnable.h"
 #include "ScopedNSSTypes.h"
-#include "nsContentUtils.h"
+#include "nsIConsoleService.h"
 #include "nsIHttpChannelInternal.h"
-#include "nsISupportsPriority.h"
 #include "nsNetUtil.h"
 #include "SharedSSLState.h"
 #include "ssl.h"
@@ -29,27 +28,11 @@
 using namespace mozilla;
 using namespace mozilla::psm;
 
+static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
+
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gPIPNSSLog;
 #endif
-
-static void AccumulateCipherSuite(Telemetry::ID probe,
-                                  const SSLChannelInfo& channelInfo);
-
-namespace {
-
-// Bits in bit mask for SSL_REASONS_FOR_NOT_FALSE_STARTING telemetry probe
-// These bits are numbered so that the least subtle issues have higher values.
-// This should make it easier for us to interpret the results.
-const uint32_t NPN_NOT_NEGOTIATED = 64;
-const uint32_t KEA_NOT_FORWARD_SECRET = 32;
-const uint32_t KEA_NOT_SAME_AS_EXPECTED = 16;
-const uint32_t KEA_NOT_ALLOWED = 8;
-const uint32_t POSSIBLE_VERSION_DOWNGRADE = 4;
-const uint32_t POSSIBLE_CIPHER_SUITE_DOWNGRADE = 2;
-const uint32_t KEA_NOT_SUPPORTED = 1;
-
-}
 
 class nsHTTPDownloadEvent : public nsRunnable {
 public:
@@ -92,13 +75,6 @@ nsHTTPDownloadEvent::Run()
   nsCOMPtr<nsIChannel> chan;
   ios->NewChannel(mRequestSession->mURL, nullptr, nullptr, getter_AddRefs(chan));
   NS_ENSURE_STATE(chan);
-
-  // Security operations scheduled through normal HTTP channels are given
-  // high priority to accommodate real time OCSP transactions. Background CRL
-  // fetches happen through a different path (CRLDownloadEvent).
-  nsCOMPtr<nsISupportsPriority> priorityChannel = do_QueryInterface(chan);
-  if (priorityChannel)
-    priorityChannel->AdjustPriority(nsISupportsPriority::PRIORITY_HIGHEST);
 
   chan->SetLoadFlags(nsIRequest::LOAD_ANONYMOUS);
 
@@ -272,30 +248,6 @@ SECStatus nsNSSHttpRequestSession::trySendAndReceiveFcn(PRPollDesc **pPollDesc,
 {
   PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
          ("nsNSSHttpRequestSession::trySendAndReceiveFcn to %s\n", mURL.get()));
-
-  bool onSTSThread;
-  nsresult nrv;
-  nsCOMPtr<nsIEventTarget> sts
-    = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &nrv);
-  if (NS_FAILED(nrv)) {
-    NS_ERROR("Could not get STS service");
-    PR_SetError(PR_INVALID_STATE_ERROR, 0);
-    return SECFailure;
-  }
-
-  nrv = sts->IsOnCurrentThread(&onSTSThread);
-  if (NS_FAILED(nrv)) {
-    NS_ERROR("IsOnCurrentThread failed");
-    PR_SetError(PR_INVALID_STATE_ERROR, 0);
-    return SECFailure;
-  }
-
-  if (onSTSThread) {
-    NS_ERROR("nsNSSHttpRequestSession::trySendAndReceiveFcn called on socket "
-             "thread; this will not work.");
-    PR_SetError(PR_INVALID_STATE_ERROR, 0);
-    return SECFailure;
-  }
 
   const int max_retries = 2;
   int retry_count = 0;
@@ -789,8 +741,6 @@ private:
 
 void PK11PasswordPromptRunnable::RunOnTargetThread()
 {
-  static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
-
   nsNSSShutDownPreventionLock locker;
   nsresult rv = NS_OK;
   PRUnichar *password = nullptr;
@@ -880,6 +830,7 @@ PreliminaryHandshakeDone(PRFileDesc* fd)
     return;
 
   infoObject->SetPreliminaryHandshakeDone();
+  infoObject->SetFirstServerHelloReceived();
 
   // Get the NPN value.
   SSLNextProtoState state;
@@ -913,8 +864,6 @@ CanFalseStartCallback(PRFileDesc* fd, void* client_data, PRBool *canFalseStart)
     return SECFailure;
   }
 
-  infoObject->SetFalseStartCallbackCalled();
-
   if (infoObject->isAlreadyShutDown()) {
     MOZ_CRASH("SSL socket used after NSS shut down");
     PR_SetError(PR_INVALID_STATE_ERROR, 0);
@@ -922,8 +871,6 @@ CanFalseStartCallback(PRFileDesc* fd, void* client_data, PRBool *canFalseStart)
   }
 
   PreliminaryHandshakeDone(fd);
-
-  uint32_t reasonsForNotFalseStarting = 0;
 
   SSLChannelInfo channelInfo;
   if (SSL_GetChannelInfo(fd, &channelInfo, sizeof(channelInfo)) != SECSuccess) {
@@ -939,17 +886,11 @@ CanFalseStartCallback(PRFileDesc* fd, void* client_data, PRBool *canFalseStart)
     return SECSuccess;
   }
 
-  nsSSLIOLayerHelpers& helpers = infoObject->SharedState().IOLayerHelpers();
-
-  // Prevent version downgrade attacks from TLS 1.x to SSL 3.0.
-  // TODO(bug 861310): If we negotiate less than our highest-supported version,
-  // then check that a previously-completed handshake negotiated that version;
-  // eventually, require that the highest-supported version of TLS is used.
   if (channelInfo.protocolVersion < SSL_LIBRARY_VERSION_TLS_1_0) {
     PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("CanFalseStartCallback [%p] failed - "
                                       "SSL Version must be >= TLS1 %x\n", fd,
                                       static_cast<int32_t>(channelInfo.protocolVersion)));
-    reasonsForNotFalseStarting |= POSSIBLE_VERSION_DOWNGRADE;
+    return SECSuccess;
   }
 
   // never do false start without one of these key exchange algorithms
@@ -959,51 +900,19 @@ CanFalseStartCallback(PRFileDesc* fd, void* client_data, PRBool *canFalseStart)
     PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("CanFalseStartCallback [%p] failed - "
                                       "unsupported KEA %d\n", fd,
                                       static_cast<int32_t>(cipherInfo.keaType)));
-    reasonsForNotFalseStarting |= KEA_NOT_SUPPORTED;
+    return SECSuccess;
   }
 
-  // XXX: This assumes that all TLS_DH_* and TLS_ECDH_* cipher suites
-  // are disabled.
-  if (cipherInfo.keaType != ssl_kea_ecdh &&
-      cipherInfo.keaType != ssl_kea_dh) {
-    if (helpers.mFalseStartRequireForwardSecrecy) {
-      PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
-             ("CanFalseStartCallback [%p] failed - KEA used is %d, but "
-              "require-forward-secrecy configured.\n", fd,
-              static_cast<int32_t>(cipherInfo.keaType)));
-      reasonsForNotFalseStarting |= KEA_NOT_FORWARD_SECRET;
-    } else if (cipherInfo.keaType == ssl_kea_rsa) {
-      // Make sure we've seen the same kea from this host in the past, to limit
-      // the potential for downgrade attacks.
-      int16_t expected = infoObject->GetKEAExpected();
-      if (cipherInfo.keaType != expected) {
-        PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
-               ("CanFalseStartCallback [%p] failed - "
-                "KEA used is %d, expected %d\n", fd,
-                static_cast<int32_t>(cipherInfo.keaType),
-                static_cast<int32_t>(expected)));
-        reasonsForNotFalseStarting |= KEA_NOT_SAME_AS_EXPECTED;
-      }
-    } else {
-      reasonsForNotFalseStarting |= KEA_NOT_ALLOWED;
-    }
-  }
-
-  // Prevent downgrade attacks on the symmetric cipher. We accept downgrades
-  // from 256-bit keys to 128-bit keys and we treat AES and Camellia as being
-  // equally secure. We consider every message authentication mechanism that we
-  // support *for these ciphers* to be equally-secure. We assume that for CBC
-  // mode, that the server has implemented all the same mitigations for
-  // published attacks that we have, or that those attacks are not relevant in
-  // the decision to false start.
-  if (cipherInfo.symCipher != ssl_calg_aes_gcm && 
-      cipherInfo.symCipher != ssl_calg_aes &&
-      cipherInfo.symCipher != ssl_calg_camellia) {
-    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
-           ("CanFalseStartCallback [%p] failed - Symmetric cipher used, %d, "
-            "is not supported with False Start.\n", fd,
-            static_cast<int32_t>(cipherInfo.symCipher)));
-    reasonsForNotFalseStarting |= POSSIBLE_CIPHER_SUITE_DOWNGRADE;
+  // never do false start without at least 80 bits of key material. This should
+  // be redundant to an NSS precondition
+  if (cipherInfo.effectiveKeyBits < 80) {
+    MOZ_CRASH("NSS is not enforcing the precondition that the effective "
+              "key size must be >= 80 bits for false start");
+    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("CanFalseStartCallback [%p] failed - "
+                                      "key too small %d\n", fd,
+                                      static_cast<int32_t>(cipherInfo.effectiveKeyBits)));
+    PR_SetError(PR_INVALID_STATE_ERROR, 0);
+    return SECFailure;
   }
 
   // XXX: An attacker can choose which protocols are advertised in the
@@ -1014,113 +923,79 @@ CanFalseStartCallback(PRFileDesc* fd, void* client_data, PRBool *canFalseStart)
 
   // Enforce NPN to do false start if policy requires it. Do this as an
   // indicator if server compatibility.
+  nsSSLIOLayerHelpers& helpers = infoObject->SharedState().IOLayerHelpers();
   if (helpers.mFalseStartRequireNPN) {
     nsAutoCString negotiatedNPN;
     if (NS_FAILED(infoObject->GetNegotiatedNPN(negotiatedNPN)) ||
         !negotiatedNPN.Length()) {
       PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("CanFalseStartCallback [%p] failed - "
                                         "NPN cannot be verified\n", fd));
-      reasonsForNotFalseStarting |= NPN_NOT_NEGOTIATED;
+      return SECSuccess;
     }
   }
 
-  Telemetry::Accumulate(Telemetry::SSL_REASONS_FOR_NOT_FALSE_STARTING,
-                        reasonsForNotFalseStarting);
+  // If we're not using eliptical curve kea then make sure we've seen the
+  // same kea from this host in the past, to limit the potential for downgrade
+  // attacks.
+  if (cipherInfo.keaType != ssl_kea_ecdh) {
 
-  if (reasonsForNotFalseStarting == 0) {
-    *canFalseStart = PR_TRUE;
-    infoObject->SetFalseStarted();
-    infoObject->NoteTimeUntilReady();
-    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("CanFalseStartCallback [%p] ok\n", fd));
+    if (helpers.mFalseStartRequireForwardSecrecy) {
+      PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("CanFalseStartCallback [%p] failed - "
+                                        "KEA used is %d, but "
+                                        "require-forward-secrecy configured.\n",
+                                        fd, static_cast<int32_t>(cipherInfo.keaType)));
+      return SECSuccess;
+    }
+
+    int16_t expected = infoObject->GetKEAExpected();
+    if (cipherInfo.keaType != expected) {
+      PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("CanFalseStartCallback [%p] failed - "
+                                        "KEA used is %d, expected %d\n", fd,
+                                        static_cast<int32_t>(cipherInfo.keaType),
+                                        static_cast<int32_t>(expected)));
+      return SECSuccess;
+    }
+
+    // whitelist the expected key exchange algorithms that are
+    // acceptable for false start when seen before.
+    if (expected != ssl_kea_rsa && expected != ssl_kea_dh &&
+        expected != ssl_kea_ecdh) {
+      PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("CanFalseStartCallback [%p] failed - "
+                                        "KEA used, %d, "
+                                        "is not supported with False Start.\n",
+                                        fd, static_cast<int32_t>(expected)));
+      return SECSuccess;
+    }
   }
 
+  // If we're not using AES then verify that this is the historically expected
+  // symmetrical cipher for this host, to limit potential for downgrade attacks.
+  if (cipherInfo.symCipher != ssl_calg_aes) {
+    int16_t expected = infoObject->GetSymmetricCipherExpected();
+    if (cipherInfo.symCipher != expected) {
+      PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("CanFalseStartCallback [%p] failed - "
+                                        "Symmetric cipher used is %d, expected %d\n",
+                                        fd, static_cast<int32_t>(cipherInfo.symCipher),
+                                        static_cast<int32_t>(expected)));
+      return SECSuccess;
+    }
+
+    // whitelist the expected ciphers that are
+    // acceptable for false start when seen before.
+    if ((expected != ssl_calg_rc4) && (expected != ssl_calg_3des) &&
+        (expected != ssl_calg_aes)) {
+      PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("CanFalseStartCallback [%p] failed - "
+                                        "Symmetric cipher used, %d, "
+                                        "is not supported with False Start.\n",
+                                        fd, static_cast<int32_t>(expected)));
+      return SECSuccess;
+    }
+  }
+
+  infoObject->NoteTimeUntilReady();
+  *canFalseStart = true;
+  PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("CanFalseStartCallback [%p] ok\n", fd));
   return SECSuccess;
-}
-
-static void
-AccumulateNonECCKeySize(Telemetry::ID probe, uint32_t bits)
-{
-  unsigned int value = bits <   512 ?  1 : bits ==   512 ?  2
-                     : bits <   768 ?  3 : bits ==   768 ?  4
-                     : bits <  1024 ?  5 : bits ==  1024 ?  6
-                     : bits <  1024 ?  7 : bits ==  1024 ?  8
-                     : bits <  1536 ?  9 : bits ==  1536 ? 10
-                     : bits <  2048 ? 11 : bits ==  2048 ? 12
-                     : bits <  3072 ? 13 : bits ==  3072 ? 14
-                     : bits <  4096 ? 15 : bits ==  4096 ? 16
-                     : bits <  8192 ? 17 : bits ==  8192 ? 18
-                     : bits < 16384 ? 19 : bits == 16384 ? 20
-                     : 0;
-  Telemetry::Accumulate(probe, value);
-}
-
-// XXX: This attempts to map a bit count to an ECC named curve identifier. In
-// the vast majority of situations, we only have the Suite B curves available.
-// In that case, this mapping works fine. If we were to have more curves
-// available, the mapping would be ambiguous since there could be multiple
-// named curves for a given size (e.g. secp256k1 vs. secp256r1). We punt on
-// that for now. See also NSS bug 323674.
-static void
-AccummulateECCCurve(Telemetry::ID probe, uint32_t bits)
-{
-  unsigned int value = bits == 256 ? 23 // P-256
-                     : bits == 384 ? 24 // P-384
-                     : bits == 521 ? 25 // P-521
-                     : 0; // Unknown
-  Telemetry::Accumulate(probe, value);
-}
-
-static void
-AccumulateCipherSuite(Telemetry::ID probe, const SSLChannelInfo& channelInfo)
-{
-  uint32_t value;
-  switch (channelInfo.cipherSuite) {
-    // ECDHE key exchange
-    case TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256: value = 1; break;
-    case TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256: value = 2; break;
-    case TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA: value = 3; break;
-    case TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA: value = 4; break;
-    case TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA: value = 5; break;
-    case TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA: value = 6; break;
-    case TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA: value = 7; break;
-    case TLS_ECDHE_RSA_WITH_RC4_128_SHA: value = 8; break;
-    case TLS_ECDHE_ECDSA_WITH_RC4_128_SHA: value = 9; break;
-    // DHE key exchange
-    case TLS_DHE_RSA_WITH_AES_128_CBC_SHA: value = 21; break;
-    case TLS_DHE_RSA_WITH_CAMELLIA_128_CBC_SHA: value = 22; break;
-    case TLS_DHE_RSA_WITH_AES_256_CBC_SHA: value = 23; break;
-    case TLS_DHE_RSA_WITH_CAMELLIA_256_CBC_SHA: value = 24; break;
-    case SSL_DHE_RSA_WITH_3DES_EDE_CBC_SHA: value = 25; break;
-    case TLS_DHE_DSS_WITH_AES_128_CBC_SHA: value = 26; break;
-    case TLS_DHE_DSS_WITH_CAMELLIA_128_CBC_SHA: value = 27; break;
-    case TLS_DHE_DSS_WITH_AES_256_CBC_SHA: value = 28; break;
-    case TLS_DHE_DSS_WITH_CAMELLIA_256_CBC_SHA: value = 29; break;
-    // ECDH key exchange
-    case TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA: value = 41; break;
-    case TLS_ECDH_RSA_WITH_AES_128_CBC_SHA: value = 42; break;
-    case TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA: value = 43; break;
-    case TLS_ECDH_RSA_WITH_AES_256_CBC_SHA: value = 44; break;
-    case TLS_ECDH_ECDSA_WITH_3DES_EDE_CBC_SHA: value = 45; break;
-    case TLS_ECDH_RSA_WITH_3DES_EDE_CBC_SHA: value = 46; break;
-    case TLS_ECDH_ECDSA_WITH_RC4_128_SHA: value = 47; break;
-    case TLS_ECDH_RSA_WITH_RC4_128_SHA: value = 48; break;
-    // RSA key exchange
-    case TLS_RSA_WITH_AES_128_CBC_SHA: value = 61; break;
-    case TLS_RSA_WITH_CAMELLIA_128_CBC_SHA: value = 62; break;
-    case TLS_RSA_WITH_AES_256_CBC_SHA: value = 63; break;
-    case TLS_RSA_WITH_CAMELLIA_256_CBC_SHA: value = 64; break;
-    case SSL_RSA_FIPS_WITH_3DES_EDE_CBC_SHA: value = 65; break;
-    case SSL_RSA_WITH_3DES_EDE_CBC_SHA: value = 66; break;
-    case TLS_RSA_WITH_SEED_CBC_SHA: value = 67; break;
-    case SSL_RSA_WITH_RC4_128_SHA: value = 68; break;
-    case SSL_RSA_WITH_RC4_128_MD5: value = 69; break;
-    // unknown
-    default:
-      MOZ_CRASH("impossible cipher suite");
-      value = 0;
-      break;
-  }
-  Telemetry::Accumulate(probe, value);
 }
 
 void HandshakeCallback(PRFileDesc* fd, void* client_data) {
@@ -1129,25 +1004,20 @@ void HandshakeCallback(PRFileDesc* fd, void* client_data) {
 
   nsNSSSocketInfo* infoObject = (nsNSSSocketInfo*) fd->higher->secret;
 
+  // certificate validation sets FirstServerHelloReceived, so if that flag
+  // is absent at handshake time we have a resumed session. Check this before
+  // PreliminaryHandshakeDone() because that function also sets that flag.
+  bool isResumedSession = !(infoObject->GetFirstServerHelloReceived());
+
   // Do the bookkeeping that needs to be done after the
   // server's ServerHello...ServerHelloDone have been processed, but that doesn't
   // need the handshake to be completed.
   PreliminaryHandshakeDone(fd);
 
-  nsSSLIOLayerHelpers& ioLayerHelpers
-    = infoObject->SharedState().IOLayerHelpers();
-
-  SSLVersionRange versions(infoObject->GetTLSVersionRange());
-
-  PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
-         ("[%p] HandshakeCallback: succeeded using TLS version range (0x%04x,0x%04x)\n",
-          fd, static_cast<unsigned int>(versions.min),
-              static_cast<unsigned int>(versions.max)));
-
-  // If the handshake completed, then we know the site is TLS tolerant
-  ioLayerHelpers.rememberTolerantAtVersion(infoObject->GetHostName(),
-                                           infoObject->GetPort(),
-                                           versions.max);
+  // If the handshake completed, then we know the site is TLS tolerant (if this
+  // was a TLS connection).
+  nsSSLIOLayerHelpers& ioLayerHelpers = infoObject->SharedState().IOLayerHelpers();
+  ioLayerHelpers.rememberTolerantSite(infoObject);
 
   PRBool siteSupportsSafeRenego;
   rv = SSL_HandshakeNegotiatedExtension(fd, ssl_renegotiation_info_xtn,
@@ -1172,14 +1042,16 @@ void HandshakeCallback(PRFileDesc* fd, void* client_data) {
   // localized.
   if (!siteSupportsSafeRenego &&
       ioLayerHelpers.getWarnLevelMissingRFC5746() > 0) {
-    nsXPIDLCString hostName;
-    infoObject->GetHostName(getter_Copies(hostName));
+    nsCOMPtr<nsIConsoleService> console = do_GetService(NS_CONSOLESERVICE_CONTRACTID);
+    if (console) {
+      nsXPIDLCString hostName;
+      infoObject->GetHostName(getter_Copies(hostName));
 
-    nsAutoString msg;
-    msg.Append(NS_ConvertASCIItoUTF16(hostName));
-    msg.Append(NS_LITERAL_STRING(" : server does not support RFC 5746, see CVE-2009-3555"));
-
-    nsContentUtils::LogSimpleConsoleError(msg, "SSL");
+      nsAutoString msg;
+      msg.Append(NS_ConvertASCIItoUTF16(hostName));
+      msg.Append(NS_LITERAL_STRING(" : server does not support RFC 5746, see CVE-2009-3555"));
+      console->LogStringMessage(msg.get());
+    }
   }
 
   ScopedCERTCertificate serverCert(SSL_PeerCertificate(fd));
@@ -1231,10 +1103,6 @@ void HandshakeCallback(PRFileDesc* fd, void* client_data) {
     // 0=ssl3, 1=tls1, 2=tls1.1, 3=tls1.2
     unsigned int versionEnum = channelInfo.protocolVersion & 0xFF;
     Telemetry::Accumulate(Telemetry::SSL_HANDSHAKE_VERSION, versionEnum);
-    AccumulateCipherSuite(
-      infoObject->IsFullHandshake() ? Telemetry::SSL_CIPHER_SUITE_FULL
-                                    : Telemetry::SSL_CIPHER_SUITE_RESUMED,
-      channelInfo);
 
     SSLCipherSuiteInfo cipherInfo;
     rv = SSL_GetCipherSuiteInfo(channelInfo.cipherSuite, &cipherInfo,
@@ -1247,65 +1115,13 @@ void HandshakeCallback(PRFileDesc* fd, void* client_data) {
       status->mCipherName.Assign(cipherInfo.cipherSuiteName);
 
       // keyExchange null=0, rsa=1, dh=2, fortezza=3, ecdh=4
-      Telemetry::Accumulate(
-        infoObject->IsFullHandshake()
-          ? Telemetry::SSL_KEY_EXCHANGE_ALGORITHM_FULL
-          : Telemetry::SSL_KEY_EXCHANGE_ALGORITHM_RESUMED,
-        cipherInfo.keaType);
+      Telemetry::Accumulate(Telemetry::SSL_KEY_EXCHANGE_ALGORITHM,
+                            cipherInfo.keaType);
       infoObject->SetKEAUsed(cipherInfo.keaType);
-
-      if (infoObject->IsFullHandshake()) {
-        switch (cipherInfo.keaType) {
-          case ssl_kea_rsa:
-            AccumulateNonECCKeySize(Telemetry::SSL_KEA_RSA_KEY_SIZE_FULL,
-                                    channelInfo.keaKeyBits);
-            break;
-          case ssl_kea_dh:
-            AccumulateNonECCKeySize(Telemetry::SSL_KEA_DHE_KEY_SIZE_FULL,
-                                    channelInfo.keaKeyBits);
-            break;
-          case ssl_kea_ecdh:
-            AccummulateECCCurve(Telemetry::SSL_KEA_ECDHE_CURVE_FULL,
-                                channelInfo.keaKeyBits);
-            break;
-          default:
-            MOZ_CRASH("impossible KEA");
-            break;
-        }
-
-        Telemetry::Accumulate(Telemetry::SSL_AUTH_ALGORITHM_FULL,
-                              cipherInfo.authAlgorithm);
-
-        // RSA key exchange doesn't use a signature for auth.
-        if (cipherInfo.keaType != ssl_kea_rsa) {
-          switch (cipherInfo.authAlgorithm) {
-            case ssl_auth_rsa:
-              AccumulateNonECCKeySize(Telemetry::SSL_AUTH_RSA_KEY_SIZE_FULL,
-                                      channelInfo.authKeyBits);
-              break;
-            case ssl_auth_dsa:
-              AccumulateNonECCKeySize(Telemetry::SSL_AUTH_DSA_KEY_SIZE_FULL,
-                                      channelInfo.authKeyBits);
-              break;
-            case ssl_auth_ecdsa:
-              AccummulateECCCurve(Telemetry::SSL_AUTH_ECDSA_CURVE_FULL,
-                                  channelInfo.authKeyBits);
-              break;
-            default:
-              MOZ_CRASH("impossible auth algorithm");
-              break;
-          }
-        }
-      }
-
-      Telemetry::Accumulate(
-          infoObject->IsFullHandshake()
-            ? Telemetry::SSL_SYMMETRIC_CIPHER_FULL
-            : Telemetry::SSL_SYMMETRIC_CIPHER_RESUMED,
-          cipherInfo.symCipher);
+      infoObject->SetSymmetricCipherUsed(cipherInfo.symCipher);
     }
   }
 
   infoObject->NoteTimeUntilReady();
-  infoObject->SetHandshakeCompleted();
+  infoObject->SetHandshakeCompleted(isResumedSession);
 }

@@ -17,10 +17,10 @@ const {
 const { TextEncoder } = Cu.import("resource://gre/modules/commonjs/toolkit/loader.js", {});
 
 var EventEmitter = require("devtools/shared/event-emitter");
+var promise      = require("sdk/core/promise");
 var Cleopatra    = require("devtools/profiler/cleopatra");
 var Sidebar      = require("devtools/profiler/sidebar");
 var ProfilerController = require("devtools/profiler/controller");
-var { Promise: promise } = Cu.import("resource://gre/modules/Promise.jsm", {});
 
 Cu.import("resource:///modules/devtools/gDevTools.jsm");
 Cu.import("resource://gre/modules/devtools/Console.jsm");
@@ -456,37 +456,39 @@ ProfilerPanel.prototype = {
    *    - line
    *    - isChrome (chrome files are opened via view-source)
    */
-  displaySource: function PP_displaySource(data) {
-    let { browserWindow: win, document: doc } = this;
-    let { uri, line, isChrome } = data;
-    let deferred = promise.defer();
+  displaySource: function PP_displaySource(data, onOpen=function() {}) {
+    let win = this.window;
+    let panelWin;
 
-    if (isChrome) {
-      return void win.gViewSourceUtils.viewSource(uri, null, doc, line);
+    function onSourceShown(event) {
+      if (event.detail.url !== data.uri) {
+        return;
+      }
+
+      panelWin.removeEventListener("Debugger:SourceShown", onSourceShown, false);
+      panelWin.editor.setCaretPosition(data.line - 1);
+      onOpen();
     }
 
-    let showSource = ({ DebuggerView }) => {
-      if (DebuggerView.Sources.containsValue(uri)) {
-        DebuggerView.setEditorLocation(uri, line).then(deferred.resolve);
-      }
-      // XXX: What to do if the source isn't present in the Debugger?
-      // Switch back to the Profiler panel and viewSource()?
+    if (data.isChrome) {
+      return void this.browserWindow.gViewSourceUtils.
+        viewSource(data.uri, null, this.document, data.line);
     }
 
-    // If the Debugger was already open, switch to it and try to show the
-    // source immediately. Otherwise, initialize it and wait for the sources
-    // to be added first.
-    let toolbox = gDevTools.getToolbox(this.target);
-    let debuggerAlreadyOpen = toolbox.getPanel("jsdebugger");
-    toolbox.selectTool("jsdebugger").then(({ panelWin: dbg }) => {
-      if (debuggerAlreadyOpen) {
-        showSource(dbg);
-      } else {
-        dbg.once(dbg.EVENTS.SOURCES_ADDED, () => showSource(dbg));
-      }
-    });
+    gDevTools.showToolbox(this.target, "jsdebugger").then(function (toolbox) {
+      let dbg = toolbox.getCurrentPanel();
+      panelWin = dbg.panelWin;
 
-    return deferred.promise;
+      let view = dbg.panelWin.DebuggerView;
+      if (view.Sources.selectedValue === data.uri) {
+        view.editor.setCaretPosition(data.line - 1);
+        onOpen();
+        return;
+      }
+
+      panelWin.addEventListener("Debugger:SourceShown", onSourceShown, false);
+      panelWin.DebuggerView.Sources.preferredSource = data.uri;
+    }.bind(this));
   },
 
   /**

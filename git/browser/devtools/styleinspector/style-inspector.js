@@ -5,7 +5,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 const {Cc, Cu, Ci} = require("chrome");
-const promise = require("sdk/core/promise");
 
 let ToolDefinitions = require("main").Tools;
 
@@ -15,9 +14,7 @@ loader.lazyGetter(this, "gDevTools", () => Cu.import("resource:///modules/devtoo
 loader.lazyGetter(this, "RuleView", () => require("devtools/styleinspector/rule-view"));
 loader.lazyGetter(this, "ComputedView", () => require("devtools/styleinspector/computed-view"));
 loader.lazyGetter(this, "_strings", () => Services.strings
-  .createBundle("chrome://global/locale/devtools/styleinspector.properties"));
-
-const PREF_ORIG_SOURCES = "devtools.styleeditor.source-maps-enabled";
+  .createBundle("chrome://browser/locale/devtools/styleinspector.properties"));
 
 // This module doesn't currently export any symbols directly, it only
 // registers inspector tools.
@@ -28,7 +25,7 @@ function RuleViewTool(aInspector, aWindow, aIFrame)
   this.doc = aWindow.document;
   this.outerIFrame = aIFrame;
 
-  this.view = new RuleView.CssRuleView(aInspector, this.doc);
+  this.view = new RuleView.CssRuleView(this.doc, null);
   this.doc.documentElement.appendChild(this.view.element);
 
   this._changeHandler = () => {
@@ -45,31 +42,29 @@ function RuleViewTool(aInspector, aWindow, aIFrame)
 
   this._cssLinkHandler = (aEvent) => {
     let rule = aEvent.detail.rule;
+    let line = rule.line || 0;
+
+    // The style editor can only display stylesheets coming from content because
+    // chrome stylesheets are not listed in the editor's stylesheet selector.
+    //
+    // If the stylesheet is a content stylesheet we send it to the style
+    // editor else we display it in the view source window.
+    //
+    let href = rule.href;
     let sheet = rule.parentStyleSheet;
-
-    // Chrome stylesheets are not listed in the style editor, so show
-    // these sheets in the view source window instead.
-    if (!sheet || sheet.isSystem) {
-      let contentDoc = this.inspector.selection.document;
-      let viewSourceUtils = this.inspector.viewSourceUtils;
-      let href = rule.nodeHref || rule.href;
-      viewSourceUtils.viewSource(href, null, contentDoc, rule.line || 0);
-      return;
-    }
-
-    let location = promise.resolve(rule.location);
-    if (Services.prefs.getBoolPref(PREF_ORIG_SOURCES)) {
-      location = rule.getOriginalLocation();
-    }
-    location.then(({ href, line, column }) => {
+    if (sheet && href && !sheet.isSystem) {
       let target = this.inspector.target;
       if (ToolDefinitions.styleEditor.isTargetSupported(target)) {
         gDevTools.showToolbox(target, "styleeditor").then(function(toolbox) {
-          toolbox.getCurrentPanel().selectStyleSheet(href, line, column);
+          toolbox.getCurrentPanel().selectStyleSheet(href, line);
         });
       }
       return;
-    })
+    }
+
+    let contentDoc = this.inspector.selection.document;
+    let viewSourceUtils = this.inspector.viewSourceUtils;
+    viewSourceUtils.viewSource(href, null, contentDoc, line);
   }
 
   this.view.element.addEventListener("CssRuleViewCSSLinkClicked",
@@ -81,6 +76,8 @@ function RuleViewTool(aInspector, aWindow, aIFrame)
   this.refresh = this.refresh.bind(this);
   this.inspector.on("layout-change", this.refresh);
 
+  this.panelSelected = this.panelSelected.bind(this);
+  this.inspector.sidebar.on("ruleview-selected", this.panelSelected);
   this.inspector.selection.on("pseudoclass", this.refresh);
   if (this.inspector.highlighter) {
     this.inspector.highlighter.on("locked", this._onSelect);
@@ -93,6 +90,10 @@ exports.RuleViewTool = RuleViewTool;
 
 RuleViewTool.prototype = {
   onSelect: function RVT_onSelect(aEvent) {
+    if (!this.isActive()) {
+      // We'll update when the panel is selected.
+      return;
+    }
     this.view.setPageStyle(this.inspector.pageStyle);
 
     if (!this.inspector.selection.isConnected() ||
@@ -116,12 +117,27 @@ RuleViewTool.prototype = {
     }
   },
 
+  isActive: function RVT_isActive() {
+    return this.inspector.sidebar.getCurrentTabID() == "ruleview";
+  },
+
   refresh: function RVT_refresh() {
-    this.view.nodeChanged();
+    if (this.isActive()) {
+      this.view.nodeChanged();
+    }
+  },
+
+  panelSelected: function() {
+    if (this.inspector.selection.nodeFront === this.view.viewedElement) {
+      this.view.nodeChanged();
+    } else {
+      this.onSelect();
+    }
   },
 
   destroy: function RVT_destroy() {
     this.inspector.off("layout-change", this.refresh);
+    this.inspector.sidebar.off("ruleview-selected", this.refresh);
     this.inspector.selection.off("pseudoclass", this.refresh);
     this.inspector.selection.off("new-node-front", this._onSelect);
     if (this.inspector.highlighter) {
@@ -165,6 +181,8 @@ function ComputedViewTool(aInspector, aWindow, aIFrame)
   this.refresh = this.refresh.bind(this);
   this.inspector.on("layout-change", this.refresh);
   this.inspector.selection.on("pseudoclass", this.refresh);
+  this.panelSelected = this.panelSelected.bind(this);
+  this.inspector.sidebar.on("computedview-selected", this.panelSelected);
 
   this.view.highlight(null);
 
@@ -176,6 +194,11 @@ exports.ComputedViewTool = ComputedViewTool;
 ComputedViewTool.prototype = {
   onSelect: function CVT_onSelect(aEvent)
   {
+    if (!this.isActive()) {
+      // We'll try again when we're selected.
+      return;
+    }
+
     this.view.setPageStyle(this.inspector.pageStyle);
 
     if (!this.inspector.selection.isConnected() ||
@@ -203,8 +226,22 @@ ComputedViewTool.prototype = {
     }
   },
 
+  isActive: function CVT_isActive() {
+    return this.inspector.sidebar.getCurrentTabID() == "computedview";
+  },
+
   refresh: function CVT_refresh() {
-    this.view.refreshPanel();
+    if (this.isActive()) {
+      this.view.refreshPanel();
+    }
+  },
+
+  panelSelected: function() {
+    if (this.inspector.selection.nodeFront === this.view.viewedElement) {
+      this.view.refreshPanel();
+    } else {
+      this.onSelect();
+    }
   },
 
   destroy: function CVT_destroy(aContext)
@@ -227,4 +264,4 @@ ComputedViewTool.prototype = {
     delete this.document;
     delete this.inspector;
   }
-};
+}

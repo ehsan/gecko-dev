@@ -11,9 +11,8 @@
  * JS bytecode definitions.
  */
 
+#include "jsapi.h"
 #include "jsbytecode.h"
-#include "jstypes.h"
-#include "NamespaceImports.h"
 
 #include "frontend/SourceNotes.h"
 
@@ -234,7 +233,7 @@ extern const char       js_EscapeMap[];
  * with the quote character at the beginning and end of the result string.
  */
 extern JSString *
-js_QuoteString(js::ExclusiveContext *cx, JSString *str, jschar quote);
+js_QuoteString(JSContext *cx, JSString *str, jschar quote);
 
 namespace js {
 
@@ -257,6 +256,7 @@ BytecodeFallsThrough(JSOp op)
       case JSOP_GOTO:
       case JSOP_DEFAULT:
       case JSOP_RETURN:
+      case JSOP_STOP:
       case JSOP_RETRVAL:
       case JSOP_THROW:
       case JSOP_TABLESWITCH:
@@ -351,17 +351,14 @@ StackUses(JSScript *script, jsbytecode *pc);
 extern unsigned
 StackDefs(JSScript *script, jsbytecode *pc);
 
-#ifdef DEBUG
-/*
- * Given bytecode address pc in script's main program code, compute the operand
- * stack depth just before (JSOp) *pc executes.  If *pc is not reachable, return
- * false.
- */
-extern bool
-ReconstructStackDepth(JSContext *cx, JSScript *script, jsbytecode *pc, uint32_t *depth, bool *reachablePC);
-#endif
-
 }  /* namespace js */
+
+/*
+ * Given bytecode address pc in script's main program code, return the operand
+ * stack depth just before (JSOp) *pc executes.
+ */
+extern unsigned
+js_ReconstructStackDepth(JSContext *cx, JSScript *script, jsbytecode *pc);
 
 #ifdef _MSC_VER
 #pragma warning(pop)
@@ -425,7 +422,7 @@ class Sprinter
         }
     };
 
-    ExclusiveContext        *context;       /* context executing the decompiler */
+    JSContext               *context;       /* context executing the decompiler */
 
   private:
     static const size_t     DefaultSize;
@@ -440,7 +437,7 @@ class Sprinter
     bool realloc_(size_t newSize);
 
   public:
-    explicit Sprinter(ExclusiveContext *cx);
+    explicit Sprinter(JSContext *cx);
     ~Sprinter();
 
     /* Initialize this sprinter, returns false on error */
@@ -456,7 +453,7 @@ class Sprinter
     char &operator[](size_t off);
 
     /*
-     * Attempt to reserve len + 1 space (for a trailing nullptr byte). If the
+     * Attempt to reserve len + 1 space (for a trailing NULL byte). If the
      * attempt succeeds, return a pointer to the start of that space and adjust the
      * internal content. The caller *must* completely fill this space on success.
      */
@@ -559,7 +556,7 @@ inline bool
 FlowsIntoNext(JSOp op)
 {
     /* JSOP_YIELD is considered to flow into the next instruction, like JSOP_CALL. */
-    return op != JSOP_RETRVAL && op != JSOP_RETURN && op != JSOP_THROW &&
+    return op != JSOP_STOP && op != JSOP_RETURN && op != JSOP_RETRVAL && op != JSOP_THROW &&
            op != JSOP_GOTO && op != JSOP_RETSUB;
 }
 
@@ -594,31 +591,17 @@ IsEqualityOp(JSOp op)
 }
 
 inline bool
-IsGetPropPC(jsbytecode *pc)
+IsGetterPC(jsbytecode *pc)
 {
     JSOp op = JSOp(*pc);
     return op == JSOP_LENGTH  || op == JSOP_GETPROP || op == JSOP_CALLPROP;
 }
 
 inline bool
-IsSetPropPC(jsbytecode *pc)
+IsSetterPC(jsbytecode *pc)
 {
     JSOp op = JSOp(*pc);
     return op == JSOP_SETPROP || op == JSOP_SETNAME || op == JSOP_SETGNAME;
-}
-
-inline bool
-IsGetElemPC(jsbytecode *pc)
-{
-    JSOp op = JSOp(*pc);
-    return op == JSOP_GETELEM || op == JSOP_CALLELEM;
-}
-
-inline bool
-IsSetElemPC(jsbytecode *pc)
-{
-    JSOp op = JSOp(*pc);
-    return op == JSOP_SETELEM;
 }
 
 inline bool
@@ -661,6 +644,11 @@ class PCCounts
 
     enum BaseCounts {
         BASE_INTERP = 0,
+        BASE_METHODJIT,
+
+        BASE_METHODJIT_STUBS,
+        BASE_METHODJIT_CODE,
+        BASE_METHODJIT_PICS,
 
         BASE_LIMIT
     };
@@ -774,7 +762,7 @@ JS_STATIC_ASSERT(sizeof(PCCounts) % sizeof(Value) == 0);
 static inline jsbytecode *
 GetNextPc(jsbytecode *pc)
 {
-    return pc + GetBytecodeLength(pc);
+    return pc + js_CodeSpec[JSOp(*pc)].length;
 }
 
 } /* namespace js */
@@ -797,9 +785,9 @@ js_DumpPCCounts(JSContext *cx, JS::Handle<JSScript*> script, js::Sprinter *sp);
 
 #ifdef JS_ION
 namespace js {
-namespace jit { struct IonScriptCounts; }
+namespace ion { struct IonScriptCounts; }
 void
-DumpIonScriptCounts(js::Sprinter *sp, jit::IonScriptCounts *ionCounts);
+DumpIonScriptCounts(js::Sprinter *sp, ion::IonScriptCounts *ionCounts);
 }
 #endif
 

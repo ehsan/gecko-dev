@@ -6,8 +6,3 @@
 
 PROGRAM = 'webapprt-stub'
 
-SOURCES += [
-    'webapprt.mm',
-]
-
-DEFINES['XPCOM_GLUE'] = True

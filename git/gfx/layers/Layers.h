@@ -9,19 +9,18 @@
 #include <stdint.h>                     // for uint32_t, uint64_t, uint8_t
 #include <stdio.h>                      // for FILE
 #include <sys/types.h>                  // for int32_t, int64_t
+#include "mozilla-config.h"             // for MOZ_DUMP_PAINTING
 #include "FrameMetrics.h"               // for FrameMetrics
 #include "Units.h"                      // for LayerMargin, LayerPoint
 #include "gfx3DMatrix.h"                // for gfx3DMatrix
-#include "gfxContext.h"                 // for GraphicsOperator
-#include "gfxTypes.h"
+#include "gfxASurface.h"                // for gfxASurface, etc
 #include "gfxColor.h"                   // for gfxRGBA
 #include "gfxMatrix.h"                  // for gfxMatrix
-#include "GraphicsFilter.h"             // for GraphicsFilter
+#include "gfxPattern.h"                 // for gfxPattern, etc
 #include "gfxPoint.h"                   // for gfxPoint, gfxIntSize
 #include "gfxRect.h"                    // for gfxRect
 #include "mozilla/Assertions.h"         // for MOZ_ASSERT_HELPER2, etc
 #include "mozilla/DebugOnly.h"          // for DebugOnly
-#include "mozilla/EventForwards.h"      // for nsPaintEvent
 #include "mozilla/RefPtr.h"             // for TemporaryRef
 #include "mozilla/TimeStamp.h"          // for TimeStamp, TimeDuration
 #include "mozilla/gfx/BaseMargin.h"     // for BaseMargin
@@ -46,8 +45,9 @@
 #include "nscore.h"                     // for nsACString, nsAString
 #include "prlog.h"                      // for PRLogModuleInfo
 
-class gfxASurface;
+
 class gfxContext;
+class nsPaintEvent;
 
 extern uint8_t gLayerManagerLayerBuilder;
 
@@ -219,8 +219,7 @@ public:
   enum EndTransactionFlags {
     END_DEFAULT = 0,
     END_NO_IMMEDIATE_REDRAW = 1 << 0,  // Do not perform the drawing phase
-    END_NO_COMPOSITE = 1 << 1, // Do not composite after drawing thebes layer contents.
-    END_NO_REMOTE_COMPOSITE = 1 << 2 // Do not schedule a composition with a remote Compositor, if one exists.
+    END_NO_COMPOSITE = 1 << 1 // Do not composite after drawing thebes layer contents.
   };
 
   FrameLayerBuilder* GetLayerBuilder() {
@@ -266,7 +265,6 @@ public:
   typedef void (* DrawThebesLayerCallback)(ThebesLayer* aLayer,
                                            gfxContext* aContext,
                                            const nsIntRegion& aRegionToDraw,
-                                           DrawRegionClip aClip,
                                            const nsIntRegion& aRegionToInvalidate,
                                            void* aCallbackData);
 
@@ -280,13 +278,6 @@ public:
   virtual void EndTransaction(DrawThebesLayerCallback aCallback,
                               void* aCallbackData,
                               EndTransactionFlags aFlags = END_DEFAULT) = 0;
-
-  /**
-   * Schedule a composition with the remote Compositor, if one exists
-   * for this LayerManager. Useful in conjunction with the END_NO_REMOTE_COMPOSITE
-   * flag to EndTransaction.
-   */
-  virtual void Composite() {}
 
   virtual bool HasShadowManagerInternal() const { return false; }
   bool HasShadowManager() const { return HasShadowManagerInternal(); }
@@ -338,29 +329,10 @@ public:
 #endif
 
   /**
-   * Hints that can be used during Thebes layer creation to influence the type
-   * or properties of the layer created.
-   *
-   * NONE: No hint.
-   * SCROLLABLE: This layer may represent scrollable content.
-   */
-  enum ThebesLayerCreationHint {
-    NONE, SCROLLABLE
-  };
-
-  /**
    * CONSTRUCTION PHASE ONLY
    * Create a ThebesLayer for this manager's layer tree.
    */
   virtual already_AddRefed<ThebesLayer> CreateThebesLayer() = 0;
-  /**
-   * CONSTRUCTION PHASE ONLY
-   * Create a ThebesLayer for this manager's layer tree, with a creation hint
-   * parameter to help optimise the type of layer created.
-   */
-  virtual already_AddRefed<ThebesLayer> CreateThebesLayerWithHint(ThebesLayerCreationHint) {
-    return CreateThebesLayer();
-  }
   /**
    * CONSTRUCTION PHASE ONLY
    * Create a ContainerLayer for this manager's layer tree.
@@ -424,7 +396,7 @@ public:
    */
   virtual already_AddRefed<gfxASurface>
     CreateOptimalSurface(const gfxIntSize &aSize,
-                         gfxImageFormat imageFormat);
+                         gfxASurface::gfxImageFormat imageFormat);
 
   /**
    * Creates a surface for alpha masks which is optimized for inter-operating
@@ -444,6 +416,12 @@ public:
                      mozilla::gfx::SurfaceFormat aFormat);
 
   virtual bool CanUseCanvasLayerForSize(const gfxIntSize &aSize) { return true; }
+
+  /**
+   * Returns a TextureFactoryIdentifier which describes properties of the backend
+   * used to decide what kind of texture and buffer clients to create
+   */
+  virtual TextureFactoryIdentifier GetTextureFactoryIdentifier();
 
   /**
    * returns the maximum texture size on this layer backend, or INT32_MAX
@@ -526,6 +504,10 @@ public:
    */
   virtual bool NeedsWidgetInvalidation() { return true; }
 
+  // We always declare the following logging symbols, because it's
+  // extremely tricky to conditionally declare them.  However, for
+  // ifndef MOZ_LAYERS_HAVE_LOG builds, they only have trivial
+  // definitions in Layers.cpp.
   virtual const char* Name() const { return "???"; }
 
   /**
@@ -565,17 +547,18 @@ public:
   /**
    * Returns a handle which represents current recording start position.
    */
-  virtual uint32_t StartFrameTimeRecording(int32_t aBufferSize);
+  uint32_t StartFrameTimeRecording();
 
   /**
-   *  Clears, then populates aFrameIntervals with the recorded frame timing
-   *  data. The array will be empty if data was overwritten since
-   *  aStartIndex was obtained.
+   *  Clears, then populates 2 arraye with the recorded frames timing data.
+   *  The arrays will be empty if data was overwritten since aStartIndex was obtained.
    */
-  virtual void StopFrameTimeRecording(uint32_t         aStartIndex,
-                                      nsTArray<float>& aFrameIntervals);
+  void StopFrameTimeRecording(uint32_t         aStartIndex,
+                              nsTArray<float>& aFrameIntervals,
+                              nsTArray<float>& aPaintTimes);
 
-  void RecordFrame();
+  void SetPaintStartTime(TimeStamp& aTime);
+
   void PostPresent();
 
   void BeginTabSwitch();
@@ -620,7 +603,9 @@ private:
     bool mIsPaused;
     uint32_t mNextIndex;
     TimeStamp mLastFrameTime;
+    TimeStamp mPaintStartTime;
     nsTArray<float> mIntervals;
+    nsTArray<float> mPaints;
     uint32_t mLatestStartIndex;
     uint32_t mCurrentRunStartIndex;
   };
@@ -692,13 +677,7 @@ public:
      * transaction where there is no possibility of redrawing the content, so the
      * implementation should be ready for that.
      */
-    CONTENT_MAY_CHANGE_TRANSFORM = 0x08,
-
-    /**
-     * Disable subpixel AA for this layer. This is used if the display isn't suited
-     * for subpixel AA like hidpi or rotated content.
-     */
-    CONTENT_DISABLE_SUBPIXEL_AA = 0x10
+    CONTENT_MAY_CHANGE_TRANSFORM = 0x08
   };
   /**
    * CONSTRUCTION PHASE ONLY
@@ -752,29 +731,6 @@ public:
       mOpacity = aOpacity;
       Mutated();
     }
-  }
-
-  void SetMixBlendMode(gfxContext::GraphicsOperator aMixBlendMode)
-  {
-    if (mMixBlendMode != aMixBlendMode) {
-      MOZ_LAYERS_LOG_IF_SHADOWABLE(this, ("Layer::Mutated(%p) MixBlendMode", this));
-      mMixBlendMode = aMixBlendMode;
-      Mutated();
-    }
-  }
-  
-  void SetForceIsolatedGroup(bool aForceIsolatedGroup)
-  {
-    if(mForceIsolatedGroup != aForceIsolatedGroup) {
-      MOZ_LAYERS_LOG_IF_SHADOWABLE(this, ("Layer::Mutated(%p) ForceIsolatedGroup", this));
-      mForceIsolatedGroup = aForceIsolatedGroup;
-      Mutated();
-    }
-  }
-  
-  bool GetForceIsolatedGroup() const
-  {
-    return mForceIsolatedGroup;
   }
 
   /**
@@ -954,57 +910,8 @@ public:
     }
   }
 
-  /**
-   * CONSTRUCTION PHASE ONLY
-   * If a layer is "sticky position", |aScrollId| holds the scroll identifier
-   * of the scrollable content that contains it. The difference between the two
-   * rectangles |aOuter| and |aInner| is treated as two intervals in each
-   * dimension, with the current scroll position at the origin. For each
-   * dimension, while that component of the scroll position lies within either
-   * interval, the layer should not move relative to its scrolling container.
-   */
-  void SetStickyPositionData(FrameMetrics::ViewID aScrollId, LayerRect aOuter,
-                             LayerRect aInner)
-  {
-    if (!mStickyPositionData ||
-        !mStickyPositionData->mOuter.IsEqualEdges(aOuter) ||
-        !mStickyPositionData->mInner.IsEqualEdges(aInner)) {
-      MOZ_LAYERS_LOG_IF_SHADOWABLE(this, ("Layer::Mutated(%p) StickyPositionData", this));
-      if (!mStickyPositionData) {
-        mStickyPositionData = new StickyPositionData;
-      }
-      mStickyPositionData->mScrollId = aScrollId;
-      mStickyPositionData->mOuter = aOuter;
-      mStickyPositionData->mInner = aInner;
-      Mutated();
-    }
-  }
-
-  enum ScrollDirection {
-    NONE,
-    VERTICAL,
-    HORIZONTAL
-  };
-
-  /**
-   * CONSTRUCTION PHASE ONLY
-   * If a layer is a scrollbar layer, |aScrollId| holds the scroll identifier
-   * of the scrollable content that the scrollbar is for.
-   */
-  void SetScrollbarData(FrameMetrics::ViewID aScrollId, ScrollDirection aDir)
-  {
-    if (mScrollbarTargetId != aScrollId ||
-        mScrollbarDirection != aDir) {
-      MOZ_LAYERS_LOG_IF_SHADOWABLE(this, ("Layer::Mutated(%p) ScrollbarData", this));
-      mScrollbarTargetId = aScrollId;
-      mScrollbarDirection = aDir;
-      Mutated();
-    }
-  }
-
   // These getters can be used anytime.
   float GetOpacity() { return mOpacity; }
-  gfxContext::GraphicsOperator GetMixBlendMode() const { return mMixBlendMode; }
   const nsIntRect* GetClipRect() { return mUseClipRect ? &mClipRect : nullptr; }
   uint32_t GetContentFlags() { return mContentFlags; }
   const nsIntRegion& GetVisibleRegion() { return mVisibleRegion; }
@@ -1020,14 +927,8 @@ public:
   float GetPostXScale() const { return mPostXScale; }
   float GetPostYScale() const { return mPostYScale; }
   bool GetIsFixedPosition() { return mIsFixedPosition; }
-  bool GetIsStickyPosition() { return mStickyPositionData; }
   LayerPoint GetFixedPositionAnchor() { return mAnchor; }
   const LayerMargin& GetFixedPositionMargins() { return mMargins; }
-  FrameMetrics::ViewID GetStickyScrollContainerId() { return mStickyPositionData->mScrollId; }
-  const LayerRect& GetStickyScrollRangeOuter() { return mStickyPositionData->mOuter; }
-  const LayerRect& GetStickyScrollRangeInner() { return mStickyPositionData->mInner; }
-  FrameMetrics::ViewID GetScrollbarTargetContainerId() { return mScrollbarTargetId; }
-  ScrollDirection GetScrollbarDirection() { return mScrollbarDirection; }
   Layer* GetMaskLayer() const { return mMaskLayer; }
 
   // Note that all lengths in animation data are either in CSS pixels or app
@@ -1172,18 +1073,11 @@ public:
   // accounting for this layer possibly being a shadow.
   const nsIntRect* GetEffectiveClipRect();
   const nsIntRegion& GetEffectiveVisibleRegion();
-
   /**
    * Returns the product of the opacities of this layer and all ancestors up
    * to and excluding the nearest ancestor that has UseIntermediateSurface() set.
    */
   float GetEffectiveOpacity();
-  
-  /**
-   * Returns the blendmode of this layer.
-   */
-  gfxContext::GraphicsOperator GetEffectiveMixBlendMode();
-  
   /**
    * This returns the effective transform computed by
    * ComputeEffectiveTransforms. Typically this is a transform that transforms
@@ -1271,7 +1165,6 @@ public:
    * marked as needed to be recomposited.
    */
   const nsIntRegion& GetInvalidRegion() { return mInvalidRegion; }
-  const void SetInvalidRegion(const nsIntRegion& aRect) { mInvalidRegion = aRect; }
 
   /**
    * Mark the entirety of the layer's visible region as being invalid.
@@ -1382,8 +1275,6 @@ protected:
   AnimationArray mAnimations;
   InfallibleTArray<AnimData> mAnimationData;
   float mOpacity;
-  gfxContext::GraphicsOperator mMixBlendMode;
-  bool mForceIsolatedGroup;
   nsIntRect mClipRect;
   nsIntRect mTileSourceRect;
   nsIntRegion mInvalidRegion;
@@ -1393,14 +1284,6 @@ protected:
   bool mIsFixedPosition;
   LayerPoint mAnchor;
   LayerMargin mMargins;
-  struct StickyPositionData {
-    FrameMetrics::ViewID mScrollId;
-    LayerRect mOuter;
-    LayerRect mInner;
-  };
-  nsAutoPtr<StickyPositionData> mStickyPositionData;
-  FrameMetrics::ViewID mScrollbarTargetId;
-  ScrollDirection mScrollbarDirection;
   DebugOnly<uint32_t> mDebugColorIndex;
   // If this layer is used for OMTA, then this counter is used to ensure we
   // stay in sync with the animation manager
@@ -1528,13 +1411,13 @@ public:
    * If aAfter is non-null, it must be a child of this container and
    * we insert after that layer. If it's null we insert at the start.
    */
-  virtual void InsertAfter(Layer* aChild, Layer* aAfter);
+  virtual void InsertAfter(Layer* aChild, Layer* aAfter) = 0;
   /**
    * CONSTRUCTION PHASE ONLY
    * Remove aChild from the child list of this container. aChild must
    * be a child of this container.
    */
-  virtual void RemoveChild(Layer* aChild);
+  virtual void RemoveChild(Layer* aChild) = 0;
   /**
    * CONSTRUCTION PHASE ONLY
    * Reposition aChild from the child list of this container. aChild must
@@ -1542,7 +1425,7 @@ public:
    * If aAfter is non-null, it must be a child of this container and we
    * reposition after that layer. If it's null, we reposition at the start.
    */
-  virtual void RepositionChild(Layer* aChild, Layer* aAfter);
+  virtual void RepositionChild(Layer* aChild, Layer* aAfter) = 0;
 
   /**
    * CONSTRUCTION PHASE ONLY
@@ -1646,8 +1529,6 @@ public:
 
 protected:
   friend class ReadbackProcessor;
-
-  static bool HasOpaqueAncestorLayer(Layer* aLayer);
 
   void DidInsertChild(Layer* aLayer);
   void DidRemoveChild(Layer* aLayer);
@@ -1787,11 +1668,6 @@ public:
   virtual void Initialize(const Data& aData) = 0;
 
   /**
-   * Check the data is owned by this layer is still valid for rendering
-   */
-  virtual bool IsDataValid(const Data& aData) { return true; }
-
-  /**
    * Notify this CanvasLayer that the canvas surface contents have
    * changed (or will change) before the next transaction.
    */
@@ -1850,7 +1726,7 @@ public:
    * CONSTRUCTION PHASE ONLY
    * Set the filter used to resample this image (if necessary).
    */
-  void SetFilter(GraphicsFilter aFilter)
+  void SetFilter(gfxPattern::GraphicsFilter aFilter)
   {
     if (mFilter != aFilter) {
       MOZ_LAYERS_LOG_IF_SHADOWABLE(this, ("Layer::Mutated(%p) Filter", this));
@@ -1858,7 +1734,7 @@ public:
       Mutated();
     }
   }
-  GraphicsFilter GetFilter() const { return mFilter; }
+  gfxPattern::GraphicsFilter GetFilter() const { return mFilter; }
 
   MOZ_LAYER_DECL_NAME("CanvasLayer", TYPE_CANVAS)
 
@@ -1882,7 +1758,7 @@ protected:
     , mPreTransCallbackData(nullptr)
     , mPostTransCallback(nullptr)
     , mPostTransCallbackData(nullptr)
-    , mFilter(GraphicsFilter::FILTER_GOOD)
+    , mFilter(gfxPattern::FILTER_GOOD)
     , mDirty(false)
   {}
 
@@ -1903,7 +1779,7 @@ protected:
   void* mPreTransCallbackData;
   DidTransactionCallback mPostTransCallback;
   void* mPostTransCallbackData;
-  GraphicsFilter mFilter;
+  gfxPattern::GraphicsFilter mFilter;
 
 private:
   /**
@@ -2010,13 +1886,10 @@ protected:
   uint64_t mId;
 };
 
-void
-SetAntialiasingFlags(Layer* aLayer, gfxContext* aTarget);
-
 #ifdef MOZ_DUMP_PAINTING
 void WriteSnapshotToDumpFile(Layer* aLayer, gfxASurface* aSurf);
 void WriteSnapshotToDumpFile(LayerManager* aManager, gfxASurface* aSurf);
-void WriteSnapshotToDumpFile(Compositor* aCompositor, gfx::DrawTarget* aTarget);
+void WriteSnapshotToDumpFile(Compositor* aCompositor, gfxASurface* aSurf);
 #endif
 
 }

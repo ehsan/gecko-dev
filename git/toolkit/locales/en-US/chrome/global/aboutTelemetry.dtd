@@ -28,10 +28,6 @@
   Simple Measurements
 ">
 
-<!ENTITY aboutTelemetry.addonDetailsSection "
-  Add-on Details
-">
-
 <!ENTITY aboutTelemetry.lateWritesSection "
   Late Writes
 ">
@@ -44,8 +40,12 @@
   Histograms Collected by Add-ons
 ">
 
-<!ENTITY aboutTelemetry.toggle "
-  Click to toggle section
+<!ENTITY aboutTelemetry.toggleOn "
+  Click to expand section
+">
+
+<!ENTITY aboutTelemetry.toggleOff "
+  Click to collapse section
 ">
 
 <!ENTITY aboutTelemetry.emptySection "
@@ -62,8 +62,4 @@
 
 <!ENTITY aboutTelemetry.hideSymbols "
   Show raw data from hangs
-">
-
-<!ENTITY aboutTelemetry.filterText "
-  Filter (strings or /regexp/)
 ">

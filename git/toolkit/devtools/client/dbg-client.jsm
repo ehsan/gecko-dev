@@ -15,7 +15,6 @@ this.EXPORTED_SYMBOLS = ["DebuggerTransport",
                          "RootClient",
                          "debuggerSocketConnect",
                          "LongStringClient",
-                         "EnvironmentClient",
                          "ObjectClient"];
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
@@ -160,7 +159,9 @@ function eventSource(aProto) {
         listener.apply(null, arguments);
       } catch (e) {
         // Prevent a bad listener from interfering with the others.
-        DevToolsUtils.reportException("notify event '" + name + "'", e);
+        let msg = e + ": " + e.stack;
+        Cu.reportError(msg);
+        dumpn(msg);
       }
     }
   }
@@ -193,17 +194,13 @@ const UnsolicitedNotifications = {
   "newSource": "newSource",
   "tabDetached": "tabDetached",
   "tabListChanged": "tabListChanged",
-  "reflowActivity": "reflowActivity",
   "addonListChanged": "addonListChanged",
   "tabNavigated": "tabNavigated",
   "pageError": "pageError",
+  "webappsEvent": "webappsEvent",
   "documentLoad": "documentLoad",
   "enteredFrame": "enteredFrame",
-  "exitedFrame": "exitedFrame",
-  "appOpen": "appOpen",
-  "appClose": "appClose",
-  "appInstall": "appInstall",
-  "appUninstall": "appUninstall"
+  "exitedFrame": "exitedFrame"
 };
 
 /**
@@ -239,10 +236,9 @@ this.DebuggerClient = function DebuggerClient(aTransport)
   this.compat = new ProtocolCompatibility(this, [
     new SourcesShim(),
   ]);
-  this.traits = {};
 
   this.request = this.request.bind(this);
-  this.localTransport = this._transport.onOutputStreamReady === undefined;
+  this.localTransport = (this._transport instanceof LocalDebuggerTransport);
 
   /*
    * As the first thing on the connection, expect a greeting packet from
@@ -320,7 +316,10 @@ DebuggerClient.requester = function DC_requester(aPacketSkeleton, { telemetry,
         try {
           thisCallback(aResponse);
         } catch (e) {
-          DevToolsUtils.reportException("DebuggerClient.requester callback", e);
+          let msg = "Error executing callback passed to debugger client: "
+            + e + "\n" + e.stack;
+          dumpn(msg);
+          Cu.reportError(msg);
         }
       }
 
@@ -356,12 +355,11 @@ DebuggerClient.prototype = {
    *        received from the debugging server.
    */
   connect: function DC_connect(aOnConnected) {
-    this.addOneTimeListener("connected", (aName, aApplicationType, aTraits) => {
-      this.traits = aTraits;
-      if (aOnConnected) {
+    if (aOnConnected) {
+      this.addOneTimeListener("connected", function(aName, aApplicationType, aTraits) {
         aOnConnected(aApplicationType, aTraits);
-      }
-    });
+      });
+    }
 
     this._transport.ready();
   },
@@ -557,23 +555,6 @@ DebuggerClient.prototype = {
   },
 
   /**
-   * Reconfigure a tab actor.
-   *
-   * @param object aOptions
-   *        A dictionary object of the new options to use in the tab actor.
-   * @param function aOnResponse
-   *        Called with the response packet.
-   */
-  reconfigureTab: function(aOptions, aOnResponse) {
-    let packet = {
-      to: this.activeTab._actor,
-      type: "reconfigure",
-      options: aOptions
-    };
-    this.request(packet, aOnResponse);
-  },
-
-  /**
    * Release an object actor.
    *
    * @param string aActor
@@ -660,12 +641,12 @@ DebuggerClient.prototype = {
       ? aPacket
       : this.compat.onPacket(aPacket);
 
-    resolve(packet).then(aPacket => {
+    resolve(packet).then((aPacket) => {
       if (!aPacket.from) {
-        DevToolsUtils.reportException(
-          "onPacket",
-          new Error("Server did not specify an actor, dropping packet: " +
-                    JSON.stringify(aPacket)));
+        let msg = "Server did not specify an actor, dropping packet: " +
+                  JSON.stringify(aPacket);
+        Cu.reportError(msg);
+        dumpn(msg);
         return;
       }
 
@@ -715,7 +696,8 @@ DebuggerClient.prototype = {
 
       this._sendRequests();
     }, function (ex) {
-      DevToolsUtils.reportException("onPacket handler", ex);
+      dumpn("Error handling response: " + ex + " - stack:\n" + ex.stack);
+      Cu.reportError(ex.message + "\n" + ex.stack);
     });
   },
 
@@ -841,13 +823,14 @@ ProtocolCompatibility.prototype = {
           this.rejectFeature(feature.name);
           break;
         default:
-          DevToolsUtils.reportException(
-            "PC__detectFeatures",
-            new Error("Bad return value from `onPacketTest` for feature '"
-                      + feature.name + "'"));
+          Cu.reportError(new Error(
+            "Bad return value from `onPacketTest` for feature '"
+              + feature.name + "'"));
         }
       } catch (ex) {
-        DevToolsUtils.reportException("PC__detectFeatures", ex);
+        Cu.reportError("Error detecting support for feature '"
+                       + feature.name + "':" + ex.message + "\n"
+                       + ex.stack);
       }
     }
   },
@@ -981,7 +964,7 @@ TabClient.prototype = {
   }, {
     after: function (aResponse) {
       if (this.activeTab === this._client._tabClients[this.actor]) {
-        this.activeTab = undefined;
+        delete this.activeTab;
       }
       delete this._client._tabClients[this.actor];
       return aResponse;
@@ -1096,7 +1079,6 @@ ThreadClient.prototype = {
   get paused() { return this._state === "paused"; },
 
   _pauseOnExceptions: false,
-  _ignoreCaughtExceptions: false,
   _pauseOnDOMEvents: null,
 
   _actor: null,
@@ -1133,11 +1115,11 @@ ThreadClient.prototype = {
       // further requests that should only be sent in the paused state.
       this._state = "resuming";
 
+      if (!aPacket.resumeLimit) {
+        delete aPacket.resumeLimit;
+      }
       if (this._pauseOnExceptions) {
         aPacket.pauseOnExceptions = this._pauseOnExceptions;
-      }
-      if (this._ignoreCaughtExceptions) {
-        aPacket.ignoreCaughtExceptions = this._ignoreCaughtExceptions;
       }
       if (this._pauseOnDOMEvents) {
         aPacket.pauseOnDOMEvents = this._pauseOnDOMEvents;
@@ -1211,19 +1193,12 @@ ThreadClient.prototype = {
    * @param function aOnResponse
    *        Called with the response packet.
    */
-  pauseOnExceptions: function TC_pauseOnExceptions(aPauseOnExceptions,
-                                                   aIgnoreCaughtExceptions,
-                                                   aOnResponse) {
-    this._pauseOnExceptions = aPauseOnExceptions;
-    this._ignoreCaughtExceptions = aIgnoreCaughtExceptions;
-
+  pauseOnExceptions: function TC_pauseOnExceptions(aFlag, aOnResponse) {
+    this._pauseOnExceptions = aFlag;
     // If the debuggee is paused, we have to send the flag via a reconfigure
     // request.
     if (this.paused) {
-      this._client.reconfigureThread({
-        pauseOnExceptions: aPauseOnExceptions,
-        ignoreCaughtExceptions: aIgnoreCaughtExceptions
-      }, aOnResponse);
+      this._client.reconfigureThread({ pauseOnExceptions: aFlag }, aOnResponse);
       return;
     }
     // Otherwise send the flag using a standard resume request.
@@ -1309,7 +1284,7 @@ ThreadClient.prototype = {
   }, {
     after: function (aResponse) {
       if (this.activeThread === this._client._threadClients[this.actor]) {
-        this.activeThread = null;
+        delete this.activeThread;
       }
       delete this._client._threadClients[this.actor];
       return aResponse;
@@ -1657,13 +1632,6 @@ ThreadClient.prototype = {
   },
 
   /**
-   * Return an EnvironmentClient instance for the given environment actor form.
-   */
-  environment: function(aForm) {
-    return new EnvironmentClient(this._client, aForm);
-  },
-
-  /**
    * Return an instance of SourceClient for the given source actor form.
    */
   source: function TC_source(aForm) {
@@ -1707,15 +1675,20 @@ eventSource(ThreadClient.prototype);
 function TraceClient(aClient, aActor) {
   this._client = aClient;
   this._actor = aActor;
-  this._activeTraces = new Set();
-  this._waitingPackets = new Map();
-  this._expectedPacket = 0;
+  this._traces = Object.create(null);
+  this._activeTraces = 0;
+
+  this._client.addListener(UnsolicitedNotifications.enteredFrame,
+                           this.onEnteredFrame.bind(this));
+  this._client.addListener(UnsolicitedNotifications.exitedFrame,
+                           this.onExitedFrame.bind(this));
+
   this.request = this._client.request;
 }
 
 TraceClient.prototype = {
   get actor()   { return this._actor; },
-  get tracing() { return this._activeTraces.size > 0; },
+  get tracing() { return this._activeTraces > 0; },
 
   get _transport() { return this._client._transport; },
 
@@ -1747,11 +1720,15 @@ TraceClient.prototype = {
         return aResponse;
       }
 
-      if (!this.tracing) {
-        this._waitingPackets.clear();
-        this._expectedPacket = 0;
+      let name = aResponse.name;
+
+      if (!this._traces[name] || !this._traces[name].active) {
+        this._activeTraces++;
       }
-      this._activeTraces.add(aResponse.name);
+
+      this._traces[name] = {
+        active: true
+      };
 
       return aResponse;
     },
@@ -1777,13 +1754,30 @@ TraceClient.prototype = {
         return aResponse;
       }
 
-      this._activeTraces.delete(aResponse.name);
+      this._traces[aResponse.name].active = false;
+      this._activeTraces--;
 
       return aResponse;
     },
     telemetry: "STOPTRACE"
-  })
+  }),
+
+  /**
+   * Called when the trace actor notifies that a frame has been entered.
+   */
+  onEnteredFrame: function JSTC_onEnteredFrame(aEvent, aResponse) {
+    this.notify("enteredFrame", aResponse);
+  },
+
+  /**
+   * Called when the trace actor notifies that a frame has been exited.
+   */
+  onExitedFrame: function JSTC_onExitedFrame(aEvent, aResponse) {
+    this.notify("exitedFrame", aResponse);
+  }
 };
+
+eventSource(TraceClient.prototype);
 
 /**
  * Grip clients are used to retrieve information about the relevant object.
@@ -1809,17 +1803,6 @@ ObjectClient.prototype = {
   get isFrozen() this._grip.frozen,
   get isSealed() this._grip.sealed,
   get isExtensible() this._grip.extensible,
-
-  getDefinitionSite: DebuggerClient.requester({
-    type: "definitionSite"
-  }, {
-    before: function (aPacket) {
-      if (this._grip.class != "Function") {
-        throw new Error("getDefinitionSite is only valid for function grips.");
-      }
-      return aPacket;
-    }
-  }),
 
   /**
    * Request the names of a function's formal parameters.
@@ -1898,23 +1881,6 @@ ObjectClient.prototype = {
   }, {
     telemetry: "DISPLAYSTRING"
   }),
-
-  /**
-   * Request the scope of the object.
-   *
-   * @param aOnResponse function Called with the request's response.
-   */
-  getScope: DebuggerClient.requester({
-    type: "scope"
-  }, {
-    before: function (aPacket) {
-      if (this._grip.class !== "Function") {
-        throw new Error("scope is only valid for function grips.");
-      }
-      return aPacket;
-    },
-    telemetry: "SCOPE"
-  })
 };
 
 /**
@@ -1970,7 +1936,6 @@ LongStringClient.prototype = {
 function SourceClient(aClient, aForm) {
   this._form = aForm;
   this._isBlackBoxed = aForm.isBlackBoxed;
-  this._isPrettyPrinted = aForm.isPrettyPrinted;
   this._client = aClient;
 }
 
@@ -1978,7 +1943,6 @@ SourceClient.prototype = {
   get _transport() this._client._transport,
   get _activeThread() this._client.activeThread,
   get isBlackBoxed() this._isBlackBoxed,
-  get isPrettyPrinted() this._isPrettyPrinted,
   get actor() this._form.actor,
   get request() this._client.request,
   get url() this._form.url,
@@ -2033,73 +1997,32 @@ SourceClient.prototype = {
       to: this._form.actor,
       type: "source"
     };
-    this._client.request(packet, aResponse => {
-      this._onSourceResponse(aResponse, aCallback)
-    });
-  },
-
-  /**
-   * Pretty print this source's text.
-   */
-  prettyPrint: function SC_prettyPrint(aIndent, aCallback) {
-    const packet = {
-      to: this._form.actor,
-      type: "prettyPrint",
-      indent: aIndent
-    };
-    this._client.request(packet, aResponse => {
-      if (!aResponse.error) {
-        this._isPrettyPrinted = true;
-        this._activeThread._clearFrames();
-        this._activeThread.notify("prettyprintchange", this);
-      }
-      this._onSourceResponse(aResponse, aCallback);
-    });
-  },
-
-  /**
-   * Stop pretty printing this source's text.
-   */
-  disablePrettyPrint: function SC_disablePrettyPrint(aCallback) {
-    const packet = {
-      to: this._form.actor,
-      type: "disablePrettyPrint"
-    };
-    this._client.request(packet, aResponse => {
-      if (!aResponse.error) {
-        this._isPrettyPrinted = false;
-        this._activeThread._clearFrames();
-        this._activeThread.notify("prettyprintchange", this);
-      }
-      this._onSourceResponse(aResponse, aCallback);
-    });
-  },
-
-  _onSourceResponse: function SC__onSourceResponse(aResponse, aCallback) {
-    if (aResponse.error) {
-      aCallback(aResponse);
-      return;
-    }
-
-    if (typeof aResponse.source === "string") {
-      aCallback(aResponse);
-      return;
-    }
-
-    let { contentType, source } = aResponse;
-    let longString = this._client.activeThread.threadLongString(
-      source);
-    longString.substring(0, longString.length, function (aResponse) {
+    this._client.request(packet, function (aResponse) {
       if (aResponse.error) {
         aCallback(aResponse);
         return;
       }
 
-      aCallback({
-        source: aResponse.substring,
-        contentType: contentType
+      if (typeof aResponse.source === "string") {
+        aCallback(aResponse);
+        return;
+      }
+
+      let { contentType, source } = aResponse;
+      let longString = this._client.activeThread.threadLongString(
+        source);
+      longString.substring(0, longString.length, function (aResponse) {
+        if (aResponse.error) {
+          aCallback(aResponse);
+          return;
+        }
+
+        aCallback({
+          source: aResponse.substring,
+          contentType: contentType
+        });
       });
-    });
+    }.bind(this));
   }
 };
 
@@ -2140,49 +2063,6 @@ BreakpointClient.prototype = {
 eventSource(BreakpointClient.prototype);
 
 /**
- * Environment clients are used to manipulate the lexical environment actors.
- *
- * @param aClient DebuggerClient
- *        The debugger client parent.
- * @param aForm Object
- *        The form sent across the remote debugging protocol.
- */
-function EnvironmentClient(aClient, aForm) {
-  this._client = aClient;
-  this._form = aForm;
-  this.request = this._client.request;
-}
-
-EnvironmentClient.prototype = {
-
-  get actor() this._form.actor,
-  get _transport() { return this._client._transport; },
-
-  /**
-   * Fetches the bindings introduced by this lexical environment.
-   */
-  getBindings: DebuggerClient.requester({
-    type: "bindings"
-  }, {
-    telemetry: "BINDINGS"
-  }),
-
-  /**
-   * Changes the value of the identifier whose name is name (a string) to that
-   * represented by value (a grip).
-   */
-  assign: DebuggerClient.requester({
-    type: "assign",
-    name: args(0),
-    value: args(1)
-  }, {
-    telemetry: "ASSIGN"
-  })
-};
-
-eventSource(EnvironmentClient.prototype);
-
-/**
  * Connects to a debugger server socket and returns a DebuggerTransport.
  *
  * @param aHost string
@@ -2193,22 +2073,8 @@ eventSource(EnvironmentClient.prototype);
 this.debuggerSocketConnect = function debuggerSocketConnect(aHost, aPort)
 {
   let s = socketTransportService.createTransport(null, 0, aHost, aPort, null);
-  // By default the CONNECT socket timeout is very long, 65535 seconds,
-  // so that if we race to be in CONNECT state while the server socket is still
-  // initializing, the connection is stuck in connecting state for 18.20 hours!
-  s.setTimeout(Ci.nsISocketTransport.TIMEOUT_CONNECT, 2);
-
-  // openOutputStream may throw NS_ERROR_NOT_INITIALIZED if we hit some race
-  // where the nsISocketTransport gets shutdown in between its instantiation and
-  // the call to this method.
-  let transport;
-  try {
-    transport = new DebuggerTransport(s.openInputStream(0, 0, 0),
-                                      s.openOutputStream(0, 0, 0));
-  } catch(e) {
-    DevToolsUtils.reportException("debuggerSocketConnect", e);
-    throw e;
-  }
+  let transport = new DebuggerTransport(s.openInputStream(0, 0, 0),
+                                        s.openOutputStream(0, 0, 0));
   return transport;
 }
 

@@ -243,6 +243,10 @@ var FullZoom = {
     let browser = aBrowser || gBrowser.selectedBrowser;
     this._ignorePendingZoomAccesses(browser);
 
+    // Bug 691614 - zooming support for electrolysis
+    if (gMultiProcessBrowser)
+      return;
+
     if (!aURI || (aIsTabSwitch && !this.siteSpecific)) {
       this._notifyOnLocationChange();
       return;
@@ -397,7 +401,6 @@ var FullZoom = {
    * @param browser  The zoom of this browser will be saved.  Required.
    */
   _applyZoomToPref: function FullZoom__applyZoomToPref(browser) {
-    Services.obs.notifyObservers(null, "browser-fullZoom:zoomChange", "");
     if (!this.siteSpecific ||
         gInPrintPreviewMode ||
         browser.contentDocument.mozSyntheticDocument)
@@ -418,7 +421,6 @@ var FullZoom = {
    * @param browser  The zoom of this browser will be removed.  Required.
    */
   _removePref: function FullZoom__removePref(browser) {
-    Services.obs.notifyObservers(null, "browser-fullZoom:zoomReset", "");
     if (browser.contentDocument.mozSyntheticDocument)
       return;
     let ctxt = this._loadContextFromWindow(browser.contentWindow);

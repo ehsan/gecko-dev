@@ -110,9 +110,9 @@ function viewSource(url)
         if (typeof(arg) == "string" && arg.indexOf('charset=') != -1) {
           var arrayArgComponents = arg.split('=');
           if (arrayArgComponents) {
-            // Remember the charset here so that it can be used below in case
-            // the document had a forced charset.
+            //we should "inherit" the charset menu setting in a new window
             charset = arrayArgComponents[1];
+            gBrowser.markupDocumentViewer.defaultCharacterSet = charset;
           }
         }
       } catch (ex) {
@@ -263,10 +263,13 @@ function onClickContent(event) {
         } catch (e) {
           Components.utils.reportError("Couldn't get malware report URL: " + e);
         }
-      } else {
-        // It's a phishing site, just link to the generic information page
-        let url = Services.urlFormatter.formatURLPref("app.support.baseURL");
-        openURL(url + "phishing-malware");
+      } else { // It's a phishing site, not malware
+        try {
+          var infoURL = Services.urlFormatter.formatURLPref("browser.safebrowsing.warning.infoURL", true);
+          openURL(infoURL);
+        } catch (e) {
+          Components.utils.reportError("Couldn't get phishing info URL: " + e);
+        }
       }
     } else if (target == errorDoc.getElementById('ignoreWarningButton')) {
       // Allow users to override and continue through to the site
@@ -623,12 +626,16 @@ function findLocation(pre, line, node, offset, interlinePosition, result)
 function wrapLongLines()
 {
   var myWrap = window.content.document.body;
-  myWrap.classList.toggle("wrap");
+
+  if (myWrap.className == '')
+    myWrap.className = 'wrap';
+  else
+    myWrap.className = '';
 
   // Since multiple viewsource windows are possible, another window could have
   // affected the pref, so instead of determining the new pref value via the current
-  // pref value, we use myWrap.classList.
-  Services.prefs.setBoolPref("view_source.wrap_long_lines", myWrap.classList.contains("wrap"));
+  // pref value, we use myWrap.className.
+  Services.prefs.setBoolPref("view_source.wrap_long_lines", myWrap.className != '');
 }
 
 // Toggles syntax highlighting and sets the view_source.syntax_highlight

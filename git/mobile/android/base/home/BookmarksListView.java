@@ -14,6 +14,7 @@ import android.content.Context;
 import android.database.Cursor;
 import android.util.AttributeSet;
 import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
 import android.widget.AdapterView;
@@ -30,6 +31,12 @@ public class BookmarksListView extends HomeListView
                                implements AdapterView.OnItemClickListener{
     public static final String LOGTAG = "GeckoBookmarksListView";
 
+    // The last motion event that was intercepted.
+    private MotionEvent mMotionEvent;
+
+    // The default touch slop.
+    private int mTouchSlop;
+
     public BookmarksListView(Context context) {
         this(context, null);
     }
@@ -40,6 +47,9 @@ public class BookmarksListView extends HomeListView
 
     public BookmarksListView(Context context, AttributeSet attrs, int defStyle) {
         super(context, attrs, defStyle);
+
+        // Scaled touch slop for this context.
+        mTouchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
     }
 
     @Override
@@ -51,10 +61,8 @@ public class BookmarksListView extends HomeListView
         setOnKeyListener(new View.OnKeyListener() {
             @Override
             public boolean onKey(View v, int keyCode, KeyEvent event) {
-                final int action = event.getAction();
-
                 // If the user hit the BACK key, try to move to the parent folder.
-                if (action == KeyEvent.ACTION_UP && keyCode == KeyEvent.KEYCODE_BACK) {
+                if (keyCode == KeyEvent.KEYCODE_BACK) {
                     return getBookmarksListAdapter().moveToParentFolder();
                 }
                 return false;
@@ -63,7 +71,48 @@ public class BookmarksListView extends HomeListView
     }
 
     @Override
+    public boolean onInterceptTouchEvent(MotionEvent event) {
+        switch(event.getAction() & MotionEvent.ACTION_MASK) {
+            case MotionEvent.ACTION_DOWN: {
+                // Store the event by obtaining a copy.
+                mMotionEvent = MotionEvent.obtain(event);
+                break;
+            }
+
+            case MotionEvent.ACTION_MOVE: {
+                if ((mMotionEvent != null) &&
+                    (Math.abs(event.getY() - mMotionEvent.getY()) > mTouchSlop)) {
+                    // The user is scrolling. Pass the last event to this view,
+                    // and make this view scroll.
+                    onTouchEvent(mMotionEvent);
+                    return true;
+                }
+                break;
+            }
+
+            default: {
+                mMotionEvent = null;
+                break;
+            }
+        }
+
+        // Do default interception.
+        return super.onInterceptTouchEvent(event);
+    }
+
+    @Override
     public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+        final ListView list = (ListView) parent;
+        final int headerCount = list.getHeaderViewsCount();
+
+        if (position < headerCount) {
+            // The click is on a header, don't do anything.
+            return;
+        }
+
+        // Absolute position for the adapter.
+        position -= headerCount;
+
         final BookmarksListAdapter adapter = getBookmarksListAdapter();
         if (adapter.isShowingChildFolder()) {
             if (position == 0) {
@@ -96,18 +145,6 @@ public class BookmarksListView extends HomeListView
             // This item is a TwoLinePageRow, so we allow switch-to-tab.
             getOnUrlOpenListener().onUrlOpen(url, EnumSet.of(OnUrlOpenListener.Flags.ALLOW_SWITCH_TO_TAB));
         }
-    }
-
-    @Override
-    public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
-        // Adjust the item position to account for the parent folder row that is inserted
-        // at the top of the list when viewing the contents of a folder.
-        final BookmarksListAdapter adapter = getBookmarksListAdapter();
-        if (adapter.isShowingChildFolder()) {
-            position--;
-        }
-
-        return super.onItemLongClick(parent, view, position, id);
     }
 
     private BookmarksListAdapter getBookmarksListAdapter() {

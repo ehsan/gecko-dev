@@ -15,8 +15,7 @@ class nsDOMBeforeUnloadEvent : public nsDOMEvent,
 {
 public:
   nsDOMBeforeUnloadEvent(mozilla::dom::EventTarget* aOwner,
-                         nsPresContext* aPresContext,
-                         mozilla::WidgetEvent* aEvent)
+                         nsPresContext* aPresContext, nsEvent* aEvent)
   : nsDOMEvent(aOwner, aPresContext, aEvent)
   {
   }

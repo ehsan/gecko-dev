@@ -11,3 +11,5 @@ TEST_TOOL_DIRS += ['tests']
 if CONFIG['MOZ_XPCTOOLS']:
     TOOL_DIRS += ['tools']
 
+MODULE = 'xpconnect'
+

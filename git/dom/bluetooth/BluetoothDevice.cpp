@@ -11,6 +11,7 @@
 #include "BluetoothUtils.h"
 
 #include "nsDOMClassInfo.h"
+#include "nsContentUtils.h"
 #include "nsTArrayHelpers.h"
 
 #include "mozilla/dom/bluetooth/BluetoothTypes.h"
@@ -84,7 +85,7 @@ void
 BluetoothDevice::Root()
 {
   if (!mIsRooted) {
-    mozilla::HoldJSObjects(this);
+    NS_HOLD_JS_OBJECTS(this, BluetoothDevice);
     mIsRooted = true;
   }
 }
@@ -95,7 +96,7 @@ BluetoothDevice::Unroot()
   if (mIsRooted) {
     mJsUuids = nullptr;
     mJsServices = nullptr;
-    mozilla::DropJSObjects(this);
+    NS_DROP_JS_OBJECTS(this, BluetoothDevice);
     mIsRooted = false;
   }
 }
@@ -125,13 +126,12 @@ BluetoothDevice::SetPropertyByValue(const BluetoothNamedValue& aValue)
     nsresult rv;
     nsIScriptContext* sc = GetContextForEventHandlers(&rv);
     NS_ENSURE_SUCCESS_VOID(rv);
-    NS_ENSURE_TRUE_VOID(sc);
 
     AutoPushJSContext cx(sc->GetNativeContext());
 
     JS::Rooted<JSObject*> uuids(cx);
     if (NS_FAILED(nsTArrayToJSArray(cx, mUuids, uuids.address()))) {
-      BT_WARNING("Cannot set JS UUIDs object!");
+      NS_WARNING("Cannot set JS UUIDs object!");
       return;
     }
     mJsUuids = uuids;
@@ -141,13 +141,12 @@ BluetoothDevice::SetPropertyByValue(const BluetoothNamedValue& aValue)
     nsresult rv;
     nsIScriptContext* sc = GetContextForEventHandlers(&rv);
     NS_ENSURE_SUCCESS_VOID(rv);
-    NS_ENSURE_TRUE_VOID(sc);
 
     AutoPushJSContext cx(sc->GetNativeContext());
 
     JS::Rooted<JSObject*> services(cx);
     if (NS_FAILED(nsTArrayToJSArray(cx, mServices, services.address()))) {
-      BT_WARNING("Cannot set JS Services object!");
+      NS_WARNING("Cannot set JS Services object!");
       return;
     }
     mJsServices = services;
@@ -156,7 +155,7 @@ BluetoothDevice::SetPropertyByValue(const BluetoothNamedValue& aValue)
     nsCString warningMsg;
     warningMsg.AssignLiteral("Not handling device property: ");
     warningMsg.Append(NS_ConvertUTF16toUTF8(name));
-    BT_WARNING(warningMsg.get());
+    NS_WARNING(warningMsg.get());
   }
 }
 
@@ -177,24 +176,24 @@ BluetoothDevice::Create(nsPIDOMWindow* aWindow,
 void
 BluetoothDevice::Notify(const BluetoothSignal& aData)
 {
-  BT_LOGD("[D] %s: %s", __FUNCTION__, NS_ConvertUTF16toUTF8(aData.name()).get());
+  BT_LOG("[D] %s: %s", __FUNCTION__, NS_ConvertUTF16toUTF8(aData.name()).get());
 
   BluetoothValue v = aData.value();
   if (aData.name().EqualsLiteral("PropertyChanged")) {
-    MOZ_ASSERT(v.type() == BluetoothValue::TArrayOfBluetoothNamedValue);
-
+    NS_ASSERTION(v.type() == BluetoothValue::TArrayOfBluetoothNamedValue,
+                 "PropertyChanged: Invalid value type");
     const InfallibleTArray<BluetoothNamedValue>& arr =
       v.get_ArrayOfBluetoothNamedValue();
 
-    for (uint32_t i = 0, propCount = arr.Length(); i < propCount; ++i) {
-      SetPropertyByValue(arr[i]);
-    }
+    NS_ASSERTION(arr.Length() == 1,
+                 "Got more than one property in a change message!");
+    SetPropertyByValue(arr[0]);
   } else {
 #ifdef DEBUG
     nsCString warningMsg;
     warningMsg.AssignLiteral("Not handling device signal: ");
     warningMsg.Append(NS_ConvertUTF16toUTF8(aData.name()));
-    BT_WARNING(warningMsg.get());
+    NS_WARNING(warningMsg.get());
 #endif
   }
 }
@@ -203,26 +202,24 @@ JS::Value
 BluetoothDevice::GetUuids(JSContext* aCx, ErrorResult& aRv)
 {
   if (!mJsUuids) {
-    BT_WARNING("UUIDs not yet set!");
+    NS_WARNING("UUIDs not yet set!\n");
     aRv.Throw(NS_ERROR_FAILURE);
     return JS::NullValue();
   }
 
-  JS::ExposeObjectToActiveJS(mJsUuids);
-  return JS::ObjectValue(*mJsUuids);
+  return JS::ObjectValue(*xpc_UnmarkGrayObject(mJsUuids));
 }
 
 JS::Value
 BluetoothDevice::GetServices(JSContext* aCx, ErrorResult& aRv)
 {
   if (!mJsServices) {
-    BT_WARNING("Services not yet set!");
+    NS_WARNING("Services not yet set!\n");
     aRv.Throw(NS_ERROR_FAILURE);
     return JS::Value(JSVAL_NULL);
   }
 
-  JS::ExposeObjectToActiveJS(mJsServices);
-  return JS::ObjectValue(*mJsServices);
+  return JS::ObjectValue(*xpc_UnmarkGrayObject(mJsServices));
 }
 
 JSObject*

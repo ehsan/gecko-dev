@@ -14,9 +14,9 @@ XPIDL_SOURCES += [
     'nsIDirectoryEnumerator.idl',
     'nsIDirectoryService.idl',
     'nsIFile.idl',
+    'nsIIOUtil.idl',
     'nsIInputStream.idl',
     'nsIInputStreamTee.idl',
-    'nsIIOUtil.idl',
     'nsILineInputStream.idl',
     'nsILocalFile.idl',
     'nsILocalFileWin.idl',
@@ -49,23 +49,26 @@ elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'os2':
     EXPORTS += ['nsLocalFileOS2.h']
-    SOURCES += [
+    CPP_SOURCES += [
         'nsLocalFileOS2.cpp',
     ]
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
     EXPORTS += ['nsLocalFileWin.h']
-    SOURCES += [
+    CPP_SOURCES += [
         'nsLocalFileWin.cpp',
     ]
 else:
     EXPORTS += ['nsLocalFileUnix.h']
-    SOURCES += [
+    CPP_SOURCES += [
         'nsLocalFileUnix.cpp',
     ]
 
 XPIDL_MODULE = 'xpcom_io'
 
+MODULE = 'xpcom'
+
 EXPORTS += [
+    'SpecialSystemDirectory.h',
     'nsAnonymousTemporaryFile.h',
     'nsAppDirectoryServiceDefs.h',
     'nsDirectoryService.h',
@@ -83,22 +86,22 @@ EXPORTS += [
     'nsStringStream.h',
     'nsUnicharInputStream.h',
     'nsWildCard.h',
-    'SpecialSystemDirectory.h',
 ]
 
 EXPORTS.mozilla += [
     'Base64.h',
 ]
 
-UNIFIED_SOURCES += [
+CPP_SOURCES += [
     'Base64.cpp',
+    'SpecialSystemDirectory.cpp',
     'nsAnonymousTemporaryFile.cpp',
     'nsAppFileLocationProvider.cpp',
     'nsBinaryStream.cpp',
     'nsDirectoryService.cpp',
     'nsEscape.cpp',
-    'nsInputStreamTee.cpp',
     'nsIOUtil.cpp',
+    'nsInputStreamTee.cpp',
     'nsLinebreakConverter.cpp',
     'nsLocalFileCommon.cpp',
     'nsMultiplexInputStream.cpp',
@@ -112,21 +115,14 @@ UNIFIED_SOURCES += [
     'nsStringStream.cpp',
     'nsUnicharInputStream.cpp',
     'nsWildCard.cpp',
-    'SpecialSystemDirectory.cpp',
 ]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
-    SOURCES += [
+    CMMSRCS += [
         'CocoaFileUtils.mm',
     ]
 
-FAIL_ON_WARNINGS = True
+LIBXUL_LIBRARY = True
 
 MSVC_ENABLE_PGO = True
 
-include('/ipc/chromium/chromium-config.mozbuild')
-
-FINAL_LIBRARY = 'xpcom_core'
-
-if CONFIG['OS_ARCH'] == 'Linux' and 'lib64' in CONFIG['libdir']:
-    DEFINES['HAVE_USR_LIB64_DIR'] = True

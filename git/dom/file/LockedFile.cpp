@@ -213,12 +213,12 @@ CreateGenericEvent(mozilla::dom::EventTarget* aEventOwner,
 }
 
 inline nsresult
-GetInputStreamForJSVal(JS::Handle<JS::Value> aValue, JSContext* aCx,
+GetInputStreamForJSVal(const JS::Value& aValue, JSContext* aCx,
                        nsIInputStream** aInputStream, uint64_t* aInputLength)
 {
   nsresult rv;
 
-  if (aValue.isObject()) {
+  if (!JSVAL_IS_PRIMITIVE(aValue)) {
     JS::Rooted<JSObject*> obj(aCx, &aValue.toObject());
     if (JS_IsArrayBufferObject(obj)) {
       char* data = reinterpret_cast<char*>(JS_GetArrayBufferData(obj));
@@ -246,8 +246,14 @@ GetInputStreamForJSVal(JS::Handle<JS::Value> aValue, JSContext* aCx,
     }
   }
 
-  JSString* jsstr = JS::ToString(aCx, aValue);
-  NS_ENSURE_TRUE(jsstr, NS_ERROR_XPC_BAD_CONVERT_JS);
+  JSString* jsstr;
+  if (JSVAL_IS_STRING(aValue)) {
+    jsstr = JSVAL_TO_STRING(aValue);
+  }
+  else {
+    jsstr = JS_ValueToString(aCx, aValue);
+    NS_ENSURE_TRUE(jsstr, NS_ERROR_XPC_BAD_CONVERT_JS);
+  }
 
   nsDependentJSString str;
   if (!str.init(aCx, jsstr)) {
@@ -858,11 +864,10 @@ LockedFile::WriteOrAppend(const JS::Value& aValue,
     return NS_OK;
   }
 
-  JS::Rooted<JS::Value> val(aCx, aValue);
   nsCOMPtr<nsIInputStream> inputStream;
   uint64_t inputLength;
   nsresult rv =
-    GetInputStreamForJSVal(val, aCx, getter_AddRefs(inputStream),
+    GetInputStreamForJSVal(aValue, aCx, getter_AddRefs(inputStream),
                            &inputLength);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1040,35 +1045,32 @@ ReadTextHelper::GetSuccessResult(JSContext* aCx,
 {
   nsresult rv;
 
-  nsAutoCString encoding;
-  const nsCString& data = mStream->Data();
-  // The BOM sniffing is baked into the "decode" part of the Encoding
-  // Standard, which the File API references.
-  if (!nsContentUtils::CheckForBOM(
-        reinterpret_cast<const unsigned char *>(data.get()),
-        data.Length(),
-        encoding)) {
-    // BOM sniffing failed. Try the API argument.
-    if (!EncodingUtils::FindEncodingForLabel(mEncoding, encoding)) {
-      // API argument failed. Since we are dealing with a file system file,
-      // we don't have a meaningful type attribute for the blob available,
-      // so proceeding to the next step, which is defaulting to UTF-8.
-      encoding.AssignLiteral("UTF-8");
-    }
+  nsCString charsetGuess;
+  if (!mEncoding.IsEmpty()) {
+    CopyUTF16toUTF8(mEncoding, charsetGuess);
+  }
+  else {
+    const nsCString& data = mStream->Data();
+    uint32_t dataLen = data.Length();
+    rv = nsContentUtils::GuessCharset(data.get(), dataLen, charsetGuess);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+
+  nsCString charset;
+  if (!EncodingUtils::FindEncodingForLabel(charsetGuess, charset)) {
+    return NS_ERROR_DOM_ENCODING_NOT_SUPPORTED_ERR;
   }
 
   nsString tmpString;
-  rv = nsContentUtils::ConvertStringFromEncoding(encoding, data,
-                                                 tmpString);
+  rv = nsContentUtils::ConvertStringFromCharset(charset, mStream->Data(),
+                                                tmpString);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  JS::Rooted<JS::Value> rval(aCx);
-  if (!xpc::StringToJsval(aCx, tmpString, &rval)) {
+  if (!xpc::StringToJsval(aCx, tmpString, aVal)) {
     NS_WARNING("Failed to convert string!");
     return NS_ERROR_FAILURE;
   }
 
-  *aVal = rval;
   return NS_OK;
 }
 

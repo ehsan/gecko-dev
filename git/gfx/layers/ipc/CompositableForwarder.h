@@ -8,7 +8,7 @@
 #define MOZILLA_LAYERS_COMPOSITABLEFORWARDER
 
 #include <stdint.h>                     // for int32_t, uint64_t
-#include "gfxTypes.h"
+#include "gfxASurface.h"                // for gfxASurface, etc
 #include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
 #include "mozilla/layers/CompositorTypes.h"
 #include "mozilla/layers/ISurfaceAllocator.h"  // for ISurfaceAllocator
@@ -29,8 +29,6 @@ class ThebesBufferData;
 class DeprecatedTextureClient;
 class TextureClient;
 class BasicTiledLayerBuffer;
-class PTextureChild;
-class TextureClientData;
 
 /**
  * A transaction is a set of changes that happenned on the content side, that
@@ -47,6 +45,7 @@ class CompositableForwarder : public ISurfaceAllocator
   friend class AutoOpenSurface;
   friend class DeprecatedTextureClientShmem;
 public:
+  typedef gfxASurface::gfxContentType gfxContentType;
 
   CompositableForwarder()
     : mMultiProcess(false)
@@ -94,14 +93,6 @@ public:
 
   virtual void PaintedTiledLayerBuffer(CompositableClient* aCompositable,
                                        const SurfaceDescriptorTiles& aTiledDescriptor) = 0;
-
-  /**
-   * Create an unitialized TextureChild.
-   *
-   * This does not trigger the the creation of a TextureHost on the compositor
-   * side (see PTexture::Init).
-   */
-  virtual PTextureChild* CreateEmptyTextureChild() = 0;
 
   /**
    * Communicate to the compositor that the texture identified by aCompositable
@@ -160,10 +151,25 @@ public:
   virtual void DestroyedThebesBuffer(const SurfaceDescriptor& aBackBufferToDestroy) = 0;
 
   /**
-   * Tell the compositor side to delete the TextureHost corresponding to the
-   * TextureClient passed in parameter.
+   * Tell the compositor side to create a TextureHost that corresponds to
+   * aClient.
    */
-  virtual void RemoveTexture(TextureClient* aTexture) = 0;
+  virtual void AddTexture(CompositableClient* aCompositable,
+                          TextureClient* aClient) = 0;
+
+  /**
+   * Tell the compositor side to delete the TextureHost corresponding to
+   * aTextureID.
+   * By default the shared Data is deallocated along with the TextureHost, but
+   * this behaviour can be overriden by the TextureFlags passed here.
+   * XXX - This is kind of bad, but for now we have to do this, because of some
+   * edge cases caused by the lifetime of the TextureHost being limited by the
+   * lifetime of the CompositableHost. We should be able to remove this flags
+   * parameter when we remove the lifetime constraint.
+   */
+  virtual void RemoveTexture(CompositableClient* aCompositable,
+                             uint64_t aTextureID,
+                             TextureFlags aFlags = TEXTURE_FLAGS_DEFAULT) = 0;
 
   /**
    * Tell the CompositableHost on the compositor side what texture to use for
@@ -212,11 +218,6 @@ public:
   bool ForwardsToDifferentProcess() const
   {
     return mMultiProcess;
-  }
-
-  const TextureFactoryIdentifier& GetTextureFactoryIdentifier() const
-  {
-    return mTextureFactoryIdentifier;
   }
 
 protected:

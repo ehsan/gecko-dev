@@ -12,6 +12,7 @@
 
 #include "mozilla/CheckedInt.h"
 #include "mozilla/Constants.h"
+#include "mozilla/Util.h"
 
 #include "2D.h"
 #include "Tools.h"
@@ -392,12 +393,11 @@ AlphaBoxBlur::AlphaBoxBlur(const Rect& aRect,
 
 AlphaBoxBlur::AlphaBoxBlur(const Rect& aRect,
                            int32_t aStride,
-                           float aSigmaX,
-                           float aSigmaY)
+                           float aSigma)
   : mRect(int32_t(aRect.x), int32_t(aRect.y),
           int32_t(aRect.width), int32_t(aRect.height)),
     mSpreadRadius(),
-    mBlurRadius(CalculateBlurRadius(Point(aSigmaX, aSigmaY))),
+    mBlurRadius(CalculateBlurRadius(Point(aSigma, aSigma))),
     mStride(aStride),
     mSurfaceAllocationSize(-1)
 {
@@ -701,7 +701,7 @@ AlphaBoxBlur::BoxBlur_C(uint8_t* aData,
       uint32_t value = bottomRight - topRight - bottomLeft;
       value += topLeft;
 
-      data[stride * y + x] = (uint64_t(reciprocal) * value + (uint64_t(1) << 31)) >> 32;
+      data[stride * y + x] = (uint64_t(reciprocal) * value) >> 32;
     }
   }
 }

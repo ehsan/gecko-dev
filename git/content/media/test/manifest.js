@@ -182,22 +182,6 @@ var gPlayTests = [
   { name:"small-shot.m4a", type:"audio/mp4", duration:0.29 },
   { name:"small-shot.mp3", type:"audio/mpeg", duration:0.27 },
   { name:"owl.mp3", type:"audio/mpeg", duration:3.29 },
-  // owl.mp3 as above, but with something funny going on in the ID3v2 tag
-  // that causes DirectShow to fail.
-  { name:"owl-funny-id3.mp3", type:"audio/mpeg", duration:3.29 },
-  // owl.mp3 as above, but with something even funnier going on in the ID3v2 tag
-  // that causes DirectShow to fail.
-  { name:"owl-funnier-id3.mp3", type:"audio/mpeg", duration:3.29 },
-  // One second of silence with ~140KB of ID3 tags. Usually when the first MP3
-  // frame is at such a high offset into the file, MP3FrameParser will give up
-  // and report that the stream is not MP3. However, it does not count ID3 tags
-  // in that offset. This test case makes sure that ID3 exclusion holds.
-  { name:"huge-id3.mp3", type:"audio/mpeg", duration:1.00 },
-  // A truncated VBR MP3 with just enough frames to keep most decoders happy.
-  // The Xing header reports the length of the file to be around 10 seconds, but
-  // there is really only one second worth of data. We want MP3FrameParser to
-  // trust the header, so this should be reported as 10 seconds.
-  { name:"vbr-head.mp3", type:"audio/mpeg", duration:10.00 },
 
   // Invalid file
   { name:"bogus.duh", type:"bogus/duh", duration:Number.NaN }
@@ -433,13 +417,6 @@ var gChainingTests = [
   { name:"bogus.duh", type:"bogus/duh" }
 ];
 
-// Videos with an aspect ratio. Used for testing that displaying frames
-// on a canvas works correctly in the case of non-standard aspect ratios.
-// See bug 874897 for an example.
-var gAspectRatioTests = [
-  { name:"VID_0001.ogg", type:"video/ogg", duration:19.966 }
-];
-
 // These are files with non-trivial tag sets.
 // Used by test_metadata.html.
 var gMetadataTests = [
@@ -646,44 +623,44 @@ function MediaTestManager() {
   // Starts the next batch of tests, or finishes if they're all done.
   // Don't call this directly, call finished(token) when you're done.
   this.nextTest = function() {
-    // Force an exact  GC after every completed testcase. This ensures that any
-    // decoders with live threads waiting for the GC are killed promptly, to free
-    // up the thread stacks' address space, and destroy decoder resources.
-    SpecialPowers.exactGC(window, function(){
-      while (this.testNum < this.tests.length && this.tokens.length < PARALLEL_TESTS) {
-        var test = this.tests[this.testNum];
-        var token = (test.name ? (test.name + "-"): "") + this.testNum;
-        this.testNum++;
+    // Force a GC after every completed testcase. This ensures that any decoders
+    // with live threads waiting for the GC are killed promptly, to free up the
+    // thread stacks' address space.
+    SpecialPowers.forceGC();
 
-        if (DEBUG_TEST_LOOP_FOREVER && this.testNum == this.tests.length) {
-          this.testNum = 0;
-        }
+    while (this.testNum < this.tests.length && this.tokens.length < PARALLEL_TESTS) {
+      var test = this.tests[this.testNum];
+      var token = (test.name ? (test.name + "-"): "") + this.testNum;
+      this.testNum++;
 
-        // Ensure we can play the resource type.
-        if (test.type && !document.createElement('video').canPlayType(test.type))
-          continue;
-
-        // Do the init. This should start the test.
-        this.startTest(test, token);
+      if (DEBUG_TEST_LOOP_FOREVER && this.testNum == this.tests.length) {
+        this.testNum = 0;
       }
 
-      if (this.testNum == this.tests.length &&
-          !DEBUG_TEST_LOOP_FOREVER &&
-          this.tokens.length == 0 &&
-          !this.isShutdown)
-      {
-        this.isShutdown = true;
-        if (this.onFinished) {
-          this.onFinished();
-        }
-        mediaTestCleanup();
-        var end = new Date();
-        SimpleTest.info("Finished at " + end + " (" + (end.getTime() / 1000) + "s)");
-        SimpleTest.info("Running time: " + (end.getTime() - this.startTime.getTime())/1000 + "s");
-        SimpleTest.finish();
-        return;
+      // Ensure we can play the resource type.
+      if (test.type && !document.createElement('video').canPlayType(test.type))
+        continue;
+
+      // Do the init. This should start the test.
+      this.startTest(test, token);
+    }
+
+    if (this.testNum == this.tests.length &&
+        !DEBUG_TEST_LOOP_FOREVER &&
+        this.tokens.length == 0 &&
+        !this.isShutdown)
+    {
+      this.isShutdown = true;
+      if (this.onFinished) {
+        this.onFinished();
       }
-    }.bind(this));
+      mediaTestCleanup();
+      var end = new Date();
+      SimpleTest.info("Finished at " + end + " (" + (end.getTime() / 1000) + "s)");
+      SimpleTest.info("Running time: " + (end.getTime() - this.startTime.getTime())/1000 + "s");
+      SimpleTest.finish();
+      return;
+    }
   }
 }
 
@@ -712,11 +689,9 @@ function mediaTestCleanup() {
   var branch = prefService.getBranch("media.");
   var oldDefault = 2;
   var oldAuto = 3;
-  var oldAppleMedia = undefined;
   var oldGStreamer = undefined;
   var oldOpus = undefined;
 
-  try { oldAppleMedia = SpecialPowers.getBoolPref("media.apple.mp3.enabled"); } catch(ex) { }
   try { oldGStreamer = SpecialPowers.getBoolPref("media.gstreamer.enabled"); } catch(ex) { }
   try { oldDefault   = SpecialPowers.getIntPref("media.preload.default"); } catch(ex) { }
   try { oldAuto      = SpecialPowers.getIntPref("media.preload.auto"); } catch(ex) { }
@@ -729,14 +704,10 @@ function mediaTestCleanup() {
     SpecialPowers.setBoolPref("media.opus.enabled", true);
   if (oldGStreamer !== undefined)
     SpecialPowers.setBoolPref("media.gstreamer.enabled", true);
-  if (oldAppleMedia !== undefined)
-    SpecialPowers.setBoolPref("media.apple.mp3.enabled", true);
 
   window.addEventListener("unload", function() {
     if (oldGStreamer !== undefined)
       SpecialPowers.setBoolPref("media.gstreamer.enabled", oldGStreamer);
-    if (oldAppleMedia !== undefined)
-      SpecialPowers.setBoolPref("media.apple.mp3.enabled", oldAppleMedia);
     SpecialPowers.setIntPref("media.preload.default", oldDefault);
     SpecialPowers.setIntPref("media.preload.auto", oldAuto);
     if (oldOpus !== undefined)

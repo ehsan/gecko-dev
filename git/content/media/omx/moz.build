@@ -4,35 +4,20 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+MODULE = 'content'
+
 EXPORTS += [
     'MediaOmxDecoder.h',
     'MediaOmxReader.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'MediaOmxDecoder.cpp',
     'MediaOmxReader.cpp',
-    'OMXCodecProxy.cpp',
+    'MP3FrameParser.cpp',
     'OmxDecoder.cpp',
+    'OMXCodecProxy.cpp',
 ]
 
-if 'rtsp' in CONFIG['NECKO_PROTOCOLS']:
-    EXPORTS += [
-        'RtspOmxDecoder.h',
-        'RtspOmxReader.h',
-    ]
-    SOURCES += [
-        'RtspOmxDecoder.cpp',
-        'RtspOmxReader.cpp',
-    ]
-
-include('/ipc/chromium/chromium-config.mozbuild')
-
-FINAL_LIBRARY = 'gklayout'
-LOCAL_INCLUDES += [
-    '/content/base/src',
-    '/content/html/content/src',
-    '/ipc/chromium/src',
-    'mediaresourcemanager',
-]
+LIBXUL_LIBRARY = True
 

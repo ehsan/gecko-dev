@@ -16,11 +16,8 @@
 #include "nsPropertyTable.h"        // for typedefs
 #include "nsTObserverArray.h"       // for member
 #include "nsWindowMemoryReporter.h" // for NS_DECL_SIZEOF_EXCLUDING_THIS
-#include "mozilla/ErrorResult.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/EventTarget.h" // for base class
-#include "js/TypeDecls.h"     // for Handle, Value, JSObject, JSContext
-#include "mozilla/dom/DOMString.h"
 
 // Including 'windows.h' will #define GetClassInfo to something else.
 #ifdef XP_WIN
@@ -31,7 +28,6 @@
 
 class nsAttrAndChildArray;
 class nsChildContentList;
-class nsCSSSelectorList;
 class nsDOMAttributeMap;
 class nsIContent;
 class nsIDocument;
@@ -48,7 +44,6 @@ class nsIURI;
 class nsNodeSupportsWeakRefTearoff;
 class nsNodeWeakReference;
 class nsXPCClassInfo;
-class nsDOMMutationObserver;
 
 namespace mozilla {
 namespace dom {
@@ -71,6 +66,11 @@ template<typename T> class Optional;
 } // namespace dom
 } // namespace mozilla
 
+namespace JS {
+class Value;
+template<typename T> class Handle;
+}
+
 #define NODE_FLAG_BIT(n_) (1U << (WRAPPER_CACHE_FLAGS_BITS_USED + (n_)))
 
 enum {
@@ -85,7 +85,7 @@ enum {
   // XBL-generated ones, will do.  This flag is set-once: once a node has it,
   // it must not be removed.
   // NOTE: Should only be used on nsIContent nodes
-  NODE_IS_ANONYMOUS_ROOT =                NODE_FLAG_BIT(2),
+  NODE_IS_ANONYMOUS =                     NODE_FLAG_BIT(2),
 
   // Whether the node has some ancestor, possibly itself, that is native
   // anonymous.  This includes ancestors crossing XBL scopes, in cases when an
@@ -113,9 +113,6 @@ enum {
   // For all Element nodes, NODE_MAY_HAVE_CLASS is guaranteed to be set if the
   // node in fact has a class, but may be set even if it doesn't.
   NODE_MAY_HAVE_CLASS =                   NODE_FLAG_BIT(8),
-
-  // Whether the node participates in a shadow tree.
-  NODE_IS_IN_SHADOW_TREE =                NODE_FLAG_BIT(9),
 
   // Node has an :empty or :-moz-only-whitespace selector
   NODE_HAS_EMPTY_SELECTOR =               NODE_FLAG_BIT(10),
@@ -174,9 +171,7 @@ enum {
 };
 
 // Make sure we have space for our bits
-#define ASSERT_NODE_FLAGS_SPACE(n) \
-  static_assert(WRAPPER_CACHE_FLAGS_BITS_USED + (n) <= 32, \
-                "Not enough space for our bits")
+#define ASSERT_NODE_FLAGS_SPACE(n) PR_STATIC_ASSERT(WRAPPER_CACHE_FLAGS_BITS_USED + (n) <= 32)
 ASSERT_NODE_FLAGS_SPACE(NODE_TYPE_SPECIFIC_BITS_OFFSET);
 
 /**
@@ -312,6 +307,11 @@ public:
   friend class nsAttrAndChildArray;
 
 #ifdef MOZILLA_INTERNAL_API
+#ifdef _MSC_VER
+#pragma warning(push)
+// Disable annoying warning about 'this' in initializers.
+#pragma warning(disable:4355)
+#endif
   nsINode(already_AddRefed<nsINodeInfo> aNodeInfo)
   : mNodeInfo(aNodeInfo),
     mParent(nullptr),
@@ -319,11 +319,15 @@ public:
     mNextSibling(nullptr),
     mPreviousSibling(nullptr),
     mFirstChild(nullptr),
-    mSubtreeRoot(MOZ_THIS_IN_INITIALIZER_LIST()),
+    mSubtreeRoot(this),
     mSlots(nullptr)
   {
     SetIsDOMBinding();
   }
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 #endif
 
   virtual ~nsINode();
@@ -797,16 +801,10 @@ public:
    * See nsIDOMEventTarget
    */
   NS_DECL_NSIDOMEVENTTARGET
-
-  virtual nsEventListenerManager*
-  GetExistingListenerManager() const MOZ_OVERRIDE;
-  virtual nsEventListenerManager*
-  GetOrCreateListenerManager() MOZ_OVERRIDE;
-
   using mozilla::dom::EventTarget::RemoveEventListener;
   using nsIDOMEventTarget::AddEventListener;
   virtual void AddEventListener(const nsAString& aType,
-                                mozilla::dom::EventListener* aListener,
+                                nsIDOMEventListener* aListener,
                                 bool aUseCapture,
                                 const mozilla::dom::Nullable<bool>& aWantsUntrusted,
                                 mozilla::ErrorResult& aRv) MOZ_OVERRIDE;
@@ -914,7 +912,7 @@ public:
 
   void SetFlags(uint32_t aFlagsToSet)
   {
-    NS_ASSERTION(!(aFlagsToSet & (NODE_IS_ANONYMOUS_ROOT |
+    NS_ASSERTION(!(aFlagsToSet & (NODE_IS_ANONYMOUS |
                                   NODE_IS_NATIVE_ANONYMOUS_ROOT |
                                   NODE_IS_IN_ANONYMOUS_SUBTREE |
                                   NODE_ATTACH_BINDING_ON_POSTCREATE |
@@ -929,7 +927,7 @@ public:
   void UnsetFlags(uint32_t aFlagsToUnset)
   {
     NS_ASSERTION(!(aFlagsToUnset &
-                   (NODE_IS_ANONYMOUS_ROOT |
+                   (NODE_IS_ANONYMOUS |
                     NODE_IS_IN_ANONYMOUS_SUBTREE |
                     NODE_IS_NATIVE_ANONYMOUS_ROOT)),
                  "Trying to unset write-only flags");
@@ -1073,12 +1071,6 @@ public:
   nsresult QuerySelector(const nsAString& aSelector, nsIDOMElement **aReturn);
   nsresult QuerySelectorAll(const nsAString& aSelector, nsIDOMNodeList **aReturn);
 
-protected:
-  // nsIDocument overrides this with its own (faster) version.  This
-  // should really only be called for elements and document fragments.
-  mozilla::dom::Element* GetElementById(const nsAString& aId);
-
-public:
   /**
    * Associate an object aData to aKey on this node. If aData is null any
    * previously registered object and UserDataHandler associated to aKey on
@@ -1307,34 +1299,27 @@ private:
     NodeHandlingClick,
     // Set if the node has had :hover selectors matched against it
     NodeHasRelevantHoverRules,
-    // Set if the element has a parser insertion mode other than "in body",
-    // per the HTML5 "Parse state" section.
-    ElementHasWeirdParserInsertionMode,
     // Guard value
     BooleanFlagCount
   };
 
   void SetBoolFlag(BooleanFlag name, bool value) {
-    static_assert(BooleanFlagCount <= 8*sizeof(mBoolFlags),
-                  "Too many boolean flags");
+    PR_STATIC_ASSERT(BooleanFlagCount <= 8*sizeof(mBoolFlags));
     mBoolFlags = (mBoolFlags & ~(1 << name)) | (value << name);
   }
 
   void SetBoolFlag(BooleanFlag name) {
-    static_assert(BooleanFlagCount <= 8*sizeof(mBoolFlags),
-                  "Too many boolean flags");
+    PR_STATIC_ASSERT(BooleanFlagCount <= 8*sizeof(mBoolFlags));
     mBoolFlags |= (1 << name);
   }
 
   void ClearBoolFlag(BooleanFlag name) {
-    static_assert(BooleanFlagCount <= 8*sizeof(mBoolFlags),
-                  "Too many boolean flags");
+    PR_STATIC_ASSERT(BooleanFlagCount <= 8*sizeof(mBoolFlags));
     mBoolFlags &= ~(1 << name);
   }
 
   bool GetBoolFlag(BooleanFlag name) const {
-    static_assert(BooleanFlagCount <= 8*sizeof(mBoolFlags),
-                  "Too many boolean flags");
+    PR_STATIC_ASSERT(BooleanFlagCount <= 8*sizeof(mBoolFlags));
     return mBoolFlags & (1 << name);
   }
 
@@ -1469,9 +1454,6 @@ protected:
   void ClearHasLockedStyleStates() { ClearBoolFlag(ElementHasLockedStyleStates); }
   bool HasLockedStyleStates() const
     { return GetBoolFlag(ElementHasLockedStyleStates); }
-  void SetHasWeirdParserInsertionMode() { SetBoolFlag(ElementHasWeirdParserInsertionMode); }
-  bool HasWeirdParserInsertionMode() const
-  { return GetBoolFlag(ElementHasWeirdParserInsertionMode); }
   bool HandlingClick() const { return GetBoolFlag(NodeHandlingClick); }
   void SetHandlingClick() { SetBoolFlag(NodeHandlingClick); }
   void ClearHandlingClick() { ClearBoolFlag(NodeHandlingClick); }
@@ -1495,19 +1477,15 @@ public:
   // aObject alive anymore.
   void UnbindObject(nsISupports* aObject);
 
-  void GetBoundMutationObservers(nsTArray<nsRefPtr<nsDOMMutationObserver> >& aResult);
-
   /**
    * Returns the length of this node, as specified at
    * <http://dvcs.w3.org/hg/domcore/raw-file/tip/Overview.html#concept-node-length>
    */
   uint32_t Length() const;
 
-  void GetNodeName(mozilla::dom::DOMString& aNodeName)
+  void GetNodeName(nsAString& aNodeName) const
   {
-    const nsString& nodeName = NodeName();
-    aNodeName.SetStringBuffer(nsStringBuffer::FromString(nodeName),
-                              nodeName.Length());
+    aNodeName = NodeName();
   }
   void GetBaseURI(nsAString& aBaseURI) const;
   bool HasChildNodes() const
@@ -1546,7 +1524,6 @@ public:
     return ReplaceOrInsertBefore(true, &aNode, &aChild, aError);
   }
   nsINode* RemoveChild(nsINode& aChild, mozilla::ErrorResult& aError);
-  already_AddRefed<nsINode> CloneNode(mozilla::ErrorResult& aError);
   already_AddRefed<nsINode> CloneNode(bool aDeep, mozilla::ErrorResult& aError);
   bool IsEqualNode(nsINode* aNode);
   void GetNamespaceURI(nsAString& aNamespaceURI) const
@@ -1559,15 +1536,9 @@ public:
     mNodeInfo->GetPrefix(aPrefix);
   }
 #endif
-  void GetLocalName(mozilla::dom::DOMString& aLocalName)
+  void GetLocalName(nsAString& aLocalName)
   {
-    const nsString& localName = LocalName();
-    if (localName.IsVoid()) {
-      aLocalName.SetNull();
-    } else {
-      aLocalName.SetStringBuffer(nsStringBuffer::FromString(localName),
-                                 localName.Length());
-    }
+    aLocalName = mNodeInfo->LocalName();
   }
   // HasAttributes is defined inline in Element.h.
   bool HasAttributes() const;
@@ -1705,17 +1676,6 @@ protected:
   nsresult doInsertChildAt(nsIContent* aKid, uint32_t aIndex,
                            bool aNotify, nsAttrAndChildArray& aChildArray);
 
-  /**
-   * Parse the given selector string into an nsCSSSelectorList.
-   *
-   * A null return value with a non-failing aRv means the string only
-   * contained pseudo-element selectors.
-   *
-   * A failing aRv means the string was not a valid selector.
-   */
-  nsCSSSelectorList* ParseSelectorList(const nsAString& aSelectorString,
-                                       mozilla::ErrorResult& aRv);
-
 public:
   /* Event stuff that documents and elements share.  This needs to be
      NS_IMETHOD because some subclasses implement DOM methods with
@@ -1727,7 +1687,10 @@ public:
   */
 #define EVENT(name_, id_, type_, struct_)                             \
   mozilla::dom::EventHandlerNonNull* GetOn##name_();                  \
-  void SetOn##name_(mozilla::dom::EventHandlerNonNull* listener);
+  void SetOn##name_(mozilla::dom::EventHandlerNonNull* listener,      \
+                    mozilla::ErrorResult& error);                     \
+  NS_IMETHOD GetOn##name_(JSContext *cx, JS::Value *vp);              \
+  NS_IMETHOD SetOn##name_(JSContext *cx, const JS::Value &v);
 #define TOUCH_EVENT EVENT
 #define DOCUMENT_ONLY_EVENT EVENT
 #include "nsEventNameList.h"
@@ -1779,22 +1742,10 @@ inline nsINode* NODE_FROM(C& aContent, D& aDocument)
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsINode, NS_INODE_IID)
 
-inline nsISupports*
-ToSupports(nsINode* aPointer)
-{
-  return aPointer;
-}
-
-inline nsISupports*
-ToCanonicalSupports(nsINode* aPointer)
-{
-  return aPointer;
-}
-
 #define NS_FORWARD_NSIDOMNODE_TO_NSINODE_HELPER(...) \
   NS_IMETHOD GetNodeName(nsAString& aNodeName) __VA_ARGS__ \
   { \
-    aNodeName = nsINode::NodeName(); \
+    nsINode::GetNodeName(aNodeName); \
     return NS_OK; \
   } \
   NS_IMETHOD GetNodeValue(nsAString& aNodeValue) __VA_ARGS__ \
@@ -1896,7 +1847,7 @@ ToCanonicalSupports(nsINode* aPointer)
   } \
   NS_IMETHOD GetLocalName(nsAString& aLocalName) __VA_ARGS__ \
   { \
-    aLocalName = nsINode::LocalName(); \
+    nsINode::GetLocalName(aLocalName); \
     return NS_OK; \
   } \
   using nsINode::HasAttributes; \

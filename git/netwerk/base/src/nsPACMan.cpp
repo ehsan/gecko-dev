@@ -12,19 +12,26 @@
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 #include "nsNetUtil.h"
+#include "nsCRT.h"
+#include "prmon.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
-#include "nsISystemProxySettings.h"
-#ifdef MOZ_NUWA_PROCESS
-#include "ipc/Nuwa.h"
-#endif
+#include "nsProxyRelease.h"
 
 //-----------------------------------------------------------------------------
 using namespace mozilla;
 using namespace mozilla::net;
 
+#include "prlog.h"
 #if defined(PR_LOGGING)
+static PRLogModuleInfo *
+GetProxyLog()
+{
+    static PRLogModuleInfo *sLog;
+    if (!sLog)
+        sLog = PR_NewLogModule("proxy");
+    return sLog;
+}
 #endif
-#undef LOG
 #define LOG(args) PR_LOG(GetProxyLog(), PR_LOG_DEBUG, args)
 
 // The PAC thread does evaluations of both PAC files and
@@ -677,13 +684,6 @@ nsPACMan::NamePACThread()
 {
   NS_ABORT_IF_FALSE(!NS_IsMainThread(), "wrong thread");
   PR_SetCurrentThreadName("Proxy Resolution");
-#ifdef MOZ_NUWA_PROCESS
-  if (IsNuwaProcess()) {
-    NS_ASSERTION(NuwaMarkCurrentThread != nullptr,
-                 "NuwaMarkCurrentThread is undefined!");
-    NuwaMarkCurrentThread(nullptr, nullptr);
-  }
-#endif
 }
 
 nsresult
@@ -700,19 +700,4 @@ nsPACMan::Init(nsISystemProxySettings *systemProxySettings)
   mPACThread->Dispatch(event, nsIEventTarget::DISPATCH_NORMAL);
 
   return NS_OK;
-}
-
-namespace mozilla {
-namespace net {
-
-PRLogModuleInfo*
-GetProxyLog()
-{
-    static PRLogModuleInfo *sLog;
-    if (!sLog)
-        sLog = PR_NewLogModule("proxy");
-    return sLog;
-}
-
-}
 }

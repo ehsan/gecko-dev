@@ -37,6 +37,7 @@
 #include "nsINIParserImpl.h"
 #include "nsSupportsPrimitives.h"
 #include "nsConsoleService.h"
+#include "nsExceptionService.h"
 
 #include "nsComponentManager.h"
 #include "nsCategoryManagerUtils.h"
@@ -106,13 +107,10 @@ extern nsresult nsStringInputStreamConstructor(nsISupports *, REFNSIID, void **)
 #include "mozilla/Omnijar.h"
 #include "mozilla/HangMonitor.h"
 #include "mozilla/Telemetry.h"
-#include "mozilla/BackgroundHangMonitor.h"
 
 #include "nsChromeRegistry.h"
 #include "nsChromeProtocolHandler.h"
-#include "mozilla/IOInterposer.h"
-#include "mozilla/PoisonIOInterposer.h"
-#include "mozilla/LateWriteChecks.h"
+#include "mozilla/mozPoisonWrite.h"
 
 #include "mozilla/scache/StartupCache.h"
 
@@ -121,9 +119,9 @@ extern nsresult nsStringInputStreamConstructor(nsISupports *, REFNSIID, void **)
 #include "base/message_loop.h"
 
 #include "mozilla/ipc/BrowserProcessSubThread.h"
+#include "mozilla/MapsMemoryReporter.h"
 #include "mozilla/AvailableMemoryTracker.h"
 #include "mozilla/ClearOnShutdown.h"
-#include "mozilla/SystemMemoryReporter.h"
 
 #ifdef MOZ_VISUAL_EVENT_TRACER
 #include "mozilla/VisualEventTracer.h"
@@ -183,6 +181,7 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsSupportsInterfacePointerImpl)
 
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsConsoleService, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsAtomService)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsExceptionService)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsTimerImpl)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsBinaryOutputStream)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsBinaryInputStream)
@@ -195,9 +194,9 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(VisualEventTracer)
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsVariant)
 
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsHashPropertyBag)
+NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsHashPropertyBag, Init)
 
-NS_GENERIC_AGGREGATED_CONSTRUCTOR(nsProperties)
+NS_GENERIC_AGGREGATED_CONSTRUCTOR_INIT(nsProperties, Init)
 
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsUUIDGenerator, Init)
 
@@ -221,8 +220,7 @@ nsThreadManagerGetSingleton(nsISupports* outer,
                             void* *aInstancePtr)
 {
     NS_ASSERTION(aInstancePtr, "null outptr");
-    if (NS_WARN_IF(outer))
-        return NS_ERROR_NO_AGGREGATION;
+    NS_ENSURE_TRUE(!outer, NS_ERROR_NO_AGGREGATION);
 
     return nsThreadManager::get()->QueryInterface(aIID, aInstancePtr);
 }
@@ -235,8 +233,7 @@ nsXPTIInterfaceInfoManagerGetSingleton(nsISupports* outer,
                                        void* *aInstancePtr)
 {
     NS_ASSERTION(aInstancePtr, "null outptr");
-    if (NS_WARN_IF(outer))
-        return NS_ERROR_NO_AGGREGATION;
+    NS_ENSURE_TRUE(!outer, NS_ERROR_NO_AGGREGATION);
 
     nsCOMPtr<nsIInterfaceInfoManager> iim
         (XPTInterfaceInfoManager::GetSingleton());
@@ -246,7 +243,7 @@ nsXPTIInterfaceInfoManagerGetSingleton(nsISupports* outer,
     return iim->QueryInterface(aIID, aInstancePtr);
 }
 
-nsComponentManagerImpl* nsComponentManagerImpl::gComponentManager = nullptr;
+nsComponentManagerImpl* nsComponentManagerImpl::gComponentManager = NULL;
 bool gXPCOMShuttingDown = false;
 bool gXPCOMThreadsShutDown = false;
 
@@ -285,16 +282,16 @@ CreateUnicharStreamFactory(const mozilla::Module& module,
 #include "XPCOMModule.inc"
 #undef COMPONENT
 
-#define COMPONENT(NAME, Ctor) { &kNS_##NAME##_CID, false, nullptr, Ctor },
+#define COMPONENT(NAME, Ctor) { &kNS_##NAME##_CID, false, NULL, Ctor },
 const mozilla::Module::CIDEntry kXPCOMCIDEntries[] = {
-    { &kComponentManagerCID, true, nullptr, nsComponentManagerImpl::Create },
+    { &kComponentManagerCID, true, NULL, nsComponentManagerImpl::Create },
     { &kINIParserFactoryCID, false, CreateINIParserFactory },
     { &kSimpleUnicharStreamFactoryCID, false, CreateUnicharStreamFactory },
 #include "XPCOMModule.inc"
-    { &kNS_CHROMEREGISTRY_CID, false, nullptr, nsChromeRegistryConstructor },
-    { &kNS_CHROMEPROTOCOLHANDLER_CID, false, nullptr, nsChromeProtocolHandlerConstructor },
-    { &kNS_SECURITY_CONSOLE_MESSAGE_CID, false, nullptr, nsSecurityConsoleMessageConstructor },
-    { nullptr }
+    { &kNS_CHROMEREGISTRY_CID, false, NULL, nsChromeRegistryConstructor },
+    { &kNS_CHROMEPROTOCOLHANDLER_CID, false, NULL, nsChromeProtocolHandlerConstructor },
+    { &kNS_SECURITY_CONSOLE_MESSAGE_CID, false, NULL, nsSecurityConsoleMessageConstructor },
+    { NULL }
 };
 #undef COMPONENT
 
@@ -305,7 +302,7 @@ const mozilla::Module::ContractIDEntry kXPCOMContracts[] = {
     { NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "chrome", &kNS_CHROMEPROTOCOLHANDLER_CID },
     { NS_INIPARSERFACTORY_CONTRACTID, &kINIParserFactoryCID },
     { NS_SECURITY_CONSOLE_MESSAGE_CONTRACTID, &kNS_SECURITY_CONSOLE_MESSAGE_CID },
-    { nullptr }
+    { NULL }
 };
 #undef COMPONENT
 
@@ -317,16 +314,16 @@ static nsIDebug* gDebug = nullptr;
 EXPORT_XPCOM_API(nsresult)
 NS_GetDebug(nsIDebug** result)
 {
-    return nsDebugImpl::Create(nullptr,
-                               NS_GET_IID(nsIDebug),
+    return nsDebugImpl::Create(nullptr, 
+                               NS_GET_IID(nsIDebug), 
                                (void**) result);
 }
 
 EXPORT_XPCOM_API(nsresult)
 NS_GetTraceRefcnt(nsITraceRefcnt** result)
 {
-    return nsTraceRefcntImpl::Create(nullptr,
-                                     NS_GET_IID(nsITraceRefcnt),
+    return nsTraceRefcntImpl::Create(nullptr, 
+                                     NS_GET_IID(nsITraceRefcnt), 
                                      (void**) result);
 }
 
@@ -337,58 +334,51 @@ NS_InitXPCOM(nsIServiceManager* *result,
     return NS_InitXPCOM2(result, binDirectory, nullptr);
 }
 
-class ICUReporter MOZ_FINAL : public MemoryUniReporter
+// |sSizeOfICU| can be accessed by multiple JSRuntimes, so it must be
+// thread-safe.
+static Atomic<size_t> sSizeOfICU;
+
+static int64_t
+GetICUSize()
 {
-public:
-    ICUReporter()
-      : MemoryUniReporter("explicit/icu", KIND_HEAP, UNITS_BYTES,
-"Memory used by ICU, a Unicode and globalization support library.")
-    {
-#ifdef DEBUG
-        // There must be only one instance of this class, due to |sAmount|
-        // being static.
-        static bool hasRun = false;
-        MOZ_ASSERT(!hasRun);
-        hasRun = true;
-#endif
-        sAmount = 0;
-    }
+    return sSizeOfICU;
+}
 
-    static void* Alloc(const void*, size_t size)
-    {
-        void* p = malloc(size);
-        sAmount += MallocSizeOfOnAlloc(p);
-        return p;
-    }
+NS_MEMORY_REPORTER_IMPLEMENT(ICU,
+    "explicit/icu",
+    KIND_HEAP,
+    UNITS_BYTES,
+    GetICUSize,
+    "Memory used by ICU, a Unicode and globalization support library."
+)
 
-    static void* Realloc(const void*, void* p, size_t size)
-    {
-        sAmount -= MallocSizeOfOnFree(p);
-        void *pnew = realloc(p, size);
-        if (pnew) {
-            sAmount += MallocSizeOfOnAlloc(pnew);
-        } else {
-            // realloc failed;  undo the decrement from above
-            sAmount += MallocSizeOfOnAlloc(p);
-        }
-        return pnew;
-    }
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_ON_ALLOC_FUN(ICUMallocSizeOfOnAlloc)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_ON_FREE_FUN(ICUMallocSizeOfOnFree)
 
-    static void Free(const void*, void* p)
-    {
-        sAmount -= MallocSizeOfOnFree(p);
-        free(p);
-    }
+static void*
+ICUAlloc(const void*, size_t size)
+{
+    void* p = malloc(size);
+    sSizeOfICU += ICUMallocSizeOfOnAlloc(p);
+    return p;
+}
 
-private:
-    // |sAmount| can be (implicitly) accessed by multiple JSRuntimes, so it
-    // must be thread-safe.
-    static Atomic<size_t> sAmount;
+static void*
+ICURealloc(const void*, void* p, size_t size)
+{
+    size_t delta = 0 - ICUMallocSizeOfOnFree(p);
+    void* pnew = realloc(p, size);
+    delta += pnew ? ICUMallocSizeOfOnAlloc(pnew) : ICUMallocSizeOfOnAlloc(p);
+    sSizeOfICU += delta;
+    return pnew;
+}
 
-    int64_t Amount() MOZ_OVERRIDE { return sAmount; }
-};
-
-/* static */ Atomic<size_t> ICUReporter::sAmount;
+static void
+ICUFree(const void*, void* p)
+{
+    sSizeOfICU -= ICUMallocSizeOfOnFree(p);
+    free(p);
+}
 
 EXPORT_XPCOM_API(nsresult)
 NS_InitXPCOM2(nsIServiceManager* *result,
@@ -415,39 +405,39 @@ NS_InitXPCOM2(nsIServiceManager* *result,
 
     if (!AtExitManager::AlreadyRegistered()) {
         sExitManager = new AtExitManager();
+        NS_ENSURE_STATE(sExitManager);
     }
 
     if (!MessageLoop::current()) {
         sMessageLoop = new MessageLoopForUI(MessageLoop::TYPE_MOZILLA_UI);
+        NS_ENSURE_STATE(sMessageLoop);
     }
 
     if (XRE_GetProcessType() == GeckoProcessType_Default &&
         !BrowserProcessSubThread::GetMessageLoop(BrowserProcessSubThread::IO)) {
         scoped_ptr<BrowserProcessSubThread> ioThread(
             new BrowserProcessSubThread(BrowserProcessSubThread::IO));
+        NS_ENSURE_TRUE(ioThread.get(), NS_ERROR_OUT_OF_MEMORY);
 
         base::Thread::Options options;
         options.message_loop_type = MessageLoop::TYPE_IO;
-        if (NS_WARN_IF(!ioThread->StartWithOptions(options)))
-            return NS_ERROR_FAILURE;
+        NS_ENSURE_TRUE(ioThread->StartWithOptions(options), NS_ERROR_FAILURE);
 
         sIOThread = ioThread.release();
     }
 
     // Establish the main thread here.
     rv = nsThreadManager::get()->Init();
-    if (NS_WARN_IF(NS_FAILED(rv)))
-        return rv;
+    if (NS_FAILED(rv)) return rv;
 
     // Set up the timer globals/timer thread
     rv = nsTimerImpl::Startup();
-    if (NS_WARN_IF(NS_FAILED(rv)))
-        return rv;
+    NS_ENSURE_SUCCESS(rv, rv);
 
 #ifndef ANDROID
     // If the locale hasn't already been setup by our embedder,
-    // get us out of the "C" locale and into the system
-    if (strcmp(setlocale(LC_ALL, nullptr), "C") == 0)
+    // get us out of the "C" locale and into the system 
+    if (strcmp(setlocale(LC_ALL, NULL), "C") == 0)
         setlocale(LC_ALL, "");
 #endif
 
@@ -497,27 +487,24 @@ NS_InitXPCOM2(nsIServiceManager* *result,
         CommandLine::Init(0, nullptr);
 #else
         nsCOMPtr<nsIFile> binaryFile;
-        nsDirectoryService::gService->Get(NS_XPCOM_CURRENT_PROCESS_DIR,
-                                          NS_GET_IID(nsIFile),
+        nsDirectoryService::gService->Get(NS_XPCOM_CURRENT_PROCESS_DIR, 
+                                          NS_GET_IID(nsIFile), 
                                           getter_AddRefs(binaryFile));
-        if (NS_WARN_IF(!binaryFile))
-            return NS_ERROR_FAILURE;
-
+        NS_ENSURE_STATE(binaryFile);
+        
         rv = binaryFile->AppendNative(NS_LITERAL_CSTRING("nonexistent-executable"));
-        if (NS_WARN_IF(NS_FAILED(rv)))
-            return rv;
-
+        NS_ENSURE_SUCCESS(rv, rv);
+        
         nsCString binaryPath;
         rv = binaryFile->GetNativePath(binaryPath);
-        if (NS_WARN_IF(NS_FAILED(rv)))
-            return rv;
-
+        NS_ENSURE_SUCCESS(rv, rv);
+        
         static char const *const argv = { strdup(binaryPath.get()) };
         CommandLine::Init(1, &argv);
 #endif
     }
 
-    NS_ASSERTION(nsComponentManagerImpl::gComponentManager == nullptr, "CompMgr not null at init");
+    NS_ASSERTION(nsComponentManagerImpl::gComponentManager == NULL, "CompMgr not null at init");
 
     // Create the Component/Service Manager
     nsComponentManagerImpl::gComponentManager = new nsComponentManagerImpl();
@@ -537,8 +524,7 @@ NS_InitXPCOM2(nsIServiceManager* *result,
     // can't define the alloc/free functions in the JS engine, because it can't
     // depend on the XPCOM-based memory reporting goop.  So for now, we have
     // this oddness.
-    if (!JS_SetICUMemoryFunctions(ICUReporter::Alloc, ICUReporter::Realloc,
-                                  ICUReporter::Free)) {
+    if (!JS_SetICUMemoryFunctions(ICUAlloc, ICURealloc, ICUFree)) {
         NS_RUNTIMEABORT("JS_SetICUMemoryFunctions failed.");
     }
 
@@ -575,28 +561,22 @@ NS_InitXPCOM2(nsIServiceManager* *result,
     mozilla::AvailableMemoryTracker::Activate();
 
     // Notify observers of xpcom autoregistration start
-    NS_CreateServicesFromCategory(NS_XPCOM_STARTUP_CATEGORY,
+    NS_CreateServicesFromCategory(NS_XPCOM_STARTUP_CATEGORY, 
                                   nullptr,
                                   NS_XPCOM_STARTUP_OBSERVER_ID);
 #ifdef XP_WIN
     CreateAnonTempFileRemover();
 #endif
 
-    // We only want the SystemMemoryReporter running in one process, because it
-    // profiles the entire system.  The main process is the obvious place for
-    // it.
-    if (XRE_GetProcessType() == GeckoProcessType_Default) {
-        mozilla::SystemMemoryReporter::Init();
-    }
+    mozilla::MapsMemoryReporter::Init();
 
     // The memory reporter manager is up and running -- register a reporter for
     // ICU's memory usage.
-    RegisterStrongMemoryReporter(new ICUReporter());
+    NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(ICU));
 
     mozilla::Telemetry::Init();
 
     mozilla::HangMonitor::Startup();
-    mozilla::BackgroundHangMonitor::Startup();
 
 #ifdef MOZ_VISUAL_EVENT_TRACER
     mozilla::eventtracer::Init();
@@ -641,9 +621,7 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
     // Make sure the hang monitor is enabled for shutdown.
     HangMonitor::NotifyActivity();
 
-    if (!NS_IsMainThread()) {
-        NS_RUNTIMEABORT("Shutdown on wrong thread");
-    }
+    NS_ENSURE_STATE(NS_IsMainThread());
 
     nsresult rv;
     nsCOMPtr<nsISimpleEnumerator> moduleLoaders;
@@ -654,8 +632,7 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
         // servicemanager shutdown
 
         nsCOMPtr<nsIThread> thread = do_GetCurrentThread();
-        if (NS_WARN_IF(!thread))
-            return NS_ERROR_UNEXPECTED;
+        NS_ENSURE_STATE(thread);
 
         nsRefPtr<nsObserverService> observerService;
         CallGetService("@mozilla.org/observer-service;1",
@@ -702,10 +679,10 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
 
         HangMonitor::NotifyActivity();
 
-        // Late-write checks needs to find the profile directory, so it has to
+        // Write poisoning needs to find the profile directory, so it has to
         // be initialized before mozilla::services::Shutdown or (because of
         // xpcshell tests replacing the service) modules being unloaded.
-        mozilla::InitLateWriteChecks();
+        InitWritePoisoning();
 
         // We save the "xpcom-shutdown-loaders" observers to notify after
         // the observerservice is gone.
@@ -773,15 +750,7 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
     PROFILER_MARKER("Shutdown xpcom");
     // If we are doing any shutdown checks, poison writes.
     if (gShutdownChecks != SCM_NOTHING) {
-        // Calling InitIOInterposer or InitPoisonIOInterposer twice doesn't
-        // cause any problems, they'll safely abort the initialization on their
-        // own initiative.
-        mozilla::IOInterposer::Init();
-        mozilla::InitPoisonIOInterposer();
-#ifdef XP_MACOSX
-        mozilla::OnlyReportDirtyWrites();
-#endif /* XP_MACOSX */
-        mozilla::BeginLateWriteChecks();
+        mozilla::PoisonWrite();
     }
 
     // Shutdown nsLocalFile string conversion
@@ -842,7 +811,6 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
     Omnijar::CleanUp();
 
     HangMonitor::Shutdown();
-    BackgroundHangMonitor::Shutdown();
 
 #ifdef MOZ_VISUAL_EVENT_TRACER
     eventtracer::Shutdown();

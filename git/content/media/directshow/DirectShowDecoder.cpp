@@ -8,7 +8,6 @@
 #include "DirectShowReader.h"
 #include "MediaDecoderStateMachine.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/WindowsVersion.h"
 
 namespace mozilla {
 

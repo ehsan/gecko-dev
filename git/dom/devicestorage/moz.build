@@ -8,6 +8,8 @@ TEST_DIRS += ['test', 'ipc']
 
 XPIDL_MODULE = 'dom_devicestorage'
 
+MODULE = 'dom'
+
 EXPORTS += [
     'DeviceStorage.h',
     'nsDeviceStorage.h',
@@ -18,7 +20,7 @@ EXPORTS.mozilla.dom.devicestorage += [
     'DeviceStorageRequestParent.h',
 ]
 
-UNIFIED_SOURCES += [
+CPP_SOURCES += [
     'DeviceStorageRequestChild.cpp',
     'DeviceStorageRequestParent.cpp',
     'nsDeviceStorage.cpp',
@@ -30,13 +32,5 @@ IPDL_SOURCES += [
 
 FAIL_ON_WARNINGS = True
 
-include('/ipc/chromium/chromium-config.mozbuild')
-
-FINAL_LIBRARY = 'gklayout'
-LOCAL_INCLUDES += [
-    '/content/base/src',
-    '/content/events/src',
-    '/dom/base',
-    '/dom/ipc',
-]
+LIBXUL_LIBRARY = True
 

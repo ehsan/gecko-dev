@@ -15,13 +15,13 @@
     _(Integer)                      \
     _(Pointer)                      \
     _(Double)                       \
-    _(Float32)                      \
     _(Value)                        \
     _(Parameter)                    \
     _(Callee)                       \
     _(TableSwitch)                  \
     _(TableSwitchV)                 \
     _(Goto)                         \
+    _(NewParallelArray)             \
     _(NewArray)                     \
     _(NewObject)                    \
     _(NewSlots)                     \
@@ -31,7 +31,6 @@
     _(NewPar)                       \
     _(NewDenseArrayPar)             \
     _(NewCallObjectPar)             \
-    _(NewDerivedTypedObject)        \
     _(AbortPar)                     \
     _(InitElem)                     \
     _(InitElemGetterSetter)         \
@@ -47,10 +46,8 @@
     _(ApplyArgsGeneric)             \
     _(Bail)                         \
     _(GetDynamicName)               \
-    _(FilterArgumentsOrEvalS)       \
-    _(FilterArgumentsOrEvalV)       \
-    _(CallDirectEvalS)              \
-    _(CallDirectEvalV)              \
+    _(FilterArguments)              \
+    _(CallDirectEval)               \
     _(StackArgT)                    \
     _(StackArgV)                    \
     _(CreateThis)                   \
@@ -60,7 +57,6 @@
     _(GetArgumentsObjectArg)        \
     _(SetArgumentsObjectArg)        \
     _(ReturnFromCtor)               \
-    _(ComputeThis)                  \
     _(BitNotI)                      \
     _(BitNotV)                      \
     _(BitOpI)                       \
@@ -72,7 +68,6 @@
     _(Phi)                          \
     _(TestIAndBranch)               \
     _(TestDAndBranch)               \
-    _(TestFAndBranch)               \
     _(TestVAndBranch)               \
     _(TestOAndBranch)               \
     _(FunctionDispatch)             \
@@ -81,8 +76,6 @@
     _(CompareAndBranch)             \
     _(CompareD)                     \
     _(CompareDAndBranch)            \
-    _(CompareF)                     \
-    _(CompareFAndBranch)            \
     _(CompareS)                     \
     _(CompareStrictS)               \
     _(CompareB)                     \
@@ -99,55 +92,39 @@
     _(MinMaxD)                      \
     _(NegI)                         \
     _(NegD)                         \
-    _(NegF)                         \
     _(AbsI)                         \
     _(AbsD)                         \
-    _(AbsF)                         \
     _(SqrtD)                        \
-    _(SqrtF)                        \
     _(Atan2D)                       \
-    _(Hypot)                        \
     _(PowI)                         \
     _(PowD)                         \
     _(Random)                       \
     _(MathFunctionD)                \
-    _(MathFunctionF)                \
     _(NotI)                         \
     _(NotD)                         \
-    _(NotF)                         \
     _(NotO)                         \
     _(NotV)                         \
     _(AddI)                         \
     _(SubI)                         \
     _(MulI)                         \
     _(MathD)                        \
-    _(MathF)                        \
     _(ModD)                         \
     _(BinaryV)                      \
     _(Concat)                       \
     _(ConcatPar)                    \
     _(CharCodeAt)                   \
     _(FromCharCode)                 \
-    _(StringSplit)                  \
     _(Int32ToDouble)                \
-    _(Float32ToDouble)              \
-    _(DoubleToFloat32)              \
-    _(Int32ToFloat32)               \
     _(ValueToDouble)                \
     _(ValueToInt32)                 \
-    _(ValueToFloat32)               \
     _(DoubleToInt32)                \
-    _(Float32ToInt32)               \
     _(TruncateDToInt32)             \
-    _(TruncateFToInt32)             \
     _(IntToString)                  \
     _(DoubleToString)               \
     _(Start)                        \
     _(OsrEntry)                     \
     _(OsrValue)                     \
     _(OsrScopeChain)                \
-    _(OsrReturnValue)               \
-    _(OsrArgumentsObject)           \
     _(RegExp)                       \
     _(RegExpTest)                   \
     _(Lambda)                       \
@@ -164,15 +141,12 @@
     _(StoreSlotT)                   \
     _(GuardShape)                   \
     _(GuardObjectType)              \
-    _(GuardObjectIdentity)          \
     _(GuardClass)                   \
     _(GuardThreadLocalObject)       \
-    _(TypeBarrierV)                 \
-    _(TypeBarrierO)                 \
+    _(TypeBarrier)                  \
     _(MonitorTypes)                 \
     _(PostWriteBarrierO)            \
     _(PostWriteBarrierV)            \
-    _(PostWriteBarrierAllSlots)     \
     _(InitializedLength)            \
     _(SetInitializedLength)         \
     _(BoundsCheck)                  \
@@ -222,7 +196,6 @@
     _(CallInitElementArray)         \
     _(CallSetProperty)              \
     _(CallDeleteProperty)           \
-    _(CallDeleteElement)           \
     _(SetPropertyCacheV)            \
     _(SetPropertyCacheT)            \
     _(SetElementCacheV)             \
@@ -235,23 +208,17 @@
     _(IteratorMore)                 \
     _(IteratorEnd)                  \
     _(ArrayLength)                  \
-    _(SetArrayLength)               \
     _(TypedArrayLength)             \
     _(TypedArrayElements)           \
-    _(TypedObjectElements)          \
     _(StringLength)                 \
     _(ArgumentsLength)              \
-    _(GetFrameArgument)             \
-    _(SetFrameArgumentT)            \
-    _(SetFrameArgumentC)            \
-    _(SetFrameArgumentV)            \
+    _(GetArgument)                  \
     _(RunOncePrologue)              \
     _(Rest)                         \
     _(RestPar)                      \
     _(TypeOfV)                      \
     _(ToIdV)                        \
     _(Floor)                        \
-    _(FloorF)                       \
     _(Round)                        \
     _(In)                           \
     _(InArray)                      \
@@ -262,7 +229,6 @@
     _(InterruptCheckImplicit)       \
     _(FunctionBoundary)             \
     _(GetDOMProperty)               \
-    _(GetDOMMember)                 \
     _(SetDOMProperty)               \
     _(CallDOMNative)                \
     _(IsCallable)                   \
@@ -279,11 +245,8 @@
     _(AsmJSCall)                    \
     _(AsmJSCheckOverRecursed)       \
     _(CheckInterruptPar)            \
-    _(RecompileCheck)               \
-    _(AssertRangeI)                 \
-    _(AssertRangeD)                 \
-    _(AssertRangeF)                 \
-    _(AssertRangeV)
+    _(RangeAssert)                  \
+    _(DoubleRangeAssert)
 
 #if defined(JS_CPU_X86)
 # include "jit/x86/LOpcodes-x86.h"

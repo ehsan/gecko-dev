@@ -8,13 +8,13 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/system_wrappers/interface/atomic32.h"
+#include "atomic32.h"
 
 #include <assert.h>
 #include <libkern/OSAtomic.h>
 #include <stdlib.h>
 
-#include "webrtc/common_types.h"
+#include "common_types.h"
 
 namespace webrtc {
 
@@ -44,6 +44,10 @@ int32_t Atomic32::operator-=(int32_t value) {
 
 bool Atomic32::CompareExchange(int32_t new_value, int32_t compare_value) {
   return OSAtomicCompareAndSwap32Barrier(compare_value, new_value, &value_);
+}
+
+int32_t Atomic32::Value() const {
+  return value_;
 }
 
 }  // namespace webrtc

@@ -14,6 +14,7 @@
 #include "nsSVGPathGeometryElement.h"
 #include "nsSVGFilterFrame.h"
 #include "nsSVGMaskFrame.h"
+#include "nsSVGTextPathFrame.h"
 #include "nsIReflowCallback.h"
 #include "RestyleManager.h"
 
@@ -66,11 +67,21 @@ nsSVGRenderingObserver::StopListening()
  * benefits/necessity of maintaining a second observer list.
  */
 
+#ifdef _MSC_VER
+// Disable "warning C4355: 'this' : used in base member initializer list".
+// We can ignore that warning because we know that mElement's constructor 
+// doesn't dereference the pointer passed to it.
+#pragma warning(push)
+#pragma warning(disable:4355)
+#endif
 nsSVGIDRenderingObserver::nsSVGIDRenderingObserver(nsIURI *aURI,
                                                    nsIFrame *aFrame,
                                                    bool aReferenceImage)
-  : mElement(MOZ_THIS_IN_INITIALIZER_LIST()), mFrame(aFrame),
+  : mElement(this), mFrame(aFrame),
     mFramePresShell(aFrame->PresContext()->PresShell())
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 {
   // Start watching the target element
   mElement.Reset(aFrame->GetContent(), aURI, true, aReferenceImage);
@@ -411,6 +422,7 @@ GetEffectPropertyForURI(nsIURI *aURI, nsIFrame *aFrame,
     static_cast<nsSVGEffects::URIObserverHashtable*>(props.Get(aProperty));
   if (!hashtable) {
     hashtable = new nsSVGEffects::URIObserverHashtable();
+    hashtable->Init();
     props.Set(aProperty, hashtable);
   }
   nsSVGRenderingObserver* prop =

@@ -8,7 +8,7 @@
 #define jit_arm_LIR_arm_h
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class LBox : public LInstructionHelper<2, 1, 0>
 {
@@ -26,30 +26,16 @@ class LBox : public LInstructionHelper<2, 1, 0>
     MIRType type() const {
         return type_;
     }
-    const char *extraName() const {
-        return StringFromMIRType(type_);
-    }
 };
 
-class LBoxFloatingPoint : public LInstructionHelper<2, 1, 1>
+class LBoxDouble : public LInstructionHelper<2, 1, 1>
 {
-    MIRType type_;
-
   public:
-    LIR_HEADER(BoxFloatingPoint);
+    LIR_HEADER(BoxDouble);
 
-    LBoxFloatingPoint(const LAllocation &in, const LDefinition &temp, MIRType type)
-      : type_(type)
-    {
+    LBoxDouble(const LAllocation &in, const LDefinition &temp) {
         setOperand(0, in);
         setTemp(0, temp);
-    }
-
-    MIRType type() const {
-        return type_;
-    }
-    const char *extraName() const {
-        return StringFromMIRType(type_);
     }
 };
 
@@ -67,54 +53,27 @@ class LUnbox : public LInstructionHelper<1, 2, 0>
     const LAllocation *type() {
         return getOperand(1);
     }
-    const char *extraName() const {
-        return StringFromMIRType(mir()->type());
-    }
 };
 
-class LUnboxFloatingPoint : public LInstructionHelper<1, 2, 0>
+class LUnboxDouble : public LInstructionHelper<1, 2, 0>
 {
-    MIRType type_;
-
   public:
-    LIR_HEADER(UnboxFloatingPoint);
+    LIR_HEADER(UnboxDouble);
 
     static const size_t Input = 0;
-
-    LUnboxFloatingPoint(MIRType type)
-      : type_(type)
-    { }
 
     MUnbox *mir() const {
         return mir_->toUnbox();
     }
-
-    MIRType type() const {
-        return type_;
-    }
-    const char *extraName() const {
-        return StringFromMIRType(type_);
-    }
 };
 
 // Convert a 32-bit unsigned integer to a double.
-class LAsmJSUInt32ToDouble : public LInstructionHelper<1, 1, 0>
+class LUInt32ToDouble : public LInstructionHelper<1, 1, 0>
 {
   public:
-    LIR_HEADER(AsmJSUInt32ToDouble)
+    LIR_HEADER(UInt32ToDouble)
 
-    LAsmJSUInt32ToDouble(const LAllocation &input) {
-        setOperand(0, input);
-    }
-};
-
-// Convert a 32-bit unsigned integer to a float32.
-class LAsmJSUInt32ToFloat32 : public LInstructionHelper<1, 1, 0>
-{
-  public:
-    LIR_HEADER(AsmJSUInt32ToFloat32)
-
-    LAsmJSUInt32ToFloat32(const LAllocation &input) {
+    LUInt32ToDouble(const LAllocation &input) {
         setOperand(0, input);
     }
 };
@@ -139,27 +98,25 @@ class LDivI : public LBinaryMath<1>
 // LSoftDivI is a software divide for ARM cores that don't support a hardware
 // divide instruction.
 //
-// It is implemented as a proper C function so it trashes r0, r1, r2 and r3.
-// The call also trashes lr, and has the ability to trash ip. The function also
+// It is implemented as a proper C function so it trashes r0, r1, r2 and r3.  The
+// call also trashes lr, and has the ability to trash ip. The function also
 // takes two arguments (dividend in r0, divisor in r1). The LInstruction gets
 // encoded such that the divisor and dividend are passed in their apropriate
-// registers and end their life at the start of the instruction by the use of
-// useFixedAtStart.  The result is returned in r0 and the other three registers
-// that can be trashed are marked as temps.  For the time being, the link
-// register is not marked as trashed because we never allocate to the link
-// register.  The FP registers are not trashed.
-class LSoftDivI : public LBinaryMath<3>
+// registers, and are marked as copy so we can modify them (and the function
+// will).  The other thre registers that can be trashed are marked as such. For
+// the time being, the link register is not marked as trashed because we never
+// allocate to the link register.
+class LSoftDivI : public LBinaryMath<2>
 {
   public:
     LIR_HEADER(SoftDivI);
 
     LSoftDivI(const LAllocation &lhs, const LAllocation &rhs,
-              const LDefinition &temp1, const LDefinition &temp2, const LDefinition &temp3) {
+              const LDefinition &temp1, const LDefinition &temp2) {
         setOperand(0, lhs);
         setOperand(1, rhs);
         setTemp(0, temp1);
         setTemp(1, temp2);
-        setTemp(2, temp3);
     }
 
     MDiv *mir() const {
@@ -206,34 +163,25 @@ class LModI : public LBinaryMath<1>
         setTemp(0, callTemp);
     }
 
-    const LDefinition *callTemp() {
-        return getTemp(0);
-    }
-
     MMod *mir() const {
         return mir_->toMod();
     }
 };
 
-class LSoftModI : public LBinaryMath<4>
+class LSoftModI : public LBinaryMath<3>
 {
   public:
     LIR_HEADER(SoftModI);
 
     LSoftModI(const LAllocation &lhs, const LAllocation &rhs,
-              const LDefinition &temp1, const LDefinition &temp2, const LDefinition &temp3,
+              const LDefinition &temp1, const LDefinition &temp2,
               const LDefinition &callTemp)
     {
         setOperand(0, lhs);
         setOperand(1, rhs);
         setTemp(0, temp1);
         setTemp(1, temp2);
-        setTemp(2, temp3);
-        setTemp(3, callTemp);
-    }
-
-    const LDefinition *callTemp() {
-        return getTemp(3);
+        setTemp(2, callTemp);
     }
 
     MMod *mir() const {
@@ -321,12 +269,12 @@ class LTableSwitch : public LInstructionHelper<0, 1, 1>
     const LAllocation *index() {
         return getOperand(0);
     }
-    const LDefinition *tempInt() {
-        return getTemp(0);
+    const LAllocation *tempInt() {
+        return getTemp(0)->output();
     }
     // This is added to share the same CodeGenerator prefixes.
-    const LDefinition *tempPointer() {
-        return nullptr;
+    const LAllocation *tempPointer() {
+        return NULL;
     }
 };
 
@@ -350,14 +298,14 @@ class LTableSwitchV : public LInstructionHelper<0, BOX_PIECES, 2>
 
     static const size_t InputValue = 0;
 
-    const LDefinition *tempInt() {
-        return getTemp(0);
+    const LAllocation *tempInt() {
+        return getTemp(0)->output();
     }
-    const LDefinition *tempFloat() {
-        return getTemp(1);
+    const LAllocation *tempFloat() {
+        return getTemp(1)->output();
     }
-    const LDefinition *tempPointer() {
-        return nullptr;
+    const LAllocation *tempPointer() {
+        return NULL;
     }
 };
 
@@ -373,8 +321,8 @@ class LGuardShape : public LInstructionHelper<0, 1, 1>
     const MGuardShape *mir() const {
         return mir_->toGuardShape();
     }
-    const LDefinition *tempInt() {
-        return getTemp(0);
+    const LAllocation *tempInt() {
+        return getTemp(0)->output();
     }
 };
 
@@ -390,8 +338,8 @@ class LGuardObjectType : public LInstructionHelper<0, 1, 1>
     const MGuardObjectType *mir() const {
         return mir_->toGuardObjectType();
     }
-    const LDefinition *tempInt() {
-        return getTemp(0);
+    const LAllocation *tempInt() {
+        return getTemp(0)->output();
     }
 };
 
@@ -415,36 +363,30 @@ class LUDiv : public LBinaryMath<0>
 {
   public:
     LIR_HEADER(UDiv);
-
-    MDiv *mir() {
-        return mir_->toDiv();
-    }
 };
 
 class LUMod : public LBinaryMath<0>
 {
   public:
     LIR_HEADER(UMod);
-
-    MMod *mir() {
-        return mir_->toMod();
-    }
 };
 
 // This class performs a simple x86 'div', yielding either a quotient or remainder depending on
 // whether this instruction is defined to output eax (quotient) or edx (remainder).
-class LSoftUDivOrMod : public LBinaryMath<3>
+class LSoftUDivOrMod : public LBinaryMath<2>
 {
   public:
     LIR_HEADER(SoftUDivOrMod);
 
-    LSoftUDivOrMod(const LAllocation &lhs, const LAllocation &rhs, const LDefinition &temp1,
-                   const LDefinition &temp2, const LDefinition &temp3) {
+    LSoftUDivOrMod(const LAllocation &lhs, const LAllocation &rhs, const LDefinition &temp1, const LDefinition &temp2) {
         setOperand(0, lhs);
         setOperand(1, rhs);
         setTemp(0, temp1);
         setTemp(1, temp2);
-        setTemp(2, temp3);
+    }
+    // this is incorrect, it is returned in r1, getTemp(0) is r2.
+    const LDefinition *remainder() {
+        return getTemp(0);
     }
 };
 
@@ -467,7 +409,7 @@ class LAsmJSLoadFuncPtr : public LInstructionHelper<1, 1, 1>
     }
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_arm_LIR_arm_h */

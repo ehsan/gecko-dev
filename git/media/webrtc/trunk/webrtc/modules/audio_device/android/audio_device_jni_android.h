@@ -15,8 +15,8 @@
 #ifndef WEBRTC_AUDIO_DEVICE_AUDIO_DEVICE_JNI_ANDROID_H
 #define WEBRTC_AUDIO_DEVICE_AUDIO_DEVICE_JNI_ANDROID_H
 
-#include "webrtc/modules/audio_device/audio_device_generic.h"
-#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
+#include "audio_device_generic.h"
+#include "critical_section_wrapper.h"
 
 #include <jni.h> // For accessing AudioDeviceAndroid java class
 
@@ -34,10 +34,6 @@ class AudioDeviceAndroidJni : public AudioDeviceGeneric {
   ~AudioDeviceAndroidJni();
 
   static int32_t SetAndroidAudioDeviceObjects(void* javaVM,
-                                              void* context);
-
-  static int32_t SetAndroidAudioDeviceObjects(void* javaVM,
-                                              void* env,
                                               void* context);
 
   virtual int32_t ActiveAudioLayer(
@@ -218,7 +214,9 @@ class AudioDeviceAndroidJni : public AudioDeviceGeneric {
 
   // Signal flags to threads
   bool _startRec;
+  bool _stopRec;
   bool _startPlay;
+  bool _stopPlay;
 
   // Warnings and errors
   uint16_t _playWarning;
@@ -268,6 +266,6 @@ class AudioDeviceAndroidJni : public AudioDeviceGeneric {
   static jclass globalScClass;
 };
 
-}  // namespace webrtc
+} // namespace webrtc
 
 #endif  // WEBRTC_AUDIO_DEVICE_AUDIO_DEVICE_JNI_ANDROID_H

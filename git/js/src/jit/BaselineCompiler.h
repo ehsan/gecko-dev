@@ -9,7 +9,12 @@
 
 #ifdef JS_ION
 
+#include "jit/BaselineIC.h"
+#include "jit/BaselineJIT.h"
+#include "jit/BytecodeAnalysis.h"
 #include "jit/FixedList.h"
+#include "jit/IonAllocPolicy.h"
+#include "jit/IonCode.h"
 #if defined(JS_CPU_X86)
 # include "jit/x86/BaselineCompiler-x86.h"
 #elif defined(JS_CPU_X64)
@@ -19,7 +24,7 @@
 #endif
 
 namespace js {
-namespace jit {
+namespace ion {
 
 #define OPCODE_LIST(_)         \
     _(JSOP_NOP)                \
@@ -27,7 +32,6 @@ namespace jit {
     _(JSOP_NOTEARG)            \
     _(JSOP_POP)                \
     _(JSOP_POPN)               \
-    _(JSOP_POPNV)              \
     _(JSOP_DUP)                \
     _(JSOP_DUP2)               \
     _(JSOP_SWAP)               \
@@ -98,6 +102,7 @@ namespace jit {
     _(JSOP_GETELEM)            \
     _(JSOP_SETELEM)            \
     _(JSOP_CALLELEM)           \
+    _(JSOP_ENUMELEM)           \
     _(JSOP_DELELEM)            \
     _(JSOP_IN)                 \
     _(JSOP_GETGNAME)           \
@@ -145,9 +150,12 @@ namespace jit {
     _(JSOP_FINALLY)            \
     _(JSOP_GOSUB)              \
     _(JSOP_RETSUB)             \
-    _(JSOP_PUSHBLOCKSCOPE)     \
-    _(JSOP_POPBLOCKSCOPE)      \
-    _(JSOP_DEBUGLEAVEBLOCK)    \
+    _(JSOP_ENTERBLOCK)         \
+    _(JSOP_ENTERLET0)          \
+    _(JSOP_ENTERLET1)          \
+    _(JSOP_LEAVEBLOCK)         \
+    _(JSOP_LEAVEBLOCKEXPR)     \
+    _(JSOP_LEAVEFORLETIN)      \
     _(JSOP_EXCEPTION)          \
     _(JSOP_DEBUGGER)           \
     _(JSOP_ARGUMENTS)          \
@@ -160,9 +168,11 @@ namespace jit {
     _(JSOP_ITERNEXT)           \
     _(JSOP_ENDITER)            \
     _(JSOP_CALLEE)             \
+    _(JSOP_POPV)               \
     _(JSOP_SETRVAL)            \
-    _(JSOP_RETRVAL)            \
-    _(JSOP_RETURN)
+    _(JSOP_RETURN)             \
+    _(JSOP_STOP)               \
+    _(JSOP_RETRVAL)
 
 class BaselineCompiler : public BaselineCompilerSpecific
 {
@@ -179,18 +189,11 @@ class BaselineCompiler : public BaselineCompilerSpecific
     bool modifiesArguments_;
 
     Label *labelOf(jsbytecode *pc) {
-        return &labels_[script->pcToOffset(pc)];
-    }
-
-    // If a script has more |nslots| than this, then emit code to do an
-    // early stack check.
-    static const unsigned EARLY_STACK_CHECK_SLOT_COUNT = 128;
-    bool needsEarlyStackCheck() const {
-        return script->nslots() > EARLY_STACK_CHECK_SLOT_COUNT;
+        return &labels_[pc - script->code];
     }
 
   public:
-    BaselineCompiler(JSContext *cx, TempAllocator &alloc, HandleScript script);
+    BaselineCompiler(JSContext *cx, HandleScript script);
     bool init();
 
     MethodStatus compile();
@@ -211,7 +214,7 @@ class BaselineCompiler : public BaselineCompilerSpecific
         return emitIC(stub, false);
     }
 
-    bool emitStackCheck(bool earlyCheck=false);
+    bool emitStackCheck();
     bool emitInterruptCheck();
     bool emitUseCountIncrement();
     bool emitArgumentTypeChecks();
@@ -250,6 +253,9 @@ class BaselineCompiler : public BaselineCompilerSpecific
 
     bool emitFormalArgAccess(uint32_t arg, bool get);
 
+    bool emitEnterBlock();
+    bool emitLeaveBlock();
+
     bool addPCMappingEntry(bool addIndexEntry);
 
     void getScopeCoordinateObject(Register reg);
@@ -257,7 +263,7 @@ class BaselineCompiler : public BaselineCompilerSpecific
     Address getScopeCoordinateAddress(Register reg);
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif // JS_ION

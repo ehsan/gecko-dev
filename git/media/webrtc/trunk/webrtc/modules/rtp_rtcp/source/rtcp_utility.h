@@ -11,11 +11,11 @@
 #ifndef WEBRTC_MODULES_RTP_RTCP_SOURCE_RTCP_UTILITY_H_
 #define WEBRTC_MODULES_RTP_RTCP_SOURCE_RTCP_UTILITY_H_
 
-#include <stddef.h> // size_t, ptrdiff_t
+#include <cstddef> // size_t, ptrdiff_t
 
-#include "webrtc/modules/rtp_rtcp/interface/rtp_rtcp_defines.h"
-#include "webrtc/modules/rtp_rtcp/source/rtp_rtcp_config.h"
-#include "webrtc/typedefs.h"
+#include "typedefs.h"
+#include "rtp_rtcp_config.h"
+#include "rtp_rtcp_defines.h"
 
 namespace webrtc {
 namespace RTCPUtility {
@@ -441,6 +441,6 @@ namespace RTCPUtility {
 
         RTCPCommonHeader         _header;
     };
-}  // RTCPUtility
-}  // namespace webrtc
+} // RTCPUtility
+} // namespace webrtc
 #endif // WEBRTC_MODULES_RTP_RTCP_SOURCE_RTCP_UTILITY_H_

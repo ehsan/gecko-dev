@@ -10,17 +10,16 @@
 #ifndef VOICE_ENGINE_MAIN_TEST_AUTO_TEST_FAKE_MEDIA_PROCESS_H_
 #define VOICE_ENGINE_MAIN_TEST_AUTO_TEST_FAKE_MEDIA_PROCESS_H_
 
-#include <math.h>
+#include <cmath>
 
 class FakeMediaProcess : public webrtc::VoEMediaProcess {
  public:
-  FakeMediaProcess() : frequency(0) {}
-  virtual void Process(int channel,
+  virtual void Process(const int channel,
                        const webrtc::ProcessingTypes type,
                        int16_t audio_10ms[],
-                       int length,
-                       int sampling_freq_hz,
-                       bool stereo) {
+                       const int length,
+                       const int sampling_freq_hz,
+                       const bool stereo) {
     for (int i = 0; i < length; i++) {
       if (!stereo) {
         audio_10ms[i] = static_cast<int16_t>(audio_10ms[i] *

@@ -1,4 +1,4 @@
-/* -*- Mode: C++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 8; -*- */
+/* -*- Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil; tab-width: 8; -*- */
 /* vim: set sw=4 ts=8 et tw=80 : */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -20,19 +20,16 @@
 #include "nsIMozBrowserFrame.h"
 #include "nsDOMClassInfoID.h"
 #include "mozilla/dom/StructuredCloneUtils.h"
-#include "js/StructuredClone.h"
 
 using mozilla::dom::StructuredCloneData;
 using mozilla::dom::StructuredCloneClosure;
 
 bool
-nsInProcessTabChildGlobal::DoSendBlockingMessage(JSContext* aCx,
-                                                 const nsAString& aMessage,
-                                                 const mozilla::dom::StructuredCloneData& aData,
-                                                 JS::Handle<JSObject *> aCpows,
-                                                 nsIPrincipal* aPrincipal,
-                                                 InfallibleTArray<nsString>* aJSONRetVal,
-                                                 bool aIsSync)
+nsInProcessTabChildGlobal::DoSendSyncMessage(JSContext* aCx,
+                                             const nsAString& aMessage,
+                                             const mozilla::dom::StructuredCloneData& aData,
+                                             JS::Handle<JSObject *> aCpows,
+                                             InfallibleTArray<nsString>* aJSONRetVal)
 {
   nsTArray<nsCOMPtr<nsIRunnable> > asyncMessages;
   asyncMessages.SwapElements(mASyncMessages);
@@ -44,8 +41,7 @@ nsInProcessTabChildGlobal::DoSendBlockingMessage(JSContext* aCx,
   if (mChromeMessageManager) {
     SameProcessCpowHolder cpows(js::GetRuntime(aCx), aCpows);
     nsRefPtr<nsFrameMessageManager> mm = mChromeMessageManager;
-    mm->ReceiveMessage(mOwner, aMessage, true, &aData, &cpows, aPrincipal,
-                       aJSONRetVal);
+    mm->ReceiveMessage(mOwner, aMessage, true, &aData, &cpows, aJSONRetVal);
   }
   return true;
 }
@@ -57,13 +53,11 @@ public:
                          nsInProcessTabChildGlobal* aTabChild,
                          const nsAString& aMessage,
                          const StructuredCloneData& aData,
-                         JS::Handle<JSObject *> aCpows,
-                         nsIPrincipal* aPrincipal)
+                         JS::Handle<JSObject *> aCpows)
     : mRuntime(js::GetRuntime(aCx)),
       mTabChild(aTabChild),
       mMessage(aMessage),
       mCpows(aCpows),
-      mPrincipal(aPrincipal),
       mRun(false)
   {
     if (aData.mDataLength && !mData.copy(aData.mData, aData.mDataLength)) {
@@ -99,8 +93,7 @@ public:
       SameProcessCpowHolder cpows(mRuntime, JS::Handle<JSObject *>::fromMarkedLocation(&mCpows));
 
       nsRefPtr<nsFrameMessageManager> mm = mTabChild->mChromeMessageManager;
-      mm->ReceiveMessage(mTabChild->mOwner, mMessage, false, &data, &cpows,
-                         mPrincipal, nullptr);
+      mm->ReceiveMessage(mTabChild->mOwner, mMessage, false, &data, &cpows, nullptr);
     }
     return NS_OK;
   }
@@ -110,7 +103,6 @@ public:
   JSAutoStructuredCloneBuffer mData;
   StructuredCloneClosure mClosure;
   JSObject* mCpows;
-  nsCOMPtr<nsIPrincipal> mPrincipal;
   // True if this runnable has already been called. This can happen if DoSendSyncMessage
   // is called while waiting for an asynchronous message send.
   bool mRun;
@@ -120,11 +112,10 @@ bool
 nsInProcessTabChildGlobal::DoSendAsyncMessage(JSContext* aCx,
                                               const nsAString& aMessage,
                                               const StructuredCloneData& aData,
-                                              JS::Handle<JSObject *> aCpows,
-                                              nsIPrincipal* aPrincipal)
+                                              JS::Handle<JSObject *> aCpows)
 {
   nsCOMPtr<nsIRunnable> ev =
-    new nsAsyncMessageToParent(aCx, this, aMessage, aData, aCpows, aPrincipal);
+    new nsAsyncMessageToParent(aCx, this, aMessage, aData, aCpows);
   mASyncMessages.AppendElement(ev);
   NS_DispatchToCurrentThread(ev);
   return true;
@@ -335,25 +326,23 @@ nsInProcessTabChildGlobal::InitTabChildGlobal()
 class nsAsyncScriptLoad : public nsRunnable
 {
 public:
-    nsAsyncScriptLoad(nsInProcessTabChildGlobal* aTabChild, const nsAString& aURL,
-                      bool aRunInGlobalScope)
-      : mTabChild(aTabChild), mURL(aURL), mRunInGlobalScope(aRunInGlobalScope) {}
+  nsAsyncScriptLoad(nsInProcessTabChildGlobal* aTabChild, const nsAString& aURL)
+  : mTabChild(aTabChild), mURL(aURL) {}
 
   NS_IMETHOD Run()
   {
-    mTabChild->LoadFrameScript(mURL, mRunInGlobalScope);
+    mTabChild->LoadFrameScript(mURL);
     return NS_OK;
   }
   nsRefPtr<nsInProcessTabChildGlobal> mTabChild;
   nsString mURL;
-  bool mRunInGlobalScope;
 };
 
 void
-nsInProcessTabChildGlobal::LoadFrameScript(const nsAString& aURL, bool aRunInGlobalScope)
+nsInProcessTabChildGlobal::LoadFrameScript(const nsAString& aURL)
 {
   if (!nsContentUtils::IsSafeToRunScript()) {
-    nsContentUtils::AddScriptRunner(new nsAsyncScriptLoad(this, aURL, aRunInGlobalScope));
+    nsContentUtils::AddScriptRunner(new nsAsyncScriptLoad(this, aURL));
     return;
   }
   if (!mInitialized) {
@@ -362,7 +351,7 @@ nsInProcessTabChildGlobal::LoadFrameScript(const nsAString& aURL, bool aRunInGlo
   }
   bool tmp = mLoadingScript;
   mLoadingScript = true;
-  LoadFrameScriptInternal(aURL, aRunInGlobalScope);
+  LoadFrameScriptInternal(aURL);
   mLoadingScript = tmp;
   if (!mLoadingScript && mDelayedDisconnect) {
     mDelayedDisconnect = false;

@@ -64,7 +64,7 @@ private:
   // - When the user entered a zero length password.
   //   An empty password should be represented as an empty
   //   string (a SECItem that contains a single terminating
-  //   null UTF16 character), but some applications use a
+  //   NULL UTF16 character), but some applications use a
   //   zero length SECItem.
   //   We try both variations, zero length item and empty string,
   //   without giving a user prompt when trying the different empty password flavors.

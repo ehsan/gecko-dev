@@ -9,18 +9,12 @@
 
 #include "mozilla/dom/quota/QuotaCommon.h"
 
-#include "PersistenceType.h"
-
 class nsIOfflineStorage;
 class nsIRunnable;
 
-#define IDB_DIRECTORY_NAME "idb"
-#define ASMJSCACHE_DIRECTORY_NAME "asmjs"
-
 BEGIN_QUOTA_NAMESPACE
 
-class OriginOrPatternString;
-class UsageInfo;
+class UsageRunnable;
 
 // An abstract interface for quota manager clients.
 // Each storage API must provide an implementation of this interface in order
@@ -38,7 +32,6 @@ public:
     IDB = 0,
     //LS,
     //APPCACHE,
-    ASMJS,
     TYPE_MAX
   };
 
@@ -50,11 +43,7 @@ public:
   {
     switch (aType) {
       case IDB:
-        aText.AssignLiteral(IDB_DIRECTORY_NAME);
-        break;
-
-      case ASMJS:
-        aText.AssignLiteral(ASMJSCACHE_DIRECTORY_NAME);
+        aText.AssignLiteral("idb");
         break;
 
       case TYPE_MAX:
@@ -69,11 +58,8 @@ public:
   static nsresult
   TypeFromText(const nsAString& aText, Type& aType)
   {
-    if (aText.EqualsLiteral(IDB_DIRECTORY_NAME)) {
+    if (aText.EqualsLiteral("idb")) {
       aType = IDB;
-    }
-    else if (aText.EqualsLiteral(ASMJSCACHE_DIRECTORY_NAME)) {
-      aType = ASMJS;
     }
     else {
       return NS_ERROR_FAILURE;
@@ -84,20 +70,14 @@ public:
 
   // Methods which are called on the IO thred.
   virtual nsresult
-  InitOrigin(PersistenceType aPersistenceType,
-             const nsACString& aGroup,
-             const nsACString& aOrigin,
-             UsageInfo* aUsageInfo) = 0;
+  InitOrigin(const nsACString& aOrigin, UsageRunnable* aUsageRunnable) = 0;
 
   virtual nsresult
-  GetUsageForOrigin(PersistenceType aPersistenceType,
-                    const nsACString& aGroup,
-                    const nsACString& aOrigin,
-                    UsageInfo* aUsageInfo) = 0;
+  GetUsageForOrigin(const nsACString& aOrigin,
+                    UsageRunnable* aUsageRunnable) = 0;
 
   virtual void
-  OnOriginClearCompleted(PersistenceType aPersistenceType,
-                         const OriginOrPatternString& aOriginOrPattern) = 0;
+  OnOriginClearCompleted(const nsACString& aPattern) = 0;
 
   virtual void
   ReleaseIOThreadObjects() = 0;

@@ -7,8 +7,12 @@
 #ifndef builtin_Intl_h
 #define builtin_Intl_h
 
-#include "NamespaceImports.h"
-#include "unicode/utypes.h"
+#include "jsapi.h"
+
+#include "js/RootingAPI.h"
+
+struct JSContext;
+class JSObject;
 
 /*
  * The Intl module specified by standard ECMA-402,
@@ -21,6 +25,7 @@
  */
 extern JSObject *
 js_InitIntlClass(JSContext *cx, js::HandleObject obj);
+
 
 namespace js {
 
@@ -178,21 +183,6 @@ intl_patternForSkeleton(JSContext *cx, unsigned argc, Value *vp);
  */
 extern bool
 intl_FormatDateTime(JSContext *cx, unsigned argc, Value *vp);
-
-/**
- * Cast jschar* strings to UChar* strings used by ICU.
- */
-inline const UChar *
-JSCharToUChar(const jschar *chars)
-{
-  return reinterpret_cast<const UChar *>(chars);
-}
-
-inline UChar *
-JSCharToUChar(jschar *chars)
-{
-  return reinterpret_cast<UChar *>(chars);
-}
 
 } // namespace js
 

@@ -6,17 +6,17 @@ namespace _ipdltest {
 
 // (Bridge protocols can have different semantics than the endpoints
 // they bridge)
-intr protocol PTestBridgeMainSub {
+rpc protocol PTestBridgeMainSub {
     bridges PTestBridgeMain, PTestBridgeSub;
 
 child:
     Hi();
-    intr HiRpc();
+    rpc HiRpc();
 
 parent:
     Hello();
     sync HelloSync();
-    intr HelloRpc();
+    rpc HelloRpc();
     __delete__();
 
 state START:       recv Hello goto HI;

@@ -33,10 +33,7 @@ public:
   virtual Point CurrentPoint() const;
   virtual TemporaryRef<Path> Finish();
 
-  void AppendPath(const SkPath &aPath);
-
 private:
-
   void SetFillRule(FillRule aFillRule);
 
   SkPath mPath;
@@ -68,8 +65,6 @@ public:
   
   virtual Rect GetStrokedBounds(const StrokeOptions &aStrokeOptions,
                                 const Matrix &aTransform = Matrix()) const;
-
-  virtual void StreamToSink(PathSink *aSink) const;
 
   virtual FillRule GetFillRule() const { return mFillRule; }
 

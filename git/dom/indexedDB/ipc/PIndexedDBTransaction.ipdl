@@ -7,7 +7,7 @@ include protocol PIndexedDBObjectStore;
 
 include "mozilla/dom/indexedDB/SerializationHelpers.h";
 
-using struct mozilla::dom::indexedDB::ObjectStoreInfoGuts from "mozilla/dom/indexedDB/DatabaseInfo.h";
+using mozilla::dom::indexedDB::ObjectStoreInfoGuts;
 
 namespace mozilla {
 namespace dom {

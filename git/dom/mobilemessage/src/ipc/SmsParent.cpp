@@ -8,6 +8,7 @@
 #include "nsIMmsService.h"
 #include "nsIObserverService.h"
 #include "mozilla/Services.h"
+#include "Constants.h"
 #include "nsIDOMMozSmsMessage.h"
 #include "nsIDOMMozMmsMessage.h"
 #include "mozilla/unused.h"
@@ -20,11 +21,9 @@
 #include "nsIDOMFile.h"
 #include "mozilla/dom/ipc/Blob.h"
 #include "mozilla/dom/ContentParent.h"
-#include "mozilla/dom/mobilemessage/Constants.h" // For MessageType
 #include "nsContentUtils.h"
 #include "nsTArrayHelpers.h"
 #include "nsCxPusher.h"
-#include "nsServiceManagerUtils.h"
 
 namespace mozilla {
 namespace dom {
@@ -62,7 +61,7 @@ MmsAttachmentDataToJSObject(JSContext* aContext,
                                            global,
                                            blob,
                                            &NS_GET_IID(nsIDOMBlob),
-                                           &content);
+                                           content.address());
   NS_ENSURE_SUCCESS(rv, nullptr);
   if (!JS_DefineProperty(aContext, obj, "content", content,
                          nullptr, nullptr, 0)) {
@@ -153,8 +152,6 @@ SmsParent::SmsParent()
   obs->AddObserver(this, kSmsDeliverySuccessObserverTopic, false);
   obs->AddObserver(this, kSmsDeliveryErrorObserverTopic, false);
   obs->AddObserver(this, kSilentSmsReceivedObserverTopic, false);
-  obs->AddObserver(this, kSmsReadSuccessObserverTopic, false);
-  obs->AddObserver(this, kSmsReadErrorObserverTopic, false);
 }
 
 void
@@ -173,8 +170,6 @@ SmsParent::ActorDestroy(ActorDestroyReason why)
   obs->RemoveObserver(this, kSmsDeliverySuccessObserverTopic);
   obs->RemoveObserver(this, kSmsDeliveryErrorObserverTopic);
   obs->RemoveObserver(this, kSilentSmsReceivedObserverTopic);
-  obs->RemoveObserver(this, kSmsReadSuccessObserverTopic);
-  obs->RemoveObserver(this, kSmsReadErrorObserverTopic);
 }
 
 NS_IMETHODIMP
@@ -276,30 +271,6 @@ SmsParent::Observe(nsISupports* aSubject, const char* aTopic,
     return NS_OK;
   }
 
-
-  if (!strcmp(aTopic, kSmsReadSuccessObserverTopic)) {
-    MobileMessageData msgData;
-    if (!GetMobileMessageDataFromMessage(aSubject, msgData)) {
-      NS_ERROR("Got a 'sms-read-success' topic without a valid message!");
-      return NS_OK;
-    }
-
-    unused << SendNotifyReadSuccessMessage(msgData);
-    return NS_OK;
-  }
-
-  if (!strcmp(aTopic, kSmsReadErrorObserverTopic)) {
-    MobileMessageData msgData;
-    if (!GetMobileMessageDataFromMessage(aSubject, msgData)) {
-      NS_ERROR("Got a 'sms-read-error' topic without a valid message!");
-      return NS_OK;
-    }
-
-    unused << SendNotifyReadErrorMessage(msgData);
-    return NS_OK;
-  }
-
-
   return NS_OK;
 }
 
@@ -326,6 +297,47 @@ SmsParent::GetMobileMessageDataFromMessage(nsISupports *aMsg,
 
   NS_WARNING("Cannot get MobileMessageData");
   return false;
+}
+
+bool
+SmsParent::RecvHasSupport(bool* aHasSupport)
+{
+  *aHasSupport = false;
+
+  nsCOMPtr<nsISmsService> smsService = do_GetService(SMS_SERVICE_CONTRACTID);
+  NS_ENSURE_TRUE(smsService, true);
+
+  smsService->HasSupport(aHasSupport);
+  return true;
+}
+
+bool
+SmsParent::RecvGetSegmentInfoForText(const nsString& aText,
+                                     SmsSegmentInfoData* aResult)
+{
+  aResult->segments() = 0;
+  aResult->charsPerSegment() = 0;
+  aResult->charsAvailableInLastSegment() = 0;
+
+  nsCOMPtr<nsISmsService> smsService = do_GetService(SMS_SERVICE_CONTRACTID);
+  NS_ENSURE_TRUE(smsService, true);
+
+  nsCOMPtr<nsIDOMMozSmsSegmentInfo> info;
+  nsresult rv = smsService->GetSegmentInfoForText(aText, getter_AddRefs(info));
+  NS_ENSURE_SUCCESS(rv, true);
+
+  int segments, charsPerSegment, charsAvailableInLastSegment;
+  if (NS_FAILED(info->GetSegments(&segments)) ||
+      NS_FAILED(info->GetCharsPerSegment(&charsPerSegment)) ||
+      NS_FAILED(info->GetCharsAvailableInLastSegment(&charsAvailableInLastSegment))) {
+    NS_ERROR("Can't get attribute values from nsIDOMMozSmsSegmentInfo");
+    return true;
+  }
+
+  aResult->segments() = segments;
+  aResult->charsPerSegment() = charsPerSegment;
+  aResult->charsAvailableInLastSegment() = charsAvailableInLastSegment;
+  return true;
 }
 
 bool
@@ -381,10 +393,6 @@ SmsParent::RecvPSmsRequestConstructor(PSmsRequestParent* aActor,
       return actor->DoRequest(aRequest.get_DeleteMessageRequest());
     case IPCSmsRequest::TMarkMessageReadRequest:
       return actor->DoRequest(aRequest.get_MarkMessageReadRequest());
-    case IPCSmsRequest::TGetSegmentInfoForTextRequest:
-      return actor->DoRequest(aRequest.get_GetSegmentInfoForTextRequest());
-    case IPCSmsRequest::TGetSmscAddressRequest:
-      return actor->DoRequest(aRequest.get_GetSmscAddressRequest());
     default:
       MOZ_CRASH("Unknown type!");
   }
@@ -469,9 +477,8 @@ SmsRequestParent::DoRequest(const SendMessageRequest& aRequest)
       nsCOMPtr<nsISmsService> smsService = do_GetService(SMS_SERVICE_CONTRACTID);
       NS_ENSURE_TRUE(smsService, true);
 
-      const SendSmsMessageRequest &req = aRequest.get_SendSmsMessageRequest();
-      smsService->Send(req.serviceId(), req.number(), req.message(),
-                       req.silent(), this);
+      const SendSmsMessageRequest &data = aRequest.get_SendSmsMessageRequest();
+      smsService->Send(data.number(), data.message(), data.silent(), this);
     }
     break;
   case SendMessageRequest::TSendMmsMessageRequest: {
@@ -480,14 +487,14 @@ SmsRequestParent::DoRequest(const SendMessageRequest& aRequest)
 
       AutoJSContext cx;
       JS::Rooted<JS::Value> params(cx);
-      const SendMmsMessageRequest &req = aRequest.get_SendMmsMessageRequest();
-      if (!GetParamsFromSendMmsMessageRequest(cx,
-                                              req,
-                                              params.address())) {
+      if (!GetParamsFromSendMmsMessageRequest(
+              cx,
+              aRequest.get_SendMmsMessageRequest(),
+              params.address())) {
         NS_WARNING("SmsRequestParent: Fail to build MMS params.");
         return true;
       }
-      mmsService->Send(req.serviceId(), params, this);
+      mmsService->Send(params, this);
     }
     break;
   default:
@@ -532,23 +539,6 @@ SmsRequestParent::DoRequest(const GetMessageRequest& aRequest)
 }
 
 bool
-SmsRequestParent::DoRequest(const GetSmscAddressRequest& aRequest)
-{
-  nsresult rv = NS_ERROR_FAILURE;
-
-  nsCOMPtr<nsISmsService> smsService = do_GetService(SMS_SERVICE_CONTRACTID);
-  if (smsService) {
-    rv = smsService->GetSmscAddress(aRequest.serviceId(), this);
-  }
-
-  if (NS_FAILED(rv)) {
-    return NS_SUCCEEDED(NotifyGetSmscAddressFailed(nsIMobileMessageCallback::INTERNAL_ERROR));
-  }
-
-  return true;
-}
-
-bool
 SmsRequestParent::DoRequest(const DeleteMessageRequest& aRequest)
 {
   nsresult rv = NS_ERROR_FAILURE;
@@ -577,29 +567,11 @@ SmsRequestParent::DoRequest(const MarkMessageReadRequest& aRequest)
     do_GetService(MOBILE_MESSAGE_DATABASE_SERVICE_CONTRACTID);
   if (dbService) {
     rv = dbService->MarkMessageRead(aRequest.messageId(), aRequest.value(),
-                                    aRequest.sendReadReport(), this);
+                                    this);
   }
 
   if (NS_FAILED(rv)) {
     return NS_SUCCEEDED(NotifyMarkMessageReadFailed(nsIMobileMessageCallback::INTERNAL_ERROR));
-  }
-
-  return true;
-}
-
-bool
-SmsRequestParent::DoRequest(const GetSegmentInfoForTextRequest& aRequest)
-{
-  nsresult rv = NS_ERROR_FAILURE;
-
-  nsCOMPtr<nsISmsService> smsService = do_GetService(SMS_SERVICE_CONTRACTID);
-  if (smsService) {
-    rv = smsService->GetSegmentInfoForText(aRequest.text(), this);
-  }
-
-  if (NS_FAILED(rv)) {
-    return NS_SUCCEEDED(NotifyGetSegmentInfoForTextFailed(
-                          nsIMobileMessageCallback::INTERNAL_ERROR));
   }
 
   return true;
@@ -621,8 +593,6 @@ SmsRequestParent::SendReply(const MessageReply& aReply)
 NS_IMETHODIMP
 SmsRequestParent::NotifyMessageSent(nsISupports *aMessage)
 {
-  NS_ENSURE_TRUE(!mActorDestroyed, NS_ERROR_FAILURE);
-
   nsCOMPtr<nsIDOMMozMmsMessage> mms = do_QueryInterface(aMessage);
   if (mms) {
     MmsMessage *msg = static_cast<MmsMessage*>(mms.get());
@@ -652,8 +622,6 @@ SmsRequestParent::NotifySendMessageFailed(int32_t aError)
 NS_IMETHODIMP
 SmsRequestParent::NotifyMessageGot(nsISupports *aMessage)
 {
-  NS_ENSURE_TRUE(!mActorDestroyed, NS_ERROR_FAILURE);
-
   nsCOMPtr<nsIDOMMozMmsMessage> mms = do_QueryInterface(aMessage);
   if (mms) {
     MmsMessage *msg = static_cast<MmsMessage*>(mms.get());
@@ -704,31 +672,6 @@ NS_IMETHODIMP
 SmsRequestParent::NotifyMarkMessageReadFailed(int32_t aError)
 {
   return SendReply(ReplyMarkeMessageReadFail(aError));
-}
-
-NS_IMETHODIMP
-SmsRequestParent::NotifySegmentInfoForTextGot(nsIDOMMozSmsSegmentInfo *aInfo)
-{
-  SmsSegmentInfo* info = static_cast<SmsSegmentInfo*>(aInfo);
-  return SendReply(ReplyGetSegmentInfoForText(info->GetData()));
-}
-
-NS_IMETHODIMP
-SmsRequestParent::NotifyGetSegmentInfoForTextFailed(int32_t aError)
-{
-  return SendReply(ReplyGetSegmentInfoForTextFail(aError));
-}
-
-NS_IMETHODIMP
-SmsRequestParent::NotifyGetSmscAddress(const nsAString& aSmscAddress)
-{
-  return SendReply(ReplyGetSmscAddress(nsString(aSmscAddress)));
-}
-
-NS_IMETHODIMP
-SmsRequestParent::NotifyGetSmscAddressFailed(int32_t aError)
-{
-  return SendReply(ReplyGetSmscAddressFail(aError));
 }
 
 /*******************************************************************************

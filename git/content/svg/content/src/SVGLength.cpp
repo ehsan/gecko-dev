@@ -3,12 +3,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #include "SVGLength.h"
 #include "nsSVGElement.h"
 #include "mozilla/dom/SVGSVGElement.h"
+#include "nsString.h"
 #include "nsTextFormatter.h"
+#include "prdtoa.h"
+#include "nsMathUtils.h"
 #include "SVGContentUtils.h"
 #include <limits>
 #include <algorithm>
@@ -24,7 +27,7 @@ SVGLength::GetValueAsString(nsAString &aValue) const
 {
   PRUnichar buf[24];
   nsTextFormatter::snprintf(buf, sizeof(buf)/sizeof(PRUnichar),
-                            MOZ_UTF16("%g"),
+                            NS_LITERAL_STRING("%g").get(),
                             (double)mValue);
   aValue.Assign(buf);
 
@@ -34,27 +37,40 @@ SVGLength::GetValueAsString(nsAString &aValue) const
 }
 
 bool
-SVGLength::SetValueFromString(const nsAString &aString)
+SVGLength::SetValueFromString(const nsAString &aValue)
 {
-  RangedPtr<const PRUnichar> iter =
-    SVGContentUtils::GetStartRangedPtr(aString);
-  const RangedPtr<const PRUnichar> end =
-    SVGContentUtils::GetEndRangedPtr(aString);
+  float tmpValue;
+  uint16_t tmpUnit;
 
-  float value;
+  NS_ConvertUTF16toUTF8 value(aValue);
+  const char *str = value.get();
 
-  if (!SVGContentUtils::ParseNumber(iter, end, value)) {
-    return false;
+  while (*str != '\0' && IsSVGWhitespace(*str)) {
+    ++str;
   }
-
-  const nsAString& units = Substring(iter.get(), end.get());
-  uint16_t unitType = GetUnitTypeForString(units);
-  if (!IsValidUnitType(unitType)) {
-    return false;
+  char *unit;
+  tmpValue = float(PR_strtod(str, &unit));
+  if (unit != str && NS_finite(tmpValue)) {
+    char *theRest = unit;
+    while (*theRest != '\0' && !IsSVGWhitespace(*theRest)) {
+      ++theRest;
+    }
+    tmpUnit = GetUnitTypeForString(
+                Substring(aValue, unit - str, theRest - unit));
+    if (tmpUnit == nsIDOMSVGLength::SVG_LENGTHTYPE_UNKNOWN) {
+      // SVGContentUtils::ReportToConsole
+      return false;
+    }
+    while (*theRest && IsSVGWhitespace(*theRest)) {
+      ++theRest;
+    }
+    if (!*theRest) {
+      mValue = tmpValue;
+      mUnit = tmpUnit;
+      return true;
+    }
   }
-  mValue = value;
-  mUnit = uint8_t(unitType);
-  return true;
+  return false;
 }
 
 inline static bool

@@ -13,6 +13,7 @@
 #include "nsCOMPtr.h"
 #include "nsIAtom.h"
 #include "nsNativeTheme.h"
+#include "gfxASurface.h"
 
 @class CellDrawView;
 @class NSProgressBarCell;
@@ -58,7 +59,6 @@ public:
   bool WidgetIsContainer(uint8_t aWidgetType);
   bool ThemeDrawsFocusForWidget(uint8_t aWidgetType) MOZ_OVERRIDE;
   bool ThemeNeedsComboboxDropmarker();
-  virtual bool WidgetAppearanceDependsOnWindowFocus(uint8_t aWidgetType) MOZ_OVERRIDE;
   virtual Transparency GetWidgetTransparency(nsIFrame* aFrame, uint8_t aWidgetType);
 
   void DrawProgress(CGContextRef context, const HIRect& inBoxRect,
@@ -104,10 +104,6 @@ protected:
                        const HIRect& inBoxRect, ThemeDrawState inDrawState,
                        ThemeButtonAdornment inAdornment, nsEventStates inState,
                        nsIFrame* aFrame);
-  void DrawSpinButton(CGContextRef context, ThemeButtonKind inKind,
-                      const HIRect& inBoxRect, ThemeDrawState inDrawState,
-                      ThemeButtonAdornment inAdornment, nsEventStates inState,
-                      nsIFrame* aFrame, uint8_t aWidgetType);
   void DrawUnifiedToolbar(CGContextRef cgContext, const HIRect& inBoxRect,
                           NSWindow* aWindow);
   void DrawStatusBar(CGContextRef cgContext, const HIRect& inBoxRect,

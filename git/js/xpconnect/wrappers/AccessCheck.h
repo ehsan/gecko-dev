@@ -9,7 +9,6 @@
 #define __AccessCheck_h__
 
 #include "jswrapper.h"
-#include "js/Id.h"
 
 class nsIPrincipal;
 
@@ -76,7 +75,7 @@ struct CrossOriginAccessiblePropertiesOnly : public Policy {
     }
     static bool deny(js::Wrapper::Action act, JS::HandleId id) {
         // Silently fail for enumerate-like operations.
-        if (act == js::Wrapper::GET && id == JSID_VOIDHANDLE)
+        if (act == js::Wrapper::GET && id == JS::JSID_VOIDHANDLE)
             return true;
         return false;
     }

@@ -5,7 +5,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "js/OldDebugAPI.h"
+#include "jsdbgapi.h"
+
 #include "jsapi-tests/tests.h"
 
 static int emptyTrapCallCount = 0;
@@ -34,10 +35,7 @@ BEGIN_TEST(testTrap_gc)
         ;
 
     // compile
-    JS::CompileOptions options(cx);
-    options.setFileAndLine(__FILE__, 1);
-    JS::RootedScript script(cx, JS_CompileScript(cx, global, source,
-                                                 strlen(source), options));
+    JS::RootedScript script(cx, JS_CompileScript(cx, global, source, strlen(source), __FILE__, 1));
     CHECK(script);
 
     // execute

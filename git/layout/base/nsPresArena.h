@@ -82,11 +82,11 @@ public:
   }
 
   /**
-   * Increment aArenaStats with sizes of interesting objects allocated in this
-   * arena and its mOther field with the size of everything else.
+   * Fill aArenaStats with sizes of interesting objects allocated in
+   * this arena and its mOther field with the size of everything else.
    */
-  void AddSizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
-                              nsArenaMemoryStats* aArenaStats);
+  void SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+                           nsArenaMemoryStats* aArenaStats);
 
 private:
   NS_HIDDEN_(void*) Allocate(uint32_t aCode, size_t aSize);

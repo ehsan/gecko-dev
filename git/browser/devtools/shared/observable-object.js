@@ -51,7 +51,6 @@ function isObject(x) {
 function Handler(emitter) {
   this._emitter = emitter;
   this._wrappers = new WeakMap();
-  this._values = new WeakMap();
   this._paths = new WeakMap();
 }
 
@@ -62,15 +61,11 @@ Handler.prototype = {
       path = this._paths.get(target).concat(key);
     } else if (this._wrappers.has(value)) {
       path = this._paths.get(value);
-    } else if (this._paths.has(value)) {
-      path = this._paths.get(value);
-      value = this._values.get(value);
     } else {
       path = this._paths.get(target).concat(key);
       this._paths.set(value, path);
       let wrapper = new Proxy(value, this);
       this._wrappers.set(wrapper, value);
-      this._values.set(value, wrapper);
       value = wrapper;
     }
     return [value, path];
@@ -97,7 +92,7 @@ Handler.prototype = {
     if (desc) {
       if ("value" in desc) {
         let [wrapped, path] = this.wrap(target, key, desc.value);
-        desc.value = wrapped;
+        desc.value = wrapped
         this._emitter.emit("get", path, desc.value);
       } else {
         if ("get" in desc) {
@@ -112,8 +107,7 @@ Handler.prototype = {
   },
   defineProperty: function(target, key, desc) {
     if ("value" in desc) {
-      let [unwrapped, path] = this.unwrap(target, key, desc.value);
-      desc.value = unwrapped;
+      [desc.value, path] = this.unwrap(target, key, desc.value);
       Object.defineProperty(target, key, desc);
       this._emitter.emit("set", path, desc.value);
     } else {

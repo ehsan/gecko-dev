@@ -6,7 +6,7 @@
 package org.mozilla.gecko.home;
 
 import org.mozilla.gecko.EditBookmarkDialog;
-import org.mozilla.gecko.favicons.Favicons;
+import org.mozilla.gecko.Favicons;
 import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.GeckoEvent;
 import org.mozilla.gecko.GeckoProfile;
@@ -15,6 +15,7 @@ import org.mozilla.gecko.ReaderModeUtils;
 import org.mozilla.gecko.Tabs;
 import org.mozilla.gecko.db.BrowserContract.Combined;
 import org.mozilla.gecko.db.BrowserDB;
+import org.mozilla.gecko.gfx.BitmapUtils;
 import org.mozilla.gecko.home.HomeListView.HomeContextMenuInfo;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.util.UiAsyncTask;
@@ -25,6 +26,7 @@ import android.content.Intent;
 import android.graphics.Bitmap;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.ContextMenu;
 import android.view.ContextMenu.ContextMenuInfo;
@@ -44,8 +46,8 @@ abstract class HomeFragment extends Fragment {
     // Share MIME type.
     private static final String SHARE_MIME_TYPE = "text/plain";
 
-    // Default value for "can load" hint
-    static final boolean DEFAULT_CAN_LOAD_HINT = false;
+    // URL to Title replacement regex.
+    private static final String REGEX_URL_TO_TITLE = "^([a-z]+://)?(www\\.)?";
 
     // Whether the fragment can load its content or not
     // This is used to defer data loading until the editing
@@ -61,9 +63,9 @@ abstract class HomeFragment extends Fragment {
 
         final Bundle args = getArguments();
         if (args != null) {
-            mCanLoadHint = args.getBoolean(HomePager.CAN_LOAD_ARG, DEFAULT_CAN_LOAD_HINT);
+            mCanLoadHint = args.getBoolean(HomePager.CAN_LOAD_ARG, false);
         } else {
-            mCanLoadHint = DEFAULT_CAN_LOAD_HINT;
+            mCanLoadHint = false;
         }
 
         mIsLoaded = false;
@@ -85,11 +87,10 @@ abstract class HomeFragment extends Fragment {
         MenuInflater inflater = new MenuInflater(view.getContext());
         inflater.inflate(R.menu.home_contextmenu, menu);
 
-        menu.setHeaderTitle(info.getDisplayTitle());
+        menu.setHeaderTitle(info.title);
 
-        // Hide the "Edit" menuitem if this item isn't a bookmark,
-        // or if this is a reading list item.
-        if (info.bookmarkId < 0 || info.inReadingList) {
+        // Hide the "Edit" menuitem if this item isn't a bookmark.
+        if (info.bookmarkId < 0) {
             menu.findItem(R.id.home_edit_bookmark).setVisible(false);
         }
 
@@ -116,7 +117,7 @@ abstract class HomeFragment extends Fragment {
             return false;
         }
 
-        final HomeContextMenuInfo info = (HomeContextMenuInfo) menuInfo;
+        HomeContextMenuInfo info = (HomeContextMenuInfo) menuInfo;
         final Context context = getActivity().getApplicationContext();
 
         final int itemId = item.getItemId();
@@ -125,7 +126,7 @@ abstract class HomeFragment extends Fragment {
                 Log.e(LOGTAG, "Can't share because URL is null");
             } else {
                 GeckoAppShell.openUriExternal(info.url, SHARE_MIME_TYPE, "", "",
-                                              Intent.ACTION_SEND, info.getDisplayTitle());
+                                              Intent.ACTION_SEND, info.title);
             }
         }
 
@@ -135,8 +136,8 @@ abstract class HomeFragment extends Fragment {
                 return false;
             }
 
-            // Fetch the largest cacheable icon size.
-            Favicons.getLargestFaviconForPage(info.url, new GeckoAppShell.CreateShortcutFaviconLoadedListener(info.url, info.getDisplayTitle()));
+            String shortcutTitle = TextUtils.isEmpty(info.title) ? info.url.replaceAll(REGEX_URL_TO_TITLE, "") : info.title;
+            new AddToLauncherTask(info.url, shortcutTitle).execute();
             return true;
         }
 
@@ -150,7 +151,7 @@ abstract class HomeFragment extends Fragment {
             if (item.getItemId() == R.id.home_open_private_tab)
                 flags |= Tabs.LOADURL_PRIVATE;
 
-            final String url = (info.inReadingList ? ReaderModeUtils.getAboutReaderForUrl(info.url) : info.url);
+            final String url = (info.inReadingList ? ReaderModeUtils.getAboutReaderForUrl(info.url, true) : info.url);
             Tabs.getInstance().loadUrl(url, flags);
             Toast.makeText(context, R.string.new_tab_opened, Toast.LENGTH_SHORT).show();
             return true;
@@ -163,7 +164,7 @@ abstract class HomeFragment extends Fragment {
         }
 
         if (itemId == R.id.home_open_in_reader) {
-            final String url = ReaderModeUtils.getAboutReaderForUrl(info.url);
+            final String url = ReaderModeUtils.getAboutReaderForUrl(info.url, true);
             Tabs.getInstance().loadUrl(url, Tabs.LOADURL_NONE);
             return true;
         }
@@ -219,6 +220,35 @@ abstract class HomeFragment extends Fragment {
         if (!mIsLoaded) {
             load();
             mIsLoaded = true;
+        }
+    }
+
+    private static class AddToLauncherTask extends UiAsyncTask<Void, Void, String> {
+        private final String mUrl;
+        private final String mTitle;
+
+        public AddToLauncherTask(String url, String title) {
+            super(ThreadUtils.getBackgroundHandler());
+
+            mUrl = url;
+            mTitle = title;
+        }
+
+        @Override
+        public String doInBackground(Void... params) {
+            return Favicons.getInstance().getFaviconUrlForPageUrl(mUrl);
+        }
+
+        @Override
+        public void onPostExecute(String faviconUrl) {
+            Favicons.OnFaviconLoadedListener listener = new Favicons.OnFaviconLoadedListener() {
+                @Override
+                public void onFaviconLoaded(String url, Bitmap favicon) {
+                    GeckoAppShell.createShortcut(mTitle, mUrl, favicon, "");
+                }
+            };
+
+            Favicons.getInstance().loadFavicon(mUrl, faviconUrl, 0, listener);
         }
     }
 

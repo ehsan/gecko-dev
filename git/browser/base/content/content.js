@@ -15,13 +15,18 @@ XPCOMUtils.defineLazyModuleGetter(this,
   "InsecurePasswordUtils", "resource://gre/modules/InsecurePasswordUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
   "resource://gre/modules/PrivateBrowsingUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "UITour",
-  "resource:///modules/UITour.jsm");
 
-// Creates a new nsIURI object.
-function makeURI(uri, originCharset, baseURI) {
-  return Services.io.newURI(uri, originCharset, baseURI);
-}
+// Bug 671101 - directly using webNavigation in this context
+// causes docshells to leak
+this.__defineGetter__("webNavigation", function () {
+  return docShell.QueryInterface(Ci.nsIWebNavigation);
+});
+
+addMessageListener("WebNavigation:LoadURI", function (message) {
+  let flags = message.json.flags || webNavigation.LOAD_FLAGS_NONE;
+
+  webNavigation.loadURI(message.json.uri, flags, null, null, null);
+});
 
 addMessageListener("Browser:HideSessionRestoreButton", function (message) {
   // Hide session restore button on about:home
@@ -38,6 +43,9 @@ if (Services.prefs.getBoolPref("browser.tabs.remote")) {
     sendAsyncMessage("contextmenu", {}, { event: event });
   }, false);
 } else {
+  addEventListener("DOMContentLoaded", function(event) {
+    LoginManagerContent.onContentLoaded(event);
+  });
   addEventListener("DOMFormHasPassword", function(event) {
     InsecurePasswordUtils.checkForInsecurePasswords(event.target);
     LoginManagerContent.onFormPassword(event);
@@ -48,20 +56,12 @@ if (Services.prefs.getBoolPref("browser.tabs.remote")) {
   addEventListener("blur", function(event) {
     LoginManagerContent.onUsernameInput(event);
   });
-
-  addEventListener("mozUITour", function(event) {
-    if (!Services.prefs.getBoolPref("browser.uitour.enabled"))
-      return;
-
-    let handled = UITour.onPageEvent(event);
-    if (handled)
-      addEventListener("pagehide", UITour);
-  }, false, true);
 }
 
 let AboutHomeListener = {
   init: function(chromeGlobal) {
-    chromeGlobal.addEventListener('AboutHomeLoad', () => this.onPageLoad(), false, true);
+    let self = this;
+    chromeGlobal.addEventListener('AboutHomeLoad', function(e) { self.onPageLoad(); }, false, true);
   },
 
   handleEvent: function(aEvent) {
@@ -90,13 +90,19 @@ let AboutHomeListener = {
 
     // Inject search engine and snippets URL.
     let docElt = doc.documentElement;
-    // set the following attributes BEFORE searchEngineName, which triggers to
+    // set the following attributes BEFORE searchEngineURL, which triggers to
     // show the snippets when it's set.
     docElt.setAttribute("snippetsURL", aData.snippetsURL);
     if (aData.showKnowYourRights)
       docElt.setAttribute("showKnowYourRights", "true");
     docElt.setAttribute("snippetsVersion", aData.snippetsVersion);
-    docElt.setAttribute("searchEngineName", aData.defaultEngineName);
+
+    let engine = aData.defaultSearchEngine;
+    docElt.setAttribute("searchEngineName", engine.name);
+    docElt.setAttribute("searchEnginePostData", engine.postDataString || "");
+    // Again, keep the searchEngineURL as the last attribute, because the
+    // mutation observer in aboutHome.js is counting on that.
+    docElt.setAttribute("searchEngineURL", engine.searchURL);
   },
 
   onPageLoad: function() {
@@ -129,7 +135,7 @@ let AboutHomeListener = {
     sendAsyncMessage("AboutHome:RequestUpdate");
 
     doc.addEventListener("AboutHomeSearchEvent", function onSearch(e) {
-      sendAsyncMessage("AboutHome:Search", { searchData: e.detail });
+      sendAsyncMessage("AboutHome:Search", { engineName: e.detail });
     }, true, true);
   },
 
@@ -181,14 +187,8 @@ let AboutHomeListener = {
 };
 AboutHomeListener.init(this);
 
+
 var global = this;
-
-// Lazily load the finder code
-addMessageListener("Finder:Initialize", function () {
-  let {RemoteFinderListener} = Cu.import("resource://gre/modules/RemoteFinder.jsm", {});
-  new RemoteFinderListener(global);
-});
-
 
 let ClickEventHandler = {
   init: function init() {
@@ -250,6 +250,11 @@ let ClickEventHandler = {
               aNode instanceof content.HTMLLinkElement);
     }
 
+    function makeURLAbsolute(aBase, aUrl) {
+      // Note:  makeURI() will throw if aUri is not a valid URI
+      return makeURI(aUrl, null, makeURI(aBase)).spec;
+    }
+
     let node = event.target;
     while (node && !isHTMLLink(node)) {
       node = node.parentNode;
@@ -265,15 +270,14 @@ let ClickEventHandler = {
       if (node.nodeType == content.Node.ELEMENT_NODE) {
         href = node.getAttributeNS("http://www.w3.org/1999/xlink", "href");
         if (href)
-          baseURI = node.ownerDocument.baseURIObject;
+          baseURI = node.baseURI;
       }
       node = node.parentNode;
     }
 
     // In case of XLink, we don't return the node we got href from since
     // callers expect <a>-like elements.
-    // Note: makeURI() will throw if aUri is not a valid URI.
-    return [href ? makeURI(href, null, baseURI).spec : null, null];
+    return [href ? makeURLAbsolute(baseURI, href) : null, null];
   }
 };
 ClickEventHandler.init();

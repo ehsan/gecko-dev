@@ -11,6 +11,7 @@ var gServer = new HttpServer();
 gServer.start(-1);
 
 const PREF_GETADDONS_BROWSEADDONS        = "extensions.getAddons.browseAddons";
+const PREF_GETADDONS_BYIDS               = "extensions.getAddons.get.url";
 const PREF_GETADDONS_BROWSERECOMMENDED   = "extensions.getAddons.recommended.browseURL";
 const PREF_GETADDONS_GETRECOMMENDED      = "extensions.getAddons.recommended.url";
 const PREF_GETADDONS_BROWSESEARCHRESULTS = "extensions.getAddons.search.browseURL";

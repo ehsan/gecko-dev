@@ -11,7 +11,8 @@
 #include "webrtc/modules/audio_coding/neteq4/statistics_calculator.h"
 
 #include <assert.h>
-#include <string.h>  // memset
+
+#include <cstring>  // memset
 
 #include "webrtc/modules/audio_coding/neteq4/decision_logic.h"
 #include "webrtc/modules/audio_coding/neteq4/delay_manager.h"

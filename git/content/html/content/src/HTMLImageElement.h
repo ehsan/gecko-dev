@@ -190,10 +190,6 @@ protected:
   // This is a weak reference that this element and the HTMLFormElement
   // cooperate in maintaining.
   HTMLFormElement* mForm;
-
-private:
-  static void MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
-                                    nsRuleData* aData);
 };
 
 } // namespace dom

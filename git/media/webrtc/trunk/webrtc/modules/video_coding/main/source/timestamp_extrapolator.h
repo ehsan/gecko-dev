@@ -11,8 +11,8 @@
 #ifndef WEBRTC_MODULES_VIDEO_CODING_TIMESTAMP_EXTRAPOLATOR_H_
 #define WEBRTC_MODULES_VIDEO_CODING_TIMESTAMP_EXTRAPOLATOR_H_
 
-#include "webrtc/system_wrappers/interface/rw_lock_wrapper.h"
-#include "webrtc/typedefs.h"
+#include "typedefs.h"
+#include "rw_lock_wrapper.h"
 
 namespace webrtc
 {
@@ -27,8 +27,9 @@ public:
                              int32_t receiverId = 0);
     ~VCMTimestampExtrapolator();
     void Update(int64_t tMs, uint32_t ts90khz, bool trace = true);
-    int64_t ExtrapolateLocalTime(uint32_t timestamp90khz);
-    void Reset();
+    uint32_t ExtrapolateTimestamp(int64_t tMs) const;
+    int64_t ExtrapolateLocalTime(uint32_t timestamp90khz) const;
+    void Reset(int64_t nowMs = -1);
 
 private:
     void CheckForWrapArounds(uint32_t ts90khz);
@@ -43,8 +44,7 @@ private:
     int64_t         _prevMs;
     uint32_t        _firstTimestamp;
     int32_t         _wrapArounds;
-    int64_t         _prevUnwrappedTimestamp;
-    int64_t         _prevWrapTimestamp;
+    uint32_t        _prevTs90khz;
     const double          _lambda;
     bool                  _firstAfterReset;
     uint32_t        _packetCount;
@@ -58,6 +58,6 @@ private:
     const double        _P11;
 };
 
-}  // namespace webrtc
+} // namespace webrtc
 
 #endif // WEBRTC_MODULES_VIDEO_CODING_TIMESTAMP_EXTRAPOLATOR_H_

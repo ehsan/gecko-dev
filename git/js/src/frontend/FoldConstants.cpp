@@ -16,23 +16,18 @@
 #include "vm/NumericConversions.h"
 
 #include "jscntxtinlines.h"
-#include "jsinferinlines.h"
-#include "jsobjinlines.h"
 
 using namespace js;
 using namespace js::frontend;
 
 using mozilla::IsNaN;
 using mozilla::IsNegative;
-using mozilla::NegativeInfinity;
-using mozilla::PositiveInfinity;
-using JS::GenericNaN;
 
 static ParseNode *
 ContainsVarOrConst(ParseNode *pn)
 {
     if (!pn)
-        return nullptr;
+        return NULL;
     if (pn->isKind(PNK_VAR) || pn->isKind(PNK_CONST))
         return pn;
     switch (pn->getArity()) {
@@ -54,19 +49,19 @@ ContainsVarOrConst(ParseNode *pn)
          * var statement.
          */
         if (!pn->isOp(JSOP_NOP))
-            return nullptr;
+            return NULL;
         if (ParseNode *pnt = ContainsVarOrConst(pn->pn_left))
             return pnt;
         return ContainsVarOrConst(pn->pn_right);
       case PN_UNARY:
         if (!pn->isOp(JSOP_NOP))
-            return nullptr;
+            return NULL;
         return ContainsVarOrConst(pn->pn_kid);
       case PN_NAME:
         return ContainsVarOrConst(pn->maybeExpr());
       default:;
     }
-    return nullptr;
+    return NULL;
 }
 
 /*
@@ -91,7 +86,10 @@ FoldType(ExclusiveContext *cx, ParseNode *pn, ParseNodeKind kind)
 
           case PNK_STRING:
             if (pn->isKind(PNK_NUMBER)) {
-                pn->pn_atom = NumberToAtom(cx, pn->pn_dval);
+                JSString *str = js_NumberToString<CanGC>(cx, pn->pn_dval);
+                if (!str)
+                    return false;
+                pn->pn_atom = AtomizeString<CanGC>(cx, str);
                 if (!pn->pn_atom)
                     return false;
                 pn->setKind(PNK_STRING);
@@ -126,7 +124,7 @@ FoldBinaryNumeric(ExclusiveContext *cx, JSOp op, ParseNode *pn1, ParseNode *pn2,
         i = ToInt32(d);
         j = ToInt32(d2);
         j &= 31;
-        d = int32_t((op == JSOP_LSH) ? uint32_t(i) << j : i >> j);
+        d = (op == JSOP_LSH) ? i << j : i >> j;
         break;
 
       case JSOP_URSH:
@@ -152,15 +150,15 @@ FoldBinaryNumeric(ExclusiveContext *cx, JSOp op, ParseNode *pn1, ParseNode *pn2,
 #if defined(XP_WIN)
             /* XXX MSVC miscompiles such that (NaN == 0) */
             if (IsNaN(d2))
-                d = GenericNaN();
+                d = js_NaN;
             else
 #endif
             if (d == 0 || IsNaN(d))
-                d = GenericNaN();
+                d = js_NaN;
             else if (IsNegative(d) != IsNegative(d2))
-                d = NegativeInfinity();
+                d = js_NegativeInfinity;
             else
-                d = PositiveInfinity();
+                d = js_PositiveInfinity;
         } else {
             d /= d2;
         }
@@ -168,7 +166,7 @@ FoldBinaryNumeric(ExclusiveContext *cx, JSOp op, ParseNode *pn1, ParseNode *pn2,
 
       case JSOP_MOD:
         if (d2 == 0) {
-            d = GenericNaN();
+            d = js_NaN;
         } else {
             d = js_fmod(d, d2);
         }
@@ -192,7 +190,7 @@ FoldBinaryNumeric(ExclusiveContext *cx, JSOp op, ParseNode *pn1, ParseNode *pn2,
 // to the parse node being replaced. The replacement, *pn, is unchanged except
 // for its pn_next pointer; updating that is necessary if *pn's new parent is a
 // list node.
-static void
+void
 ReplaceNode(ParseNode **pnp, ParseNode *pn)
 {
     pn->pn_next = (*pnp)->pn_next;
@@ -249,11 +247,11 @@ condIf(const ParseNode *pn, ParseNodeKind kind)
 
 static bool
 Fold(ExclusiveContext *cx, ParseNode **pnp,
-     FullParseHandler &handler, const ReadOnlyCompileOptions &options,
+     FullParseHandler &handler, const CompileOptions &options,
      bool inGenexpLambda, SyntacticContext sc)
 {
     ParseNode *pn = *pnp;
-    ParseNode *pn1 = nullptr, *pn2 = nullptr, *pn3 = nullptr;
+    ParseNode *pn1 = NULL, *pn2 = NULL, *pn3 = NULL;
 
     JS_CHECK_RECURSION(cx, return false);
 
@@ -264,8 +262,12 @@ Fold(ExclusiveContext *cx, ParseNode **pnp,
             pn->pn_funbox->useAsmOrInsideUseAsm() && options.asmJSOption)
         {
             return true;
+        }
+        if (pn->getKind() == PNK_MODULE) {
+            if (!Fold(cx, &pn->pn_body, handler, options, false, SyntacticContext::Other))
+                return false;
         } else {
-            // Note: pn_body is nullptr for functions which are being lazily parsed.
+            // Note: pn_body is NULL for functions which are being lazily parsed.
             JS_ASSERT(pn->getKind() == PNK_FUNCTION);
             if (pn->pn_body) {
                 if (!Fold(cx, &pn->pn_body, handler, options, pn->pn_funbox->inGenexpLambda,
@@ -297,7 +299,7 @@ Fold(ExclusiveContext *cx, ParseNode **pnp,
 
         // Save the list head in pn1 for later use.
         pn1 = pn->pn_head;
-        pn2 = nullptr;
+        pn2 = NULL;
         break;
       }
 
@@ -314,7 +316,7 @@ Fold(ExclusiveContext *cx, ParseNode **pnp,
                 return false;
             if (pn->isKind(PNK_FORHEAD) && pn->pn_kid2->isKind(PNK_TRUE)) {
                 handler.freeTree(pn->pn_kid2);
-                pn->pn_kid2 = nullptr;
+                pn->pn_kid2 = NULL;
             }
         }
         pn2 = pn->pn_kid2;
@@ -478,7 +480,7 @@ Fold(ExclusiveContext *cx, ParseNode **pnp,
                             handler.freeTree(pn2);
                             --pn->pn_count;
                         }
-                        pn1->pn_next = nullptr;
+                        pn1->pn_next = NULL;
                         break;
                     }
                     JS_ASSERT((t == Truthy) == pn->isKind(PNK_AND));
@@ -487,13 +489,13 @@ Fold(ExclusiveContext *cx, ParseNode **pnp,
                     *listp = pn1->pn_next;
                     handler.freeTree(pn1);
                     --pn->pn_count;
-                } while ((pn1 = *listp) != nullptr);
+                } while ((pn1 = *listp) != NULL);
 
                 // We may have to change arity from LIST to BINARY.
                 pn1 = pn->pn_head;
                 if (pn->pn_count == 2) {
                     pn2 = pn1->pn_next;
-                    pn1->pn_next = nullptr;
+                    pn1->pn_next = NULL;
                     JS_ASSERT(!pn2->pn_next);
                     pn->setArity(PN_BINARY);
                     pn->pn_left = pn1;
@@ -550,82 +552,55 @@ Fold(ExclusiveContext *cx, ParseNode **pnp,
         /* FALL THROUGH */
       case PNK_ADD:
         if (pn->isArity(PN_LIST)) {
-            bool folded = false;
+            /*
+             * Any string literal term with all others number or string means
+             * this is a concatenation.  If any term is not a string or number
+             * literal, we can't fold.
+             */
+            JS_ASSERT(pn->pn_count > 2);
+            if (pn->pn_xflags & PNX_CANTFOLD)
+                return true;
+            if (pn->pn_xflags != PNX_STRCAT)
+                goto do_binary_op;
 
-            pn2 = pn1->pn_next;
-            if (pn1->isKind(PNK_NUMBER)) {
-                // Fold addition of numeric literals: (1 + 2 + x === 3 + x).
-                // Note that we can only do this the front of the list:
-                // (x + 1 + 2 !== x + 3) when x is a string.
-                while (pn2 && pn2->isKind(PNK_NUMBER)) {
-                    pn1->pn_dval += pn2->pn_dval;
-                    pn1->pn_next = pn2->pn_next;
-                    handler.freeTree(pn2);
-                    pn2 = pn1->pn_next;
-                    pn->pn_count--;
-                    folded = true;
-                }
+            /* Ok, we're concatenating: convert non-string constant operands. */
+            size_t length = 0;
+            for (pn2 = pn1; pn2; pn2 = pn2->pn_next) {
+                if (!FoldType(cx, pn2, PNK_STRING))
+                    return false;
+                /* XXX fold only if all operands convert to string */
+                if (!pn2->isKind(PNK_STRING))
+                    return true;
+                length += pn2->pn_atom->length();
             }
 
-            // Now search for adjacent pairs of literals to fold for string
-            // concatenation.
-            //
-            // isStringConcat is true if we know the operation we're looking at
-            // will be string concatenation at runtime.  As soon as we see a
-            // string, we know that every addition to the right of it will be
-            // string concatenation, even if both operands are numbers:
-            // ("s" + x + 1 + 2 === "s" + x + "12").
-            //
-            bool isStringConcat = false;
-
-            // (number + string) is definitely concatenation, but only at the
-            // front of the list: (x + 1 + "2" !== x + "12") when x is a
-            // number.
-            if (pn1->isKind(PNK_NUMBER) && pn2 && pn2->isKind(PNK_STRING))
-                isStringConcat = true;
-
-            while (pn2) {
-                isStringConcat = isStringConcat || pn1->isKind(PNK_STRING);
-
-                if (isStringConcat &&
-                    (pn1->isKind(PNK_STRING) || pn1->isKind(PNK_NUMBER)) &&
-                    (pn2->isKind(PNK_STRING) || pn2->isKind(PNK_NUMBER)))
-                {
-                    // Fold string concatenation of literals.
-                    if (pn1->isKind(PNK_NUMBER) && !FoldType(cx, pn1, PNK_STRING))
-                        return false;
-                    if (pn2->isKind(PNK_NUMBER) && !FoldType(cx, pn2, PNK_STRING))
-                        return false;
-                    RootedString left(cx, pn1->pn_atom);
-                    RootedString right(cx, pn2->pn_atom);
-                    RootedString str(cx, ConcatStrings<CanGC>(cx, left, right));
-                    if (!str)
-                        return false;
-                    pn1->pn_atom = AtomizeString(cx, str);
-                    if (!pn1->pn_atom)
-                        return false;
-                    pn1->pn_next = pn2->pn_next;
-                    handler.freeTree(pn2);
-                    pn2 = pn1->pn_next;
-                    pn->pn_count--;
-                    folded = true;
-                } else {
-                    pn1 = pn2;
-                    pn2 = pn2->pn_next;
-                }
+            /* Allocate a new buffer and string descriptor for the result. */
+            jschar *chars = cx->pod_malloc<jschar>(length + 1);
+            if (!chars)
+                return false;
+            chars[length] = 0;
+            JSString *str = js_NewString<CanGC>(cx, chars, length);
+            if (!str) {
+                js_free(chars);
+                return false;
             }
 
-            if (folded) {
-                if (pn->pn_count == 1) {
-                    // We reduced the list to one constant. There is no
-                    // addition anymore. Replace the PNK_ADD node with the
-                    // single PNK_STRING or PNK_NUMBER node.
-                    ReplaceNode(pnp, pn1);
-                    pn = pn1;
-                } else if (!pn2) {
-                    pn->pn_tail = &pn1->pn_next;
-                }
+            /* Fill the buffer, advancing chars and recycling kids as we go. */
+            for (pn2 = pn1; pn2; pn2 = handler.freeTree(pn2)) {
+                JSAtom *atom = pn2->pn_atom;
+                size_t length2 = atom->length();
+                js_strncpy(chars, atom->chars(), length2);
+                chars += length2;
             }
+            JS_ASSERT(*chars == 0);
+
+            /* Atomize the result string and mutate pn to refer to it. */
+            pn->pn_atom = AtomizeString<CanGC>(cx, str);
+            if (!pn->pn_atom)
+                return false;
+            pn->setKind(PNK_STRING);
+            pn->setOp(JSOP_STRING);
+            pn->setArity(PN_NULLARY);
             break;
         }
 
@@ -641,7 +616,7 @@ Fold(ExclusiveContext *cx, ParseNode **pnp,
             RootedString str(cx, ConcatStrings<CanGC>(cx, left, right));
             if (!str)
                 return false;
-            pn->pn_atom = AtomizeString(cx, str);
+            pn->pn_atom = AtomizeString<CanGC>(cx, str);
             if (!pn->pn_atom)
                 return false;
             pn->setKind(PNK_STRING);
@@ -681,7 +656,7 @@ Fold(ExclusiveContext *cx, ParseNode **pnp,
                 pn3 = pn2->pn_next;
                 if (!FoldBinaryNumeric(cx, op, pn1, pn2, pn))
                     return false;
-                while ((pn2 = pn3) != nullptr) {
+                while ((pn2 = pn3) != NULL) {
                     pn3 = pn2->pn_next;
                     if (!FoldBinaryNumeric(cx, op, pn, pn2, pn))
                         return false;
@@ -760,7 +735,7 @@ Fold(ExclusiveContext *cx, ParseNode **pnp,
 
       case PNK_ELEM: {
         // An indexed expression, pn1[pn2]. A few cases can be improved.
-        PropertyName *name = nullptr;
+        PropertyName *name = NULL;
         if (pn2->isKind(PNK_STRING)) {
             JSAtom *atom = pn2->pn_atom;
             uint32_t index;
@@ -787,18 +762,17 @@ Fold(ExclusiveContext *cx, ParseNode **pnp,
             }
         }
 
-        if (name && NameToId(name) == types::IdToTypeId(NameToId(name))) {
+        if (name) {
             // Optimization 3: We have pn1["foo"] where foo is not an index.
             // Convert to a property access (like pn1.foo) which we optimize
-            // better downstream. Don't bother with this for names which TI
-            // considers to be indexes, to simplify downstream analysis.
+            // better downstream.
             ParseNode *expr = handler.newPropertyAccess(pn->pn_left, name, pn->pn_pos.end);
             if (!expr)
                 return false;
             ReplaceNode(pnp, expr);
 
-            pn->pn_left = nullptr;
-            pn->pn_right = nullptr;
+            pn->pn_left = NULL;
+            pn->pn_right = NULL;
             handler.freeTree(pn);
             pn = expr;
         }

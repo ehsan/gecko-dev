@@ -105,6 +105,7 @@ static const char kPrintingPromptService[] = "@mozilla.org/embedcomp/printingpro
 #include "nsIBaseWindow.h"
 #include "nsILayoutHistoryState.h"
 #include "nsFrameManager.h"
+#include "nsGUIEvent.h"
 #include "nsHTMLReflowState.h"
 #include "nsIDOMHTMLAnchorElement.h"
 #include "nsIDOMHTMLAreaElement.h"
@@ -120,8 +121,6 @@ static const char kPrintingPromptService[] = "@mozilla.org/embedcomp/printingpro
 #include "nsIURIFixup.h"
 #include "mozilla/dom/Element.h"
 #include "nsContentList.h"
-#include "nsIChannel.h"
-#include "xpcpublic.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -144,7 +143,6 @@ using namespace mozilla::dom;
 
 #define DUMP_LAYOUT_LEVEL 9 // this turns on the dumping of each doucment's layout info
 
-#ifndef PR_PL
 static PRLogModuleInfo *
 GetPrintingLog()
 {
@@ -154,7 +152,6 @@ GetPrintingLog()
   return sLog;
 }
 #define PR_PL(_p1)  PR_LOG(GetPrintingLog(), PR_LOG_DEBUG, _p1);
-#endif
 
 #ifdef EXTENDED_DEBUG_PRINTING
 static uint32_t gDumpFileNameCnt   = 0;
@@ -293,7 +290,7 @@ void nsPrintEngine::DestroyPrintingData()
 
 //--------------------------------------------------------
 nsresult nsPrintEngine::Initialize(nsIDocumentViewerPrint* aDocViewerPrint, 
-                                   nsIDocShell*            aContainer,
+                                   nsIWeakReference*       aContainer,
                                    nsIDocument*            aDocument,
                                    float                   aScreenDPI,
                                    FILE*                   aDebugFile)
@@ -303,11 +300,11 @@ nsresult nsPrintEngine::Initialize(nsIDocumentViewerPrint* aDocViewerPrint,
   NS_ENSURE_ARG_POINTER(aDocument);
 
   mDocViewerPrint = aDocViewerPrint;
-  mContainer      = do_GetWeakReference(aContainer);
+  mContainer      = aContainer;
   mDocument       = aDocument;
   mScreenDPI      = aScreenDPI;
 
-  mDebugFile      = aDebugFile;      // ok to be nullptr
+  mDebugFile      = aDebugFile;      // ok to be NULL
 
   return NS_OK;
 }
@@ -521,7 +518,7 @@ nsPrintEngine::DoCommonPrint(bool                    aIsPrintPreview,
 
   // Get the currently focused window and cache it
   // because the Print Dialog will "steal" focus and later when you try
-  // to get the currently focused windows it will be nullptr
+  // to get the currently focused windows it will be NULL
   mPrt->mCurrentFocusWin = FindFocusedDOMWindow();
 
   // Check to see if there is a "regular" selection
@@ -1335,7 +1332,8 @@ nsPrintEngine::MapContentForPO(nsPrintObject*   aPO,
   nsIDocument* subDoc = doc->GetSubDocumentFor(aContent);
 
   if (subDoc) {
-    nsCOMPtr<nsIDocShell> docShell(subDoc->GetDocShell());
+    nsCOMPtr<nsISupports> container = subDoc->GetContainer();
+    nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(container));
 
     if (docShell) {
       nsPrintObject * po = nullptr;
@@ -2214,7 +2212,8 @@ nsPrintEngine::ReflowPrintObject(nsPrintObject * aPO)
 
   // This docshell stuff is weird; will go away when we stop having multiple
   // presentations per document
-  aPO->mPresContext->SetContainer(aPO->mDocShell);
+  nsCOMPtr<nsISupports> supps(do_QueryInterface(aPO->mDocShell));
+  aPO->mPresContext->SetContainer(supps);
 
   aPO->mPresShell->BeginObservingDocument();
 
@@ -2641,8 +2640,10 @@ DocHasPrintCallbackCanvas(nsIDocument* aDoc, void* aData)
                                                        NS_LITERAL_STRING("canvas"));
   uint32_t canvasCount = canvases->Length(true);
   for (uint32_t i = 0; i < canvasCount; ++i) {
-    HTMLCanvasElement* canvas = HTMLCanvasElement::FromContentOrNull(canvases->Item(i, false));
-    if (canvas && canvas->GetMozPrintCallback()) {
+    nsCOMPtr<nsIDOMHTMLCanvasElement> canvas = do_QueryInterface(canvases->Item(i, false));
+    nsCOMPtr<nsIPrintCallback> printCallback;
+    if (canvas && NS_SUCCEEDED(canvas->GetMozPrintCallback(getter_AddRefs(printCallback))) &&
+        printCallback) {
       // This subdocument has a print callback. Set result and return false to
       // stop iteration.
       *static_cast<bool*>(aData) = true;
@@ -2684,7 +2685,7 @@ nsPrintEngine::PrePrintPage()
   NS_ASSERTION(mPageSeqFrame,  "mPageSeqFrame is null!");
   NS_ASSERTION(mPrt,           "mPrt is null!");
 
-  // Although these should NEVER be nullptr
+  // Although these should NEVER be NULL
   // This is added insurance, to make sure we don't crash in optimized builds
   if (!mPrt || !mPageSeqFrame) {
     return true; // means we are done preparing the page.
@@ -2722,7 +2723,7 @@ nsPrintEngine::PrintPage(nsPrintObject*    aPO,
   NS_ASSERTION(mPageSeqFrame,  "mPageSeqFrame is null!");
   NS_ASSERTION(mPrt,           "mPrt is null!");
 
-  // Although these should NEVER be nullptr
+  // Although these should NEVER be NULL
   // This is added insurance, to make sure we don't crash in optimized builds
   if (!mPrt || !aPO || !mPageSeqFrame) {
     ShowPrintErrorDialog(NS_ERROR_FAILURE);
@@ -3020,7 +3021,7 @@ nsPrintEngine::CleanupDocTitleArray(PRUnichar**& aArray, int32_t& aCount)
     nsMemory::Free(aArray[i]);
   }
   nsMemory::Free(aArray);
-  aArray = nullptr;
+  aArray = NULL;
   aCount = 0;
 }
 
@@ -3447,17 +3448,18 @@ nsPrintEngine::TurnScriptingOn(bool aDoTurnOn)
       continue;
     }
 
-    if (nsCOMPtr<nsPIDOMWindow> window = doc->GetInnerWindow()) {
-      nsCOMPtr<nsIGlobalObject> go = do_QueryInterface(window);
-      NS_WARN_IF_FALSE(go && go->GetGlobalJSObject(), "Can't get global");
+    if (nsCOMPtr<nsPIDOMWindow> window = doc->GetWindow()) {
+      nsCOMPtr<nsIScriptGlobalObject> scriptGlobalObj = do_QueryInterface(window);
+      nsIScriptContext *scx = scriptGlobalObj->GetContext();
+      NS_WARN_IF_FALSE(scx, "Can't get nsIScriptContext");
       nsresult propThere = NS_PROPTABLE_PROP_NOT_THERE;
       doc->GetProperty(nsGkAtoms::scriptEnabledBeforePrintOrPreview,
                        &propThere);
       if (aDoTurnOn) {
         if (propThere != NS_PROPTABLE_PROP_NOT_THERE) {
           doc->DeleteProperty(nsGkAtoms::scriptEnabledBeforePrintOrPreview);
-          if (go && go->GetGlobalJSObject()) {
-            xpc::Scriptability::Get(go->GetGlobalJSObject()).Unblock();
+          if (scx) {
+            scx->SetScriptsEnabled(true, false);
           }
           window->ResumeTimeouts(false);
         }
@@ -3470,8 +3472,8 @@ nsPrintEngine::TurnScriptingOn(bool aDoTurnOn)
           // that layout code running in print preview doesn't get confused.
           doc->SetProperty(nsGkAtoms::scriptEnabledBeforePrintOrPreview,
                            NS_INT32_TO_PTR(doc->IsScriptEnabled()));
-          if (go && go->GetGlobalJSObject()) {
-            xpc::Scriptability::Get(go->GetGlobalJSObject()).Block();
+          if (scx) {
+            scx->SetScriptsEnabled(false, false);
           }
           window->SuspendTimeouts(1, false);
         }

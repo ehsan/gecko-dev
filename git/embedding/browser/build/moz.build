@@ -4,7 +4,9 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-SOURCES += [
+MODULE = 'webbrwsr'
+
+CPP_SOURCES += [
     'nsWebBrowserModule.cpp',
 ]
 
@@ -12,9 +14,5 @@ LIBRARY_NAME = 'webbrwsr'
 
 FAIL_ON_WARNINGS = True
 
-FINAL_LIBRARY = 'xul'
-LOCAL_INCLUDES += [
-    '../setup',
-    '../webBrowser',
-]
+LIBXUL_LIBRARY = True
 

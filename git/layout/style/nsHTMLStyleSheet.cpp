@@ -32,6 +32,7 @@
 #include "nsCSSRuleProcessor.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/Element.h"
+#include "nsCSSFrameConstructor.h"
 #include "nsHashKeys.h"
 #include "RestyleManager.h"
 
@@ -158,7 +159,7 @@ MappedAttrTable_MatchEntry(PLDHashTable *table, const PLDHashEntryHdr *hdr,
   return attributes->Equals(entry->mAttributes);
 }
 
-static const PLDHashTableOps MappedAttrTable_Ops = {
+static PLDHashTableOps MappedAttrTable_Ops = {
   PL_DHashAllocTable,
   PL_DHashFreeTable,
   MappedAttrTable_HashKey,
@@ -215,7 +216,7 @@ LangRuleTable_InitEntry(PLDHashTable *table, PLDHashEntryHdr *hdr,
   return true;
 }
 
-static const PLDHashTableOps LangRuleTable_Ops = {
+static PLDHashTableOps LangRuleTable_Ops = {
   PL_DHashAllocTable,
   PL_DHashFreeTable,
   LangRuleTable_HashKey,
@@ -320,12 +321,6 @@ nsHTMLStyleSheet::HasStateDependentStyle(StateRuleProcessorData* aData)
     return eRestyle_Self;
   }
   
-  return nsRestyleHint(0);
-}
-
-/* virtual */ nsRestyleHint
-nsHTMLStyleSheet::HasStateDependentStyle(PseudoElementStateRuleProcessorData* aData)
-{
   return nsRestyleHint(0);
 }
 

@@ -32,6 +32,7 @@ if (document.getElementById('iframe'))
   doc = document.getElementById('iframe').contentDocument;
 
 function toggleIframe(){
+ netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
   var x=document.getElementById('iframe');
   x.style.display = x.style.display == 'none' ? x.style.display = '' : x.style.display = 'none';
   setTimeout(toggleIframe,100);
@@ -43,8 +44,12 @@ function toggleIframe(){
 setTimeout(toggleIframe,100);
 
 function ctrlclick(i){
-  var wu = SpecialPowers.getDOMWindowUtils(doc.defaultView);
-  var wu2 = SpecialPowers.getDOMWindowUtils(top);
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var wu =  doc.defaultView.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+               .getInterface(Components.interfaces.nsIDOMWindowUtils);
+
+  var wu2 =  top.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                .getInterface(Components.interfaces.nsIDOMWindowUtils);
 
   try
   {

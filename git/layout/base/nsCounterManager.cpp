@@ -11,7 +11,6 @@
 #include "nsContentUtils.h"
 #include "nsTArray.h"
 #include "mozilla/Likely.h"
-#include "nsIContent.h"
 
 bool
 nsCounterUseNode::InitTextFrame(nsGenConList* aList,
@@ -85,9 +84,7 @@ nsCounterUseNode::GetText(nsString& aResult)
 
     for (uint32_t i = stack.Length() - 1;; --i) {
         nsCounterNode *n = stack[i];
-        bool isTextRTL;
-        nsBulletFrame::AppendCounterText(
-                style, n->mValueAfter, aResult, isTextRTL);
+        nsBulletFrame::AppendCounterText(style, n->mValueAfter, aResult);
         if (i == 0)
             break;
         NS_ASSERTION(mAllCounters, "yikes, separator is uninitialized");
@@ -183,8 +180,8 @@ nsCounterList::RecalcAll()
 }
 
 nsCounterManager::nsCounterManager()
-    : mNames(16)
 {
+    mNames.Init(16);
 }
 
 bool

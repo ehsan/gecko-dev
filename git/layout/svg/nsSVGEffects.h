@@ -229,10 +229,9 @@ protected:
  */
 class nsSVGRenderingObserverList {
 public:
-  nsSVGRenderingObserverList()
-    : mObservers(5)
-  {
+  nsSVGRenderingObserverList() {
     MOZ_COUNT_CTOR(nsSVGRenderingObserverList);
+    mObservers.Init(5);
   }
 
   ~nsSVGRenderingObserverList() {

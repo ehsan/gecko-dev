@@ -127,16 +127,16 @@ PrintDisplayListTo(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList,
                    FILE* aOutput, bool aDumpHtml)
 {
   if (aDumpHtml) {
-    fprintf_stderr(aOutput, "<ul>");
+    fprintf(aOutput, "<ul>");
   }
 
   for (nsDisplayItem* i = aList.GetBottom(); i != nullptr; i = i->GetAbove()) {
     if (aDumpHtml) {
-      fprintf_stderr(aOutput, "<li>");
+      fprintf(aOutput, "<li>");
     } else {
       sPrintDisplayListIndent ++;
       for (int indent = 0; indent < sPrintDisplayListIndent; indent++) {
-        fprintf_stderr(aOutput, "  ");
+        fprintf(aOutput, "  ");
       }
     }
     nsIFrame* f = i->Frame();
@@ -161,9 +161,9 @@ PrintDisplayListTo(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList,
       nsCString string(i->Name());
       string.Append("-");
       string.AppendInt((uint64_t)i);
-      fprintf_stderr(aOutput, "<a href=\"javascript:ViewImage('%s')\">", string.BeginReading());
+      fprintf(aOutput, "<a href=\"javascript:ViewImage('%s')\">", string.BeginReading());
     }
-    fprintf_stderr(aOutput, "%s %p(%s) bounds(%d,%d,%d,%d) visible(%d,%d,%d,%d) componentAlpha(%d,%d,%d,%d) clip(%s) %s",
+    fprintf(aOutput, "%s %p(%s) bounds(%d,%d,%d,%d) visible(%d,%d,%d,%d) componentAlpha(%d,%d,%d,%d) clip(%s) %s",
             i->Name(), (void*)f, NS_ConvertUTF16toUTF8(fName).get(),
             rect.x, rect.y, rect.width, rect.height,
             vis.x, vis.y, vis.width, vis.height,
@@ -172,37 +172,37 @@ PrintDisplayListTo(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList,
             i->IsUniform(aBuilder, &color) ? " uniform" : "");
     nsRegionRectIterator iter(opaque);
     for (const nsRect* r = iter.Next(); r; r = iter.Next()) {
-      fprintf_stderr(aOutput, " (opaque %d,%d,%d,%d)", r->x, r->y, r->width, r->height);
+      fprintf(aOutput, " (opaque %d,%d,%d,%d)", r->x, r->y, r->width, r->height);
     }
     i->WriteDebugInfo(aOutput);
     if (aDumpHtml && i->Painted()) {
-      fprintf_stderr(aOutput, "</a>");
+      fprintf(aOutput, "</a>");
     }
     uint32_t key = i->GetPerFrameKey();
     Layer* layer = mozilla::FrameLayerBuilder::GetDebugOldLayerFor(f, key);
     if (layer) {
       if (aDumpHtml) {
-        fprintf_stderr(aOutput, " <a href=\"#%p\">layer=%p</a>", layer, layer);
+        fprintf(aOutput, " <a href=\"#%p\">layer=%p</a>", layer, layer);
       } else {
-        fprintf_stderr(aOutput, " layer=%p", layer);
+        fprintf(aOutput, " layer=%p", layer);
       }
     }
     if (i->GetType() == nsDisplayItem::TYPE_SVG_EFFECTS) {
       (static_cast<nsDisplaySVGEffects*>(i))->PrintEffects(aOutput);
     }
-    fprintf_stderr(aOutput, "\n");
+    fputc('\n', aOutput);
     if (list) {
       PrintDisplayListTo(aBuilder, *list, aOutput, aDumpHtml);
     }
     if (aDumpHtml) {
-      fprintf_stderr(aOutput, "</li>");
+      fprintf(aOutput, "</li>");
     } else {
       sPrintDisplayListIndent --;
     }
   }
 
   if (aDumpHtml) {
-    fprintf_stderr(aOutput, "</ul>");
+    fprintf(aOutput, "</ul>");
   }
 }
 
@@ -213,43 +213,6 @@ nsFrame::PrintDisplayList(nsDisplayListBuilder* aBuilder,
                           bool aDumpHtml)
 {
   PrintDisplayListTo(aBuilder, aList, aFile, aDumpHtml);
-}
-
-static void
-PrintDisplayListSetItem(nsDisplayListBuilder* aBuilder,
-                        const char* aItemName,
-                        const nsDisplayList& aList,
-                        FILE* aFile,
-                        bool aDumpHtml)
-{
-  if (aDumpHtml) {
-    fprintf_stderr(aFile, "<li>");
-  }
-  fprintf_stderr(aFile, "%s", aItemName);
-  PrintDisplayListTo(aBuilder, aList, aFile, aDumpHtml);
-  if (aDumpHtml) {
-    fprintf_stderr(aFile, "</li>");
-  }
-}
-
-void
-nsFrame::PrintDisplayListSet(nsDisplayListBuilder* aBuilder,
-                             const nsDisplayListSet& aSet,
-                             FILE *aFile,
-                             bool aDumpHtml)
-{
-  if (aDumpHtml) {
-    fprintf_stderr(aFile, "<ul>");
-  }
-  PrintDisplayListSetItem(aBuilder, "[BorderBackground]", *(aSet.BorderBackground()), aFile, aDumpHtml);
-  PrintDisplayListSetItem(aBuilder, "[BlockBorderBackgrounds]", *(aSet.BlockBorderBackgrounds()), aFile, aDumpHtml);
-  PrintDisplayListSetItem(aBuilder, "[Floats]", *(aSet.Floats()), aFile, aDumpHtml);
-  PrintDisplayListSetItem(aBuilder, "[PositionedDescendants]", *(aSet.PositionedDescendants()), aFile, aDumpHtml);
-  PrintDisplayListSetItem(aBuilder, "[Outlines]", *(aSet.Outlines()), aFile, aDumpHtml);
-  PrintDisplayListSetItem(aBuilder, "[Content]", *(aSet.Content()), aFile, aDumpHtml);
-  if (aDumpHtml) {
-    fprintf_stderr(aFile, "</ul>");
-  }
 }
 
 #endif

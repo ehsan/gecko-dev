@@ -159,7 +159,7 @@ function disableOverride()
 
 function finishTest()
 {
-  doc = inspector = view = null;
+  doc = null;
   gBrowser.removeCurrentTab();
   finish();
 }

@@ -41,13 +41,13 @@ char*
 NS_strtok(const char *delims, char **str)
 {
   if (!*str)
-    return nullptr;
+    return NULL;
 
   char *ret = (char*) NS_strspnp(delims, *str);
 
   if (!*ret) {
     *str = ret;
-    return nullptr;
+    return NULL;
   }
 
   char *i = ret;
@@ -62,7 +62,7 @@ NS_strtok(const char *delims, char **str)
     ++i;
   } while (*i);
 
-  *str = nullptr;
+  *str = NULL;
   return ret;
 }
 
@@ -268,19 +268,16 @@ void NS_MakeRandomString(char *aBuf, int32_t aBufLen)
 
 #endif
 #if defined(XP_WIN)
-
-#define va_copy(dest, src) (dest = src)
-
 void
-vprintf_stderr(const char *fmt, va_list args)
+printf_stderr(const char *fmt, ...)
 {
   if (IsDebuggerPresent()) {
     char buf[2048];
-    va_list argsCpy;
-    va_copy(argsCpy, args);
-    vsnprintf(buf, sizeof(buf), fmt, argsCpy);
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, args);
     buf[sizeof(buf) - 1] = '\0';
-    va_end(argsCpy);
+    va_end(args);
     OutputDebugStringA(buf);
   }
 
@@ -288,47 +285,29 @@ vprintf_stderr(const char *fmt, va_list args)
   if (!fp)
       return;
 
+  va_list args;
+  va_start(args, fmt);
   vfprintf(fp, fmt, args);
+  va_end(args);
 
   fclose(fp);
 }
-
-#undef va_copy
-
 #elif defined(ANDROID)
-void
-vprintf_stderr(const char *fmt, va_list args)
-{
-  __android_log_vprint(ANDROID_LOG_INFO, "Gecko", fmt, args);
-}
-#else
-void
-vprintf_stderr(const char *fmt, va_list args)
-{
-  vfprintf(stderr, fmt, args);
-}
-#endif
-
 void
 printf_stderr(const char *fmt, ...)
 {
   va_list args;
   va_start(args, fmt);
-  vprintf_stderr(fmt, args);
+  __android_log_vprint(ANDROID_LOG_INFO, "Gecko", fmt, args);
   va_end(args);
 }
-
+#else
 void
-fprintf_stderr(FILE* aFile, const char *fmt, ...)
+printf_stderr(const char *fmt, ...)
 {
   va_list args;
   va_start(args, fmt);
-  if (aFile == stderr) {
-    vprintf_stderr(fmt, args);
-  } else {
-    vfprintf(aFile, fmt, args);
-  }
+  vfprintf(stderr, fmt, args);
   va_end(args);
 }
-
-
+#endif

@@ -93,79 +93,11 @@ gTests.push({
   tearDown: restoreViewstate
 });
 
-/* Disabled because it breaks at specific screen sizes (bug 936735).
 gTests.push({
   desc: "Test Snapped scrolls vertically",
-  setUp: function() {
-
-    // Populate with mock data and expand bookmarks
-    BookmarksTestHelper.setup();
-    sendElementTap(Browser.selectedBrowser.contentWindow, getNarrowTitle("start-bookmarks"));
-
-    yield waitForCondition(() => gStartDoc.getElementById("start-bookmarks").hasAttribute("expanded"));
-
-    yield setUpSnapped();
-  },
-  run: function() {
-    ok(Browser.selectedBrowser.contentWindow.scrollMaxY !== 0, "Snapped scrolls vertically");
-    ok(Browser.selectedBrowser.contentWindow.scrollMaxX === 0, "Snapped does not scroll horizontally");
-  },
-  tearDown: function() {
-    BookmarksTestHelper.restore();
-    yield restoreViewstate();
-  }
-});
-*/
-
-gTests.push({
-  desc: "Test tile selection is cleared and disabled",
-  setUp: function() {
-    BookmarksTestHelper.setup();
-    HistoryTestHelper.setup();
-    showStartUI();
-  },
-  run: function() {
-    // minimal event mocking to trigger context-click handlers
-    function makeMockEvent(item) {
-      return {
-        stopPropagation: function() {},
-        target: item
-      };
-    }
-    let startWin = Browser.selectedBrowser.contentWindow;
-    // make sure the bookmarks grid is showing
-    startWin.StartUI.onNarrowTitleClick("start-bookmarks");
-    let bookmarksGrid = startWin.document.querySelector("#start-bookmarks-grid");
-    // sanity check
-    ok(bookmarksGrid, "matched bookmarks grid");
-    ok(bookmarksGrid.children[0], "bookmarks grid has items");
-    // select a tile (balancing implementation leakage with test simplicity)
-    let mockEvent = makeMockEvent(bookmarksGrid.children[0]);
-    bookmarksGrid.handleItemContextMenu(bookmarksGrid.children[0], mockEvent);
-    // check tile was selected
-    is(bookmarksGrid.selectedItems.length, 1, "Tile got selected in landscape view");
-    // switch to snapped view
-    yield setSnappedViewstate();
-    is(bookmarksGrid.selectedItems.length, 0, "grid items selection cleared in snapped view");
-    // attempt to select a tile in snapped view
-    mockEvent = makeMockEvent(bookmarksGrid.children[0]);
-    bookmarksGrid.handleItemContextMenu(bookmarksGrid.children[0], mockEvent);
-    is(bookmarksGrid.selectedItems.length, 0, "no grid item selections possible in snapped view");
-  },
-  tearDown: function() {
-    BookmarksTestHelper.restore();
-    HistoryTestHelper.restore();
-    yield restoreViewstate();
-  }
-});
-
-gTests.push({
-  desc: "Navbar contextual buttons are not shown in snapped",
   setUp: setUpSnapped,
   run: function() {
-    let toolbarContextual = document.getElementById("toolbar-contextual");
-    let visibility = getComputedStyle(toolbarContextual).getPropertyValue("visibility");
-    ok(visibility === "collapse" || visibility === "hidden", "Contextual buttons not shown in navbar");
+    todo(false, "We need to populate startUI to verify that it's scrollable");
   },
   tearDown: restoreViewstate
 });
@@ -185,25 +117,3 @@ gTests.push({
   },
   tearDown: restoreViewstate
 });
-
-/* Disabled because it breaks at specific screen sizes (bug 936735).
-gTests.push({
-  desc: "Test portrait scrolls vertically",
-  setUp: function() {
-    // Populate with mock data
-    BookmarksTestHelper.setup();
-    HistoryTestHelper.setup();
-
-    yield setUpPortrait();
-  },
-  run: function() {
-    ok(Browser.selectedBrowser.contentWindow.scrollMaxY !== 0, "Portrait scrolls vertically");
-    ok(Browser.selectedBrowser.contentWindow.scrollMaxX === 0, "Portrait does not scroll horizontally");
-  },
-  tearDown: function() {
-    BookmarksTestHelper.restore();
-    HistoryTestHelper.restore();
-    yield restoreViewstate();
-  }
-});
-*/

@@ -22,7 +22,7 @@
 #include "nsNetUtil.h"
 #include "nsAppDirectoryServiceDefs.h"
 
-#include "js/Tracer.h"
+#include "jsapi.h"
 
 #include "mozilla/Preferences.h"
 #include "mozilla/scache/StartupCache.h"
@@ -53,7 +53,7 @@ UpdategDisableXULCache()
     
 }
 
-static void
+static int
 DisableXULCacheChangedCallback(const char* aPref, void* aClosure)
 {
     UpdategDisableXULCache();
@@ -62,6 +62,8 @@ DisableXULCacheChangedCallback(const char* aPref, void* aClosure)
     nsXULPrototypeCache* cache = nsXULPrototypeCache::GetInstance();
     if (cache)
         cache->Flush();
+
+    return 0;
 }
 
 //----------------------------------------------------------------------
@@ -87,6 +89,15 @@ nsXULPrototypeCache::GetInstance()
 {
     if (!sInstance) {
         NS_ADDREF(sInstance = new nsXULPrototypeCache());
+
+        sInstance->mPrototypeTable.Init();
+        sInstance->mStyleSheetTable.Init();
+        sInstance->mScriptTable.Init();
+        sInstance->mXBLDocTable.Init();
+
+        sInstance->mCacheURITable.Init();
+        sInstance->mInputStreamTable.Init();
+        sInstance->mOutputStreamTable.Init();
 
         UpdategDisableXULCache();
 
@@ -315,6 +326,8 @@ nsXULPrototypeCache::AbortCaching()
 }
 
 
+static const char kDisableXULDiskCachePref[] = "nglayout.debug.disable_xul_fastload";
+
 nsresult
 nsXULPrototypeCache::WritePrototype(nsXULPrototypeDocument* aPrototypeDocument)
 {
@@ -459,7 +472,7 @@ nsXULPrototypeCache::HasData(nsIURI* uri, bool* exists)
     return NS_OK;
 }
 
-static void
+static int
 CachePrefChangedCallback(const char* aPref, void* aClosure)
 {
     bool wasEnabled = !gDisableXULDiskCache;
@@ -473,6 +486,7 @@ CachePrefChangedCallback(const char* aPref, void* aClosure)
         if (cache)
             cache->AbortCaching();
     }
+    return 0;
 }
 
 nsresult

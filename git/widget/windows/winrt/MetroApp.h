@@ -42,7 +42,7 @@ public:
   // nsIWinMetroUtils tile related async callbacks
   HRESULT OnAsyncTileCreated(ABI::Windows::Foundation::IAsyncOperation<bool>* aOperation, AsyncStatus aStatus);
 
-  void Run();
+  void Initialize();
   void CoreExit();
 
   void ShutdownXPCOM();

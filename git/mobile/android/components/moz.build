@@ -8,12 +8,11 @@ XPIDL_SOURCES += [
     'SessionStore.idl',
 ]
 
-XPIDL_MODULE = 'MobileComponents'
+MODULE = 'MobileComponents'
 
 EXTRA_COMPONENTS += [
     'AddonUpdateService.js',
     'BlocklistPrompt.js',
-    'ColorPicker.js',
     'ContentDispatchChooser.js',
     'ContentPermissionPrompt.js',
     'DownloadManagerUI.js',
@@ -23,7 +22,6 @@ EXTRA_COMPONENTS += [
     'PaymentsUI.js',
     'PromptService.js',
     'SiteSpecificUserAgent.js',
-    'Snippets.js',
     'XPIDialogService.js',
 ]
 
@@ -37,4 +35,3 @@ EXTRA_PP_COMPONENTS += [
     'Sidebar.js',
 ]
 
-DEFINES['ANDROID_PACKAGE_NAME'] = CONFIG['ANDROID_PACKAGE_NAME']

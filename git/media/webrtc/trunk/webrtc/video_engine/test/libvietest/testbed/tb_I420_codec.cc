@@ -10,9 +10,9 @@
 
 #include "webrtc/video_engine/test/libvietest/include/tb_I420_codec.h"
 
-#include <assert.h>
-#include <stdio.h>
 #include <string.h>
+#include <stdio.h>
+#include <assert.h>
 
 #include "webrtc/common_video/libyuv/include/webrtc_libyuv.h"
 
@@ -260,19 +260,12 @@ int32_t TbI420Decoder::Decode(
         return WEBRTC_VIDEO_CODEC_UNINITIALIZED;
     }
 
-    // Only send complete frames.
-    if (static_cast<int>(inputImage._length) !=
-        webrtc::CalcBufferSize(webrtc::kI420,_width,_height)) {
-      return WEBRTC_VIDEO_CODEC_ERROR;
-    }
-
     int ret = ConvertToI420(webrtc::kI420, inputImage._buffer, 0, 0,
                            _width, _height,
                            0, webrtc::kRotateNone, &_decodedImage);
 
     if (ret < 0)
       return WEBRTC_VIDEO_CODEC_ERROR;
-
     _decodedImage.set_timestamp(inputImage._timeStamp);
 
     _decodeCompleteCallback->Decoded(_decodedImage);

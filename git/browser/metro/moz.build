@@ -16,9 +16,5 @@ DIRS += [
 if CONFIG['OS_ARCH'] == 'WINNT':
     DIRS += ['shell']
 
-DIST_SUBDIR = 'metro'
+TEST_DIRS += ['base/tests']
 
-if CONFIG['MOZILLA_OFFICIAL']:
-    DEFINES['MOZILLA_OFFICIAL'] = True
-
-DEFINES['GRE_MILESTONE'] = CONFIG['GRE_MILESTONE']

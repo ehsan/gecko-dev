@@ -2,12 +2,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "js/OldDebugAPI.h"
+#include "jsdbgapi.h"
+
 #include "jsapi-tests/tests.h"
 
-static JSPrincipals *sOriginPrincipalsInErrorReporter = nullptr;
-static TestJSPrincipals prin1(1);
-static TestJSPrincipals prin2(1);
+JSPrincipals *sOriginPrincipalsInErrorReporter = NULL;
+
+static void
+ErrorReporter(JSContext *cx, const char *message, JSErrorReport *report)
+{
+    sOriginPrincipalsInErrorReporter = report->originPrincipals;
+}
+
+JSPrincipals prin1 = { 1 };
+JSPrincipals prin2 = { 1 };
 
 BEGIN_TEST(testOriginPrincipals)
 {
@@ -42,12 +50,6 @@ BEGIN_TEST(testOriginPrincipals)
      *   CHECK(testError("throw 3"));
      */
     return true;
-}
-
-static void
-ErrorReporter(JSContext *cx, const char *message, JSErrorReport *report)
-{
-    sOriginPrincipalsInErrorReporter = report->originPrincipals;
 }
 
 bool

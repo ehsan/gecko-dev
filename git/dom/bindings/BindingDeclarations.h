@@ -16,13 +16,15 @@
 #include "nsStringGlue.h"
 #include "js/Value.h"
 #include "js/RootingAPI.h"
-#include "mozilla/Maybe.h"
+#include "mozilla/Util.h"
 #include "nsCOMPtr.h"
+#include "nsDOMString.h"
+#include "nsStringBuffer.h"
 #include "nsTArray.h"
 #include "nsAutoPtr.h" // for nsRefPtr member variables
-#include "mozilla/dom/DOMString.h"
-#include "mozilla/dom/OwningNonNull.h"
 
+struct JSContext;
+class JSObject;
 class nsWrapperCache;
 
 // nsGlobalWindow implements nsWrapperCache, but doesn't always use it. Don't
@@ -83,10 +85,137 @@ public:
   }
 
 protected:
-  JS::Rooted<JSObject*> mGlobalJSObject;
+  JS::RootedObject mGlobalJSObject;
   JSContext* mCx;
   mutable nsISupports* mGlobalObject;
   mutable nsCOMPtr<nsISupports> mGlobalObjectRef;
+};
+
+/**
+ * A class for representing string return values.  This can be either passed to
+ * callees that have an nsString or nsAString out param or passed to a callee
+ * that actually knows about this class and can work with it.  Such a callee may
+ * call SetStringBuffer on this object, but only if it plans to keep holding a
+ * strong ref to the stringbuffer!
+ *
+ * The proper way to store a value in this class is to either to do nothing
+ * (which leaves this as an empty string), to call SetStringBuffer with a
+ * non-null stringbuffer, to call SetNull(), or to call AsAString() and set the
+ * value in the resulting nsString.  These options are mutually exclusive!
+ * Don't do more than one of them.
+ *
+ * The proper way to extract a value is to check IsNull().  If not null, then
+ * check HasStringBuffer().  If that's true, check for a zero length, and if the
+ * length is nonzero call StringBuffer().  If the length is zero this is the
+ * empty string.  If HasStringBuffer() returns false, call AsAString() and get
+ * the value from that.
+ */
+class MOZ_STACK_CLASS DOMString {
+public:
+  DOMString()
+    : mStringBuffer(nullptr)
+    , mLength(0)
+    , mIsNull(false)
+  {}
+  ~DOMString()
+  {
+    MOZ_ASSERT(mString.empty() || !mStringBuffer,
+               "Shouldn't have both present!");
+  }
+
+  operator nsString&()
+  {
+    return AsAString();
+  }
+
+  nsString& AsAString()
+  {
+    MOZ_ASSERT(!mStringBuffer, "We already have a stringbuffer?");
+    MOZ_ASSERT(!mIsNull, "We're already set as null");
+    if (mString.empty()) {
+      mString.construct();
+    }
+    return mString.ref();
+  }
+
+  bool HasStringBuffer() const
+  {
+    MOZ_ASSERT(mString.empty() || !mStringBuffer,
+               "Shouldn't have both present!");
+    MOZ_ASSERT(!mIsNull, "Caller should have checked IsNull() first");
+    return mString.empty();
+  }
+
+  // Get the stringbuffer.  This can only be called if HasStringBuffer()
+  // returned true and StringBufferLength() is nonzero.  If that's true, it will
+  // never return null.
+  nsStringBuffer* StringBuffer() const
+  {
+    MOZ_ASSERT(!mIsNull, "Caller should have checked IsNull() first");
+    MOZ_ASSERT(HasStringBuffer(),
+               "Don't ask for the stringbuffer if we don't have it");
+    MOZ_ASSERT(StringBufferLength() != 0, "Why are you asking for this?");
+    MOZ_ASSERT(mStringBuffer,
+               "If our length is nonzero, we better have a stringbuffer.");
+    return mStringBuffer;
+  }
+
+  // Get the length of the stringbuffer.  Can only be called if
+  // HasStringBuffer().
+  uint32_t StringBufferLength() const
+  {
+    MOZ_ASSERT(HasStringBuffer(), "Don't call this if there is no stringbuffer");
+    return mLength;
+  }
+
+  void SetStringBuffer(nsStringBuffer* aStringBuffer, uint32_t aLength)
+  {
+    MOZ_ASSERT(mString.empty(), "We already have a string?");
+    MOZ_ASSERT(!mIsNull, "We're already set as null");
+    MOZ_ASSERT(!mStringBuffer, "Setting stringbuffer twice?");
+    MOZ_ASSERT(aStringBuffer, "Why are we getting null?");
+    mStringBuffer = aStringBuffer;
+    mLength = aLength;
+  }
+
+  void SetNull()
+  {
+    MOZ_ASSERT(!mStringBuffer, "Should have no stringbuffer if null");
+    MOZ_ASSERT(mString.empty(), "Should have no string if null");
+    mIsNull = true;
+  }
+
+  bool IsNull() const
+  {
+    MOZ_ASSERT(!mStringBuffer || mString.empty(),
+               "How could we have a stringbuffer and a nonempty string?");
+    return mIsNull || (!mString.empty() && mString.ref().IsVoid());
+  }
+
+  void ToString(nsAString& aString)
+  {
+    if (IsNull()) {
+      SetDOMStringToNull(aString);
+    } else if (HasStringBuffer()) {
+      if (StringBufferLength() == 0) {
+        aString.Truncate();
+      } else {
+        StringBuffer()->ToString(StringBufferLength(), aString);
+      }
+    } else {
+      aString = AsAString();
+    }
+  }
+
+private:
+  // We need to be able to act like a string as needed
+  Maybe<nsString> mString;
+
+  // For callees that know we exist, we can be a stringbuffer/length/null-flag
+  // triple.
+  nsStringBuffer* mStringBuffer;
+  uint32_t mLength;
+  bool mIsNull;
 };
 
 // Class for representing optional arguments.
@@ -128,13 +257,6 @@ public:
   void Construct(const T1 &t1, const T2 &t2)
   {
     mImpl.construct(t1, t2);
-  }
-
-  void Reset()
-  {
-    if (WasPassed()) {
-      mImpl.destroy();
-    }
   }
 
   const T& Value() const
@@ -297,6 +419,7 @@ public:
 
 // A specialization of Optional for OwningNonNull that lets us get a
 // T& from Value()
+template<typename U> class OwningNonNull;
 template<typename T>
 class Optional<OwningNonNull<T> > : public Optional_base<T, OwningNonNull<T> >
 {
@@ -451,15 +574,12 @@ GetWrapperCache(nsWrapperCache* cache)
 }
 
 inline nsWrapperCache*
-GetWrapperCache(nsGlobalWindow*)
-{
-  return nullptr;
-}
+GetWrapperCache(nsGlobalWindow* not_allowed);
 
 inline nsWrapperCache*
 GetWrapperCache(void* p)
 {
-  return nullptr;
+  return NULL;
 }
 
 // Helper template for smart pointers to resolve ambiguity between

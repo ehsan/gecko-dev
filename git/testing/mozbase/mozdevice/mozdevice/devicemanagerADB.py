@@ -218,7 +218,7 @@ class DeviceManagerADB(DeviceManager):
         if 'read-only file system' in result.lower():
             raise DMError("Error creating directory: read only file system")
 
-    def pushDir(self, localDir, remoteDir, retryLimit=None, timeout=None):
+    def pushDir(self, localDir, remoteDir, retryLimit=None):
         # adb "push" accepts a directory as an argument, but if the directory
         # contains symbolic links, the links are pushed, rather than the linked
         # files; we either zip/unzip or re-copy the directory into a temporary
@@ -248,7 +248,7 @@ class DeviceManagerADB(DeviceManager):
             # copytree's target dir must not already exist, so create a subdir
             tmpDirTarget = os.path.join(tmpDir, "tmp")
             shutil.copytree(localDir, tmpDirTarget)
-            self._checkCmd(["push", tmpDirTarget, remoteDir], retryLimit=retryLimit, timeout=timeout)
+            self._checkCmd(["push", tmpDirTarget, remoteDir], retryLimit=retryLimit)
             shutil.rmtree(tmpDir)
 
     def dirExists(self, remotePath):
@@ -374,13 +374,13 @@ class DeviceManagerADB(DeviceManager):
         self._checkCmd(acmd)
         return outputFile
 
-    def killProcess(self, appname, sig=None):
+    def killProcess(self, appname, forceKill=False):
         procs = self.getProcessList()
         for (pid, name, user) in procs:
             if name == appname:
                 args = ["shell", "kill"]
-                if sig:
-                    args.append("-%d" % sig)
+                if forceKill:
+                    args.append("-9")
                 args.append(str(pid))
                 p = self._runCmdAs(args)
                 p.communicate()

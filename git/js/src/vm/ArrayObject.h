@@ -14,7 +14,7 @@ namespace js {
 class ArrayObject : public JSObject
 {
   public:
-    static const Class class_;
+    static Class class_;
 
     bool lengthIsWritable() const {
         return !getElementsHeader()->hasNonwritableArrayLength();

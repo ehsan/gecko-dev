@@ -22,6 +22,8 @@
 
 using namespace mozilla;
  
+static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
+
 /* Object Identifier constants */
 #define CONST_OID static const unsigned char
 #define MICROSOFT_OID 0x2b, 0x6, 0x1, 0x4, 0x1, 0x82, 0x37
@@ -940,8 +942,8 @@ ProcessName(CERTName *name, nsINSSComponent *nssComponent, PRUnichar **value)
   lastRdn = rdns;
   while (*lastRdn) lastRdn++;
   // The above whille loop will put us at the last member
-  // of the array which is a nullptr pointer.  So let's back
-  // up one spot so that we have the last non-nullptr entry in 
+  // of the array which is a NULL pointer.  So let's back
+  // up one spot so that we have the last non-NULL entry in 
   // the array in preparation for traversing the 
   // RDN's (Relative Distinguished Name) in reverse oder.
   lastRdn--;
@@ -2110,8 +2112,6 @@ nsNSSCertificate::CreateTBSCertificateASN1Struct(nsIASN1Sequence **retSequence,
 nsresult
 nsNSSCertificate::CreateASN1Struct(nsIASN1Object** aRetVal)
 {
-  static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
-
   nsNSSShutDownPreventionLock locker;
   if (isAlreadyShutDown())
     return NS_ERROR_NOT_AVAILABLE;
@@ -2188,8 +2188,6 @@ getCertType(CERTCertificate *cert)
 CERTCertNicknames *
 getNSSCertNicknamesFromCertList(CERTCertList *certList)
 {
-  static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
-
   nsresult rv;
 
   nsCOMPtr<nsINSSComponent> nssComponent(do_GetService(kNSSComponentCID, &rv));

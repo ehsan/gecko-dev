@@ -63,36 +63,11 @@ MakeSchemaVersion(uint32_t aMajorSchemaVersion,
 const int32_t kSQLiteSchemaVersion = int32_t((kMajorSchemaVersion << 4) +
                                              kMinorSchemaVersion);
 
-const uint32_t kGoldenRatioU32 = 0x9E3779B9U;
-
-inline
-uint32_t
-RotateBitsLeft32(uint32_t value, uint8_t bits)
-{
-  MOZ_ASSERT(bits < 32);
-  return (value << bits) | (value >> (32 - bits));
-}
-
-inline
-uint32_t
-HashName(const nsAString& aName)
-{
-  const char16_t* str = aName.BeginReading();
-  size_t length = aName.Length();
-
-  uint32_t hash = 0;
-  for (size_t i = 0; i < length; i++) {
-    hash = kGoldenRatioU32 * (RotateBitsLeft32(hash, 5) ^ str[i]);
-  }
-
-  return hash;
-}
-
 nsresult
 GetDatabaseFilename(const nsAString& aName,
                     nsAString& aDatabaseFilename)
 {
-  aDatabaseFilename.AppendInt(HashName(aName));
+  aDatabaseFilename.AppendInt(HashString(aName));
 
   nsCString escapedName;
   if (!NS_Escape(NS_ConvertUTF16toUTF8(aName), escapedName, url_XPAlphas)) {
@@ -906,10 +881,8 @@ public:
     rv = aArguments->GetSharedBlob(0, &uncompressedLength, &uncompressed);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    static const fallible_t fallible = fallible_t();
     size_t compressedLength = snappy::MaxCompressedLength(uncompressedLength);
-    nsAutoArrayPtr<char> compressed(new (fallible) char[compressedLength]);
-    NS_ENSURE_TRUE(compressed, NS_ERROR_OUT_OF_MEMORY);
+    nsAutoArrayPtr<char> compressed(new char[compressedLength]);
 
     snappy::RawCompress(reinterpret_cast<const char*>(uncompressed),
                         uncompressedLength, compressed.get(),
@@ -1531,14 +1504,11 @@ public:
                        OpenDatabaseHelper* aHelper,
                        uint64_t aCurrentVersion,
                        const nsAString& aName,
-                       const nsACString& aGroup,
-                       const nsACString& aASCIIOrigin,
-                       PersistenceType aPersistenceType)
+                       const nsACString& aASCIIOrigin)
   : AsyncConnectionHelper(static_cast<IDBDatabase*>(nullptr), aRequest),
     mOpenHelper(aHelper), mOpenRequest(aRequest),
     mCurrentVersion(aCurrentVersion), mName(aName),
-    mGroup(aGroup), mASCIIOrigin(aASCIIOrigin),
-    mPersistenceType(aPersistenceType)
+    mASCIIOrigin(aASCIIOrigin)
   { }
 
   NS_DECL_ISUPPORTS_INHERITED
@@ -1597,9 +1567,7 @@ private:
   nsRefPtr<IDBOpenDBRequest> mOpenRequest;
   uint64_t mCurrentVersion;
   nsString mName;
-  nsCString mGroup;
   nsCString mASCIIOrigin;
-  PersistenceType mPersistenceType;
 };
 
 // Responsible for firing "versionchange" events at all live and non-closed
@@ -1717,61 +1685,30 @@ NS_IMPL_ISUPPORTS1(OpenDatabaseHelper, nsIRunnable)
 nsresult
 OpenDatabaseHelper::Init()
 {
-  QuotaManager::GetStorageId(mPersistenceType, mASCIIOrigin, Client::IDB,
-                             mName, mDatabaseId);
-  MOZ_ASSERT(!mDatabaseId.IsEmpty());
+  mDatabaseId = QuotaManager::GetStorageId(mASCIIOrigin, mName);
+  NS_ENSURE_TRUE(mDatabaseId, NS_ERROR_FAILURE);
 
   return NS_OK;
 }
 
 nsresult
-OpenDatabaseHelper::WaitForOpenAllowed()
-{
-  NS_ASSERTION(mState == eCreated, "We've already been dispatched?");
-  NS_ASSERTION(NS_IsMainThread(), "All hell is about to break lose!");
-
-  mState = eOpenPending;
-
-  QuotaManager* quotaManager = QuotaManager::Get();
-  NS_ASSERTION(quotaManager, "This should never be null!");
-
-  return quotaManager->
-    WaitForOpenAllowed(OriginOrPatternString::FromOrigin(mASCIIOrigin),
-                       Nullable<PersistenceType>(mPersistenceType), mDatabaseId,
-                       this);
-}
-
-nsresult
 OpenDatabaseHelper::Dispatch(nsIEventTarget* aTarget)
 {
-  NS_ASSERTION(mState == eCreated || mState == eOpenPending,
-               "We've already been dispatched?");
-
+  NS_ASSERTION(mState == eCreated, "We've already been dispatched?");
   mState = eDBWork;
 
   return aTarget->Dispatch(this, NS_DISPATCH_NORMAL);
 }
 
 nsresult
-OpenDatabaseHelper::DispatchToIOThread()
-{
-  QuotaManager* quotaManager = QuotaManager::Get();
-  NS_ASSERTION(quotaManager, "This should never be null!");
-
-  return Dispatch(quotaManager->IOThread());
-}
-
-nsresult
 OpenDatabaseHelper::RunImmediately()
 {
-  NS_ASSERTION(mState == eCreated || mState == eOpenPending,
-               "We've already been dispatched?");
+  NS_ASSERTION(mState == eCreated, "We've already been dispatched?");
   NS_ASSERTION(NS_FAILED(mResultCode),
                "Should only be short-circuiting if we failed!");
   NS_ASSERTION(NS_IsMainThread(), "All hell is about to break lose!");
 
   mState = eFiringEvents;
-
   return this->Run();
 }
 
@@ -1802,8 +1739,8 @@ OpenDatabaseHelper::DoDatabaseWork()
   NS_ASSERTION(quotaManager, "This should never be null!");
 
   nsresult rv =
-    quotaManager->EnsureOriginIsInitialized(mPersistenceType, mGroup,
-                                            mASCIIOrigin, mTrackingQuota,
+    quotaManager->EnsureOriginIsInitialized(mASCIIOrigin,
+                                            mTrackingQuota,
                                             getter_AddRefs(dbDirectory));
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
@@ -1848,8 +1785,7 @@ OpenDatabaseHelper::DoDatabaseWork()
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsCOMPtr<mozIStorageConnection> connection;
-  rv = CreateDatabaseConnection(dbFile, fmDirectory, mName, mPersistenceType,
-                                mGroup, mASCIIOrigin,
+  rv = CreateDatabaseConnection(dbFile, fmDirectory, mName, mASCIIOrigin,
                                 getter_AddRefs(connection));
   if (NS_FAILED(rv) &&
       NS_ERROR_GET_MODULE(rv) != NS_ERROR_MODULE_DOM_INDEXEDDB) {
@@ -1901,11 +1837,9 @@ OpenDatabaseHelper::DoDatabaseWork()
   IndexedDatabaseManager* mgr = IndexedDatabaseManager::Get();
   NS_ASSERTION(mgr, "This should never be null!");
 
-  nsRefPtr<FileManager> fileManager =
-    mgr->GetFileManager(mPersistenceType, mASCIIOrigin, mName);
+  nsRefPtr<FileManager> fileManager = mgr->GetFileManager(mASCIIOrigin, mName);
   if (!fileManager) {
-    fileManager = new FileManager(mPersistenceType, mGroup, mASCIIOrigin,
-                                  mPrivilege, mName);
+    fileManager = new FileManager(mASCIIOrigin, mPrivilege, mName);
 
     rv = fileManager->Init(fmDirectory, connection);
     NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
@@ -1924,8 +1858,6 @@ OpenDatabaseHelper::CreateDatabaseConnection(
                                         nsIFile* aDBFile,
                                         nsIFile* aFMDirectory,
                                         const nsAString& aName,
-                                        PersistenceType aPersistenceType,
-                                        const nsACString& aGroup,
                                         const nsACString& aOrigin,
                                         mozIStorageConnection** aConnection)
 {
@@ -1948,7 +1880,7 @@ OpenDatabaseHelper::CreateDatabaseConnection(
   }
 
   nsCOMPtr<nsIFileURL> dbFileUrl =
-    IDBFactory::GetDatabaseFileURL(aDBFile, aPersistenceType, aGroup, aOrigin);
+    IDBFactory::GetDatabaseFileURL(aDBFile, aOrigin);
   NS_ENSURE_TRUE(dbFileUrl, NS_ERROR_FAILURE);
 
   nsCOMPtr<mozIStorageService> ss =
@@ -2018,12 +1950,7 @@ OpenDatabaseHelper::CreateDatabaseConnection(
         // Turn on auto_vacuum mode to reclaim disk space on mobile devices.
         "PRAGMA auto_vacuum = FULL; "
       ));
-      if (rv == NS_ERROR_FILE_NO_DEVICE_SPACE) {
-        // mozstorage translates SQLITE_FULL to NS_ERROR_FILE_NO_DEVICE_SPACE,
-        // which we know better as NS_ERROR_DOM_INDEXEDDB_QUOTA_ERR.
-        rv = NS_ERROR_DOM_INDEXEDDB_QUOTA_ERR;
-      }
-      NS_ENSURE_SUCCESS(rv, rv);
+      NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
     }
 #endif
 
@@ -2170,7 +2097,7 @@ OpenDatabaseHelper::StartDelete()
 
   nsRefPtr<DeleteDatabaseHelper> helper =
     new DeleteDatabaseHelper(mOpenDBRequest, this, mCurrentVersion, mName,
-                             mGroup, mASCIIOrigin, mPersistenceType);
+                             mASCIIOrigin);
 
   QuotaManager* quotaManager = QuotaManager::Get();
   NS_ASSERTION(quotaManager, "This should never be null!");
@@ -2194,14 +2121,6 @@ OpenDatabaseHelper::Run()
 
   if (NS_IsMainThread()) {
     PROFILER_MAIN_THREAD_LABEL("IndexedDB", "OpenDatabaseHelper::Run");
-
-    if (mState == eOpenPending) {
-      if (NS_FAILED(mResultCode)) {
-        return RunImmediately();
-      }
-
-      return DispatchToIOThread();
-    }
 
     // If we need to queue up a SetVersionHelper, do that here.
     if (mState == eSetVersionPending) {
@@ -2280,10 +2199,9 @@ OpenDatabaseHelper::Run()
     QuotaManager* quotaManager = QuotaManager::Get();
     NS_ASSERTION(quotaManager, "This should never be null!");
 
-    quotaManager->
-      AllowNextSynchronizedOp(OriginOrPatternString::FromOrigin(mASCIIOrigin),
-                              Nullable<PersistenceType>(mPersistenceType),
-                              mDatabaseId);
+    quotaManager->AllowNextSynchronizedOp(
+                                OriginOrPatternString::FromOrigin(mASCIIOrigin),
+                                mDatabaseId);
 
     ReleaseMainThreadObjects();
 
@@ -2324,7 +2242,6 @@ OpenDatabaseHelper::EnsureSuccessResult()
     {
       NS_ASSERTION(dbInfo->name == mName &&
                    dbInfo->version == mCurrentVersion &&
-                   dbInfo->persistenceType == mPersistenceType &&
                    dbInfo->id == mDatabaseId &&
                    dbInfo->filePath == mDatabaseFilePath,
                    "Metadata mismatch!");
@@ -2367,9 +2284,7 @@ OpenDatabaseHelper::EnsureSuccessResult()
     nsRefPtr<DatabaseInfo> newInfo(new DatabaseInfo());
 
     newInfo->name = mName;
-    newInfo->group = mGroup;
     newInfo->origin = mASCIIOrigin;
-    newInfo->persistenceType = mPersistenceType;
     newInfo->id = mDatabaseId;
     newInfo->filePath = mDatabaseFilePath;
 
@@ -2509,6 +2424,7 @@ OpenDatabaseHelper::ReleaseMainThreadObjects()
 
   mOpenDBRequest = nullptr;
   mDatabase = nullptr;
+  mDatabaseId = nullptr;
 
   HelperBase::ReleaseMainThreadObjects();
 }
@@ -2660,8 +2576,7 @@ DeleteDatabaseHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   NS_ASSERTION(quotaManager, "This should never fail!");
 
   nsCOMPtr<nsIFile> directory;
-  nsresult rv = quotaManager->GetDirectoryForOrigin(mPersistenceType,
-                                                    mASCIIOrigin,
+  nsresult rv = quotaManager->GetDirectoryForOrigin(mASCIIOrigin,
                                                     getter_AddRefs(directory));
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
@@ -2700,8 +2615,7 @@ DeleteDatabaseHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
       QuotaManager* quotaManager = QuotaManager::Get();
       NS_ASSERTION(quotaManager, "Shouldn't be null!");
 
-      quotaManager->DecreaseUsageForOrigin(mPersistenceType, mGroup,
-                                           mASCIIOrigin, fileSize);
+      quotaManager->DecreaseUsageForOrigin(mASCIIOrigin, fileSize);
     }
   }
 
@@ -2750,15 +2664,14 @@ DeleteDatabaseHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
       QuotaManager* quotaManager = QuotaManager::Get();
       NS_ASSERTION(quotaManager, "Shouldn't be null!");
 
-      quotaManager->DecreaseUsageForOrigin(mPersistenceType, mGroup,
-                                           mASCIIOrigin, usage);
+      quotaManager->DecreaseUsageForOrigin(mASCIIOrigin, usage);
     }
   }
 
   IndexedDatabaseManager* mgr = IndexedDatabaseManager::Get();
   NS_ASSERTION(mgr, "This should never fail!");
 
-  mgr->InvalidateFileManager(mPersistenceType, mASCIIOrigin, mName);
+  mgr->InvalidateFileManager(mASCIIOrigin, mName);
 
   return NS_OK;
 }

@@ -13,7 +13,5 @@ PARALLEL_DIRS += [
     'sourcemap',
     'webconsole',
     'apps',
-    'styleinspector',
-    'acorn',
-    'pretty-fast'
+    'styleinspector'
 ]

@@ -11,11 +11,10 @@
 #include "webrtc/system_wrappers/interface/clock.h"
 
 #if defined(_WIN32)
-// Windows needs to be included before mmsystem.h
 #include <Windows.h>
 #include <WinSock.h>
 #include <MMSystem.h>
-#elif ((defined WEBRTC_LINUX) || (defined WEBRTC_BSD) || (defined WEBRTC_MAC))
+#elif ((defined WEBRTC_LINUX) || (defined WEBRTC_MAC))
 #include <sys/time.h>
 #include <time.h>
 #endif
@@ -128,18 +127,18 @@ void get_time(WindowsHelpTimer* help_timer, FILETIME& current_time) {
 class RealTimeClock : public Clock {
   // Return a timestamp in milliseconds relative to some arbitrary source; the
   // source is fixed for this clock.
-  virtual int64_t TimeInMilliseconds() OVERRIDE {
+  virtual int64_t TimeInMilliseconds() {
     return TickTime::MillisecondTimestamp();
   }
 
   // Return a timestamp in microseconds relative to some arbitrary source; the
   // source is fixed for this clock.
-  virtual int64_t TimeInMicroseconds() OVERRIDE {
+  virtual int64_t TimeInMicroseconds() {
     return TickTime::MicrosecondTimestamp();
   }
 
   // Retrieve an NTP absolute timestamp in seconds and fractions of a second.
-  virtual void CurrentNtp(uint32_t& seconds, uint32_t& fractions) OVERRIDE {
+  virtual void CurrentNtp(uint32_t& seconds, uint32_t& fractions) {
     timeval tv = CurrentTimeVal();
     double microseconds_in_seconds;
     Adjust(tv, &seconds, &microseconds_in_seconds);
@@ -148,7 +147,7 @@ class RealTimeClock : public Clock {
   }
 
   // Retrieve an NTP absolute timestamp in milliseconds.
-  virtual int64_t CurrentNtpInMilliseconds() OVERRIDE {
+  virtual int64_t CurrentNtpInMilliseconds() {
     timeval tv = CurrentTimeVal();
     uint32_t seconds;
     double microseconds_in_seconds;
@@ -184,7 +183,7 @@ class WindowsRealTimeClock : public RealTimeClock {
   virtual ~WindowsRealTimeClock() {}
 
  protected:
-  virtual timeval CurrentTimeVal() const OVERRIDE {
+  timeval CurrentTimeVal() const {
     const uint64_t FILETIME_1970 = 0x019db1ded53e8000;
 
     FILETIME StartTime;
@@ -209,7 +208,7 @@ class WindowsRealTimeClock : public RealTimeClock {
   WindowsHelpTimer* _helpTimer;
 };
 
-#elif ((defined WEBRTC_LINUX) || (defined WEBRTC_BSD) || (defined WEBRTC_MAC))
+#elif ((defined WEBRTC_LINUX) || (defined WEBRTC_MAC))
 class UnixRealTimeClock : public RealTimeClock {
  public:
   UnixRealTimeClock() {}
@@ -217,7 +216,7 @@ class UnixRealTimeClock : public RealTimeClock {
   virtual ~UnixRealTimeClock() {}
 
  protected:
-  virtual timeval CurrentTimeVal() const OVERRIDE {
+  timeval CurrentTimeVal() const {
     struct timeval tv;
     struct timezone tz;
     tz.tz_minuteswest = 0;
@@ -240,7 +239,7 @@ Clock* Clock::GetRealTimeClock() {
 #if defined(_WIN32)
   static WindowsRealTimeClock clock(&global_help_timer);
   return &clock;
-#elif ((defined WEBRTC_LINUX) || (defined WEBRTC_BSD) || (defined WEBRTC_MAC))
+#elif defined(WEBRTC_LINUX) || defined(WEBRTC_MAC)
   static UnixRealTimeClock clock;
   return &clock;
 #else

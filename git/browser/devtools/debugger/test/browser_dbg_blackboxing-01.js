@@ -5,47 +5,72 @@
  * Test that if we black box a source and then refresh, it is still black boxed.
  */
 
-const TAB_URL = EXAMPLE_URL + "doc_binary_search.html";
+const TAB_URL = EXAMPLE_URL + "binary_search.html";
 
-let gTab, gDebuggee, gPanel, gDebugger;
+var gPane = null;
+var gTab = null;
+var gDebuggee = null;
+var gDebugger = null;
 
-function test() {
-  initDebugger(TAB_URL).then(([aTab, aDebuggee, aPanel]) => {
+function test()
+{
+  let scriptShown = false;
+  let framesAdded = false;
+  let resumed = false;
+  let testStarted = false;
+
+  debug_tab_pane(TAB_URL, function(aTab, aDebuggee, aPane) {
+    resumed = true;
     gTab = aTab;
     gDebuggee = aDebuggee;
-    gPanel = aPanel;
-    gDebugger = gPanel.panelWin;
+    gPane = aPane;
+    gDebugger = gPane.panelWin;
 
-    waitForSourceShown(gPanel, ".coffee")
-      .then(testBlackBoxSource)
-      .then(testBlackBoxReload)
-      .then(() => closeDebuggerAndFinish(gPanel))
-      .then(null, aError => {
-        ok(false, "Got an error: " + aError.message + "\n" + aError.stack);
-      });
+    testBlackBoxSource();
   });
 }
 
 function testBlackBoxSource() {
-  const bbButton = getBlackBoxButton(gPanel);
-  ok(!bbButton.checked, "Should not be black boxed by default");
+  once(gDebugger, "Debugger:SourceShown", function () {
+    const checkbox = gDebugger.document.querySelector(".side-menu-widget-item-checkbox");
+    ok(checkbox, "Should get the checkbox for black boxing the source");
+    ok(checkbox.checked, "Should not be black boxed by default");
 
-  return toggleBlackBoxing(gPanel).then(aSource => {
-    ok(aSource.isBlackBoxed, "The source should be black boxed now.");
-    ok(bbButton.checked, "The checkbox should no longer be checked.");
+    const { activeThread } = gDebugger.DebuggerController;
+    activeThread.addOneTimeListener("blackboxchange", function (event, sourceClient) {
+      ok(sourceClient.isBlackBoxed, "The source should be black boxed now");
+      ok(!checkbox.checked, "The checkbox should no longer be checked.");
+
+      testBlackBoxReload();
+    });
+
+    checkbox.click();
   });
 }
 
 function testBlackBoxReload() {
-  return reloadActiveTab(gPanel, gDebugger.EVENTS.SOURCE_SHOWN).then(() => {
-    const bbButton = getBlackBoxButton(gPanel);
-    ok(bbButton.checked, "Should still be black boxed.");
+  once(gDebugger, "Debugger:SourceShown", function () {
+    const checkbox = gDebugger.document.querySelector(".side-menu-widget-item-checkbox");
+    ok(checkbox, "Should get the checkbox for black boxing the source");
+    ok(!checkbox.checked, "Should still be black boxed");
+
+    closeDebuggerAndFinish();
   });
+
+  gDebuggee.location.reload();
+}
+
+function once(target, event, callback) {
+  target.addEventListener(event, function _listener(...args) {
+    target.removeEventListener(event, _listener, false);
+    callback.apply(null, args);
+  }, false);
 }
 
 registerCleanupFunction(function() {
+  removeTab(gTab);
+  gPane = null;
   gTab = null;
   gDebuggee = null;
-  gPanel = null;
   gDebugger = null;
 });

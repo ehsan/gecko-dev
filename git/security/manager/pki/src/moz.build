@@ -4,7 +4,9 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-UNIFIED_SOURCES += [
+MODULE = 'pippki'
+
+CPP_SOURCES += [
     'nsASN1Tree.cpp',
     'nsFormSigningDialog.cpp',
     'nsNSSDialogHelper.cpp',
@@ -13,6 +15,9 @@ UNIFIED_SOURCES += [
     'nsPKIParamBlock.cpp',
 ]
 
+LIBRARY_NAME = 'pippki'
+
 FAIL_ON_WARNINGS = True
 
-FINAL_LIBRARY = 'xul'
+LIBXUL_LIBRARY = True
+

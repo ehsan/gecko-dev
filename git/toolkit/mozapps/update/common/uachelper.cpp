@@ -56,6 +56,20 @@ LPCTSTR UACHelper::PrivsToDisable[] = {
 };
 
 /**
+ * Determines if the OS is vista or later
+ *
+ * @return TRUE if the OS is vista or later.
+ */
+BOOL
+UACHelper::IsVistaOrLater()
+{
+  // Check if we are running Vista or later.
+  OSVERSIONINFO osInfo;
+  osInfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+  return GetVersionEx(&osInfo) && osInfo.dwMajorVersion >= 6;
+}
+
+/**
  * Opens a user token for the given session ID
  *
  * @param  sessionID  The session ID for the token to obtain
@@ -66,7 +80,7 @@ HANDLE
 UACHelper::OpenUserToken(DWORD sessionID)
 {
   HMODULE module = LoadLibraryW(L"wtsapi32.dll");
-  HANDLE token = nullptr;
+  HANDLE token = NULL;
   LPWTSQueryUserToken wtsQueryUserToken = 
     (LPWTSQueryUserToken)GetProcAddress(module, "WTSQueryUserToken");
   if (wtsQueryUserToken) {
@@ -80,7 +94,7 @@ UACHelper::OpenUserToken(DWORD sessionID)
  * Opens a linked token for the specified token.
  *
  * @param  token The token to get the linked token from
- * @return A linked token or nullptr if one does not exist.
+ * @return A linked token or NULL if one does not exist.
  *         Caller should close the handle.
  */
 HANDLE
@@ -91,7 +105,7 @@ UACHelper::OpenLinkedToken(HANDLE token)
   // the other is the UAC elevated one. Since we are running as a service
   // as the system account we have access to both.
   TOKEN_LINKED_TOKEN tlt;
-  HANDLE hNewLinkedToken = nullptr;
+  HANDLE hNewLinkedToken = NULL;
   DWORD len;
   if (GetTokenInformation(token, (TOKEN_INFORMATION_CLASS)TokenLinkedToken, 
                           &tlt, sizeof(TOKEN_LINKED_TOKEN), &len)) {
@@ -114,7 +128,7 @@ BOOL
 UACHelper::SetPrivilege(HANDLE token, LPCTSTR priv, BOOL enable)
 {
   LUID luidOfPriv;
-  if (!LookupPrivilegeValue(nullptr, priv, &luidOfPriv)) {
+  if (!LookupPrivilegeValue(NULL, priv, &luidOfPriv)) {
     return FALSE; 
   }
 
@@ -125,7 +139,7 @@ UACHelper::SetPrivilege(HANDLE token, LPCTSTR priv, BOOL enable)
 
   SetLastError(ERROR_SUCCESS);
   if (!AdjustTokenPrivileges(token, false, &tokenPriv,
-                             sizeof(tokenPriv), nullptr, nullptr)) {
+                             sizeof(tokenPriv), NULL, NULL)) {
     return FALSE; 
   } 
 
@@ -137,7 +151,7 @@ UACHelper::SetPrivilege(HANDLE token, LPCTSTR priv, BOOL enable)
  * drop the privilege. 
  * 
  * @param  token         The token to adjust the privilege on. 
- *         Pass nullptr for current token.
+ *         Pass NULL for current token.
  * @param  unneededPrivs An array of unneeded privileges.
  * @param  count         The size of the array
  * @return TRUE if there were no errors
@@ -147,7 +161,7 @@ UACHelper::DisableUnneededPrivileges(HANDLE token,
                                      LPCTSTR *unneededPrivs, 
                                      size_t count)
 {
-  HANDLE obtainedToken = nullptr;
+  HANDLE obtainedToken = NULL;
   if (!token) {
     // Note: This handle is a pseudo-handle and need not be closed
     HANDLE process = GetCurrentProcess();
@@ -184,7 +198,7 @@ UACHelper::DisableUnneededPrivileges(HANDLE token,
  * explicitly disable these or not. 
  * 
  * @param  token The token to drop the privilege on.
- *         Pass nullptr for current token.
+ *         Pass NULL for current token.
  * @return TRUE if there were no errors
  */
 BOOL

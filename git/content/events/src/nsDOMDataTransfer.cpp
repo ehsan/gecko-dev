@@ -1,30 +1,33 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/ArrayUtils.h"
-#include "mozilla/BasicEvents.h"
+#include "mozilla/Util.h"
 
 #include "nsDOMDataTransfer.h"
 
+#include "prlog.h"
+#include "nsString.h"
 #include "nsIDOMDocument.h"
+#include "nsIServiceManager.h"
+#include "nsIInterfaceRequestorUtils.h"
 #include "nsIVariant.h"
 #include "nsISupportsPrimitives.h"
 #include "nsDOMClassInfoID.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsDOMLists.h"
+#include "nsGUIEvent.h"
 #include "nsError.h"
 #include "nsIDragService.h"
 #include "nsIClipboard.h"
+#include "nsIScriptableRegion.h"
 #include "nsContentUtils.h"
 #include "nsIContent.h"
 #include "nsCRT.h"
 #include "nsIScriptObjectPrincipal.h"
+#include "nsIWebNavigation.h"
 #include "nsIScriptContext.h"
-#include "nsIDocument.h"
-#include "nsIScriptGlobalObject.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -168,14 +171,10 @@ nsDOMDataTransfer::SetEffectAllowed(const nsAString& aEffectAllowed)
     return NS_OK;
   }
 
-  static_assert(nsIDragService::DRAGDROP_ACTION_NONE == 0,
-                "DRAGDROP_ACTION_NONE constant is wrong");
-  static_assert(nsIDragService::DRAGDROP_ACTION_COPY == 1,
-                "DRAGDROP_ACTION_COPY constant is wrong");
-  static_assert(nsIDragService::DRAGDROP_ACTION_MOVE == 2,
-                "DRAGDROP_ACTION_MOVE constant is wrong");
-  static_assert(nsIDragService::DRAGDROP_ACTION_LINK == 4,
-                "DRAGDROP_ACTION_LINK constant is wrong");
+  PR_STATIC_ASSERT(nsIDragService::DRAGDROP_ACTION_NONE == 0);
+  PR_STATIC_ASSERT(nsIDragService::DRAGDROP_ACTION_COPY == 1);
+  PR_STATIC_ASSERT(nsIDragService::DRAGDROP_ACTION_MOVE == 2);
+  PR_STATIC_ASSERT(nsIDragService::DRAGDROP_ACTION_LINK == 4);
 
   for (uint32_t e = 0; e < ArrayLength(sEffects); e++) {
     if (aEffectAllowed.EqualsASCII(sEffects[e])) {
@@ -499,10 +498,8 @@ nsDOMDataTransfer::MozGetDataAt(const nsAString& aFormat,
           nsresult rv = NS_OK;
           nsIScriptContext* c = pt->GetContextForEventHandlers(&rv);
           NS_ENSURE_TRUE(c && NS_SUCCEEDED(rv), NS_ERROR_DOM_SECURITY_ERR);
-          nsIGlobalObject* go = c->GetGlobalObject();
-          NS_ENSURE_TRUE(go, NS_ERROR_DOM_SECURITY_ERR);
-          nsCOMPtr<nsIScriptObjectPrincipal> sp = do_QueryInterface(go);
-          MOZ_ASSERT(sp, "This cannot fail on the main thread.");
+          nsIScriptObjectPrincipal* sp = c->GetGlobalObject();
+          NS_ENSURE_TRUE(sp, NS_ERROR_DOM_SECURITY_ERR);
           nsIPrincipal* dataPrincipal = sp->GetPrincipal();
           NS_ENSURE_TRUE(dataPrincipal, NS_ERROR_DOM_SECURITY_ERR);
           NS_ENSURE_TRUE(principal || (principal = GetCurrentPrincipal(&rv)),

@@ -6,24 +6,9 @@
 #ifndef GFX_GLXLIBRARY_H
 #define GFX_GLXLIBRARY_H
 
-#include "GLContextTypes.h"
+#include "GLContext.h"
 typedef realGLboolean GLboolean;
-
-// stuff from glx.h
-#include "X11/Xlib.h"
-typedef struct __GLXcontextRec *GLXContext;
-typedef XID GLXPixmap;
-typedef XID GLXDrawable;
-/* GLX 1.3 and later */
-typedef struct __GLXFBConfigRec *GLXFBConfig;
-typedef XID GLXFBConfigID;
-typedef XID GLXContextID;
-typedef XID GLXWindow;
-typedef XID GLXPbuffer;
-// end of stuff from glx.h
-
-struct PRLibrary;
-class gfxASurface;
+#include <GL/glx.h>
 
 namespace mozilla {
 namespace gl {
@@ -114,7 +99,7 @@ public:
     bool SupportsTextureFromPixmap(gfxASurface* aSurface);
     bool IsATI() { return mIsATI; }
     bool GLXVersionCheck(int aMajor, int aMinor);
-    static LibraryType SelectLibrary(const ContextFlags& aFlags);
+    static LibraryType SelectLibrary(const GLContext::ContextFlags& aFlags);
 
 private:
     

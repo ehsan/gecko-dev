@@ -48,7 +48,10 @@ public:
   virtual bool IsActiveWidget() const;
   virtual bool AreItemsOperable() const;
 
-  virtual bool IsAcceptableChild(Accessible* aPossibleChild) const MOZ_OVERRIDE;
+protected:
+
+  // Accessible
+  virtual void CacheChildren();
 };
 
 } // namespace a11y

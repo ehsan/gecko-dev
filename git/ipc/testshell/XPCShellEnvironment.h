@@ -13,11 +13,12 @@
 #include "nsAutoJSValHolder.h"
 #include "nsCOMPtr.h"
 #include "nsDebug.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "nsJSPrincipals.h"
 #include "nsContentUtils.h"
-#include "js/TypeDecls.h"
 
+struct JSContext;
+class JSObject;
 struct JSPrincipals;
 
 namespace mozilla {

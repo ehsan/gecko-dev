@@ -15,11 +15,11 @@
  * video_capture_impl.h
  */
 
-#include "webrtc/common_video/interface/i420_video_frame.h"
-#include "webrtc/common_video/libyuv/include/webrtc_libyuv.h"
-#include "webrtc/modules/video_capture/include/video_capture.h"
-#include "webrtc/modules/video_capture/video_capture_config.h"
-#include "webrtc/system_wrappers/interface/tick_util.h"
+#include "video_capture.h"
+#include "video_capture_config.h"
+#include "tick_util.h"
+#include "common_video/interface/i420_video_frame.h"
+#include "common_video/libyuv/include/webrtc_libyuv.h"
 
 namespace webrtc
 {
@@ -101,6 +101,9 @@ protected:
     virtual ~VideoCaptureImpl();
     int32_t DeliverCapturedFrame(I420VideoFrame& captureFrame,
                                  int64_t capture_time);
+    int32_t DeliverEncodedCapturedFrame(VideoFrame& captureFrame,
+                                        int64_t capture_time,
+                                        VideoCodecType codec_type);
 
     int32_t _id; // Module ID
     char* _deviceUniqueId; // current Device unique name;
@@ -132,10 +135,7 @@ private:
 
     // Used to make sure incoming timestamp is increasing for every frame.
     int64_t last_capture_time_;
-
-    // Delta used for translating between NTP and internal timestamps.
-    const int64_t delta_ntp_internal_ms_;
 };
-}  // namespace videocapturemodule
-}  // namespace webrtc
+} // namespace videocapturemodule
+} //namespace webrtc
 #endif  // WEBRTC_MODULES_VIDEO_CAPTURE_MAIN_SOURCE_VIDEO_CAPTURE_IMPL_H_

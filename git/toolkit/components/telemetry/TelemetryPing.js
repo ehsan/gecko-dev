@@ -1,4 +1,4 @@
-/* -*- js-indent-level: 2; indent-tabs-mode: nil -*- */
+/* -*- indent-tabs-mode: nil -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -8,7 +8,6 @@ const Ci = Components.interfaces;
 const Cr = Components.results;
 const Cu = Components.utils;
 
-Cu.import("resource://gre/modules/debug.js");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 #ifndef MOZ_WIDGET_GONK
@@ -17,7 +16,6 @@ Cu.import("resource://gre/modules/LightweightThemeManager.jsm");
 Cu.import("resource://gre/modules/ctypes.jsm");
 Cu.import("resource://gre/modules/ThirdPartyCookieProbe.jsm");
 Cu.import("resource://gre/modules/TelemetryFile.jsm");
-Cu.import("resource://gre/modules/UITelemetry.jsm");
 
 // When modifying the payload in incompatible ways, please bump this version number
 const PAYLOAD_VERSION = 1;
@@ -39,8 +37,39 @@ const PREF_PREVIOUS_BUILDID = PREF_BRANCH + "previousBuildID";
 const TELEMETRY_INTERVAL = 60000;
 // Delay before intializing telemetry (ms)
 const TELEMETRY_DELAY = 60000;
-// Delay before initializing telemetry if we're testing (ms)
-const TELEMETRY_TEST_DELAY = 100;
+
+// MEM_HISTOGRAMS lists the memory reporters we turn into histograms.
+//
+// Note that we currently handle only vanilla memory reporters, not memory
+// multi-reporters.
+//
+// test_TelemetryPing.js relies on some of these memory reporters
+// being here.  If you remove any of the following histograms from
+// MEM_HISTOGRAMS, you'll have to modify test_TelemetryPing.js:
+//
+//   * MEMORY_JS_GC_HEAP, and
+//   * MEMORY_JS_COMPARTMENTS_SYSTEM.
+//
+// We used to measure "explicit" too, but it could cause hangs, and the data
+// was always really noisy anyway.  See bug 859657.
+const MEM_HISTOGRAMS = {
+  "js-gc-heap": "MEMORY_JS_GC_HEAP",
+  "js-compartments/system": "MEMORY_JS_COMPARTMENTS_SYSTEM",
+  "js-compartments/user": "MEMORY_JS_COMPARTMENTS_USER",
+  "js-main-runtime-temporary-peak": "MEMORY_JS_MAIN_RUNTIME_TEMPORARY_PEAK",
+  "resident-fast": "MEMORY_RESIDENT",
+  "vsize": "MEMORY_VSIZE",
+  "storage-sqlite": "MEMORY_STORAGE_SQLITE",
+  "images-content-used-uncompressed":
+    "MEMORY_IMAGES_CONTENT_USED_UNCOMPRESSED",
+  "heap-allocated": "MEMORY_HEAP_ALLOCATED",
+  "heap-overhead": "MEMORY_HEAP_COMMITTED_UNUSED",
+  "heap-overhead-ratio": "MEMORY_HEAP_COMMITTED_UNUSED_RATIO",
+  "page-faults-hard": "PAGE_FAULTS_HARD",
+  "low-memory-events/virtual": "LOW_MEMORY_EVENTS_VIRTUAL",
+  "low-memory-events/physical": "LOW_MEMORY_EVENTS_PHYSICAL",
+  "ghost-windows": "GHOST_WINDOWS"
+};
 
 // Seconds of idle time before pinging.
 // On idle-daily a gather-telemetry notification is fired, during it probes can
@@ -65,10 +94,6 @@ XPCOMUtils.defineLazyServiceGetter(this, "idleService",
                                    "nsIIdleService");
 XPCOMUtils.defineLazyModuleGetter(this, "UpdateChannel",
                                   "resource://gre/modules/UpdateChannel.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "AddonManagerPrivate",
-                                  "resource://gre/modules/AddonManager.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "UITelemetry",
-                                  "resource://gre/modules/UITelemetry.jsm");
 
 function generateUUID() {
   let str = Cc["@mozilla.org/uuid-generator;1"].getService(Ci.nsIUUIDGenerator).generateUUID().toString();
@@ -78,7 +103,7 @@ function generateUUID() {
 
 /**
  * Read current process I/O counters.
- */
+ */            
 let processInfo = {
   _initialized: false,
   _IO_COUNTERS: null,
@@ -102,23 +127,23 @@ let processInfo = {
         {'otherBytes': ctypes.unsigned_long_long} ]);
       try {
         this._kernel32 = ctypes.open("Kernel32.dll");
-        this._GetProcessIoCounters = this._kernel32.declare("GetProcessIoCounters",
+        this._GetProcessIoCounters = this._kernel32.declare("GetProcessIoCounters", 
           ctypes.winapi_abi,
           ctypes.bool, // return
           ctypes.voidptr_t, // hProcess
           this._IO_COUNTERS.ptr); // lpIoCounters
-        this._GetCurrentProcess = this._kernel32.declare("GetCurrentProcess",
+        this._GetCurrentProcess = this._kernel32.declare("GetCurrentProcess", 
           ctypes.winapi_abi,
           ctypes.voidptr_t); // return
         this._initialized = true;
-      } catch (err) {
-        return null;
+      } catch (err) { 
+        return null; 
       }
     }
     let io = new this._IO_COUNTERS();
     if(!this._GetProcessIoCounters(this._GetCurrentProcess(), io.address()))
       return null;
-    return [parseInt(io.readBytes), parseInt(io.writeBytes)];
+    return [parseInt(io.readBytes), parseInt(io.writeBytes)];  
   }
 };
 
@@ -146,7 +171,7 @@ TelemetryPing.prototype = {
   /**
    * Gets a series of simple measurements (counters). At the moment, this
    * only returns startup data from nsIAppStartup.getStartupInfo().
-   *
+   * 
    * @return simple measurements as a dictionary.
    */
   getSimpleMeasurements: function getSimpleMeasurements(forSavedSession) {
@@ -165,10 +190,9 @@ TelemetryPing.prototype = {
       appTimestamps = o.TelemetryTimestamps.get();
     } catch (ex) {}
     try {
-      ret.addonManager = AddonManagerPrivate.getSimpleMeasures();
-    } catch (ex) {}
-    try {
-      ret.UITelemetry = UITelemetry.getSimpleMeasures();
+      let o = {};
+      Cu.import("resource://gre/modules/AddonManager.jsm", o);
+      ret.addonManager = o.AddonManagerPrivate.getSimpleMeasures();
     } catch (ex) {}
 
     if (si.process) {
@@ -220,21 +244,18 @@ TelemetryPing.prototype = {
       ret.savedPings = TelemetryFile.pingsLoaded;
     }
 
-    ret.pingsOverdue = TelemetryFile.pingsOverdue;
-    ret.pingsDiscarded = TelemetryFile.pingsDiscarded;
-
     return ret;
   },
 
   /**
    * When reflecting a histogram into JS, Telemetry hands us an object
    * with the following properties:
-   *
+   * 
    * - min, max, histogram_type, sum, sum_squares_{lo,hi}: simple integers;
    * - log_sum, log_sum_squares: doubles;
    * - counts: array of counts for histogram buckets;
    * - ranges: array of calculated bucket sizes.
-   *
+   * 
    * This format is not straightforward to read and potentially bulky
    * with lots of zeros in the counts array.  Packing histograms makes
    * raw histograms easier to read and compresses the data a little bit.
@@ -290,14 +311,15 @@ TelemetryPing.prototype = {
   },
 
   getHistograms: function getHistograms(hls) {
-    let registered = Telemetry.registeredHistograms([]);
+    let info = Telemetry.registeredHistograms;
     let ret = {};
 
-    for (name of registered) {
-      for (let n of [name, "STARTUP_" + name]) {
-        if (n in hls) {
-          ret[n] = this.packHistogram(hls[n]);
-        }
+    for (let name in hls) {
+      if (info[name]) {
+        ret[name] = this.packHistogram(hls[name]);
+        let startup_name = "STARTUP_" + name;
+        if (hls[startup_name])
+          ret[startup_name] = this.packHistogram(hls[startup_name]);
       }
     }
 
@@ -321,19 +343,18 @@ TelemetryPing.prototype = {
     return ret;
   },
 
-  getThreadHangStats: function getThreadHangStats(stats) {
-    stats.forEach((thread) => {
-      thread.activity = this.packHistogram(thread.activity);
-      thread.hangs.forEach((hang) => {
-        hang.histogram = this.packHistogram(hang.histogram);
-      });
-    });
-    return stats;
+  addValue: function addValue(name, id, val) {
+    let h = this._histograms[name];
+    if (!h) {
+      h = Telemetry.getHistogramById(id);
+      this._histograms[name] = h;
+    }
+    h.add(val);
   },
 
   /**
    * Descriptive metadata
-   *
+   * 
    * @param  reason
    *         The reason for the telemetry ping, this will be included in the
    *         returned metadata,
@@ -363,9 +384,7 @@ TelemetryPing.prototype = {
                   "device", "manufacturer", "hardware",
                   "hasMMX", "hasSSE", "hasSSE2", "hasSSE3",
                   "hasSSSE3", "hasSSE4A", "hasSSE4_1", "hasSSE4_2",
-                  "hasEDSP", "hasARMv6", "hasARMv7", "hasNEON", "isWow64",
-                  "profileHDDModel", "profileHDDRevision", "binHDDModel",
-                  "binHDDRevision", "winHDDModel", "winHDDRevision"];
+                  "hasEDSP", "hasARMv6", "hasARMv7", "hasNEON", "isWow64"];
     for each (let field in fields) {
       let value;
       try {
@@ -395,13 +414,10 @@ TelemetryPing.prototype = {
     if (gfxInfo) {
       for each (let field in gfxfields) {
         try {
-          let value = gfxInfo[field];
-          // bug 940806: We need to do a strict equality comparison here,
-          // otherwise a type conversion will occur and boolean false values
-          // will get filtered out
-          if (value !== "") {
+          let value = "";
+          value = gfxInfo[field];
+          if (value != "")
             ret[field] = value;
-          }
         } catch (e) {
           continue
         }
@@ -439,62 +455,30 @@ TelemetryPing.prototype = {
 
     let histogram = Telemetry.getHistogramById("TELEMETRY_MEMORY_REPORTER_MS");
     let startTime = new Date();
+    let e = mgr.enumerateReporters();
+    while (e.hasMoreElements()) {
+      let mr = e.getNext().QueryInterface(Ci.nsIMemoryReporter);
+      let id = MEM_HISTOGRAMS[mr.path];
+      if (!id) {
+        continue;
+      }
 
-    // Get memory measurements from distinguished amount attributes.  We used
-    // to measure "explicit" too, but it could cause hangs, and the data was
-    // always really noisy anyway.  See bug 859657.
-    //
-    // test_TelemetryPing.js relies on some of these histograms being
-    // here.  If you remove any of the following histograms from here, you'll
-    // have to modify test_TelemetryPing.js:
-    //
-    //   * MEMORY_JS_GC_HEAP, and
-    //   * MEMORY_JS_COMPARTMENTS_SYSTEM.
-    //
-    // The distinguished amount attribute names don't match the telemetry id
-    // names in some cases due to a combination of (a) historical reasons, and
-    // (b) the fact that we can't change telemetry id names without breaking
-    // data continuity.
-    //
-    let boundHandleMemoryReport = this.handleMemoryReport.bind(this);
-    function h(id, units, amountName) {
+      // Reading mr.amount might throw an exception.  If so, just ignore that
+      // memory reporter; we're not getting useful data out of it.
       try {
-        // If mgr[amountName] throws an exception, just move on -- some amounts
-        // aren't available on all platforms.  But if the attribute simply
-        // isn't present, that indicates the distinguished amounts have changed
-        // and this file hasn't been updated appropriately.
-        let amount = mgr[amountName];
-        NS_ASSERT(amount !== undefined,
-                  "telemetry accessed an unknown distinguished amount");
-        boundHandleMemoryReport(id, units, amount);
-      } catch (e) {
-      };
+        this.handleMemoryReport(id, mr.path, mr.units, mr.amount);
+      }
+      catch (e) {
+      }
     }
-    let b = (id, n) => h(id, Ci.nsIMemoryReporter.UNITS_BYTES, n);
-    let c = (id, n) => h(id, Ci.nsIMemoryReporter.UNITS_COUNT, n);
-    let cc= (id, n) => h(id, Ci.nsIMemoryReporter.UNITS_COUNT_CUMULATIVE, n);
-    let p = (id, n) => h(id, Ci.nsIMemoryReporter.UNITS_PERCENTAGE, n);
-
-    b("MEMORY_VSIZE", "vsize");
-    b("MEMORY_VSIZE_MAX_CONTIGUOUS", "vsizeMaxContiguous");
-    b("MEMORY_RESIDENT", "residentFast");
-    b("MEMORY_HEAP_ALLOCATED", "heapAllocated");
-    p("MEMORY_HEAP_COMMITTED_UNUSED_RATIO", "heapOverheadRatio");
-    b("MEMORY_JS_GC_HEAP", "JSMainRuntimeGCHeap");
-    b("MEMORY_JS_MAIN_RUNTIME_TEMPORARY_PEAK", "JSMainRuntimeTemporaryPeak");
-    c("MEMORY_JS_COMPARTMENTS_SYSTEM", "JSMainRuntimeCompartmentsSystem");
-    c("MEMORY_JS_COMPARTMENTS_USER", "JSMainRuntimeCompartmentsUser");
-    b("MEMORY_IMAGES_CONTENT_USED_UNCOMPRESSED", "imagesContentUsedUncompressed");
-    b("MEMORY_STORAGE_SQLITE", "storageSQLite");
-    cc("MEMORY_EVENTS_VIRTUAL", "lowMemoryEventsVirtual");
-    cc("MEMORY_EVENTS_PHYSICAL", "lowMemoryEventsPhysical");
-    c("GHOST_WINDOWS", "ghostWindows");
-    cc("PAGE_FAULTS_HARD", "pageFaultsHard");
-
     histogram.add(new Date() - startTime);
   },
 
-  handleMemoryReport: function(id, units, amount) {
+  handleMemoryReport: function handleMemoryReport(id, path, units, amount) {
+    if (amount == -1) {
+      return;
+    }
+
     let val;
     if (units == Ci.nsIMemoryReporter.UNITS_BYTES) {
       val = Math.floor(amount / 1024);
@@ -510,28 +494,23 @@ TelemetryPing.prototype = {
       // If the reporter gives us a cumulative count, we'll report the
       // difference in its value between now and our previous ping.
 
-      if (!(id in this._prevValues)) {
+      if (!(path in this._prevValues)) {
         // If this is the first time we're reading this reporter, store its
         // current value but don't report it in the telemetry ping, so we
         // ignore the effect startup had on the reporter.
-        this._prevValues[id] = amount;
+        this._prevValues[path] = amount;
         return;
       }
 
-      val = amount - this._prevValues[id];
-      this._prevValues[id] = amount;
+      val = amount - this._prevValues[path];
+      this._prevValues[path] = amount;
     }
     else {
       NS_ASSERT(false, "Can't handle memory reporter with units " + units);
       return;
     }
 
-    let h = this._histograms[id];
-    if (!h) {
-      h = Telemetry.getHistogramById(id);
-      this._histograms[id] = h;
-    }
-    h.add(val);
+    this.addValue(path, id, val);
   },
 
   /**
@@ -541,14 +520,14 @@ TelemetryPing.prototype = {
   isInterestingStartupHistogram: function isInterestingStartupHistogram(name) {
     return this._startupHistogramRegex.test(name);
   },
-
-  /**
+  
+  /** 
    * Make a copy of interesting histograms at startup.
    */
   gatherStartupHistograms: function gatherStartupHistograms() {
-    let info = Telemetry.registeredHistograms([]);
+    let info = Telemetry.registeredHistograms;
     let snapshots = Telemetry.histogramSnapshots;
-    for (let name of info) {
+    for (let name in info) {
       // Only duplicate histograms with actual data.
       if (this.isInterestingStartupHistogram(name) && name in snapshots) {
         Telemetry.histogramFrom("STARTUP_" + name, name);
@@ -569,17 +548,13 @@ TelemetryPing.prototype = {
       histograms: this.getHistograms(Telemetry.histogramSnapshots),
       slowSQL: Telemetry.slowSQL,
       chromeHangs: Telemetry.chromeHangs,
-      threadHangStats: this.getThreadHangStats(Telemetry.threadHangStats),
       lateWrites: Telemetry.lateWrites,
       addonHistograms: this.getAddonHistograms(),
-      addonDetails: AddonManagerPrivate.getTelemetryDetails(),
-      UIMeasurements: UITelemetry.getUIMeasurements(),
       info: info
     };
 
-    if (Object.keys(this._slowSQLStartup).length != 0 &&
-        (Object.keys(this._slowSQLStartup.mainThread).length ||
-         Object.keys(this._slowSQLStartup.otherThreads).length)) {
+    if (Object.keys(this._slowSQLStartup.mainThread).length
+      || Object.keys(this._slowSQLStartup.otherThreads).length) {
       payloadObj.slowSQLStartup = this._slowSQLStartup;
     }
 
@@ -603,9 +578,7 @@ TelemetryPing.prototype = {
 
   popPayloads: function popPayloads(reason) {
     function payloadIter() {
-      if (reason != "overdue-flush") {
-        yield this.getSessionPayloadAndSlug(reason);
-      }
+      yield this.getSessionPayloadAndSlug(reason);
       let iterator = TelemetryFile.popPendingPings(reason);
       for (let data of iterator) {
         yield data;
@@ -711,14 +684,9 @@ TelemetryPing.prototype = {
     request.addEventListener("load", handler(true, onSuccess).bind(this), false);
 
     request.setRequestHeader("Content-Encoding", "gzip");
-    let converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"]
-                    .createInstance(Ci.nsIScriptableUnicodeConverter);
-    converter.charset = "UTF-8";
-    let utf8Payload = converter.ConvertFromUnicode(JSON.stringify(ping.payload));
-    utf8Payload += converter.Finish();
     let payloadStream = Cc["@mozilla.org/io/string-input-stream;1"]
                         .createInstance(Ci.nsIStringInputStream);
-    payloadStream.data = this.gzipCompressString(utf8Payload);
+    payloadStream.data = this.gzipCompressString(JSON.stringify(ping.payload));
     request.send(payloadStream);
   },
 
@@ -726,7 +694,7 @@ TelemetryPing.prototype = {
     let observer = {
       buffer: "",
       onStreamComplete: function(loader, context, status, length, result) {
-        this.buffer = String.fromCharCode.apply(this, result);
+	this.buffer = String.fromCharCode.apply(this, result);
       }
     };
 
@@ -767,7 +735,7 @@ TelemetryPing.prototype = {
   /**
    * Initializes telemetry within a timer. If there is no PREF_SERVER set, don't turn on telemetry.
    */
-  setup: function setup(aTesting) {
+  setup: function setup() {
     // Initialize some probes that are kept in their own modules
     this._thirdPartyCookies = new ThirdPartyCookieProbe();
     this._thirdPartyCookies.init();
@@ -797,7 +765,7 @@ TelemetryPing.prototype = {
       return;
     }
 #endif
-    let enabled = false;
+    let enabled = false; 
     try {
       enabled = Services.prefs.getBoolPref(PREF_ENABLED);
       this._server = Services.prefs.getCharPref(PREF_SERVER);
@@ -830,17 +798,7 @@ TelemetryPing.prototype = {
         {
           let success_histogram = Telemetry.getHistogramById("READ_SAVED_PING_SUCCESS");
           success_histogram.add(success);
-        }), () =>
-        {
-          // If we have any TelemetryPings lying around, we'll be aggressive
-          // and try to send them all off ASAP.
-          if (TelemetryFile.pingsOverdue > 0) {
-            // It doesn't really matter what we pass to this.send as a reason,
-            // since it's never sent to the server. All that this.send does with
-            // the reason is check to make sure it's not a test-ping.
-            this.send("overdue-flush", this._server);
-          }
-        });
+        }));
       this.attachObservers();
       this.gatherMemory();
 
@@ -848,8 +806,7 @@ TelemetryPing.prototype = {
       });
       delete this._timer;
     }
-    this._timer.initWithCallback(timerCallback.bind(this),
-                                 aTesting ? TELEMETRY_TEST_DELAY : TELEMETRY_DELAY,
+    this._timer.initWithCallback(timerCallback.bind(this), TELEMETRY_DELAY,
                                  Ci.nsITimer.TYPE_ONE_SHOT);
   },
 
@@ -864,12 +821,12 @@ TelemetryPing.prototype = {
   getFlashVersion: function getFlashVersion() {
     let host = Cc["@mozilla.org/plugin/host;1"].getService(Ci.nsIPluginHost);
     let tags = host.getPluginTags();
-
+    
     for (let i = 0; i < tags.length; i++) {
       if (tags[i].name == "Shockwave Flash")
         return tags[i].version;
     }
-
+    
     return null;
   },
 
@@ -884,7 +841,7 @@ TelemetryPing.prototype = {
       file, sync, true);
   },
 
-  /**
+  /** 
    * Remove observers to avoid leaks
    */
   uninstall: function uninstall() {
@@ -972,10 +929,10 @@ TelemetryPing.prototype = {
       break;
     case "xul-window-visible":
       Services.obs.removeObserver(this, "xul-window-visible");
-      this._hasXulWindowVisibleObserver = false;
+      this._hasXulWindowVisibleObserver = false;   
       var counters = processInfo.getCounters();
       if (counters) {
-        [this._startupIO.startupWindowVisibleReadBytes,
+        [this._startupIO.startupWindowVisibleReadBytes, 
           this._startupIO.startupWindowVisibleWriteBytes] = counters;
       }
       break;

@@ -6,3 +6,5 @@
 
 DIRS += ['src']
 
+MODULE = 'soundtouch'
+

@@ -14,7 +14,7 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsDebug.h"
 #include "nsDOMEventTargetHelper.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "nsTArray.h"
 
 #define BEGIN_TELEPHONY_NAMESPACE \
@@ -24,23 +24,17 @@
 #define USING_TELEPHONY_NAMESPACE \
   using namespace mozilla::dom::telephony;
 
-namespace mozilla {
-namespace dom {
-
-namespace telephony {
+BEGIN_TELEPHONY_NAMESPACE
 
 enum {
   kOutgoingPlaceholderCallIndex = UINT32_MAX
 };
-
-} // namespace telephony
 
 class CallsList;
 class Telephony;
 class TelephonyCall;
 class TelephonyCallGroup;
 
-} // namespace dom
-} // namespace mozilla
+END_TELEPHONY_NAMESPACE
 
 #endif // mozilla_dom_telephony_telephonycommon_h__

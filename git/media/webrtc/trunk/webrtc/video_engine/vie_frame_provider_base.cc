@@ -8,15 +8,15 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/video_engine/vie_frame_provider_base.h"
+#include "video_engine/vie_frame_provider_base.h"
 
 #include <algorithm>
 
-#include "webrtc/common_video/interface/i420_video_frame.h"
-#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
-#include "webrtc/system_wrappers/interface/tick_util.h"
-#include "webrtc/system_wrappers/interface/trace.h"
-#include "webrtc/video_engine/vie_defines.h"
+#include "common_video/interface/i420_video_frame.h"
+#include "system_wrappers/interface/critical_section_wrapper.h"
+#include "system_wrappers/interface/tick_util.h"
+#include "system_wrappers/interface/trace.h"
+#include "video_engine/vie_defines.h"
 
 namespace webrtc {
 
@@ -56,7 +56,7 @@ void ViEFrameProviderBase::DeliverFrame(
 
   // Deliver the frame to all registered callbacks.
   if (frame_callbacks_.size() > 0) {
-    if (frame_callbacks_.size() == 1 || video_frame->native_handle() != NULL) {
+    if (frame_callbacks_.size() == 1) {
       // We don't have to copy the frame.
       frame_callbacks_.front()->DeliverFrame(id_, video_frame, num_csrcs, CSRC);
     } else {

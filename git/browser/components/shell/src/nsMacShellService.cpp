@@ -20,8 +20,6 @@
 #include "nsNetUtil.h"
 #include "nsShellService.h"
 #include "nsStringAPI.h"
-#include "nsIDocShell.h"
-#include "nsILoadContext.h"
 
 #include <CoreFoundation/CoreFoundation.h>
 #include <ApplicationServices/ApplicationServices.h>
@@ -195,15 +193,8 @@ nsMacShellService::SetDesktopBackground(nsIDOMElement* aElement,
   wbp->SetPersistFlags(flags);
   wbp->SetProgressListener(this);
 
-  nsCOMPtr<nsILoadContext> loadContext;
-  nsCOMPtr<nsISupports> container = content->OwnerDoc()->GetContainer();
-  nsCOMPtr<nsIDocShell> docShell = do_QueryInterface(container);
-  if (docShell) {
-    loadContext = do_QueryInterface(docShell);
-  }
-
   return wbp->SaveURI(imageURI, nullptr, docURI, nullptr, nullptr,
-                      mBackgroundFile, loadContext);
+                      mBackgroundFile, content->OwnerDoc()->GetLoadContext());
 }
 
 NS_IMETHODIMP

@@ -86,6 +86,9 @@ protected:
     {
       MOZ_COUNT_CTOR(TransactionInfo);
 
+      blockedOn.Init();
+      blocking.Init();
+
       transaction = aTransaction;
       queue = new TransactionQueue(aTransaction);
     }
@@ -124,6 +127,9 @@ protected:
     DatabaseTransactionInfo()
     {
       MOZ_COUNT_CTOR(DatabaseTransactionInfo);
+
+      transactions.Init();
+      blockingTransactions.Init();
     }
 
     ~DatabaseTransactionInfo()
@@ -171,7 +177,7 @@ protected:
 
   nsCOMPtr<nsIThreadPool> mThreadPool;
 
-  nsClassHashtable<nsCStringHashKey, DatabaseTransactionInfo>
+  nsClassHashtable<nsISupportsHashKey, DatabaseTransactionInfo>
     mTransactionsInProgress;
 
   nsTArray<DatabasesCompleteCallback> mCompleteCallbacks;

@@ -12,11 +12,11 @@ const FRAME_SCRIPT_URL = "chrome://global/content/backgroundPageThumbsContent.js
 
 const TELEMETRY_HISTOGRAM_ID_PREFIX = "FX_THUMBNAILS_BG_";
 
-// possible FX_THUMBNAILS_BG_CAPTURE_DONE_REASON_2 telemetry values
+// possible FX_THUMBNAILS_BG_CAPTURE_DONE_REASON telemetry values
 const TEL_CAPTURE_DONE_OK = 0;
 const TEL_CAPTURE_DONE_TIMEOUT = 1;
-// 2 and 3 were used when we had special handling for private-browsing.
-const TEL_CAPTURE_DONE_CRASHED = 4;
+const TEL_CAPTURE_DONE_PB_BEFORE_START = 2;
+const TEL_CAPTURE_DONE_PB_AFTER_START = 3;
 
 const XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 const HTML_NS = "http://www.w3.org/1999/xhtml";
@@ -25,6 +25,7 @@ const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 
 Cu.import("resource://gre/modules/PageThumbs.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
 
 const BackgroundPageThumbs = {
 
@@ -47,7 +48,7 @@ const BackgroundPageThumbs = {
   capture: function (url, options={}) {
     if (!PageThumbs._prefEnabled()) {
       if (options.onDone)
-        schedule(() => options.onDone(url));
+        schedule(() => options.onDone(null));
       return;
     }
     this._captureQueue = this._captureQueue || [];
@@ -71,31 +72,6 @@ const BackgroundPageThumbs = {
   },
 
   /**
-   * Asynchronously captures a thumbnail of the given URL if one does not
-   * already exist.  Otherwise does nothing.
-   *
-   * @param url      The URL to capture.
-   * @param options  An optional object that configures the capture.  See
-   *                 capture() for description.
-   */
-  captureIfMissing: function (url, options={}) {
-    // The fileExistsForURL call is an optimization, potentially but unlikely
-    // incorrect, and no big deal when it is.  After the capture is done, we
-    // atomically test whether the file exists before writing it.
-    PageThumbsStorage.fileExistsForURL(url).then(exists => {
-      if (exists.ok) {
-        if (options.onDone)
-          options.onDone(url);
-        return;
-      }
-      this.capture(url, options);
-    }, err => {
-      if (options.onDone)
-        options.onDone(url);
-    });
-  },
-
-  /**
    * Ensures that initialization of the thumbnail browser's parent window has
    * begun.
    *
@@ -112,20 +88,32 @@ const BackgroundPageThumbs = {
 
     this._startedParentWinInit = true;
 
-    // Create an html:iframe, stick it in the parent document, and
-    // use it to host the browser.  about:blank will not have the system
-    // principal, so it can't host, but a document with a chrome URI will.
-    let hostWindow = Services.appShell.hiddenDOMWindow;
-    let iframe = hostWindow.document.createElementNS(HTML_NS, "iframe");
-    iframe.setAttribute("src", "chrome://global/content/mozilla.xhtml");
-    let onLoad = function onLoadFn() {
-      iframe.removeEventListener("load", onLoad, true);
-      this._parentWin = iframe.contentWindow;
-      this._processCaptureQueue();
-    }.bind(this);
-    iframe.addEventListener("load", onLoad, true);
-    hostWindow.document.documentElement.appendChild(iframe);
-    this._hostIframe = iframe;
+    PrivateBrowsingUtils.whenHiddenPrivateWindowReady(function (parentWin) {
+      parentWin.addEventListener("unload", function (event) {
+        if (event.target == parentWin.document)
+          this._destroy();
+      }.bind(this), true);
+
+      if (canHostBrowser(parentWin)) {
+        this._parentWin = parentWin;
+        this._processCaptureQueue();
+        return;
+      }
+
+      // Otherwise, create an html:iframe, stick it in the parent document, and
+      // use it to host the browser.  about:blank will not have the system
+      // principal, so it can't host, but a document with a chrome URI will.
+      let iframe = parentWin.document.createElementNS(HTML_NS, "iframe");
+      iframe.setAttribute("src", "chrome://global/content/mozilla.xhtml");
+      let onLoad = function onLoadFn() {
+        iframe.removeEventListener("load", onLoad, true);
+        this._parentWin = iframe.contentWindow;
+        this._processCaptureQueue();
+      }.bind(this);
+      iframe.addEventListener("load", onLoad, true);
+      parentWin.document.documentElement.appendChild(iframe);
+      this._hostIframe = iframe;
+    }.bind(this));
 
     return false;
   },
@@ -156,6 +144,7 @@ const BackgroundPageThumbs = {
     let browser = this._parentWin.document.createElementNS(XUL_NS, "browser");
     browser.setAttribute("type", "content");
     browser.setAttribute("remote", "true");
+    browser.setAttribute("privatebrowsing", "true");
 
     // Size the browser.  Make its aspect ratio the same as the canvases' that
     // the thumbnails are drawn into; the canvases' aspect ratio is the same as
@@ -172,26 +161,6 @@ const BackgroundPageThumbs = {
     browser.style.height = (bwidth * sheight.value / swidth.value) + "px";
 
     this._parentWin.document.documentElement.appendChild(browser);
-
-    // an event that is sent if the remote process crashes - no need to remove
-    // it as we want it to be there as long as the browser itself lives.
-    browser.addEventListener("oop-browser-crashed", () => {
-      Cu.reportError("BackgroundThumbnails remote process crashed - recovering");
-      this._destroyBrowser();
-      let curCapture = this._captureQueue.length ? this._captureQueue[0] : null;
-      // we could retry the pending capture, but it's possible the crash
-      // was due directly to it, so trying again might just crash again.
-      // We could keep a flag to indicate if it previously crashed, but
-      // "resetting" the capture requires more work - so for now, we just
-      // discard it.
-      if (curCapture && curCapture.pending) {
-        curCapture._done(null, TEL_CAPTURE_DONE_CRASHED);
-        // _done automatically continues queue processing.
-      }
-      // else: we must have been idle and not currently doing a capture (eg,
-      // maybe a GC or similar crashed) - so there's no need to attempt a
-      // queue restart - the next capture request will set everything up.
-    });
 
     browser.messageManager.loadFrameScript(FRAME_SCRIPT_URL, false);
     this._thumbBrowser = browser;
@@ -224,8 +193,7 @@ const BackgroundPageThumbs = {
   },
 
   /**
-   * Called when the current capture completes or fails (eg, times out, remote
-   * process crashes.)
+   * Called when the current capture completes or times out.
    */
   _onCaptureOrTimeout: function (capture) {
     // Since timeouts start as an item is being processed, only the first
@@ -282,6 +250,20 @@ Capture.prototype = {
     this.startDate = new Date();
     tel("CAPTURE_QUEUE_TIME_MS", this.startDate - this.creationDate);
 
+    // The thumbnail browser uses private browsing mode and therefore shares
+    // browsing state with private windows.  To avoid capturing sites that the
+    // user is logged into in private browsing windows, (1) observe window
+    // openings, and if a private window is opened during capture, discard the
+    // capture when it finishes, and (2) don't start the capture at all if a
+    // private window is open already.
+    Services.ww.registerNotification(this);
+    if (isPrivateBrowsingActive()) {
+      tel("CAPTURE_DONE_REASON", TEL_CAPTURE_DONE_PB_BEFORE_START);
+      // Captures should always finish asyncly.
+      schedule(() => this._done(null));
+      return;
+    }
+
     // timeout timer
     let timeout = typeof(this.options.timeout) == "number" ?
                   this.options.timeout :
@@ -315,35 +297,41 @@ Capture.prototype = {
       delete this._msgMan;
     }
     delete this.captureCallback;
-    delete this.doneCallbacks;
-    delete this.options;
+    Services.ww.unregisterNotification(this);
   },
 
   // Called when the didCapture message is received.
   receiveMessage: function (msg) {
+    tel("CAPTURE_DONE_REASON", TEL_CAPTURE_DONE_OK);
     tel("CAPTURE_SERVICE_TIME_MS", new Date() - this.startDate);
 
     // A different timed-out capture may have finally successfully completed, so
     // discard messages that aren't meant for this capture.
     if (msg.json.id == this.id)
-      this._done(msg.json, TEL_CAPTURE_DONE_OK);
+      this._done(msg.json);
   },
 
   // Called when the timeout timer fires.
   notify: function () {
-    this._done(null, TEL_CAPTURE_DONE_TIMEOUT);
+    tel("CAPTURE_DONE_REASON", TEL_CAPTURE_DONE_TIMEOUT);
+    this._done(null);
   },
 
-  _done: function (data, reason) {
+  // Called when the window watcher notifies us.
+  observe: function (subj, topic, data) {
+    if (topic == "domwindowopened" &&
+        PrivateBrowsingUtils.isWindowPrivate(subj))
+      this._privateWinOpenedDuringCapture = true;
+  },
+
+  _done: function (data) {
     // Note that _done will be called only once, by either receiveMessage or
-    // notify, since it calls destroy here, which cancels the timeout timer and
+    // notify, since it calls destroy, which cancels the timeout timer and
     // removes the didCapture message listener.
-    let { captureCallback, doneCallbacks, options } = this;
+
+    this.captureCallback(this);
     this.destroy();
 
-    if (typeof(reason) != "number")
-      throw new Error("A done reason must be given.");
-    tel("CAPTURE_DONE_REASON_2", reason);
     if (data && data.telemetry) {
       // Telemetry is currently disabled in the content process (bug 680508).
       for (let id in data.telemetry) {
@@ -351,29 +339,61 @@ Capture.prototype = {
       }
     }
 
-    let done = () => {
-      captureCallback(this);
-      for (let callback of doneCallbacks) {
+    let callOnDones = function callOnDonesFn() {
+      for (let callback of this.doneCallbacks) {
         try {
-          callback.call(options, this.url);
+          callback.call(this.options, this.url);
         }
         catch (err) {
           Cu.reportError(err);
         }
       }
-    };
+    }.bind(this);
 
-    if (!data) {
-      done();
+    if (!data || this._privateWinOpenedDuringCapture) {
+      if (this._privateWinOpenedDuringCapture)
+        tel("CAPTURE_DONE_REASON", TEL_CAPTURE_DONE_PB_AFTER_START);
+      callOnDones();
       return;
     }
-
-    PageThumbs._store(this.url, data.finalURL, data.imageData, true)
-              .then(done, done);
+    PageThumbs._store(this.url, data.finalURL, data.imageData, data.wasErrorResponse)
+              .then(callOnDones);
   },
 };
 
 Capture.nextID = 0;
+
+/**
+ * Returns true if the given window is suitable for hosting our xul:browser.
+ *
+ * @param win  The window.
+ * @return     True if the window can host the browser, false otherwise.
+ */
+function canHostBrowser(win) {
+  // The host document needs to have the system principal since, like all code
+  // intended to be used in chrome, the browser binding does lots of things that
+  // assume it has it.  The document must also allow XUL children.  So check for
+  // both the system principal and the "allowXULXBL" permission.  (It turns out
+  // that allowXULXBL is satisfied by the system principal alone, making that
+  // check not strictly necessary, but it's here for robustness.)
+  let principal = win.document.nodePrincipal;
+  if (!Services.scriptSecurityManager.isSystemPrincipal(principal))
+    return false;
+  let permResult = Services.perms.testPermissionFromPrincipal(principal,
+                                                              "allowXULXBL");
+  return permResult == Ci.nsIPermissionManager.ALLOW_ACTION;
+}
+
+/**
+ * Returns true if there are any private windows.
+ */
+function isPrivateBrowsingActive() {
+  let wins = Services.ww.getWindowEnumerator();
+  while (wins.hasMoreElements())
+    if (PrivateBrowsingUtils.isWindowPrivate(wins.getNext()))
+      return true;
+  return false;
+}
 
 /**
  * Adds a value to one of this module's telemetry histograms.

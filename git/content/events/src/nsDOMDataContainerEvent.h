@@ -16,8 +16,7 @@ class nsDOMDataContainerEvent : public nsDOMEvent,
 {
 public:
   nsDOMDataContainerEvent(mozilla::dom::EventTarget* aOwner,
-                          nsPresContext* aPresContext,
-                          mozilla::WidgetEvent* aEvent);
+                          nsPresContext* aPresContext, nsEvent* aEvent);
 
   NS_DECL_ISUPPORTS_INHERITED
 

@@ -12,12 +12,12 @@
 
 #include <list>
 
-#include "webrtc/modules/interface/module_common_types.h"
-#include "webrtc/modules/remote_bitrate_estimator/include/bwe_defines.h"
-#include "webrtc/typedefs.h"
+#include "modules/interface/module_common_types.h"
+#include "modules/remote_bitrate_estimator/include/bwe_defines.h"
+#include "typedefs.h"  // NOLINT(build/include)
 
 #ifdef WEBRTC_BWE_MATLAB
-#include "webrtc/modules/rtp_rtcp/test/BWEStandAlone/MatlabPlot.h"
+#include "../test/BWEStandAlone/MatlabPlot.h"
 #endif
 
 namespace webrtc {

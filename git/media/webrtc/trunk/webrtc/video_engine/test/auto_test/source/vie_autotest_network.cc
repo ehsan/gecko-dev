@@ -12,18 +12,36 @@
 // vie_autotest_network.cc
 //
 
-#include "webrtc/engine_configurations.h"
-#include "webrtc/video_engine/test/auto_test/interface/vie_autotest.h"
-#include "webrtc/video_engine/test/auto_test/interface/vie_autotest_defines.h"
+#include "vie_autotest_defines.h"
+#include "vie_autotest.h"
+#include "engine_configurations.h"
 
-#include "webrtc/video_engine/test/libvietest/include/tb_capture_device.h"
-#include "webrtc/video_engine/test/libvietest/include/tb_external_transport.h"
-#include "webrtc/video_engine/test/libvietest/include/tb_interfaces.h"
-#include "webrtc/video_engine/test/libvietest/include/tb_video_channel.h"
+#include "tb_capture_device.h"
+#include "tb_external_transport.h"
+#include "tb_interfaces.h"
+#include "tb_video_channel.h"
 
 #if defined(_WIN32)
 #include <qos.h>
 #endif
+
+class ViEAutoTestNetworkObserver: public webrtc::ViENetworkObserver
+{
+public:
+    ViEAutoTestNetworkObserver()
+    {
+    }
+    virtual ~ViEAutoTestNetworkObserver()
+    {
+    }
+    virtual void OnPeriodicDeadOrAlive(const int videoChannel, const bool alive)
+    {
+    }
+    virtual void PacketTimeout(const int videoChannel,
+                               const webrtc::ViEPacketTimeout timeout)
+    {
+    }
+};
 
 void ViEAutoTest::ViENetworkStandardTest()
 {
@@ -527,6 +545,26 @@ void ViEAutoTest::ViENetworkAPITest()
         EXPECT_NE(0, ViE.network->SetMTU(tbChannel.videoChannel, 1600));
         // Valid input
         EXPECT_EQ(0, ViE.network->SetMTU(tbChannel.videoChannel, 800));
+
+        //
+        // Observer and timeout
+        //
+        ViEAutoTestNetworkObserver vieTestObserver;
+        EXPECT_EQ(0, ViE.network->RegisterObserver(
+            tbChannel.videoChannel, vieTestObserver));
+        EXPECT_NE(0, ViE.network->RegisterObserver(
+            tbChannel.videoChannel, vieTestObserver));
+        EXPECT_EQ(0, ViE.network->SetPeriodicDeadOrAliveStatus(
+            tbChannel.videoChannel, true)); // No observer
+        EXPECT_EQ(0, ViE.network->DeregisterObserver(tbChannel.videoChannel));
+
+        EXPECT_NE(0, ViE.network->DeregisterObserver(tbChannel.videoChannel));
+        EXPECT_NE(0, ViE.network->SetPeriodicDeadOrAliveStatus(
+            tbChannel.videoChannel, true)); // No observer
+
+        // Packet timout notification
+        EXPECT_EQ(0, ViE.network->SetPacketTimeoutNotification(
+            tbChannel.videoChannel, true, 10));
     }
 
     //***************************************************************

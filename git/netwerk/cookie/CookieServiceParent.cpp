@@ -11,7 +11,6 @@
 #include "nsCookieService.h"
 #include "nsNetUtil.h"
 #include "nsPrintfCString.h"
-#include "SerializedLoadContext.h"
 
 using namespace mozilla::ipc;
 using mozilla::dom::PContentParent;
@@ -126,18 +125,6 @@ CookieServiceParent::RecvSetCookieString(const URIParams& aHost,
                                           aServerTime, aFromHttp, appId,
                                           isInBrowserElement, isPrivate, nullptr);
   return true;
-}
-
-mozilla::ipc::IProtocol*
-CookieServiceParent::CloneProtocol(Channel* aChannel,
-                                   mozilla::ipc::ProtocolCloneContext* aCtx)
-{
-  NeckoParent* manager = aCtx->GetNeckoParent();
-  nsAutoPtr<PCookieServiceParent> actor(manager->AllocPCookieServiceParent());
-  if (!actor || !manager->RecvPCookieServiceConstructor(actor)) {
-    return nullptr;
-  }
-  return actor.forget();
 }
 
 }

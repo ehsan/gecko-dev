@@ -93,7 +93,7 @@ try {
     let (crashReporter =
           Components.classes["@mozilla.org/toolkit/crash-reporter;1"]
           .getService(Components.interfaces.nsICrashReporter)) {
-      crashReporter.minidumpPath = do_get_minidumpdir();
+      crashReporter.minidumpPath = do_get_tempdir();
     }
   }
 }
@@ -184,24 +184,15 @@ function _do_quit() {
 }
 
 function _format_exception_stack(stack) {
-  if (typeof stack == "object" && stack.caller) {
-    let frame = stack;
-    let strStack = "";
-    while (frame != null) {
-      strStack += frame + "\n";
-      frame = frame.caller;
-    }
-    stack = strStack;
-  }
-  // frame is of the form "fname@file:line"
-  let frame_regexp = new RegExp("(.*)@(.*):(\\d*)", "g");
+  // frame is of the form "fname(args)@file:line"
+  let frame_regexp = new RegExp("(.*)\\(.*\\)@(.*):(\\d*)", "g");
   return stack.split("\n").reduce(function(stack_msg, frame) {
     if (frame) {
       let parts = frame_regexp.exec(frame);
       if (parts) {
-        let [ _, func, file, line ] = parts;
-        return stack_msg + "JS frame :: " + file + " :: " +
-          (func || "anonymous") + " :: line " + line + "\n";
+        return stack_msg + "JS frame :: " + parts[2] + " :: " +
+          (parts[1] ? parts[1] : "anonymous") +
+          " :: line " + parts[3] + "\n";
       }
       else { /* Could be a -e (command line string) style location. */
         return stack_msg + "JS frame :: " + frame + "\n";
@@ -352,24 +343,6 @@ function _execute_test() {
   // _TEST_FILE is dynamically defined by <runxpcshelltests.py>.
   _load_files(_TEST_FILE);
 
-  // Support a common assertion library, Assert.jsm.
-  let Assert = Components.utils.import("resource://testing-common/Assert.jsm", null).Assert;
-  // Pass a custom report function for xpcshell-test style reporting.
-  let assertImpl = new Assert(function(err, message, stack) {
-    if (err) {
-      do_report_result(false, err.message, err.stack);
-    } else {
-      do_report_result(true, message, stack);
-    }
-  });
-  // Allow Assert.jsm methods to be tacked to the current scope.
-  this.export_assertions = function() {
-    for (let func in assertImpl) {
-      this[func] = assertImpl[func].bind(assertImpl);
-    }
-  };
-  this.Assert = assertImpl;
-
   try {
     do_test_pending("MAIN run_test");
     run_test();
@@ -448,12 +421,6 @@ function _load_files(aFiles) {
     } catch (e if e instanceof SyntaxError) {
       _log("javascript_error",
            {_message: "TEST-UNEXPECTED-FAIL | (xpcshell/head.js) | Source file " + element + " contains SyntaxError",
-            diagnostic: _exception_message(e),
-            source_file: element,
-            stack: _format_exception_stack(e.stack)});
-    } catch (e) {
-      _log("javascript_error",
-           {_message: "TEST-UNEXPECTED-FAIL | (xpcshell/head.js) | Source file " + element + " contains an error",
             diagnostic: _exception_message(e),
             source_file: element,
             stack: _format_exception_stack(e.stack)});
@@ -901,75 +868,6 @@ function format_pattern_match_failure(diagnosis, indent="") {
   return indent + a;
 }
 
-// Check that |func| throws an nsIException that has
-// |Components.results[resultName]| as the value of its 'result' property.
-function do_check_throws_nsIException(func, resultName,
-                                      stack=Components.stack.caller, todo=false)
-{
-  let expected = Components.results[resultName];
-  if (typeof expected !== 'number') {
-    do_throw("do_check_throws_nsIException requires a Components.results" +
-             " property name, not " + uneval(resultName), stack);
-  }
-
-  let msg = ("do_check_throws_nsIException: func should throw" +
-             " an nsIException whose 'result' is Components.results." +
-             resultName);
-
-  try {
-    func();
-  } catch (ex) {
-    if (!(ex instanceof Components.interfaces.nsIException) ||
-        ex.result !== expected) {
-      do_report_result(false, msg + ", threw " + legible_exception(ex) +
-                       " instead", stack, todo);
-    }
-
-    do_report_result(true, msg, stack, todo);
-    return;
-  }
-
-  // Call this here, not in the 'try' clause, so do_report_result's own
-  // throw doesn't get caught by our 'catch' clause.
-  do_report_result(false, msg + ", but returned normally", stack, todo);
-}
-
-// Produce a human-readable form of |exception|. This looks up
-// Components.results values, tries toString methods, and so on.
-function legible_exception(exception)
-{
-  switch (typeof exception) {
-    case 'object':
-    if (exception instanceof Components.interfaces.nsIException) {
-      return "nsIException instance: " + uneval(exception.toString());
-    }
-    return exception.toString();
-
-    case 'number':
-    for (let name in Components.results) {
-      if (exception === Components.results[name]) {
-        return "Components.results." + name;
-      }
-    }
-
-    // Fall through.
-    default:
-    return uneval(exception);
-  }
-}
-
-function do_check_instanceof(value, constructor,
-                             stack=Components.stack.caller, todo=false) {
-  do_report_result(value instanceof constructor,
-                   "value should be an instance of " + constructor.name,
-                   stack, todo);
-}
-
-function todo_check_instanceof(value, constructor,
-                             stack=Components.stack.caller) {
-  do_check_instanceof(value, constructor, stack, true);
-}
-
 function do_test_pending(aName) {
   ++_tests_pending;
 
@@ -1103,26 +1001,6 @@ function do_get_tempdir() {
                        .createInstance(Components.interfaces.nsILocalFile);
   file.initWithPath(path);
   return file;
-}
-
-/**
- * Returns the directory for crashreporter minidumps.
- *
- * @return nsILocalFile of the minidump directory
- */
-function do_get_minidumpdir() {
-  let env = Components.classes["@mozilla.org/process/environment;1"]
-                      .getService(Components.interfaces.nsIEnvironment);
-  // the python harness may set this in the environment for us
-  let path = env.get("XPCSHELL_MINIDUMP_DIR");
-  if (path) {
-    let file = Components.classes["@mozilla.org/file/local;1"]
-                         .createInstance(Components.interfaces.nsILocalFile);
-    file.initWithPath(path);
-    return file;
-  } else {
-    return do_get_tempdir();
-  }
 }
 
 /**
@@ -1263,48 +1141,6 @@ function run_test_in_child(testFile, optionalCallback)
               callback);
 }
 
-/**
- * Execute a given function as soon as a particular cross-process message is received.
- * Must be paired with do_send_remote_message or equivalent ProcessMessageManager calls.
- */
-function do_await_remote_message(name, callback)
-{
-  var listener = {
-    receiveMessage: function(message) {
-      if (message.name == name) {
-        mm.removeMessageListener(name, listener);
-        callback();
-        do_test_finished();
-      }
-    }
-  };
-
-  var mm;
-  if (runningInParent) {
-    mm = Cc["@mozilla.org/parentprocessmessagemanager;1"].getService(Ci.nsIMessageBroadcaster);
-  } else {
-    mm = Cc["@mozilla.org/childprocessmessagemanager;1"].getService(Ci.nsISyncMessageSender);
-  }
-  do_test_pending();
-  mm.addMessageListener(name, listener);
-}
-
-/**
- * Asynchronously send a message to all remote processes. Pairs with do_await_remote_message
- * or equivalent ProcessMessageManager listeners.
- */
-function do_send_remote_message(name) {
-  var mm;
-  var sender;
-  if (runningInParent) {
-    mm = Cc["@mozilla.org/parentprocessmessagemanager;1"].getService(Ci.nsIMessageBroadcaster);
-    sender = 'broadcastAsyncMessage';
-  } else {
-    mm = Cc["@mozilla.org/childprocessmessagemanager;1"].getService(Ci.nsISyncMessageSender);
-    sender = 'sendAsyncMessage';
-  }
-  mm[sender](name);
-}
 
 /**
  * Add a test function to the list of tests that are to be run asynchronously.

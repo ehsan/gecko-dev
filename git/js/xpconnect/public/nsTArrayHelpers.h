@@ -31,8 +31,8 @@ nsTArrayToJSArray(JSContext* aCx, const nsTArray<T>& aSourceArray,
     nsresult rv = aSourceArray[index]->QueryInterface(NS_GET_IID(nsISupports), getter_AddRefs(obj));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    JS::RootedValue wrappedVal(aCx);
-    rv = nsContentUtils::WrapNative(aCx, global, obj, &wrappedVal,
+    JS::Rooted<JS::Value> wrappedVal(aCx);
+    rv = nsContentUtils::WrapNative(aCx, global, obj, wrappedVal.address(),
                                     nullptr, true);
     NS_ENSURE_SUCCESS(rv, rv);
 

@@ -5,19 +5,23 @@
 
 #include "nsCOMPtr.h"
 #include "nsString.h"
+#include "nsReadableUtils.h"
 #include "nsUnicharUtils.h"
 #include "nsCharsetAlias.h"
+#include "nsIServiceManager.h"
 #include "nsICategoryManager.h"
 #include "nsICharsetConverterManager.h"
 #include "nsEncoderDecoderUtils.h"
 #include "nsIStringBundle.h"
+#include "nsCRT.h"
 #include "nsTArray.h"
 #include "nsStringEnumerator.h"
+#include "nsThreadUtils.h"
 #include "mozilla/Services.h"
 
+#include "nsXPCOM.h"
 #include "nsComponentManagerUtils.h"
 #include "nsISupportsPrimitives.h"
-#include "nsServiceManagerUtils.h"
 
 // just for CONTRACTIDs
 #include "nsCharsetConverterManager.h"
@@ -111,7 +115,7 @@ bool nsCharsetConverterManager::IsInternal(const nsACString& aCharset)
   nsAutoString str;
   // fully qualify to possibly avoid vtable call
   nsresult rv = GetCharsetDataImpl(PromiseFlatCString(aCharset).get(),
-                                   MOZ_UTF16(".isInternal"),
+                                   NS_LITERAL_STRING(".isInternal").get(),
                                    str);
 
   return NS_SUCCEEDED(rv);
@@ -345,7 +349,7 @@ nsCharsetConverterManager::GetCharsetLangGroupRaw(const char * aCharset,
   nsAutoString langGroup;
   // fully qualify to possibly avoid vtable call
   nsresult rv = nsCharsetConverterManager::GetCharsetData(
-      aCharset, MOZ_UTF16(".LangGroup"), langGroup);
+      aCharset, NS_LITERAL_STRING(".LangGroup").get(), langGroup);
 
   if (NS_SUCCEEDED(rv)) {
     ToLowerCase(langGroup); // use lowercase for all language atoms

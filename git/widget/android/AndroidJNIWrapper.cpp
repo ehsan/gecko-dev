@@ -3,6 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/Util.h"
+
 #include <android/log.h>
 #include <dlfcn.h>
 #include <prthread.h>
@@ -11,6 +13,12 @@
 #include "mozilla/Assertions.h"
 #include "nsThreadUtils.h"
 #include "AndroidBridge.h"
+
+#ifdef DEBUG
+#define ALOG_BRIDGE(args...) ALOG(args)
+#else
+#define ALOG_BRIDGE(args...)
+#endif
 
 extern "C" {
   jclass __jsjni_GetGlobalClassRef(const char *className);
@@ -37,7 +45,7 @@ extern "C" {
     // to missing the classpath
     MOZ_ASSERT(NS_IsMainThread());
     JNIEnv *env = mozilla::AndroidBridge::GetJNIEnv();
-    if (!env) return nullptr;
+    if (!env) return NULL;
     return env->FindClass(className);
   }
 
@@ -47,7 +55,7 @@ extern "C" {
     JNIEnv *env = mozilla::AndroidBridge::GetJNIEnv();
     jclass globalRef = static_cast<jclass>(env->NewGlobalRef(env->FindClass(className)));
     if (!globalRef)
-      return nullptr;
+      return NULL;
 
     // return the newly create global reference
     return globalRef;
@@ -65,7 +73,7 @@ extern "C" {
                                                                      &foundClass));
     mainThread->Dispatch(runnable_ref, NS_DISPATCH_SYNC);
     if (!foundClass)
-      return nullptr;
+      return NULL;
 
     return foundClass;
   }
@@ -76,7 +84,7 @@ extern "C" {
                           const char *methodName,
                           const char *signature) {
     JNIEnv *env = mozilla::AndroidBridge::GetJNIEnv();
-    if (!env) return nullptr;
+    if (!env) return NULL;
     return env->GetStaticMethodID(methodClass, methodName, signature);
   }
 
@@ -84,7 +92,7 @@ extern "C" {
   bool
   jsjni_ExceptionCheck() {
     JNIEnv *env = mozilla::AndroidBridge::GetJNIEnv();
-    if (!env) return nullptr;
+    if (!env) return NULL;
     return env->ExceptionCheck();
   }
 
@@ -120,10 +128,5 @@ extern "C" {
   __attribute__ ((visibility("default")))
   JavaVM* jsjni_GetVM() {
     return mozilla::AndroidBridge::GetVM();
-  }
-
-  __attribute__ ((visibility("default")))
-  JNIEnv* jsjni_GetJNIForThread() {
-    return GetJNIForThread();
   }
 }

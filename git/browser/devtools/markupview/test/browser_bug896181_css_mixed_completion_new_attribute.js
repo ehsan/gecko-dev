@@ -1,13 +1,15 @@
 /* vim: set ts=2 et sw=2 tw=80: */
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
+
 // Test CSS state is correctly determined and the corresponding suggestions are
 // displayed. i.e. CSS property suggestions are shown when cursor is like:
-// ```style="di|"``` where | is the cursor; And CSS value suggestion is
+// ```style="di|"``` where | is teh cursor; And CSS value suggestion is
 // displayed when the cursor is like: ```style="display:n|"``` properly. No
 // suggestions should ever appear when the attribute is not a style attribute.
 // The correctness and cycling of the suggestions is covered in the ruleview
 // tests.
+
 function test() {
   let inspector;
   let {
@@ -41,10 +43,7 @@ function test() {
     ['"', 'style="', 7, 7, false],
     ['d', 'style="direction', 8, 16, true],
     ['VK_DOWN', 'style="display', 8, 14, true],
-    ['VK_TAB', 'style="display', 14, 14, true],
-    ['VK_TAB', 'style="dominant-baseline', 24, 24, true],
-    ['VK_TAB', 'style="direction', 16, 16, true],
-    ['click_1', 'style="display', 14, 14, false],
+    ['VK_RIGHT', 'style="display', 14, 14, false],
     [':', 'style="display:', 15, 15, false],
     ['n', 'style="display:none', 16, 19, false],
     ['VK_BACK_SPACE', 'style="display:n', 16, 16, false],
@@ -66,12 +65,9 @@ function test() {
     [':', 'style="display:  inherit; color : ', 33, 33, false],
     ['c', 'style="display:  inherit; color :cadetblue ', 34, 42, true],
     ['VK_DOWN', 'style="display:  inherit; color :chartreuse ', 34, 43, true],
-    ['VK_RIGHT', 'style="display:  inherit; color :chartreuse ', 43, 43, false],
-    [' ', 'style="display:  inherit; color :chartreuse  ', 44, 44, false],
-    ['!', 'style="display:  inherit; color :chartreuse !important; ', 45, 55, false],
-    ['VK_RIGHT', 'style="display:  inherit; color :chartreuse !important; ', 55, 55, false],
-    ['VK_RETURN', 'style="display:  inherit; color :chartreuse !important;"', -1, -1, false]
+    ['VK_RETURN', 'style="display:  inherit; color :chartreuse"', -1, -1, false]
   ];
+
   function startTests() {
     markup = inspector.markup;
     markup.expandAll().then(() => {
@@ -103,14 +99,7 @@ function test() {
         }
         info("inside event listener");
         checkState();
-      })
-    }
-    else if (/click_[0-9]/.test(key)) {
-      editor.once("after-suggest", checkState);
-      let index = +key.split("_")[1];
-      editor.popup._list.childNodes[index].click();
-      editor.input.blur();
-      return;
+      }) 
     }
     else {
       editor.once("after-suggest", checkState);

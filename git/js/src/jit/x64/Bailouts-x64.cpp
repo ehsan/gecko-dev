@@ -5,21 +5,22 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "jit/Bailouts.h"
+#include "jit/IonCompartment.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 #if defined(_WIN32)
 # pragma pack(push, 1)
 #endif
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class BailoutStack
 {
-    mozilla::Array<double, FloatRegisters::Total> fpregs_;
-    mozilla::Array<uintptr_t, Registers::Total> regs_;
+    double    fpregs_[FloatRegisters::Total];
+    uintptr_t regs_[Registers::Total];
     uintptr_t frameSize_;
     uintptr_t snapshotOffset_;
 
@@ -38,7 +39,7 @@ class BailoutStack
     }
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #if defined(_WIN32)

@@ -36,7 +36,6 @@ public:
   static void ReleaseGlobals();
 
   void OutputError();
-  void OutputError(uint32_t aLineNumber, uint32_t aLineOffset);
   void ClearError();
 
   // In all overloads of ReportUnexpected, aMessage is a stringbundle

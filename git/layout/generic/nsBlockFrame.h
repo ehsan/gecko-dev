@@ -261,10 +261,6 @@ public:
 
   virtual nsRect ComputeTightBounds(gfxContext* aContext) const MOZ_OVERRIDE;
   
-  virtual nsresult GetPrefWidthTightBounds(nsRenderingContext* aContext,
-                                           nscoord* aX,
-                                           nscoord* aXMost) MOZ_OVERRIDE;
-
   /**
    * Compute the final height of this frame.
    *
@@ -313,14 +309,6 @@ public:
   virtual void DeleteNextInFlowChild(nsPresContext* aPresContext,
                                      nsIFrame*      aNextInFlow,
                                      bool           aDeletingEmptyFrames) MOZ_OVERRIDE;
-
-  /**
-    * This is a special method that allows a child class of nsBlockFrame to
-    * return a special, customized nsStyleText object to the nsLineLayout
-    * constructor. It is used when the nsBlockFrame child needs to specify its
-    * custom rendering style.
-    */
-  virtual const nsStyleText* StyleTextForLineLayout();
 
   /**
    * Determines whether the collapsed margin carried out of the last

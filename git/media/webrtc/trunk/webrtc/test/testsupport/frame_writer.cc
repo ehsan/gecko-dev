@@ -10,7 +10,7 @@
 
 #include "webrtc/test/testsupport/frame_writer.h"
 
-#include <assert.h>
+#include <cassert>
 
 namespace webrtc {
 namespace test {
@@ -47,8 +47,6 @@ void FrameWriterImpl::Close() {
     output_file_ = NULL;
   }
 }
-
-size_t FrameWriterImpl::FrameLength() { return frame_length_in_bytes_; }
 
 bool FrameWriterImpl::WriteFrame(uint8_t* frame_buffer) {
   assert(frame_buffer);

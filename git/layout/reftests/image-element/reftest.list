@@ -16,7 +16,7 @@ random-if(d2d) == element-paint-transform-02.html element-paint-transform-02-ref
 == element-paint-background-size-01.html element-paint-background-size-01-ref.html
 == element-paint-background-size-02.html element-paint-background-size-02-ref.html
 == element-paint-transform-repeated.html element-paint-transform-repeated-ref.html
-fuzzy-if(d2d,255,24) == element-paint-transform-03.html element-paint-transform-03-ref.html
+== element-paint-transform-03.html element-paint-transform-03-ref.html
 == element-paint-native-widget.html element-paint-native-widget-ref.html
 == element-paint-subimage-sampling-restriction.html about:blank
 == element-paint-clippath.html element-paint-clippath-ref.html
@@ -41,7 +41,6 @@ fuzzy(1,9674) random-if(!cocoaWidget) == gradient-html-06b.html gradient-html-06
 == gradient-html-06d.html gradient-html-06e.html
 random-if(!cocoaWidget) fuzzy-if(azureQuartz,1,11367) == gradient-html-07a.html gradient-html-07b.html
 fuzzy(1,16900) == gradient-html-07c.html gradient-html-07d.html
-HTTP == invalidate-1.html invalidate-1-ref.html
 == pattern-html-01.html pattern-html-01-ref.svg
 == pattern-html-02.html pattern-html-02-ref.svg
 == referenced-from-binding-01.html referenced-from-binding-01-ref.html

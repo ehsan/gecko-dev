@@ -25,8 +25,6 @@
 
 #include "mozilla/Attributes.h"
 
-#include "js/TypeDecls.h"
-
 class nsIRDFResource;
 class nsIRDFService;
 class nsPIWindowRoot;
@@ -42,6 +40,7 @@ class nsIXULPrototypeScript;
 #include "nsURIHashKey.h"
 #include "nsInterfaceHashtable.h"
 
+class JSObject;
 struct JSTracer;
 struct PRLogModuleInfo;
 
@@ -279,7 +278,7 @@ protected:
 
     already_AddRefed<nsPIWindowRoot> GetWindowRoot();
 
-    static NS_HIDDEN_(void) DirectionChanged(const char* aPrefName, void* aData);
+    static NS_HIDDEN_(int) DirectionChanged(const char* aPrefName, void* aData);
 
     // pseudo constants
     static int32_t gRefCnt;
@@ -324,12 +323,6 @@ protected:
      * called in this situation.
      */
     bool                       mStillWalking;
-
-    /**
-     * These two values control where persistent attributes get applied.
-     */
-    bool                           mRestrictPersistence;
-    nsTHashtable<nsStringHashKey>  mPersistenceIds;
 
     /**
      * An array of style sheets, that will be added (preserving order) to the
@@ -598,11 +591,11 @@ protected:
 
     static
     nsresult
-    InsertElement(nsINode* aParent, nsIContent* aChild, bool aNotify);
+    InsertElement(nsIContent* aParent, nsIContent* aChild, bool aNotify);
 
     static 
     nsresult
-    RemoveElement(nsINode* aParent, nsINode* aChild);
+    RemoveElement(nsIContent* aParent, nsIContent* aChild);
 
     /**
      * The current prototype that we are walking to construct the
@@ -725,9 +718,9 @@ protected:
      */
     PLDHashTable* mBroadcasterMap;
 
-    nsAutoPtr<nsInterfaceHashtable<nsURIHashKey,nsIObserver> > mOverlayLoadObservers;
-    nsAutoPtr<nsInterfaceHashtable<nsURIHashKey,nsIObserver> > mPendingOverlayLoadNotifications;
-
+    nsInterfaceHashtable<nsURIHashKey,nsIObserver> mOverlayLoadObservers;
+    nsInterfaceHashtable<nsURIHashKey,nsIObserver> mPendingOverlayLoadNotifications;
+    
     bool mInitialLayoutComplete;
 
     class nsDelayedBroadcastUpdate

@@ -297,7 +297,7 @@ FileSystemDataSource::GetTarget(nsIRDFResource *source,
         if (property == mNC_pulse)
         {
             nsIRDFLiteral   *pulseLiteral;
-            mRDFService->GetLiteral(MOZ_UTF16("12"), &pulseLiteral);
+            mRDFService->GetLiteral(NS_LITERAL_STRING("12").get(), &pulseLiteral);
             *target = pulseLiteral;
             return NS_OK;
         }
@@ -409,7 +409,7 @@ FileSystemDataSource::GetTarget(nsIRDFResource *source,
         else if (property == mNC_pulse)
         {
             nsCOMPtr<nsIRDFLiteral> pulseLiteral;
-            mRDFService->GetLiteral(MOZ_UTF16("12"), getter_AddRefs(pulseLiteral));
+            mRDFService->GetLiteral(NS_LITERAL_STRING("12").get(), getter_AddRefs(pulseLiteral));
             rv = pulseLiteral->QueryInterface(NS_GET_IID(nsIRDFNode), (void**) target);
             return(rv);
         }
@@ -485,7 +485,7 @@ FileSystemDataSource::GetTargets(nsIRDFResource *source,
         else if (property == mNC_pulse)
         {
             nsCOMPtr<nsIRDFLiteral> pulseLiteral;
-            mRDFService->GetLiteral(MOZ_UTF16("12"),
+            mRDFService->GetLiteral(NS_LITERAL_STRING("12").get(),
                                     getter_AddRefs(pulseLiteral));
             return NS_NewSingletonEnumerator(targets, pulseLiteral);
         }
@@ -529,7 +529,7 @@ FileSystemDataSource::GetTargets(nsIRDFResource *source,
         else if (property == mNC_pulse)
         {
             nsCOMPtr<nsIRDFLiteral> pulseLiteral;
-            rv = mRDFService->GetLiteral(MOZ_UTF16("12"),
+            rv = mRDFService->GetLiteral(NS_LITERAL_STRING("12").get(),
                 getter_AddRefs(pulseLiteral));
             if (NS_FAILED(rv)) return rv;
 
@@ -843,13 +843,14 @@ FileSystemDataSource::EndUpdateBatch()
 nsresult
 FileSystemDataSource::GetVolumeList(nsISimpleEnumerator** aResult)
 {
+    nsresult rv;
     nsCOMArray<nsIRDFResource> volumes;
     nsCOMPtr<nsIRDFResource> vol;
 
 #ifdef XP_WIN
 
     int32_t         driveType;
-    wchar_t         drive[32];
+    PRUnichar       drive[32];
     int32_t         volNum;
 
     for (volNum = 0; volNum < 26; volNum++)
@@ -861,11 +862,11 @@ FileSystemDataSource::GetVolumeList(nsISimpleEnumerator** aResult)
         {
           nsAutoCString url;
           url.AppendPrintf("file:///%c|/", volNum + 'A');
-          nsresult rv = mRDFService->GetResource(url, getter_AddRefs(vol));
+          rv = mRDFService->GetResource(url, getter_AddRefs(vol));
           if (NS_FAILED(rv))
             return rv;
 
-          volumes.AppendObject(vol);
+                volumes.AppendObject(vol);
         }
     }
 #endif
@@ -879,7 +880,7 @@ FileSystemDataSource::GetVolumeList(nsISimpleEnumerator** aResult)
     ULONG ulDriveNo = 0;
     ULONG ulDriveMap = 0;
 
-    nsresult rv = DosQueryCurrentDisk(&ulDriveNo, &ulDriveMap);
+    rv = DosQueryCurrentDisk(&ulDriveNo, &ulDriveMap);
     if (NS_FAILED(rv))
         return rv;
 

@@ -8,12 +8,9 @@
 
 #include <stddef.h>                     // for size_t
 #include <stdint.h>                     // for uint32_t
-#include "gfxTypes.h"
+#include "gfxASurface.h"                // for gfxASurface, etc
 #include "gfxPoint.h"                   // for gfxIntSize
 #include "mozilla/ipc/SharedMemory.h"   // for SharedMemory, etc
-#include "mozilla/RefPtr.h"
-#include "nsIMemoryReporter.h"          // for MemoryUniReporter
-#include "mozilla/Atomics.h"            // for Atomic
 
 /*
  * FIXME [bjacob] *** PURE CRAZYNESS WARNING ***
@@ -26,6 +23,7 @@
 #define MOZ_HAVE_SURFACEDESCRIPTORGRALLOC
 #endif
 
+class gfxASurface;
 class gfxSharedImageSurface;
 
 namespace base {
@@ -41,8 +39,6 @@ namespace layers {
 
 class PGrallocBufferChild;
 class MaybeMagicGrallocBufferHandle;
-class MemoryTextureClient;
-class MemoryTextureHost;
 
 enum BufferCapabilities {
   DEFAULT_BUFFER_CAPS = 0,
@@ -60,7 +56,7 @@ enum BufferCapabilities {
 class SurfaceDescriptor;
 
 
-mozilla::ipc::SharedMemory::SharedMemoryType OptimalShmemType();
+ipc::SharedMemory::SharedMemoryType OptimalShmemType();
 bool IsSurfaceDescriptorValid(const SurfaceDescriptor& aSurface);
 bool IsSurfaceDescriptorOwned(const SurfaceDescriptor& aDescriptor);
 bool ReleaseOwnedSurfaceDescriptor(const SurfaceDescriptor& aDescriptor);
@@ -73,10 +69,10 @@ bool ReleaseOwnedSurfaceDescriptor(const SurfaceDescriptor& aDescriptor);
  * These methods should be only called in the ipdl implementor's thread, unless
  * specified otherwise in the implementing class.
  */
-class ISurfaceAllocator : public AtomicRefCounted<ISurfaceAllocator>
+class ISurfaceAllocator
 {
 public:
-  ISurfaceAllocator() {}
+ISurfaceAllocator() {}
 
   /**
    * Allocate shared memory that can be accessed by only one process at a time.
@@ -84,36 +80,46 @@ public:
    * message.
    */
   virtual bool AllocShmem(size_t aSize,
-                          mozilla::ipc::SharedMemory::SharedMemoryType aType,
-                          mozilla::ipc::Shmem* aShmem) = 0;
+                          ipc::SharedMemory::SharedMemoryType aType,
+                          ipc::Shmem* aShmem) = 0;
 
   /**
    * Allocate shared memory that can be accessed by both processes at the
    * same time. Safety is left for the user of the memory to care about.
    */
   virtual bool AllocUnsafeShmem(size_t aSize,
-                                mozilla::ipc::SharedMemory::SharedMemoryType aType,
-                                mozilla::ipc::Shmem* aShmem) = 0;
+                                ipc::SharedMemory::SharedMemoryType aType,
+                                ipc::Shmem* aShmem) = 0;
   /**
    * Deallocate memory allocated by either AllocShmem or AllocUnsafeShmem.
    */
-  virtual void DeallocShmem(mozilla::ipc::Shmem& aShmem) = 0;
+  virtual void DeallocShmem(ipc::Shmem& aShmem) = 0;
 
   // was AllocBuffer
   virtual bool AllocSharedImageSurface(const gfxIntSize& aSize,
-                                       gfxContentType aContent,
+                                       gfxASurface::gfxContentType aContent,
                                        gfxSharedImageSurface** aBuffer);
   virtual bool AllocSurfaceDescriptor(const gfxIntSize& aSize,
-                                      gfxContentType aContent,
+                                      gfxASurface::gfxContentType aContent,
                                       SurfaceDescriptor* aBuffer);
 
   // was AllocBufferWithCaps
   virtual bool AllocSurfaceDescriptorWithCaps(const gfxIntSize& aSize,
-                                              gfxContentType aContent,
+                                              gfxASurface::gfxContentType aContent,
                                               uint32_t aCaps,
                                               SurfaceDescriptor* aBuffer);
 
   virtual void DestroySharedSurface(SurfaceDescriptor* aSurface);
+
+protected:
+  // this method is needed for a temporary fix, will be removed after
+  // DeprecatedTextureClient/Host rework.
+  virtual bool IsOnCompositorSide() const = 0;
+  static bool PlatformDestroySharedSurface(SurfaceDescriptor* aSurface);
+  virtual bool PlatformAllocSurfaceDescriptor(const gfxIntSize& aSize,
+                                              gfxASurface::gfxContentType aContent,
+                                              uint32_t aCaps,
+                                              SurfaceDescriptor* aBuffer);
 
   // method that does the actual allocation work
   virtual PGrallocBufferChild* AllocGrallocBuffer(const gfxIntSize& aSize,
@@ -124,57 +130,7 @@ public:
     return nullptr;
   }
 
-  virtual bool IPCOpen() const { return true; }
-
-  // Returns true if aSurface wraps a Shmem.
-  static bool IsShmem(SurfaceDescriptor* aSurface);
-
-protected:
-  // this method is needed for a temporary fix, will be removed after
-  // DeprecatedTextureClient/Host rework.
-  virtual bool IsOnCompositorSide() const = 0;
-  static bool PlatformDestroySharedSurface(SurfaceDescriptor* aSurface);
-  virtual bool PlatformAllocSurfaceDescriptor(const gfxIntSize& aSize,
-                                              gfxContentType aContent,
-                                              uint32_t aCaps,
-                                              SurfaceDescriptor* aBuffer);
-
-
-  virtual ~ISurfaceAllocator() {}
-
-  friend class detail::RefCounted<ISurfaceAllocator, detail::AtomicRefCount>;
-};
-
-class GfxMemoryImageReporter MOZ_FINAL : public mozilla::MemoryUniReporter
-{
-public:
-  GfxMemoryImageReporter()
-    : MemoryUniReporter("explicit/gfx/heap-textures", KIND_HEAP, UNITS_BYTES,
-                        "Heap memory shared between threads by texture clients and hosts.")
-  {
-#ifdef DEBUG
-    // There must be only one instance of this class, due to |sAmount|
-    // being static.
-    static bool hasRun = false;
-    MOZ_ASSERT(!hasRun);
-    hasRun = true;
-#endif
-  }
-
-  static void DidAlloc(void* aPointer)
-  {
-    sAmount += MallocSizeOfOnAlloc(aPointer);
-  }
-
-  static void WillFree(void* aPointer)
-  {
-    sAmount -= MallocSizeOfOnFree(aPointer);
-  }
-
-private:
-  int64_t Amount() MOZ_OVERRIDE { return sAmount; }
-
-  static mozilla::Atomic<int32_t> sAmount;
+  ~ISurfaceAllocator() {}
 };
 
 } // namespace

@@ -208,8 +208,8 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_COLOR_MOZ_VISITEDHYPERLINKTEXT       -5
 #define NS_COLOR_MOZ_ACTIVEHYPERLINKTEXT        -6
 // Only valid as paints in SVG glyphs
-#define NS_COLOR_CONTEXT_FILL                   -7
-#define NS_COLOR_CONTEXT_STROKE                 -8
+#define NS_COLOR_OBJECTFILL                     -7
+#define NS_COLOR_OBJECTSTROKE                   -8
 
 // See nsStyleDisplay
 #define NS_STYLE_ANIMATION_DIRECTION_NORMAL       0
@@ -403,14 +403,6 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_STYLE_DISPLAY_INLINE_FLEX            30
 
 // See nsStylePosition
-#define NS_STYLE_ALIGN_CONTENT_FLEX_START       0
-#define NS_STYLE_ALIGN_CONTENT_FLEX_END         1
-#define NS_STYLE_ALIGN_CONTENT_CENTER           2
-#define NS_STYLE_ALIGN_CONTENT_SPACE_BETWEEN    3
-#define NS_STYLE_ALIGN_CONTENT_SPACE_AROUND     4
-#define NS_STYLE_ALIGN_CONTENT_STRETCH          5
-
-// See nsStylePosition
 #define NS_STYLE_ALIGN_ITEMS_FLEX_START         0
 #define NS_STYLE_ALIGN_ITEMS_FLEX_END           1
 #define NS_STYLE_ALIGN_ITEMS_CENTER             2
@@ -431,11 +423,6 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_STYLE_FLEX_DIRECTION_ROW_REVERSE     1
 #define NS_STYLE_FLEX_DIRECTION_COLUMN          2
 #define NS_STYLE_FLEX_DIRECTION_COLUMN_REVERSE  3
-
-// See nsStylePosition
-#define NS_STYLE_FLEX_WRAP_NOWRAP               0
-#define NS_STYLE_FLEX_WRAP_WRAP                 1
-#define NS_STYLE_FLEX_WRAP_WRAP_REVERSE         2
 
 // See nsStylePosition
 // NOTE: This is the initial value of the integer-valued 'order' property
@@ -533,27 +520,6 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_MATHML_DEFAULT_SCRIPT_SIZE_MULTIPLIER 0.71f
 #define NS_MATHML_DEFAULT_SCRIPT_MIN_SIZE_PT 8
 
-// See nsStyleFont
-#define NS_MATHML_MATHVARIANT_NONE                     0
-#define NS_MATHML_MATHVARIANT_NORMAL                   1
-#define NS_MATHML_MATHVARIANT_BOLD                     2
-#define NS_MATHML_MATHVARIANT_ITALIC                   3
-#define NS_MATHML_MATHVARIANT_BOLD_ITALIC              4
-#define NS_MATHML_MATHVARIANT_SCRIPT                   5
-#define NS_MATHML_MATHVARIANT_BOLD_SCRIPT              6
-#define NS_MATHML_MATHVARIANT_FRAKTUR                  7
-#define NS_MATHML_MATHVARIANT_DOUBLE_STRUCK            8
-#define NS_MATHML_MATHVARIANT_BOLD_FRAKTUR             9
-#define NS_MATHML_MATHVARIANT_SANS_SERIF              10
-#define NS_MATHML_MATHVARIANT_BOLD_SANS_SERIF         11
-#define NS_MATHML_MATHVARIANT_SANS_SERIF_ITALIC       12
-#define NS_MATHML_MATHVARIANT_SANS_SERIF_BOLD_ITALIC  13
-#define NS_MATHML_MATHVARIANT_MONOSPACE               14
-#define NS_MATHML_MATHVARIANT_INITIAL                 15
-#define NS_MATHML_MATHVARIANT_TAILED                  16
-#define NS_MATHML_MATHVARIANT_LOOPED                  17
-#define NS_MATHML_MATHVARIANT_STRETCHED               18
-
 // See nsStylePosition::mWidth, mMinWidth, mMaxWidth
 #define NS_STYLE_WIDTH_MAX_CONTENT              0
 #define NS_STYLE_WIDTH_MIN_CONTENT              1
@@ -565,7 +531,6 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_STYLE_POSITION_RELATIVE              1
 #define NS_STYLE_POSITION_ABSOLUTE              2
 #define NS_STYLE_POSITION_FIXED                 3
-#define NS_STYLE_POSITION_STICKY                4
 
 // See nsStylePosition.mClip
 #define NS_STYLE_CLIP_AUTO                      0x00
@@ -614,52 +579,42 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_STYLE_LIST_STYLE_HEBREW                11
 #define NS_STYLE_LIST_STYLE_ARMENIAN              12
 #define NS_STYLE_LIST_STYLE_GEORGIAN              13
-#define NS_STYLE_LIST_STYLE_CJK_DECIMAL           14
-#define NS_STYLE_LIST_STYLE_CJK_IDEOGRAPHIC       15
-#define NS_STYLE_LIST_STYLE_HIRAGANA              16
-#define NS_STYLE_LIST_STYLE_KATAKANA              17
-#define NS_STYLE_LIST_STYLE_HIRAGANA_IROHA        18
-#define NS_STYLE_LIST_STYLE_KATAKANA_IROHA        19
-#define NS_STYLE_LIST_STYLE_JAPANESE_INFORMAL     20
-#define NS_STYLE_LIST_STYLE_JAPANESE_FORMAL       21
-#define NS_STYLE_LIST_STYLE_KOREAN_HANGUL_FORMAL  22
-#define NS_STYLE_LIST_STYLE_KOREAN_HANJA_INFORMAL 23
-#define NS_STYLE_LIST_STYLE_KOREAN_HANJA_FORMAL   24
-#define NS_STYLE_LIST_STYLE_SIMP_CHINESE_INFORMAL 25
-#define NS_STYLE_LIST_STYLE_SIMP_CHINESE_FORMAL   26
-#define NS_STYLE_LIST_STYLE_TRAD_CHINESE_INFORMAL 27
-#define NS_STYLE_LIST_STYLE_TRAD_CHINESE_FORMAL   28
-#define NS_STYLE_LIST_STYLE_MOZ_CJK_HEAVENLY_STEM     124
-#define NS_STYLE_LIST_STYLE_MOZ_CJK_EARTHLY_BRANCH    125
-#define NS_STYLE_LIST_STYLE_MOZ_TRAD_CHINESE_INFORMAL 126
-#define NS_STYLE_LIST_STYLE_MOZ_TRAD_CHINESE_FORMAL   127
-#define NS_STYLE_LIST_STYLE_MOZ_SIMP_CHINESE_INFORMAL 128
-#define NS_STYLE_LIST_STYLE_MOZ_SIMP_CHINESE_FORMAL   129
-#define NS_STYLE_LIST_STYLE_MOZ_JAPANESE_INFORMAL     130
-#define NS_STYLE_LIST_STYLE_MOZ_JAPANESE_FORMAL       131
-#define NS_STYLE_LIST_STYLE_MOZ_ARABIC_INDIC          132
-#define NS_STYLE_LIST_STYLE_MOZ_PERSIAN               133
-#define NS_STYLE_LIST_STYLE_MOZ_URDU                  134
-#define NS_STYLE_LIST_STYLE_MOZ_DEVANAGARI            135
-#define NS_STYLE_LIST_STYLE_MOZ_GURMUKHI              136
-#define NS_STYLE_LIST_STYLE_MOZ_GUJARATI              137
-#define NS_STYLE_LIST_STYLE_MOZ_ORIYA                 138
-#define NS_STYLE_LIST_STYLE_MOZ_KANNADA               139
-#define NS_STYLE_LIST_STYLE_MOZ_MALAYALAM             140
-#define NS_STYLE_LIST_STYLE_MOZ_BENGALI               141
-#define NS_STYLE_LIST_STYLE_MOZ_TAMIL                 142
-#define NS_STYLE_LIST_STYLE_MOZ_TELUGU                143
-#define NS_STYLE_LIST_STYLE_MOZ_THAI                  144
-#define NS_STYLE_LIST_STYLE_MOZ_LAO                   145
-#define NS_STYLE_LIST_STYLE_MOZ_MYANMAR               146
-#define NS_STYLE_LIST_STYLE_MOZ_KHMER                 147
-#define NS_STYLE_LIST_STYLE_MOZ_HANGUL                148
-#define NS_STYLE_LIST_STYLE_MOZ_HANGUL_CONSONANT      149
-#define NS_STYLE_LIST_STYLE_MOZ_ETHIOPIC_HALEHAME     150
-#define NS_STYLE_LIST_STYLE_MOZ_ETHIOPIC_NUMERIC      151
-#define NS_STYLE_LIST_STYLE_MOZ_ETHIOPIC_HALEHAME_AM  152
-#define NS_STYLE_LIST_STYLE_MOZ_ETHIOPIC_HALEHAME_TI_ER  153
-#define NS_STYLE_LIST_STYLE_MOZ_ETHIOPIC_HALEHAME_TI_ET  154
+#define NS_STYLE_LIST_STYLE_CJK_IDEOGRAPHIC       14
+#define NS_STYLE_LIST_STYLE_HIRAGANA              15
+#define NS_STYLE_LIST_STYLE_KATAKANA              16
+#define NS_STYLE_LIST_STYLE_HIRAGANA_IROHA        17
+#define NS_STYLE_LIST_STYLE_KATAKANA_IROHA        18
+#define NS_STYLE_LIST_STYLE_MOZ_CJK_HEAVENLY_STEM     24
+#define NS_STYLE_LIST_STYLE_MOZ_CJK_EARTHLY_BRANCH    25
+#define NS_STYLE_LIST_STYLE_MOZ_TRAD_CHINESE_INFORMAL 26
+#define NS_STYLE_LIST_STYLE_MOZ_TRAD_CHINESE_FORMAL   27
+#define NS_STYLE_LIST_STYLE_MOZ_SIMP_CHINESE_INFORMAL 28
+#define NS_STYLE_LIST_STYLE_MOZ_SIMP_CHINESE_FORMAL   29
+#define NS_STYLE_LIST_STYLE_MOZ_JAPANESE_INFORMAL     30
+#define NS_STYLE_LIST_STYLE_MOZ_JAPANESE_FORMAL       31
+#define NS_STYLE_LIST_STYLE_MOZ_ARABIC_INDIC          32
+#define NS_STYLE_LIST_STYLE_MOZ_PERSIAN               33
+#define NS_STYLE_LIST_STYLE_MOZ_URDU                  34
+#define NS_STYLE_LIST_STYLE_MOZ_DEVANAGARI            35
+#define NS_STYLE_LIST_STYLE_MOZ_GURMUKHI              36
+#define NS_STYLE_LIST_STYLE_MOZ_GUJARATI              37
+#define NS_STYLE_LIST_STYLE_MOZ_ORIYA                 38
+#define NS_STYLE_LIST_STYLE_MOZ_KANNADA               39
+#define NS_STYLE_LIST_STYLE_MOZ_MALAYALAM             40
+#define NS_STYLE_LIST_STYLE_MOZ_BENGALI               41
+#define NS_STYLE_LIST_STYLE_MOZ_TAMIL                 42
+#define NS_STYLE_LIST_STYLE_MOZ_TELUGU                43
+#define NS_STYLE_LIST_STYLE_MOZ_THAI                  44
+#define NS_STYLE_LIST_STYLE_MOZ_LAO                   45
+#define NS_STYLE_LIST_STYLE_MOZ_MYANMAR               46
+#define NS_STYLE_LIST_STYLE_MOZ_KHMER                 47
+#define NS_STYLE_LIST_STYLE_MOZ_HANGUL                48
+#define NS_STYLE_LIST_STYLE_MOZ_HANGUL_CONSONANT      49
+#define NS_STYLE_LIST_STYLE_MOZ_ETHIOPIC_HALEHAME     50
+#define NS_STYLE_LIST_STYLE_MOZ_ETHIOPIC_NUMERIC      51
+#define NS_STYLE_LIST_STYLE_MOZ_ETHIOPIC_HALEHAME_AM  52
+#define NS_STYLE_LIST_STYLE_MOZ_ETHIOPIC_HALEHAME_TI_ER  53
+#define NS_STYLE_LIST_STYLE_MOZ_ETHIOPIC_HALEHAME_TI_ET  54
 
 // See nsStyleList
 #define NS_STYLE_LIST_STYLE_POSITION_INSIDE     0
@@ -679,10 +634,6 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_STYLE_POINTER_EVENTS_STROKE          7
 #define NS_STYLE_POINTER_EVENTS_ALL             8
 #define NS_STYLE_POINTER_EVENTS_AUTO            9
-
-// See nsStyleVisibility.mImageOrientationType
-#define NS_STYLE_IMAGE_ORIENTATION_FLIP         0
-#define NS_STYLE_IMAGE_ORIENTATION_FROM_IMAGE   1
 
 // See nsStyleDisplay
 #define NS_STYLE_RESIZE_NONE                    0
@@ -705,7 +656,6 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 // NS_STYLE_TEXT_ALIGN_MOZ_CENTER_OR_INHERIT is only used in data structs; it
 // is never present in stylesheets or computed data.
 #define NS_STYLE_TEXT_ALIGN_MOZ_CENTER_OR_INHERIT 11
-#define NS_STYLE_TEXT_ALIGN_TRUE                  12
 // Note: make sure that the largest NS_STYLE_TEXT_ALIGN_* value is smaller than
 // the smallest NS_STYLE_VERTICAL_ALIGN_* value below!
 
@@ -755,15 +705,15 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 // Note: these values pickup after the text-align values because there
 // are a few html cases where an object can have both types of
 // alignment applied with a single attribute
-#define NS_STYLE_VERTICAL_ALIGN_BASELINE             13
-#define NS_STYLE_VERTICAL_ALIGN_SUB                  14
-#define NS_STYLE_VERTICAL_ALIGN_SUPER                15
-#define NS_STYLE_VERTICAL_ALIGN_TOP                  16
-#define NS_STYLE_VERTICAL_ALIGN_TEXT_TOP             17
-#define NS_STYLE_VERTICAL_ALIGN_MIDDLE               18
-#define NS_STYLE_VERTICAL_ALIGN_TEXT_BOTTOM          19
-#define NS_STYLE_VERTICAL_ALIGN_BOTTOM               20
-#define NS_STYLE_VERTICAL_ALIGN_MIDDLE_WITH_BASELINE 21
+#define NS_STYLE_VERTICAL_ALIGN_BASELINE             12
+#define NS_STYLE_VERTICAL_ALIGN_SUB                  13
+#define NS_STYLE_VERTICAL_ALIGN_SUPER                14
+#define NS_STYLE_VERTICAL_ALIGN_TOP                  15
+#define NS_STYLE_VERTICAL_ALIGN_TEXT_TOP             16
+#define NS_STYLE_VERTICAL_ALIGN_MIDDLE               17
+#define NS_STYLE_VERTICAL_ALIGN_TEXT_BOTTOM          18
+#define NS_STYLE_VERTICAL_ALIGN_BOTTOM               19
+#define NS_STYLE_VERTICAL_ALIGN_MIDDLE_WITH_BASELINE 20
 
 // See nsStyleVisibility
 #define NS_STYLE_VISIBILITY_HIDDEN              0
@@ -959,7 +909,7 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_STYLE_STROKE_LINEJOIN_BEVEL          2
 
 // stroke-dasharray, stroke-dashoffset, stroke-width
-#define NS_STYLE_STROKE_PROP_CONTEXT_VALUE      0
+#define NS_STYLE_STROKE_PROP_OBJECTVALUE        0
 
 // text-anchor
 #define NS_STYLE_TEXT_ANCHOR_START              0
@@ -988,9 +938,9 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_STYLE_TRANSFORM_STYLE_FLAT               0
 #define NS_STYLE_TRANSFORM_STYLE_PRESERVE_3D        1
 
-// object {fill,stroke}-opacity inherited from context for SVG glyphs
-#define NS_STYLE_CONTEXT_FILL_OPACITY               0
-#define NS_STYLE_CONTEXT_STROKE_OPACITY             1
+// object {fill,stroke}-opacity for SVG glyphs
+#define NS_STYLE_OBJECT_FILL_OPACITY                0
+#define NS_STYLE_OBJECT_STROKE_OPACITY              1
 
 // blending
 #define NS_STYLE_BLEND_NORMAL                       0

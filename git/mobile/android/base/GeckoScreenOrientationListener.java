@@ -37,7 +37,6 @@ public class GeckoScreenOrientationListener {
     static public final short eScreenOrientation_PortraitSecondary  = 2; // PR_BIT(1)
     static public final short eScreenOrientation_LandscapePrimary   = 4; // PR_BIT(2)
     static public final short eScreenOrientation_LandscapeSecondary = 8; // PR_BIT(3)
-    static public final short eScreenOrientation_Default            = 16;// PR_BIT(4)
 
     static private final short DEFAULT_ORIENTATION = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
 
@@ -199,9 +198,6 @@ public class GeckoScreenOrientationListener {
             break;
         case eScreenOrientation_LandscapePrimary | eScreenOrientation_LandscapeSecondary:
             orientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE;
-            break;
-        case eScreenOrientation_Default:
-            orientation = ActivityInfo.SCREEN_ORIENTATION_NOSENSOR;
             break;
         default:
             Log.e(LOGTAG, "Unexpected value received! (" + aOrientation + ")");

@@ -23,17 +23,15 @@
 #include "nsGkAtoms.h"
 #include "nsContentUtils.h"
 #include "nsGenericDOMDataNode.h"
+#include "nsClientRect.h"
 #include "nsLayoutUtils.h"
 #include "nsTextFrame.h"
 #include "nsFontFaceList.h"
 #include "mozilla/dom/DocumentFragment.h"
 #include "mozilla/dom/DocumentType.h"
 #include "mozilla/dom/RangeBinding.h"
-#include "mozilla/dom/DOMRect.h"
-#include "mozilla/dom/ShadowRoot.h"
 #include "mozilla/Telemetry.h"
 #include "mozilla/Likely.h"
-#include "nsCSSFrameConstructor.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -366,6 +364,7 @@ nsRange::RegisterCommonAncestor(nsINode* aNode)
     static_cast<RangeHashTable*>(aNode->GetProperty(nsGkAtoms::range));
   if (!ranges) {
     ranges = new RangeHashTable;
+    ranges->Init();
     aNode->SetProperty(nsGkAtoms::range, ranges, RangeHashTableDtor, true);
   }
   ranges->PutEntry(this);
@@ -1077,12 +1076,6 @@ nsRange::IsValidBoundary(nsINode* aNode)
     }
 
     if (!mMaySpanAnonymousSubtrees) {
-      // If the node is in a shadow tree then the ShadowRoot is the root.
-      ShadowRoot* containingShadow = content->GetContainingShadow();
-      if (containingShadow) {
-        return containingShadow;
-      }
-
       // If the node has a binding parent, that should be the root.
       // XXXbz maybe only for native anonymous content?
       nsINode* root = content->GetBindingParent();
@@ -2755,25 +2748,12 @@ static void ExtractRectFromOffset(nsIFrame* aFrame,
   }
 }
 
-static nsTextFrame*
-GetTextFrameForContent(nsIContent* aContent)
-{
-  nsIPresShell* presShell = aContent->OwnerDoc()->GetShell();
-  if (presShell) {
-    nsIFrame* frame = presShell->FrameConstructor()->EnsureFrameForTextNode(
-        static_cast<nsGenericDOMDataNode*>(aContent));
-    if (frame && frame->GetType() == nsGkAtoms::textFrame) {
-      return static_cast<nsTextFrame*>(frame);
-    }
-  }
-  return nullptr;
-}
-
 static nsresult GetPartialTextRect(nsLayoutUtils::RectCallback* aCallback,
                                    nsIContent* aContent, int32_t aStartOffset, int32_t aEndOffset)
 {
-  nsTextFrame* textFrame = GetTextFrameForContent(aContent);
-  if (textFrame) {
+  nsIFrame* frame = aContent->GetPrimaryFrame();
+  if (frame && frame->GetType() == nsGkAtoms::textFrame) {
+    nsTextFrame* textFrame = static_cast<nsTextFrame*>(frame);
     nsIFrame* relativeTo = nsLayoutUtils::GetContainingBlockForClientRect(textFrame);
     for (nsTextFrame* f = textFrame; f; f = static_cast<nsTextFrame*>(f->GetNextContinuation())) {
       int32_t fstart = f->GetContentOffset(), fend = f->GetContentEnd();
@@ -2829,8 +2809,9 @@ static void CollectClientRects(nsLayoutUtils::RectCallback* aCollector,
     // the range is collapsed, only continue if the cursor is in a text node
     nsCOMPtr<nsIContent> content = do_QueryInterface(aStartParent);
     if (content && content->IsNodeOfType(nsINode::eTEXT)) {
-      nsTextFrame* textFrame = GetTextFrameForContent(content);
-      if (textFrame) {
+      nsIFrame* frame = content->GetPrimaryFrame();
+      if (frame && frame->GetType() == nsGkAtoms::textFrame) {
+        nsTextFrame* textFrame = static_cast<nsTextFrame*>(frame);
         int32_t outOffset;
         nsIFrame* outFrame;
         textFrame->GetChildFrameContainingOffset(aStartOffset, false, 
@@ -2881,10 +2862,10 @@ nsRange::GetBoundingClientRect(nsIDOMClientRect** aResult)
   return NS_OK;
 }
 
-already_AddRefed<DOMRect>
+already_AddRefed<nsClientRect>
 nsRange::GetBoundingClientRect()
 {
-  nsRefPtr<DOMRect> rect = new DOMRect(ToSupports(this));
+  nsRefPtr<nsClientRect> rect = new nsClientRect(ToSupports(this));
   if (!mStartParent) {
     return rect.forget();
   }
@@ -2906,15 +2887,15 @@ nsRange::GetClientRects(nsIDOMClientRectList** aResult)
   return NS_OK;
 }
 
-already_AddRefed<DOMRectList>
+already_AddRefed<nsClientRectList>
 nsRange::GetClientRects()
 {
   if (!mStartParent) {
     return nullptr;
   }
 
-  nsRefPtr<DOMRectList> rectList =
-    new DOMRectList(static_cast<nsIDOMRange*>(this));
+  nsRefPtr<nsClientRectList> rectList =
+    new nsClientRectList(static_cast<nsIDOMRange*>(this));
 
   nsLayoutUtils::RectListBuilder builder(rectList);
 

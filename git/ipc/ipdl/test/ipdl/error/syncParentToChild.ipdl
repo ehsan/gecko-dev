@@ -1,4 +1,4 @@
-intr protocol syncParentToChild {
+rpc protocol syncParentToChild {
 
     // can't declare sync parent-to-child messages
 child: sync Msg();

@@ -28,7 +28,6 @@
 
 #include "ContentChild.h"
 #include "ContentParent.h"
-#include "nsNetCID.h"
 
 #define PRIVATE_REMOTE_INPUT_STREAM_IID \
   {0x30c7699f, 0x51d2, 0x48c8, {0xad, 0x56, 0xc0, 0x16, 0xd7, 0x6f, 0x71, 0x27}}
@@ -468,7 +467,7 @@ inline
 already_AddRefed<nsIDOMBlob>
 GetBlobFromParams(const SlicedBlobConstructorParams& aParams)
 {
-  static_assert(ActorFlavor == Parent,
+  static_assert(ActorFlavor == mozilla::dom::ipc::Parent,
                 "No other flavor is supported here!");
 
   BlobParent* actor =
@@ -1233,6 +1232,7 @@ Blob<ActorFlavor>::SetMysteryBlobInfo(const nsString& aName,
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(mBlob);
   MOZ_ASSERT(mRemoteBlob);
+  MOZ_ASSERT(aLength);
   MOZ_ASSERT(aLastModifiedDate != UINT64_MAX);
 
   ToConcreteBlob(mBlob)->SetLazyData(aName, aContentType,
@@ -1251,6 +1251,7 @@ Blob<ActorFlavor>::SetMysteryBlobInfo(const nsString& aContentType,
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(mBlob);
   MOZ_ASSERT(mRemoteBlob);
+  MOZ_ASSERT(aLength);
 
   nsString voidString;
   voidString.SetIsVoid(true);

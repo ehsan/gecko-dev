@@ -3,8 +3,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-XPCOMUtils.defineLazyModuleGetter(this, "LoadContextInfo",
-                                  "resource://gre/modules/LoadContextInfo.jsm");
+Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
+                                  "resource://gre/modules/PlacesUtils.jsm");
+
 function Sanitizer() {}
 
 Sanitizer.prototype = {
@@ -15,22 +17,17 @@ Sanitizer.prototype = {
       this.items[aItemName].clear();
   },
 
-  canClearItem: function (aItemName, aCallback, aArg)
+  canClearItem: function (aItemName)
   {
-    let canClear = this.items[aItemName].canClear;
-    if (typeof canClear == "function"){
-      canClear(aCallback, aArg);
-    } else {
-      aCallback(aItemName, canClear, aArg);
-    }
+    return this.items[aItemName].canClear;
   },
-
+  
   _prefDomain: "privacy.item.",
   getNameFromPreference: function (aPreferenceName)
   {
     return aPreferenceName.substr(this._prefDomain.length);
   },
-
+  
   /**
    * Deletes privacy sensitive data in a batch, according to user preferences
    *
@@ -42,32 +39,26 @@ Sanitizer.prototype = {
     var branch = Services.prefs.getBranch(this._prefDomain);
     var errors = null;
     for (var itemName in this.items) {
-      if ("clear" in item && branch.getBoolPref(itemName)) {
+      var item = this.items[itemName];
+      if ("clear" in item && item.canClear && branch.getBoolPref(itemName)) {
         // Some of these clear() may raise exceptions (see bug #265028)
         // to sanitize as much as possible, we catch and store them, 
         // rather than fail fast.
         // Callers should check returned errors and give user feedback
         // about items that could not be sanitized
-        let clearCallback = (itemName, aCanClear) => {
-          let item = this.items[itemName];
-          try{
-            if (aCanClear){
-              item.clear();
-            }
-          } catch(er){
-            if (!errors){
-              errors = {};
-            }
-            errors[itemName] = er;
-            dump("Error sanitizing " + itemName + ":" + er + "\n");
-          }
+        try {
+          item.clear();
+        } catch(er) {
+          if (!errors) 
+            errors = {};
+          errors[itemName] = er;
+          dump("Error sanitizing " + itemName + ": " + er + "\n");
         }
-        this.canClearItem(itemName, clearCallback);
       }
     }
     return errors;
   },
-
+  
   items: {
     // Clear Sync account before passwords so that Sync still has access to the
     // credentials to clean up device-specific records on the server. Also
@@ -87,9 +78,9 @@ Sanitizer.prototype = {
     cache: {
       clear: function ()
       {
-        var cache = Cc["@mozilla.org/netwerk/cache-storage-service;1"].getService(Ci.nsICacheStorageService);
+        var cacheService = Cc["@mozilla.org/network/cache-service;1"].getService(Ci.nsICacheService);
         try {
-          cache.clear();
+          cacheService.evictEntries(Ci.nsICache.STORE_ANYWHERE);
         } catch(er) {}
 
         let imageCache = Cc["@mozilla.org/image/cache;1"].getService(Ci.imgICache);
@@ -97,20 +88,20 @@ Sanitizer.prototype = {
           imageCache.clearCache(false); // true=chrome, false=content
         } catch(er) {}
       },
-
+      
       get canClear()
       {
         return true;
       }
     },
-
+    
     cookies: {
       clear: function ()
       {
         var cookieMgr = Cc["@mozilla.org/cookiemanager;1"].getService(Ci.nsICookieManager);
         cookieMgr.removeAll();
       },
-
+      
       get canClear()
       {
         return true;
@@ -145,10 +136,9 @@ Sanitizer.prototype = {
     offlineApps: {
       clear: function ()
       {
-        var cacheService = Cc["@mozilla.org/netwerk/cache-storage-service;1"].getService(Ci.nsICacheStorageService);
-        var appCacheStorage = cacheService.appCacheStorage(LoadContextInfo.default, null);
+        var cacheService = Cc["@mozilla.org/network/cache-service;1"].getService(Ci.nsICacheService);
         try {
-          appCacheStorage.asyncEvictStorage(null);
+          cacheService.evictEntries(Ci.nsICache.STORE_OFFLINE);
         } catch(er) {}
       },
 
@@ -161,14 +151,18 @@ Sanitizer.prototype = {
     history: {
       clear: function ()
       {
+        PlacesUtils.history.removeAllPages();
+
         try {
           Services.obs.notifyObservers(null, "browser:purge-session-history", "");
         }
-        catch (e) {
-          Components.utils.reportError("Failed to notify observers of "
-                                     + "browser:purge-session-history: "
-                                     + e);
+        catch (e) { }
+
+        // Clear last URL of the Open Web Location dialog
+        try {
+          Services.prefs.clearUserPref("general.open_location.last_url");
         }
+        catch (e) { }
       },
 
       get canClear()
@@ -191,21 +185,18 @@ Sanitizer.prototype = {
             searchBar.textbox.editor.transactionManager.clear();
           }
         }
-        FormHistory.update({op : "remove"});
-      },
 
-      canClear : function(aCallback, aArg)
+        var formHistory = Cc["@mozilla.org/satchel/form-history;1"].getService(Ci.nsIFormHistory2);
+        formHistory.removeAllEntries();
+      },
+      
+      get canClear()
       {
-        let count = 0;
-        let countDone = {
-          handleResult : function(aResult) { count = aResult; },
-          handleError : function(aError) { Components.utils.reportError(aError); },
-          handleCompletion : function(aReason) { aCallback("formdata", aReason == 0 && count > 0, aArg); }
-        };
-        FormHistory.count({}, countDone);
+        var formHistory = Cc["@mozilla.org/satchel/form-history;1"].getService(Ci.nsIFormHistory2);
+        return formHistory.hasEntries;
       }
     },
-
+    
     downloads: {
       clear: function ()
       {
@@ -219,14 +210,14 @@ Sanitizer.prototype = {
         return dlMgr.canCleanUp;
       }
     },
-
+    
     passwords: {
       clear: function ()
       {
         var pwmgr = Cc["@mozilla.org/login-manager;1"].getService(Ci.nsILoginManager);
         pwmgr.removeAllLogins();
       },
-
+      
       get canClear()
       {
         var pwmgr = Cc["@mozilla.org/login-manager;1"].getService(Ci.nsILoginManager);
@@ -234,7 +225,7 @@ Sanitizer.prototype = {
         return (count > 0);
       }
     },
-
+    
     sessions: {
       clear: function ()
       {
@@ -246,7 +237,7 @@ Sanitizer.prototype = {
         var authMgr = Cc['@mozilla.org/network/http-auth-manager;1'].getService(Ci.nsIHttpAuthManager);
         authMgr.clearAll();
       },
-
+      
       get canClear()
       {
         return true;

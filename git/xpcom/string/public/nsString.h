@@ -3,6 +3,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+// IWYU pragma: private, include "nsStringGlue.h"
 
 #ifndef nsString_h___
 #define nsString_h___
@@ -51,11 +52,8 @@
 static_assert(sizeof(PRUnichar) == 2, "size of PRUnichar must be 2");
 static_assert(sizeof(nsString::char_type) == 2,
               "size of nsString::char_type must be 2");
-static_assert(nsString::char_type(-1) > nsString::char_type(0),
-              "nsString::char_type must be unsigned");
 static_assert(sizeof(nsCString::char_type) == 1,
               "size of nsCString::char_type must be 1");
-
 
   /**
    * A helper class that converts a UTF-16 string to ASCII in a lossy manner
@@ -73,15 +71,6 @@ class NS_LossyConvertUTF16toASCII : public nsAutoCString
         {
           LossyAppendUTF16toASCII(Substring(aString, aLength), *this);
         }
-
-#ifdef MOZ_USE_CHAR16_WRAPPER
-      explicit
-      NS_LossyConvertUTF16toASCII( char16ptr_t aString )
-        : NS_LossyConvertUTF16toASCII(static_cast<const char16_t*>(aString)) {}
-
-      NS_LossyConvertUTF16toASCII( char16ptr_t aString, uint32_t aLength )
-        : NS_LossyConvertUTF16toASCII(static_cast<const char16_t*>(aString), aLength) {}
-#endif
 
       explicit
       NS_LossyConvertUTF16toASCII( const nsAString& aString )
@@ -137,13 +126,6 @@ class NS_ConvertUTF16toUTF8 : public nsAutoCString
         {
           AppendUTF16toUTF8(Substring(aString, aLength), *this);
         }
-
-#ifdef MOZ_USE_CHAR16_WRAPPER
-      NS_ConvertUTF16toUTF8( char16ptr_t aString ) : NS_ConvertUTF16toUTF8(static_cast<const PRUnichar*>(aString)) {}
-
-      NS_ConvertUTF16toUTF8( char16ptr_t aString, uint32_t aLength )
-        : NS_ConvertUTF16toUTF8(static_cast<const PRUnichar*>(aString), aLength) {}
-#endif
 
       explicit
       NS_ConvertUTF16toUTF8( const nsAString& aString )

@@ -44,22 +44,13 @@ struct MarginTyped:
 typedef MarginTyped<UnknownUnits> Margin;
 
 template<class units>
-IntMarginTyped<units> RoundedToInt(const MarginTyped<units>& aMargin)
-{
-  return IntMarginTyped<units>(int32_t(floorf(aMargin.top + 0.5f)),
-                               int32_t(floorf(aMargin.right + 0.5f)),
-                               int32_t(floorf(aMargin.bottom + 0.5f)),
-                               int32_t(floorf(aMargin.left + 0.5f)));
-}
-
-template<class units>
 struct IntRectTyped :
     public BaseRect<int32_t, IntRectTyped<units>, IntPointTyped<units>, IntSizeTyped<units>, IntMarginTyped<units> >,
     public units {
     typedef BaseRect<int32_t, IntRectTyped<units>, IntPointTyped<units>, IntSizeTyped<units>, IntMarginTyped<units> > Super;
 
     IntRectTyped() : Super() {}
-    IntRectTyped(const IntPointTyped<units>& aPos, const IntSizeTyped<units>& aSize) :
+    IntRectTyped(IntPointTyped<units> aPos, IntSizeTyped<units> aSize) :
         Super(aPos, aSize) {}
     IntRectTyped(int32_t _x, int32_t _y, int32_t _width, int32_t _height) :
         Super(_x, _y, _width, _height) {}
@@ -89,7 +80,7 @@ struct RectTyped :
     typedef BaseRect<Float, RectTyped<units>, PointTyped<units>, SizeTyped<units>, MarginTyped<units> > Super;
 
     RectTyped() : Super() {}
-    RectTyped(const PointTyped<units>& aPos, const SizeTyped<units>& aSize) :
+    RectTyped(PointTyped<units> aPos, SizeTyped<units> aSize) :
         Super(aPos, aSize) {}
     RectTyped(Float _x, Float _y, Float _width, Float _height) :
         Super(_x, _y, _width, _height) {}
@@ -124,12 +115,6 @@ struct RectTyped :
     RectTyped<UnknownUnits> ToUnknownRect() const {
         return RectTyped<UnknownUnits>(this->x, this->y, this->width, this->height);
     }
-
-    // This is here only to keep IPDL-generated code happy. DO NOT USE.
-    bool operator==(const RectTyped<units>& aRect) const
-    {
-      return RectTyped<units>::IsEqualEdges(aRect);
-    }
 };
 typedef RectTyped<UnknownUnits> Rect;
 
@@ -147,17 +132,6 @@ IntRectTyped<units> RoundedIn(const RectTyped<units>& aRect)
 {
   RectTyped<units> copy(aRect);
   copy.RoundIn();
-  return IntRectTyped<units>(int32_t(copy.x),
-                             int32_t(copy.y),
-                             int32_t(copy.width),
-                             int32_t(copy.height));
-}
-
-template<class units>
-IntRectTyped<units> RoundedOut(const RectTyped<units>& aRect)
-{
-  RectTyped<units> copy(aRect);
-  copy.RoundOut();
   return IntRectTyped<units>(int32_t(copy.x),
                              int32_t(copy.y),
                              int32_t(copy.width),

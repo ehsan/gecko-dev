@@ -10,11 +10,14 @@ EXPORTS.snappy += [
     'src/snappy.h',
 ]
 
-UNIFIED_SOURCES += [
-    'src/snappy-c.cc',
-    'src/snappy-sinksource.cc',
-    'src/snappy-stubs-internal.cc',
-    'src/snappy.cc',
+CPP_SOURCES += [
+    'snappy-c.cc',
+    'snappy-sinksource.cc',
+    'snappy-stubs-internal.cc',
+    'snappy.cc',
 ]
 
-FINAL_LIBRARY = 'xul'
+LIBRARY_NAME = 'snappy_s'
+
+LIBXUL_LIBRARY = True
+

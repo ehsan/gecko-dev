@@ -2,8 +2,14 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+DEPTH		= @DEPTH@
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
 STANDALONE_MAKEFILE := 1
-DIST_SUBDIR := browser
 
 include $(topsrcdir)/config/rules.mk
 
@@ -75,15 +81,11 @@ ifdef NECKO_WIFI
 DEFINES += -DNECKO_WIFI
 endif
 
-ifdef GKMEDIAS_SHARED_LIBRARY
-DEFINES += -DGKMEDIAS_SHARED_LIBRARY
-endif
-
 ifdef MOZ_PKG_MANIFEST_P
 MOZ_PKG_MANIFEST = package-manifest
 
 $(MOZ_PKG_MANIFEST): $(MOZ_PKG_MANIFEST_P) $(GLOBAL_DEPS)
-	$(call py_action,preprocessor,$(DEFINES) $(ACDEFINES) $< -o $@)
+	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $(DEFINES) $(ACDEFINES) $< > $@
 
 GARBAGE += $(MOZ_PKG_MANIFEST)
 endif
@@ -92,12 +94,14 @@ ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 MOZ_PKG_MAC_DSSTORE=branding/dsstore
 MOZ_PKG_MAC_BACKGROUND=branding/background.png
 MOZ_PKG_MAC_ICON=branding/disk.icns
-MOZ_PKG_MAC_EXTRA=--symlink '/Applications:/ '
+MOZ_PKG_MAC_EXTRA=--symlink "/Applications:/ "
 endif
 
 ifndef LIBXUL_SDK
 INSTALL_SDK = 1
 endif
+
+GENERATE_CACHE = 1
 
 include $(topsrcdir)/toolkit/mozapps/installer/signing.mk
 include $(topsrcdir)/toolkit/mozapps/installer/packager.mk
@@ -110,14 +114,6 @@ else
 BINPATH = bin
 endif
 DEFINES += -DBINPATH=$(BINPATH)
-
-DEFINES += -DMOZ_ICU_VERSION=$(MOZ_ICU_VERSION)
-ifdef MOZ_NATIVE_ICU
-DEFINES += -DMOZ_NATIVE_ICU
-endif
-ifdef MOZ_SHARED_ICU
-DEFINES += -DMOZ_SHARED_ICU
-endif
 
 libs::
 	$(MAKE) -C $(DEPTH)/browser/locales langpack
@@ -136,7 +132,7 @@ endif
 package-compare:: $(MOZ_PKG_MANIFEST)
 ifdef MOZ_PKG_MANIFEST_P
 	cd $(DIST); find $(PKGCOMP_FIND_OPTS) $(FINDPATH) -type f | sort > bin-list.txt
-	grep '^$(BINPATH)' $(MOZ_PKG_MANIFEST) | sed -e 's/^\///' | sort > $(DIST)/pack-list.txt
+	grep "^$(BINPATH)" $(MOZ_PKG_MANIFEST) | sed -e 's/^\///' | sort > $(DIST)/pack-list.txt
 	-diff -u $(DIST)/pack-list.txt $(DIST)/bin-list.txt
 	rm -f $(DIST)/pack-list.txt $(DIST)/bin-list.txt
 endif

@@ -13,7 +13,6 @@ TaskThrottler::TaskThrottler(const TimeStamp& aTimeStamp)
   : mOutstanding(false)
   , mQueuedTask(nullptr)
   , mStartTime(aTimeStamp)
-  , mMean(1)
 { }
 
 void
@@ -42,7 +41,14 @@ TaskThrottler::TaskComplete(const TimeStamp& aTimeStamp)
     return;
   }
 
-  mMean.insert(aTimeStamp - mStartTime);
+  // Remove the oldest sample we have if adding a new sample takes us over our
+  // desired number of samples.
+  if (mMaxDurations > 0) {
+      if (mDurations.Length() >= mMaxDurations) {
+          mDurations.RemoveElementAt(0);
+      }
+      mDurations.AppendElement(aTimeStamp - mStartTime);
+  }
 
   if (mQueuedTask) {
     mStartTime = aTimeStamp;
@@ -51,6 +57,21 @@ TaskThrottler::TaskComplete(const TimeStamp& aTimeStamp)
   } else {
     mOutstanding = false;
   }
+}
+
+TimeDuration
+TaskThrottler::AverageDuration()
+{
+  if (!mDurations.Length()) {
+    return TimeDuration();
+  }
+
+  TimeDuration durationSum;
+  for (uint32_t i = 0; i < mDurations.Length(); i++) {
+    durationSum += mDurations[i];
+  }
+
+  return durationSum / mDurations.Length();
 }
 
 TimeDuration

@@ -5,7 +5,6 @@
 
 #include "ScrollbarActivity.h"
 #include "nsIScrollbarOwner.h"
-#include "nsIContent.h"
 #include "nsIDOMEvent.h"
 #include "nsIDOMElementCSSInlineStyle.h"
 #include "nsIDOMCSSStyleDeclaration.h"

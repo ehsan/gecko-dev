@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #include "gfxFontconfigUtils.h"
 #include "gfxFont.h"
@@ -19,8 +19,6 @@
 
 #include "nsIAtom.h"
 #include "nsCRT.h"
-#include "gfxFontConstants.h"
-#include "mozilla/gfx/2D.h"
 
 using namespace mozilla;
 
@@ -310,11 +308,11 @@ gfxFontconfigUtils::NewPattern(const nsTArray<nsString>& aFamilies,
 }
 
 gfxFontconfigUtils::gfxFontconfigUtils()
-    : mFontsByFamily(50)
-    , mFontsByFullname(50)
-    , mLangSupportTable(50)
-    , mLastConfig(nullptr)
+    : mLastConfig(nullptr)
 {
+    mFontsByFamily.Init(50);
+    mFontsByFullname.Init(50);
+    mLangSupportTable.Init(20);
     UpdateFontListInternal();
 }
 

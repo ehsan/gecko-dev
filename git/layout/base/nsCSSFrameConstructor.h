@@ -20,7 +20,6 @@
 #include "nsCSSPseudoElements.h"
 #include "nsIAnonymousContentCreator.h"
 #include "nsFrameManager.h"
-#include "nsIDocument.h"
 
 struct nsFrameItems;
 struct nsAbsoluteItems;
@@ -32,7 +31,6 @@ struct nsGenConInitializer;
 class nsICSSAnonBoxPseudo;
 class nsPageContentFrame;
 struct PendingBinding;
-class nsGenericDOMDataNode;
 
 class nsFrameConstructorState;
 class nsFrameConstructorSaveState;
@@ -200,13 +198,6 @@ public:
   nsresult CharacterDataChanged(nsIContent* aContent,
                                 CharacterDataChangeInfo* aInfo);
 
-  // If aContent is a text node that has been optimized away due to being
-  // whitespace next to a block boundary (or for some other reason), stop
-  // doing that and create a frame for it if it should have one. This recreates
-  // frames so be careful (although this should not change actual layout).
-  // Returns the frame for aContent if there is one.
-  nsIFrame* EnsureFrameForTextNode(nsGenericDOMDataNode* aContent);
-
   // generate the child frames and process bindings
   nsresult GenerateChildFrames(nsIFrame* aFrame);
 
@@ -348,7 +339,7 @@ private:
 
   /**
    * Create a content node for the given generated content style.
-   * The caller takes care of making it SetIsNativeAnonymousRoot, binding it
+   * The caller takes care of making it SetNativeAnonymous, binding it
    * to the document, and creating frames for it.
    * @param aParentContent is the node that has the before/after style
    * @param aStyleContext is the 'before' or 'after' pseudo-element
@@ -716,14 +707,12 @@ private:
                                       int32_t aNameSpaceID,
                                       PendingBinding* aPendingBinding,
                                       already_AddRefed<nsStyleContext> aStyleContext,
-                                      bool aSuppressWhiteSpaceOptimizations,
-                                      nsTArray<nsIAnonymousContentCreator::ContentInfo>* aAnonChildren)
+                                      bool aSuppressWhiteSpaceOptimizations)
     {
       FrameConstructionItem* item =
         new FrameConstructionItem(aFCData, aContent, aTag, aNameSpaceID,
                                   aPendingBinding, aStyleContext,
-                                  aSuppressWhiteSpaceOptimizations,
-                                  aAnonChildren);
+                                  aSuppressWhiteSpaceOptimizations);
       PR_APPEND_LINK(item, &mItems);
       ++mItemCount;
       ++mDesiredParentCounts[item->DesiredParentType()];
@@ -901,30 +890,16 @@ private:
                           int32_t aNameSpaceID,
                           PendingBinding* aPendingBinding,
                           already_AddRefed<nsStyleContext> aStyleContext,
-                          bool aSuppressWhiteSpaceOptimizations,
-                          nsTArray<nsIAnonymousContentCreator::ContentInfo>* aAnonChildren) :
+                          bool aSuppressWhiteSpaceOptimizations) :
       mFCData(aFCData), mContent(aContent), mTag(aTag),
       mNameSpaceID(aNameSpaceID),
       mPendingBinding(aPendingBinding), mStyleContext(aStyleContext),
       mSuppressWhiteSpaceOptimizations(aSuppressWhiteSpaceOptimizations),
       mIsText(false), mIsGeneratedContent(false),
-      mIsAnonymousContentCreatorContent(false),
       mIsRootPopupgroup(false), mIsAllInline(false), mIsBlock(false),
       mHasInlineEnds(false), mIsPopup(false),
       mIsLineParticipant(false), mIsForSVGAElement(false)
-    {
-      if (aAnonChildren) {
-        NS_ASSERTION(!(mFCData->mBits & FCDATA_FUNC_IS_FULL_CTOR) ||
-                     mFCData->mFullConstructor ==
-                       &nsCSSFrameConstructor::ConstructInline,
-                     "This is going to fail");
-        NS_ASSERTION(!(mFCData->mBits & FCDATA_USE_CHILD_ITEMS),
-                     "nsIAnonymousContentCreator::CreateAnonymousContent "
-                     "implementations should not output a list where the "
-                     "items have children in this case");
-        mAnonChildren.SwapElements(*aAnonChildren);
-      }
-    }
+    {}
     ~FrameConstructionItem() {
       if (mIsGeneratedContent) {
         mContent->UnbindFromTree();
@@ -976,8 +951,6 @@ private:
     // Whether this is a generated content container.
     // If it is, mContent is a strong pointer.
     bool mIsGeneratedContent;
-    // Whether this is an item for nsIAnonymousContentCreator content.
-    bool mIsAnonymousContentCreatorContent;
     // Whether this is an item for the root popupgroup.
     bool mIsRootPopupgroup;
     // Whether construction from this item will create only frames that are
@@ -1006,22 +979,6 @@ private:
 
     // Child frame construction items.
     FrameConstructionItemList mChildItems;
-
-    // ContentInfo list for children that have yet to have
-    // FrameConstructionItem objects created for them. This exists because
-    // AddFrameConstructionItemsInternal needs a valid frame, but in the case
-    // that nsIAnonymousContentCreator::CreateAnonymousContent returns items
-    // that have their own children (so we have a tree of ContentInfo objects
-    // rather than a flat list) we don't yet have a frame to provide to
-    // AddFrameConstructionItemsInternal in order to create the items for the
-    // grandchildren. That prevents FrameConstructionItems from being created
-    // for these grandchildren (and any descendants that they may have),
-    // otherwise they could have been added to the mChildItems member of their
-    // parent FrameConstructionItem. As it is, the grandchildren ContentInfo
-    // list has to be stored in this mAnonChildren member in order to delay
-    // construction of the FrameConstructionItems for the grandchildren until
-    // a frame has been created for their parent item.
-    nsTArray<nsIAnonymousContentCreator::ContentInfo> mAnonChildren;
 
   private:
     FrameConstructionItem(const FrameConstructionItem& aOther) MOZ_DELETE; /* not implemented */
@@ -1167,8 +1124,6 @@ private:
 #define ITEM_IS_WITHIN_SVG_TEXT 0x8
   /* The item allows items to be created for SVG <textPath> children. */
 #define ITEM_ALLOWS_TEXT_PATH_CHILD 0x10
-  /* The item is content created by an nsIAnonymousContentCreator frame */
-#define ITEM_IS_ANONYMOUSCONTENTCREATOR_CONTENT 0x20
   // The guts of AddFrameConstructionItems
   // aParentFrame might be null.  If it is, that means it was an
   // inline frame.
@@ -1180,7 +1135,6 @@ private:
                                          bool                     aSuppressWhiteSpaceOptimizations,
                                          nsStyleContext*          aStyleContext,
                                          uint32_t                 aFlags,
-                                         nsTArray<nsIAnonymousContentCreator::ContentInfo>* aAnonChildren,
                                          FrameConstructionItemList& aItems);
 
   /**
@@ -1262,40 +1216,17 @@ private:
                        Element* aElement,
                        nsStyleContext* aStyleContext);
 
+// SVG - rods
   /**
-   * Constructs an outer frame, an anonymous child that wraps its real
-   * children, and its descendant frames.  This is used by both ConstructOuterSVG
-   * and ConstructMarker, which both want an anonymous block child for their
-   * children to go in to.
-   */
-  nsIFrame* ConstructFrameWithAnonymousChild(
-                                  nsFrameConstructorState& aState,
-                                  FrameConstructionItem&   aItem,
-                                  nsIFrame*                aParentFrame,
-                                  const nsStyleDisplay*    aDisplay,
-                                  nsFrameItems&            aFrameItems,
-                                  FrameCreationFunc        aConstructor,
-                                  FrameCreationFunc        aInnerConstructor,
-                                  nsICSSAnonBoxPseudo*     aInnerPseudo,
-                                  bool                     aCandidateRootFrame);
-
-  /**
-   * Construct an nsSVGOuterSVGFrame.
+   * Construct an nsSVGOuterSVGFrame, the anonymous child that wraps its real
+   * children, and its descendant frames.  This is the FrameConstructionData
+   * callback used for the job.
    */
   nsIFrame* ConstructOuterSVG(nsFrameConstructorState& aState,
                               FrameConstructionItem&   aItem,
                               nsIFrame*                aParentFrame,
                               const nsStyleDisplay*    aDisplay,
                               nsFrameItems&            aFrameItems);
-
-  /**
-   * Construct an nsSVGMarkerFrame.
-   */
-  nsIFrame* ConstructMarker(nsFrameConstructorState& aState,
-                            FrameConstructionItem&   aItem,
-                            nsIFrame*                aParentFrame,
-                            const nsStyleDisplay*    aDisplay,
-                            nsFrameItems&            aFrameItems);
 
   static const FrameConstructionData* FindSVGData(Element* aElement,
                                                   nsIAtom* aTag,
@@ -1328,18 +1259,6 @@ private:
                                         nsIFrame*                aParentFrame,
                                         const nsStyleDisplay*    aDisplay,
                                         nsFrameItems&            aFrameItems);
-
-  /**
-   * This adds FrameConstructionItem objects to aItemsToConstruct for the
-   * anonymous content returned by an nsIAnonymousContentCreator::
-   * CreateAnonymousContent implementation.
-   */
-  void AddFCItemsForAnonymousContent(
-            nsFrameConstructorState& aState,
-            nsIFrame* aFrame,
-            nsTArray<nsIAnonymousContentCreator::ContentInfo>& aAnonymousItems,
-            FrameConstructionItemList& aItemsToConstruct,
-            uint32_t aExtraFlags = 0);
 
   /**
    * Construct the frames for the children of aContent.  "children" is defined

@@ -8,6 +8,7 @@
 
 class nsICycleCollectorListener;
 class nsISupports;
+class nsScriptObjectTracer;
 
 #include "nsError.h"
 #include "nsID.h"
@@ -22,6 +23,22 @@ typedef bool (*DeferredFinalizeFunction)(uint32_t slice, void* data);
 
 }
 
+// Contains various stats about the cycle collection.
+class nsCycleCollectorResults
+{
+public:
+    nsCycleCollectorResults() :
+        mForcedGC(false), mMergedZones(false),
+        mVisitedRefCounted(0), mVisitedGCed(0),
+        mFreedRefCounted(0), mFreedGCed(0) {}
+    bool mForcedGC;
+    bool mMergedZones;
+    uint32_t mVisitedRefCounted;
+    uint32_t mVisitedGCed;
+    uint32_t mFreedRefCounted;
+    uint32_t mFreedGCed;
+};
+
 bool nsCycleCollector_init();
 
 void nsCycleCollector_startup();
@@ -35,14 +52,12 @@ void nsCycleCollector_setForgetSkippableCallback(CC_ForgetSkippableCallback aCB)
 void nsCycleCollector_forgetSkippable(bool aRemoveChildlessNodes = false,
                                       bool aAsyncSnowWhiteFreeing = false);
 
-void nsCycleCollector_prepareForGarbageCollection();
-
 void nsCycleCollector_dispatchDeferredDeletion(bool aContinuation = false);
 bool nsCycleCollector_doDeferredDeletion();
 
-void nsCycleCollector_collect(nsICycleCollectorListener *aManualListener);
-void nsCycleCollector_scheduledCollect();
-
+void nsCycleCollector_collect(bool aManuallyTriggered,
+                              nsCycleCollectorResults *aResults,
+                              nsICycleCollectorListener *aListener);
 uint32_t nsCycleCollector_suspectedCount();
 void nsCycleCollector_shutdown();
 
@@ -62,6 +77,8 @@ nsCycleCollectorLoggerConstructor(nsISupports* outer,
 namespace mozilla {
 namespace cyclecollector {
 
+void AddJSHolder(void* aHolder, nsScriptObjectTracer* aTracer);
+void RemoveJSHolder(void* aHolder);
 #ifdef DEBUG
 bool IsJSHolder(void* aHolder);
 #endif

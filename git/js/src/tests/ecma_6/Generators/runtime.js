@@ -8,7 +8,28 @@
 // See http://people.mozilla.org/~jorendorff/es6-draft.html#sec-15.19.3.
 
 function assertSyntaxError(str) {
-    assertThrowsInstanceOf(Function(str), SyntaxError);
+    var msg;
+    var evil = eval;
+    try {
+        // Non-direct eval.
+        evil(str);
+    } catch (exc) {
+        if (exc instanceof SyntaxError)
+            return;
+        msg = "Assertion failed: expected SyntaxError, got " + exc;
+    }
+    if (msg === undefined)
+        msg = "Assertion failed: expected SyntaxError, but no exception thrown";
+    throw new Error(msg + " - " + str);
+}
+
+function assertFalse(a) { assertEq(a, false) }
+function assertTrue(a) { assertEq(a, true) }
+function assertNotEq(found, not_expected) { assertFalse(found === expected) }
+function assertArrayEq(found, expected) {
+    assertEq(found.length, expected.length);
+    for (var i = 0; i < expected.length; i++)
+        assertEq(found[i], expected[i]);
 }
 
 
@@ -17,8 +38,6 @@ function* g() { yield 1; }
 var GeneratorFunctionPrototype = Object.getPrototypeOf(g);
 var GeneratorFunction = GeneratorFunctionPrototype.constructor;
 var GeneratorObjectPrototype = GeneratorFunctionPrototype.prototype;
-// FIXME: This should be a symbol.
-var std_iterator = "@@iterator";
 
 
 // A generator function should have the same set of properties as any
@@ -30,7 +49,7 @@ function TestGeneratorFunctionInstance() {
     f_own_property_names.sort();
     g_own_property_names.sort();
 
-    assertDeepEq(f_own_property_names, g_own_property_names);
+    assertArrayEq(f_own_property_names, g_own_property_names);
     var i;
     for (i = 0; i < f_own_property_names.length; i++) {
         var prop = f_own_property_names[i];
@@ -66,14 +85,14 @@ function TestGeneratorObjectPrototype() {
     assertEq(Object.getPrototypeOf((function*(){yield 1}).prototype),
                GeneratorObjectPrototype);
 
-    var expected_property_names = ["next", "throw", "constructor", std_iterator];
+    var expected_property_names = ["iterator", "next", "throw", "constructor"];
     var found_property_names =
         Object.getOwnPropertyNames(GeneratorObjectPrototype);
 
     expected_property_names.sort();
     found_property_names.sort();
 
-    assertDeepEq(found_property_names, expected_property_names);
+    assertArrayEq(found_property_names, expected_property_names);
 }
 TestGeneratorObjectPrototype();
 
@@ -122,7 +141,7 @@ function TestPerGeneratorPrototype() {
     assertFalse(g.prototype instanceof Function);
     assertEq(typeof (g.prototype), "object");
 
-    assertDeepEq(Object.getOwnPropertyNames(g.prototype), []);
+    assertArrayEq(Object.getOwnPropertyNames(g.prototype), []);
 }
 TestPerGeneratorPrototype();
 

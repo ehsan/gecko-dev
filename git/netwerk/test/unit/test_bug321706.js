@@ -1,3 +1,6 @@
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+
 const url = "http://foo.com/folder/file?/.";
 
 function run_test() {

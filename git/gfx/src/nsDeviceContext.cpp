@@ -4,36 +4,24 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsDeviceContext.h"
-#include <algorithm>                    // for max
-#include "gfxASurface.h"                // for gfxASurface, etc
-#include "gfxFont.h"                    // for gfxFontGroup
-#include "gfxImageSurface.h"            // for gfxImageSurface
-#include "gfxPoint.h"                   // for gfxSize
-#include "mozilla/Attributes.h"         // for MOZ_FINAL
-#include "mozilla/Preferences.h"        // for Preferences
-#include "mozilla/Services.h"           // for GetObserverService
-#include "mozilla/mozalloc.h"           // for operator new
-#include "nsCRT.h"                      // for nsCRT
-#include "nsDebug.h"                    // for NS_NOTREACHED, NS_ASSERTION, etc
-#include "nsFont.h"                     // for nsFont
-#include "nsFontMetrics.h"              // for nsFontMetrics
-#include "nsIAtom.h"                    // for nsIAtom, do_GetAtom
-#include "nsID.h"
-#include "nsIDeviceContextSpec.h"       // for nsIDeviceContextSpec
-#include "nsILanguageAtomService.h"     // for nsILanguageAtomService, etc
-#include "nsIObserver.h"                // for nsIObserver, etc
-#include "nsIObserverService.h"         // for nsIObserverService
-#include "nsIScreen.h"                  // for nsIScreen
-#include "nsIScreenManager.h"           // for nsIScreenManager
-#include "nsISupportsUtils.h"           // for NS_ADDREF, NS_RELEASE
-#include "nsIWidget.h"                  // for nsIWidget, NS_NATIVE_WINDOW
-#include "nsRect.h"                     // for nsRect
-#include "nsRenderingContext.h"         // for nsRenderingContext
-#include "nsServiceManagerUtils.h"      // for do_GetService
-#include "nsString.h"               // for nsDependentString
-#include "nsTArray.h"                   // for nsTArray, nsTArray_Impl
-#include "nsThreadUtils.h"              // for NS_IsMainThread
-#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
+
+#include <algorithm>
+
+#include "gfxImageSurface.h"
+#include "mozilla/Attributes.h"
+#include "mozilla/Preferences.h"
+#include "mozilla/Services.h"
+#include "nsCRT.h"
+#include "nsFontMetrics.h"
+#include "nsIDeviceContextSpec.h"
+#include "nsILanguageAtomService.h"
+#include "nsIObserver.h"
+#include "nsIObserverService.h"
+#include "nsIScreen.h"
+#include "nsIScreenManager.h"
+#include "nsIServiceManager.h"
+#include "nsIWidget.h"
+#include "nsRenderingContext.h"
 
 #if !XP_MACOSX
 #include "gfxPDFSurface.h"
@@ -66,7 +54,6 @@ public:
 
     nsresult GetMetricsFor(const nsFont& aFont, nsIAtom* aLanguage,
                            gfxUserFontSet* aUserFontSet,
-                           gfxTextPerfMetrics* aTextPerf,
                            nsFontMetrics*& aMetrics);
 
     void FontMetricsDeleted(const nsFontMetrics* aFontMetrics);
@@ -124,7 +111,6 @@ nsFontCache::Observe(nsISupports*, const char* aTopic, const PRUnichar*)
 nsresult
 nsFontCache::GetMetricsFor(const nsFont& aFont, nsIAtom* aLanguage,
                            gfxUserFontSet* aUserFontSet,
-                           gfxTextPerfMetrics* aTextPerf,
                            nsFontMetrics*& aMetrics)
 {
     if (!aLanguage)
@@ -154,7 +140,7 @@ nsFontCache::GetMetricsFor(const nsFont& aFont, nsIAtom* aLanguage,
 
     fm = new nsFontMetrics();
     NS_ADDREF(fm);
-    nsresult rv = fm->Init(aFont, aLanguage, mContext, aUserFontSet, aTextPerf);
+    nsresult rv = fm->Init(aFont, aLanguage, mContext, aUserFontSet);
     if (NS_SUCCEEDED(rv)) {
         // the mFontMetrics list has the "head" at the end, because append
         // is cheaper than insert
@@ -173,7 +159,7 @@ nsFontCache::GetMetricsFor(const nsFont& aFont, nsIAtom* aLanguage,
     Compact();
     fm = new nsFontMetrics();
     NS_ADDREF(fm);
-    rv = fm->Init(aFont, aLanguage, mContext, aUserFontSet, aTextPerf);
+    rv = fm->Init(aFont, aLanguage, mContext, aUserFontSet);
     if (NS_SUCCEEDED(rv)) {
         mFontMetrics.AppendElement(fm);
         aMetrics = fm;
@@ -262,7 +248,6 @@ nsresult
 nsDeviceContext::GetMetricsFor(const nsFont& aFont,
                                nsIAtom* aLanguage,
                                gfxUserFontSet* aUserFontSet,
-                               gfxTextPerfMetrics* aTextPerf,
                                nsFontMetrics*& aMetrics)
 {
     if (!mFontCache) {
@@ -271,8 +256,7 @@ nsDeviceContext::GetMetricsFor(const nsFont& aFont,
         mFontCache->Init(this);
     }
 
-    return mFontCache->GetMetricsFor(aFont, aLanguage, aUserFontSet,
-                                     aTextPerf, aMetrics);
+    return mFontCache->GetMetricsFor(aFont, aLanguage, aUserFontSet, aMetrics);
 }
 
 nsresult
@@ -307,14 +291,14 @@ nsDeviceContext::SetDPI()
     // Use a printing DC to determine the other dpi values
     if (mPrintingSurface) {
         switch (mPrintingSurface->GetType()) {
-        case gfxSurfaceTypePDF:
-        case gfxSurfaceTypePS:
-        case gfxSurfaceTypeQuartz:
+        case gfxASurface::SurfaceTypePDF:
+        case gfxASurface::SurfaceTypePS:
+        case gfxASurface::SurfaceTypeQuartz:
             dpi = 72.0f;
             break;
 #ifdef XP_WIN
-        case gfxSurfaceTypeWin32:
-        case gfxSurfaceTypeWin32Printing: {
+        case gfxASurface::SurfaceTypeWin32:
+        case gfxASurface::SurfaceTypeWin32Printing: {
             HDC dc = reinterpret_cast<gfxWindowsSurface*>(mPrintingSurface.get())->GetDC();
             int32_t OSVal = GetDeviceCaps(dc, LOGPIXELSY);
             dpi = 144.0f;
@@ -323,7 +307,7 @@ nsDeviceContext::SetDPI()
         }
 #endif
 #ifdef XP_OS2
-        case gfxSurfaceTypeOS2: {
+        case gfxASurface::SurfaceTypeOS2: {
             LONG lDPI;
             HDC dc = GpiQueryDevice(reinterpret_cast<gfxOS2Surface*>(mPrintingSurface.get())->GetPS());
             if (DevQueryCaps(dc, CAPS_VERTICAL_FONT_RES, 1, &lDPI))
@@ -357,9 +341,7 @@ nsDeviceContext::SetDPI()
             dpi = 96.0f;
         }
 
-        CSSToLayoutDeviceScale scale = mWidget ? mWidget->GetDefaultScale()
-                                               : CSSToLayoutDeviceScale(1.0);
-        double devPixelsPerCSSPixel = scale.scale;
+        double devPixelsPerCSSPixel = mWidget ? mWidget->GetDefaultScale() : 1.0;
 
         mAppUnitsPerDevNotScaledPixel =
             std::max(1, NS_lround(AppUnitsPerCSSPixel() / devPixelsPerCSSPixel));
@@ -655,35 +637,35 @@ nsDeviceContext::CalcPrintingSize()
 
     gfxSize size(0, 0);
     switch (mPrintingSurface->GetType()) {
-    case gfxSurfaceTypeImage:
+    case gfxASurface::SurfaceTypeImage:
         inPoints = false;
         size = reinterpret_cast<gfxImageSurface*>(mPrintingSurface.get())->GetSize();
         break;
 
 #if defined(MOZ_PDF_PRINTING)
-    case gfxSurfaceTypePDF:
+    case gfxASurface::SurfaceTypePDF:
         inPoints = true;
         size = reinterpret_cast<gfxPDFSurface*>(mPrintingSurface.get())->GetSize();
         break;
 #endif
 
 #ifdef MOZ_WIDGET_GTK
-    case gfxSurfaceTypePS:
+    case gfxASurface::SurfaceTypePS:
         inPoints = true;
         size = reinterpret_cast<gfxPSSurface*>(mPrintingSurface.get())->GetSize();
         break;
 #endif
 
 #ifdef XP_MACOSX
-    case gfxSurfaceTypeQuartz:
+    case gfxASurface::SurfaceTypeQuartz:
         inPoints = true; // this is really only true when we're printing
         size = reinterpret_cast<gfxQuartzSurface*>(mPrintingSurface.get())->GetSize();
         break;
 #endif
 
 #ifdef XP_WIN
-    case gfxSurfaceTypeWin32:
-    case gfxSurfaceTypeWin32Printing:
+    case gfxASurface::SurfaceTypeWin32:
+    case gfxASurface::SurfaceTypeWin32Printing:
         {
             inPoints = false;
             HDC dc = reinterpret_cast<gfxWindowsSurface*>(mPrintingSurface.get())->GetDC();
@@ -699,7 +681,7 @@ nsDeviceContext::CalcPrintingSize()
 #endif
 
 #ifdef XP_OS2
-    case gfxSurfaceTypeOS2:
+    case gfxASurface::SurfaceTypeOS2:
         {
             inPoints = false;
             // we already set the size in the surface constructor we set for

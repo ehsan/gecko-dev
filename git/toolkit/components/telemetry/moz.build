@@ -11,15 +11,15 @@ XPIDL_SOURCES += [
     'nsITelemetryPing.idl',
 ]
 
-XPIDL_MODULE = 'telemetry'
+MODULE = 'telemetry'
 
 EXPORTS.mozilla += [
     'ProcessedStack.h',
     'Telemetry.h',
-    'ThreadHangStats.h',
+    'TelemetryHistogramEnums.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'Telemetry.cpp',
 ]
 
@@ -37,21 +37,9 @@ EXTRA_JS_MODULES += [
     'ThirdPartyCookieProbe.jsm',
 ]
 
-EXTRA_PP_JS_MODULES += [
-    'UITelemetry.jsm',
-]
-
 FAIL_ON_WARNINGS = True
+
+LIBXUL_LIBRARY = True
 
 MSVC_ENABLE_PGO = True
 
-include('/ipc/chromium/chromium-config.mozbuild')
-
-FINAL_LIBRARY = 'xul'
-
-GENERATED_FILES = [
-    'TelemetryHistogramData.inc',
-]
-
-if CONFIG['MOZILLA_OFFICIAL']:
-    DEFINES['MOZILLA_OFFICIAL'] = True

@@ -112,7 +112,7 @@ private:
     nsresult                AddBinding(nsDiskCacheBinding * binding);
 
     // member variables
-    static const PLDHashTableOps ops;
+    static PLDHashTableOps ops;
     PLDHashTable           table;
     bool                   initialized;
 };

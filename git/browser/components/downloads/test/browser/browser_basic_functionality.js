@@ -19,9 +19,6 @@ function test_task()
   ];
 
   try {
-    // Wait for focus first
-    yield promiseFocus();
-
     // Ensure that state is reset in case previous tests didn't finish.
     yield task_resetState();
 

@@ -32,10 +32,13 @@ interface WebSocket : EventTarget {
 
   // networking
 
+  [SetterThrows]
   attribute EventHandler onopen;
 
+  [SetterThrows]
   attribute EventHandler onerror;
 
+  [SetterThrows]
   attribute EventHandler onclose;
 
   readonly attribute DOMString extensions;
@@ -47,6 +50,7 @@ interface WebSocket : EventTarget {
 
   // messaging
 
+  [SetterThrows]
   attribute EventHandler onmessage;
 
   attribute BinaryType binaryType;

@@ -29,15 +29,11 @@
 #include "VideoUtils.h"
 #include "ImageLayers.h"
 #include "VideoSegment.h"
-#endif
-
+#else
 namespace mozilla {
-class DataChannel;
-namespace dom {
-class RTCInboundRTPStreamStats;
-class RTCOutboundRTPStreamStats;
+  class DataChannel;
 }
-}
+#endif
 
 #include "nricectx.h"
 #include "nriceresolver.h"
@@ -103,7 +99,7 @@ class Fake_VideoGenerator {
 
     // Make a track
     mozilla::VideoSegment *segment = new mozilla::VideoSegment();
-    mStream->GetStream()->AsSourceStream()->AddTrack(1, mozilla::USECS_PER_S, 0, segment);
+    mStream->GetStream()->AsSourceStream()->AddTrack(1, USECS_PER_S, 0, segment);
     mStream->GetStream()->AsSourceStream()->AdvanceKnownTracksTime(mozilla::STREAM_TIME_MAX);
 
     // Set the timer. Set to 10 fps.
@@ -133,7 +129,7 @@ class Fake_VideoGenerator {
     const uint8_t lumaBpp = 8;
     const uint8_t chromaBpp = 4;
 
-    mozilla::layers::PlanarYCbCrData data;
+    mozilla::layers::PlanarYCbCrImage::Data data;
     data.mYChannel = frame;
     data.mYSize = gfxIntSize(WIDTH, HEIGHT);
     data.mYStride = (int32_t) (WIDTH * lumaBpp / 8.0);
@@ -153,7 +149,7 @@ class Fake_VideoGenerator {
     // AddTrack takes ownership of segment
     mozilla::VideoSegment *segment = new mozilla::VideoSegment();
     // 10 fps.
-    segment->AppendFrame(image.forget(), mozilla::USECS_PER_S / 10, gfxIntSize(WIDTH, HEIGHT));
+    segment->AppendFrame(image.forget(), USECS_PER_S / 10, gfxIntSize(WIDTH, HEIGHT));
 
     gen->mStream->GetStream()->AsSourceStream()->AppendToTrack(1, segment);
   }
@@ -184,13 +180,10 @@ public:
     MOZ_ASSERT(mMediaStream);
   }
 
-  // This method exists for stats and the unittests.
-  // It allows visibility into the pipelines and flows.
-  const std::map<mozilla::TrackID, mozilla::RefPtr<mozilla::MediaPipeline>>&
-  GetPipelines() const { return mPipelines; }
+  mozilla::RefPtr<mozilla::MediaPipeline> GetPipeline(int aTrack);
 
 protected:
-  std::map<mozilla::TrackID, mozilla::RefPtr<mozilla::MediaPipeline>> mPipelines;
+  std::map<int, mozilla::RefPtr<mozilla::MediaPipeline> > mPipelines;
   nsRefPtr<DOMMediaStream> mMediaStream;
   PeerConnectionMedia *mParent;
 };
@@ -206,7 +199,7 @@ public:
       : SourceStreamInfo(aMediaStream, aParent) {}
 
   ~LocalSourceStreamInfo() {
-    mMediaStream = nullptr;
+    mMediaStream = NULL;
   }
 
   DOMMediaStream* GetMediaStream() {
@@ -269,7 +262,7 @@ class PeerConnectionMedia : public sigslot::has_slots<> {
     // TODO(ekr@rtfm.com): If someone asks for a value that doesn't exist,
     // make one.
     if (i >= mIceStreams.size()) {
-      return nullptr;
+      return NULL;
     }
     return mIceStreams[i];
   }
@@ -308,43 +301,42 @@ class PeerConnectionMedia : public sigslot::has_slots<> {
     int index_inner = aStreamIndex * 2 + (aIsRtcp ? 1 : 0);
 
     if (mTransportFlows.find(index_inner) == mTransportFlows.end())
-      return nullptr;
+      return NULL;
 
     return mTransportFlows[index_inner];
   }
 
   // Add a transport flow
   void AddTransportFlow(int aIndex, bool aRtcp,
-                        const mozilla::RefPtr<mozilla::TransportFlow> &aFlow) {
+                        mozilla::RefPtr<mozilla::TransportFlow> aFlow) {
     int index_inner = aIndex * 2 + (aRtcp ? 1 : 0);
 
     MOZ_ASSERT(!mTransportFlows[index_inner]);
     mTransportFlows[index_inner] = aFlow;
   }
 
-  mozilla::RefPtr<mozilla::MediaSessionConduit> GetConduit(int aStreamIndex, bool aReceive) {
+  mozilla::RefPtr<mozilla::AudioSessionConduit> GetConduit(int aStreamIndex, bool aReceive) {
     int index_inner = aStreamIndex * 2 + (aReceive ? 0 : 1);
 
-    if (mConduits.find(index_inner) == mConduits.end())
-      return nullptr;
+    if (mAudioConduits.find(index_inner) == mAudioConduits.end())
+      return NULL;
 
-    return mConduits[index_inner];
+    return mAudioConduits[index_inner];
   }
 
   // Add a conduit
   void AddConduit(int aIndex, bool aReceive,
-                  const mozilla::RefPtr<mozilla::MediaSessionConduit> &aConduit) {
+                  const mozilla::RefPtr<mozilla::AudioSessionConduit> &aConduit) {
     int index_inner = aIndex * 2 + (aReceive ? 0 : 1);
 
-    MOZ_ASSERT(!mConduits[index_inner]);
-    mConduits[index_inner] = aConduit;
+    MOZ_ASSERT(!mAudioConduits[index_inner]);
+    mAudioConduits[index_inner] = aConduit;
   }
 
   // ICE state signals
-  sigslot::signal2<mozilla::NrIceCtx*, mozilla::NrIceCtx::GatheringState>
-      SignalIceGatheringStateChange;
-  sigslot::signal2<mozilla::NrIceCtx*, mozilla::NrIceCtx::ConnectionState>
-      SignalIceConnectionStateChange;
+  sigslot::signal1<mozilla::NrIceCtx *> SignalIceGatheringCompleted;  // Done gathering
+  sigslot::signal1<mozilla::NrIceCtx *> SignalIceCompleted;  // Done handshaking
+  sigslot::signal1<mozilla::NrIceCtx *> SignalIceFailed;  // Self explanatory
 
  private:
   // Shutdown media transport. Must be called on STS thread.
@@ -355,10 +347,9 @@ class PeerConnectionMedia : public sigslot::has_slots<> {
   void SelfDestruct_m();
 
   // ICE events
-  void IceGatheringStateChange(mozilla::NrIceCtx* ctx,
-                               mozilla::NrIceCtx::GatheringState state);
-  void IceConnectionStateChange(mozilla::NrIceCtx* ctx,
-                                mozilla::NrIceCtx::ConnectionState state);
+  void IceGatheringCompleted(mozilla::NrIceCtx *aCtx);
+  void IceCompleted(mozilla::NrIceCtx *aCtx);
+  void IceFailed(mozilla::NrIceCtx *aCtx);
   void IceStreamReady(mozilla::NrIceMediaStream *aStream);
 
   // The parent PC
@@ -383,7 +374,7 @@ class PeerConnectionMedia : public sigslot::has_slots<> {
 
   // Conduits: even is receive, odd is transmit (for easier correlation with
   // flows)
-  std::map<int, mozilla::RefPtr<mozilla::MediaSessionConduit> > mConduits;
+  std::map<int, mozilla::RefPtr<mozilla::AudioSessionConduit> > mAudioConduits;
 
   // The main thread.
   nsCOMPtr<nsIThread> mMainThread;

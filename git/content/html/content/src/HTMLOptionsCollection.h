@@ -42,14 +42,8 @@ public:
 
   // nsWrapperCache
   using nsWrapperCache::GetWrapperPreserveColor;
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
-protected:
-  virtual JSObject* GetWrapperPreserveColorInternal() MOZ_OVERRIDE
-  {
-    return nsWrapperCache::GetWrapperPreserveColor();
-  }
-public:
+  virtual JSObject* WrapObject(JSContext* cx,
+                               JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
 
   // nsIDOMHTMLOptionsCollection interface
   NS_DECL_NSIDOMHTMLOPTIONSCOLLECTION
@@ -128,17 +122,9 @@ public:
                           int32_t aStartIndex, bool aForward,
                           int32_t* aIndex);
 
-  HTMLOptionElement* GetNamedItem(const nsAString& aName)
-  {
-    bool dummy;
-    return NamedGetter(aName, dummy);
-  }
-  HTMLOptionElement* NamedGetter(const nsAString& aName, bool& aFound);
-  virtual Element*
-  GetFirstNamedElement(const nsAString& aName, bool& aFound) MOZ_OVERRIDE
-  {
-    return NamedGetter(aName, aFound);
-  }
+  HTMLOptionElement* GetNamedItem(const nsAString& aName) const;
+  virtual JSObject* NamedItem(JSContext* aCx, const nsAString& aName,
+                              ErrorResult& error) MOZ_OVERRIDE;
 
   void Add(const HTMLOptionOrOptGroupElement& aElement,
            const Nullable<HTMLElementOrLong>& aBefore,

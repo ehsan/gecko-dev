@@ -19,19 +19,16 @@
   (function(exports) {
      "use strict";
 
+     exports.OS = require("resource://gre/modules/osfile/osfile_shared_allthreads.jsm").OS;
      // exports.OS.Unix is created by osfile_unix_back.jsm
      if (exports.OS && exports.OS.File) {
        return; // Avoid double-initialization
      }
 
-     let SharedAll = require("resource://gre/modules/osfile/osfile_shared_allthreads.jsm");
-     let Path = require("resource://gre/modules/osfile/ospath.jsm");
-     let SysAll = require("resource://gre/modules/osfile/osfile_unix_allthreads.jsm");
      exports.OS.Unix.File._init();
-     let LOG = SharedAll.LOG.bind(SharedAll, "Unix front-end");
-     let Const = SharedAll.Constants.libc;
+     let Const = exports.OS.Constants.libc;
      let UnixFile = exports.OS.Unix.File;
-     let Type = UnixFile.Type;
+     let LOG = OS.Shared.LOG.bind(OS.Shared, "Unix front-end");
 
      /**
       * Representation of a file.
@@ -94,14 +91,7 @@
       * the end of the file has been reached.
       * @throws {OS.File.Error} In case of I/O error.
       */
-     File.prototype._read = function _read(buffer, nbytes, options = {}) {
-      // Populate the page cache with data from a file so the subsequent reads
-      // from that file will not block on disk I/O.
-       if (typeof(UnixFile.posix_fadvise) === 'function' &&
-           (options.sequential || !("sequential" in options))) {
-         UnixFile.posix_fadvise(this.fd, 0, nbytes,
-          OS.Constants.libc.POSIX_FADV_SEQUENTIAL);
-       }
+     File.prototype._read = function _read(buffer, nbytes, options) {
        return throw_on_negative("read",
          UnixFile.read(this.fd, buffer, nbytes)
        );
@@ -120,7 +110,7 @@
       * @return {number} The number of bytes effectively written.
       * @throws {OS.File.Error} In case of I/O error.
       */
-     File.prototype._write = function _write(buffer, nbytes, options = {}) {
+     File.prototype._write = function _write(buffer, nbytes, options) {
        return throw_on_negative("write",
          UnixFile.write(this.fd, buffer, nbytes)
        );
@@ -169,40 +159,8 @@
      };
 
      /**
-      * Set the last access and modification date of the file.
-      * The time stamp resolution is 1 second at best, but might be worse
-      * depending on the platform.
-      *
-      * @param {Date,number=} accessDate The last access date. If numeric,
-      * milliseconds since epoch. If omitted or null, then the current date
-      * will be used.
-      * @param {Date,number=} modificationDate The last modification date. If
-      * numeric, milliseconds since epoch. If omitted or null, then the current
-      * date will be used.
-      *
-      * @throws {TypeError} In case of invalid parameters.
-      * @throws {OS.File.Error} In case of I/O error.
-      */
-     File.prototype.setDates = function setDates(accessDate, modificationDate) {
-       accessDate = normalizeDate("File.prototype.setDates", accessDate);
-       modificationDate = normalizeDate("File.prototype.setDates",
-                                        modificationDate);
-       gTimevals[0].tv_sec = (accessDate / 1000) | 0;
-       gTimevals[0].tv_usec = 0;
-       gTimevals[1].tv_sec = (modificationDate / 1000) | 0;
-       gTimevals[1].tv_usec = 0;
-       throw_on_negative("setDates",
-                         UnixFile.futimes(this.fd, gTimevalsPtr));
-     };
-
-     /**
       * Flushes the file's buffers and causes all buffered data
       * to be written.
-      * Disk flushes are very expensive and therefore should be used carefully,
-      * sparingly and only in scenarios where it is vital that data survives
-      * system crashes. Even though the function will be executed off the
-      * main-thread, it might still affect the overall performance of any
-      * running application.
       *
       * @throws {OS.File.Error} In case of I/O error.
       */
@@ -235,11 +193,8 @@
       *  on the other fields of |mode|.
       * - {bool} write If |true|, the file will be opened for
       *  writing. The file may also be opened for reading, depending
-      *  on the other fields of |mode|.
-      * - {bool} append If |true|, the file will be opened for appending,
-      *  meaning the equivalent of |.setPosition(0, POS_END)| is executed
-      *  before each write. The default is |true|, i.e. opening a file for
-      *  appending. Specify |append: false| to open the file in regular mode.
+      *  on the other fields of |mode|. If neither |truncate| nor
+      *  |create| is specified, the file is opened for appending.
       *
       * If neither |truncate|, |create| or |write| is specified, the file
       * is opened for reading.
@@ -286,11 +241,12 @@
            flags |= Const.O_CREAT | Const.O_EXCL;
          } else if (mode.read && !mode.write) {
            // flags are sufficient
-         } else if (!mode.existing) {
-           flags |= Const.O_CREAT;
-         }
-         if (mode.append) {
-           flags |= Const.O_APPEND;
+         } else /*append*/ {
+           if (mode.existing) {
+             flags |= Const.O_APPEND;
+           } else {
+             flags |= Const.O_APPEND | Const.O_CREAT;
+           }
          }
        }
        return error_or_file(UnixFile.open(path, flags, omode));
@@ -304,7 +260,7 @@
       * @return {bool} true if the file exists, false otherwise.
       */
      File.exists = function Unix_exists(path) {
-       if (UnixFile.access(path, Const.F_OK) == -1) {
+       if (UnixFile.access(path, OS.Constants.libc.F_OK) == -1) {
          return false;
        } else {
          return true;
@@ -337,14 +293,13 @@
       *
       * @param {string} path The name of the directory to remove.
       * @param {*=} options Additional options.
-      *   - {bool} ignoreAbsent If |false|, throw an error if the directory
-      *     does not exist. |true| by default
+      *   - {bool} ignoreAbsent If |true|, do not fail if the
+      *     directory does not exist yet.
       */
      File.removeEmptyDir = function removeEmptyDir(path, options = {}) {
        let result = UnixFile.rmdir(path);
        if (result == -1) {
-         if ((!("ignoreAbsent" in options) || options.ignoreAbsent) &&
-             ctypes.errno == Const.ENOENT) {
+         if (options.ignoreAbsent && ctypes.errno == Const.ENOENT) {
            return;
          }
          throw new File.Error("removeEmptyDir");
@@ -367,19 +322,17 @@
       * as per libc function |mkdir|. If unspecified, dirs are
       * created with a default mode of 0700 (dir is private to
       * the user, the user can read, write and execute).
-      * - {bool} ignoreExisting If |false|, throw error if the directory
-      * already exists. |true| by default
+      * - {bool} ignoreExisting If |true|, do not fail if the
+      * directory already exists.
       */
      File.makeDir = function makeDir(path, options = {}) {
        let omode = options.unixMode !== undefined ? options.unixMode : DEFAULT_UNIX_MODE_DIR;
        let result = UnixFile.mkdir(path, omode);
-       if (result == -1) {
-         if ((!("ignoreExisting" in options) || options.ignoreExisting) &&
-             ctypes.errno == Const.EEXIST) {
-           return;
-         }
-         throw new File.Error("makeDir");
+       if (result != -1 ||
+           options.ignoreExisting && ctypes.errno == OS.Constants.libc.EEXIST) {
+        return;
        }
+       throw new File.Error("makeDir");
      };
 
      /**
@@ -468,9 +421,6 @@
         * @option {number} bufSize A hint regarding the size of the
         * buffer to use for copying. The implementation may decide to
         * ignore this hint.
-        * @option {bool} unixUserland Will force the copy operation to be
-        * caried out in user land, instead of using optimized syscalls such
-        * as splice(2).
         *
         * @throws {OS.File.Error} In case of error.
         */
@@ -559,10 +509,10 @@
                // We *might* be on a file system that does not support splice.
                // Try again with a fallback pump.
                if (total_read) {
-                 source.setPosition(-total_read, File.POS_CURRENT);
+                 source.setPosition(-total_read, OS.File.POS_CURRENT);
                }
                if (total_written) {
-                 dest.setPosition(-total_written, File.POS_CURRENT);
+                 dest.setPosition(-total_written, OS.File.POS_CURRENT);
                }
                return pump_userland(source, dest, options);
              }
@@ -585,18 +535,12 @@
          let result;
          try {
            source = File.open(sourcePath);
-           // Need to open the output file with |append:false|, or else |splice|
-           // won't work.
            if (options.noOverwrite) {
-             dest = File.open(destPath, {create:true, append:false});
+             dest = File.open(destPath, {create:true});
            } else {
-             dest = File.open(destPath, {trunc:true, append:false});
+             dest = File.open(destPath, {trunc:true});
            }
-           if (options.unixUserland) {
-             result = pump_userland(source, dest, options);
-           } else {
-             result = pump(source, dest, options);
-           }
+           result = pump(source, dest, options);
          } catch (x) {
            if (dest) {
              dest.close();
@@ -667,7 +611,7 @@
        this._dir = UnixFile.opendir(this._path);
        if (this._dir == null) {
          let error = ctypes.errno;
-         if (error != Const.ENOENT) {
+         if (error != OS.Constants.libc.ENOENT) {
            throw new File.Error("DirectoryIterator", error);
          }
          this._exists = false;
@@ -708,13 +652,13 @@
          let isDir, isSymLink;
          if (!("d_type" in contents)) {
            // |dirent| doesn't have d_type on some platforms (e.g. Solaris).
-           let path = Path.join(this._path, name);
+           let path = OS.Unix.Path.join(this._path, name);
            throw_on_negative("lstat", UnixFile.lstat(path, gStatDataPtr));
-           isDir = (gStatData.st_mode & Const.S_IFMT) == Const.S_IFDIR;
-           isSymLink = (gStatData.st_mode & Const.S_IFMT) == Const.S_IFLNK;
+           isDir = (gStatData.st_mode & OS.Constants.libc.S_IFMT) == OS.Constants.libc.S_IFDIR;
+           isSymLink = (gStatData.st_mode & OS.Constants.libc.S_IFMT) == OS.Constants.libc.S_IFLNK;
          } else {
-           isDir = contents.d_type == Const.DT_DIR;
-           isSymLink = contents.d_type == Const.DT_LNK;
+           isDir = contents.d_type == OS.Constants.libc.DT_DIR;
+           isSymLink = contents.d_type == OS.Constants.libc.DT_LNK;
          }
 
          return new File.DirectoryIterator.Entry(isDir, isSymLink, name, this._path);
@@ -758,11 +702,11 @@
        // Copy the relevant part of |unix_entry| to ensure that
        // our data is not overwritten prematurely.
        this._parent = parent;
-       let path = Path.join(this._parent, name);
+       let path = OS.Unix.Path.join(this._parent, name);
 
-       SysAll.AbstractEntry.call(this, isDir, isSymLink, name, path);
+       exports.OS.Shared.Unix.AbstractEntry.call(this, isDir, isSymLink, name, path);
      };
-     File.DirectoryIterator.Entry.prototype = Object.create(SysAll.AbstractEntry.prototype);
+     File.DirectoryIterator.Entry.prototype = Object.create(exports.OS.Shared.Unix.AbstractEntry.prototype);
 
      /**
       * Return a version of an instance of
@@ -784,30 +728,28 @@
        return serialized;
      };
 
-     let gStatData = new Type.stat.implementation();
+     let gStatData = new OS.Shared.Type.stat.implementation();
      let gStatDataPtr = gStatData.address();
-     let gTimevals = new Type.timevals.implementation();
-     let gTimevalsPtr = gTimevals.address();
      let MODE_MASK = 4095 /*= 07777*/;
      File.Info = function Info(stat) {
-       let isDir = (stat.st_mode & Const.S_IFMT) == Const.S_IFDIR;
-       let isSymLink = (stat.st_mode & Const.S_IFMT) == Const.S_IFLNK;
-       let size = Type.off_t.importFromC(stat.st_size);
+       let isDir = (stat.st_mode & OS.Constants.libc.S_IFMT) == OS.Constants.libc.S_IFDIR;
+       let isSymLink = (stat.st_mode & OS.Constants.libc.S_IFMT) == OS.Constants.libc.S_IFLNK;
+       let size = exports.OS.Shared.Type.size_t.importFromC(stat.st_size);
 
        let lastAccessDate = new Date(stat.st_atime * 1000);
        let lastModificationDate = new Date(stat.st_mtime * 1000);
        let unixLastStatusChangeDate = new Date(stat.st_ctime * 1000);
 
-       let unixOwner = Type.uid_t.importFromC(stat.st_uid);
-       let unixGroup = Type.gid_t.importFromC(stat.st_gid);
-       let unixMode = Type.mode_t.importFromC(stat.st_mode & MODE_MASK);
+       let unixOwner = exports.OS.Shared.Type.uid_t.importFromC(stat.st_uid);
+       let unixGroup = exports.OS.Shared.Type.gid_t.importFromC(stat.st_gid);
+       let unixMode = exports.OS.Shared.Type.mode_t.importFromC(stat.st_mode & MODE_MASK);
 
-       SysAll.AbstractInfo.call(this, isDir, isSymLink, size, lastAccessDate,
-           lastModificationDate, unixLastStatusChangeDate,
-           unixOwner, unixGroup, unixMode);
+       exports.OS.Shared.Unix.AbstractInfo.call(this, isDir, isSymLink, size, lastAccessDate,
+                                                lastModificationDate, unixLastStatusChangeDate,
+                                                unixOwner, unixGroup, unixMode);
 
        // Some platforms (e.g. MacOS X, some BSDs) store a file creation date
-       if ("OSFILE_OFFSETOF_STAT_ST_BIRTHTIME" in Const) {
+       if ("OSFILE_OFFSETOF_STAT_ST_BIRTHTIME" in OS.Constants.libc) {
          let date = new Date(stat.st_birthtime * 1000);
 
         /**
@@ -822,7 +764,7 @@
          this.macBirthDate = date;
        }
      };
-     File.Info.prototype = Object.create(SysAll.AbstractInfo.prototype);
+     File.Info.prototype = Object.create(exports.OS.Shared.Unix.AbstractInfo.prototype);
 
      // Deprecated, use macBirthDate/winBirthDate instead
      Object.defineProperty(File.Info.prototype, "creationDate", {
@@ -871,37 +813,8 @@
        return new File.Info(gStatData);
      };
 
-     /**
-      * Set the last access and modification date of the file.
-      * The time stamp resolution is 1 second at best, but might be worse
-      * depending on the platform.
-      *
-      * @param {string} path The full name of the file to set the dates for.
-      * @param {Date,number=} accessDate The last access date. If numeric,
-      * milliseconds since epoch. If omitted or null, then the current date
-      * will be used.
-      * @param {Date,number=} modificationDate The last modification date. If
-      * numeric, milliseconds since epoch. If omitted or null, then the current
-      * date will be used.
-      *
-      * @throws {TypeError} In case of invalid paramters.
-      * @throws {OS.File.Error} In case of I/O error.
-      */
-     File.setDates = function setDates(path, accessDate, modificationDate) {
-       accessDate = normalizeDate("File.setDates", accessDate);
-       modificationDate = normalizeDate("File.setDates", modificationDate);
-       gTimevals[0].tv_sec = (accessDate / 1000) | 0;
-       gTimevals[0].tv_usec = 0;
-       gTimevals[1].tv_sec = (modificationDate / 1000) | 0;
-       gTimevals[1].tv_usec = 0;
-       throw_on_negative("setDates",
-                         UnixFile.utimes(path, gTimevalsPtr));
-     };
-
      File.read = exports.OS.Shared.AbstractFile.read;
      File.writeAtomic = exports.OS.Shared.AbstractFile.writeAtomic;
-     File.openUnique = exports.OS.Shared.AbstractFile.openUnique;
-     File.removeDir = exports.OS.Shared.AbstractFile.removeDir;
 
      /**
       * Get the current directory by getCurrentDirectory.
@@ -970,40 +883,12 @@
        return result;
      }
 
-     /**
-      * Normalize and verify a Date or numeric date value.
-      *
-      * @param {string} fn Function name of the calling function.
-      * @param {Date,number} date The date to normalize. If omitted or null,
-      * then the current date will be used.
-      *
-      * @throws {TypeError} Invalid date provided.
-      *
-      * @return {number} Sanitized, numeric date in milliseconds since epoch.
-      */
-     function normalizeDate(fn, date) {
-       if (typeof date !== "number" && !date) {
-         // |date| was Omitted or null.
-         date = Date.now();
-       } else if (typeof date.getTime === "function") {
-         // Input might be a date or date-like object.
-         date = date.getTime();
-       }
-
-       if (isNaN(date)) {
-         throw new TypeError("|date| parameter of " + fn + " must be a " +
-                             "|Date| instance or number");
-       }
-       return date;
-     };
-
      File.Unix = exports.OS.Unix.File;
-     File.Error = SysAll.Error;
+     File.Error = exports.OS.Shared.Unix.Error;
      exports.OS.File = File;
-     exports.OS.Shared.Type = Type;
 
-     Object.defineProperty(File, "POS_START", { value: SysAll.POS_START });
-     Object.defineProperty(File, "POS_CURRENT", { value: SysAll.POS_CURRENT });
-     Object.defineProperty(File, "POS_END", { value: SysAll.POS_END });
+     Object.defineProperty(File, "POS_START", { value: OS.Shared.POS_START });
+     Object.defineProperty(File, "POS_CURRENT", { value: OS.Shared.POS_CURRENT });
+     Object.defineProperty(File, "POS_END", { value: OS.Shared.POS_END });
    })(this);
 }

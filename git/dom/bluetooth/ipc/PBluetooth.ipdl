@@ -12,7 +12,7 @@ include BluetoothTypes;
 
 include "mozilla/dom/bluetooth/ipc/BluetoothMessageUtils.h";
 
-using mozilla::dom::bluetooth::BluetoothObjectType from "mozilla/dom/bluetooth/BluetoothCommon.h";
+using mozilla::dom::bluetooth::BluetoothObjectType;
 
 namespace mozilla {
 namespace dom {
@@ -82,23 +82,20 @@ struct PairedDevicePropertiesRequest
 {
   nsString[] addresses;
 };
-
 struct ConnectedDevicePropertiesRequest
 {
-  uint16_t serviceUuid;
+  uint16_t profileId;
 };
 
 struct ConnectRequest
 {
   nsString address;
-  uint32_t cod;
-  uint16_t serviceUuid;
+  uint16_t profileId;
 };
 
 struct DisconnectRequest
 {
-  nsString address;
-  uint16_t serviceUuid;
+  uint16_t profileId;
 };
 
 struct SendFileRequest
@@ -131,18 +128,6 @@ struct DisconnectScoRequest
 };
 
 struct IsScoConnectedRequest
-{
-};
-
-struct AnswerWaitingCallRequest
-{
-};
-
-struct IgnoreWaitingCallRequest
-{
-};
-
-struct ToggleCallsRequest
 {
 };
 
@@ -187,9 +172,6 @@ union Request
   ConnectScoRequest;
   DisconnectScoRequest;
   IsScoConnectedRequest;
-  AnswerWaitingCallRequest;
-  IgnoreWaitingCallRequest;
-  ToggleCallsRequest;
   SendMetaDataRequest;
   SendPlayStatusRequest;
 };

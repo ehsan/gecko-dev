@@ -11,11 +11,13 @@
 #ifndef WEBRTC_MODULES_VIDEO_CAPTURE_MAIN_SOURCE_WINDOWS_DEVICE_INFO_DS_H_
 #define WEBRTC_MODULES_VIDEO_CAPTURE_MAIN_SOURCE_WINDOWS_DEVICE_INFO_DS_H_
 
-#include "webrtc/modules/video_capture/device_info_impl.h"
-#include "webrtc/modules/video_capture/video_capture_impl.h"
+#include "../video_capture_impl.h"
+#include "../device_info_impl.h"
 
 #include <Dshow.h>
+#include "map_wrapper.h"
 
+// forward declarations
 namespace webrtc
 {
 namespace videocapturemodule
@@ -97,9 +99,10 @@ protected:
 
 private:
     ICreateDevEnum* _dsDevEnum;
+    IEnumMoniker* _dsMonikerDevEnum;
     bool _CoUninitializeIsRequired;
 
 };
-}  // namespace videocapturemodule
-}  // namespace webrtc
+} // namespace videocapturemodule
+} // namespace webrtc
 #endif // WEBRTC_MODULES_VIDEO_CAPTURE_MAIN_SOURCE_WINDOWS_DEVICE_INFO_DS_H_

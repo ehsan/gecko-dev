@@ -9,12 +9,12 @@
 
 #ifdef DEBUG
 
-#include "NamespaceImports.h"
+#include "jsapi.h"
 
 #include "js/RootingAPI.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class MDefinition;
 class MInstruction;
@@ -31,7 +31,7 @@ class C1Spewer
 
   public:
     C1Spewer()
-      : graph(nullptr), script(NullPtr()), spewout_(nullptr)
+      : graph(NULL), script(NullPtr()), spewout_(NULL)
     { }
 
     bool init(const char *path);
@@ -47,7 +47,7 @@ class C1Spewer
     void spewIntervals(FILE *fp, MBasicBlock *block, LinearScanAllocator *regalloc, size_t &nextId);
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* DEBUG */

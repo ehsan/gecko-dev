@@ -8,16 +8,16 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/system_wrappers/source/condition_variable_posix.h"
+#include "condition_variable_posix.h"
 
 #include <errno.h>
 #if defined(WEBRTC_LINUX)
-#include <time.h>
+#include <ctime>
 #else
 #include <sys/time.h>
 #endif
 
-#include "webrtc/system_wrappers/source/critical_section_posix.h"
+#include "critical_section_posix.h"
 
 namespace webrtc {
 
@@ -129,4 +129,4 @@ void ConditionVariablePosix::WakeAll() {
   pthread_cond_broadcast(&cond_);
 }
 
-}  // namespace webrtc
+} // namespace webrtc

@@ -11,11 +11,11 @@
 #ifndef SRC_VIDEO_ENGINE_MAIN_TEST_AUTOTEST_HELPERS_VIE_FILE_CAPTURE_DEVICE_H_
 #define SRC_VIDEO_ENGINE_MAIN_TEST_AUTOTEST_HELPERS_VIE_FILE_CAPTURE_DEVICE_H_
 
-#include <stdio.h>
+#include <cstdio>
 
 #include <string>
 
-#include "webrtc/typedefs.h"
+#include "typedefs.h"
 
 namespace webrtc {
 class CriticalSectionWrapper;
@@ -46,7 +46,7 @@ class ViEFileCaptureDevice {
  private:
   webrtc::ViEExternalCapture* input_sink_;
 
-  FILE* input_file_;
+  std::FILE* input_file_;
   webrtc::CriticalSectionWrapper* mutex_;
 
   uint32_t frame_length_;

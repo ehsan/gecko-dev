@@ -12,16 +12,16 @@
 #include "mozilla/DebugOnly.h"
 #include "mozilla/MemoryReporting.h"
 
+#include "jsapi.h"
 #include "jslock.h"
 #include "jsobj.h"
 
 #include "js/GCAPI.h"
-#include "js/SliceBudget.h"
-#include "js/Tracer.h"
 #include "js/Vector.h"
 
 class JSAtom;
 struct JSCompartment;
+class JSFunction;
 class JSFlatString;
 class JSLinearString;
 
@@ -40,6 +40,7 @@ class PropertyName;
 class ScopeObject;
 class Shape;
 class UnownedBaseShape;
+struct SliceBudget;
 
 unsigned GetCPUCount();
 
@@ -50,8 +51,8 @@ enum HeapState {
     MinorCollecting   // doing a GC of the minor heap (nursery)
 };
 
-namespace jit {
-    class JitCode;
+namespace ion {
+    class IonCode;
 }
 
 namespace gc {
@@ -70,7 +71,7 @@ class ChunkPool {
 
   public:
     ChunkPool()
-      : emptyChunkListHead(nullptr),
+      : emptyChunkListHead(NULL),
         emptyCount(0) { }
 
     size_t getEmptyCount() const {
@@ -119,34 +120,33 @@ MapAllocToTraceKind(AllocKind kind)
         JSTRACE_STRING,     /* FINALIZE_SHORT_STRING */
         JSTRACE_STRING,     /* FINALIZE_STRING */
         JSTRACE_STRING,     /* FINALIZE_EXTERNAL_STRING */
-        JSTRACE_JITCODE,    /* FINALIZE_JITCODE */
+        JSTRACE_IONCODE,    /* FINALIZE_IONCODE */
     };
     JS_STATIC_ASSERT(JS_ARRAY_LENGTH(map) == FINALIZE_LIMIT);
     return map[kind];
 }
 
 template <typename T> struct MapTypeToTraceKind {};
-template <> struct MapTypeToTraceKind<ObjectImpl>       { static const JSGCTraceKind kind = JSTRACE_OBJECT; };
-template <> struct MapTypeToTraceKind<JSObject>         { static const JSGCTraceKind kind = JSTRACE_OBJECT; };
-template <> struct MapTypeToTraceKind<JSFunction>       { static const JSGCTraceKind kind = JSTRACE_OBJECT; };
-template <> struct MapTypeToTraceKind<ArgumentsObject>  { static const JSGCTraceKind kind = JSTRACE_OBJECT; };
-template <> struct MapTypeToTraceKind<ArrayBufferObject>{ static const JSGCTraceKind kind = JSTRACE_OBJECT; };
-template <> struct MapTypeToTraceKind<ArrayBufferViewObject>{ static const JSGCTraceKind kind = JSTRACE_OBJECT; };
-template <> struct MapTypeToTraceKind<DebugScopeObject> { static const JSGCTraceKind kind = JSTRACE_OBJECT; };
-template <> struct MapTypeToTraceKind<GlobalObject>     { static const JSGCTraceKind kind = JSTRACE_OBJECT; };
-template <> struct MapTypeToTraceKind<ScopeObject>      { static const JSGCTraceKind kind = JSTRACE_OBJECT; };
-template <> struct MapTypeToTraceKind<JSScript>         { static const JSGCTraceKind kind = JSTRACE_SCRIPT; };
-template <> struct MapTypeToTraceKind<LazyScript>       { static const JSGCTraceKind kind = JSTRACE_LAZY_SCRIPT; };
-template <> struct MapTypeToTraceKind<Shape>            { static const JSGCTraceKind kind = JSTRACE_SHAPE; };
-template <> struct MapTypeToTraceKind<BaseShape>        { static const JSGCTraceKind kind = JSTRACE_BASE_SHAPE; };
-template <> struct MapTypeToTraceKind<UnownedBaseShape> { static const JSGCTraceKind kind = JSTRACE_BASE_SHAPE; };
-template <> struct MapTypeToTraceKind<types::TypeObject>{ static const JSGCTraceKind kind = JSTRACE_TYPE_OBJECT; };
-template <> struct MapTypeToTraceKind<JSAtom>           { static const JSGCTraceKind kind = JSTRACE_STRING; };
-template <> struct MapTypeToTraceKind<JSString>         { static const JSGCTraceKind kind = JSTRACE_STRING; };
-template <> struct MapTypeToTraceKind<JSFlatString>     { static const JSGCTraceKind kind = JSTRACE_STRING; };
-template <> struct MapTypeToTraceKind<JSLinearString>   { static const JSGCTraceKind kind = JSTRACE_STRING; };
-template <> struct MapTypeToTraceKind<PropertyName>     { static const JSGCTraceKind kind = JSTRACE_STRING; };
-template <> struct MapTypeToTraceKind<jit::JitCode>     { static const JSGCTraceKind kind = JSTRACE_JITCODE; };
+template <> struct MapTypeToTraceKind<JSObject>         { const static JSGCTraceKind kind = JSTRACE_OBJECT; };
+template <> struct MapTypeToTraceKind<JSFunction>       { const static JSGCTraceKind kind = JSTRACE_OBJECT; };
+template <> struct MapTypeToTraceKind<ArgumentsObject>  { const static JSGCTraceKind kind = JSTRACE_OBJECT; };
+template <> struct MapTypeToTraceKind<ArrayBufferObject>{ const static JSGCTraceKind kind = JSTRACE_OBJECT; };
+template <> struct MapTypeToTraceKind<ArrayBufferViewObject>{ const static JSGCTraceKind kind = JSTRACE_OBJECT; };
+template <> struct MapTypeToTraceKind<DebugScopeObject> { const static JSGCTraceKind kind = JSTRACE_OBJECT; };
+template <> struct MapTypeToTraceKind<GlobalObject>     { const static JSGCTraceKind kind = JSTRACE_OBJECT; };
+template <> struct MapTypeToTraceKind<ScopeObject>      { const static JSGCTraceKind kind = JSTRACE_OBJECT; };
+template <> struct MapTypeToTraceKind<JSScript>         { const static JSGCTraceKind kind = JSTRACE_SCRIPT; };
+template <> struct MapTypeToTraceKind<LazyScript>       { const static JSGCTraceKind kind = JSTRACE_LAZY_SCRIPT; };
+template <> struct MapTypeToTraceKind<Shape>            { const static JSGCTraceKind kind = JSTRACE_SHAPE; };
+template <> struct MapTypeToTraceKind<BaseShape>        { const static JSGCTraceKind kind = JSTRACE_BASE_SHAPE; };
+template <> struct MapTypeToTraceKind<UnownedBaseShape> { const static JSGCTraceKind kind = JSTRACE_BASE_SHAPE; };
+template <> struct MapTypeToTraceKind<types::TypeObject>{ const static JSGCTraceKind kind = JSTRACE_TYPE_OBJECT; };
+template <> struct MapTypeToTraceKind<JSAtom>           { const static JSGCTraceKind kind = JSTRACE_STRING; };
+template <> struct MapTypeToTraceKind<JSString>         { const static JSGCTraceKind kind = JSTRACE_STRING; };
+template <> struct MapTypeToTraceKind<JSFlatString>     { const static JSGCTraceKind kind = JSTRACE_STRING; };
+template <> struct MapTypeToTraceKind<JSLinearString>   { const static JSGCTraceKind kind = JSTRACE_STRING; };
+template <> struct MapTypeToTraceKind<PropertyName>     { const static JSGCTraceKind kind = JSTRACE_STRING; };
+template <> struct MapTypeToTraceKind<ion::IonCode>     { const static JSGCTraceKind kind = JSTRACE_IONCODE; };
 
 #if defined(JSGC_GENERATIONAL) || defined(DEBUG)
 static inline bool
@@ -174,7 +174,7 @@ IsNurseryAllocable(AllocKind kind)
         false,     /* FINALIZE_SHORT_STRING */
         false,     /* FINALIZE_STRING */
         false,     /* FINALIZE_EXTERNAL_STRING */
-        false,     /* FINALIZE_JITCODE */
+        false,     /* FINALIZE_IONCODE */
     };
     JS_STATIC_ASSERT(JS_ARRAY_LENGTH(map) == FINALIZE_LIMIT);
     return map[kind];
@@ -206,14 +206,14 @@ IsBackgroundFinalized(AllocKind kind)
         true,      /* FINALIZE_SHORT_STRING */
         true,      /* FINALIZE_STRING */
         false,     /* FINALIZE_EXTERNAL_STRING */
-        false,     /* FINALIZE_JITCODE */
+        false,     /* FINALIZE_IONCODE */
     };
     JS_STATIC_ASSERT(JS_ARRAY_LENGTH(map) == FINALIZE_LIMIT);
     return map[kind];
 }
 
 static inline bool
-CanBeFinalizedInBackground(gc::AllocKind kind, const Class *clasp)
+CanBeFinalizedInBackground(gc::AllocKind kind, Class *clasp)
 {
     JS_ASSERT(kind <= gc::FINALIZE_OBJECT_LAST);
     /* If the class has no finalizer or a finalizer that is safe to call on
@@ -319,7 +319,7 @@ GetGCKindSlots(AllocKind thingKind)
 }
 
 static inline size_t
-GetGCKindSlots(AllocKind thingKind, const Class *clasp)
+GetGCKindSlots(AllocKind thingKind, Class *clasp)
 {
     size_t nslots = GetGCKindSlots(thingKind);
 
@@ -359,7 +359,7 @@ struct ArenaList {
     }
 
     void clear() {
-        head = nullptr;
+        head = NULL;
         cursor = &head;
     }
 
@@ -419,8 +419,8 @@ class ArenaLists
         for (size_t i = 0; i != FINALIZE_LIMIT; ++i)
             backgroundFinalizeState[i] = BFS_DONE;
         for (size_t i = 0; i != FINALIZE_LIMIT; ++i)
-            arenaListsToSweep[i] = nullptr;
-        gcShapeArenasToSweep = nullptr;
+            arenaListsToSweep[i] = NULL;
+        gcShapeArenasToSweep = NULL;
     }
 
     ~ArenaLists() {
@@ -603,7 +603,7 @@ class ArenaLists
     void queueStringsForSweep(FreeOp *fop);
     void queueShapesForSweep(FreeOp *fop);
     void queueScriptsForSweep(FreeOp *fop);
-    void queueJitCodeForSweep(FreeOp *fop);
+    void queueIonCodeForSweep(FreeOp *fop);
 
     bool foregroundFinalize(FreeOp *fop, AllocKind thingKind, SliceBudget &sliceBudget);
     static void backgroundFinalize(FreeOp *fop, ArenaHeader *listHead, bool onBackgroundThread);
@@ -615,8 +615,6 @@ class ArenaLists
 
     void *allocateFromArena(JS::Zone *zone, AllocKind thingKind);
     inline void *allocateFromArenaInline(JS::Zone *zone, AllocKind thingKind);
-
-    inline void normalizeBackgroundFinalizeState(AllocKind thingKind);
 
     friend class js::Nursery;
 };
@@ -670,9 +668,6 @@ AddObjectRoot(JSRuntime *rt, JSObject **rp, const char *name);
 extern bool
 AddScriptRoot(JSContext *cx, JSScript **rp, const char *name);
 
-extern void
-RemoveRoot(JSRuntime *rt, void *rp);
-
 } /* namespace js */
 
 extern bool
@@ -692,11 +687,11 @@ extern void
 TraceRuntime(JSTracer *trc);
 
 /* Must be called with GC lock taken. */
-extern bool
+extern void
 TriggerGC(JSRuntime *rt, JS::gcreason::Reason reason);
 
 /* Must be called with GC lock taken. */
-extern bool
+extern void
 TriggerZoneGC(Zone *zone, JS::gcreason::Reason reason);
 
 extern void
@@ -733,9 +728,6 @@ PrepareForDebugGC(JSRuntime *rt);
 
 extern void
 MinorGC(JSRuntime *rt, JS::gcreason::Reason reason);
-
-extern void
-MinorGC(JSContext *cx, JS::gcreason::Reason reason);
 
 #ifdef JS_GC_ZEAL
 extern void
@@ -795,8 +787,6 @@ class GCHelperThread {
     PRCondVar         *done;
     volatile State    state;
 
-    void wait(PRCondVar *which);
-
     bool              sweepFlag;
     bool              shrinkFlag;
 
@@ -827,14 +817,14 @@ class GCHelperThread {
   public:
     GCHelperThread(JSRuntime *rt)
       : rt(rt),
-        thread(nullptr),
-        wakeup(nullptr),
-        done(nullptr),
+        thread(NULL),
+        wakeup(NULL),
+        done(NULL),
         state(IDLE),
         sweepFlag(false),
         shrinkFlag(false),
-        freeCursor(nullptr),
-        freeCursorEnd(nullptr),
+        freeCursor(NULL),
+        freeCursorEnd(NULL),
         backgroundAllocation(true)
     { }
 
@@ -892,6 +882,7 @@ class GCHelperThread {
     }
 };
 
+
 struct GCChunkHasher {
     typedef gc::Chunk *Lookup;
 
@@ -913,158 +904,184 @@ struct GCChunkHasher {
 
 typedef HashSet<js::gc::Chunk *, GCChunkHasher, SystemAllocPolicy> GCChunkSet;
 
-static const size_t NON_INCREMENTAL_MARK_STACK_BASE_CAPACITY = 4096;
-static const size_t INCREMENTAL_MARK_STACK_BASE_CAPACITY = 32768;
-
 template<class T>
 struct MarkStack {
-    T *stack_;
-    T *tos_;
-    T *end_;
+    T *stack;
+    T *tos;
+    T *limit;
 
-    // The capacity we start with and reset() to.
-    size_t baseCapacity_;
-    size_t maxCapacity_;
+    T *ballast;
+    T *ballastLimit;
 
-    MarkStack(size_t maxCapacity)
-      : stack_(nullptr),
-        tos_(nullptr),
-        end_(nullptr),
-        baseCapacity_(0),
-        maxCapacity_(maxCapacity)
-    {}
+    size_t sizeLimit;
+
+    MarkStack(size_t sizeLimit)
+      : stack(NULL),
+        tos(NULL),
+        limit(NULL),
+        ballast(NULL),
+        ballastLimit(NULL),
+        sizeLimit(sizeLimit) { }
 
     ~MarkStack() {
-        js_free(stack_);
+        if (stack != ballast)
+            js_free(stack);
+        js_free(ballast);
     }
 
-    size_t capacity() { return end_ - stack_; }
+    bool init(size_t ballastcap) {
+        JS_ASSERT(!stack);
 
-    ptrdiff_t position() const { return tos_ - stack_; }
+        if (ballastcap == 0)
+            return true;
 
-    void setStack(T *stack, size_t tosIndex, size_t capacity) {
-        stack_ = stack;
-        tos_ = stack + tosIndex;
-        end_ = stack + capacity;
-    }
-
-    void setBaseCapacity(JSGCMode mode) {
-        switch (mode) {
-          case JSGC_MODE_GLOBAL:
-          case JSGC_MODE_COMPARTMENT:
-            baseCapacity_ = NON_INCREMENTAL_MARK_STACK_BASE_CAPACITY;
-            break;
-          case JSGC_MODE_INCREMENTAL:
-            baseCapacity_ = INCREMENTAL_MARK_STACK_BASE_CAPACITY;
-            break;
-          default:
-            MOZ_ASSUME_UNREACHABLE("bad gc mode");
-        }
-
-        if (baseCapacity_ > maxCapacity_)
-            baseCapacity_ = maxCapacity_;
-    }
-
-    bool init(JSGCMode gcMode) {
-        setBaseCapacity(gcMode);
-
-        JS_ASSERT(!stack_);
-        T *newStack = js_pod_malloc<T>(baseCapacity_);
-        if (!newStack)
+        ballast = js_pod_malloc<T>(ballastcap);
+        if (!ballast)
             return false;
-
-        setStack(newStack, 0, baseCapacity_);
+        ballastLimit = ballast + ballastcap;
+        initFromBallast();
         return true;
     }
 
-    void setMaxCapacity(size_t maxCapacity) {
-        JS_ASSERT(isEmpty());
-        maxCapacity_ = maxCapacity;
-        if (baseCapacity_ > maxCapacity_)
-            baseCapacity_ = maxCapacity_;
+    void initFromBallast() {
+        stack = ballast;
+        limit = ballastLimit;
+        if (size_t(limit - stack) > sizeLimit)
+            limit = stack + sizeLimit;
+        tos = stack;
+    }
 
+    void setSizeLimit(size_t size) {
+        JS_ASSERT(isEmpty());
+
+        sizeLimit = size;
         reset();
     }
 
     bool push(T item) {
-        if (tos_ == end_) {
+        if (tos == limit) {
             if (!enlarge())
                 return false;
         }
-        JS_ASSERT(tos_ < end_);
-        *tos_++ = item;
+        JS_ASSERT(tos < limit);
+        *tos++ = item;
         return true;
     }
 
     bool push(T item1, T item2, T item3) {
-        T *nextTos = tos_ + 3;
-        if (nextTos > end_) {
+        T *nextTos = tos + 3;
+        if (nextTos > limit) {
             if (!enlarge())
                 return false;
-            nextTos = tos_ + 3;
+            nextTos = tos + 3;
         }
-        JS_ASSERT(nextTos <= end_);
-        tos_[0] = item1;
-        tos_[1] = item2;
-        tos_[2] = item3;
-        tos_ = nextTos;
+        JS_ASSERT(nextTos <= limit);
+        tos[0] = item1;
+        tos[1] = item2;
+        tos[2] = item3;
+        tos = nextTos;
         return true;
     }
 
     bool isEmpty() const {
-        return tos_ == stack_;
+        return tos == stack;
     }
 
     T pop() {
         JS_ASSERT(!isEmpty());
-        return *--tos_;
+        return *--tos;
+    }
+
+    ptrdiff_t position() const {
+        return tos - stack;
     }
 
     void reset() {
-        if (capacity() == baseCapacity_) {
-            // No size change; keep the current stack.
-            setStack(stack_, 0, baseCapacity_);
-            return;
-        }
-
-        T *newStack = (T *)js_realloc(stack_, sizeof(T) * baseCapacity_);
-        if (!newStack) {
-            // If the realloc fails, just keep using the existing stack; it's
-            // not ideal but better than failing.
-            newStack = stack_;
-            baseCapacity_ = capacity();
-        }
-        setStack(newStack, 0, baseCapacity_);
+        if (stack != ballast)
+            js_free(stack);
+        initFromBallast();
+        JS_ASSERT(stack == ballast);
     }
 
     bool enlarge() {
-        if (capacity() == maxCapacity_)
+        size_t tosIndex = tos - stack;
+        size_t cap = limit - stack;
+        if (cap == sizeLimit)
             return false;
+        size_t newcap = cap * 2;
+        if (newcap == 0)
+            newcap = 32;
+        if (newcap > sizeLimit)
+            newcap = sizeLimit;
 
-        size_t newCapacity = capacity() * 2;
-        if (newCapacity > maxCapacity_)
-            newCapacity = maxCapacity_;
-
-        size_t tosIndex = position();
-
-        T *newStack = (T *)js_realloc(stack_, sizeof(T) * newCapacity);
-        if (!newStack)
-            return false;
-
-        setStack(newStack, tosIndex, newCapacity);
+        T *newStack;
+        if (stack == ballast) {
+            newStack = js_pod_malloc<T>(newcap);
+            if (!newStack)
+                return false;
+            for (T *src = stack, *dst = newStack; src < tos; )
+                *dst++ = *src++;
+        } else {
+            newStack = (T *)js_realloc(stack, sizeof(T) * newcap);
+            if (!newStack)
+                return false;
+        }
+        stack = newStack;
+        tos = stack + tosIndex;
+        limit = newStack + newcap;
         return true;
     }
 
-    void setGCMode(JSGCMode gcMode) {
-        // The mark stack won't be resized until the next call to reset(), but
-        // that will happen at the end of the next GC.
-        setBaseCapacity(gcMode);
-    }
-
     size_t sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) const {
-        return mallocSizeOf(stack_);
+        size_t n = 0;
+        if (stack != ballast)
+            n += mallocSizeOf(stack);
+        n += mallocSizeOf(ballast);
+        return n;
     }
 };
+
+/*
+ * This class records how much work has been done in a given GC slice, so that
+ * we can return before pausing for too long. Some slices are allowed to run for
+ * unlimited time, and others are bounded. To reduce the number of gettimeofday
+ * calls, we only check the time every 1000 operations.
+ */
+struct SliceBudget {
+    int64_t deadline; /* in microseconds */
+    intptr_t counter;
+
+    static const intptr_t CounterReset = 1000;
+
+    static const int64_t Unlimited = 0;
+    static int64_t TimeBudget(int64_t millis);
+    static int64_t WorkBudget(int64_t work);
+
+    /* Equivalent to SliceBudget(UnlimitedBudget). */
+    SliceBudget();
+
+    /* Instantiate as SliceBudget(Time/WorkBudget(n)). */
+    SliceBudget(int64_t budget);
+
+    void reset() {
+        deadline = INT64_MAX;
+        counter = INTPTR_MAX;
+    }
+
+    void step(intptr_t amt = 1) {
+        counter -= amt;
+    }
+
+    bool checkOverBudget();
+
+    bool isOverBudget() {
+        if (counter >= 0)
+            return false;
+        return checkOverBudget();
+    }
+};
+
+static const size_t MARK_STACK_LENGTH = 32768;
 
 struct GrayRoot {
     void *thing;
@@ -1091,9 +1108,10 @@ struct GCMarker : public JSTracer {
         ObjectTag,
         TypeTag,
         XmlTag,
+        ArenaTag,
         SavedValueArrayTag,
-        JitCodeTag,
-        LastTag = JitCodeTag
+        IonCodeTag,
+        LastTag = IonCodeTag
     };
 
     static const uintptr_t StackTagMask = 7;
@@ -1105,25 +1123,29 @@ struct GCMarker : public JSTracer {
 
   public:
     explicit GCMarker(JSRuntime *rt);
-    bool init(JSGCMode gcMode);
+    bool init();
 
-    void setMaxCapacity(size_t maxCap) { stack.setMaxCapacity(maxCap); }
-    size_t maxCapacity() const { return stack.maxCapacity_; }
+    void setSizeLimit(size_t size) { stack.setSizeLimit(size); }
+    size_t sizeLimit() const { return stack.sizeLimit; }
 
     void start();
     void stop();
     void reset();
 
-    void pushObject(ObjectImpl *obj) {
+    void pushObject(JSObject *obj) {
         pushTaggedPtr(ObjectTag, obj);
+    }
+
+    void pushArenaList(gc::ArenaHeader *firstArena) {
+        pushTaggedPtr(ArenaTag, firstArena);
     }
 
     void pushType(types::TypeObject *type) {
         pushTaggedPtr(TypeTag, type);
     }
 
-    void pushJitCode(jit::JitCode *code) {
-        pushTaggedPtr(JitCodeTag, code);
+    void pushIonCode(ion::IonCode *code) {
+        pushTaggedPtr(IonCodeTag, code);
     }
 
     uint32_t getMarkColor() const {
@@ -1180,8 +1202,6 @@ struct GCMarker : public JSTracer {
 
     static void GrayCallback(JSTracer *trc, void **thing, JSGCTraceKind kind);
 
-    void setGCMode(JSGCMode mode) { stack.setGCMode(mode); }
-
     size_t sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) const;
 
     MarkStack<uintptr_t> stack;
@@ -1224,7 +1244,7 @@ struct GCMarker : public JSTracer {
     bool restoreValueArray(JSObject *obj, void **vpp, void **endp);
     void saveValueRanges();
     inline void processMarkStackTop(SliceBudget &budget);
-    void processMarkStackOther(uintptr_t tag, uintptr_t addr);
+    void processMarkStackOther(SliceBudget &budget, uintptr_t tag, uintptr_t addr);
 
     void appendGrayRoot(void *thing, JSGCTraceKind kind);
 
@@ -1238,14 +1258,7 @@ struct GCMarker : public JSTracer {
     /* Count of arenas that are currently in the stack. */
     mozilla::DebugOnly<size_t> markLaterArenas;
 
-    enum GrayBufferState
-    {
-        GRAY_BUFFER_UNUSED,
-        GRAY_BUFFER_OK,
-        GRAY_BUFFER_FAILED
-    };
-
-    GrayBufferState grayBufferState;
+    bool grayFailed;
 };
 
 void
@@ -1262,9 +1275,9 @@ typedef void (*IterateCellCallback)(JSRuntime *rt, void *data, void *thing,
                                     JSGCTraceKind traceKind, size_t thingSize);
 
 /*
- * This function calls |zoneCallback| on every zone, |compartmentCallback| on
- * every compartment, |arenaCallback| on every in-use arena, and |cellCallback|
- * on every in-use cell in the GC heap.
+ * This function calls |compartmentCallback| on every compartment,
+ * |arenaCallback| on every in-use arena, and |cellCallback| on every in-use
+ * cell in the GC heap.
  */
 extern void
 IterateZonesCompartmentsArenasCells(JSRuntime *rt, void *data,
@@ -1272,17 +1285,6 @@ IterateZonesCompartmentsArenasCells(JSRuntime *rt, void *data,
                                     JSIterateCompartmentCallback compartmentCallback,
                                     IterateArenaCallback arenaCallback,
                                     IterateCellCallback cellCallback);
-
-/*
- * This function is like IterateZonesCompartmentsArenasCells, but does it for a
- * single zone.
- */
-extern void
-IterateZoneCompartmentsArenasCells(JSRuntime *rt, Zone *zone, void *data,
-                                   IterateZoneCallback zoneCallback,
-                                   JSIterateCompartmentCallback compartmentCallback,
-                                   IterateArenaCallback arenaCallback,
-                                   IterateCellCallback cellCallback);
 
 /*
  * Invoke chunkCallback on every in-use chunk.
@@ -1309,7 +1311,7 @@ js_FinalizeStringRT(JSRuntime *rt, JSString *str);
  * Macro to test if a traversal is the marking phase of the GC.
  */
 #define IS_GC_MARKING_TRACER(trc) \
-    ((trc)->callback == nullptr || (trc)->callback == GCMarker::GrayCallback)
+    ((trc)->callback == NULL || (trc)->callback == GCMarker::GrayCallback)
 
 namespace js {
 
@@ -1348,8 +1350,10 @@ const int ZealAllocValue = 2;
 const int ZealFrameGCValue = 3;
 const int ZealVerifierPreValue = 4;
 const int ZealFrameVerifierPreValue = 5;
+// These two values used to be distinct.  They no longer are, but both were
+// kept to avoid breaking fuzz tests.  Avoid using ZealStackRootingValue__2.
 const int ZealStackRootingValue = 6;
-const int ZealGenerationalGCValue = 7;
+const int ZealStackRootingValue__2 = 7;
 const int ZealIncrementalRootsThenFinish = 8;
 const int ZealIncrementalMarkAllThenFinish = 9;
 const int ZealIncrementalMultipleSlices = 10;
@@ -1398,31 +1402,12 @@ class AutoSuppressGC
   public:
     AutoSuppressGC(ExclusiveContext *cx);
     AutoSuppressGC(JSCompartment *comp);
-    AutoSuppressGC(JSRuntime *rt);
 
     ~AutoSuppressGC()
     {
         suppressGC_--;
     }
 };
-
-#ifdef DEBUG
-/* Disable OOM testing in sections which are not OOM safe. */
-class AutoEnterOOMUnsafeRegion
-{
-    uint32_t saved_;
-
-  public:
-    AutoEnterOOMUnsafeRegion() : saved_(OOM_maxAllocations) {
-        OOM_maxAllocations = UINT32_MAX;
-    }
-    ~AutoEnterOOMUnsafeRegion() {
-        OOM_maxAllocations = saved_;
-    }
-};
-#else
-class AutoEnterOOMUnsafeRegion {};
-#endif /* DEBUG */
 
 } /* namespace gc */
 

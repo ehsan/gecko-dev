@@ -26,7 +26,7 @@ const uint32_t kThreadLimit = 20;
 const uint32_t kIdleThreadLimit = 5;
 const uint32_t kIdleThreadTimeoutMs = 30000;
 
-TransactionThreadPool* gThreadPool = nullptr;
+TransactionThreadPool* gInstance = nullptr;
 bool gShutdown = false;
 
 #ifdef MOZ_ENABLE_PROFILER_SPS
@@ -67,37 +67,37 @@ END_INDEXEDDB_NAMESPACE
 TransactionThreadPool::TransactionThreadPool()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(!gThreadPool, "More than one instance!");
+  NS_ASSERTION(!gInstance, "More than one instance!");
 }
 
 TransactionThreadPool::~TransactionThreadPool()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(gThreadPool == this, "Different instances!");
-  gThreadPool = nullptr;
+  NS_ASSERTION(gInstance == this, "Different instances!");
+  gInstance = nullptr;
 }
 
 // static
 TransactionThreadPool*
 TransactionThreadPool::GetOrCreate()
 {
-  if (!gThreadPool && !gShutdown) {
+  if (!gInstance && !gShutdown) {
     NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
     nsAutoPtr<TransactionThreadPool> pool(new TransactionThreadPool());
 
     nsresult rv = pool->Init();
     NS_ENSURE_SUCCESS(rv, nullptr);
 
-    gThreadPool = pool.forget();
+    gInstance = pool.forget();
   }
-  return gThreadPool;
+  return gInstance;
 }
 
 // static
 TransactionThreadPool*
 TransactionThreadPool::Get()
 {
-  return gThreadPool;
+  return gInstance;
 }
 
 // static
@@ -108,12 +108,12 @@ TransactionThreadPool::Shutdown()
 
   gShutdown = true;
 
-  if (gThreadPool) {
-    if (NS_FAILED(gThreadPool->Cleanup())) {
+  if (gInstance) {
+    if (NS_FAILED(gInstance->Cleanup())) {
       NS_WARNING("Failed to shutdown thread pool!");
     }
-    delete gThreadPool;
-    gThreadPool = nullptr;
+    delete gInstance;
+    gInstance = nullptr;
   }
 }
 
@@ -121,6 +121,8 @@ nsresult
 TransactionThreadPool::Init()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
+  mTransactionsInProgress.Init();
 
   nsresult rv;
   mThreadPool = do_CreateInstance(NS_THREADPOOL_CONTRACTID, &rv);
@@ -212,7 +214,7 @@ TransactionThreadPool::FinishTransaction(IDBTransaction* aTransaction)
   // AddRef here because removing from the hash will call Release.
   nsRefPtr<IDBTransaction> transaction(aTransaction);
 
-  const nsACString& databaseId = aTransaction->mDatabase->Id();
+  nsIAtom* databaseId = aTransaction->mDatabase->Id();
 
   DatabaseTransactionInfo* dbTransactionInfo;
   if (!mTransactionsInProgress.Get(databaseId, &dbTransactionInfo)) {
@@ -286,8 +288,7 @@ TransactionThreadPool::GetQueueForTransaction(IDBTransaction* aTransaction)
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(aTransaction, "Null pointer!");
 
-  const nsACString& databaseId = aTransaction->mDatabase->Id();
-
+  nsIAtom* databaseId = aTransaction->mDatabase->Id();
   const nsTArray<nsString>& objectStoreNames = aTransaction->mObjectStoreNames;
   const uint16_t mode = aTransaction->mMode;
 
@@ -510,7 +511,8 @@ TransactionThreadPool::MaybeFireCallback(DatabasesCompleteCallback aCallback)
       MOZ_CRASH();
     }
 
-    if (mTransactionsInProgress.Get(database->Id(), nullptr)) {
+    if (mTransactionsInProgress.Get(database->Id(),
+                                    nullptr)) {
       return false;
     }
   }
@@ -646,12 +648,12 @@ FinishTransactionRunnable::Run()
 
   PROFILER_MAIN_THREAD_LABEL("IndexedDB", "FinishTransactionRunnable::Run");
 
-  if (!gThreadPool) {
+  if (!gInstance) {
     NS_ERROR("Running after shutdown!");
     return NS_ERROR_FAILURE;
   }
 
-  gThreadPool->FinishTransaction(mTransaction);
+  gInstance->FinishTransaction(mTransaction);
 
   if (mFinishRunnable) {
     mFinishRunnable->Run();

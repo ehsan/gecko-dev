@@ -12,7 +12,7 @@
 #include "jit/IonMacroAssembler.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 // r15 = program-counter
 // r14 = link-register
@@ -48,11 +48,11 @@ static MOZ_CONSTEXPR_VAR Register BaselineSecondScratchReg = r6;
 // register.  In ARM code emission, we do not clobber BaselineTailCallReg
 // since we keep the return address for calls there.
 
-// FloatReg0 must be equal to ReturnFloatReg.
+// FloatReg0 must be equal to ReturnFloatReg. d1 is ScratchFloatReg.
 static MOZ_CONSTEXPR_VAR FloatRegister FloatReg0      = d0;
-static MOZ_CONSTEXPR_VAR FloatRegister FloatReg1      = d1;
+static MOZ_CONSTEXPR_VAR FloatRegister FloatReg1      = d2;
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif // JS_ION

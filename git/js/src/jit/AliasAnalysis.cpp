@@ -15,44 +15,9 @@
 #include "jit/MIRGraph.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 using mozilla::Array;
-
-namespace js {
-namespace jit {
-
-class LoopAliasInfo : public TempObject
-{
-  private:
-    LoopAliasInfo *outer_;
-    MBasicBlock *loopHeader_;
-    MDefinitionVector invariantLoads_;
-
-  public:
-    LoopAliasInfo(TempAllocator &alloc, LoopAliasInfo *outer, MBasicBlock *loopHeader)
-      : outer_(outer), loopHeader_(loopHeader), invariantLoads_(alloc)
-    { }
-
-    MBasicBlock *loopHeader() const {
-        return loopHeader_;
-    }
-    LoopAliasInfo *outer() const {
-        return outer_;
-    }
-    bool addInvariantLoad(MDefinition *ins) {
-        return invariantLoads_.append(ins);
-    }
-    const MDefinitionVector& invariantLoads() const {
-        return invariantLoads_;
-    }
-    MDefinition *firstInstruction() const {
-        return *loopHeader_->begin();
-    }
-};
-
-} // namespace jit
-} // namespace js
 
 namespace {
 
@@ -93,7 +58,7 @@ class AliasSetIterator
 AliasAnalysis::AliasAnalysis(MIRGenerator *mir, MIRGraph &graph)
   : mir(mir),
     graph_(graph),
-    loop_(nullptr)
+    loop_(NULL)
 {
 }
 
@@ -108,13 +73,9 @@ BlockMightReach(MBasicBlock *src, MBasicBlock *dest)
         switch (src->numSuccessors()) {
           case 0:
             return false;
-          case 1: {
-            MBasicBlock *successor = src->getSuccessor(0);
-            if (successor->id() <= src->id())
-                return true; // Don't iloop.
-            src = successor;
+          case 1:
+            src = src->getSuccessor(0);
             break;
-          }
           default:
             return true;
         }
@@ -163,15 +124,12 @@ IonSpewAliasInfo(const char *pre, MDefinition *ins, const char *post)
 bool
 AliasAnalysis::analyze()
 {
-    Vector<MDefinitionVector, AliasSet::NumCategories, IonAllocPolicy> stores(alloc());
+    Array<MDefinitionVector, AliasSet::NumCategories> stores;
 
     // Initialize to the first instruction.
     MDefinition *firstIns = *graph_.begin()->begin();
-    for (unsigned i = 0; i < AliasSet::NumCategories; i++) {
-        MDefinitionVector defs(alloc());
-        if (!defs.append(firstIns))
-            return false;
-        if (!stores.append(Move(defs)))
+    for (unsigned i=0; i < AliasSet::NumCategories; i++) {
+        if (!stores[i].append(firstIns))
             return false;
     }
 
@@ -186,7 +144,7 @@ AliasAnalysis::analyze()
 
         if (block->isLoopHeader()) {
             IonSpew(IonSpew_Alias, "Processing loop header %d", block->id());
-            loop_ = new(alloc()) LoopAliasInfo(alloc(), loop_, *block);
+            loop_ = new LoopAliasInfo(loop_, *block);
         }
 
         for (MDefinitionIterator def(*block); def; def++) {
@@ -236,9 +194,6 @@ AliasAnalysis::analyze()
             }
         }
 
-        // Renumber the last instruction, as the analysis depends on this and the order.
-        block->lastIns()->setId(newId++);
-
         if (block->isLoopBackedge()) {
             JS_ASSERT(loop_->loopHeader() == block->loopHeaderOfBackedge());
             IonSpew(IonSpew_Alias, "Processing loop backedge %d (header %d)", block->id(),
@@ -246,7 +201,7 @@ AliasAnalysis::analyze()
             LoopAliasInfo *outerLoop = loop_->outer();
             MInstruction *firstLoopIns = *loop_->loopHeader()->begin();
 
-            const MDefinitionVector &invariant = loop_->invariantLoads();
+            const InstructionVector &invariant = loop_->invariantLoads();
 
             for (unsigned i = 0; i < invariant.length(); i++) {
                 MDefinition *ins = invariant[i];
@@ -291,6 +246,6 @@ AliasAnalysis::analyze()
         }
     }
 
-    JS_ASSERT(loop_ == nullptr);
+    JS_ASSERT(loop_ == NULL);
     return true;
 }

@@ -29,6 +29,7 @@ static const size_t ARENA_PAGE_SIZE = 8192;
 
 nsPresArena::nsPresArena()
 {
+  mFreeLists.Init();
   PL_INIT_ARENA_POOL(&mPool, "PresArena", ARENA_PAGE_SIZE);
 }
 
@@ -177,8 +178,8 @@ nsPresArena::FreeListEnumerator(FreeList* aEntry, void* aData)
 }
 
 void
-nsPresArena::AddSizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
-                                    nsArenaMemoryStats* aArenaStats)
+nsPresArena::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+                                 nsArenaMemoryStats* aArenaStats)
 {
   // We do a complicated dance here because we want to measure the
   // space taken up by the different kinds of objects in the arena,
@@ -197,5 +198,5 @@ nsPresArena::AddSizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
 
   EnumerateData data = { aArenaStats, 0 };
   mFreeLists.EnumerateEntries(FreeListEnumerator, &data);
-  aArenaStats->mOther += mallocSize - data.total;
+  aArenaStats->mOther = mallocSize - data.total;
 }

@@ -178,38 +178,6 @@ add_test(function test_MmsHeader_encode() {
 });
 
 //
-// Test target: CancelStatusValue
-//
-
-//// CancelStatusValue.decode ////
-
-add_test(function test_CancelStatusValue_decode() {
-  for (let i = 0; i < 256; i++) {
-    if ((i >= 128) && (i <= 129)) {
-      wsp_decode_test(MMS.CancelStatusValue, [i], i);
-    } else {
-      wsp_decode_test(MMS.CancelStatusValue, [i], null, "CodeError");
-    }
-  }
-
-  run_next_test();
-});
-
-//// CancelStatusValue.encode ////
-
-add_test(function test_CancelStatusValue_encode() {
-  for (let i = 0; i < 256; i++) {
-    if ((i >= 128) && (i <= 129)) {
-      wsp_encode_test(MMS.CancelStatusValue, i, [i]);
-    } else {
-      wsp_encode_test(MMS.CancelStatusValue, i, null, "CodeError");
-    }
-  }
-
-  run_next_test();
-});
-
-//
 // Test target: ContentClassValue
 //
 
@@ -690,38 +658,6 @@ add_test(function test_PriorityValue_encode() {
 });
 
 //
-// Test target: ReadStatusValue
-//
-
-//// ReadStatusValue.decode ////
-
-add_test(function test_ReadStatusValue_decode() {
-  for (let i = 0; i < 256; i++) {
-    if ((i >= 128) && (i <= 129)) {
-      wsp_decode_test(MMS.ReadStatusValue, [i], i);
-    } else {
-      wsp_decode_test(MMS.ReadStatusValue, [i], null, "CodeError");
-    }
-  }
-
-  run_next_test();
-});
-
-//// ReadStatusValue.encode ////
-
-add_test(function test_ReadStatusValue_encode() {
-  for (let i = 0; i < 256; i++) {
-    if ((i >= 128) && (i <= 129)) {
-      wsp_encode_test(MMS.ReadStatusValue, i, [i]);
-    } else {
-      wsp_encode_test(MMS.ReadStatusValue, i, null, "CodeError");
-    }
-  }
-
-  run_next_test();
-});
-
-//
 // Test target: RecommendedRetrievalModeValue
 //
 
@@ -830,38 +766,6 @@ add_test(function test_RetrieveStatusValue_decode() {
 });
 
 //
-// Test target: SenderVisibilityValue
-//
-
-//// SenderVisibilityValue.decode ////
-
-add_test(function test_SenderVisibilityValue_decode() {
-  for (let i = 0; i < 256; i++) {
-    if ((i >= 128) && (i <= 129)) {
-      wsp_decode_test(MMS.SenderVisibilityValue, [i], i);
-    } else {
-      wsp_decode_test(MMS.SenderVisibilityValue, [i], null, "CodeError");
-    }
-  }
-
-  run_next_test();
-});
-
-//// SenderVisibilityValue.encode ////
-
-add_test(function test_SenderVisibilityValue_encode() {
-  for (let i = 0; i < 256; i++) {
-    if ((i >= 128) && (i <= 129)) {
-      wsp_encode_test(MMS.SenderVisibilityValue, i, [i]);
-    } else {
-      wsp_encode_test(MMS.SenderVisibilityValue, i, null, "CodeError");
-    }
-  }
-
-  run_next_test();
-});
-
-//
 // Test target: StatusValue
 //
 
@@ -908,12 +812,12 @@ add_test(function test_PduHelper_parseHeaders() {
 
   // Parse ends with Content-Type
   let expect = {};
-  expect["x-mms-mms-version"] = MMS_VERSION_1_3;
+  expect["x-mms-mms-version"] = MMS_VERSION;
   expect["content-type"] = {
     media: "application/vnd.wap.multipart.related",
     params: null,
   };
-  parse([0x80 | 0x0D, 0x80 | MMS_VERSION_1_3,   // X-Mms-Mms-Version: 1.3
+  parse([0x80 | 0x0D, 0x80 | MMS_VERSION,   // X-Mms-Mms-Version: 1.3
          0x80 | 0x04, 0x80 | 0x33,          // Content-Type: application/vnd.wap.multipart.related
          0x80 | 0x0C, MMS_PDU_TYPE_SEND_REQ // X-Mms-Message-Type: M-Send.req
         ], expect);
@@ -1000,7 +904,7 @@ add_test(function test_PduHelper_encodeHeaders() {
 
   let headers = {};
   headers["x-mms-message-type"] = MMS_PDU_TYPE_SEND_REQ;
-  headers["x-mms-mms-version"] = MMS_VERSION_1_3;
+  headers["x-mms-mms-version"] = MMS_VERSION;
   headers["x-mms-transaction-id"] = "asdf";
   headers["to"] = { address: "+123", type: "PLMN" };
   headers["content-type"] = {
@@ -1009,7 +913,7 @@ add_test(function test_PduHelper_encodeHeaders() {
   wsp_encode_test_ex(func, headers,
                      Array.concat([0x80 | 0x0C, MMS_PDU_TYPE_SEND_REQ])
                           .concat([0x80 | 0x18]).concat(strToCharCodeArray(headers["x-mms-transaction-id"]))
-                          .concat([0x80 | 0x0D, 0x80 | MMS_VERSION_1_3])
+                          .concat([0x80 | 0x0D, 0x80 | MMS_VERSION])
                           .concat([0x80 | 0x17]).concat(strToCharCodeArray("+123/TYPE=PLMN"))
                           .concat([0x80 | 0x04, 0x80 | 0x33]));
 

@@ -7,21 +7,21 @@
 XPIDL_SOURCES += [
     'domstubs.idl',
     'nsIBrowserDOMWindow.idl',
-    'nsICompositionStringSynthesizer.idl',
     'nsIContentPermissionPrompt.idl',
     'nsIContentPrefService.idl',
     'nsIContentPrefService2.idl',
     'nsIContentURIGrouper.idl',
+    'nsIDOMCRMFObject.idl',
     'nsIDOMChromeWindow.idl',
     'nsIDOMClientRect.idl',
     'nsIDOMClientRectList.idl',
     'nsIDOMConstructor.idl',
-    'nsIDOMCRMFObject.idl',
     'nsIDOMGlobalObjectConstructor.idl',
     'nsIDOMGlobalPropertyInitializer.idl',
     'nsIDOMHistory.idl',
     'nsIDOMJSWindow.idl',
     'nsIDOMLocation.idl',
+    'nsIDOMMediaQueryList.idl',
     'nsIDOMModalContentWindow.idl',
     'nsIDOMNavigator.idl',
     'nsIDOMPkcs11.idl',
@@ -58,4 +58,6 @@ if CONFIG['MOZ_WEBSPEECH']:
     ]
 
 XPIDL_MODULE = 'dom_base'
+
+MODULE = 'dom'
 

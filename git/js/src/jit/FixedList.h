@@ -13,14 +13,14 @@
 #include "jit/IonAllocPolicy.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 // List of a fixed length, but the length is unknown until runtime.
 template <typename T>
 class FixedList
 {
-    T *list_;
     size_t length_;
+    T *list_;
 
   private:
     FixedList(const FixedList&); // no copy definition.
@@ -32,13 +32,13 @@ class FixedList
     { }
 
     // Dynamic memory allocation requires the ability to report failure.
-    bool init(TempAllocator &alloc, size_t length) {
+    bool init(size_t length) {
         length_ = length;
         if (length == 0)
             return true;
 
-        list_ = (T *)alloc.allocate(length * sizeof(T));
-        return list_ != nullptr;
+        list_ = (T *)GetIonContext()->temp->allocate(length * sizeof(T));
+        return list_ != NULL;
     }
 
     size_t length() const {
@@ -50,8 +50,8 @@ class FixedList
         length_ -= num;
     }
 
-    bool growBy(TempAllocator &alloc, size_t num) {
-        T *list = (T *)alloc.allocate((length_ + num) * sizeof(T));
+    bool growBy(size_t num) {
+        T *list = (T *)GetIonContext()->temp->allocate((length_ + num) * sizeof(T));
         if (!list)
             return false;
 
@@ -73,7 +73,7 @@ class FixedList
     }
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_FixedList_h */

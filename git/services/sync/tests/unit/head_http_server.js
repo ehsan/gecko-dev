@@ -1,7 +1,7 @@
 const Cm = Components.manager;
 
 // Shared logging for all HTTP server functions.
-Cu.import("resource://gre/modules/Log.jsm");
+Cu.import("resource://services-common/log4moz.js");
 const SYNC_HTTP_LOGGER = "Sync.Test.Server";
 const SYNC_API_VERSION = "1.1";
 
@@ -163,7 +163,7 @@ function ServerCollection(wbos, acceptNew, timestamp) {
    * has a modified time.
    */
   this.timestamp = timestamp || new_timestamp();
-  this._log = Log.repository.getLogger(SYNC_HTTP_LOGGER);
+  this._log = Log4Moz.repository.getLogger(SYNC_HTTP_LOGGER);
 }
 ServerCollection.prototype = {
 
@@ -527,7 +527,7 @@ function SyncServer(callback) {
   this.server   = new HttpServer();
   this.started  = false;
   this.users    = {};
-  this._log     = Log.repository.getLogger(SYNC_HTTP_LOGGER);
+  this._log     = Log4Moz.repository.getLogger(SYNC_HTTP_LOGGER);
 
   // Install our own default handler. This allows us to mess around with the
   // whole URL space.
@@ -852,7 +852,7 @@ SyncServer.prototype = {
         // TODO: verify if this is spec-compliant.
         if (req.method != "DELETE") {
           respond(405, "Method Not Allowed", "[]", {"Allow": "DELETE"});
-          return undefined;
+          return;
         }
 
         // Delete all collections and track the timestamp for the response.
@@ -860,7 +860,7 @@ SyncServer.prototype = {
 
         // Return timestamp and OK for deletion.
         respond(200, "OK", JSON.stringify(timestamp));
-        return undefined;
+        return;
       }
 
       let match = this.storageRE.exec(rest);
@@ -875,11 +875,11 @@ SyncServer.prototype = {
           if (!coll) {
             if (wboID) {
               respond(404, "Not found", "Not found");
-              return undefined;
+              return;
             }
             // *cries inside*: Bug 687299.
             respond(200, "OK", "[]");
-            return undefined;
+            return;
           }
           if (!wboID) {
             return coll.collectionHandler(req, resp);
@@ -887,7 +887,7 @@ SyncServer.prototype = {
           let wbo = coll.wbo(wboID);
           if (!wbo) {
             respond(404, "Not found", "Not found");
-            return undefined;
+            return;
           }
           return wbo.handler()(req, resp);
 
@@ -895,7 +895,7 @@ SyncServer.prototype = {
         case "DELETE":
           if (!coll) {
             respond(200, "OK", "{}");
-            return undefined;
+            return;
           }
           if (wboID) {
             let wbo = coll.wbo(wboID);
@@ -904,7 +904,7 @@ SyncServer.prototype = {
               this.callback.onItemDeleted(username, collection, wboID);
             }
             respond(200, "OK", "{}");
-            return undefined;
+            return;
           }
           coll.collectionHandler(req, resp);
 
@@ -935,7 +935,7 @@ SyncServer.prototype = {
           for (let i = 0; i < deleted.length; ++i) {
             this.callback.onItemDeleted(username, collection, deleted[i]);
           }
-          return undefined;
+          return;
         case "POST":
         case "PUT":
           if (!coll) {

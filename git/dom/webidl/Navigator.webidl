@@ -17,6 +17,7 @@
  * and create derivative works of this document.
  */
 
+interface MozPowerManager;
 interface MozWakeLock;
 
 // http://www.whatwg.org/specs/web-apps/current-work/#the-navigator-object
@@ -32,22 +33,18 @@ Navigator implements NavigatorStorageUtils;
 
 [NoInterfaceObject]
 interface NavigatorID {
-  // WebKit/Blink/Trident/Presto support this (hardcoded "Mozilla").
-  [Constant]
-  readonly attribute DOMString appCodeName; // constant "Mozilla"
-  [Constant]
   readonly attribute DOMString appName;
-  [Constant]
+  [Throws]
   readonly attribute DOMString appVersion;
-  [Constant]
+  [Throws]
   readonly attribute DOMString platform;
-  [Constant]
+  [Throws]
   readonly attribute DOMString userAgent;
-  [Constant]
-  readonly attribute DOMString product; // constant "Gecko"
 
-  // Everyone but WebKit/Blink supports this.  See bug 679971.
-  boolean taintEnabled(); // constant false
+  // Spec has this as a const, but that's wrong because it should not
+  // be on the interface object.
+  //const DOMString product = "Gecko"; // for historical reasons
+  readonly attribute DOMString product;
 };
 
 [NoInterfaceObject]
@@ -112,20 +109,16 @@ interface NavigatorBattery {
 };
 Navigator implements NavigatorBattery;
 
-// https://wiki.mozilla.org/WebAPI/DataStore
-[NoInterfaceObject]
-interface NavigatorDataStore {
-    [Throws, NewObject, Func="Navigator::HasDataStoreSupport"]
-    Promise getDataStores(DOMString name);
-};
-Navigator implements NavigatorDataStore;
-
 // http://www.w3.org/TR/vibration/#vibration-interface
 partial interface Navigator {
     // We don't support sequences in unions yet
     //boolean vibrate ((unsigned long or sequence<unsigned long>) pattern);
-    boolean vibrate(unsigned long duration);
-    boolean vibrate(sequence<unsigned long> pattern);
+    // XXXbz also, per spec we should be returning a boolean, and we just don't.
+    // See bug 884935.
+    [Throws]
+    void vibrate(unsigned long duration);
+    [Throws]
+    void vibrate(sequence<unsigned long> pattern);
 };
 
 // Mozilla-specific extensions
@@ -140,6 +133,9 @@ callback interface MozIdleObserver {
 
 // nsIDOMNavigator
 partial interface Navigator {
+  // WebKit/Blink/Trident/Presto support this (hardcoded "Mozilla").
+  [Throws]
+  readonly attribute DOMString appCodeName;
   [Throws]
   readonly attribute DOMString oscpu;
   // WebKit/Blink support this; Trident/Presto do not.
@@ -158,6 +154,8 @@ partial interface Navigator {
   // WebKit/Blink/Trident/Presto support this.
   [Throws]
   boolean javaEnabled();
+  // Everyone but WebKit/Blink supports this.  See bug 679971.
+  boolean taintEnabled();
 
   /**
    * Navigator requests to add an idle observer to the existing window.
@@ -255,15 +253,26 @@ partial interface Navigator {
 
 #ifdef MOZ_B2G_RIL
 partial interface Navigator {
-  [Throws, Func="Navigator::HasMobileConnectionSupport"]
-  readonly attribute MozMobileConnectionArray mozMobileConnections;
+  [Throws, Func="Navigator::HasTelephonySupport"]
+  readonly attribute Telephony? mozTelephony;
 };
 
+// nsIMozNavigatorMobileConnection
+interface MozMobileConnection;
+partial interface Navigator {
+  [Throws, Func="Navigator::HasMobileConnectionSupport"]
+  readonly attribute MozMobileConnection mozMobileConnection;
+};
+
+// nsIMozNavigatorCellBroadcast
+interface MozCellBroadcast;
 partial interface Navigator {
   [Throws, Func="Navigator::HasCellBroadcastSupport"]
   readonly attribute MozCellBroadcast mozCellBroadcast;
 };
 
+// nsIMozNavigatorVoicemail
+interface MozVoicemail;
 partial interface Navigator {
   [Throws, Func="Navigator::HasVoicemailSupport"]
   readonly attribute MozVoicemail mozVoicemail;
@@ -276,11 +285,6 @@ partial interface Navigator {
   readonly attribute MozIccManager? mozIccManager;
 };
 #endif // MOZ_B2G_RIL
-
-partial interface Navigator {
-  [Throws, Func="Navigator::HasTelephonySupport"]
-  readonly attribute Telephony? mozTelephony;
-};
 
 #ifdef MOZ_GAMEPAD
 // https://dvcs.w3.org/hg/gamepad/raw-file/default/gamepad.html#navigator-interface-extension
@@ -296,13 +300,6 @@ partial interface Navigator {
   readonly attribute BluetoothManager mozBluetooth;
 };
 #endif // MOZ_B2G_BT
-
-#ifdef MOZ_B2G_FM
-partial interface Navigator {
-  [Throws, Func="Navigator::HasFMRadioSupport"]
-  readonly attribute FMRadio mozFMRadio;
-};
-#endif // MOZ_B2G_FM
 
 #ifdef MOZ_TIME_MANAGER
 // nsIDOMMozNavigatorTime
@@ -321,22 +318,22 @@ partial interface Navigator {
 #endif // MOZ_AUDIO_CHANNEL_MANAGER
 
 #ifdef MOZ_MEDIA_NAVIGATOR
-callback NavigatorUserMediaSuccessCallback = void (MediaStream stream);
-callback NavigatorUserMediaErrorCallback = void (DOMString error);
-
+// nsIDOMNavigatorUserMedia
+callback MozDOMGetUserMediaSuccessCallback = void (nsISupports? value);
+callback MozDOMGetUserMediaErrorCallback = void (DOMString error);
+interface MozMediaStreamOptions;
 partial interface Navigator {
   [Throws, Func="Navigator::HasUserMediaSupport"]
-  void mozGetUserMedia(MediaStreamConstraints constraints,
-                       NavigatorUserMediaSuccessCallback successCallback,
-                       NavigatorUserMediaErrorCallback errorCallback);
+  void mozGetUserMedia(MozMediaStreamOptions? params,
+                       MozDOMGetUserMediaSuccessCallback? onsuccess,
+                       MozDOMGetUserMediaErrorCallback? onerror);
 };
 
 // nsINavigatorUserMedia
 callback MozGetUserMediaDevicesSuccessCallback = void (nsIVariant? devices);
 partial interface Navigator {
   [Throws, ChromeOnly]
-  void mozGetUserMediaDevices(MediaStreamConstraintsInternal constraints,
-                              MozGetUserMediaDevicesSuccessCallback onsuccess,
-                              NavigatorUserMediaErrorCallback onerror);
+  void mozGetUserMediaDevices(MozGetUserMediaDevicesSuccessCallback? onsuccess,
+                              MozDOMGetUserMediaErrorCallback? onerror);
 };
 #endif // MOZ_MEDIA_NAVIGATOR

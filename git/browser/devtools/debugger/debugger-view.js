@@ -5,10 +5,12 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 "use strict";
 
-const SOURCE_SYNTAX_HIGHLIGHT_MAX_FILE_SIZE = 1048576; // 1 MB in bytes
 const SOURCE_URL_DEFAULT_MAX_LENGTH = 64; // chars
+const SOURCE_SYNTAX_HIGHLIGHT_MAX_FILE_SIZE = 1048576; // 1 MB in bytes
 const STACK_FRAMES_SOURCE_URL_MAX_LENGTH = 15; // chars
 const STACK_FRAMES_SOURCE_URL_TRIM_SECTION = "center";
+const STACK_FRAMES_POPUP_SOURCE_URL_MAX_LENGTH = 32; // chars
+const STACK_FRAMES_POPUP_SOURCE_URL_TRIM_SECTION = "center";
 const STACK_FRAMES_SCROLL_DELAY = 100; // ms
 const BREAKPOINT_LINE_TOOLTIP_MAX_LENGTH = 1000; // chars
 const BREAKPOINT_CONDITIONAL_POPUP_POSITION = "before_start";
@@ -16,7 +18,6 @@ const BREAKPOINT_CONDITIONAL_POPUP_OFFSET_X = 7; // px
 const BREAKPOINT_CONDITIONAL_POPUP_OFFSET_Y = -3; // px
 const RESULTS_PANEL_POPUP_POSITION = "before_end";
 const RESULTS_PANEL_MAX_RESULTS = 10;
-const FILE_SEARCH_ACTION_MAX_DELAY = 300; // ms
 const GLOBAL_SEARCH_EXPAND_MAX_RESULTS = 50;
 const GLOBAL_SEARCH_LINE_MAX_LENGTH = 300; // chars
 const GLOBAL_SEARCH_ACTION_MAX_DELAY = 1500; // ms
@@ -26,10 +27,6 @@ const SEARCH_FUNCTION_FLAG = "@";
 const SEARCH_TOKEN_FLAG = "#";
 const SEARCH_LINE_FLAG = ":";
 const SEARCH_VARIABLE_FLAG = "*";
-const EDITOR_VARIABLE_HOVER_DELAY = 350; // ms
-const EDITOR_VARIABLE_POPUP_OFFSET_X = 5; // px
-const EDITOR_VARIABLE_POPUP_OFFSET_Y = 0; // px
-const EDITOR_VARIABLE_POPUP_POSITION = "before_start";
 
 /**
  * Object defining the debugger view components.
@@ -38,18 +35,14 @@ let DebuggerView = {
   /**
    * Initializes the debugger view.
    *
-   * @return object
-   *         A promise that is resolved when the view finishes initializing.
+   * @param function aCallback
+   *        Called after the view finishes initializing.
    */
-  initialize: function() {
-    if (this._startup) {
-      return this._startup;
-    }
-
-    let deferred = promise.defer();
-    this._startup = deferred.promise;
+  initialize: function(aCallback) {
+    dumpn("Initializing the DebuggerView");
 
     this._initializePanes();
+
     this.Toolbar.initialize();
     this.Options.initialize();
     this.Filtering.initialize();
@@ -57,34 +50,22 @@ let DebuggerView = {
     this.FilteredFunctions.initialize();
     this.ChromeGlobals.initialize();
     this.StackFrames.initialize();
-    this.StackFramesClassicList.initialize();
     this.Sources.initialize();
-    this.VariableBubble.initialize();
-    this.Tracer.initialize();
     this.WatchExpressions.initialize();
-    this.EventListeners.initialize();
     this.GlobalSearch.initialize();
+
     this._initializeVariablesView();
-    this._initializeEditor(deferred.resolve);
-
-    document.title = L10N.getStr("DebuggerWindowTitle");
-
-    return deferred.promise;
+    this._initializeEditor(aCallback);
   },
 
   /**
    * Destroys the debugger view.
    *
-   * @return object
-   *         A promise that is resolved when the view finishes destroying.
+   * @param function aCallback
+   *        Called after the view finishes destroying.
    */
-  destroy: function() {
-    if (this._shutdown) {
-      return this._shutdown;
-    }
-
-    let deferred = promise.defer();
-    this._shutdown = deferred.promise;
+  destroy: function(aCallback) {
+    dumpn("Destroying the DebuggerView");
 
     this.Toolbar.destroy();
     this.Options.destroy();
@@ -93,17 +74,14 @@ let DebuggerView = {
     this.FilteredFunctions.destroy();
     this.ChromeGlobals.destroy();
     this.StackFrames.destroy();
-    this.StackFramesClassicList.destroy();
     this.Sources.destroy();
-    this.VariableBubble.destroy();
-    this.Tracer.destroy();
     this.WatchExpressions.destroy();
-    this.EventListeners.destroy();
     this.GlobalSearch.destroy();
-    this._destroyPanes();
-    this._destroyEditor(deferred.resolve);
 
-    return deferred.promise;
+    this._destroyPanes();
+    this._destroyEditor();
+
+    aCallback();
   },
 
   /**
@@ -112,19 +90,9 @@ let DebuggerView = {
   _initializePanes: function() {
     dumpn("Initializing the DebuggerView panes");
 
-    this._body = document.getElementById("body");
-    this._editorDeck = document.getElementById("editor-deck");
     this._sourcesPane = document.getElementById("sources-pane");
     this._instrumentsPane = document.getElementById("instruments-pane");
     this._instrumentsPaneToggleButton = document.getElementById("instruments-pane-toggle");
-
-    this.showEditor = this.showEditor.bind(this);
-    this.showBlackBoxMessage = this.showBlackBoxMessage.bind(this);
-    this.showProgressBar = this.showProgressBar.bind(this);
-    this.maybeShowBlackBoxMessage = this.maybeShowBlackBoxMessage.bind(this);
-
-    this._onTabSelect = this._onInstrumentsPaneTabSelect.bind(this);
-    this._instrumentsPane.tabpanels.addEventListener("select", this._onTabSelect);
 
     this._collapsePaneString = L10N.getStr("collapsePanes");
     this._expandPaneString = L10N.getStr("expandPanes");
@@ -132,11 +100,6 @@ let DebuggerView = {
     this._sourcesPane.setAttribute("width", Prefs.sourcesWidth);
     this._instrumentsPane.setAttribute("width", Prefs.instrumentsWidth);
     this.toggleInstrumentsPane({ visible: Prefs.panesVisibleOnStartup });
-
-    // Side hosts requires a different arrangement of the debugger widgets.
-    if (gHostType == "side") {
-      this.handleHostChanged(gHostType);
-    }
   },
 
   /**
@@ -145,10 +108,8 @@ let DebuggerView = {
   _destroyPanes: function() {
     dumpn("Destroying the DebuggerView panes");
 
-    if (gHostType != "side") {
-      Prefs.sourcesWidth = this._sourcesPane.getAttribute("width");
-      Prefs.instrumentsWidth = this._instrumentsPane.getAttribute("width");
-    }
+    Prefs.sourcesWidth = this._sourcesPane.getAttribute("width");
+    Prefs.instrumentsWidth = this._instrumentsPane.getAttribute("width");
 
     this._sourcesPane = null;
     this._instrumentsPane = null;
@@ -170,29 +131,24 @@ let DebuggerView = {
 
     // Attach a controller that handles interfacing with the debugger protocol.
     VariablesViewController.attach(this.Variables, {
-      getEnvironmentClient: aObject => gThreadClient.environment(aObject),
-      getObjectClient: aObject => {
-        return aObject instanceof DebuggerController.Tracer.WrappedObject
-          ? DebuggerController.Tracer.syncGripClient(aObject.object)
-          : gThreadClient.pauseGrip(aObject)
-      }
+      getObjectClient: aObject => gThreadClient.pauseGrip(aObject)
     });
 
     // Relay events from the VariablesView.
     this.Variables.on("fetched", (aEvent, aType) => {
       switch (aType) {
         case "variables":
-          window.emit(EVENTS.FETCHED_VARIABLES);
+          window.dispatchEvent(document, "Debugger:FetchedVariables");
           break;
         case "properties":
-          window.emit(EVENTS.FETCHED_PROPERTIES);
+          window.dispatchEvent(document, "Debugger:FetchedProperties");
           break;
       }
     });
   },
 
   /**
-   * Initializes the Editor instance.
+   * Initializes the SourceEditor instance.
    *
    * @param function aCallback
    *        Called after the editor finishes initializing.
@@ -200,121 +156,44 @@ let DebuggerView = {
   _initializeEditor: function(aCallback) {
     dumpn("Initializing the DebuggerView editor");
 
-    let extraKeys = {};
-    bindKey("_doTokenSearch", "tokenSearchKey");
-    bindKey("_doGlobalSearch", "globalSearchKey", { alt: true });
-    bindKey("_doFunctionSearch", "functionSearchKey");
-    extraKeys[Editor.keyFor("jumpToLine")] = false;
-
-    function bindKey(func, key, modifiers = {}) {
-      let key = document.getElementById(key).getAttribute("key");
-      let shortcut = Editor.accel(key, modifiers);
-      extraKeys[shortcut] = () => DebuggerView.Filtering[func]();
-    }
-
-    this.editor = new Editor({
-      mode: Editor.modes.text,
+    let placeholder = document.getElementById("editor");
+    let config = {
+      mode: SourceEditor.MODES.JAVASCRIPT,
       readOnly: true,
-      lineNumbers: true,
+      showLineNumbers: true,
       showAnnotationRuler: true,
-      gutters: [ "breakpoints" ],
-      extraKeys: extraKeys,
-      contextMenu: "sourceEditorContextMenu"
-    });
+      showOverviewRuler: true
+    };
 
-    this.editor.appendTo(document.getElementById("editor")).then(() => {
-      this.editor.extend(DebuggerEditor);
+    this.editor = new SourceEditor();
+    this.editor.init(placeholder, config, () => {
       this._loadingText = L10N.getStr("loadingText");
-      this._onEditorLoad(aCallback);
-    });
-
-    this.editor.on("gutterClick", (ev, line) => {
-      if (this.editor.hasBreakpoint(line)) {
-        this.editor.removeBreakpoint(line);
-      } else {
-        this.editor.addBreakpoint(line);
-      }
+      this._onEditorLoad();
+      aCallback();
     });
   },
 
   /**
    * The load event handler for the source editor, also executing any necessary
    * post-load operations.
-   *
-   * @param function aCallback
-   *        Called after the editor finishes loading.
    */
-  _onEditorLoad: function(aCallback) {
+  _onEditorLoad: function() {
     dumpn("Finished loading the DebuggerView editor");
 
-    DebuggerController.Breakpoints.initialize().then(() => {
-      window.emit(EVENTS.EDITOR_LOADED, this.editor);
-      aCallback();
-    });
+    DebuggerController.Breakpoints.initialize();
+    window.dispatchEvent(document, "Debugger:EditorLoaded", this.editor);
+    this.editor.focus();
   },
 
   /**
-   * Destroys the Editor instance and also executes any necessary
+   * Destroys the SourceEditor instance and also executes any necessary
    * post-unload operations.
-   *
-   * @param function aCallback
-   *        Called after the editor finishes destroying.
    */
-  _destroyEditor: function(aCallback) {
+  _destroyEditor: function() {
     dumpn("Destroying the DebuggerView editor");
 
-    DebuggerController.Breakpoints.destroy().then(() => {
-      window.emit(EVENTS.EDITOR_UNLOADED, this.editor);
-      aCallback();
-    });
-  },
-
-  /**
-   * Display the source editor.
-   */
-  showEditor: function() {
-    this._editorDeck.selectedIndex = 0;
-  },
-
-  /**
-   * Display the black box message.
-   */
-  showBlackBoxMessage: function() {
-    this._editorDeck.selectedIndex = 1;
-  },
-
-  /**
-   * Display the progress bar.
-   */
-  showProgressBar: function() {
-    this._editorDeck.selectedIndex = 2;
-  },
-
-  /**
-   * Show or hide the black box message vs. source editor depending on if the
-   * selected source is black boxed or not.
-   */
-  maybeShowBlackBoxMessage: function() {
-    let { source } = DebuggerView.Sources.selectedItem.attachment;
-    if (gThreadClient.source(source).isBlackBoxed) {
-      this.showBlackBoxMessage();
-    } else {
-      this.showEditor();
-    }
-  },
-
-  /**
-   * Sets the currently displayed text contents in the source editor.
-   * This resets the mode and undo stack.
-   *
-   * @param string aTextContent
-   *        The source text content.
-   */
-  _setEditorText: function(aTextContent = "") {
-    this.editor.setMode(Editor.modes.text);
-    this.editor.setText(aTextContent);
-    this.editor.clearDebugLocation();
-    this.editor.clearHistory();
+    DebuggerController.Breakpoints.destroy();
+    window.dispatchEvent(document, "Debugger:EditorUnloaded", this.editor);
   },
 
   /**
@@ -328,156 +207,191 @@ let DebuggerView = {
    * @param string aTextContent [optional]
    *        The source text content.
    */
-  _setEditorMode: function(aUrl, aContentType = "", aTextContent = "") {
+  setEditorMode: function(aUrl, aContentType = "", aTextContent = "") {
     // Avoid setting the editor mode for very large files.
-    // Is this still necessary? See bug 929225.
     if (aTextContent.length >= SOURCE_SYNTAX_HIGHLIGHT_MAX_FILE_SIZE) {
-      return void this.editor.setMode(Editor.modes.text);
+      this.editor.setMode(SourceEditor.MODES.TEXT);
+      return;
     }
 
-    // Use JS mode for files with .js and .jsm extensions.
-    if (SourceUtils.isJavaScript(aUrl, aContentType)) {
-      return void this.editor.setMode(Editor.modes.js);
+    if (aContentType) {
+      if (/javascript/.test(aContentType)) {
+        this.editor.setMode(SourceEditor.MODES.JAVASCRIPT);
+      } else {
+        this.editor.setMode(SourceEditor.MODES.HTML);
+      }
+    } else if (aTextContent.match(/^\s*</)) {
+      // Use HTML mode for files in which the first non whitespace character is
+      // &lt;, regardless of extension.
+      this.editor.setMode(SourceEditor.MODES.HTML);
+    } else {
+      // Use JS mode for files with .js and .jsm extensions.
+      if (/\.jsm?$/.test(SourceUtils.trimUrlQuery(aUrl))) {
+        this.editor.setMode(SourceEditor.MODES.JAVASCRIPT);
+      } else {
+        this.editor.setMode(SourceEditor.MODES.TEXT);
+      }
     }
-
-    // Use HTML mode for files in which the first non whitespace character is
-    // &lt;, regardless of extension.
-    if (aTextContent.match(/^\s*</)) {
-      return void this.editor.setMode(Editor.modes.html);
-    }
-
-    // Unknown language, use text.
-    this.editor.setMode(Editor.modes.text);
   },
 
   /**
    * Sets the currently displayed source text in the editor.
    *
-   * You should use DebuggerView.updateEditor instead. It updates the current
-   * caret and debug location based on a requested url and line.
+   * To update the source editor's current caret and debug location based on
+   * a requested url and line, use the DebuggerView.updateEditor method.
    *
    * @param object aSource
    *        The source object coming from the active thread.
-   * @param object aFlags
-   *        Additional options for setting the source. Supported options:
-   *          - force: boolean allowing whether we can get the selected url's
-   *                   text again.
-   * @return object
-   *         A promise that is resolved after the source text has been set.
    */
-  _setEditorSource: function(aSource, aFlags={}) {
-    // Avoid setting the same source text in the editor again.
-    if (this._editorSource.url == aSource.url && !aFlags.force) {
-      return this._editorSource.promise;
+  set editorSource(aSource) {
+    if (!this._isInitialized || this._isDestroyed || this._editorSource == aSource) {
+      return;
     }
-    let transportType = gClient.localTransport ? "_LOCAL" : "_REMOTE";
-    let histogramId = "DEVTOOLS_DEBUGGER_DISPLAY_SOURCE" + transportType + "_MS";
-    let histogram = Services.telemetry.getHistogramById(histogramId);
-    let startTime = Date.now();
 
-    let deferred = promise.defer();
+    dumpn("Setting the DebuggerView editor source: " + aSource.url +
+          ", fetched: " + !!aSource._fetched);
 
-    this._setEditorText(L10N.getStr("loadingText"));
-    this._editorSource = { url: aSource.url, promise: deferred.promise };
+    this.editor.setMode(SourceEditor.MODES.TEXT);
+    this.editor.setText(L10N.getStr("loadingText"));
+    this.editor.resetUndo();
+    this._editorSource = aSource;
 
-    DebuggerController.SourceScripts.getText(aSource).then(([, aText]) => {
-      // Avoid setting an unexpected source. This may happen when switching
-      // very fast between sources that haven't been fetched yet.
-      if (this._editorSource.url != aSource.url) {
+    DebuggerController.SourceScripts.getTextForSource(aSource).then(([, aText]) => {
+      // Avoid setting an unexpected source. This may happen when fast switching
+      // between sources that haven't been fetched yet.
+      if (this._editorSource != aSource) {
         return;
       }
 
-      this._setEditorText(aText);
-      this._setEditorMode(aSource.url, aSource.contentType, aText);
+      this.editor.setText(aText);
+      this.editor.resetUndo();
+      this.setEditorMode(aSource.url, aSource.contentType, aText);
+
+      // Update the editor's current caret and debug locations given by the
+      // currently active frame in the stack, if there's one available.
+      this.updateEditor();
 
       // Synchronize any other components with the currently displayed source.
       DebuggerView.Sources.selectedValue = aSource.url;
       DebuggerController.Breakpoints.updateEditorBreakpoints();
 
-      histogram.add(Date.now() - startTime);
-
-      // Resolve and notify that a source file was shown.
-      window.emit(EVENTS.SOURCE_SHOWN, aSource);
-      deferred.resolve([aSource, aText]);
+      // Notify that we've shown a source file.
+      window.dispatchEvent(document, "Debugger:SourceShown", aSource);
     },
     ([, aError]) => {
-      let msg = L10N.getStr("errorLoadingText") + DevToolsUtils.safeErrorString(aError);
-      this._setEditorText(msg);
-      Cu.reportError(msg);
+      // Rejected. TODO: Bug 884484.
+      let msg = "Error loading: " + aSource.url + "\n" + aError;
       dumpn(msg);
-
-      // Reject and notify that there was an error showing the source file.
-      window.emit(EVENTS.SOURCE_ERROR_SHOWN, aSource);
-      deferred.reject([aSource, aError]);
+      Cu.reportError(msg);
     });
-
-    return deferred.promise;
   },
 
   /**
-   * Update the source editor's current caret and debug location based on
-   * a requested url and line.
+   * Gets the currently displayed source text in the editor.
    *
-   * @param string aUrl
+   * @return object
+   *         The source object coming from the active thread.
+   */
+  get editorSource() this._editorSource,
+
+  /**
+   * Update the source editor's current caret and debug location based on
+   * a requested url and line. If unspecified, they default to the location
+   * given by the currently active frame in the stack.
+   *
+   * @param string aUrl [optional]
    *        The target source url.
    * @param number aLine [optional]
-   *        The target line in the source.
+   *        The target line number in the source.
    * @param object aFlags [optional]
    *        Additional options for showing the source. Supported options:
    *          - charOffset: character offset for the caret or debug location
    *          - lineOffset: line offset for the caret or debug location
    *          - columnOffset: column offset for the caret or debug location
+   *          - noSwitch: don't switch to the source if not currently selected
    *          - noCaret: don't set the caret location at the specified line
    *          - noDebug: don't set the debug location at the specified line
-   *          - align: string specifying whether to align the specified line
-   *                   at the "top", "center" or "bottom" of the editor
-   *          - force: boolean allowing whether we can get the selected url's
-   *                   text again
-   * @return object
-   *         A promise that is resolved after the source text has been set.
    */
-  setEditorLocation: function(aUrl, aLine = 0, aFlags = {}) {
-    // Avoid trying to set a source for a url that isn't known yet.
-    if (!this.Sources.containsValue(aUrl)) {
-      return promise.reject(new Error("Unknown source for the specified URL."));
+  updateEditor: function(aUrl, aLine, aFlags = {}) {
+    if (!this._isInitialized || this._isDestroyed) {
+      return;
     }
-
-    // If the line is not specified, default to the current frame's position,
-    // if available and the frame's url corresponds to the requested url.
-    if (!aLine) {
+    // If the location is not specified, default to the location given by
+    // the currently active frame in the stack.
+    if (!aUrl && !aLine) {
       let cachedFrames = DebuggerController.activeThread.cachedFrames;
-      let currentDepth = DebuggerController.StackFrames.currentFrameDepth;
-      let frame = cachedFrames[currentDepth];
-      if (frame && frame.where.url == aUrl) {
-        aLine = frame.where.line;
+      let currentFrame = DebuggerController.StackFrames.currentFrame;
+      let frame = cachedFrames[currentFrame];
+      if (frame) {
+        let { url, line } = frame.where;
+        this.updateEditor(url, line, { noSwitch: true });
       }
+      return;
     }
 
-    let sourceItem = this.Sources.getItemByValue(aUrl);
-    let sourceForm = sourceItem.attachment.source;
+    dumpn("Updating the DebuggerView editor: " + aUrl + " @ " + aLine +
+          ", flags: " + aFlags.toSource());
 
-    // Make sure the requested source client is shown in the editor, then
-    // update the source editor's caret position and debug location.
-    return this._setEditorSource(sourceForm, aFlags).then(() => {
-      // Line numbers in the source editor should start from 1. If invalid
-      // or not specified, then don't do anything.
-      if (aLine < 1) {
-        return;
-      }
+    // If the currently displayed source is the requested one, update.
+    if (this.Sources.selectedValue == aUrl) {
+      set(aLine);
+    }
+    // If the requested source exists, display it and update.
+    else if (this.Sources.containsValue(aUrl) && !aFlags.noSwitch) {
+      this.Sources.selectedValue = aUrl;
+      set(aLine);
+    }
+    // Dumb request, invalidate the caret position and debug location.
+    else {
+      set(0);
+    }
+
+    // Updates the source editor's caret position and debug location.
+    // @param number a Line
+    function set(aLine) {
+      let editor = DebuggerView.editor;
+
+      // Handle any additional options for showing the source.
       if (aFlags.charOffset) {
-        aLine += this.editor.getPosition(aFlags.charOffset).line;
+        aLine += editor.getLineAtOffset(aFlags.charOffset);
       }
       if (aFlags.lineOffset) {
         aLine += aFlags.lineOffset;
       }
       if (!aFlags.noCaret) {
-        let location = { line: aLine -1, ch: aFlags.columnOffset || 0 };
-        this.editor.setCursor(location, aFlags.align);
+        editor.setCaretPosition(aLine - 1, aFlags.columnOffset);
       }
       if (!aFlags.noDebug) {
-        this.editor.setDebugLocation(aLine - 1);
+        editor.setDebugLocation(aLine - 1, aFlags.columnOffset);
       }
-    }).then(null, console.error);
+    }
+  },
+
+  /**
+   * Gets the text in the source editor's specified line.
+   *
+   * @param number aLine [optional]
+   *        The line to get the text from.
+   *        If unspecified, it defaults to the current caret position line.
+   * @return string
+   *         The specified line's text.
+   */
+  getEditorLineText: function(aLine) {
+    let line = aLine || this.editor.getCaretPosition().line;
+    let start = this.editor.getLineStart(line);
+    let end = this.editor.getLineEnd(line);
+    return this.editor.getText(start, end);
+  },
+
+  /**
+   * Gets the text in the source editor's selection bounds.
+   *
+   * @return string
+   *         The selected text.
+   */
+  getEditorSelectionText: function() {
+    let selection = this.editor.getSelection();
+    return this.editor.getText(selection.start, selection.end);
   },
 
   /**
@@ -488,13 +402,6 @@ let DebuggerView = {
     this._instrumentsPane.hasAttribute("pane-collapsed"),
 
   /**
-   * Gets the currently selected tab in the instruments pane.
-   * @return string
-   */
-  get instrumentsPaneTab()
-    this._instrumentsPane.selectedTab.id,
-
-  /**
    * Sets the instruments pane hidden or visible.
    *
    * @param object aFlags
@@ -503,10 +410,8 @@ let DebuggerView = {
    *        - animated: true to display an animation on toggle
    *        - delayed: true to wait a few cycles before toggle
    *        - callback: a function to invoke when the toggle finishes
-   * @param number aTabIndex [optional]
-   *        The index of the intended selected tab in the details pane.
    */
-  toggleInstrumentsPane: function(aFlags, aTabIndex) {
+  toggleInstrumentsPane: function(aFlags) {
     let pane = this._instrumentsPane;
     let button = this._instrumentsPaneToggleButton;
 
@@ -518,10 +423,6 @@ let DebuggerView = {
     } else {
       button.setAttribute("pane-collapsed", "");
       button.setAttribute("tooltiptext", this._expandPaneString);
-    }
-
-    if (aTabIndex !== undefined) {
-      pane.selectedIndex = aTabIndex;
     }
   },
 
@@ -537,81 +438,13 @@ let DebuggerView = {
       animated: true,
       delayed: true,
       callback: aCallback
-    }, 0);
-  },
-
-  /**
-   * Handles a tab selection event on the instruments pane.
-   */
-  _onInstrumentsPaneTabSelect: function() {
-    if (this._instrumentsPane.selectedTab.id == "events-tab") {
-      DebuggerController.Breakpoints.DOM.scheduleEventListenersFetch();
-    }
-  },
-
-  /**
-   * Handles a host change event issued by the parent toolbox.
-   *
-   * @param string aType
-   *        The host type, either "bottom", "side" or "window".
-   */
-  handleHostChanged: function(aType) {
-    let newLayout = "";
-
-    if (aType == "side") {
-      newLayout = "vertical";
-      this._enterVerticalLayout();
-    } else {
-      newLayout = "horizontal";
-      this._enterHorizontalLayout();
-    }
-
-    this._hostType = aType;
-    this._body.setAttribute("layout", newLayout);
-    window.emit(EVENTS.LAYOUT_CHANGED, newLayout);
-  },
-
-  /**
-   * Switches the debugger widgets to a horizontal layout.
-   */
-  _enterVerticalLayout: function() {
-    let normContainer = document.getElementById("debugger-widgets");
-    let vertContainer = document.getElementById("vertical-layout-panes-container");
-
-    // Move the soruces and instruments panes in a different container.
-    let splitter = document.getElementById("sources-and-instruments-splitter");
-    vertContainer.insertBefore(this._sourcesPane, splitter);
-    vertContainer.appendChild(this._instrumentsPane);
-
-    // Make sure the vertical layout container's height doesn't repeatedly
-    // grow or shrink based on the displayed sources, variables etc.
-    vertContainer.setAttribute("height",
-      vertContainer.getBoundingClientRect().height);
-  },
-
-  /**
-   * Switches the debugger widgets to a vertical layout.
-   */
-  _enterHorizontalLayout: function() {
-    let normContainer = document.getElementById("debugger-widgets");
-    let vertContainer = document.getElementById("vertical-layout-panes-container");
-
-    // The sources and instruments pane need to be inserted at their
-    // previous locations in their normal container.
-    let splitter = document.getElementById("sources-and-editor-splitter");
-    normContainer.insertBefore(this._sourcesPane, splitter);
-    normContainer.appendChild(this._instrumentsPane);
-
-    // Revert to the preferred sources and instruments widths, because
-    // they flexed in the vertical layout.
-    this._sourcesPane.setAttribute("width", Prefs.sourcesWidth);
-    this._instrumentsPane.setAttribute("width", Prefs.instrumentsWidth);
+    });
   },
 
   /**
    * Handles any initialization on a tab navigation event issued by the client.
    */
-  handleTabNavigation: function() {
+  _handleTabNavigation: function() {
     dumpn("Handling tab navigation in the DebuggerView");
 
     this.Filtering.clearSearch();
@@ -622,18 +455,14 @@ let DebuggerView = {
     this.StackFrames.empty();
     this.Sources.empty();
     this.Variables.empty();
-    this.EventListeners.empty();
 
     if (this.editor) {
-      this.editor.setMode(Editor.modes.text);
       this.editor.setText("");
-      this.editor.clearHistory();
-      this._editorSource = {};
+      this.editor.focus();
+      this._editorSource = null;
     }
   },
 
-  _startup: null,
-  _shutdown: null,
   Toolbar: null,
   Options: null,
   Filtering: null,
@@ -643,21 +472,18 @@ let DebuggerView = {
   ChromeGlobals: null,
   StackFrames: null,
   Sources: null,
-  Tracer: null,
   Variables: null,
-  VariableBubble: null,
   WatchExpressions: null,
-  EventListeners: null,
-  editor: null,
-  _editorSource: {},
+  _editor: null,
+  _editorSource: null,
   _loadingText: "",
-  _body: null,
-  _editorDeck: null,
   _sourcesPane: null,
   _instrumentsPane: null,
   _instrumentsPaneToggleButton: null,
   _collapsePaneString: "",
-  _expandPaneString: ""
+  _expandPaneString: "",
+  _isInitialized: false,
+  _isDestroyed: false
 };
 
 /**
@@ -902,7 +728,6 @@ ResultsPanelContainer.prototype = Heritage.extend(WidgetMethods, {
         this._panel.className = "results-panel";
         this._panel.setAttribute("level", "top");
         this._panel.setAttribute("noautofocus", "true");
-        this._panel.setAttribute("consumeoutsideclicks", "false");
         document.documentElement.appendChild(this._panel);
       }
       if (!this.widget) {
@@ -931,11 +756,10 @@ ResultsPanelContainer.prototype = Heritage.extend(WidgetMethods, {
    */
   set hidden(aFlag) {
     if (aFlag) {
-      this._panel.hidden = true;
       this._panel.hidePopup();
     } else {
-      this._panel.hidden = false;
       this._panel.openPopup(this._anchor, this.position, this.left, this.top);
+      this.anchor.focus();
     }
   },
 

@@ -11,11 +11,11 @@
 #ifndef WEBRTC_MODULES_RTP_RTCP_MOCKS_MOCK_RTP_RTCP_H_
 #define WEBRTC_MODULES_RTP_RTCP_MOCKS_MOCK_RTP_RTCP_H_
 
-#include "testing/gmock/include/gmock/gmock.h"
+#include <gmock/gmock.h>
 
-#include "webrtc/modules/interface/module.h"
-#include "webrtc/modules/rtp_rtcp/interface/rtp_rtcp.h"
-#include "webrtc/modules/rtp_rtcp/interface/rtp_rtcp_defines.h"
+#include "modules/interface/module.h"
+#include "modules/rtp_rtcp/interface/rtp_rtcp.h"
+#include "modules/rtp_rtcp/interface/rtp_rtcp_defines.h"
 
 namespace webrtc {
 
@@ -35,9 +35,55 @@ class MockRtpRtcp : public RtpRtcp {
       int32_t(RtpRtcp* module));
   MOCK_METHOD0(DeRegisterSyncModule,
       int32_t());
-  MOCK_METHOD2(IncomingRtcpPacket,
-      int32_t(const uint8_t* incomingPacket, uint16_t packetLength));
-  MOCK_METHOD1(SetRemoteSSRC, void(const uint32_t ssrc));
+  MOCK_METHOD0(InitReceiver,
+      int32_t());
+  MOCK_METHOD1(RegisterIncomingDataCallback,
+      int32_t(RtpData* incomingDataCallback));
+  MOCK_METHOD1(RegisterIncomingRTPCallback,
+      int32_t(RtpFeedback* incomingMessagesCallback));
+  MOCK_METHOD2(SetPacketTimeout,
+      int32_t(const uint32_t RTPtimeoutMS, const uint32_t RTCPtimeoutMS));
+  MOCK_METHOD2(SetPeriodicDeadOrAliveStatus,
+      int32_t(const bool enable, const uint8_t sampleTimeSeconds));
+  MOCK_METHOD2(PeriodicDeadOrAliveStatus,
+      int32_t(bool &enable, uint8_t &sampleTimeSeconds));
+  MOCK_METHOD1(RegisterReceivePayload,
+      int32_t(const CodecInst& voiceCodec));
+  MOCK_METHOD1(RegisterReceivePayload,
+      int32_t(const VideoCodec& videoCodec));
+  MOCK_METHOD2(ReceivePayloadType,
+      int32_t(const CodecInst& voiceCodec, int8_t* plType));
+  MOCK_METHOD2(ReceivePayloadType,
+      int32_t(const VideoCodec& videoCodec, int8_t* plType));
+  MOCK_METHOD1(DeRegisterReceivePayload,
+      int32_t(const int8_t payloadType));
+  MOCK_METHOD2(RegisterReceiveRtpHeaderExtension,
+      int32_t(const RTPExtensionType type, const uint8_t id));
+  MOCK_METHOD1(DeregisterReceiveRtpHeaderExtension,
+               int32_t(const RTPExtensionType type));
+  MOCK_CONST_METHOD0(RemoteTimestamp,
+      uint32_t());
+  MOCK_CONST_METHOD0(LocalTimeOfRemoteTimeStamp,
+        int64_t());
+  MOCK_CONST_METHOD1(EstimatedRemoteTimeStamp,
+      int32_t(uint32_t& timestamp));
+  MOCK_CONST_METHOD0(RemoteSSRC,
+      uint32_t());
+  MOCK_CONST_METHOD1(RemoteCSRCs,
+      int32_t(uint32_t arrOfCSRC[kRtpCsrcSize]));
+  MOCK_CONST_METHOD1(SSRCFilter,
+      int32_t(uint32_t& allowedSSRC));
+  MOCK_METHOD2(SetSSRCFilter,
+      int32_t(const bool enable, const uint32_t allowedSSRC));
+  MOCK_METHOD2(SetRTXReceiveStatus,
+      int32_t(bool enable, uint32_t ssrc));
+  MOCK_CONST_METHOD3(RTXReceiveStatus,
+      int32_t(bool* enable, uint32_t* ssrc, int* payload_type));
+  MOCK_METHOD1(SetRtxReceivePayloadType,
+      void(int));
+  MOCK_METHOD2(IncomingPacket,
+      int32_t(const WebRtc_UWord8* incomingPacket,
+              const WebRtc_UWord16 packetLength));
   MOCK_METHOD4(IncomingAudioNTP,
       int32_t(const uint32_t audioReceivedNTPsecs,
               const uint32_t audioReceivedNTPfrac,
@@ -112,9 +158,7 @@ class MockRtpRtcp : public RtpRtcp {
               const RTPFragmentationHeader* fragmentation,
               const RTPVideoHeader* rtpVideoHdr));
   MOCK_METHOD3(TimeToSendPacket,
-      bool(uint32_t ssrc, uint16_t sequence_number, int64_t capture_time_ms));
-  MOCK_METHOD1(TimeToSendPadding,
-      int(int bytes));
+      void(uint32_t ssrc, uint16_t sequence_number, int64_t capture_time_ms));
   MOCK_METHOD3(RegisterRtcpObservers,
       void(RtcpIntraFrameObserver* intraFrameCallback,
            RtcpBandwidthObserver* bandwidthCallback,
@@ -152,10 +196,16 @@ class MockRtpRtcp : public RtpRtcp {
       int32_t(const uint64_t pictureID));
   MOCK_METHOD1(SendRTCPSliceLossIndication,
       int32_t(const uint8_t pictureID));
+  MOCK_METHOD0(ResetStatisticsRTP,
+      int32_t());
+  MOCK_CONST_METHOD5(StatisticsRTP,
+      int32_t(uint8_t *fraction_lost, uint32_t *cum_lost, uint32_t *ext_max, uint32_t *jitter, uint32_t *max_jitter));
+  MOCK_METHOD0(ResetReceiveDataCountersRTP,
+      int32_t());
   MOCK_METHOD0(ResetSendDataCountersRTP,
       int32_t());
-  MOCK_CONST_METHOD2(DataCountersRTP,
-      int32_t(uint32_t *bytesSent, uint32_t *packetsSent));
+  MOCK_CONST_METHOD4(DataCountersRTP,
+      int32_t(uint32_t *bytesSent, uint32_t *packetsSent, uint32_t *bytesReceived, uint32_t *packetsReceived));
   MOCK_METHOD1(RemoteRTCPStat,
       int32_t(RTCPSenderInfo* senderInfo));
   MOCK_CONST_METHOD1(RemoteRTCPStat,
@@ -174,6 +224,8 @@ class MockRtpRtcp : public RtpRtcp {
       int32_t(const bool enable));
   MOCK_METHOD3(SetREMBData,
       int32_t(const uint32_t bitrate, const uint8_t numberOfSSRC, const uint32_t* SSRC));
+  MOCK_METHOD1(SetRemoteBitrateObserver,
+      bool(RemoteBitrateObserver*));
   MOCK_CONST_METHOD0(IJ,
       bool());
   MOCK_METHOD1(SetIJStatus,
@@ -196,11 +248,13 @@ class MockRtpRtcp : public RtpRtcp {
       int32_t(const uint16_t* nackList, const uint16_t size));
   MOCK_METHOD2(SetStorePacketsStatus,
       int32_t(const bool enable, const uint16_t numberToStore));
-  MOCK_CONST_METHOD0(StorePackets, bool());
   MOCK_METHOD1(RegisterAudioCallback,
       int32_t(RtpAudioFeedback* messagesCallback));
   MOCK_METHOD1(SetAudioPacketSize,
       int32_t(const uint16_t packetSizeSamples));
+  MOCK_METHOD1(SetTelephoneEventForwardToDecoder, int(bool forwardToDecoder));
+  MOCK_CONST_METHOD0(TelephoneEventForwardToDecoder,
+      bool());
   MOCK_CONST_METHOD1(SendTelephoneEventActive,
       bool(int8_t& telephoneEvent));
   MOCK_METHOD3(SendTelephoneEventOutband,
@@ -218,7 +272,7 @@ class MockRtpRtcp : public RtpRtcp {
   MOCK_METHOD1(SetCameraDelay,
       int32_t(const int32_t delayMS));
   MOCK_METHOD1(SetTargetSendBitrate,
-      void(const std::vector<uint32_t>& stream_bitrates));
+      void(const uint32_t bitrate));
   MOCK_METHOD3(SetGenericFECStatus,
       int32_t(const bool enable, const uint8_t payloadTypeRED, const uint8_t payloadTypeFEC));
   MOCK_METHOD3(GenericFECStatus,

@@ -11,7 +11,6 @@
 #include <cstddef>
 
 #include <glib.h>
-#include <linux/joystick.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <sys/ioctl.h>
@@ -20,6 +19,9 @@
 #include "nscore.h"
 #include "mozilla/dom/GamepadService.h"
 #include "udev.h"
+
+// Include this later because it also does #define JS_VERSION
+#include <linux/joystick.h>
 
 namespace {
 

@@ -113,7 +113,6 @@ CSRCS = \
 	pqg.c \
 	dsa.c \
 	rsa.c \
-	rsapkcs.c \
 	shvfy.c \
 	tlsprfalg.c \
 	seed.c \

@@ -20,11 +20,10 @@
 #include "MediaStreamList.h"
 #include "nsIScriptGlobalObject.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/dom/RTCStatsReportBinding.h"
+#include "jsapi.h"
 #endif
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 namespace sipcc {
 
@@ -115,16 +114,6 @@ void RemoteSourceStreamInfo::DetachMedia_m()
   mMediaStream = nullptr;
 }
 
-already_AddRefed<PeerConnectionImpl>
-PeerConnectionImpl::Constructor(const dom::GlobalObject& aGlobal, ErrorResult& rv)
-{
-  nsRefPtr<PeerConnectionImpl> pc = new PeerConnectionImpl(&aGlobal);
-
-  CSFLogDebug(logTag, "Created PeerConnection: %p", pc.get());
-
-  return pc.forget();
-}
-
 PeerConnectionImpl* PeerConnectionImpl::CreatePeerConnection()
 {
   PeerConnectionImpl *pc = new PeerConnectionImpl();
@@ -138,7 +127,7 @@ PeerConnectionImpl* PeerConnectionImpl::CreatePeerConnection()
 PeerConnectionMedia::PeerConnectionMedia(PeerConnectionImpl *parent)
     : mParent(parent),
       mLocalSourceStreamsLock("PeerConnectionMedia.mLocalSourceStreamsLock"),
-      mIceCtx(nullptr),
+      mIceCtx(NULL),
       mDNSResolver(new mozilla::NrIceResolver()),
       mMainThread(mParent->GetMainThread()),
       mSTSThread(mParent->GetSTSThread()) {}
@@ -180,12 +169,12 @@ nsresult PeerConnectionMedia::Init(const std::vector<NrIceStunServer>& stun_serv
     CSFLogError(logTag, "%s: Failed to get dns resolver", __FUNCTION__);
     return rv;
   }
-  mIceCtx->SignalGatheringStateChange.connect(
-      this,
-      &PeerConnectionMedia::IceGatheringStateChange);
-  mIceCtx->SignalConnectionStateChange.connect(
-      this,
-      &PeerConnectionMedia::IceConnectionStateChange);
+  mIceCtx->SignalGatheringCompleted.connect(this,
+                                            &PeerConnectionMedia::IceGatheringCompleted);
+  mIceCtx->SignalCompleted.connect(this,
+                                   &PeerConnectionMedia::IceCompleted);
+  mIceCtx->SignalFailed.connect(this,
+                                &PeerConnectionMedia::IceFailed);
 
   // Create three streams to start with.
   // One each for audio, video and DataChannel
@@ -247,11 +236,6 @@ PeerConnectionMedia::AddStream(nsIDOMMediaStream* aMediaStream, uint32_t *stream
 
   // Adding tracks here based on nsDOMMediaStream expectation settings
   uint32_t hints = stream->GetHintContents();
-#ifdef MOZILLA_INTERNAL_API
-  if (!Preferences::GetBool("media.peerconnection.video.enabled", true)) {
-    hints &= ~(DOMMediaStream::HINT_CONTENTS_VIDEO);
-  }
-#endif
 
   if (!(hints & (DOMMediaStream::HINT_CONTENTS_AUDIO |
         DOMMediaStream::HINT_CONTENTS_VIDEO))) {
@@ -368,7 +352,7 @@ PeerConnectionMedia::ShutdownMediaTransport_s()
   disconnect_all();
   mTransportFlows.clear();
   mIceStreams.clear();
-  mIceCtx = nullptr;
+  mIceCtx = NULL;
 
   mMainThread->Dispatch(WrapRunnable(this, &PeerConnectionMedia::SelfDestruct_m),
                         NS_DISPATCH_NORMAL);
@@ -378,7 +362,7 @@ LocalSourceStreamInfo*
 PeerConnectionMedia::GetLocalStream(int aIndex)
 {
   if(aIndex < 0 || aIndex >= (int) mLocalSourceStreams.Length()) {
-    return nullptr;
+    return NULL;
   }
 
   MOZ_ASSERT(mLocalSourceStreams[aIndex]);
@@ -389,7 +373,7 @@ RemoteSourceStreamInfo*
 PeerConnectionMedia::GetRemoteStream(int aIndex)
 {
   if(aIndex < 0 || aIndex >= (int) mRemoteSourceStreams.Length()) {
-    return nullptr;
+    return NULL;
   }
 
   MOZ_ASSERT(mRemoteSourceStreams[aIndex]);
@@ -431,17 +415,24 @@ PeerConnectionMedia::AddRemoteStreamHint(int aIndex, bool aIsVideo)
 
 
 void
-PeerConnectionMedia::IceGatheringStateChange(NrIceCtx* ctx,
-                                             NrIceCtx::GatheringState state)
+PeerConnectionMedia::IceGatheringCompleted(NrIceCtx *aCtx)
 {
-  SignalIceGatheringStateChange(ctx, state);
+  MOZ_ASSERT(aCtx);
+  SignalIceGatheringCompleted(aCtx);
 }
 
 void
-PeerConnectionMedia::IceConnectionStateChange(NrIceCtx* ctx,
-                                              NrIceCtx::ConnectionState state)
+PeerConnectionMedia::IceCompleted(NrIceCtx *aCtx)
 {
-  SignalIceConnectionStateChange(ctx, state);
+  MOZ_ASSERT(aCtx);
+  SignalIceCompleted(aCtx);
+}
+
+void
+PeerConnectionMedia::IceFailed(NrIceCtx *aCtx)
+{
+  MOZ_ASSERT(aCtx);
+  SignalIceFailed(aCtx);
 }
 
 void
@@ -450,6 +441,21 @@ PeerConnectionMedia::IceStreamReady(NrIceMediaStream *aStream)
   MOZ_ASSERT(aStream);
 
   CSFLogDebug(logTag, "%s: %s", __FUNCTION__, aStream->name().c_str());
+}
+
+// This method exists for the unittests.
+// It allows visibility into the pipelines and flows.
+// It returns NULL if no pipeline exists for this track number.
+mozilla::RefPtr<mozilla::MediaPipeline>
+SourceStreamInfo::GetPipeline(int aTrack) {
+  std::map<int, mozilla::RefPtr<mozilla::MediaPipeline> >::iterator it =
+    mPipelines.find(aTrack);
+
+  if (it == mPipelines.end()) {
+    return NULL;
+  }
+
+  return it->second;
 }
 
 void

@@ -12,8 +12,7 @@ def WebIDLTest(parser, harness):
 
     def checkMethod(method, QName, name, signatures,
                     static=True, getter=False, setter=False, creator=False,
-                    deleter=False, legacycaller=False, stringifier=False,
-                    chromeOnly=False):
+                    deleter=False, legacycaller=False, stringifier=False):
         harness.ok(isinstance(method, WebIDL.IDLMethod),
                    "Should be an IDLMethod")
         harness.ok(method.isMethod(), "Method is a method")
@@ -28,7 +27,6 @@ def WebIDLTest(parser, harness):
         harness.check(method.isDeleter(), deleter, "Method has the correct deleter value")
         harness.check(method.isLegacycaller(), legacycaller, "Method has the correct legacycaller value")
         harness.check(method.isStringifier(), stringifier, "Method has the correct stringifier value")
-        harness.check(method.getExtendedAttribute("ChromeOnly") is not None, chromeOnly, "Method has the correct value for ChromeOnly")
         harness.check(len(method.signatures()), len(signatures), "Method has the correct number of signatures")
 
         sigpairs = zip(method.signatures(), signatures)
@@ -57,12 +55,10 @@ def WebIDLTest(parser, harness):
         };
     """)
     results = parser.finish()
-    harness.check(len(results), 3, "Should be three productions")
+    harness.check(len(results), 3, "Should be two productions")
     harness.ok(isinstance(results[0], WebIDL.IDLInterface),
                "Should be an IDLInterface")
     harness.ok(isinstance(results[1], WebIDL.IDLInterface),
-               "Should be an IDLInterface")
-    harness.ok(isinstance(results[2], WebIDL.IDLInterface),
                "Should be an IDLInterface")
 
     checkMethod(results[0].ctor(), "::TestConstructorNoArgs::constructor",
@@ -77,33 +73,3 @@ def WebIDLTest(parser, harness):
                  [("::TestConstructorOverloads::constructor::foo", "foo", "Object", False, False)]),
                  ("TestConstructorOverloads (Wrapper)",
                  [("::TestConstructorOverloads::constructor::bar", "bar", "Boolean", False, False)])])
-
-    parser = parser.reset()
-    parser.parse("""
-        [ChromeConstructor()]
-        interface TestChromeConstructor {
-        };
-    """)
-    results = parser.finish()
-    harness.check(len(results), 1, "Should be one production")
-    harness.ok(isinstance(results[0], WebIDL.IDLInterface),
-               "Should be an IDLInterface")
-
-    checkMethod(results[0].ctor(), "::TestChromeConstructor::constructor",
-                "constructor", [("TestChromeConstructor (Wrapper)", [])],
-                chromeOnly=True)
-
-    parser = parser.reset()
-    threw = False
-    try:
-        parser.parse("""
-        [Constructor(),
-         ChromeConstructor(DOMString a)]
-        interface TestChromeConstructor {
-        };
-        """)
-        results = parser.finish()
-    except:
-        threw = True
-
-    harness.ok(threw, "Can't have both a Constructor and a ChromeConstructor")

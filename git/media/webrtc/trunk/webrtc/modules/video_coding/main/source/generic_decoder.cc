@@ -8,12 +8,12 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/video_coding/main/interface/video_coding.h"
-#include "webrtc/modules/video_coding/main/source/generic_decoder.h"
-#include "webrtc/modules/video_coding/main/source/internal_defines.h"
+#include "video_coding.h"
+#include "trace.h"
+#include "trace_event.h"
+#include "generic_decoder.h"
+#include "internal_defines.h"
 #include "webrtc/system_wrappers/interface/clock.h"
-#include "webrtc/system_wrappers/interface/trace.h"
-#include "webrtc/system_wrappers/interface/trace_event.h"
 
 namespace webrtc {
 
@@ -41,24 +41,13 @@ void VCMDecodedFrameCallback::SetUserReceiveCallback(
     _receiveCallback = receiveCallback;
 }
 
-VCMReceiveCallback* VCMDecodedFrameCallback::UserReceiveCallback()
-{
-    CriticalSectionScoped cs(_critSect);
-    return _receiveCallback;
-}
-
 int32_t VCMDecodedFrameCallback::Decoded(I420VideoFrame& decodedImage)
 {
     // TODO(holmer): We should improve this so that we can handle multiple
     // callbacks from one call to Decode().
-    VCMFrameInformation* frameInfo;
-    VCMReceiveCallback* callback;
-    {
-        CriticalSectionScoped cs(_critSect);
-        frameInfo = static_cast<VCMFrameInformation*>(
-            _timestampMap.Pop(decodedImage.timestamp()));
-        callback = _receiveCallback;
-    }
+    CriticalSectionScoped cs(_critSect);
+    VCMFrameInformation* frameInfo = static_cast<VCMFrameInformation*>(
+        _timestampMap.Pop(decodedImage.timestamp()));
     if (frameInfo == NULL)
     {
         // The map should never be empty or full if this callback is called.
@@ -70,10 +59,11 @@ int32_t VCMDecodedFrameCallback::Decoded(I420VideoFrame& decodedImage)
         frameInfo->decodeStartTimeMs,
         _clock->TimeInMilliseconds());
 
-    if (callback != NULL)
+    if (_receiveCallback != NULL)
     {
-        decodedImage.set_render_time_ms(frameInfo->renderTimeMs);
-        int32_t callbackReturn = callback->FrameToRender(decodedImage);
+        _frame.SwapFrame(&decodedImage);
+        _frame.set_render_time_ms(frameInfo->renderTimeMs);
+        int32_t callbackReturn = _receiveCallback->FrameToRender(_frame);
         if (callbackReturn < 0)
         {
             WEBRTC_TRACE(webrtc::kTraceDebug,
@@ -133,7 +123,9 @@ _frameInfos(),
 _nextFrameInfoIdx(0),
 _decoder(decoder),
 _codecType(kVideoCodecUnknown),
-_isExternal(isExternal)
+_isExternal(isExternal),
+_requireKeyFrame(false),
+_keyFrameDecoded(false)
 {
 }
 
@@ -142,8 +134,11 @@ VCMGenericDecoder::~VCMGenericDecoder()
 }
 
 int32_t VCMGenericDecoder::InitDecode(const VideoCodec* settings,
-                                      int32_t numberOfCores)
+                                            int32_t numberOfCores,
+                                            bool requireKeyFrame)
 {
+    _requireKeyFrame = requireKeyFrame;
+    _keyFrameDecoded = false;
     _codecType = settings->codecType;
 
     return _decoder.InitDecode(settings, numberOfCores);
@@ -152,6 +147,15 @@ int32_t VCMGenericDecoder::InitDecode(const VideoCodec* settings,
 int32_t VCMGenericDecoder::Decode(const VCMEncodedFrame& frame,
                                         int64_t nowMs)
 {
+    if (_requireKeyFrame &&
+        !_keyFrameDecoded &&
+        frame.FrameType() != kVideoFrameKey &&
+        frame.FrameType() != kVideoFrameGolden)
+    {
+        // Require key frame is enabled, meaning that one key frame must be decoded
+        // before we can decode delta frames.
+        return VCM_CODEC_ERROR;
+    }
     _frameInfos[_nextFrameInfoIdx].decodeStartTimeMs = nowMs;
     _frameInfos[_nextFrameInfoIdx].renderTimeMs = frame.RenderTimeMs();
     _callback->Map(frame.TimeStamp(), &_frameInfos[_nextFrameInfoIdx]);
@@ -180,17 +184,22 @@ int32_t VCMGenericDecoder::Decode(const VCMEncodedFrame& frame,
         // No output
         _callback->Pop(frame.TimeStamp());
     }
+    // Update the key frame decoded variable so that we know whether or not we've decoded a key frame since reset.
+    _keyFrameDecoded = (_keyFrameDecoded ||
+        frame.FrameType() == kVideoFrameKey);
     return ret;
 }
 
 int32_t
 VCMGenericDecoder::Release()
 {
+    _keyFrameDecoded = false;
     return _decoder.Release();
 }
 
 int32_t VCMGenericDecoder::Reset()
 {
+    _keyFrameDecoded = false;
     return _decoder.Reset();
 }
 
@@ -210,4 +219,4 @@ bool VCMGenericDecoder::External() const
     return _isExternal;
 }
 
-}  // namespace
+} // namespace

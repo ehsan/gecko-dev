@@ -22,7 +22,7 @@ NS_IMPL_RELEASE_INHERITED(OfflineAudioCompletionEvent, nsDOMEvent)
 
 OfflineAudioCompletionEvent::OfflineAudioCompletionEvent(AudioContext* aOwner,
                                                          nsPresContext* aPresContext,
-                                                         WidgetEvent* aEvent)
+                                                         nsEvent* aEvent)
   : nsDOMEvent(aOwner, aPresContext, aEvent)
 {
   SetIsDOMBinding();

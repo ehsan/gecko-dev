@@ -5,8 +5,6 @@
 
 #include "nsDOMBeforeUnloadEvent.h"
 
-using namespace mozilla;
-
 NS_IMPL_ADDREF_INHERITED(nsDOMBeforeUnloadEvent, nsDOMEvent)
 NS_IMPL_RELEASE_INHERITED(nsDOMBeforeUnloadEvent, nsDOMEvent)
 
@@ -31,7 +29,7 @@ nsDOMBeforeUnloadEvent::GetReturnValue(nsAString& aReturnValue)
 nsresult NS_NewDOMBeforeUnloadEvent(nsIDOMEvent** aInstancePtrResult,
                                     mozilla::dom::EventTarget* aOwner,
                                     nsPresContext* aPresContext,
-                                    WidgetEvent* aEvent) 
+                                    nsEvent *aEvent) 
 {
   nsDOMBeforeUnloadEvent* it =
     new nsDOMBeforeUnloadEvent(aOwner, aPresContext, aEvent);

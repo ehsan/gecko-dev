@@ -11,6 +11,7 @@
 
 using namespace mozilla::layers;
 
+#ifdef MOZ_LAYERS_HAVE_LOG
 void
 TexturedEffect::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
@@ -38,6 +39,14 @@ EffectMask::PrintInfo(nsACString& aTo, const char* aPrefix)
   if (mIs3D) {
     aTo += " [is-3d]";
   }
+
+  if (mMaskTexture) {
+    nsAutoCString prefix(aPrefix);
+    prefix += "  ";
+
+    aTo += "\n";
+    mMaskTexture->PrintInfo(aTo, prefix.get());
+  }
 }
 
 void
@@ -54,3 +63,4 @@ EffectSolidColor::PrintInfo(nsACString& aTo, const char* aPrefix)
   aTo += nsPrintfCString("EffectSolidColor (0x%p) [color=%x]", this, mColor.ToABGR());
 }
 
+#endif // MOZ_LAYERS_HAVE_LOG

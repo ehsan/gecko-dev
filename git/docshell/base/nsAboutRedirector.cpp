@@ -6,6 +6,8 @@
 
 #include "nsAboutRedirector.h"
 #include "nsNetUtil.h"
+#include "plstr.h"
+#include "nsIScriptSecurityManager.h"
 #include "nsAboutProtocolUtils.h"
 
 NS_IMPL_ISUPPORTS1(nsAboutRedirector, nsIAboutModule)
@@ -49,9 +51,9 @@ static RedirEntry kRedirMap[] = {
       nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
       nsIAboutModule::ALLOW_SCRIPT |
       nsIAboutModule::HIDE_FROM_ABOUTABOUT },
-    { "compartments", "chrome://global/content/aboutCompartments.xhtml",
-      nsIAboutModule::ALLOW_SCRIPT |
-      nsIAboutModule::HIDE_FROM_ABOUTABOUT },
+    // aboutMemory.xhtml implements about:compartments
+    { "compartments", "chrome://global/content/aboutMemory.xhtml",
+      nsIAboutModule::ALLOW_SCRIPT },
     { "memory", "chrome://global/content/aboutMemory.xhtml",
       nsIAboutModule::ALLOW_SCRIPT },
     { "addons", "chrome://mozapps/content/extensions/extensions.xul",

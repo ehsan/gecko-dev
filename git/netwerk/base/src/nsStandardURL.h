@@ -7,11 +7,16 @@
 #define nsStandardURL_h__
 
 #include "nsString.h"
+#include "nsDependentString.h"
+#include "nsDependentSubstring.h"
 #include "nsISerializable.h"
 #include "nsIFileURL.h"
 #include "nsIStandardURL.h"
+#include "nsIFile.h"
+#include "nsIURLParser.h"
 #include "nsIUnicodeEncoder.h"
 #include "nsIObserver.h"
+#include "nsIIOService.h"
 #include "nsCOMPtr.h"
 #include "nsURLHelper.h"
 #include "nsIClassInfo.h"
@@ -30,8 +35,6 @@ class nsIBinaryOutputStream;
 class nsIIDNService;
 class nsICharsetConverterManager;
 class nsIPrefBranch;
-class nsIFile;
-class nsIURLParser;
 
 //-----------------------------------------------------------------------------
 // standard URL implementation

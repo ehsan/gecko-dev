@@ -96,9 +96,9 @@ public:
   already_AddRefed<DOMRequest> StopDiscovery(ErrorResult& aRv);
 
   already_AddRefed<DOMRequest>
-    Pair(const nsAString& aDeviceAddress, ErrorResult& aRv);
+    Pair(BluetoothDevice& aDevice, ErrorResult& aRv);
   already_AddRefed<DOMRequest>
-    Unpair(const nsAString& aDeviceAddress, ErrorResult& aRv);
+    Unpair(BluetoothDevice& aDevice, ErrorResult& aRv);
   already_AddRefed<DOMRequest>
     GetPairedDevices(ErrorResult& aRv);
   already_AddRefed<DOMRequest>
@@ -115,14 +115,12 @@ public:
                      ErrorResult& aRv);
 
   already_AddRefed<DOMRequest>
-    Connect(BluetoothDevice& aDevice,
-            const Optional<short unsigned int>& aServiceUuid, ErrorResult& aRv);
+    Connect(const nsAString& aDeviceAddress, uint16_t aProfile,
+            ErrorResult& aRv);
   already_AddRefed<DOMRequest>
-    Disconnect(BluetoothDevice& aDevice,
-               const Optional<short unsigned int>& aServiceUuid,
-               ErrorResult& aRv);
+    Disconnect(uint16_t aProfile, ErrorResult& aRv);
   already_AddRefed<DOMRequest>
-    GetConnectedDevices(uint16_t aServiceUuid, ErrorResult& aRv);
+    GetConnectedDevices(uint16_t aProfile, ErrorResult& aRv);
 
   already_AddRefed<DOMRequest>
     SendFile(const nsAString& aDeviceAddress, nsIDOMBlob* aBlob,
@@ -137,21 +135,15 @@ public:
   already_AddRefed<DOMRequest> DisconnectSco(ErrorResult& aRv);
   already_AddRefed<DOMRequest> IsScoConnected(ErrorResult& aRv);
 
-  already_AddRefed<DOMRequest> AnswerWaitingCall(ErrorResult& aRv);
-  already_AddRefed<DOMRequest> IgnoreWaitingCall(ErrorResult& aRv);
-  already_AddRefed<DOMRequest> ToggleCalls(ErrorResult& aRv);
-
   already_AddRefed<DOMRequest>
     SendMediaMetaData(const MediaMetaData& aMediaMetaData, ErrorResult& aRv);
   already_AddRefed<DOMRequest>
     SendMediaPlayStatus(const MediaPlayStatus& aMediaPlayStatus, ErrorResult& aRv);
 
   IMPL_EVENT_HANDLER(devicefound);
-  IMPL_EVENT_HANDLER(discoverystatechanged);
   IMPL_EVENT_HANDLER(a2dpstatuschanged);
   IMPL_EVENT_HANDLER(hfpstatuschanged);
   IMPL_EVENT_HANDLER(pairedstatuschanged);
-  IMPL_EVENT_HANDLER(requestmediaplaystatus);
   IMPL_EVENT_HANDLER(scostatuschanged);
 
   nsPIDOMWindow* GetParentObject() const
@@ -171,7 +163,7 @@ private:
   already_AddRefed<mozilla::dom::DOMRequest>
     StartStopDiscovery(bool aStart, ErrorResult& aRv);
   already_AddRefed<mozilla::dom::DOMRequest>
-    PairUnpair(bool aPair, const nsAString& aDeviceAddress, ErrorResult& aRv);
+    PairUnpair(bool aPair, BluetoothDevice& aDevice, ErrorResult& aRv);
 
   JS::Heap<JSObject*> mJsUuids;
   JS::Heap<JSObject*> mJsDeviceAddresses;

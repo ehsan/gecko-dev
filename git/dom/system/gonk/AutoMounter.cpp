@@ -88,8 +88,6 @@ namespace system {
 
 class AutoMounter;
 
-static void SetAutoMounterStatus(int32_t aStatus);
-
 /***************************************************************************/
 
 inline const char* SwitchStateStr(const SwitchEvent& aEvent)
@@ -263,21 +261,6 @@ public:
     UpdateState();
   }
 
-  void FormatVolume(const nsACString& aVolumeName)
-  {
-    RefPtr<Volume> vol = VolumeManager::FindVolumeByName(aVolumeName);
-    if (!vol) {
-      return;
-    }
-    if (vol->IsFormatRequested()) {
-      return;
-    }
-    vol->SetFormatRequested(true);
-    DBG("Calling UpdateState due to volume %s formatting set to %d",
-        vol->NameStr(), (int)vol->IsFormatRequested());
-    UpdateState();
-  }
-
 private:
 
   AutoVolumeEventObserver         mVolumeEventObserver;
@@ -331,37 +314,11 @@ AutoMounterResponseCallback::ResponseReceived(const VolumeCommand* aCommand)
   }
 }
 
-class AutoBool {
-public:
-    explicit AutoBool(bool &aBool) : mBool(aBool) {
-      mBool = true;
-    }
-
-    ~AutoBool() {
-      mBool = false;
-    }
-
-private:
-    bool &mBool;
-};
-
 /***************************************************************************/
 
 void
 AutoMounter::UpdateState()
 {
-  static bool inUpdateState = false;
-  if (inUpdateState) {
-    // When UpdateState calls SetISharing, this causes a volume state
-    // change to occur, which would normally cause UpdateState to be called
-    // again. We want the volume state change to go out (so that device
-    // storage will see the change in sharing state), but since we're
-    // already in UpdateState we just want to prevent recursion from screwing
-    // things up.
-    return;
-  }
-  AutoBool inUpdateStateDetector(inUpdateState);
-
   MOZ_ASSERT(MessageLoop::current() == XRE_GetIOMessageLoop());
 
   // If the following preconditions are met:
@@ -393,7 +350,7 @@ AutoMounter::UpdateState()
     if (umsAvail) {
       char functionsStr[60];
       if (ReadSysFile(ICS_SYS_USB_FUNCTIONS, functionsStr, sizeof(functionsStr))) {
-        umsEnabled = strstr(functionsStr, "mass_storage") != nullptr;
+        umsEnabled = strstr(functionsStr, "mass_storage") != NULL;
       } else {
         ERR("Error reading file '%s': %s", ICS_SYS_USB_FUNCTIONS, strerror(errno));
         umsEnabled = false;
@@ -419,8 +376,6 @@ AutoMounter::UpdateState()
   LOG("UpdateState: umsAvail:%d umsEnabled:%d mode:%d usbCablePluggedIn:%d tryToShare:%d",
       umsAvail, umsEnabled, mMode, usbCablePluggedIn, tryToShare);
 
-  bool filesOpen = false;
-  static unsigned filesOpenDelayCount = 0;
   VolumeArray::index_type volIndex;
   VolumeArray::size_type  numVolumes = VolumeManager::NumVolumes();
   for (volIndex = 0; volIndex < numVolumes; volIndex++) {
@@ -443,26 +398,16 @@ AutoMounter::UpdateState()
       continue;
     }
 
-    if ((tryToShare && vol->IsSharingEnabled()) || vol->IsFormatRequested()) {
+    if (tryToShare && vol->IsSharingEnabled()) {
       // We're going to try to unmount and share the volumes
       switch (volState) {
         case nsIVolume::STATE_MOUNTED: {
           if (vol->IsMountLocked()) {
             // The volume is currently locked, so leave it in the mounted
             // state.
-            LOGW("UpdateState: Mounted volume %s is locked, not sharing or formatting",
+            LOGW("UpdateState: Mounted volume %s is locked, not sharing",
                  vol->NameStr());
             break;
-          }
-
-          // Mark the volume as if we've started sharing. This will cause
-          // apps which watch device storage notifications to see the volume
-          // go into the shared state, and prompt them to close any open files
-          // that they might have.
-          if (tryToShare && vol->IsSharingEnabled()) {
-            vol->SetIsSharing(true);
-          } else if (vol->IsFormatRequested()){
-            vol->SetIsFormatting(true);
           }
 
           // Check to see if there are any open files on the volume and
@@ -480,57 +425,33 @@ AutoMounter::UpdateState()
                    fileInfo.mComm.get(),
                    fileInfo.mExe.get());
             } while (fileFinder.Next(&fileInfo));
-            LOGW("UpdateState: Mounted volume %s has open files, not sharing or formatting",
+            LOGW("UpdateState: Mounted volume %s has open files, not sharing",
                  vol->NameStr());
 
-            // Check again in a few seconds to see if the files are closed.
-            // Since we're trying to share the volume, this implies that we're
+            // Check again in 5 seconds to see if the files are closed. Since
+            // we're trying to share the volume, this implies that we're
             // plugged into the PC via USB and this in turn implies that the
             // battery is charging, so we don't need to be too concerned about
             // wasting battery here.
-            //
-            // If we just detected that there were files open, then we use
-            // a short timer. We will have told the apps that we're trying
-            // trying to share, and they'll be closing their files. This makes
-            // the sharing more responsive. If after a few seconds, the apps
-            // haven't closed their files, then we back off.
-
-            int delay = 1000;
-            if (filesOpenDelayCount > 10) {
-              delay = 5000;
-            }
             MessageLoopForIO::current()->
               PostDelayedTask(FROM_HERE,
                               NewRunnableMethod(this, &AutoMounter::UpdateState),
-                              delay);
-            filesOpen = true;
+                              5000);
             break;
           }
 
           // Volume is mounted, we need to unmount before
           // we can share.
           LOG("UpdateState: Unmounting %s", vol->NameStr());
+          vol->SetIsSharing(true);
           vol->StartUnmount(mResponseCallback);
           return; // UpdateState will be called again when the Unmount command completes
         }
         case nsIVolume::STATE_IDLE: {
-          LOG("UpdateState: Volume %s is nsIVolume::STATE_IDLE", vol->NameStr());
-          if (vol->IsFormatting() && !vol->IsFormatRequested()) {
-            vol->SetFormatRequested(false);
-            LOG("UpdateState: Mounting %s", vol->NameStr());
-            vol->StartMount(mResponseCallback);
-            break;
-          }
-          if (tryToShare && vol->IsSharingEnabled()) {
-            // Volume is unmounted. We can go ahead and share.
-            LOG("UpdateState: Sharing %s", vol->NameStr());
-            vol->StartShare(mResponseCallback);
-          } else if (vol->IsFormatRequested()){
-            // Volume is unmounted. We can go ahead and format.
-            LOG("UpdateState: Formatting %s", vol->NameStr());
-            vol->StartFormat(mResponseCallback);
-          }
-          return; // UpdateState will be called again when the Share/Format command completes
+          // Volume is unmounted. We can go ahead and share.
+          LOG("UpdateState: Sharing %s", vol->NameStr());
+          vol->StartShare(mResponseCallback);
+          return; // UpdateState will be called again when the Share command completes
         }
         default: {
           // Not in a state that we can do anything about.
@@ -560,16 +481,6 @@ AutoMounter::UpdateState()
       }
     }
   }
-
-  int32_t status = AUTOMOUNTER_STATUS_DISABLED;
-  if (filesOpen) {
-    filesOpenDelayCount++;
-    status = AUTOMOUNTER_STATUS_FILES_OPEN;
-  } else if (enabled) {
-    filesOpenDelayCount = 0;
-    status = AUTOMOUNTER_STATUS_ENABLED;
-  }
-  SetAutoMounterStatus(status);
 }
 
 /***************************************************************************/
@@ -588,7 +499,7 @@ ShutdownAutoMounterIOThread()
 {
   MOZ_ASSERT(MessageLoop::current() == XRE_GetIOMessageLoop());
 
-  sAutoMounter = nullptr;
+  sAutoMounter = NULL;
   ShutdownVolumeManager();
 }
 
@@ -608,15 +519,6 @@ SetAutoMounterSharingModeIOThread(const nsCString& aVolumeName, const bool& aAll
   MOZ_ASSERT(sAutoMounter);
 
   sAutoMounter->SetSharingMode(aVolumeName, aAllowSharing);
-}
-
-static void
-AutoMounterFormatVolumeIOThread(const nsCString& aVolumeName)
-{
-  MOZ_ASSERT(MessageLoop::current() == XRE_GetIOMessageLoop());
-  MOZ_ASSERT(sAutoMounter);
-
-  sAutoMounter->FormatVolume(aVolumeName);
 }
 
 static void
@@ -693,7 +595,7 @@ InitVolumeConfig()
     return;
   }
   while(fgets(line, sizeof(line), fp)) {
-    const char *delim = " \t\n";
+    char *delim = " \t\n";
     n++;
 
     if (line[0] == '#')
@@ -703,11 +605,11 @@ InitVolumeConfig()
       continue;
     }
     if (!strcmp(command, "create")) {
-      if (!(vol_name_cstr = strtok_r(nullptr, delim, &save_ptr))) {
+      if (!(vol_name_cstr = strtok_r(NULL, delim, &save_ptr))) {
         ERR("No vol_name in %s line %d",  filename, n);
         continue;
       }
-      if (!(mount_point_cstr = strtok_r(nullptr, delim, &save_ptr))) {
+      if (!(mount_point_cstr = strtok_r(NULL, delim, &save_ptr))) {
         ERR("No mount point for volume '%s'. %s line %d", vol_name_cstr, filename, n);
         continue;
       }
@@ -742,24 +644,6 @@ InitAutoMounter()
   sUsbCableObserver = new UsbCableObserver();
 }
 
-int32_t
-GetAutoMounterStatus()
-{
-  if (sAutoMounterSetting) {
-    return sAutoMounterSetting->GetStatus();
-  }
-  return AUTOMOUNTER_STATUS_DISABLED;
-}
-
-//static
-void
-SetAutoMounterStatus(int32_t aStatus)
-{
-  if (sAutoMounterSetting) {
-    sAutoMounterSetting->SetStatus(aStatus);
-  }
-}
-
 void
 SetAutoMounterMode(int32_t aMode)
 {
@@ -773,24 +657,15 @@ SetAutoMounterSharingMode(const nsCString& aVolumeName, bool aAllowSharing)
 {
   XRE_GetIOMessageLoop()->PostTask(
       FROM_HERE,
-      NewRunnableFunction(SetAutoMounterSharingModeIOThread,
+      NewRunnableFunction(SetAutoMounterSharingModeIOThread, 
                           aVolumeName, aAllowSharing));
-}
-
-void
-AutoMounterFormatVolume(const nsCString& aVolumeName)
-{
-  XRE_GetIOMessageLoop()->PostTask(
-      FROM_HERE,
-      NewRunnableFunction(AutoMounterFormatVolumeIOThread,
-                          aVolumeName));
 }
 
 void
 ShutdownAutoMounter()
 {
-  sAutoMounterSetting = nullptr;
-  sUsbCableObserver = nullptr;
+  sAutoMounterSetting = NULL;
+  sUsbCableObserver = NULL;
 
   XRE_GetIOMessageLoop()->PostTask(
       FROM_HERE,

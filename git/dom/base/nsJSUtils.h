@@ -53,7 +53,7 @@ public:
   static void ReportPendingException(JSContext *aContext);
 
   static nsresult CompileFunction(JSContext* aCx,
-                                  JS::Handle<JSObject*> aTarget,
+                                  JS::HandleObject aTarget,
                                   JS::CompileOptions& aOptions,
                                   const nsACString& aName,
                                   uint32_t aArgCount,
@@ -85,8 +85,7 @@ public:
                                  JS::Handle<JSObject*> aScopeObject,
                                  JS::CompileOptions &aCompileOptions,
                                  EvaluateOptions& aEvaluateOptions,
-                                 JS::Value* aRetValue,
-                                 void **aOffThreadToken = nullptr);
+                                 JS::Value* aRetValue);
 
 };
 

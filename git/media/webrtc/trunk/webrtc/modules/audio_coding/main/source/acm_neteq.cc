@@ -26,8 +26,6 @@
 
 namespace webrtc {
 
-namespace acm1 {
-
 #define RTP_HEADER_SIZE 12
 #define NETEQ_INIT_FREQ 8000
 #define NETEQ_INIT_FREQ_KHZ (NETEQ_INIT_FREQ/1000)
@@ -46,13 +44,12 @@ ACMNetEQ::ACMNetEQ()
       received_stereo_(false),
       master_slave_info_(NULL),
       previous_audio_activity_(AudioFrame::kVadUnknown),
+      extra_delay_(0),
       callback_crit_sect_(CriticalSectionWrapper::CreateCriticalSection()),
       min_of_max_num_packets_(0),
       min_of_buffer_size_bytes_(0),
       per_packet_overhead_bytes_(0),
-      av_sync_(false),
-      minimum_delay_ms_(0),
-      maximum_delay_ms_(0) {
+      av_sync_(false) {
   for (int n = 0; n < MAX_NUM_SLAVE_NETEQ + 1; n++) {
     is_initialized_[n] = false;
     ptr_vadinst_[n] = NULL;
@@ -131,7 +128,6 @@ int16_t ACMNetEQ::InitByIdxSafe(const int16_t idx) {
   if (inst_mem_[idx] != NULL) {
     free(inst_mem_[idx]);
     inst_mem_[idx] = NULL;
-    inst_[idx] = NULL;
   }
   inst_mem_[idx] = malloc(memory_size_bytes);
   if (inst_mem_[idx] == NULL) {
@@ -145,7 +141,6 @@ int16_t ACMNetEQ::InitByIdxSafe(const int16_t idx) {
     if (inst_mem_[idx] != NULL) {
       free(inst_mem_[idx]);
       inst_mem_[idx] = NULL;
-      inst_[idx] = NULL;
     }
     LogError("Assign", idx);
     WEBRTC_TRACE(webrtc::kTraceError, webrtc::kTraceAudioCoding, id_,
@@ -157,7 +152,6 @@ int16_t ACMNetEQ::InitByIdxSafe(const int16_t idx) {
     if (inst_mem_[idx] != NULL) {
       free(inst_mem_[idx]);
       inst_mem_[idx] = NULL;
-      inst_[idx] = NULL;
     }
     LogError("Init", idx);
     WEBRTC_TRACE(webrtc::kTraceError, webrtc::kTraceAudioCoding, id_,
@@ -273,6 +267,24 @@ int16_t ACMNetEQ::AllocatePacketBufferByIdxSafe(
     LogError("AssignBuffer", idx);
     return -1;
   }
+  return 0;
+}
+
+int32_t ACMNetEQ::SetExtraDelay(const int32_t delay_in_ms) {
+  CriticalSectionScoped lock(neteq_crit_sect_);
+
+  for (int16_t idx = 0; idx < num_slaves_ + 1; idx++) {
+    if (!is_initialized_[idx]) {
+      WEBRTC_TRACE(webrtc::kTraceError, webrtc::kTraceAudioCoding, id_,
+                   "SetExtraDelay: NetEq is not initialized.");
+      return -1;
+    }
+    if (WebRtcNetEQ_SetExtraDelay(inst_[idx], delay_in_ms) < 0) {
+      LogError("SetExtraDelay", idx);
+      return -1;
+    }
+  }
+  extra_delay_ = delay_in_ms;
   return 0;
 }
 
@@ -683,19 +695,19 @@ int32_t ACMNetEQ::RecOut(AudioFrame& audio_frame) {
 
   WebRtcNetEQ_ProcessingActivity processing_stats;
   WebRtcNetEQ_GetProcessingActivity(inst_[0], &processing_stats);
-  WEBRTC_TRACE(webrtc::kTraceDebug, webrtc::kTraceAudioCoding, id_,
-               "ACM::RecOut accelerate_bgn=%d accelerate_normal=%d"
-               " expand_bgn=%d expand_normal=%d"
-               " preemptive_bgn=%d preemptive_normal=%d"
-               " merge_bgn=%d merge_normal=%d",
-               processing_stats.accelerate_bgn_samples,
-               processing_stats.accelerate_normal_samples,
-               processing_stats.expand_bgn_sampels,
-               processing_stats.expand_normal_samples,
-               processing_stats.preemptive_expand_bgn_samples,
-               processing_stats.preemptive_expand_normal_samples,
-               processing_stats.merge_expand_bgn_samples,
-               processing_stats.merge_expand_normal_samples);
+  TRACE_EVENT2("webrtc", "ACM::RecOut",
+               "accelerate bgn", processing_stats.accelerate_bgn_samples,
+               "accelerate normal", processing_stats.accelerate_normal_samples);
+  TRACE_EVENT2("webrtc", "ACM::RecOut",
+               "expand bgn", processing_stats.expand_bgn_sampels,
+               "expand normal", processing_stats.expand_normal_samples);
+  TRACE_EVENT2("webrtc", "ACM::RecOut",
+               "preemptive bgn", processing_stats.preemptive_expand_bgn_samples,
+               "preemptive normal",
+               processing_stats.preemptive_expand_normal_samples);
+  TRACE_EVENT2("webrtc", "ACM::RecOut",
+               "merge bgn", processing_stats.merge_expand_bgn_samples,
+               "merge normal", processing_stats.merge_expand_normal_samples);
   return 0;
 }
 
@@ -974,7 +986,6 @@ void ACMNetEQ::RemoveNetEQSafe(int index) {
   if (inst_mem_[index] != NULL) {
     free(inst_mem_[index]);
     inst_mem_[index] = NULL;
-    inst_[index] = NULL;
   }
   if (neteq_packet_buffer_[index] != NULL) {
     free(neteq_packet_buffer_[index]);
@@ -1026,6 +1037,14 @@ int16_t ACMNetEQ::AddSlave(const WebRtcNetEQDecoder* used_codecs,
     num_slaves_ = 1;
     is_initialized_[slave_idx] = true;
 
+    // Set Slave delay as all other instances.
+    if (WebRtcNetEQ_SetExtraDelay(inst_[slave_idx], extra_delay_) < 0) {
+      LogError("SetExtraDelay", slave_idx);
+      WEBRTC_TRACE(webrtc::kTraceError, webrtc::kTraceAudioCoding, id_,
+                   "AddSlave: AddSlave Failed, Could not set delay");
+      return -1;
+    }
+
     // Set AVT
     if (WebRtcNetEQ_SetAVTPlayout(inst_[slave_idx],
                                   (avt_playout_) ? 1 : 0) < 0) {
@@ -1074,17 +1093,8 @@ int16_t ACMNetEQ::AddSlave(const WebRtcNetEQDecoder* used_codecs,
                    "AddSlave: AddSlave Failed, Could not Set Playout Mode.");
       return -1;
     }
-
     // Set AV-sync for the slave.
     WebRtcNetEQ_EnableAVSync(inst_[slave_idx], av_sync_ ? 1 : 0);
-
-    // Set minimum delay.
-    if (minimum_delay_ms_ > 0)
-      WebRtcNetEQ_SetMinimumDelay(inst_[slave_idx], minimum_delay_ms_);
-
-    // Set maximum delay.
-    if (maximum_delay_ms_ > 0)
-      WebRtcNetEQ_SetMaximumDelay(inst_[slave_idx], maximum_delay_ms_);
   }
 
   return 0;
@@ -1108,44 +1118,5 @@ void ACMNetEQ::EnableAVSync(bool enable) {
     WebRtcNetEQ_EnableAVSync(inst_[i], enable ? 1 : 0);
   }
 }
-
-int ACMNetEQ::SetMinimumDelay(int minimum_delay_ms) {
-  CriticalSectionScoped lock(neteq_crit_sect_);
-  for (int i = 0; i < num_slaves_ + 1; ++i) {
-    assert(is_initialized_[i]);
-    if (WebRtcNetEQ_SetMinimumDelay(inst_[i], minimum_delay_ms) < 0)
-      return -1;
-  }
-  minimum_delay_ms_ = minimum_delay_ms;
-  return 0;
-}
-
-int ACMNetEQ::SetMaximumDelay(int maximum_delay_ms) {
-  CriticalSectionScoped lock(neteq_crit_sect_);
-  for (int i = 0; i < num_slaves_ + 1; ++i) {
-    assert(is_initialized_[i]);
-    if (WebRtcNetEQ_SetMaximumDelay(inst_[i], maximum_delay_ms) < 0)
-      return -1;
-  }
-  maximum_delay_ms_ = maximum_delay_ms;
-  return 0;
-}
-
-int ACMNetEQ::LeastRequiredDelayMs() const {
-  CriticalSectionScoped lock(neteq_crit_sect_);
-  assert(is_initialized_[0]);
-
-  // Sufficient to query the master.
-  return WebRtcNetEQ_GetRequiredDelayMs(inst_[0]);
-}
-
-bool ACMNetEQ::DecodedRtpInfo(int* sequence_number, uint32_t* timestamp) const {
-  CriticalSectionScoped lock(neteq_crit_sect_);
-  if (WebRtcNetEQ_DecodedRtpInfo(inst_[0], sequence_number, timestamp) < 0)
-    return false;
-  return true;
-}
-
-}  // namespace acm1
 
 }  // namespace webrtc

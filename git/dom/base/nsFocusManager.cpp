@@ -37,13 +37,10 @@
 #include "nsIObserverService.h"
 #include "nsIObjectFrame.h"
 #include "nsBindingManager.h"
-#include "nsStyleCoord.h"
 
-#include "mozilla/ContentEvents.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/LookAndFeel.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Services.h"
 #include <algorithm>
 
 #ifdef MOZ_XUL
@@ -145,7 +142,7 @@ static const char* kObservedPrefs[] = {
   "accessibility.tabfocus_applies_to_xul",
   "accessibility.mouse_focuses_formcontrol",
   "focusmanager.testmode",
-  nullptr
+  NULL
 };
 
 nsFocusManager::nsFocusManager()
@@ -992,23 +989,16 @@ nsFocusManager::FireDelayedEvents(nsIDocument* aDocument)
   NS_ENSURE_ARG(aDocument);
 
   // fire any delayed focus and blur events in the same order that they were added
-  for (uint32_t i = 0; i < mDelayedBlurFocusEvents.Length(); i++) {
-    if (mDelayedBlurFocusEvents[i].mDocument == aDocument) {
-      if (!aDocument->GetInnerWindow() ||
-          !aDocument->GetInnerWindow()->IsCurrentInnerWindow()) {
-        // If the document was navigated away from or is defunct, don't bother
-        // firing events on it. Note the symmetry between this condition and
-        // the similar one in nsDocument.cpp:FireOrClearDelayedEvents.
-        mDelayedBlurFocusEvents.RemoveElementAt(i);
-        --i;
-      } else if (!aDocument->EventHandlingSuppressed()) {
-        uint32_t type = mDelayedBlurFocusEvents[i].mType;
-        nsCOMPtr<EventTarget> target = mDelayedBlurFocusEvents[i].mTarget;
-        nsCOMPtr<nsIPresShell> presShell = mDelayedBlurFocusEvents[i].mPresShell;
-        mDelayedBlurFocusEvents.RemoveElementAt(i);
-        SendFocusOrBlurEvent(type, presShell, aDocument, target, 0, false);
-        --i;
-      }
+  for (uint32_t i = 0; i < mDelayedBlurFocusEvents.Length(); i++)
+  {
+    if (mDelayedBlurFocusEvents[i].mDocument == aDocument &&
+        !aDocument->EventHandlingSuppressed()) {
+      uint32_t type = mDelayedBlurFocusEvents[i].mType;
+      nsCOMPtr<EventTarget> target = mDelayedBlurFocusEvents[i].mTarget;
+      nsCOMPtr<nsIPresShell> presShell = mDelayedBlurFocusEvents[i].mPresShell;
+      mDelayedBlurFocusEvents.RemoveElementAt(i);
+      SendFocusOrBlurEvent(type, presShell, aDocument, target, 0, false);
+      --i;
     }
   }
 
@@ -1403,12 +1393,10 @@ nsFocusManager::IsNonFocusableRoot(nsIContent* aContent)
   //       focusable.
   // Also, if aContent is not editable but it isn't in designMode, it's not
   // focusable.
-  // And in userfocusignored context nothing is focusable.
   nsIDocument* doc = aContent->GetCurrentDoc();
   NS_ASSERTION(doc, "aContent must have current document");
   return aContent == doc->GetRootElement() &&
-           (doc->HasFlag(NODE_IS_EDITABLE) || !aContent->IsEditable() ||
-            nsContentUtils::IsUserFocusIgnored(aContent));
+           (doc->HasFlag(NODE_IS_EDITABLE) || !aContent->IsEditable());
 }
 
 nsIContent*
@@ -1437,10 +1425,9 @@ nsFocusManager::CheckIfFocusable(nsIContent* aContent, uint32_t aFlags)
   if (!shell)
     return nullptr;
 
-  // the root content can always be focused,
-  // except in userfocusignored context.
+  // the root content can always be focused
   if (aContent == doc->GetRootElement())
-    return nsContentUtils::IsUserFocusIgnored(aContent) ? nullptr : aContent;
+    return aContent;
 
   // cannot focus content in print preview mode. Only the root can be focused.
   nsPresContext* presContext = shell->GetPresContext();
@@ -1863,7 +1850,7 @@ public:
 
   NS_IMETHOD Run()
   {
-    InternalFocusEvent event(true, mType);
+    nsFocusEvent event(true, mType);
     event.mFlags.mBubbles = false;
     event.fromRaise = mWindowRaised;
     event.isRefocus = mIsRefocus;
@@ -1891,18 +1878,10 @@ nsFocusManager::SendFocusOrBlurEvent(uint32_t aType,
 
   nsCOMPtr<EventTarget> eventTarget = do_QueryInterface(aTarget);
 
-  nsCOMPtr<nsINode> n = do_QueryInterface(aTarget);
-  if (!n) {
-    nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aTarget);
-    n = win ? win->GetExtantDoc() : nullptr;
-  }
-  bool dontDispatchEvent = n && nsContentUtils::IsUserFocusIgnored(n);
-
   // for focus events, if this event was from a mouse or key and event
   // handling on the document is suppressed, queue the event and fire it
   // later. For blur events, a non-zero value would be set for aFocusMethod.
-  if (aFocusMethod && !dontDispatchEvent &&
-      aDocument && aDocument->EventHandlingSuppressed()) {
+  if (aFocusMethod && aDocument && aDocument->EventHandlingSuppressed()) {
     // aFlags is always 0 when aWindowRaised is true so this won't be called
     // on a window raise.
     NS_ASSERTION(!aWindowRaised, "aWindowRaised should not be set");
@@ -1932,11 +1911,9 @@ nsFocusManager::SendFocusOrBlurEvent(uint32_t aType,
   }
 #endif
 
-  if (!dontDispatchEvent) {
-    nsContentUtils::AddScriptRunner(
-      new FocusBlurEvent(aTarget, aType, aPresShell->GetPresContext(),
-                         aWindowRaised, aIsRefocus));
-  }
+  nsContentUtils::AddScriptRunner(
+    new FocusBlurEvent(aTarget, aType, aPresShell->GetPresContext(),
+                       aWindowRaised, aIsRefocus));
 }
 
 void
@@ -2564,9 +2541,6 @@ nsFocusManager::DetermineElementToMoveFocus(nsPIDOMWindow* aWindow,
     ignoreTabIndex = false;
 
     if (aNoParentTraversal) {
-      if (startContent == rootContent)
-        return NS_OK;
-
       startContent = rootContent;
       tabIndex = forward ? 1 : 0;
       continue;
@@ -3441,43 +3415,6 @@ nsFocusManager::SetFocusedWindowInternal(nsPIDOMWindow* aWindow)
     NS_DispatchToCurrentThread(runnable);
   }
   mFocusedWindow = aWindow;
-}
-
-void
-nsFocusManager::MarkUncollectableForCCGeneration(uint32_t aGeneration)
-{
-  if (!sInstance) {
-    return;
-  }
-
-  if (sInstance->mActiveWindow) {
-    sInstance->mActiveWindow->
-      MarkUncollectableForCCGeneration(aGeneration);
-  }
-  if (sInstance->mFocusedWindow) {
-    sInstance->mFocusedWindow->
-      MarkUncollectableForCCGeneration(aGeneration);
-  }
-  if (sInstance->mWindowBeingLowered) {
-    sInstance->mWindowBeingLowered->
-      MarkUncollectableForCCGeneration(aGeneration);
-  }
-  if (sInstance->mFocusedContent) {
-    sInstance->mFocusedContent->OwnerDoc()->
-      MarkUncollectableForCCGeneration(aGeneration);
-  }
-  if (sInstance->mFirstBlurEvent) {
-    sInstance->mFirstBlurEvent->OwnerDoc()->
-      MarkUncollectableForCCGeneration(aGeneration);
-  }
-  if (sInstance->mFirstFocusEvent) {
-    sInstance->mFirstFocusEvent->OwnerDoc()->
-      MarkUncollectableForCCGeneration(aGeneration);
-  }
-  if (sInstance->mMouseDownEventHandlingDocument) {
-    sInstance->mMouseDownEventHandlingDocument->
-      MarkUncollectableForCCGeneration(aGeneration);
-  }
 }
 
 nsresult

@@ -25,7 +25,7 @@
 using namespace js;
 using namespace js::types;
 
-const Class BooleanObject::class_ = {
+Class BooleanObject::class_ = {
     "Boolean",
     JSCLASS_HAS_RESERVED_SLOTS(1) | JSCLASS_HAS_CACHED_PROTO(JSProto_Boolean),
     JS_PropertyStub,         /* addProperty */
@@ -63,7 +63,7 @@ bool_toSource_impl(JSContext *cx, CallArgs args)
     return true;
 }
 
-static bool
+bool
 bool_toSource(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -82,7 +82,7 @@ bool_toString_impl(JSContext *cx, CallArgs args)
     return true;
 }
 
-static bool
+bool
 bool_toString(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -100,7 +100,7 @@ bool_valueOf_impl(JSContext *cx, CallArgs args)
     return true;
 }
 
-static bool
+bool
 bool_valueOf(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -142,35 +142,35 @@ js_InitBooleanClass(JSContext *cx, HandleObject obj)
 
     RootedObject booleanProto (cx, global->createBlankPrototype(cx, &BooleanObject::class_));
     if (!booleanProto)
-        return nullptr;
+        return NULL;
     booleanProto->setFixedSlot(BooleanObject::PRIMITIVE_VALUE_SLOT, BooleanValue(false));
 
     RootedFunction ctor(cx, global->createConstructor(cx, Boolean, cx->names().Boolean, 1));
     if (!ctor)
-        return nullptr;
+        return NULL;
 
     if (!LinkConstructorAndPrototype(cx, ctor, booleanProto))
-        return nullptr;
+        return NULL;
 
-    if (!DefinePropertiesAndBrand(cx, booleanProto, nullptr, boolean_methods))
-        return nullptr;
+    if (!DefinePropertiesAndBrand(cx, booleanProto, NULL, boolean_methods))
+        return NULL;
 
     Handle<PropertyName*> valueOfName = cx->names().valueOf;
     RootedFunction
         valueOf(cx, NewFunction(cx, NullPtr(), bool_valueOf, 0, JSFunction::NATIVE_FUN,
                                 global, valueOfName));
     if (!valueOf)
-        return nullptr;
+        return NULL;
 
     RootedValue value(cx, ObjectValue(*valueOf));
     if (!JSObject::defineProperty(cx, booleanProto, valueOfName, value,
                                   JS_PropertyStub, JS_StrictPropertyStub, 0))
     {
-        return nullptr;
+        return NULL;
     }
 
     if (!DefineConstructorAndPrototype(cx, global, JSProto_Boolean, ctor, booleanProto))
-        return nullptr;
+        return NULL;
 
     return booleanProto;
 }
@@ -182,7 +182,7 @@ js_BooleanToString(ExclusiveContext *cx, bool b)
 }
 
 JS_PUBLIC_API(bool)
-js::ToBooleanSlow(HandleValue v)
+js::ToBooleanSlow(const Value &v)
 {
     if (v.isString())
         return v.toString()->length() != 0;

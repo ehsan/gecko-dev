@@ -63,7 +63,7 @@ flyoutpanel[visible] {
   border-width: 1px;
   -moz-border-start-style: solid;
   border-color: #c2c2c2;
-  padding: @metro_spacing_large@;
+  padding: 40px;
   width: 100%;
 }
 
@@ -85,4 +85,8 @@ flyoutpanel[visible] {
 
 .flyout-close-button:active {
   -moz-image-region: rect(0 96px 32px 64px);
+}
+
+.flyout-narrow {
+  width: 346px;
 }

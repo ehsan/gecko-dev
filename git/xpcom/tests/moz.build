@@ -4,7 +4,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-TEST_TOOL_DIRS += [
+DIRS += [
     'external',
     'component',
     'bug656331_component',
@@ -12,19 +12,16 @@ TEST_TOOL_DIRS += [
 ]
 
 if CONFIG['OS_ARCH'] == 'WINNT':
-    TEST_TOOL_DIRS += ['windows']
+    DIRS += ['windows']
 
 if CONFIG['DEHYDRA_PATH']:
-    TEST_TOOL_DIRS += ['static-checker']
-
-FAIL_ON_WARNINGS = True
+    DIRS += ['static-checker']
 
 EXPORTS.testing += [
     'TestHarness.h',
 ]
 
-SIMPLE_PROGRAMS = [
-    'nsIFileEnumerator',
+sources = [
     'TestArguments',
     'TestBlockingProcess',
     'TestCallTemplates',
@@ -36,21 +33,31 @@ SIMPLE_PROGRAMS = [
     'TestThreadPoolListener',
     'TestTimers',
     'TestUnicodeArguments',
+    'nsIFileEnumerator',
 ]
 
 if CONFIG['OS_TARGET'] == 'WINNT':
-    SIMPLE_PROGRAMS += [
+    sources += [
         'TestBase64',
     ]
 
 if CONFIG['WRAP_STL_INCLUDES']:
-    SIMPLE_PROGRAMS += [
+    sources += [
         'TestSTLWrappers',
     ]
 
-SOURCES += [
-    '%s.cpp' % s for s in sorted(SIMPLE_PROGRAMS)
+sources.sort()
+
+CPP_SOURCES += [
+    '%s.cpp' % s for s in sources
 ]
+
+bin_suffix = CONFIG['BIN_SUFFIX']
+SIMPLE_PROGRAMS += [
+    '%s%s' % (s, bin_suffix) for s in sources
+]
+
+MODULE = 'xpcom'
 
 XPCSHELL_TESTS_MANIFESTS += ['unit/xpcshell.ini']
 
@@ -68,11 +75,9 @@ CPP_UNIT_TESTS += [
     'TestObserverArray.cpp',
     'TestObserverService.cpp',
     'TestPipe.cpp',
-    'TestPLDHash.cpp',
     'TestRefPtr.cpp',
     'TestTArray.cpp',
     'TestTextFormatter.cpp',
-    'TestThreadUtils.cpp'
 ]
 
 if CONFIG['MOZ_MEMORY']:

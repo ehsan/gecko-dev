@@ -99,7 +99,7 @@ using mozilla::startup::sChildProcessType;
 static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 
 #ifdef XP_WIN
-static const wchar_t kShellLibraryName[] =  L"shell32.dll";
+static const PRUnichar kShellLibraryName[] =  L"shell32.dll";
 #endif
 
 nsresult
@@ -372,7 +372,7 @@ XRE_InitChildProcess(int aArgc,
   // on POSIX, |crashReporterArg| is "true" if crash reporting is
   // enabled, false otherwise
   if (0 != strcmp("false", crashReporterArg) && 
-      !XRE_SetRemoteExceptionHandler(nullptr)) {
+      !XRE_SetRemoteExceptionHandler(NULL)) {
     // Bug 684322 will add better visibility into this condition
     NS_WARNING("Could not setup crash reporting\n");
   }
@@ -385,7 +385,7 @@ XRE_InitChildProcess(int aArgc,
   gArgc = aArgc;
 
 #if defined(MOZ_WIDGET_GTK)
-  g_thread_init(nullptr);
+  g_thread_init(NULL);
 #endif
 
 #if defined(MOZ_WIDGET_QT)

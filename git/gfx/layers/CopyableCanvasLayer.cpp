@@ -28,18 +28,6 @@ using namespace mozilla::gl;
 namespace mozilla {
 namespace layers {
 
-CopyableCanvasLayer::CopyableCanvasLayer(LayerManager* aLayerManager, void *aImplData) :
-  CanvasLayer(aLayerManager, aImplData)
-{
-  MOZ_COUNT_CTOR(CopyableCanvasLayer);
-  mForceReadback = Preferences::GetBool("webgl.force-layers-readback", false);
-}
-
-CopyableCanvasLayer::~CopyableCanvasLayer()
-{
-  MOZ_COUNT_DTOR(CopyableCanvasLayer);
-}
-
 void
 CopyableCanvasLayer::Initialize(const Data& aData)
 {
@@ -67,12 +55,6 @@ CopyableCanvasLayer::Initialize(const Data& aData)
   }
 
   mBounds.SetRect(0, 0, aData.mSize.width, aData.mSize.height);
-}
-
-bool
-CopyableCanvasLayer::IsDataValid(const Data& aData)
-{
-  return mGLContext == aData.mGLContext;
 }
 
 void
@@ -107,8 +89,8 @@ CopyableCanvasLayer::UpdateSurface(gfxASurface* aDestSurface, Layer* aMaskLayer)
 
     gfxIntSize readSize(sharedSurf->Size());
     gfxImageFormat format = (GetContentFlags() & CONTENT_OPAQUE)
-                            ? gfxImageFormatRGB24
-                            : gfxImageFormatARGB32;
+                            ? gfxASurface::ImageFormatRGB24
+                            : gfxASurface::ImageFormatARGB32;
 
     if (aDestSurface) {
       resultSurf = aDestSurface;
@@ -210,29 +192,6 @@ CopyableCanvasLayer::PaintWithOpacity(gfxContext* aContext,
   if (mNeedsYFlip) {
     aContext->SetMatrix(m);
   }
-}
-
-gfxImageSurface*
-CopyableCanvasLayer::GetTempSurface(const gfxIntSize& aSize, const gfxImageFormat aFormat)
-{
-  if (!mCachedTempSurface ||
-      aSize.width != mCachedSize.width ||
-      aSize.height != mCachedSize.height ||
-      aFormat != mCachedFormat)
-  {
-    mCachedTempSurface = new gfxImageSurface(aSize, aFormat);
-    mCachedSize = aSize;
-    mCachedFormat = aFormat;
-  }
-
-  MOZ_ASSERT(mCachedTempSurface->Stride() == mCachedTempSurface->Width() * 4);
-  return mCachedTempSurface;
-}
-
-void
-CopyableCanvasLayer::DiscardTempSurface()
-{
-  mCachedTempSurface = nullptr;
 }
 
 }

@@ -20,23 +20,22 @@
 #include "nsClassHashtable.h"
 #include "nsHashKeys.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/Maybe.h"
+#include "mozilla/Util.h"
 
 class nsPresContext;
 class nsIPresShell;
 class nsIDocument;
 class imgIRequest;
-class nsIRunnable;
-
-namespace mozilla {
-class RefreshDriverTimer;
-}
 
 /**
  * An abstract base class to be implemented by callers wanting to be
  * notified at refresh times.  When nothing needs to be painted, callers
  * may not be notified.
  */
+namespace mozilla {
+    class RefreshDriverTimer;
+}
+
 class nsARefreshObserver {
 public:
   // AddRef and Release signatures that match nsISupports.  Implementors
@@ -49,16 +48,6 @@ public:
   NS_IMETHOD_(nsrefcnt) Release(void) = 0;
 
   virtual void WillRefresh(mozilla::TimeStamp aTime) = 0;
-};
-
-/**
- * An abstract base class to be implemented by callers wanting to be notified
- * that a refresh has occurred. Callers must ensure an observer is removed
- * before it is destroyed.
- */
-class nsAPostRefreshObserver {
-public:
-  virtual void DidRefresh() = 0;
 };
 
 class nsRefreshDriver MOZ_FINAL : public nsISupports {
@@ -112,21 +101,11 @@ public:
    *
    * The refresh driver does NOT own a reference to these observers;
    * they must remove themselves before they are destroyed.
-   *
-   * The observer will be called even if there is no other activity.
    */
   bool AddRefreshObserver(nsARefreshObserver *aObserver,
-                          mozFlushType aFlushType);
+                            mozFlushType aFlushType);
   bool RemoveRefreshObserver(nsARefreshObserver *aObserver,
-                             mozFlushType aFlushType);
-
-  /**
-   * Add an observer that will be called after each refresh. The caller
-   * must remove the observer before it is deleted. This does not trigger
-   * refresh driver ticks.
-   */
-  void AddPostRefreshObserver(nsAPostRefreshObserver *aObserver);
-  void RemovePostRefreshObserver(nsAPostRefreshObserver *aObserver);
+                               mozFlushType aFlushType);
 
   /**
    * Add/Remove imgIRequest versions of observers.
@@ -213,20 +192,15 @@ public:
     mPresContext = nullptr;
   }
 
-  bool IsFrozen() { return mFreezeCount > 0; }
-
   /**
    * Freeze the refresh driver.  It should stop delivering future
-   * refreshes until thawed. Note that the number of calls to Freeze() must
-   * match the number of calls to Thaw() in order for the refresh driver to
-   * be un-frozen.
+   * refreshes until thawed.
    */
   void Freeze();
 
   /**
-   * Thaw the refresh driver.  If the number of calls to Freeze() matches the
-   * number of calls to this function, the refresh driver should start
-   * delivering refreshes again.
+   * Thaw the refresh driver.  If needed, it should start delivering
+   * refreshes again.
    */
   void Thaw();
 
@@ -254,14 +228,13 @@ public:
    */
   static int32_t DefaultInterval();
 
-  bool IsInRefresh() { return mInRefresh; }
-
 private:
   typedef nsTObserverArray<nsARefreshObserver*> ObserverArray;
   typedef nsTHashtable<nsISupportsHashKey> RequestTable;
   struct ImageStartData {
     ImageStartData()
     {
+      mEntries.Init();
     }
 
     mozilla::Maybe<mozilla::TimeStamp> mStartTime;
@@ -304,12 +277,11 @@ private:
   nsPresContext *mPresContext; // weak; pres context passed in constructor
                                // and unset in Disconnect
 
-  uint32_t mFreezeCount;
+  bool mFrozen;
   bool mThrottled;
   bool mTestControllingRefreshes;
   bool mViewManagerFlushIsPending;
   bool mRequestedHighPrecision;
-  bool mInRefresh;
 
   int64_t mMostRecentRefreshEpochTime;
   mozilla::TimeStamp mMostRecentRefresh;
@@ -324,7 +296,6 @@ private:
   nsAutoTArray<nsIPresShell*, 16> mPresShellsToInvalidateIfHidden;
   // nsTArray on purpose, because we want to be able to swap.
   nsTArray<nsIDocument*> mFrameRequestCallbackDocs;
-  nsTArray<nsAPostRefreshObserver*> mPostRefreshObservers;
 
   // Helper struct for processing image requests
   struct ImageRequestParameters {

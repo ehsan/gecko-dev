@@ -4,11 +4,12 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+MODULE = 'signmar'
+
 LIBRARY_NAME = 'signmar'
 
-UNIFIED_SOURCES += [
+CSRCS += [
     'mar_sign.c',
     'nss_secutil.c',
 ]
 
-FORCE_STATIC_LIB = True

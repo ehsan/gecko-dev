@@ -9,8 +9,6 @@
 
 #include "jscompartment.h"
 
-#include "gc/Barrier-inl.h"
-
 inline void
 JSCompartment::initGlobal(js::GlobalObject &global)
 {
@@ -22,14 +20,7 @@ JSCompartment::initGlobal(js::GlobalObject &global)
 js::GlobalObject *
 JSCompartment::maybeGlobal() const
 {
-#ifdef DEBUG
-    if (global_) {
-        js::AutoThreadSafeAccess ts0(global_);
-        js::AutoThreadSafeAccess ts1(global_->lastProperty());
-        js::AutoThreadSafeAccess ts2(global_->lastProperty()->base());
-        JS_ASSERT(global_->compartment() == this);
-    }
-#endif
+    JS_ASSERT_IF(global_, global_->compartment() == this);
     return global_;
 }
 
@@ -63,8 +54,8 @@ JSCompartment::wrap(JSContext *cx, JS::MutableHandleValue vp, JS::HandleObject e
 
     /* Handle strings. */
     if (vp.isString()) {
-        JS::RootedString str(cx, vp.toString());
-        if (!wrap(cx, str.address()))
+        JSString *str = vp.toString();
+        if (!wrap(cx, &str))
             return false;
         vp.setString(str);
         return true;
@@ -98,9 +89,9 @@ JSCompartment::wrap(JSContext *cx, JS::MutableHandleValue vp, JS::HandleObject e
     JS::RootedValue v(cx, vp);
     if (js::WrapperMap::Ptr p = crossCompartmentWrappers.lookup(v)) {
 #ifdef DEBUG
-        cacheResult = &p->value().get().toObject();
+        cacheResult = &p->value.get().toObject();
 #else
-        vp.set(p->value());
+        vp.set(p->value);
         return true;
 #endif
     }

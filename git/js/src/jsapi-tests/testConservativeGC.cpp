@@ -9,6 +9,8 @@
 #include "jsapi-tests/tests.h"
 #include "vm/String.h"
 
+#include "jsobjinlines.h"
+
 BEGIN_TEST(testConservativeGC)
 {
     JS::RootedValue v2(cx);
@@ -60,6 +62,7 @@ bool checkObjectFields(JSObject *savedCopy, JSObject *obj)
 {
     /* Ignore fields which are unstable across GCs. */
     CHECK(savedCopy->lastProperty() == obj->lastProperty());
+    CHECK(savedCopy->getProto() == obj->getProto());
     return true;
 }
 
@@ -71,7 +74,7 @@ BEGIN_TEST(testDerivedValues)
   JS::Anchor<JSString *> str_anchor(str);
   static const jschar expected[] = { 'o', 'n', 'c', 'e' };
   const jschar *ch = JS_GetStringCharsZ(cx, str);
-  str = nullptr;
+  str = NULL;
 
   /* Do a lot of allocation and collection. */
   for (int i = 0; i < 3; i++) {

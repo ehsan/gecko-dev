@@ -21,8 +21,6 @@
 #include "nsIWebProgress.h"
 #include "prenv.h"
 #include "nsIDocShellTreeItem.h"
-#include "nsIURI.h"
-#include "mozilla/dom/Element.h"
 
 using namespace mozilla;
 using namespace mozilla::a11y;
@@ -99,19 +97,22 @@ LogDocShellState(nsIDocument* aDocumentNode)
   printf("docshell busy: ");
 
   nsAutoCString docShellBusy;
-  nsCOMPtr<nsIDocShell> docShell = aDocumentNode->GetDocShell();
-  uint32_t busyFlags = nsIDocShell::BUSY_FLAGS_NONE;
-  docShell->GetBusyFlags(&busyFlags);
-  if (busyFlags == nsIDocShell::BUSY_FLAGS_NONE)
-    printf("'none'");
-  if (busyFlags & nsIDocShell::BUSY_FLAGS_BUSY)
-    printf("'busy'");
-  if (busyFlags & nsIDocShell::BUSY_FLAGS_BEFORE_PAGE_LOAD)
-    printf(", 'before page load'");
-  if (busyFlags & nsIDocShell::BUSY_FLAGS_PAGE_LOADING)
-    printf(", 'page loading'");
-
+  nsCOMPtr<nsISupports> container = aDocumentNode->GetContainer();
+  if (container) {
+    nsCOMPtr<nsIDocShell> docShell = do_QueryInterface(container);
+    uint32_t busyFlags = nsIDocShell::BUSY_FLAGS_NONE;
+    docShell->GetBusyFlags(&busyFlags);
+    if (busyFlags == nsIDocShell::BUSY_FLAGS_NONE)
+      printf("'none'");
+    if (busyFlags & nsIDocShell::BUSY_FLAGS_BUSY)
+      printf("'busy'");
+    if (busyFlags & nsIDocShell::BUSY_FLAGS_BEFORE_PAGE_LOAD)
+      printf(", 'before page load'");
+    if (busyFlags & nsIDocShell::BUSY_FLAGS_PAGE_LOADING)
+      printf(", 'page loading'");
+  } else {
     printf("[failed]");
+  }
 }
 
 static void
@@ -129,7 +130,8 @@ static void
 LogDocShellTree(nsIDocument* aDocumentNode)
 {
   if (aDocumentNode->IsActive()) {
-    nsCOMPtr<nsIDocShellTreeItem> treeItem(aDocumentNode->GetDocShell());
+    nsCOMPtr<nsISupports> container = aDocumentNode->GetContainer();
+    nsCOMPtr<nsIDocShellTreeItem> treeItem(do_QueryInterface(container));
     nsCOMPtr<nsIDocShellTreeItem> parentTreeItem;
     treeItem->GetParent(getter_AddRefs(parentTreeItem));
     nsCOMPtr<nsIDocShellTreeItem> rootTreeItem;
@@ -259,9 +261,6 @@ LogShellLoadType(nsIDocShell* aDocShell)
       break;
     case LOAD_NORMAL_BYPASS_PROXY_AND_CACHE:
       printf("normal bypass proxy and cache; ");
-      break;
-    case LOAD_NORMAL_ALLOW_MIXED_CONTENT:
-      printf("normal allow mixed content; ");
       break;
     case LOAD_RELOAD_NORMAL:
       printf("reload normal; ");

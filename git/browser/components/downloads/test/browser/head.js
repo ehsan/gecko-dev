@@ -51,10 +51,6 @@ function promisePanelOpened()
 {
   let deferred = Promise.defer();
 
-  if (DownloadsPanel.panel && DownloadsPanel.panel.state == "open") {
-    return deferred.resolve();
-  }
-
   // Hook to wait until the panel is shown.
   let originalOnPopupShown = DownloadsPanel.onPopupShown;
   DownloadsPanel.onPopupShown = function () {
@@ -72,12 +68,15 @@ function promisePanelOpened()
 function task_resetState()
 {
   // Remove all downloads.
-  let publicList = yield Downloads.getList(Downloads.PUBLIC);
+  let publicList = yield Downloads.getPublicDownloadList();
   let downloads = yield publicList.getAll();
   for (let download of downloads) {
     publicList.remove(download);
     yield download.finalize(true);
   }
+
+  // Reset any prefs that might have been changed.
+  Services.prefs.clearUserPref("browser.download.panel.shown");
 
   DownloadsPanel.hidePanel();
 
@@ -88,7 +87,7 @@ function task_addDownloads(aItems)
 {
   let startTimeMs = Date.now();
 
-  let publicList = yield Downloads.getList(Downloads.PUBLIC);
+  let publicList = yield Downloads.getPublicDownloadList();
   for (let item of aItems) {
     publicList.add(yield Downloads.createDownload({
       source: "http://www.example.com/test-download.txt",

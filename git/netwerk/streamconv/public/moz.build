@@ -13,7 +13,14 @@ XPIDL_SOURCES += [
     'nsITXTToHTMLConv.idl',
 ]
 
+if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
+    XPIDL_SOURCES += [
+        'nsIAppleFileDecoder.idl',
+    ]
+
 XPIDL_MODULE = 'necko_strconv'
+
+MODULE = 'necko'
 
 FAIL_ON_WARNINGS = True
 

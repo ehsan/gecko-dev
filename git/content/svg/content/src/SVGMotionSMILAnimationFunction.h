@@ -6,8 +6,7 @@
 #ifndef MOZILLA_SVGMOTIONSMILANIMATIONFUNCTION_H_
 #define MOZILLA_SVGMOTIONSMILANIMATIONFUNCTION_H_
 
-#include "mozilla/gfx/2D.h"
-#include "mozilla/RefPtr.h"
+#include "gfxPath.h"  // for gfxFlattenedPath
 #include "nsAutoPtr.h"
 #include "nsSMILAnimationFunction.h"
 #include "nsTArray.h"
@@ -33,8 +32,6 @@ class SVGMPathElement;
 //
 class SVGMotionSMILAnimationFunction : public nsSMILAnimationFunction
 {
-  typedef mozilla::gfx::Path Path;
-
 public:
   SVGMotionSMILAnimationFunction();
   virtual bool SetAttr(nsIAtom* aAttribute,
@@ -81,21 +78,21 @@ protected:
   void     RebuildPathAndVerticesFromMpathElem(dom::SVGMPathElement* aMpathElem);
   void     RebuildPathAndVerticesFromPathAttr();
   void     RebuildPathAndVerticesFromBasicAttrs(const nsIContent* aContextElem);
-  bool     GenerateValuesForPathAndPoints(Path* aPath,
+  bool     GenerateValuesForPathAndPoints(gfxFlattenedPath* aPath,
                                           bool aIsKeyPoints,
-                                          FallibleTArray<double>& aPointDistances,
-                                          nsSMILValueArray& aResult);
+                                          nsTArray<double>& aPointDistances,
+                                          nsTArray<nsSMILValue>& aResult);
 
   // Members
   // -------
-  FallibleTArray<double>     mKeyPoints; // parsed from "keyPoints" attribute.
+  nsTArray<double>           mKeyPoints; // parsed from "keyPoints" attribute.
 
   RotateType                 mRotateType;  // auto, auto-reverse, or explicit.
   float                      mRotateAngle; // the angle value, if explicit.
 
-  PathSourceType             mPathSourceType; // source of our Path.
-  RefPtr<Path>               mPath;           // representation of motion path.
-  FallibleTArray<double>     mPathVertices; // distances of vertices along path.
+  PathSourceType             mPathSourceType; // source of our gfxFlattenedPath.
+  nsRefPtr<gfxFlattenedPath> mPath;           // representation of motion path.
+  nsTArray<double>           mPathVertices; // distances of vertices along path.
 
   bool                       mIsPathStale;
 };

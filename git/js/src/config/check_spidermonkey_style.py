@@ -95,7 +95,6 @@ oddly_ordered_inclnames = set([
     'ctypes/typedefs.h',        # Included multiple times in the body of ctypes/CTypes.h
     'jsautokw.h',               # Included in the body of frontend/TokenStream.h
     'jswin.h',                  # Must be #included before <psapi.h>
-    'machine/endian.h',         # Must be included after <sys/types.h> on BSD
     'winbase.h',                # Must precede other system headers(?)
     'windef.h'                  # Must precede other system headers(?)
 ])
@@ -218,7 +217,7 @@ class FileKind(object):
 
 def get_all_filenames():
     '''Get a list of all the files in the (Mercurial or Git) repository.'''
-    cmds = [['hg', 'manifest', '-q'], ['git', 'ls-files', '--full-name', '../..']]
+    cmds = [['hg', 'manifest', '-q'], ['git', 'ls-files']]
     for cmd in cmds:
         try:
             all_filenames = subprocess.check_output(cmd, universal_newlines=True,
@@ -316,6 +315,10 @@ def is_module_header(enclosing_inclname, header_inclname):
     # A public header, e.g. module == "foo/Bar", header_inclname == "js/Bar.h".
     m = re.match(r'js\/(.*)\.h', header_inclname)
     if m is not None and module.endswith('/' + m.group(1)):
+        return True
+
+    # A weird public header case.
+    if module == 'jsmemorymetrics' and header_inclname == 'js/MemoryMetrics.h':
         return True
 
     return False

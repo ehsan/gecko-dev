@@ -6,7 +6,9 @@
 #ifndef MOZILLA_GFX_COMPOSITOR_H
 #define MOZILLA_GFX_COMPOSITOR_H
 
+#include "mozilla-config.h"             // for MOZ_DUMP_PAINTING
 #include "Units.h"                      // for ScreenPoint
+#include "gfxPoint.h"                   // for gfxIntSize
 #include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
 #include "mozilla/RefPtr.h"             // for TemporaryRef, RefCounted
 #include "mozilla/gfx/Point.h"          // for IntSize, Point
@@ -15,8 +17,6 @@
 #include "mozilla/layers/CompositorTypes.h"  // for DiagnosticTypes, etc
 #include "mozilla/layers/LayersTypes.h"  // for LayersBackend
 #include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
-#include "nsRegion.h"
-#include <vector>
 
 /**
  * Different elements of a web pages are rendered into separate "layers" before
@@ -103,15 +103,14 @@
  * add specific TextureClient implementations.
  */
 
+class gfxContext;
 class nsIWidget;
 struct gfxMatrix;
 struct nsIntSize;
-class nsIntRegion;
 
 namespace mozilla {
 namespace gfx {
 class Matrix4x4;
-class DrawTarget;
 }
 
 namespace layers {
@@ -123,13 +122,12 @@ class ISurfaceAllocator;
 class NewTextureSource;
 class DataTextureSource;
 class CompositingRenderTarget;
-class PCompositorParent;
-class LayerManagerComposite;
 
 enum SurfaceInitMode
 {
   INIT_MODE_NONE,
-  INIT_MODE_CLEAR
+  INIT_MODE_CLEAR,
+  INIT_MODE_COPY
 };
 
 /**
@@ -179,10 +177,9 @@ enum SurfaceInitMode
 class Compositor : public RefCounted<Compositor>
 {
 public:
-  Compositor(PCompositorParent* aParent = nullptr)
+  Compositor()
     : mCompositorID(0)
     , mDiagnosticTypes(DIAGNOSTIC_NONE)
-    , mParent(aParent)
   {
     MOZ_COUNT_CTOR(Compositor);
   }
@@ -214,7 +211,7 @@ public:
   /**
    * Properties of the compositor.
    */
-  virtual bool CanUseCanvasLayerForSize(const gfx::IntSize& aSize) = 0;
+  virtual bool CanUseCanvasLayerForSize(const gfxIntSize& aSize) = 0;
   virtual int32_t GetMaxTextureSize() const = 0;
 
   /**
@@ -224,7 +221,7 @@ public:
    * If this method is not used, or we pass in nullptr, we target the compositor's
    * usual swap chain and render to the screen.
    */
-  virtual void SetTargetContext(gfx::DrawTarget* aTarget) = 0;
+  virtual void SetTargetContext(gfxContext* aTarget) = 0;
 
   typedef uint32_t MakeCurrentFlags;
   static const MakeCurrentFlags ForceMakeCurrent = 0x1;
@@ -252,13 +249,10 @@ public:
    * Creates a Surface that can be used as a rendering target by this
    * compositor, and initializes the surface by copying from aSource.
    * If aSource is null, then the current screen buffer is used as source.
-   *
-   * aSourcePoint specifies the point in aSource to copy data from.
    */
   virtual TemporaryRef<CompositingRenderTarget>
   CreateRenderTargetFromSource(const gfx::IntRect& aRect,
-                               const CompositingRenderTarget* aSource,
-                               const gfx::IntPoint& aSourcePoint) = 0;
+                               const CompositingRenderTarget* aSource) = 0;
 
   /**
    * Sets the given surface as the target for subsequent calls to DrawQuad.
@@ -285,45 +279,29 @@ public:
   virtual void SetScreenRenderOffset(const ScreenPoint& aOffset) = 0;
 
   /**
-   * Tell the compositor to draw a quad. What to do draw and how it is
+   * Tell the compositor to actually draw a quad. What to do draw and how it is
    * drawn is specified by aEffectChain. aRect is the quad to draw, in user space.
-   * aTransform transforms from user space to screen space. If texture coords are
+   * aTransform transforms from user space to screen space. aOffset is the
+   * offset of the render target from 0,0 of the screen. If texture coords are
    * required, these will be in the primary effect in the effect chain.
    */
   virtual void DrawQuad(const gfx::Rect& aRect, const gfx::Rect& aClipRect,
                         const EffectChain& aEffectChain,
-                        gfx::Float aOpacity, const gfx::Matrix4x4 &aTransform) = 0;
-
-  /**
-   * Tell the compositor to draw lines connecting the points. Behaves like
-   * DrawQuad.
-   */
-  virtual void DrawLines(const std::vector<gfx::Point>& aLines, const gfx::Rect& aClipRect,
-                         const gfx::Color& aColor,
-                         gfx::Float aOpacity, const gfx::Matrix4x4 &aTransform)
-  { /* Should turn into pure virtual once implemented in D3D */ }
+                        gfx::Float aOpacity, const gfx::Matrix4x4 &aTransform,
+                        const gfx::Point& aOffset) = 0;
 
   /**
    * Start a new frame.
-   *
-   * aInvalidRect is the invalid region of the screen; it can be ignored for
-   * compositors where the performance for compositing the entire window is
-   * sufficient.
-   *
    * aClipRectIn is the clip rect for the window in window space (optional).
    * aTransform is the transform from user space to window space.
    * aRenderBounds bounding rect for rendering, in user space.
-   *
    * If aClipRectIn is null, this method sets *aClipRectOut to the clip rect
    * actually used for rendering (if aClipRectIn is non-null, we will use that
    * for the clip rect).
-   *
    * If aRenderBoundsOut is non-null, it will be set to the render bounds
-   * actually used by the compositor in window space. If aRenderBoundsOut
-   * is returned empty, composition should be aborted.
+   * actually used by the compositor in window space.
    */
-  virtual void BeginFrame(const nsIntRegion& aInvalidRegion,
-                          const gfx::Rect* aClipRectIn,
+  virtual void BeginFrame(const gfx::Rect* aClipRectIn,
                           const gfxMatrix& aTransform,
                           const gfx::Rect& aRenderBounds,
                           gfx::Rect* aClipRectOut = nullptr,
@@ -372,12 +350,8 @@ public:
   void DrawDiagnostics(DiagnosticFlags aFlags,
                        const gfx::Rect& visibleRect,
                        const gfx::Rect& aClipRect,
-                       const gfx::Matrix4x4& transform);
-
-  void DrawDiagnostics(DiagnosticFlags aFlags,
-                       const nsIntRegion& visibleRegion,
-                       const gfx::Rect& aClipRect,
-                       const gfx::Matrix4x4& transform);
+                       const gfx::Matrix4x4& transform,
+                       const gfx::Point& aOffset);
 
 
 #ifdef MOZ_DUMP_PAINTING
@@ -422,21 +396,10 @@ public:
    */
   virtual bool Resume() { return true; }
 
-  /**
-   * Call before rendering begins to ensure the compositor is ready to
-   * composite. Returns false if rendering should be aborted.
-   */
-  virtual bool Ready() { return true; }
-
   // XXX I expect we will want to move mWidget into this class and implement
   // these methods properly.
   virtual nsIWidget* GetWidget() const { return nullptr; }
-
-  // Call before and after any rendering not done by this compositor but which
-  // might affect the compositor's internal state or the state of any APIs it
-  // uses. For example, internal GL state.
-  virtual void SaveState() {}
-  virtual void RestoreState() {}
+  virtual const nsIntSize& GetWidgetSize() = 0;
 
   /**
    * Debug-build assertion that can be called to ensure code is running on the
@@ -455,25 +418,9 @@ public:
   static LayersBackend GetBackend();
 
 protected:
-  void DrawDiagnosticsInternal(DiagnosticFlags aFlags,
-                               const gfx::Rect& aVisibleRect,
-                               const gfx::Rect& aClipRect,
-                               const gfx::Matrix4x4& transform);
-
-  bool ShouldDrawDiagnostics(DiagnosticFlags);
-
   uint32_t mCompositorID;
   static LayersBackend sBackend;
   DiagnosticTypes mDiagnosticTypes;
-  PCompositorParent* mParent;
-
-  /**
-   * We keep track of the total number of pixels filled as we composite the
-   * current frame. This value is an approximation and is not accurate,
-   * especially in the presence of transforms.
-   */
-  size_t mPixelsPerFrame;
-  size_t mPixelsFilled;
 };
 
 } // namespace layers

@@ -205,7 +205,7 @@
 
   </binding>
 
-  <binding id="popup" role="xul:menupopup"
+  <binding id="popup"
            extends="chrome://global/content/bindings/popup.xml#popup-base">
     
     <content>
@@ -214,6 +214,16 @@
         <children/>
       </xul:arrowscrollbox>
     </content>
+
+    <implementation implements="nsIAccessibleProvider">
+      <property name="accessibleType" readonly="true">
+        <getter>
+          <![CDATA[
+              return Components.interfaces.nsIAccessibleProvider.XULMenupopup;
+            ]]>
+        </getter>
+      </property>
+    </implementation>
 
     <handlers>
       <handler event="popupshowing" phase="target">
@@ -237,9 +247,20 @@
     </handlers>
   </binding>
 
-  <binding id="panel" role="xul:panel"
+  <binding id="panel"
            extends="chrome://global/content/bindings/popup.xml#popup-base">
-    <implementation implements="nsIDOMXULPopupElement">
+    <!-- This separate binding for dialog-like panels - not menu, list or autocomplete popups
+         exposes the popup as an alert or a pane, depending on whether it is always intended
+         to get keyboard navigation when it opens -->
+    <implementation implements="nsIDOMXULPopupElement, nsIAccessibleProvider">
+      <property name="accessibleType" readonly="true">
+        <getter>
+          <![CDATA[
+          return (this.getAttribute("noautofocus") == "true") ?
+                       Components.interfaces.nsIAccessibleProvider.XULAlert :
+                       Components.interfaces.nsIAccessibleProvider.XULPane;
+        ]]></getter>
+      </property>
       <field name="_prevFocus">0</field>
       <field name="_dragBindingAlive">true</field>
       <constructor>
@@ -313,7 +334,7 @@
   </binding>
 
   <binding id="arrowpanel" extends="chrome://global/content/bindings/popup.xml#panel">
-    <content flip="both" side="top" position="bottomcenter topleft" consumeoutsideclicks="false">
+    <content flip="both" side="top" position="bottomcenter topleft">
       <xul:box anonid="container" class="panel-arrowcontainer" flex="1"
                xbl:inherits="side,panelopen">
         <xul:box anonid="arrowbox" class="panel-arrowbox">
@@ -466,15 +487,20 @@
     </handlers>
   </binding>
 
-  <binding id="tooltip" role="xul:tooltip"
-           extends="chrome://global/content/bindings/popup.xml#popup-base">
+  <binding id="tooltip" extends="chrome://global/content/bindings/popup.xml#popup-base">
     <content>
       <children>
         <xul:label class="tooltip-label" xbl:inherits="xbl:text=label" flex="1"/>
       </children>
     </content>
     
-    <implementation>
+    <implementation implements="nsIAccessibleProvider">
+      <property name="accessibleType" readonly="true">
+        <getter>
+          return Components.interfaces.nsIAccessibleProvider.XULTooltip;
+        </getter>
+      </property>
+
       <field name="_mouseOutCount">0</field>
       <field name="_isMouseOver">false</field>
       

@@ -5,7 +5,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #include "GfxInfoBase.h"
 
@@ -211,8 +211,6 @@ BlacklistOSToOperatingSystem(const nsAString& os)
     return DRIVER_OS_WINDOWS_7;
   else if (os == NS_LITERAL_STRING("WINNT 6.2"))
     return DRIVER_OS_WINDOWS_8;
-  else if (os == NS_LITERAL_STRING("WINNT 6.3"))
-    return DRIVER_OS_WINDOWS_8_1;
   else if (os == NS_LITERAL_STRING("Linux"))
     return DRIVER_OS_LINUX;
   else if (os == NS_LITERAL_STRING("Darwin 9"))
@@ -390,8 +388,7 @@ BlacklistEntryToDriverInfo(nsIDOMNode* aBlacklistEntry,
   if (BlacklistNodeGetChildByName(element, NS_LITERAL_STRING("osversion"),
                                   getter_AddRefs(dataNode))) {
     BlacklistNodeToTextValue(dataNode, dataValue);
-    aDriverInfo.mOperatingSystemVersion = strtoul(NS_LossyConvertUTF16toASCII(dataValue).get(),
-                                                  nullptr, 10);
+    aDriverInfo.mOperatingSystemVersion = strtoul(NS_LossyConvertUTF16toASCII(dataValue).get(), NULL, 10);
   }
 
   // <vendor>0x8086</vendor>

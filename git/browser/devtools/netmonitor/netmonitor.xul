@@ -14,19 +14,12 @@
 ]>
 
 <window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
-
-  <script type="application/javascript;version=1.8"
-          src="chrome://browser/content/devtools/theme-switching.js"/>
   <script type="text/javascript" src="netmonitor-controller.js"/>
   <script type="text/javascript" src="netmonitor-view.js"/>
 
   <popupset id="networkPopupSet">
     <menupopup id="network-request-popup"
                onpopupshowing="NetMonitorView.RequestsMenu._onContextShowing(event);">
-      <menuitem id="request-menu-context-newtab"
-                label="&netmonitorUI.context.newTab;"
-                accesskey="&netmonitorUI.context.newTab.accesskey;"
-                oncommand="NetMonitorView.RequestsMenu.openRequestInTab();"/>
       <menuitem id="request-menu-context-copy-url"
                 label="&netmonitorUI.context.copyUrl;"
                 accesskey="&netmonitorUI.context.copyUrl.accesskey;"
@@ -39,7 +32,7 @@
   </popupset>
 
   <box id="body"
-       class="devtools-responsive-container theme-body"
+       class="devtools-responsive-container"
        flex="1">
     <vbox id="network-table" flex="1">
       <toolbar id="requests-menu-toolbar"
@@ -52,7 +45,7 @@
             <button id="requests-menu-status-button"
                     class="requests-menu-header-button requests-menu-status"
                     onclick="NetMonitorView.RequestsMenu.sortBy('status')"
-                    label="&netmonitorUI.toolbar.status2;">
+                    label="&netmonitorUI.toolbar.status;">
             </button>
             <button id="requests-menu-method-button"
                     class="requests-menu-header-button requests-menu-method"
@@ -210,15 +203,10 @@
                class="plain requests-menu-footer-label"
                flex="1"
                crop="end"/>
-        <button id="requests-menu-clear-button"
-               class="requests-menu-footer-button"
-               onclick="NetMonitorView.RequestsMenu.clear()"
-               label="&netmonitorUI.footer.clear;">
-        </button>
       </hbox>
     </vbox>
 
-    <splitter id="splitter" class="devtools-side-splitter"/>
+    <splitter class="devtools-side-splitter"/>
 
     <deck id="details-pane"
           hidden="true">

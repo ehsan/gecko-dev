@@ -6,54 +6,82 @@
  * view.
  */
 
-const TAB_URL = EXAMPLE_URL + "doc_blackboxing.html";
-const BLACKBOXME_URL = EXAMPLE_URL + "code_blackboxing_blackboxme.js"
+const TAB_URL = EXAMPLE_URL + "browser_dbg_blackboxing.html";
+const BLACKBOXME_URL = EXAMPLE_URL + "blackboxing_blackboxme.js"
 
-let gTab, gDebuggee, gPanel, gDebugger;
-let gFrames;
+var gPane = null;
+var gTab = null;
+var gDebuggee = null;
+var gDebugger = null;
 
-function test() {
-  initDebugger(TAB_URL).then(([aTab, aDebuggee, aPanel]) => {
+function test()
+{
+  let scriptShown = false;
+  let framesAdded = false;
+  let resumed = false;
+  let testStarted = false;
+
+  debug_tab_pane(TAB_URL, function(aTab, aDebuggee, aPane) {
+    resumed = true;
     gTab = aTab;
     gDebuggee = aDebuggee;
-    gPanel = aPanel;
-    gDebugger = gPanel.panelWin;
-    gFrames = gDebugger.DebuggerView.StackFrames;
+    gPane = aPane;
+    gDebugger = gPane.panelWin;
 
-    waitForSourceShown(gPanel, BLACKBOXME_URL)
-      .then(testBlackBoxSource)
-      .then(testBlackBoxStack)
-      .then(() => resumeDebuggerThenCloseAndFinish(gPanel))
-      .then(null, aError => {
-        ok(false, "Got an error: " + aError.message + "\n" + aError.stack);
-      });
+    testBlackBoxSource();
   });
 }
 
 function testBlackBoxSource() {
-  return toggleBlackBoxing(gPanel).then(aSource => {
-    ok(aSource.isBlackBoxed, "The source should be black boxed now.");
+  once(gDebugger, "Debugger:SourceShown", function () {
+    const checkbox = getBlackBoxCheckbox(BLACKBOXME_URL);
+    ok(checkbox, "Should get the checkbox for blackBoxing the source");
+
+    const { activeThread } = gDebugger.DebuggerController;
+    activeThread.addOneTimeListener("blackboxchange", function (event, sourceClient) {
+      ok(sourceClient.isBlackBoxed, "The source should be black boxed now");
+
+      testBlackBoxStack();
+    });
+
+    checkbox.click();
   });
 }
 
 function testBlackBoxStack() {
-  let finished = waitForSourceAndCaretAndScopes(gPanel, ".html", 21).then(() => {
-    is(gFrames.itemCount, 3,
-      "Should only get 3 frames.");
-    is(gDebugger.document.querySelectorAll(".dbg-stackframe-black-boxed").length, 1,
-      "And one of them should be the combined black boxed frames.");
+  const { activeThread } = gDebugger.DebuggerController;
+  activeThread.addOneTimeListener("framesadded", function () {
+    const frames = gDebugger.DebuggerView.StackFrames.widget._list;
+
+    is(frames.querySelectorAll(".dbg-stackframe").length, 3,
+       "Should only get 3 frames");
+
+    is(frames.querySelectorAll(".dbg-stackframe-black-boxed").length, 1,
+       "And one of them should be the combined black boxed frames");
+
+    closeDebuggerAndFinish();
   });
 
-  // Spin the event loop before causing the debuggee to pause, to allow
-  // this function to return first.
-  executeSoon(() => gDebuggee.runTest());
-  return finished;
+  gDebuggee.runTest();
+}
+
+function getBlackBoxCheckbox(url) {
+  return gDebugger.document.querySelector(
+    ".side-menu-widget-item[tooltiptext=\""
+      + url + "\"] .side-menu-widget-item-checkbox");
+}
+
+function once(target, event, callback) {
+  target.addEventListener(event, function _listener(...args) {
+    target.removeEventListener(event, _listener, false);
+    callback.apply(null, args);
+  }, false);
 }
 
 registerCleanupFunction(function() {
+  removeTab(gTab);
+  gPane = null;
   gTab = null;
   gDebuggee = null;
-  gPanel = null;
   gDebugger = null;
-  gFrames = null;
 });

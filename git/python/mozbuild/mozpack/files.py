@@ -259,33 +259,22 @@ class AbsoluteSymlinkFile(File):
         return True
 
 
-class ExistingFile(BaseFile):
+class RequiredExistingFile(BaseFile):
     '''
-    File class that represents a file that may exist but whose content comes
-    from elsewhere.
+    File class that represents a file that must exist in the destination.
 
-    This purpose of this class is to account for files that are installed via
-    external means. It is typically only used in manifests or in registries to
-    account for files.
+    The purpose of this class is to account for files that are installed
+    via external means.
 
     When asked to copy, this class does nothing because nothing is known about
-    the source file/data.
-
-    Instances of this class come in two flavors: required and optional. If an
-    existing file is required, it must exist during copy() or an error is
-    raised.
+    the source file/data. However, since this file is required, we do validate
+    that the destination path exists.
     '''
-    def __init__(self, required):
-        self.required = required
-
     def copy(self, dest, skip_if_older=True):
         if isinstance(dest, basestring):
             dest = Dest(dest)
         else:
             assert isinstance(dest, Dest)
-
-        if not self.required:
-            return
 
         if not dest.exists():
             errors.fatal("Required existing file doesn't exist: %s" %
@@ -525,23 +514,15 @@ class FileFinder(BaseFinder):
     '''
     Helper to get appropriate BaseFile instances from the file system.
     '''
-    def __init__(self, base, find_executables=True, ignore=(), **kargs):
+    def __init__(self, base, find_executables=True, **kargs):
         '''
         Create a FileFinder for files under the given base directory.
-
         The find_executables argument determines whether the finder needs to
         try to guess whether files are executables. Disabling this guessing
         when not necessary can speed up the finder significantly.
-
-        ``ignore`` accepts an iterable of patterns to ignore. Entries are
-        strings that match paths relative to ``base`` using
-        ``mozpack.path.match()``. This means if an entry corresponds
-        to a directory, all files under that directory will be ignored. If
-        an entry corresponds to a file, that particular file will be ignored.
         '''
         BaseFinder.__init__(self, base, **kargs)
         self.find_executables = find_executables
-        self.ignore = ignore
 
     def _find(self, pattern):
         '''
@@ -564,14 +545,7 @@ class FileFinder(BaseFinder):
         Ignores file names starting with a '.' under the given path. If the
         path itself has leafs starting with a '.', they are not ignored.
         '''
-        for p in self.ignore:
-            if mozpack.path.match(path, p):
-                return
-
-        # The sorted makes the output idempotent. Otherwise, we are
-        # likely dependent on filesystem implementation details, such as
-        # inode ordering.
-        for p in sorted(os.listdir(os.path.join(self.base, path))):
+        for p in os.listdir(os.path.join(self.base, path)):
             if p.startswith('.'):
                 continue
             for p_, f in self._find(mozpack.path.join(path, p)):
@@ -585,10 +559,6 @@ class FileFinder(BaseFinder):
         srcpath = os.path.join(self.base, path)
         if not os.path.exists(srcpath):
             return
-
-        for p in self.ignore:
-            if mozpack.path.match(path, p):
-                return
 
         if self.find_executables and is_executable(srcpath):
             yield path, ExecutableFile(srcpath)
@@ -615,13 +585,7 @@ class FileFinder(BaseFinder):
         elif '*' in pattern[0]:
             if not os.path.exists(os.path.join(self.base, base)):
                 return
-
-            for p in self.ignore:
-                if mozpack.path.match(base, p):
-                    return
-
-            # See above comment w.r.t. sorted() and idempotent behavior.
-            for p in sorted(os.listdir(os.path.join(self.base, base))):
+            for p in os.listdir(os.path.join(self.base, base)):
                 if p.startswith('.') and not pattern[0].startswith('.'):
                     continue
                 if mozpack.path.match(p, pattern[0]):

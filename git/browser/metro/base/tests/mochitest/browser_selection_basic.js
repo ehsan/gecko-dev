@@ -8,7 +8,7 @@
 let gWindow = null;
 var gFrame = null;
 
-const kMarkerOffsetY = 6;
+const kMarkerOffsetY = 12;
 const kCommonWaitMs = 5000;
 const kCommonPollMs = 100;
 
@@ -53,6 +53,21 @@ gTests.push({
   tearDown: setUpAndTearDown,
   run: function test() {
     sendContextMenuClick(30, 20);
+
+    yield waitForCondition(function () {
+        return SelectionHelperUI.isSelectionUIVisible;
+      }, kCommonWaitMs, kCommonPollMs);
+
+    is(getTrimmedSelection(gWindow).toString(), "There", "selection test");
+  },
+});
+
+gTests.push({
+  desc: "double-tap to select",
+  setUp: setUpAndTearDown,
+  tearDown: setUpAndTearDown,
+  run: function test() {
+    sendDoubleTap(gWindow, 30, 20);
 
     yield waitForCondition(function () {
         return SelectionHelperUI.isSelectionUIVisible;
@@ -240,6 +255,49 @@ gTests.push({
     let scrollPromise = waitForEvent(gWindow, "scroll");
     gWindow.scrollBy(0, -200);
     yield scrollPromise;
+    emptyClipboard();
+    if (gWindow)
+      clearSelection(gWindow);
+    if (gFrame)
+      clearSelection(gFrame);
+    yield waitForCondition(function () {
+        return !SelectionHelperUI.isSelectionUIVisible;
+      }, kCommonWaitMs, kCommonPollMs);
+    yield hideContextUI();
+  },
+});
+
+gTests.push({
+  desc: "scroll disables",
+  setUp: setUpAndTearDown,
+  run: function test() {
+    sendContextMenuClick(100, 20);
+
+    yield waitForCondition(function () {
+        return SelectionHelperUI.isSelectionUIVisible;
+      }, kCommonWaitMs, kCommonPollMs);
+
+    is(SelectionHelperUI.isActive, true, "selection active");
+
+    // scroll page
+    sendTouchDrag(gWindow,
+                  400,
+                  400,
+                  400,
+                  350);
+
+    yield waitForCondition(function () {
+        return !SelectionHelperUI.isSelectionUIVisible;
+      }, kCommonWaitMs, kCommonPollMs);
+
+    // cancel fling from scroll above
+    TouchModule.cancelPending();
+
+    // active state - should be disabled after a page scroll
+    is(SelectionHelperUI.isActive, false, "selection inactive");
+  },
+  tearDown: function tearDown() {
+    EventUtils.synthesizeKey("VK_HOME", {}, gWindow);
     emptyClipboard();
     if (gWindow)
       clearSelection(gWindow);

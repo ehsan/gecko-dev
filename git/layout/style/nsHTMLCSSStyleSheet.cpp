@@ -12,14 +12,16 @@
 #include "mozilla/css/StyleRule.h"
 #include "nsIStyleRuleProcessor.h"
 #include "nsPresContext.h"
+#include "nsIDocument.h"
+#include "nsCOMPtr.h"
 #include "nsRuleWalker.h"
 #include "nsRuleProcessorData.h"
 #include "mozilla/dom/Element.h"
 #include "nsAttrValue.h"
 #include "nsAttrValueInlines.h"
 
-using namespace mozilla;
 using namespace mozilla::dom;
+namespace css = mozilla::css;
 
 namespace {
 
@@ -40,6 +42,7 @@ ClearAttrCache(const nsAString& aKey, MiscContainer*& aValue, void*)
 
 nsHTMLCSSStyleSheet::nsHTMLCSSStyleSheet()
 {
+  mCachedStyleAttrs.Init();
 }
 
 nsHTMLCSSStyleSheet::~nsHTMLCSSStyleSheet()
@@ -84,18 +87,6 @@ nsHTMLCSSStyleSheet::RulesMatching(ElementRuleProcessorData* aData)
 /* virtual */ void
 nsHTMLCSSStyleSheet::RulesMatching(PseudoElementRuleProcessorData* aData)
 {
-  if (nsCSSPseudoElements::PseudoElementSupportsStyleAttribute(aData->mPseudoType)) {
-    MOZ_ASSERT(aData->mPseudoElement,
-        "If pseudo element is supposed to support style attribute, it must "
-        "have a pseudo element set");
-
-    // just get the one and only style rule from the content's STYLE attribute
-    css::StyleRule* rule = aData->mPseudoElement->GetInlineStyleRule();
-    if (rule) {
-      rule->RuleMatched();
-      aData->mRuleWalker->Forward(rule);
-    }
-  }
 }
 
 /* virtual */ void
@@ -113,12 +104,6 @@ nsHTMLCSSStyleSheet::RulesMatching(XULTreeRuleProcessorData* aData)
 // Test if style is dependent on content state
 /* virtual */ nsRestyleHint
 nsHTMLCSSStyleSheet::HasStateDependentStyle(StateRuleProcessorData* aData)
-{
-  return nsRestyleHint(0);
-}
-
-/* virtual */ nsRestyleHint
-nsHTMLCSSStyleSheet::HasStateDependentStyle(PseudoElementStateRuleProcessorData* aData)
 {
   return nsRestyleHint(0);
 }

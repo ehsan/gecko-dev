@@ -22,7 +22,7 @@ require("sdk/test").run(exports);
 PACKAGE_JSON = '''\
 {
   "name": "%(name)s",
-  "title": "%(title)s",
+  "fullName": "%(fullName)s",
   "id": "%(id)s",
   "description": "a basic add-on",
   "author": "",

@@ -10,7 +10,7 @@
 
 #include "PCMFile.h"
 
-#include <ctype.h>
+#include <cctype>
 #include <stdio.h>
 #include <string.h>
 
@@ -30,8 +30,8 @@ PCMFile::PCMFile()
       rewinded_(false),
       read_stereo_(false),
       save_stereo_(false) {
-  timestamp_ = (((uint32_t) rand() & 0x0000FFFF) << 16) |
-      ((uint32_t) rand() & 0x0000FFFF);
+  timestamp_ = (((uint32_t)rand() & 0x0000FFFF) << 16) |
+      ((uint32_t)rand() & 0x0000FFFF);
 }
 
 PCMFile::PCMFile(uint32_t timestamp)
@@ -46,7 +46,46 @@ PCMFile::PCMFile(uint32_t timestamp)
   timestamp_ = timestamp;
 }
 
-int16_t PCMFile::ChooseFile(std::string* file_name, int16_t max_len,
+int16_t PCMFile::ChooseFile(std::string* file_name, int16_t max_len) {
+  char tmp_name[MAX_FILE_NAME_LENGTH_BYTE];
+
+  EXPECT_TRUE(fgets(tmp_name, MAX_FILE_NAME_LENGTH_BYTE, stdin) != NULL);
+  tmp_name[MAX_FILE_NAME_LENGTH_BYTE - 1] = '\0';
+  int16_t n = 0;
+
+  // Removing leading spaces.
+  while ((isspace(tmp_name[n]) || iscntrl(tmp_name[n])) && (tmp_name[n] != 0)
+      && (n < MAX_FILE_NAME_LENGTH_BYTE)) {
+    n++;
+  }
+  if (n > 0) {
+    memmove(tmp_name, &tmp_name[n], MAX_FILE_NAME_LENGTH_BYTE - n);
+  }
+
+  // Removing trailing spaces.
+  n = (int16_t)(strlen(tmp_name) - 1);
+  if (n >= 0) {
+    while ((isspace(tmp_name[n]) || iscntrl(tmp_name[n])) && (n >= 0)) {
+      n--;
+    }
+  }
+  if (n >= 0) {
+    tmp_name[n + 1] = '\0';
+  }
+
+  int16_t len = (int16_t) strlen(tmp_name);
+  if (len > max_len) {
+    return -1;
+  }
+  if (len > 0) {
+    std::string tmp_string(tmp_name, len + 1);
+    *file_name = tmp_string;
+  }
+  return 0;
+}
+
+int16_t PCMFile::ChooseFile(std::string* file_name,
+                            int16_t max_len,
                             uint16_t* frequency_hz) {
   char tmp_name[MAX_FILE_NAME_LENGTH_BYTE];
 
@@ -119,8 +158,10 @@ int32_t PCMFile::Read10MsData(AudioFrame& audio_frame) {
     channels = 2;
   }
 
-  int32_t payload_size = (int32_t) fread(audio_frame.data_, sizeof(uint16_t),
-                                         samples_10ms_ * channels, pcm_file_);
+  int32_t payload_size = (int32_t) fread(audio_frame.data_,
+                                                    sizeof(uint16_t),
+                                                    samples_10ms_ * channels,
+                                                    pcm_file_);
   if (payload_size < samples_10ms_ * channels) {
     for (int k = payload_size; k < samples_10ms_ * channels; k++) {
       audio_frame.data_[k] = 0;
@@ -149,7 +190,8 @@ void PCMFile::Write10MsData(AudioFrame& audio_frame) {
         return;
       }
     } else {
-      int16_t* stereo_audio = new int16_t[2 * audio_frame.samples_per_channel_];
+      int16_t* stereo_audio =
+          new int16_t[2 * audio_frame.samples_per_channel_];
       int k;
       for (k = 0; k < audio_frame.samples_per_channel_; k++) {
         stereo_audio[k << 1] = audio_frame.data_[k];
@@ -165,17 +207,17 @@ void PCMFile::Write10MsData(AudioFrame& audio_frame) {
   } else {
     if (fwrite(audio_frame.data_, sizeof(int16_t),
                audio_frame.num_channels_ * audio_frame.samples_per_channel_,
-               pcm_file_) !=
-        static_cast<size_t>(audio_frame.num_channels_ *
-                            audio_frame.samples_per_channel_)) {
+               pcm_file_) != static_cast<size_t>(
+            audio_frame.num_channels_ * audio_frame.samples_per_channel_)) {
       return;
     }
   }
 }
 
-void PCMFile::Write10MsData(int16_t* playout_buffer, uint16_t length_smpls) {
-  if (fwrite(playout_buffer, sizeof(uint16_t), length_smpls, pcm_file_) !=
-      length_smpls) {
+void PCMFile::Write10MsData(int16_t* playout_buffer,
+                            uint16_t length_smpls) {
+  if (fwrite(playout_buffer, sizeof(uint16_t),
+             length_smpls, pcm_file_) != length_smpls) {
     return;
   }
 }

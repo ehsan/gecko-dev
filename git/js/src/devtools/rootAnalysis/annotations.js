@@ -11,12 +11,6 @@ var ignoreIndirectCalls = {
     "__convf" : true,
     "prerrortable.c:callback_newtable" : true,
     "mozalloc_oom.cpp:void (* gAbortHandler)(size_t)" : true,
-
-    // I don't know why these are getting truncated
-    "nsTraceRefcntImpl.cpp:void (* leakyLogAddRef)(void*": true,
-    "nsTraceRefcntImpl.cpp:void (* leakyLogAddRef)(void*, int, int)": true,
-    "nsTraceRefcntImpl.cpp:void (* leakyLogRelease)(void*": true,
-    "nsTraceRefcntImpl.cpp:void (* leakyLogRelease)(void*, int, int)": true,
 };
 
 function indirectCallCannotGC(caller, name)
@@ -69,17 +63,16 @@ var ignoreCallees = {
     "js::Class.trace" : true,
     "js::Class.finalize" : true,
     "JSRuntime.destroyPrincipals" : true,
-    "nsIGlobalObject.GetGlobalJSObject" : true, // virtual but no implementation can GC
+    "nsISupports.AddRef" : true,
+    "nsISupports.Release" : true, // makes me a bit nervous; this is a bug but can happen
     "nsAXPCNativeCallContext.GetJSContext" : true,
-    "js::jit::MDefinition.op" : true, // macro generated virtuals just return a constant
-    "js::jit::MDefinition.opName" : true, // macro generated virtuals just return a constant
-    "js::jit::LInstruction.getDef" : true, // virtual but no implementation can GC
-    "js::jit::IonCache.kind" : true, // macro generated virtuals just return a constant
+    "js::ion::MDefinition.op" : true, // macro generated virtuals just return a constant
+    "js::ion::MDefinition.opName" : true, // macro generated virtuals just return a constant
+    "js::ion::LInstruction.getDef" : true, // virtual but no implementation can GC
+    "js::ion::IonCache.kind" : true, // macro generated virtuals just return a constant
     "icu_50::UObject.__deleting_dtor" : true, // destructors in ICU code can't cause GC
     "mozilla::CycleCollectedJSRuntime.DescribeCustomObjects" : true, // During tracing, cannot GC.
     "mozilla::CycleCollectedJSRuntime.NoteCustomGCThingXPCOMChildren" : true, // During tracing, cannot GC.
-    "nsIThreadManager.GetIsMainThread" : true,
-    "PLDHashTableOps.hashKey" : true,
 };
 
 function fieldCallCannotGC(csu, fullfield)
@@ -112,8 +105,6 @@ function ignoreEdgeUse(edge, variable)
                 return true;
             if (/~DebugOnly/.test(name))
                 return true;
-            if (/~ScopedThreadSafeStringInspector/.test(name))
-                return true;
         }
     }
 
@@ -145,36 +136,6 @@ var ignoreFunctions = {
     "PR_ErrorInstallTable" : true,
     "PR_SetThreadPrivate" : true,
     "JSObject* js::GetWeakmapKeyDelegate(JSObject*)" : true, // FIXME: mark with AutoAssertNoGC instead
-    "uint8 NS_IsMainThread()" : true,
-
-    // FIXME!
-    "NS_LogInit": true,
-    "NS_LogTerm": true,
-    "NS_LogAddRef": true,
-    "NS_LogRelease": true,
-    "NS_LogCtor": true,
-    "NS_LogDtor": true,
-    "NS_LogCOMPtrAddRef": true,
-    "NS_LogCOMPtrRelease": true,
-
-    // FIXME!
-    "NS_DebugBreak": true,
-
-    // These are a little overzealous -- these destructors *can* GC if they end
-    // up wrapping a pending exception. See bug 898815 for the heavyweight fix.
-    "void js::AutoCompartment::~AutoCompartment(int32)" : true,
-    "void JSAutoCompartment::~JSAutoCompartment(int32)" : true,
-
-    // Bug 948646 - the only thing AutoJSContext's constructor calls
-    // is an Init() routine whose entire body is covered with an
-    // AutoAssertNoGC. AutoSafeJSContext is the same thing, just with
-    // a different value for the 'aSafe' parameter.
-    "void mozilla::AutoJSContext::AutoJSContext(mozilla::detail::GuardObjectNotifier*)" : true,
-    "void mozilla::AutoSafeJSContext::~AutoSafeJSContext(int32)" : true,
-
-    // And these are workarounds to avoid even more analysis work,
-    // which would sadly still be needed even with bug 898815.
-    "void js::AutoCompartment::AutoCompartment(js::ExclusiveContext*, JSCompartment*)": true,
 };
 
 function ignoreGCFunction(fun)
@@ -195,8 +156,6 @@ function ignoreGCFunction(fun)
 function isRootedTypeName(name)
 {
     if (name == "mozilla::ErrorResult" ||
-        name == "JSErrorResult" ||
-        name == "WrappableJSErrorResult" ||
         name == "js::frontend::TokenStream" ||
         name == "js::frontend::TokenStream::Position" ||
         name == "ModuleCompiler")
@@ -220,8 +179,6 @@ function isRootedPointerTypeName(name)
         name = name.substr(4);
     if (name.startsWith('JS::'))
         name = name.substr(4);
-    if (name.startsWith('mozilla::dom::'))
-        name = name.substr(14);
 
     if (name.startsWith('MaybeRooted<'))
         return /\(js::AllowGC\)1u>::RootType/.test(name);
@@ -232,20 +189,5 @@ function isRootedPointerTypeName(name)
 function isSuppressConstructor(name)
 {
     return /::AutoSuppressGC/.test(name)
-        || /::AutoEnterAnalysis/.test(name)
-        || /::AutoAssertNoGC/.test(name);
-}
-
-// nsISupports subclasses' methods may be scriptable (or overridden
-// via binary XPCOM), and so may GC. But some fields just aren't going
-// to get overridden with something that can GC.
-function isOverridableField(csu, field)
-{
-    if (csu != 'nsISupports')
-        return false;
-    if (field == 'GetCurrentJSContext')
-        return false;
-    if (field == 'IsOnCurrentThread')
-        return false;
-    return true;
+        || /::AutoEnterAnalysis/.test(name);
 }

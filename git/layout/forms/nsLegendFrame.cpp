@@ -5,6 +5,7 @@
 
 #include "nsLegendFrame.h"
 #include "nsIContent.h"
+#include "nsIAtom.h"
 #include "nsGenericHTMLElement.h"
 #include "nsAttrValueInlines.h"
 #include "nsHTMLParts.h"

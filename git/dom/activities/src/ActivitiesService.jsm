@@ -23,6 +23,8 @@ XPCOMUtils.defineLazyServiceGetter(this, "NetUtil",
 
 this.EXPORTED_SYMBOLS = [];
 
+let idbGlobal = this;
+
 function debug(aMsg) {
   //dump("-- ActivitiesService.jsm " + Date.now() + " " + aMsg + "\n");
 }
@@ -39,7 +41,10 @@ ActivitiesDb.prototype = {
   __proto__: IndexedDBHelper.prototype,
 
   init: function actdb_init() {
-    this.initDBHelper(DB_NAME, DB_VERSION, [STORE_NAME]);
+    let idbManager = Cc["@mozilla.org/dom/indexeddb/manager;1"]
+                       .getService(Ci.nsIIndexedDatabaseManager);
+    idbManager.initWindowless(idbGlobal);
+    this.initDBHelper(DB_NAME, DB_VERSION, [STORE_NAME], idbGlobal);
   },
 
   /**
@@ -301,10 +306,12 @@ let Activities = {
 
       case "Activity:PostResult":
         caller.mm.sendAsyncMessage("Activity:FireSuccess", msg);
+        Services.obs.notifyObservers(null, "activity-done", obsData);
         delete this.callers[msg.id];
         break;
       case "Activity:PostError":
         caller.mm.sendAsyncMessage("Activity:FireError", msg);
+        Services.obs.notifyObservers(null, "activity-done", obsData);
         delete this.callers[msg.id];
         break;
 

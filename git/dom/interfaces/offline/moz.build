@@ -5,8 +5,11 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 XPIDL_SOURCES += [
+    'nsIDOMLoadStatus.idl',
     'nsIDOMOfflineResourceList.idl',
 ]
 
 XPIDL_MODULE = 'dom_offline'
+
+MODULE = 'dom'
 

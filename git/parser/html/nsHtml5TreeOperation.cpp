@@ -42,7 +42,7 @@
 #include "mozilla/Likely.h"
 #include "nsTextNode.h"
 
-using namespace mozilla;
+namespace dom = mozilla::dom;
 
 static NS_DEFINE_CID(kFormProcessorCID, NS_FORMPROCESSOR_CID);
 
@@ -226,24 +226,6 @@ nsHtml5TreeOperation::AppendToDocument(nsIContent* aNode,
   return rv;
 }
 
-static bool
-IsElementOrTemplateContent(nsINode* aNode) {
-  if (aNode) {
-    if (aNode->IsElement()) {
-      return true;
-    } else if (aNode->NodeType() == nsIDOMNode::DOCUMENT_FRAGMENT_NODE) {
-      // Check if the node is a template content.
-      mozilla::dom::DocumentFragment* frag =
-        static_cast<mozilla::dom::DocumentFragment*>(aNode);
-      nsIContent* fragHost = frag->GetHost();
-      if (fragHost && nsNodeUtils::IsTemplateElement(fragHost)) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
 nsresult
 nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
                               nsIContent** aScriptElement)
@@ -258,7 +240,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
     case eTreeOpDetach: {
       nsIContent* node = *(mOne.node);
       aBuilder->FlushPendingAppendNotifications();
-      nsCOMPtr<nsINode> parent = node->GetParentNode();
+      nsCOMPtr<nsIContent> parent = node->GetParent();
       if (parent) {
         nsHtml5OtherDocUpdate update(parent->OwnerDoc(),
                                      aBuilder->GetDocument());
@@ -297,7 +279,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       nsIContent* table = *(mThree.node);
       nsIContent* foster = table->GetParent();
 
-      if (IsElementOrTemplateContent(foster)) {
+      if (foster && foster->IsElement()) {
         aBuilder->FlushPendingAppendNotifications();
 
         nsHtml5OtherDocUpdate update(foster->OwnerDoc(),
@@ -357,7 +339,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
         name = nsHtml5Atoms::select;
       }
       
-      nsCOMPtr<dom::Element> newContent;
+      nsCOMPtr<nsIContent> newContent;
       nsCOMPtr<nsINodeInfo> nodeInfo = aBuilder->GetNodeInfoManager()->
         GetNodeInfo(name, nullptr, ns, nsIDOMNode::ELEMENT_NODE);
       NS_ASSERTION(nodeInfo, "Got null nodeinfo.");
@@ -382,10 +364,8 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
         // Adapted from CNavDTD
         nsCOMPtr<nsIFormProcessor> theFormProcessor =
           do_GetService(kFormProcessorCID, &rv);
-        if (NS_FAILED(rv)) {
-          return NS_OK;
-        }
-
+        NS_ENSURE_SUCCESS(rv, rv);
+        
         nsTArray<nsString> theContent;
         nsAutoString theAttribute;
          
@@ -406,7 +386,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
                                                       nsIDOMNode::ELEMENT_NODE);
                                                       
         for (uint32_t i = 0; i < theContent.Length(); ++i) {
-          nsCOMPtr<dom::Element> optionElt;
+          nsCOMPtr<nsIContent> optionElt;
           nsCOMPtr<nsINodeInfo> ni = optionNodeInfo;
           NS_NewElement(getter_AddRefs(optionElt), 
                         ni.forget(),
@@ -507,9 +487,10 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       PRUnichar* buffer = mTwo.unicharPtr;
       uint32_t length = mFour.integer;
       nsIContent* table = *mThree.node;
+      
       nsIContent* foster = table->GetParent();
 
-      if (IsElementOrTemplateContent(foster)) {
+      if (foster && foster->IsElement()) {
         aBuilder->FlushPendingAppendNotifications();
 
         nsHtml5OtherDocUpdate update(foster->OwnerDoc(),

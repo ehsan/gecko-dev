@@ -8,19 +8,20 @@
 #define jit_shared_CodeGenerator_shared_h
 
 #include "mozilla/Alignment.h"
+#include "mozilla/Util.h"
 
+#include "jit/IonCaches.h"
 #include "jit/IonFrames.h"
 #include "jit/IonMacroAssembler.h"
 #include "jit/LIR.h"
-#include "jit/MIRGenerator.h"
+#include "jit/MIR.h"
 #include "jit/MIRGraph.h"
 #include "jit/Safepoints.h"
 #include "jit/SnapshotWriter.h"
 #include "jit/VMFunctions.h"
-#include "vm/ForkJoin.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class OutOfLineCode;
 class CodeGenerator;
@@ -61,7 +62,7 @@ class CodeGeneratorShared : public LInstructionVisitor
     LIRGraph &graph;
     LBlock *current;
     SnapshotWriter snapshots_;
-    JitCode *deoptTable_;
+    IonCode *deoptTable_;
 #ifdef DEBUG
     uint32_t pushedArgs_;
 #endif
@@ -97,10 +98,6 @@ class CodeGeneratorShared : public LInstructionVisitor
     // The offset of the first instruction of the OSR entry block from the
     // beginning of the code buffer.
     size_t osrEntryOffset_;
-
-    TempAllocator &alloc() const {
-        return graph.mir().alloc();
-    }
 
     inline void setOsrEntryOffset(size_t offset) {
         JS_ASSERT(osrEntryOffset_ == 0);
@@ -150,7 +147,7 @@ class CodeGeneratorShared : public LInstructionVisitor
 
     inline int32_t SlotToStackOffset(int32_t slot) const {
         JS_ASSERT(slot > 0 && slot <= int32_t(graph.localSlotCount()));
-        int32_t offset = masm.framePushed() - slot;
+        int32_t offset = masm.framePushed() - (slot * STACK_SLOT_SIZE);
         JS_ASSERT(offset >= 0);
         return offset;
     }
@@ -158,10 +155,11 @@ class CodeGeneratorShared : public LInstructionVisitor
         // See: SlotToStackOffset. This is used to convert pushed arguments
         // to a slot index that safepoints can use.
         //
-        // offset = framePushed - slot
-        // offset + slot = framePushed
-        // slot = framePushed - offset
-        return masm.framePushed() - offset;
+        // offset = framePushed - (slot * STACK_SLOT_SIZE)
+        // offset + (slot * STACK_SLOT_SIZE) = framePushed
+        // slot * STACK_SLOT_SIZE = framePushed - offset
+        // slot = (framePushed - offset) / STACK_SLOT_SIZE
+        return (masm.framePushed() - offset) / STACK_SLOT_SIZE;
     }
 
     // For argument construction for calls. Argslots are Value-sized.
@@ -169,17 +167,16 @@ class CodeGeneratorShared : public LInstructionVisitor
         // A slot of 0 is permitted only to calculate %esp offset for calls.
         JS_ASSERT(slot >= 0 && slot <= int32_t(graph.argumentSlotCount()));
         int32_t offset = masm.framePushed() -
-                       graph.paddedLocalSlotsSize() -
+                       (graph.localSlotCount() * STACK_SLOT_SIZE) -
                        (slot * sizeof(Value));
-
         // Passed arguments go below A function's local stack storage.
         // When arguments are being pushed, there is nothing important on the stack.
         // Therefore, It is safe to push the arguments down arbitrarily.  Pushing
-        // by sizeof(Value) is desirable since everything on the stack is a Value.
-        // Note that paddedLocalSlotCount() aligns to at least a Value boundary
-        // specifically to support this.
+        // by 8 is desirable since everything on the stack is a Value, which is 8
+        // bytes large.
+
+        offset &= ~7;
         JS_ASSERT(offset >= 0);
-        JS_ASSERT(offset % sizeof(Value) == 0);
         return offset;
     }
 
@@ -195,46 +192,25 @@ class CodeGeneratorShared : public LInstructionVisitor
 
   protected:
     // Ensure the cache is an IonCache while expecting the size of the derived
-    // class. We only need the cache list at GC time. Everyone else can just take
-    // runtimeData offsets.
+    // class.
     size_t allocateCache(const IonCache &, size_t size) {
         size_t dataOffset = allocateData(size);
+        size_t index = cacheList_.length();
         masm.propagateOOM(cacheList_.append(dataOffset));
-        return dataOffset;
+        return index;
     }
 
 #ifdef CHECK_OSIPOINT_REGISTERS
-    void resetOsiPointRegs(LSafepoint *safepoint);
     bool shouldVerifyOsiPointRegs(LSafepoint *safepoint);
     void verifyOsiPointRegs(LSafepoint *safepoint);
 #endif
 
   public:
-
-    // When appending to runtimeData_, the vector might realloc, leaving pointers
-    // int the origianl vector stale and unusable. DataPtr acts like a pointer,
-    // but allows safety in the face of potentially realloc'ing vector appends.
-    friend class DataPtr;
-    template <typename T>
-    class DataPtr
-    {
-        CodeGeneratorShared *cg_;
-        size_t index_;
-
-        T *lookup() {
-            return reinterpret_cast<T *>(&cg_->runtimeData_[index_]);
-        }
-      public:
-        DataPtr(CodeGeneratorShared *cg, size_t index)
-          : cg_(cg), index_(index) { }
-
-        T * operator ->() {
-            return lookup();
-        }
-        T * operator *() {
-            return lookup();
-        }
-    };
+    // This is needed by addCache to update the cache with the jump
+    // informations provided by the out-of-line path.
+    IonCache *getCache(size_t index) {
+        return reinterpret_cast<IonCache *>(&runtimeData_[cacheList_[index]]);
+    }
 
   protected:
 
@@ -249,8 +225,7 @@ class CodeGeneratorShared : public LInstructionVisitor
     inline size_t allocateCache(const T &cache) {
         size_t index = allocateCache(cache, sizeof(mozilla::AlignedStorage2<T>));
         // Use the copy constructor on the allocated space.
-        JS_ASSERT(index == cacheList_.back());
-        new (&runtimeData_[index]) T(cache);
+        new (&runtimeData_[cacheList_.back()]) T(cache);
         return index;
     }
 
@@ -287,9 +262,7 @@ class CodeGeneratorShared : public LInstructionVisitor
     //      an invalidation marker.
     void ensureOsiSpace();
 
-    OutOfLineCode *oolTruncateDouble(const FloatRegister &src, const Register &dest);
     bool emitTruncateDouble(const FloatRegister &src, const Register &dest);
-    bool emitTruncateFloat32(const FloatRegister &src, const Register &dest);
 
     void emitPreBarrier(Register base, const LAllocation *index, MIRType type);
     void emitPreBarrier(Address address, MIRType type);
@@ -310,22 +283,22 @@ class CodeGeneratorShared : public LInstructionVisitor
     // be saved and restored in case future LIR instructions need those values.)
     void saveVolatile(Register output) {
         RegisterSet regs = RegisterSet::Volatile();
-        regs.takeUnchecked(output);
+        regs.maybeTake(output);
         masm.PushRegsInMask(regs);
     }
     void restoreVolatile(Register output) {
         RegisterSet regs = RegisterSet::Volatile();
-        regs.takeUnchecked(output);
+        regs.maybeTake(output);
         masm.PopRegsInMask(regs);
     }
     void saveVolatile(FloatRegister output) {
         RegisterSet regs = RegisterSet::Volatile();
-        regs.takeUnchecked(output);
+        regs.maybeTake(output);
         masm.PushRegsInMask(regs);
     }
     void restoreVolatile(FloatRegister output) {
         RegisterSet regs = RegisterSet::Volatile();
-        regs.takeUnchecked(output);
+        regs.maybeTake(output);
         masm.PopRegsInMask(regs);
     }
     void saveVolatile(RegisterSet temps) {
@@ -370,13 +343,13 @@ class CodeGeneratorShared : public LInstructionVisitor
         masm.storeCallResultValue(t);
     }
 
-    bool callVM(const VMFunction &f, LInstruction *ins, const Register *dynStack = nullptr);
+    bool callVM(const VMFunction &f, LInstruction *ins, const Register *dynStack = NULL);
 
     template <class ArgSeq, class StoreOutputTo>
     inline OutOfLineCode *oolCallVM(const VMFunction &fun, LInstruction *ins, const ArgSeq &args,
                                     const StoreOutputTo &out);
 
-    bool callVM(const VMFunctionsModal &f, LInstruction *ins, const Register *dynStack = nullptr) {
+    bool callVM(const VMFunctionsModal &f, LInstruction *ins, const Register *dynStack = NULL) {
         return callVM(f[gen->info().executionMode()], ins, dynStack);
     }
 
@@ -388,7 +361,6 @@ class CodeGeneratorShared : public LInstructionVisitor
     }
 
     bool addCache(LInstruction *lir, size_t cacheIndex);
-    size_t addCacheLocations(const CacheLocationList &locs, size_t *numLocs);
 
   protected:
     bool addOutOfLineCode(OutOfLineCode *code);
@@ -417,7 +389,7 @@ class CodeGeneratorShared : public LInstructionVisitor
     bool visitOutOfLineTruncateSlow(OutOfLineTruncateSlow *ool);
 
   public:
-    bool callTraceLIR(uint32_t blockIndex, LInstruction *lir, const char *bailoutName = nullptr);
+    bool callTraceLIR(uint32_t blockIndex, LInstruction *lir, const char *bailoutName = NULL);
 
     // Parallel aborts:
     //
@@ -451,8 +423,8 @@ class OutOfLineCode : public TempObject
   public:
     OutOfLineCode()
       : framePushed_(0),
-        pc_(nullptr),
-        script_(nullptr)
+        pc_(NULL),
+        script_(NULL)
     { }
 
     virtual bool generate(CodeGeneratorShared *codegen) = 0;
@@ -676,9 +648,9 @@ inline OutOfLineCode *
 CodeGeneratorShared::oolCallVM(const VMFunction &fun, LInstruction *lir, const ArgSeq &args,
                                const StoreOutputTo &out)
 {
-    OutOfLineCode *ool = new(alloc()) OutOfLineCallVM<ArgSeq, StoreOutputTo>(lir, fun, args, out);
+    OutOfLineCode *ool = new OutOfLineCallVM<ArgSeq, StoreOutputTo>(lir, fun, args, out);
     if (!addOutOfLineCode(ool))
-        return nullptr;
+        return NULL;
     return ool;
 }
 
@@ -747,7 +719,7 @@ class OutOfLinePropagateAbortPar : public OutOfLineCode
 
 extern const VMFunction InterruptCheckInfo;
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_shared_CodeGenerator_shared_h */

@@ -7,9 +7,6 @@
 #include "WebSocket.h"
 #include "mozilla/dom/WebSocketBinding.h"
 
-#include "jsapi.h"
-#include "jsfriendapi.h"
-#include "js/OldDebugAPI.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIDOMWindow.h"
 #include "nsIDocument.h"
@@ -20,7 +17,10 @@
 #include "nsEventDispatcher.h"
 #include "nsError.h"
 #include "nsIScriptObjectPrincipal.h"
+#include "nsDOMClassInfoID.h"
+#include "jsapi.h"
 #include "nsIURL.h"
+#include "nsICharsetConverterManager.h"
 #include "nsIUnicodeEncoder.h"
 #include "nsThreadUtils.h"
 #include "nsIDOMMessageEvent.h"
@@ -29,8 +29,10 @@
 #include "nsIPrompt.h"
 #include "nsIStringBundle.h"
 #include "nsIConsoleService.h"
+#include "nsLayoutStatics.h"
 #include "nsIDOMCloseEvent.h"
 #include "nsICryptoHash.h"
+#include "jsdbgapi.h"
 #include "nsJSUtils.h"
 #include "nsIScriptError.h"
 #include "nsNetUtil.h"
@@ -39,11 +41,11 @@
 #include "nsDOMLists.h"
 #include "xpcpublic.h"
 #include "nsContentPolicyUtils.h"
+#include "jsfriendapi.h"
 #include "nsDOMFile.h"
 #include "nsWrapperCacheInlines.h"
 #include "nsDOMEventTargetHelper.h"
 #include "nsIObserverService.h"
-#include "nsIWebSocketChannel.h"
 #include "GeneratedEvents.h"
 
 namespace mozilla {
@@ -176,11 +178,11 @@ WebSocket::ConsoleError()
 
     if (mReadyState < WebSocket::OPEN) {
       PrintErrorOnConsole("chrome://global/locale/appstrings.properties",
-                          MOZ_UTF16("connectionFailure"),
+                          NS_LITERAL_STRING("connectionFailure").get(),
                           formatStrings, ArrayLength(formatStrings));
     } else {
       PrintErrorOnConsole("chrome://global/locale/appstrings.properties",
-                          MOZ_UTF16("netInterrupt"),
+                          NS_LITERAL_STRING("netInterrupt").get(),
                           formatStrings, ArrayLength(formatStrings));
     }
   }
@@ -457,6 +459,7 @@ WebSocket::WebSocket()
   mInnerWindowID(0)
 {
   NS_ABORT_IF_FALSE(NS_IsMainThread(), "Not running on main thread");
+  nsLayoutStatics::AddRef();
 
   SetIsDOMBinding();
 }
@@ -469,6 +472,7 @@ WebSocket::~WebSocket()
   if (!mDisconnected) {
     Disconnect();
   }
+  nsLayoutStatics::Release();
 }
 
 JSObject*
@@ -484,26 +488,29 @@ WebSocket::WrapObject(JSContext* cx, JS::Handle<JSObject*> scope)
 // Constructor:
 already_AddRefed<WebSocket>
 WebSocket::Constructor(const GlobalObject& aGlobal,
+                       JSContext* aCx,
                        const nsAString& aUrl,
                        ErrorResult& aRv)
 {
   Sequence<nsString> protocols;
-  return WebSocket::Constructor(aGlobal, aUrl, protocols, aRv);
+  return WebSocket::Constructor(aGlobal, aCx, aUrl, protocols, aRv);
 }
 
 already_AddRefed<WebSocket>
 WebSocket::Constructor(const GlobalObject& aGlobal,
+                       JSContext* aCx,
                        const nsAString& aUrl,
                        const nsAString& aProtocol,
                        ErrorResult& aRv)
 {
   Sequence<nsString> protocols;
   protocols.AppendElement(aProtocol);
-  return WebSocket::Constructor(aGlobal, aUrl, protocols, aRv);
+  return WebSocket::Constructor(aGlobal, aCx, aUrl, protocols, aRv);
 }
 
 already_AddRefed<WebSocket>
 WebSocket::Constructor(const GlobalObject& aGlobal,
+                       JSContext* aCx,
                        const nsAString& aUrl,
                        const Sequence<nsString>& aProtocols,
                        ErrorResult& aRv)
@@ -561,8 +568,7 @@ WebSocket::Constructor(const GlobalObject& aGlobal,
   }
 
   nsRefPtr<WebSocket> webSocket = new WebSocket();
-  nsresult rv = webSocket->Init(aGlobal.GetContext(), principal, ownerWindow,
-                                aUrl, protocolArray);
+  nsresult rv = webSocket->Init(aCx, principal, ownerWindow, aUrl, protocolArray);
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
     return nullptr;
@@ -580,8 +586,7 @@ NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(WebSocket)
       tmp->mListenerManager->MarkForCC();
     }
     if (!isBlack && tmp->PreservingWrapper()) {
-      // This marks the wrapper black.
-      tmp->GetWrapper();
+      xpc_UnmarkGrayObject(tmp->GetWrapperPreserveColor());
     }
     return true;
   }
@@ -670,7 +675,7 @@ WebSocket::Init(JSContext* aCx,
   NS_ENSURE_SUCCESS(rv, rv);
 
   unsigned lineno;
-  JS::Rooted<JSScript*> script(aCx);
+  JSScript* script;
   if (JS_DescribeScriptedCaller(aCx, &script, &lineno)) {
     mScriptFile = JS_GetScriptFilename(aCx, script);
     mScriptLine = lineno;

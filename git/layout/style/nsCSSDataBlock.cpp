@@ -15,9 +15,8 @@
 #include "nsRuleData.h"
 #include "nsStyleSet.h"
 #include "nsStyleContext.h"
-#include "nsIDocument.h"
 
-using namespace mozilla;
+namespace css = mozilla::css;
 
 /**
  * Does a fast move of aSource to aDest.  The previous value in
@@ -104,36 +103,6 @@ ShouldStartImageLoads(nsRuleData *aRuleData, nsCSSProperty aProperty)
          nsCSSProps::PropHasFlags(aProperty, CSS_PROPERTY_START_IMAGE_LOADS);
 }
 
-static void
-MapSinglePropertyInto(nsCSSProperty aProp,
-                      const nsCSSValue* aValue,
-                      nsCSSValue* aTarget,
-                      nsRuleData* aRuleData)
-{
-    NS_ABORT_IF_FALSE(aValue->GetUnit() != eCSSUnit_Null, "oops");
-    if (ShouldStartImageLoads(aRuleData, aProp)) {
-        nsIDocument* doc = aRuleData->mPresContext->Document();
-        TryToStartImageLoad(*aValue, doc, aProp);
-    }
-    *aTarget = *aValue;
-    if (nsCSSProps::PropHasFlags(aProp,
-            CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED) &&
-        ShouldIgnoreColors(aRuleData))
-    {
-        if (aProp == eCSSProperty_background_color) {
-            // Force non-'transparent' background
-            // colors to the user's default.
-            if (aTarget->IsNonTransparentColor()) {
-                aTarget->SetColorValue(aRuleData->mPresContext->
-                                       DefaultBackgroundColor());
-            }
-        } else {
-            // Ignore 'color', 'border-*-color', etc.
-            *aTarget = nsCSSValue();
-        }
-    }
-}
-
 void
 nsCSSCompressedDataBlock::MapRuleInfoInto(nsRuleData *aRuleData) const
 {
@@ -144,6 +113,8 @@ nsCSSCompressedDataBlock::MapRuleInfoInto(nsRuleData *aRuleData) const
     if (!(aRuleData->mSIDs & mStyleBits))
         return;
 
+    nsIDocument* doc = aRuleData->mPresContext->Document();
+
     for (uint32_t i = 0; i < mNumProps; i++) {
         nsCSSProperty iProp = PropertyAtIndex(i);
         if (nsCachedStyleData::GetBitForSID(nsCSSProps::kSIDTable[iProp]) &
@@ -151,7 +122,27 @@ nsCSSCompressedDataBlock::MapRuleInfoInto(nsRuleData *aRuleData) const
             nsCSSValue* target = aRuleData->ValueFor(iProp);
             if (target->GetUnit() == eCSSUnit_Null) {
                 const nsCSSValue *val = ValueAtIndex(i);
-                MapSinglePropertyInto(iProp, val, target, aRuleData);
+                NS_ABORT_IF_FALSE(val->GetUnit() != eCSSUnit_Null, "oops");
+                if (ShouldStartImageLoads(aRuleData, iProp)) {
+                    TryToStartImageLoad(*val, doc, iProp);
+                }
+                *target = *val;
+                if (nsCSSProps::PropHasFlags(iProp,
+                        CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED) &&
+                    ShouldIgnoreColors(aRuleData))
+                {
+                    if (iProp == eCSSProperty_background_color) {
+                        // Force non-'transparent' background
+                        // colors to the user's default.
+                        if (target->IsNonTransparentColor()) {
+                            target->SetColorValue(aRuleData->mPresContext->
+                                                  DefaultBackgroundColor());
+                        }
+                    } else {
+                        // Ignore 'color', 'border-*-color', etc.
+                        *target = nsCSSValue();
+                    }
+                }
             }
         }
     }
@@ -543,22 +534,6 @@ nsCSSExpandedDataBlock::DoTransferFromBlock(nsCSSExpandedDataBlock& aFromBlock,
    */
   changed |= MoveValue(aFromBlock.PropertyAt(aPropID), PropertyAt(aPropID));
   return changed;
-}
-
-void
-nsCSSExpandedDataBlock::MapRuleInfoInto(nsCSSProperty aPropID,
-                                        nsRuleData* aRuleData) const
-{
-  MOZ_ASSERT(!nsCSSProps::IsShorthand(aPropID));
-
-  const nsCSSValue* src = PropertyAt(aPropID);
-  MOZ_ASSERT(src->GetUnit() != eCSSUnit_Null);
-
-  nsCSSValue* dest = aRuleData->ValueFor(aPropID);
-  MOZ_ASSERT(dest->GetUnit() == eCSSUnit_TokenStream &&
-             dest->GetTokenStreamValue()->mPropertyID == aPropID);
-
-  MapSinglePropertyInto(aPropID, src, dest, aRuleData);
 }
 
 #ifdef DEBUG

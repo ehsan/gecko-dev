@@ -10,7 +10,7 @@
 
 #include "webrtc/system_wrappers/source/trace_impl.h"
 
-#include <assert.h>
+#include <cassert>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -34,7 +34,8 @@ namespace webrtc {
 const int Trace::kBoilerplateLength = 71;
 const int Trace::kTimestampPosition = 13;
 const int Trace::kTimestampLength = 12;
-uint32_t Trace::level_filter_ = kTraceDefault;
+
+static uint32_t level_filter = kTraceDefault;
 
 // Construct On First Use idiom. Avoids "static initialization order fiasco".
 TraceImpl* TraceImpl::StaticInstance(CountOperation count_operation,
@@ -43,7 +44,7 @@ TraceImpl* TraceImpl::StaticInstance(CountOperation count_operation,
   // performance reasons). count_operation == kAddRefNoCreate implies that a
   // message will be written to file.
   if ((level != kTraceAll) && (count_operation == kAddRefNoCreate)) {
-    if (!(level & level_filter())) {
+    if (!(level & level_filter)) {
       return NULL;
     }
   }
@@ -87,12 +88,8 @@ TraceImpl::TraceImpl()
 
   for (int m = 0; m < WEBRTC_TRACE_NUM_ARRAY; ++m) {
     for (int n = 0; n < WEBRTC_TRACE_MAX_QUEUE; ++n) {
-#if defined(WEBRTC_LAZY_TRACE_ALLOC)
       message_queue_[m][n] = new
       char[WEBRTC_TRACE_MAX_MESSAGE_SIZE];
-#else
-      message_queue_[m][n] = NULL;
-#endif
     }
   }
 }
@@ -343,21 +340,6 @@ int32_t TraceImpl::AddModuleAndId(char* trace_message,
 
 int32_t TraceImpl::SetTraceFileImpl(const char* file_name_utf8,
                                     const bool add_file_counter) {
-#if !defined(WEBRTC_LAZY_TRACE_ALLOC)
-  if (file_name_utf8) {
-    // Lazy-allocate trace buffers to save memory.
-    // Avoid locking issues by not holding both critsects at once.
-    // Do this before we can return true from .Open().
-    CriticalSectionScoped lock(critsect_array_);
-
-    for (int m = 0; m < WEBRTC_TRACE_NUM_ARRAY; ++m) {
-      for (int n = 0; n < WEBRTC_TRACE_MAX_QUEUE; ++n) {
-        message_queue_[m][n] = new char[WEBRTC_TRACE_MAX_MESSAGE_SIZE];
-      }
-    }
-  }
-#endif
-
   CriticalSectionScoped lock(critsect_interface_);
 
   trace_file_.Flush();
@@ -432,29 +414,9 @@ void TraceImpl::AddMessageToList(
     const char trace_message[WEBRTC_TRACE_MAX_MESSAGE_SIZE],
     const uint16_t length,
     const TraceLevel level) {
-// NOTE(andresp): Enabled externally.
-#ifdef WEBRTC_DIRECT_TRACE
-  if (callback_) {
-    callback_->Print(level, trace_message, length);
-  }
-  return;
-#endif
-
   CriticalSectionScoped lock(critsect_array_);
 
-  uint16_t idx = next_free_idx_[active_queue_];
-
-#if !defined(WEBRTC_LAZY_TRACE_ALLOC)
-  // Avoid grabbing another lock just to check Open(); use
-  // the fact we've allocated buffers to decide whether to save
-  // the message in the buffer.  Use the indexing as this minimizes
-  // cache misses/etc
-  if (!message_queue_[active_queue_][idx]) {
-      return;
-  }
-#endif
-
-  if (idx >= WEBRTC_TRACE_MAX_QUEUE) {
+  if (next_free_idx_[active_queue_] >= WEBRTC_TRACE_MAX_QUEUE) {
     if (!trace_file_.Open() && !callback_) {
       // Keep at least the last 1/4 of old messages when not logging.
       // TODO(hellner): isn't this redundant. The user will make it known
@@ -466,7 +428,7 @@ void TraceImpl::AddMessageToList(
                message_queue_[active_queue_][n + last_quarter_offset],
                WEBRTC_TRACE_MAX_MESSAGE_SIZE);
       }
-      idx = next_free_idx_[active_queue_] = WEBRTC_TRACE_MAX_QUEUE / 4;
+      next_free_idx_[active_queue_] = WEBRTC_TRACE_MAX_QUEUE / 4;
     } else {
       // More messages are being written than there is room for in the
       // buffer. Drop any new messages.
@@ -479,6 +441,7 @@ void TraceImpl::AddMessageToList(
     }
   }
 
+  uint16_t idx = next_free_idx_[active_queue_];
   next_free_idx_[active_queue_]++;
 
   level_[active_queue_][idx] = level;
@@ -653,7 +616,7 @@ void TraceImpl::AddImpl(const TraceLevel level, const TraceModule module,
 }
 
 bool TraceImpl::TraceCheck(const TraceLevel level) const {
-  return (level & level_filter()) ? true : false;
+  return (level & level_filter) ? true : false;
 }
 
 bool TraceImpl::UpdateFileName(
@@ -726,6 +689,16 @@ void Trace::CreateTrace() {
 
 void Trace::ReturnTrace() {
   TraceImpl::StaticInstance(kRelease);
+}
+
+int32_t Trace::SetLevelFilter(uint32_t filter) {
+  level_filter = filter;
+  return 0;
+}
+
+int32_t Trace::LevelFilter(uint32_t& filter) {
+  filter = level_filter;
+  return 0;
 }
 
 int32_t Trace::TraceFile(char file_name[FileWrapper::kMaxFileNameSize]) {

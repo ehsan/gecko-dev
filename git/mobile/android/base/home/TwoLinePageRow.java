@@ -5,14 +5,13 @@
 
 package org.mozilla.gecko.home;
 
-import android.util.Log;
-import org.mozilla.gecko.favicons.Favicons;
+import org.mozilla.gecko.Favicons;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.Tabs;
 import org.mozilla.gecko.db.BrowserContract.Combined;
 import org.mozilla.gecko.db.BrowserDB.URLColumns;
-import org.mozilla.gecko.favicons.OnFaviconLoadedListener;
+import org.mozilla.gecko.gfx.BitmapUtils;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.widget.FaviconView;
 
@@ -26,8 +25,6 @@ import android.view.LayoutInflater;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-import java.lang.ref.WeakReference;
-
 public class TwoLinePageRow extends LinearLayout
                             implements Tabs.OnTabsChangedListener {
     private static final int NO_ICON = 0;
@@ -39,35 +36,6 @@ public class TwoLinePageRow extends LinearLayout
     private int mUrlIconId;
     private int mBookmarkIconId;
     private boolean mShowIcons;
-    private int mLoadFaviconJobId = Favicons.NOT_LOADING;
-
-    // Only holds a reference to the FaviconView itself, so if the row gets
-    // discarded while a task is outstanding, we'll leak less memory.
-    private static class UpdateViewFaviconLoadedListener implements OnFaviconLoadedListener {
-        private final WeakReference<FaviconView> view;
-        public UpdateViewFaviconLoadedListener(FaviconView view) {
-            this.view = new WeakReference<FaviconView>(view);
-        }
-
-        @Override
-        public void onFaviconLoaded(String url, String faviconURL, Bitmap favicon) {
-            FaviconView v = view.get();
-            if (v == null) {
-                // Guess we stuck around after the TwoLinePageRow went away.
-                return;
-            }
-
-            if (favicon == null) {
-                v.showDefaultFavicon();
-                return;
-            }
-
-            v.updateImage(favicon, faviconURL);
-        }
-    }
-
-    // Listener for handling Favicon loads.
-    private final OnFaviconLoadedListener mFaviconListener;
 
     // The URL for the page corresponding to this view.
     private String mPageUrl;
@@ -89,7 +57,6 @@ public class TwoLinePageRow extends LinearLayout
         mTitle = (TextView) findViewById(R.id.title);
         mUrl = (TextView) findViewById(R.id.url);
         mFavicon = (FaviconView) findViewById(R.id.favicon);
-        mFaviconListener = new UpdateViewFaviconLoadedListener(mFavicon);
     }
 
     @Override
@@ -141,6 +108,10 @@ public class TwoLinePageRow extends LinearLayout
         mUrl.setCompoundDrawablesWithIntrinsicBounds(mUrlIconId, 0, mBookmarkIconId, 0);
     }
 
+    private void setFaviconWithUrl(Bitmap favicon, String url) {
+        mFavicon.updateImage(favicon, url);
+    }
+
     private void setBookmarkIcon(int bookmarkIconId) {
         if (mBookmarkIconId == bookmarkIconId) {
             return;
@@ -161,12 +132,9 @@ public class TwoLinePageRow extends LinearLayout
 
     /**
      * Replaces the page URL with "Switch to tab" if there is already a tab open with that URL.
-     * Only looks for tabs that are either private or non-private, depending on the current 
-     * selected tab.
      */
     private void updateDisplayedUrl() {
-        boolean isPrivate = Tabs.getInstance().getSelectedTab().isPrivate();
-        int tabId = Tabs.getInstance().getTabIdForUrl(mPageUrl, isPrivate);
+        int tabId = Tabs.getInstance().getTabIdForUrl(mPageUrl);
         if (!mShowIcons || tabId < 0) {
             setUrl(mPageUrl);
             setUrlIcon(NO_ICON);
@@ -191,46 +159,58 @@ public class TwoLinePageRow extends LinearLayout
         int urlIndex = cursor.getColumnIndexOrThrow(URLColumns.URL);
         final String url = cursor.getString(urlIndex);
 
-        if (mShowIcons) {
-            final int bookmarkIdIndex = cursor.getColumnIndex(Combined.BOOKMARK_ID);
-            if (bookmarkIdIndex != -1) {
-                final long bookmarkId = cursor.getLong(bookmarkIdIndex);
-                final int displayIndex = cursor.getColumnIndex(Combined.DISPLAY);
-
-                final int display;
-                if (displayIndex != -1) {
-                    display = cursor.getInt(displayIndex);
-                } else {
-                    display = Combined.DISPLAY_NORMAL;
-                }
-
-                // The bookmark id will be 0 (null in database) when the url
-                // is not a bookmark.
-                if (bookmarkId == 0) {
-                    setBookmarkIcon(NO_ICON);
-                } else if (display == Combined.DISPLAY_READER) {
-                    setBookmarkIcon(R.drawable.ic_url_bar_reader);
-                } else {
-                    setBookmarkIcon(R.drawable.ic_url_bar_star);
-                }
-            } else {
-                setBookmarkIcon(NO_ICON);
-            }
-        }
-
         // Use the URL instead of an empty title for consistency with the normal URL
         // bar view - this is the equivalent of getDisplayTitle() in Tab.java
         setTitle(TextUtils.isEmpty(title) ? url : title);
 
-        // No point updating the below things if URL has not changed. Prevents evil Favicon flicker.
-        if (url.equals(mPageUrl)) {
+        updateDisplayedUrl(url);
+
+        int faviconIndex = cursor.getColumnIndex(URLColumns.FAVICON);
+        if (faviconIndex != -1) {
+            byte[] b = cursor.getBlob(faviconIndex);
+
+            Bitmap favicon = null;
+            if (b != null) {
+                Bitmap bitmap = BitmapUtils.decodeByteArray(b);
+                if (bitmap != null) {
+                    favicon = Favicons.getInstance().scaleImage(bitmap);
+                }
+            }
+
+            setFaviconWithUrl(favicon, url);
+        } else {
+            // If favicons is not on the cursor, try to fetch it from the memory cache
+            setFaviconWithUrl(Favicons.getInstance().getFaviconFromMemCache(url), url);
+        }
+
+        // Don't show bookmark/reading list icon, if not needed.
+        if (!mShowIcons) {
             return;
         }
 
-        // Blank the Favicon, so we don't show the wrong Favicon if we scroll and miss DB.
-        mFavicon.clearImage();
-        mLoadFaviconJobId = Favicons.getSizedFaviconForPageFromLocal(url, mFaviconListener);
+        final int bookmarkIdIndex = cursor.getColumnIndex(Combined.BOOKMARK_ID);
+        if (bookmarkIdIndex != -1) {
+            final long bookmarkId = cursor.getLong(bookmarkIdIndex);
+            final int displayIndex = cursor.getColumnIndex(Combined.DISPLAY);
 
-        updateDisplayedUrl(url);
+            final int display;
+            if (displayIndex != -1) {
+                display = cursor.getInt(displayIndex);
+            } else {
+                display = Combined.DISPLAY_NORMAL;
+            }
+
+            // The bookmark id will be 0 (null in database) when the url
+            // is not a bookmark.
+            if (bookmarkId == 0) {
+                setBookmarkIcon(NO_ICON);
+            } else if (display == Combined.DISPLAY_READER) {
+                setBookmarkIcon(R.drawable.ic_url_bar_reader);
+            } else {
+                setBookmarkIcon(R.drawable.ic_url_bar_star);
+            }
+        } else {
+            setBookmarkIcon(NO_ICON);
+        }
     }
 }

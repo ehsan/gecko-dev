@@ -10,10 +10,10 @@ XPIDL_SOURCES += [
     'nsICaptivePortalDetector.idl',
 ]
 
-XPIDL_MODULE = 'captivedetect'
+MODULE = 'captivedetect'
 
 EXTRA_COMPONENTS += [
-    'captivedetect.js',
     'CaptivePortalDetectComponents.manifest',
+    'captivedetect.js',
 ]
 

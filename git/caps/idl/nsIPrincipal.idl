@@ -8,6 +8,7 @@
 #include "nsISerializable.idl"
 
 %{C++
+struct JSContext;
 struct JSPrincipals;
 #include "nsCOMPtr.h"
 #include "nsTArray.h"
@@ -20,7 +21,7 @@ interface nsIContentSecurityPolicy;
 [ptr] native JSPrincipals(JSPrincipals);
 [ptr] native PrincipalArray(nsTArray<nsCOMPtr<nsIPrincipal> >);
 
-[scriptable, builtinclass, uuid(f09d8a53-a6c8-4f68-b329-9a76a709d24e)]
+[scriptable, builtinclass, uuid(dbda8bb0-3023-4aec-ad98-8e9931a29d70)]
 interface nsIPrincipal : nsISerializable
 {
     /**
@@ -51,6 +52,21 @@ interface nsIPrincipal : nsISerializable
      * Returns a hash value for the principal.
      */
     [noscript] readonly attribute unsigned long hashValue;
+
+    /**
+     * The domain security policy of the principal.
+     */
+    // XXXcaa should this be here?  The script security manager is the only
+    // thing that should care about this.  Wouldn't storing this data in one
+    // of the hashtables in nsScriptSecurityManager be better?
+    // XXXbz why is this writable?  Who should have write access to this?  What
+    // happens if this principal is in our hashtable and we pass it out of the
+    // security manager and someone writes to this field?  Especially if they
+    // write garbage?  If we need to give someone other than the security
+    // manager a way to set this (which I question, since it can increase the
+    // permissions of a page) it should be a |void clearSecurityPolicy()|
+    // method.
+    [noscript] attribute voidPtr securityPolicy;
 
     /**
      * The codebase URI to which this principal pertains.  This is
@@ -147,19 +163,19 @@ interface nsIPrincipal : nsISerializable
     [noscript] attribute nsIContentSecurityPolicy csp;
 
     /**
-     * Returns the jar prefix of the principal.
-     * The jar prefix is a string that can be used to isolate data or
-     * permissions between different principals while taking into account
-     * parameters like the app id or the fact that the principal is embedded in
-     * a mozbrowser.
-     * Some principals will return an empty string.
-     * Some principals will assert if you try to access the jarPrefix.
+     * Returns the extended origin of the principal.
+     * The extended origin is a string that has more information than the origin
+     * and can be used to isolate data or permissions between different
+     * principals while taking into account parameters like the app id or the
+     * fact that the principal is embedded in a mozbrowser.
+     * Some principals will return the origin for extendedOrigin.
+     * Some principals will assert if you try to access the extendedOrigin.
      *
-     * The jarPrefix is intended to be an opaque identifier. It is currently
-     * "human-readable" but no callers should assume it will stay as is and
-     * it might be crypto-hashed at some point.
+     * The extendedOrigin is intended to be an opaque identifier. It is
+     * currently "human-readable" but no callers should assume it will stay
+     * as is and it might be crypto-hashed at some point.
      */
-    readonly attribute AUTF8String jarPrefix;
+    readonly attribute AUTF8String extendedOrigin;
 
     /**
      * The base domain of the codebase URI to which this principal pertains

@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -26,17 +26,11 @@
 #include "BasicLayers.h"
 #include "FrameMetrics.h"
 #include "Windows.Graphics.Display.h"
-#include "DisplayInfo_sdk81.h"
-#include "nsNativeDragTarget.h"
 #ifdef MOZ_CRASHREPORTER
 #include "nsExceptionHandler.h"
 #endif
 #include "UIABridgePrivate.h"
 #include "WinMouseScrollHandler.h"
-#include "InputData.h"
-#include "mozilla/TextEvents.h"
-#include "mozilla/TouchEvents.h"
-#include "mozilla/MiscEvents.h"
 
 using namespace Microsoft::WRL;
 using namespace Microsoft::WRL::Wrappers;
@@ -60,13 +54,9 @@ using namespace ABI::Windows::Graphics::Display;
 extern PRLogModuleInfo* gWindowsLog;
 #endif
 
-#if !defined(SM_CONVERTIBLESLATEMODE)
-#define SM_CONVERTIBLESLATEMODE 0x2003
-#endif
-
 static uint32_t gInstanceCount = 0;
 const PRUnichar* kMetroSubclassThisProp = L"MetroSubclassThisProp";
-HWND MetroWidget::sICoreHwnd = nullptr;
+HWND MetroWidget::sICoreHwnd = NULL;
 
 namespace mozilla {
 namespace widget {
@@ -126,20 +116,20 @@ namespace {
     for (uint32_t i = 0; i < aExtraInputsLen; i++) {
       inputs[keySequence.Length()+i] = aExtraInputs[i];
     }
-    WinUtils::Log("  Sending inputs");
+    Log("  Sending inputs");
     for (uint32_t i = 0; i < len; i++) {
       if (inputs[i].type == INPUT_KEYBOARD) {
-        WinUtils::Log("    Key press: 0x%x %s",
+        Log("    Key press: 0x%x %s",
             inputs[i].ki.wVk,
             inputs[i].ki.dwFlags & KEYEVENTF_KEYUP
             ? "UP"
             : "DOWN");
       } else if(inputs[i].type == INPUT_MOUSE) {
-        WinUtils::Log("    Mouse input: 0x%x 0x%x",
+        Log("    Mouse input: 0x%x 0x%x",
             inputs[i].mi.dwFlags,
             inputs[i].mi.mouseData);
       } else {
-        WinUtils::Log("    Unknown input type!");
+        Log("    Unknown input type!");
       }
     }
     ::SendInput(len, inputs, sizeof(INPUT));
@@ -149,26 +139,29 @@ namespace {
     // waiting to be processed by our event loop.  Now we manually pump
     // those messages so that, upon our return, all the inputs have been
     // processed.
-    WinUtils::Log("  Inputs sent. Waiting for input messages to clear");
+    Log("  Inputs sent. Waiting for input messages to clear");
     MSG msg;
-    while (WinUtils::PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
+    while (WinUtils::PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
       if (nsTextStore::ProcessRawKeyMessage(msg)) {
         continue;  // the message is consumed by TSF
       }
       ::TranslateMessage(&msg);
       ::DispatchMessage(&msg);
-      WinUtils::Log("    Dispatched 0x%x 0x%x 0x%x", msg.message, msg.wParam, msg.lParam);
+      Log("    Dispatched 0x%x 0x%x 0x%x", msg.message, msg.wParam, msg.lParam);
     }
-    WinUtils::Log("  No more input messages");
+    Log("  No more input messages");
   }
 }
 
 NS_IMPL_ISUPPORTS_INHERITED0(MetroWidget, nsBaseWidget)
 
+
+nsRefPtr<mozilla::layers::APZCTreeManager> MetroWidget::sAPZC;
+
 MetroWidget::MetroWidget() :
   mTransparencyMode(eTransparencyOpaque),
-  mWnd(nullptr),
-  mMetroWndProc(nullptr),
+  mWnd(NULL),
+  mMetroWndProc(NULL),
   mTempBasicLayerInUse(false),
   mRootLayerTreeId(),
   nsWindowBase()
@@ -191,7 +184,7 @@ MetroWidget::~MetroWidget()
 
   // Global shutdown
   if (!gInstanceCount) {
-    APZController::sAPZC = nullptr;
+    MetroWidget::sAPZC = nullptr;
     nsTextStore::Terminate();
   } // !gInstanceCount
 }
@@ -220,20 +213,20 @@ MetroWidget::Create(nsIWidget *aParent,
   if (mWindowType != eWindowType_toplevel) {
     switch(mWindowType) {
       case eWindowType_dialog:
-      WinUtils::Log("eWindowType_dialog window requested, returning failure.");
+      Log("eWindowType_dialog window requested, returning failure.");
       break;
       case eWindowType_child:
-      WinUtils::Log("eWindowType_child window requested, returning failure.");
+      Log("eWindowType_child window requested, returning failure.");
       break;
       case eWindowType_popup:
-      WinUtils::Log("eWindowType_popup window requested, returning failure.");
+      Log("eWindowType_popup window requested, returning failure.");
       break;
       case eWindowType_plugin:
-      WinUtils::Log("eWindowType_plugin window requested, returning failure.");
+      Log("eWindowType_plugin window requested, returning failure.");
       break;
       // we should support toolkit's eWindowType_invisible at some point.
       case eWindowType_invisible:
-      WinUtils::Log("eWindowType_invisible window requested, this doesn't actually exist!");
+      Log("eWindowType_invisible window requested, this doesn't actually exist!");
       return NS_OK;
     }
     NS_WARNING("Invalid window type requested.");
@@ -274,7 +267,7 @@ MetroWidget::Destroy()
 {
   if (mOnDestroyCalled)
     return NS_OK;
-  WinUtils::Log("[%X] %s mWnd=%X type=%d", this, __FUNCTION__, mWnd, mWindowType);
+  Log("[%X] %s mWnd=%X type=%d", this, __FUNCTION__, mWnd, mWindowType);
   mOnDestroyCalled = true;
 
   nsCOMPtr<nsIWidget> kungFuDeathGrip(this);
@@ -283,9 +276,7 @@ MetroWidget::Destroy()
     nsresult rv;
     nsCOMPtr<nsIObserverService> observerService = do_GetService("@mozilla.org/observer-service;1", &rv);
     if (NS_SUCCEEDED(rv)) {
-      observerService->RemoveObserver(this, "apzc-scroll-offset-changed");
-      observerService->RemoveObserver(this, "apzc-zoom-to-rect");
-      observerService->RemoveObserver(this, "apzc-disable-zoom");
+      observerService->RemoveObserver(this, "scroll-offset-changed");
     }
   }
 
@@ -308,7 +299,7 @@ MetroWidget::Destroy()
   mLayerManager = nullptr;
   mView = nullptr;
   mIdleService = nullptr;
-  mWnd = nullptr;
+  mWnd = NULL;
 
   return NS_OK;
 }
@@ -338,28 +329,6 @@ MetroWidget::IsVisible() const
   if (!mView)
     return false;
   return mView->IsVisible();
-}
-
-NS_IMETHODIMP
-MetroWidget::EnableDragDrop(bool aEnable) {
-  if (aEnable) {
-    if (nullptr == mNativeDragTarget) {
-      mNativeDragTarget = new nsNativeDragTarget(this);
-      if (!mNativeDragTarget) {
-        return NS_ERROR_FAILURE;
-      }
-    }
-
-    HRESULT hr = ::RegisterDragDrop(mWnd, static_cast<LPDROPTARGET>(mNativeDragTarget));
-    return SUCCEEDED(hr) ? NS_OK : NS_ERROR_FAILURE;
-  } else {
-    if (nullptr == mNativeDragTarget) {
-      return NS_OK;
-    }
-
-    HRESULT hr = ::RevokeDragDrop(mWnd);
-    return SUCCEEDED(hr) ? NS_OK : NS_ERROR_FAILURE;
-  }
 }
 
 NS_IMETHODIMP
@@ -547,7 +516,7 @@ MetroWidget::SynthesizeNativeMouseEvent(nsIntPoint aPoint,
                                         uint32_t aNativeMessage,
                                         uint32_t aModifierFlags)
 {
-  WinUtils::Log("ENTERED SynthesizeNativeMouseEvent");
+  Log("ENTERED SynthesizeNativeMouseEvent");
 
   INPUT inputs[2];
   memset(inputs, 0, 2*sizeof(INPUT));
@@ -562,7 +531,7 @@ MetroWidget::SynthesizeNativeMouseEvent(nsIntPoint aPoint,
   inputs[1].mi.dwFlags = aNativeMessage;
   SendInputs(aModifierFlags, inputs, 2);
 
-  WinUtils::Log("Exiting SynthesizeNativeMouseEvent");
+  Log("Exiting SynthesizeNativeMouseEvent");
   return NS_OK;
 }
 
@@ -593,109 +562,6 @@ CloseGesture()
   }
 }
 
-// Async event sending for mouse and keyboard input.
-
-// defined in nsWindowBase, called from shared module WinMouseScrollHandler.
-bool
-MetroWidget::DispatchScrollEvent(mozilla::WidgetGUIEvent* aEvent)
-{
-  WidgetGUIEvent* newEvent = nullptr;
-  switch(aEvent->eventStructType) {
-    case NS_WHEEL_EVENT:
-    {
-      WidgetWheelEvent* oldEvent = aEvent->AsWheelEvent();
-      WidgetWheelEvent* wheelEvent =
-        new WidgetWheelEvent(oldEvent->mFlags.mIsTrusted, oldEvent->message, oldEvent->widget);
-      wheelEvent->AssignWheelEventData(*oldEvent, true);
-      newEvent = static_cast<WidgetGUIEvent*>(wheelEvent);
-    }
-    break;
-    case NS_CONTENT_COMMAND_EVENT:
-    {
-      WidgetContentCommandEvent* oldEvent = aEvent->AsContentCommandEvent();
-      WidgetContentCommandEvent* cmdEvent =
-        new WidgetContentCommandEvent(oldEvent->mFlags.mIsTrusted, oldEvent->message, oldEvent->widget);
-      cmdEvent->AssignContentCommandEventData(*oldEvent, true);
-      newEvent = static_cast<WidgetGUIEvent*>(cmdEvent);
-    }
-    break;
-    default:
-      MOZ_CRASH("unknown event in DispatchScrollEvent");
-    break;
-  }
-  mEventQueue.Push(newEvent);
-  nsCOMPtr<nsIRunnable> runnable =
-    NS_NewRunnableMethod(this, &MetroWidget::DeliverNextScrollEvent);
-  NS_DispatchToCurrentThread(runnable);
-  return false;
-}
-
-void
-MetroWidget::DeliverNextScrollEvent()
-{
-  WidgetGUIEvent* event =
-    static_cast<WidgetInputEvent*>(mEventQueue.PopFront());
-  DispatchWindowEvent(event);
-  delete event;
-}
-
-// defined in nsWindowBase, called from shared module KeyboardLayout.
-bool
-MetroWidget::DispatchKeyboardEvent(WidgetGUIEvent* aEvent)
-{
-  MOZ_ASSERT(aEvent);
-  WidgetKeyboardEvent* oldKeyEvent = aEvent->AsKeyboardEvent();
-  WidgetKeyboardEvent* keyEvent =
-    new WidgetKeyboardEvent(oldKeyEvent->mFlags.mIsTrusted,
-                            oldKeyEvent->message, oldKeyEvent->widget);
-  // XXX note this leaves pluginEvent null, which is fine for now.
-  keyEvent->AssignKeyEventData(*oldKeyEvent, true);
-  mKeyEventQueue.Push(keyEvent);
-  nsCOMPtr<nsIRunnable> runnable =
-    NS_NewRunnableMethod(this, &MetroWidget::DeliverNextKeyboardEvent);
-  NS_DispatchToCurrentThread(runnable);
-  return false;
-}
-
-// Used in conjunction with mKeyEventQueue to find a keypress event
-// that should not be delivered due to the return result of the
-// preceeding keydown.
-class KeyQueryIdAndCancel : public nsDequeFunctor {
-public:
-  KeyQueryIdAndCancel(uint32_t aIdToCancel) :
-    mId(aIdToCancel) {
-  }
-  virtual void* operator() (void* aObject) {
-    WidgetKeyboardEvent* event = static_cast<WidgetKeyboardEvent*>(aObject);
-    if (event->mUniqueId == mId) {
-      event->mFlags.mPropagationStopped = true;
-    }
-    return nullptr;
-  }
-protected:
-  uint32_t mId;
-};
-
-void
-MetroWidget::DeliverNextKeyboardEvent()
-{
-  WidgetKeyboardEvent* event =
-    static_cast<WidgetKeyboardEvent*>(mKeyEventQueue.PopFront());
-  if (event->mFlags.mPropagationStopped) {
-    // This can happen if a keypress was previously cancelled.
-    delete event;
-    return;
-  }
-  
-  if (DispatchWindowEvent(event) && event->message == NS_KEY_DOWN) {
-    // keydown events may be followed by multiple keypress events which
-    // shouldn't be sent if preventDefault is called on keydown.
-    KeyQueryIdAndCancel query(event->mUniqueId);
-    mKeyEventQueue.ForEach(query);
-  }
-  delete event;
-}
-
 // static
 LRESULT CALLBACK
 MetroWidget::StaticWindowProcedure(HWND aWnd, UINT aMsg, WPARAM aWParam, LPARAM aLParam)
@@ -714,19 +580,6 @@ MetroWidget::WindowProcedure(HWND aWnd, UINT aMsg, WPARAM aWParam, LPARAM aLPara
 {
   if(sDefaultBrowserMsgId == aMsg) {
     CloseGesture();
-  } else if (WM_SETTINGCHANGE == aMsg) {
-    if (aLParam && !wcsicmp(L"ConvertibleSlateMode", (wchar_t*)aLParam)) {
-      // If we're switching away from slate mode, switch to Desktop for
-      // hardware that supports this feature if the pref is set.
-      if (GetSystemMetrics(SM_CONVERTIBLESLATEMODE) != 0 &&
-          Preferences::GetBool("browser.shell.metro-auto-switch-enabled",
-                               false)) {
-        nsCOMPtr<nsIAppStartup> appStartup(do_GetService(NS_APPSTARTUP_CONTRACTID));
-        if (appStartup) {
-          appStartup->Quit(nsIAppStartup::eForceQuit | nsIAppStartup::eRestart);
-        }
-      }
-    }
   }
 
   // Indicates if we should hand messages to the default windows
@@ -751,7 +604,7 @@ MetroWidget::WindowProcedure(HWND aWnd, UINT aMsg, WPARAM aWParam, LPARAM aLPara
       DeleteObject(rgn);
       if (region.IsEmpty())
         break;
-      Paint(region);
+      mView->Render(region);
       break;
     }
 
@@ -770,9 +623,6 @@ MetroWidget::WindowProcedure(HWND aWnd, UINT aMsg, WPARAM aWParam, LPARAM aLPara
       }
       break;
     }
-
-    // Keyboard handling is passed to KeyboardLayout, which delivers gecko events
-    // via DispatchKeyboardEvent.
 
     case WM_KEYDOWN:
     case WM_SYSKEYDOWN:
@@ -854,7 +704,7 @@ MetroWidget::WindowProcedure(HWND aWnd, UINT aMsg, WPARAM aWParam, LPARAM aLPara
             return res;
           }
           NS_ASSERTION(res, "UiaReturnRawElementProvider failed!");
-          WinUtils::Log("UiaReturnRawElementProvider failed! GetLastError=%X", GetLastError());
+          Log("UiaReturnRawElementProvider failed! GetLastError=%X", GetLastError());
         }
       }
       break;
@@ -940,7 +790,7 @@ MetroWidget::RemoveSubclass()
       NS_ASSERTION(mMetroWndProc, "Should have old proc here.");
       SetWindowLongPtr(mWnd, GWLP_WNDPROC,
         reinterpret_cast<LONG_PTR>(mMetroWndProc));
-      mMetroWndProc = nullptr;
+      mMetroWndProc = NULL;
   }
   RemovePropW(mWnd, kMetroSubclassThisProp);
 }
@@ -981,107 +831,25 @@ MetroWidget::ShouldUseAPZC()
          Preferences::GetBool(kPrefName, false);
 }
 
-void
-MetroWidget::SetWidgetListener(nsIWidgetListener* aWidgetListener)
-{
-  mWidgetListener = aWidgetListener;
-  if (mController) {
-    mController->SetWidgetListener(aWidgetListener);
-  }
-}
-
 CompositorParent* MetroWidget::NewCompositorParent(int aSurfaceWidth, int aSurfaceHeight)
 {
   CompositorParent *compositor = nsBaseWidget::NewCompositorParent(aSurfaceWidth, aSurfaceHeight);
 
   if (ShouldUseAPZC()) {
     mRootLayerTreeId = compositor->RootLayerTreeId();
+    CompositorParent::SetControllerForLayerTree(mRootLayerTreeId, this);
 
-    mController = new APZController();
-    mController->SetWidgetListener(mWidgetListener);
-
-    CompositorParent::SetControllerForLayerTree(mRootLayerTreeId, mController);
-
-    APZController::sAPZC = CompositorParent::GetAPZCTreeManager(compositor->RootLayerTreeId());
-    APZController::sAPZC->SetDPI(GetDPI());
+    MetroWidget::sAPZC = CompositorParent::GetAPZCTreeManager(compositor->RootLayerTreeId());
+    MetroWidget::sAPZC->SetDPI(GetDPI());
 
     nsresult rv;
     nsCOMPtr<nsIObserverService> observerService = do_GetService("@mozilla.org/observer-service;1", &rv);
     if (NS_SUCCEEDED(rv)) {
-      observerService->AddObserver(this, "apzc-scroll-offset-changed", false);
-      observerService->AddObserver(this, "apzc-zoom-to-rect", false);
-      observerService->AddObserver(this, "apzc-disable-zoom", false);
+      observerService->AddObserver(this, "scroll-offset-changed", false);
     }
   }
 
   return compositor;
-}
-
-void
-MetroWidget::ApzContentConsumingTouch(const ScrollableLayerGuid& aGuid)
-{
-  LogFunction();
-  if (!mController) {
-    return;
-  }
-  mController->ContentReceivedTouch(aGuid, true);
-}
-
-void
-MetroWidget::ApzContentIgnoringTouch(const ScrollableLayerGuid& aGuid)
-{
-  LogFunction();
-  if (!mController) {
-    return;
-  }
-  mController->ContentReceivedTouch(aGuid, false);
-}
-
-bool
-MetroWidget::ApzHitTest(ScreenIntPoint& pt)
-{
-  if (!mController) {
-    return false;
-  }
-  return mController->HitTestAPZC(pt);
-}
-
-void
-MetroWidget::ApzTransformGeckoCoordinate(const ScreenIntPoint& aPoint,
-                                         LayoutDeviceIntPoint* aRefPointOut)
-{
-  if (!mController) {
-    return;
-  }
-  mController->TransformCoordinateToGecko(aPoint, aRefPointOut);
-}
-
-nsEventStatus
-MetroWidget::ApzReceiveInputEvent(WidgetInputEvent* aEvent,
-                                  ScrollableLayerGuid* aOutTargetGuid)
-{
-  MOZ_ASSERT(aEvent);
-
-  if (!mController) {
-    return nsEventStatus_eIgnore;
-  }
-  return mController->ReceiveInputEvent(aEvent, aOutTargetGuid);
-}
-
-nsEventStatus
-MetroWidget::ApzReceiveInputEvent(WidgetInputEvent* aInEvent,
-                                  ScrollableLayerGuid* aOutTargetGuid,
-                                  WidgetInputEvent* aOutEvent)
-{
-  MOZ_ASSERT(aInEvent);
-  MOZ_ASSERT(aOutEvent);
-
-  if (!mController) {
-    return nsEventStatus_eIgnore;
-  }
-  return mController->ReceiveInputEvent(aInEvent,
-                                        aOutTargetGuid,
-                                        aOutEvent);
 }
 
 LayerManager*
@@ -1215,8 +983,6 @@ MetroWidget::GetPaintListener()
 
 void MetroWidget::Paint(const nsIntRegion& aInvalidRegion)
 {
-  gfxWindowsPlatform::GetPlatform()->UpdateRenderMode();
-
   nsIWidgetListener* listener = GetPaintListener();
   if (!listener)
     return;
@@ -1253,7 +1019,7 @@ void MetroWidget::UserActivity()
 // InitEvent assumes physical coordinates and is used by shared win32 code. Do
 // not hand winrt event coordinates to this routine.
 void
-MetroWidget::InitEvent(WidgetGUIEvent& event, nsIntPoint* aPoint)
+MetroWidget::InitEvent(nsGUIEvent& event, nsIntPoint* aPoint)
 {
   if (!aPoint) {
     event.refPoint.x = event.refPoint.y = 0;
@@ -1265,7 +1031,7 @@ MetroWidget::InitEvent(WidgetGUIEvent& event, nsIntPoint* aPoint)
 }
 
 bool
-MetroWidget::DispatchWindowEvent(WidgetGUIEvent* aEvent)
+MetroWidget::DispatchWindowEvent(nsGUIEvent* aEvent)
 {
   MOZ_ASSERT(aEvent);
   nsEventStatus status = nsEventStatus_eIgnore;
@@ -1274,9 +1040,9 @@ MetroWidget::DispatchWindowEvent(WidgetGUIEvent* aEvent)
 }
 
 NS_IMETHODIMP
-MetroWidget::DispatchEvent(WidgetGUIEvent* event, nsEventStatus & aStatus)
+MetroWidget::DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus)
 {
-  if (event->AsInputEvent()) {
+  if (NS_IS_INPUT_EVENT(event)) {
     UserActivity();
   }
 
@@ -1331,32 +1097,40 @@ MetroWidget::GetAccessible()
 }
 #endif
 
-double
-MetroWidget::GetDefaultScaleInternal()
+double MetroWidget::GetDefaultScaleInternal()
 {
-  return MetroUtils::ScaleFactor();
+  // Return the resolution scale factor reported by the metro environment.
+  // XXX TODO: also consider the desktop resolution setting, as IE appears to do?
+  ComPtr<IDisplayPropertiesStatics> dispProps;
+  if (SUCCEEDED(GetActivationFactory(HStringReference(RuntimeClass_Windows_Graphics_Display_DisplayProperties).Get(),
+                                     dispProps.GetAddressOf()))) {
+    ResolutionScale scale;
+    if (SUCCEEDED(dispProps->get_ResolutionScale(&scale))) {
+      return (double)scale / 100.0;
+    }
+  }
+  return 1.0;
 }
 
 LayoutDeviceIntPoint
 MetroWidget::CSSIntPointToLayoutDeviceIntPoint(const CSSIntPoint &aCSSPoint)
 {
-  CSSToLayoutDeviceScale scale = GetDefaultScale();
-  LayoutDeviceIntPoint devPx(int32_t(NS_round(scale.scale * aCSSPoint.x)),
-                             int32_t(NS_round(scale.scale * aCSSPoint.y)));
+  double scale = GetDefaultScale();
+  LayoutDeviceIntPoint devPx(int32_t(NS_round(scale * aCSSPoint.x)),
+                             int32_t(NS_round(scale * aCSSPoint.y)));
   return devPx;
 }
 
-float
-MetroWidget::GetDPI()
+float MetroWidget::GetDPI()
 {
+  LogFunction();
   if (!mView) {
     return 96.0;
   }
   return mView->GetDPI();
 }
 
-void
-MetroWidget::ChangedDPI()
+void MetroWidget::ChangedDPI()
 {
   if (mWidgetListener) {
     nsIPresShell* presShell = mWidgetListener->GetPresShell();
@@ -1364,16 +1138,6 @@ MetroWidget::ChangedDPI()
       presShell->BackingScaleFactorChanged();
     }
   }
-}
-
-already_AddRefed<nsIPresShell>
-MetroWidget::GetPresShell()
-{
-  if (mWidgetListener) {
-    nsCOMPtr<nsIPresShell> ps = mWidgetListener->GetPresShell();
-    return ps.forget();
-  }
-  return nullptr;
 }
 
 NS_IMETHODIMP
@@ -1412,20 +1176,18 @@ MetroWidget::Move(double aX, double aY)
 NS_IMETHODIMP
 MetroWidget::Resize(double aWidth, double aHeight, bool aRepaint)
 {
-  return Resize(0, 0, aWidth, aHeight, aRepaint);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 MetroWidget::Resize(double aX, double aY, double aWidth, double aHeight, bool aRepaint)
 {
-  WinUtils::Log("Resize: %f %f %f %f", aX, aY, aWidth, aHeight);
   if (mAttachedWidgetListener) {
     mAttachedWidgetListener->WindowResized(this, aWidth, aHeight);
   }
   if (mWidgetListener) {
     mWidgetListener->WindowResized(this, aWidth, aHeight);
   }
-  Invalidate();
   return NS_OK;
 }
 
@@ -1585,37 +1347,147 @@ MetroWidget::HasPendingInputEvent()
   return false;
 }
 
+// GeckoContentController interface impl
+
+class RequestContentRepaintEvent : public nsRunnable
+{
+public:
+    RequestContentRepaintEvent(const FrameMetrics& aFrameMetrics) : mFrameMetrics(aFrameMetrics)
+    {
+    }
+
+    NS_IMETHOD Run() {
+        // This event shuts down the worker thread and so must be main thread.
+        MOZ_ASSERT(NS_IsMainThread());
+
+        CSSToScreenScale resolution = mFrameMetrics.mZoom;
+        CSSRect compositedRect = mFrameMetrics.CalculateCompositedRectInCssPixels();
+
+        NS_ConvertASCIItoUTF16 data(nsPrintfCString("{ " \
+                                                    "  \"resolution\": %.2f, " \
+                                                    "  \"scrollId\": %d, " \
+                                                    "  \"compositedRect\": { \"width\": %d, \"height\": %d }, " \
+                                                    "  \"displayPort\":    { \"x\": %d, \"y\": %d, \"width\": %d, \"height\": %d }, " \
+                                                    "  \"scrollTo\":       { \"x\": %d, \"y\": %d }" \
+                                                    "}",
+                                                    (float)(resolution.scale / mFrameMetrics.mDevPixelsPerCSSPixel.scale),
+                                                    (int)mFrameMetrics.mScrollId,
+                                                    (int)compositedRect.width,
+                                                    (int)compositedRect.height,
+                                                    (int)mFrameMetrics.mDisplayPort.x,
+                                                    (int)mFrameMetrics.mDisplayPort.y,
+                                                    (int)mFrameMetrics.mDisplayPort.width,
+                                                    (int)mFrameMetrics.mDisplayPort.height,
+                                                    (int)mFrameMetrics.mScrollOffset.x,
+                                                    (int)mFrameMetrics.mScrollOffset.y));
+
+        MetroUtils::FireObserver("apzc-request-content-repaint", data.get());
+        return NS_OK;
+    }
+protected:
+    const FrameMetrics mFrameMetrics;
+};
+
+void
+MetroWidget::RequestContentRepaint(const FrameMetrics& aFrameMetrics)
+{
+  LogFunction();
+
+  // Send the result back to the main thread so that it can shutdown
+  nsCOMPtr<nsIRunnable> r1 = new RequestContentRepaintEvent(aFrameMetrics);
+  if (!NS_IsMainThread()) {
+    NS_DispatchToMainThread(r1);
+  } else {
+    r1->Run();
+  }
+}
+
+void
+MetroWidget::HandleDoubleTap(const CSSIntPoint& aPoint)
+{
+  LogFunction();
+
+  if (!mMetroInput) {
+    return;
+  }
+
+  mMetroInput->HandleDoubleTap(CSSIntPointToLayoutDeviceIntPoint(aPoint));
+}
+
+void
+MetroWidget::HandleSingleTap(const CSSIntPoint& aPoint)
+{
+  LogFunction();
+
+  if (!mMetroInput) {
+    return;
+  }
+
+  mMetroInput->HandleSingleTap(CSSIntPointToLayoutDeviceIntPoint(aPoint));
+}
+
+void
+MetroWidget::HandleLongTap(const CSSIntPoint& aPoint)
+{
+  LogFunction();
+
+  if (!mMetroInput) {
+    return;
+  }
+
+  mMetroInput->HandleLongTap(CSSIntPointToLayoutDeviceIntPoint(aPoint));
+}
+
+void
+MetroWidget::SendAsyncScrollDOMEvent(FrameMetrics::ViewID aScrollId, const CSSRect &aContentRect, const CSSSize &aScrollableSize)
+{
+  LogFunction();
+}
+
+void
+MetroWidget::PostDelayedTask(Task* aTask, int aDelayMs)
+{
+  LogFunction();
+  MessageLoop::current()->PostDelayedTask(FROM_HERE, aTask, aDelayMs);
+}
+
+void
+MetroWidget::HandlePanBegin()
+{
+  LogFunction();
+  MetroUtils::FireObserver("apzc-handle-pan-begin", L"");
+}
+
+void
+MetroWidget::HandlePanEnd()
+{
+  LogFunction();
+  MetroUtils::FireObserver("apzc-handle-pan-end", L"");
+}
+
 NS_IMETHODIMP
 MetroWidget::Observe(nsISupports *subject, const char *topic, const PRUnichar *data)
 {
   NS_ENSURE_ARG_POINTER(topic);
-  if (!strcmp(topic, "apzc-zoom-to-rect")) {
-    CSSRect rect = CSSRect();
-    uint64_t viewId = 0;
-    int32_t presShellId = 0;
-
-    int reScan = swscanf(data, L"%f,%f,%f,%f,%d,%llu",
-                 &rect.x, &rect.y, &rect.width, &rect.height,
-                 &presShellId, &viewId);
-    if(reScan != 6) {
-      NS_WARNING("Malformed apzc-zoom-to-rect message");
+  if (!strcmp(topic, "scroll-offset-changed")) {
+    uint64_t scrollId;
+    int32_t presShellId;
+    CSSIntPoint scrollOffset;
+    int matched = sscanf(NS_LossyConvertUTF16toASCII(data).get(),
+                         "%llu %d (%d, %d)",
+                         &scrollId,
+                         &presShellId,
+                         &scrollOffset.x,
+                         &scrollOffset.y);
+    if (matched != 4) {
+      NS_WARNING("Malformed scroll-offset-changed message");
+      return NS_ERROR_UNEXPECTED;
     }
-
-    ScrollableLayerGuid guid = ScrollableLayerGuid(mRootLayerTreeId, presShellId, viewId);
-    APZController::sAPZC->ZoomToRect(guid, rect);
-  }
-  else if (!strcmp(topic, "apzc-disable-zoom")) {
-    uint64_t viewId = 0;
-    int32_t presShellId = 0;
-
-    int reScan = swscanf(data, L"%d,%llu",
-      &presShellId, &viewId);
-    if (reScan != 2) {
-      NS_WARNING("Malformed apzc-disable-zoom message");
+    if (MetroWidget::sAPZC) {
+      MetroWidget::sAPZC->UpdateScrollOffset(
+          ScrollableLayerGuid(mRootLayerTreeId, presShellId, scrollId),
+          scrollOffset);
     }
-
-    ScrollableLayerGuid guid = ScrollableLayerGuid(mRootLayerTreeId, presShellId, viewId);
-    APZController::sAPZC->UpdateZoomConstraints(guid, false, CSSToScreenScale(1.0f), CSSToScreenScale(1.0f));
   }
   return NS_OK;
 }

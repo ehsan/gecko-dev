@@ -7,22 +7,19 @@
 #ifndef jit_MoveEmitter_x86_shared_h
 #define jit_MoveEmitter_x86_shared_h
 
-#if defined(JS_CPU_X86)
-# include "jit/x86/MacroAssembler-x86.h"
-#elif defined(JS_CPU_X64)
-# include "jit/x64/MacroAssembler-x64.h"
-#elif defined(JS_CPU_ARM)
-# include "jit/arm/MacroAssembler-arm.h"
-#endif
+#include "jit/IonMacroAssembler.h"
 #include "jit/MoveResolver.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class CodeGenerator;
 
 class MoveEmitterX86
 {
+    typedef MoveResolver::Move Move;
+    typedef MoveResolver::MoveOperand MoveOperand;
+
     bool inCycle_;
     MacroAssemblerSpecific &masm;
 
@@ -34,8 +31,7 @@ class MoveEmitterX86
     int32_t pushedAtCycle_;
 
     void assertDone();
-    Address cycleSlot();
-    Address toAddress(const MoveOperand &operand) const;
+    Operand cycleSlot();
     Operand toOperand(const MoveOperand &operand) const;
     Operand toPopOperand(const MoveOperand &operand) const;
 
@@ -43,12 +39,10 @@ class MoveEmitterX86
                              bool *allGeneralRegs, bool *allFloatRegs);
     bool maybeEmitOptimizedCycle(const MoveResolver &moves, size_t i,
                                  bool allGeneralRegs, bool allFloatRegs, size_t swapCount);
-    void emitInt32Move(const MoveOperand &from, const MoveOperand &to);
     void emitGeneralMove(const MoveOperand &from, const MoveOperand &to);
-    void emitFloat32Move(const MoveOperand &from, const MoveOperand &to);
     void emitDoubleMove(const MoveOperand &from, const MoveOperand &to);
-    void breakCycle(const MoveOperand &to, MoveOp::Type type);
-    void completeCycle(const MoveOperand &to, MoveOp::Type type);
+    void breakCycle(const MoveOperand &to, Move::Kind kind);
+    void completeCycle(const MoveOperand &to, Move::Kind kind);
 
   public:
     MoveEmitterX86(MacroAssemblerSpecific &masm);

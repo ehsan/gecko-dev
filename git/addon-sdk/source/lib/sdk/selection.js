@@ -22,8 +22,7 @@ const { Ci, Cc } = require("chrome"),
     { getTabs, getTabContentWindow, getTabForContentWindow,
       getAllTabContentWindows } = require('./tabs/utils'),
     winUtils = require("./window/utils"),
-    events = require("./system/events"),
-    { iteratorSymbol, forInIterator } = require("./util/iteration");
+    events = require("./system/events");
 
 // The selection types
 const HTML = 0x01,
@@ -100,26 +99,25 @@ const selectionListener = {
  * is returned because the text field selection APIs doesn't support
  * multiple selections.
  */
-function* forOfIterator() {
-  let selection = getSelection(DOM);
-  let count = 0;
+function iterator() {
+    let selection = getSelection(DOM);
+    let count = 0;
 
-  if (selection)
-    count = selection.rangeCount || (getElementWithSelection() ? 1 : 0);
+    if (selection)
+      count = selection.rangeCount || (getElementWithSelection() ? 1 : 0);
 
-  for (let i = 0; i < count; i++) {
-    let sel = Selection(i);
+    for (let i = 0; i < count; i++) {
+      let sel = Selection(i);
 
-    if (sel.text)
-      yield Selection(i);
-  }
+      if (sel.text)
+        yield Selection(i);
+    }
 }
 
-const selectionIteratorOptions = {
-  __iterator__: forInIterator
-}
-selectionIteratorOptions[iteratorSymbol] = forOfIterator;
-const selectionIterator = obscure(selectionIteratorOptions);
+const selectionIterator = obscure({
+  __iterator__: iterator, // for...in; for each...in
+  iterator: iterator // for....of
+});
 
 /**
  * Returns the most recent focused window.
@@ -315,24 +313,14 @@ function getElementWithSelection() {
   if (!element)
     return null;
 
-  try {
-    // Accessing selectionStart and selectionEnd on e.g. a button
-    // results in an exception thrown as per the HTML5 spec.  See
-    // http://www.whatwg.org/specs/web-apps/current-work/multipage/association-of-controls-and-forms.html#textFieldSelection
+  let { value, selectionStart, selectionEnd } = element;
 
-    let { value, selectionStart, selectionEnd } = element;
-
-    let hasSelection = typeof value === "string" &&
+  let hasSelection = typeof value === "string" &&
                       !isNaN(selectionStart) &&
                       !isNaN(selectionEnd) &&
                       selectionStart !== selectionEnd;
 
-    return hasSelection ? element : null;
-  }
-  catch (err) {
-    return null;
-  }
-
+  return hasSelection ? element : null;
 }
 
 /**

@@ -5,21 +5,25 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/Util.h"
+
 #include "AccessCheck.h"
 
 #include "nsJSPrincipals.h"
+#include "nsIDocument.h"
 #include "nsIDOMWindow.h"
+#include "nsPIDOMWindow.h"
 #include "nsIDOMWindowCollection.h"
+#include "nsJSUtils.h"
 
 #include "XPCWrapper.h"
 #include "XrayWrapper.h"
+#include "FilteringWrapper.h"
 
 #include "jsfriendapi.h"
 #include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/WindowBinding.h"
 
 using namespace mozilla;
-using namespace JS;
 using namespace js;
 
 namespace xpc {
@@ -147,10 +151,16 @@ IsPermitted(const char *name, JSFlatString *prop, bool set)
         NAME('L', "Location",
              PROP('h', W("href"))
              PROP('r', R("replace")))
-        case 'W':
-            if (!strcmp(name, "Window"))
-                return dom::WindowBinding::IsPermitted(prop, propChars[0], set);
-            break;
+        NAME('W', "Window",
+             PROP('b', R("blur"))
+             PROP('c', R("close") R("closed"))
+             PROP('f', R("focus") R("frames"))
+             PROP('l', RW("location") R("length"))
+             PROP('o', R("opener"))
+             PROP('p', R("parent") R("postMessage"))
+             PROP('s', R("self"))
+             PROP('t', R("top"))
+             PROP('w', R("window")))
     }
     return false;
 }
@@ -226,7 +236,7 @@ AccessCheck::isCrossOriginAccessPermitted(JSContext *cx, JSObject *wrapperArg, j
         return false;
 
     const char *name;
-    const js::Class *clasp = js::GetObjectClass(obj);
+    js::Class *clasp = js::GetObjectClass(obj);
     MOZ_ASSERT(Jsvalify(clasp) != &XrayUtils::HolderClass, "shouldn't have a holder here");
     if (clasp->ext.innerObject)
         name = "Window";
@@ -237,9 +247,6 @@ AccessCheck::isCrossOriginAccessPermitted(JSContext *cx, JSObject *wrapperArg, j
         if (IsPermitted(name, JSID_TO_FLAT_STRING(id), act == Wrapper::SET))
             return true;
     }
-
-    if (act != Wrapper::GET)
-        return false;
 
     // Check for frame IDs. If we're resolving named frames, make sure to only
     // resolve ones that don't shadow native properties. See bug 860494.

@@ -2,6 +2,13 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+DEPTH     = @DEPTH@
+topsrcdir = @top_srcdir@
+srcdir    = @srcdir@
+VPATH     = @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
 STANDALONE_MAKEFILE := 1
 
 include $(topsrcdir)/config/rules.mk
@@ -50,23 +57,15 @@ ifneq (,$(filter WINNT Darwin Android,$(OS_TARGET)))
 DEFINES += -DMOZ_SHARED_MOZGLUE=1
 endif
 
-ifneq (,$(filter rtsp,$(NECKO_PROTOCOLS)))
-DEFINES += -DMOZ_RTSP
-endif
-
-ifdef GKMEDIAS_SHARED_LIBRARY
-DEFINES += -DGKMEDIAS_SHARED_LIBRARY
-endif
-
 ifdef MOZ_PKG_MANIFEST_P
 $(MOZ_PKG_MANIFEST): $(MOZ_PKG_MANIFEST_P) FORCE
-	$(call py_action,preprocessor,$(DEFINES) $(ACDEFINES) $< -o $@)
+	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $(DEFINES) $(ACDEFINES) $< > $@
 ifdef MOZ_CHROME_MULTILOCALE
-	printf '\n[multilocale]\n' >> $@
+	printf "\n[multilocale]\n" >> $@
 	for LOCALE in $(MOZ_CHROME_MULTILOCALE) ;\
 	do \
-	  printf '$(BINPATH)/chrome/'"$$LOCALE"'$(JAREXT)\n' >> $@; \
-	  printf '$(BINPATH)/chrome/'"$$LOCALE"'.manifest\n' >> $@; \
+	  printf "$(BINPATH)/chrome/$$LOCALE$(JAREXT)\n" >> $@; \
+	  printf "$(BINPATH)/chrome/$$LOCALE.manifest\n" >> $@; \
 	done
 endif
 

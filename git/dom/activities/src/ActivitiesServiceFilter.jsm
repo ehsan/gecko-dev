@@ -105,10 +105,6 @@ this.ActivitiesServiceFilter = {
         continue;
       }
 
-      if (Array.isArray(aValues[prop]) && aValues[prop].length == 0) {
-        continue;
-      }
-
       // Otherwise, let's check the value against the filter.
       if (!matchObject(aValues[prop], filtersMap[prop].filter)) {
         return false;

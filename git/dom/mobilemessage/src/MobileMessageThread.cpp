@@ -9,7 +9,7 @@
 #include "jsfriendapi.h"     // For js_DateGetMsecSinceEpoch
 #include "nsJSUtils.h"       // For nsDependentJSString
 #include "nsTArrayHelpers.h" // For nsTArrayToJSArray
-#include "mozilla/dom/mobilemessage/Constants.h" // For MessageType
+#include "Constants.h"       // For MessageType
 
 
 using namespace mozilla::dom::mobilemessage;
@@ -32,7 +32,6 @@ NS_IMPL_RELEASE(MobileMessageThread)
 MobileMessageThread::Create(const uint64_t aId,
                             const JS::Value& aParticipants,
                             const JS::Value& aTimestamp,
-                            const nsAString& aLastMessageSubject,
                             const nsAString& aBody,
                             const uint64_t aUnreadCount,
                             const nsAString& aLastMessageType,
@@ -45,7 +44,6 @@ MobileMessageThread::Create(const uint64_t aId,
   // to them.
   ThreadData data;
   data.id() = aId;
-  data.lastMessageSubject().Assign(aLastMessageSubject);
   data.body().Assign(aBody);
   data.unreadCount() = aUnreadCount;
 
@@ -116,12 +114,10 @@ MobileMessageThread::Create(const uint64_t aId,
 MobileMessageThread::MobileMessageThread(const uint64_t aId,
                                          const nsTArray<nsString>& aParticipants,
                                          const uint64_t aTimestamp,
-                                         const nsString& aLastMessageSubject,
                                          const nsString& aBody,
                                          const uint64_t aUnreadCount,
                                          MessageType aLastMessageType)
-  : mData(aId, aParticipants, aTimestamp, aLastMessageSubject, aBody,
-          aUnreadCount, aLastMessageType)
+  : mData(aId, aParticipants, aTimestamp, aBody, aUnreadCount, aLastMessageType)
 {
   MOZ_ASSERT(aParticipants.Length());
 }
@@ -136,13 +132,6 @@ NS_IMETHODIMP
 MobileMessageThread::GetId(uint64_t* aId)
 {
   *aId = mData.id();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-MobileMessageThread::GetLastMessageSubject(nsAString& aLastMessageSubject)
-{
-  aLastMessageSubject = mData.lastMessageSubject();
   return NS_OK;
 }
 
@@ -174,9 +163,13 @@ MobileMessageThread::GetParticipants(JSContext* aCx,
 }
 
 NS_IMETHODIMP
-MobileMessageThread::GetTimestamp(DOMTimeStamp* aDate)
+MobileMessageThread::GetTimestamp(JSContext* aCx,
+                                  JS::Value* aDate)
 {
-  *aDate = mData.timestamp();
+  JSObject *obj = JS_NewDateObjectMsec(aCx, mData.timestamp());
+  NS_ENSURE_TRUE(obj, NS_ERROR_FAILURE);
+
+  *aDate = OBJECT_TO_JSVAL(obj);
   return NS_OK;
 }
 

@@ -100,13 +100,9 @@ HTMLOptionElement::SetSelected(bool aValue)
   HTMLSelectElement* selectInt = GetSelect();
   if (selectInt) {
     int32_t index = Index();
-    uint32_t mask = HTMLSelectElement::SET_DISABLED | HTMLSelectElement::NOTIFY;
-    if (aValue) {
-      mask |= HTMLSelectElement::IS_SELECTED;
-    }
-
     // This should end up calling SetSelectedInternal
-    selectInt->SetOptionsSelectedByIndex(index, index, mask);
+    selectInt->SetOptionsSelectedByIndex(index, index, aValue,
+                                         false, true, true);
   } else {
     SetSelectedInternal(aValue, true);
   }
@@ -194,16 +190,6 @@ HTMLOptionElement::BeforeSetAttr(int32_t aNamespaceID, nsIAtom* aName,
     return NS_OK;
   }
 
-  bool defaultSelected = aValue;
-  // First make sure we actually set our mIsSelected state to reflect our new
-  // defaultSelected state.  If that turns out to be wrong,
-  // SetOptionsSelectedByIndex will fix it up.  But otherwise we can end up in a
-  // situation where mIsSelected is still false, but mSelectedChanged becomes
-  // true (later in this method, when we compare mIsSelected to
-  // defaultSelected), and then we start returning false for Selected() even
-  // though we're actually selected.
-  mIsSelected = defaultSelected;
-
   // We just changed out selected state (since we look at the "selected"
   // attribute when mSelectedChanged is false).  Let's tell our select about
   // it.
@@ -212,33 +198,26 @@ HTMLOptionElement::BeforeSetAttr(int32_t aNamespaceID, nsIAtom* aName,
     return NS_OK;
   }
 
+  // Note that at this point mSelectedChanged is false and as long as that's
+  // true it doesn't matter what value mIsSelected has.
   NS_ASSERTION(!mSelectedChanged, "Shouldn't be here");
 
+  bool newSelected = (aValue != nullptr);
   bool inSetDefaultSelected = mIsInSetDefaultSelected;
   mIsInSetDefaultSelected = true;
 
   int32_t index = Index();
-  uint32_t mask = HTMLSelectElement::SET_DISABLED;
-  if (defaultSelected) {
-    mask |= HTMLSelectElement::IS_SELECTED;
-  }
-
-  if (aNotify) {
-    mask |= HTMLSelectElement::NOTIFY;
-  }
-
-  // This can end up calling SetSelectedInternal if our selected state needs to
-  // change, which we will allow to take effect so that parts of
-  // SetOptionsSelectedByIndex that might depend on it working don't get
-  // confused.
-  selectInt->SetOptionsSelectedByIndex(index, index, mask);
+  // This should end up calling SetSelectedInternal, which we will allow to
+  // take effect so that parts of SetOptionsSelectedByIndex that might depend
+  // on it working don't get confused.
+  selectInt->SetOptionsSelectedByIndex(index, index, newSelected,
+                                       false, true, aNotify);
 
   // Now reset our members; when we finish the attr set we'll end up with the
   // rigt selected state.
   mIsInSetDefaultSelected = inSetDefaultSelected;
-  // mIsSelected might have been changed by SetOptionsSelectedByIndex.  Possibly
-  // more than once; make sure our mSelectedChanged state is set correctly.
-  mSelectedChanged = mIsSelected != defaultSelected;
+  mSelectedChanged = false;
+  // mIsSelected doesn't matter while mSelectedChanged is false
 
   return NS_OK;
 }

@@ -44,7 +44,7 @@ function runTests()
       ok(!notificationBox.currentNotification,
          "there is no notification in content context");
 
-      sp.editor.setText("window.foobarBug636725 = 'aloha';");
+      sp.setText("window.foobarBug636725 = 'aloha';");
 
       ok(!content.wrappedJSObject.foobarBug636725,
          "no content.foobarBug636725");
@@ -71,8 +71,7 @@ function runTests()
       ok(notificationBox.currentNotification,
          "there is a notification in browser context");
 
-      let [ from, to ] = sp.editor.getPosition(31, 32);
-      sp.editor.replaceText("2'", from, to);
+      sp.setText("2'", 31, 32);
 
       is(sp.getText(), "window.foobarBug636725 = 'aloha2';",
          "setText() worked");
@@ -88,7 +87,7 @@ function runTests()
   {
     method: "run",
     prepare: function() {
-      sp.editor.replaceText("gBrowser", sp.editor.getPosition(7));
+      sp.setText("gBrowser", 7);
 
       is(sp.getText(), "window.gBrowser",
          "setText() worked with no end for the replace range");
@@ -102,7 +101,7 @@ function runTests()
     method: "run",
     prepare: function() {
       // Check that the sandbox is cached.
-      sp.editor.setText("typeof foobarBug636725cache;");
+      sp.setText("typeof foobarBug636725cache;");
     },
     then: function([, , result]) {
       is(result, "undefined", "global variable does not exist");
@@ -111,7 +110,7 @@ function runTests()
   {
     method: "run",
     prepare: function() {
-      sp.editor.setText("var foobarBug636725cache = 'foo';" +
+      sp.setText("var foobarBug636725cache = 'foo';" +
                  "typeof foobarBug636725cache;");
     },
     then: function([, , result]) {
@@ -122,7 +121,7 @@ function runTests()
   {
     method: "run",
     prepare: function() {
-      sp.editor.setText("var foobarBug636725cache2 = 'foo';" +
+      sp.setText("var foobarBug636725cache2 = 'foo';" +
                  "typeof foobarBug636725cache2;");
     },
     then: function([, , result]) {
@@ -138,7 +137,7 @@ function runTests()
       is(sp.executionContext, gScratchpadWindow.SCRATCHPAD_CONTEXT_CONTENT,
          "executionContext is content");
 
-      sp.editor.setText("typeof foobarBug636725cache2;");
+      sp.setText("typeof foobarBug636725cache2;");
     },
     then: function([, , result]) {
       is(result, "undefined",
@@ -148,7 +147,7 @@ function runTests()
 
   runAsyncCallbackTests(sp, tests).then(() => {
     sp.setBrowserContext();
-    sp.editor.setText("delete foobarBug636725cache;" +
+    sp.setText("delete foobarBug636725cache;" +
                "delete foobarBug636725cache2;");
     sp.run().then(finish);
   });

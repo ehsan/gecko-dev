@@ -1,5 +1,5 @@
 // eval correctly handles optional lineNumber option
-var g = newGlobal();
+var g = newGlobal('new-compartment');
 var dbg = new Debugger(g);
 var count = 0;
 

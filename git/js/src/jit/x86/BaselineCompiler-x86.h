@@ -10,17 +10,17 @@
 #include "jit/shared/BaselineCompiler-x86-shared.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class BaselineCompilerX86 : public BaselineCompilerX86Shared
 {
   protected:
-    BaselineCompilerX86(JSContext *cx, TempAllocator &alloc, HandleScript script);
+    BaselineCompilerX86(JSContext *cx, HandleScript script);
 };
 
 typedef BaselineCompilerX86 BaselineCompilerSpecific;
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_x86_BaselineCompiler_x86_h */

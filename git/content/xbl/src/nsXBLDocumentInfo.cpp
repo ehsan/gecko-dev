@@ -33,13 +33,13 @@
 #include "mozilla/scache/StartupCacheUtils.h"
 #include "nsCCUncollectableMarker.h"
 #include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/URL.h"
 
-using namespace mozilla;
 using namespace mozilla::scache;
-using namespace mozilla::dom;
+using namespace mozilla;
 
 static const char kXBLCachePrefix[] = "xblcache";
+
+static NS_DEFINE_CID(kDOMScriptObjectFactoryCID, NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
 
 class nsXBLDocGlobalObject : public nsISupports
 {
@@ -60,7 +60,7 @@ public:
 
   void ClearGlobalObjectOwner();
 
-  static const JSClass gSharedGlobalClass;
+  static JSClass gSharedGlobalClass;
 
 protected:
   virtual ~nsXBLDocGlobalObject();
@@ -151,7 +151,7 @@ nsXBLDocGlobalObject_resolve(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handl
 }
 
 
-const JSClass nsXBLDocGlobalObject::gSharedGlobalClass = {
+JSClass nsXBLDocGlobalObject::gSharedGlobalClass = {
     "nsXBLPrototypeScript compilation scope",
     JSCLASS_HAS_PRIVATE | JSCLASS_PRIVATE_IS_NSISUPPORTS |
     JSCLASS_IMPLEMENTS_BARRIERS | JSCLASS_GLOBAL_FLAGS_WITH_SLOTS(0),
@@ -213,9 +213,7 @@ nsXBLDocGlobalObject::ClearGlobalObjectOwner()
 void
 nsXBLDocGlobalObject::UnmarkCompilationGlobal()
 {
-  if (mJSObject) {
-    JS::ExposeObjectToActiveJS(mJSObject);
-  }
+  xpc_UnmarkGrayObject(mJSObject);
 }
 
 JSObject *
@@ -239,7 +237,7 @@ nsXBLDocGlobalObject::GetCompilationGlobal()
   if (!mJSObject)
       return nullptr;
 
-  mozilla::HoldJSObjects(this);
+  NS_HOLD_JS_OBJECTS(this, nsXBLDocGlobalObject);
 
   // Set the location information for the new global, so that tools like
   // about:memory may use that information
@@ -261,7 +259,7 @@ nsXBLDocGlobalObject::Destroy()
   if (!mJSObject)
     return;
   mJSObject = nullptr;
-  mozilla::DropJSObjects(this);
+  NS_DROP_JS_OBJECTS(this, nsXBLDocGlobalObject);
 }
 
 
@@ -282,6 +280,14 @@ nsXBLDocGlobalObject::GetPrincipal()
     return nullptr;
 
   return document->NodePrincipal();
+}
+
+static bool IsChromeURI(nsIURI* aURI)
+{
+  bool isChrome = false;
+  if (NS_SUCCEEDED(aURI->SchemeIs("chrome", &isChrome)))
+      return isChrome;
+  return false;
 }
 
 /* Implementation file */
@@ -351,7 +357,7 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_END
 static void
 UnmarkXBLJSObject(void* aP, const char* aName, void* aClosure)
 {
-  JS::ExposeObjectToActiveJS(static_cast<JSObject*>(aP));
+  xpc_UnmarkGrayObject(static_cast<JSObject*>(aP));
 }
 
 static bool
@@ -403,24 +409,6 @@ nsXBLDocumentInfo::nsXBLDocumentInfo(nsIDocument* aDocument)
       mScriptAccess = allow;
     }
     mIsChrome = true;
-  } else {
-    // If this binding isn't running with system principal, then it's running
-    // from a remote-XUL whitelisted domain. This is already a not-really-
-    // supported configuration (among other things, we don't use XBL scopes in
-    // that configuration for compatibility reasons). But we should still at
-    // least make an effort to prevent binding code from running if content
-    // script is disabled or if the source domain is blacklisted (since the
-    // source domain for remote XBL must always be the same as the source domain
-    // of the bound content).
-    //
-    // If we just ask the binding document if script is enabled, it will
-    // discover that it has no inner window, and return false. So instead, we
-    // short-circuit the normal compartment-managed script-disabling machinery,
-    // and query the policy for the URI directly.
-    bool allow;
-    nsIScriptSecurityManager* ssm = nsContentUtils::GetSecurityManager();
-    nsresult rv = ssm->PolicyAllowsScript(uri, &allow);
-    mScriptAccess = NS_SUCCEEDED(rv) && allow;
   }
 }
 
@@ -433,7 +421,7 @@ nsXBLDocumentInfo::~nsXBLDocumentInfo()
   if (mBindingTable) {
     delete mBindingTable;
     mBindingTable = nullptr;
-    mozilla::DropJSObjects(this);
+    NS_DROP_JS_OBJECTS(this, nsXBLDocumentInfo);
   }
 }
 
@@ -467,7 +455,7 @@ nsXBLDocumentInfo::SetPrototypeBinding(const nsACString& aRef, nsXBLPrototypeBin
   if (!mBindingTable) {
     mBindingTable = new nsObjectHashtable(nullptr, nullptr, DeletePrototypeBinding, nullptr);
 
-    mozilla::HoldJSObjects(this);
+    NS_HOLD_JS_OBJECTS(this, nsXBLDocumentInfo);
   }
 
   const nsPromiseFlatCString& flat = PromiseFlatCString(aRef);

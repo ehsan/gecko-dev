@@ -4,15 +4,14 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+MODULE = 'TestStreamConv'
+
 PROGRAM = 'TestStreamConv'
 
-UNIFIED_SOURCES += [
+CPP_SOURCES += [
     'Converters.cpp',
     'TestStreamConv.cpp',
 ]
 
 FAIL_ON_WARNINGS = True
 
-if CONFIG['OS_ARCH'] == 'WINNT':
-    for var in ('MOZ_NO_DEBUG_RTL', 'NGPREFS'):
-        DEFINES[var] = True

@@ -7,6 +7,7 @@
 #define GFX_ThebesLayerComposite_H
 
 #include "Layers.h"                     // for Layer (ptr only), etc
+#include "gfxPoint.h"                   // for gfxSize
 #include "gfxRect.h"                    // for gfxRect
 #include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
 #include "mozilla/RefPtr.h"             // for RefPtr
@@ -52,7 +53,8 @@ public:
 
   virtual TiledLayerComposer* GetTiledLayerComposer() MOZ_OVERRIDE;
 
-  virtual void RenderLayer(const nsIntRect& aClipRect) MOZ_OVERRIDE;
+  virtual void RenderLayer(const nsIntPoint& aOffset,
+                           const nsIntRect& aClipRect) MOZ_OVERRIDE;
 
   virtual void CleanupResources() MOZ_OVERRIDE;
 
@@ -78,10 +80,14 @@ public:
 
 protected:
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix) MOZ_OVERRIDE;
+#endif
 
 private:
-  CSSToScreenScale GetEffectiveResolution();
+  gfxRect GetDisplayPort();
+  gfxSize GetEffectiveResolution();
+  gfxRect GetCompositionBounds();
 
   RefPtr<ContentHost> mBuffer;
   bool mRequiresTiledProperties;

@@ -13,9 +13,8 @@
 #include "nsRuleNode.h"
 #include "nsCSSKeywords.h"
 #include "nsStyleAnimation.h"
-#include "gfxMatrix.h"
 
-using namespace mozilla;
+namespace css = mozilla::css;
 
 namespace nsStyleTransformMatrix {
 

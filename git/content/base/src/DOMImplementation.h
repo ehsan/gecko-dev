@@ -16,7 +16,7 @@
 #include "nsIScriptGlobalObject.h"
 #include "nsIURI.h"
 #include "nsIWeakReferenceUtils.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 
 class nsIDOMDocument;
 

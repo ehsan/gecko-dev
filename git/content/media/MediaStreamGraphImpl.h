@@ -12,12 +12,18 @@
 #include "mozilla/TimeStamp.h"
 #include "nsIThread.h"
 #include "nsIRunnable.h"
-#include "Latency.h"
 
 namespace mozilla {
 
 template <typename T>
 class LinkedList;
+
+#ifdef PR_LOGGING
+extern PRLogModuleInfo* gMediaStreamGraphLog;
+#define LOG(type, msg) PR_LOG(gMediaStreamGraphLog, type, msg)
+#else
+#define LOG(type, msg)
+#endif
 
 /**
  * Assume we can run an iteration of the MediaStreamGraph loop in this much time
@@ -65,11 +71,11 @@ struct StreamUpdate {
 
 /**
  * This represents a message passed from the main thread to the graph thread.
- * A ControlMessage always has a weak reference a particular affected stream.
+ * A ControlMessage always references a particular affected stream.
  */
 class ControlMessage {
 public:
-  explicit ControlMessage(MediaStream* aStream) : mStream(aStream)
+  ControlMessage(MediaStream* aStream) : mStream(aStream)
   {
     MOZ_COUNT_CTOR(ControlMessage);
   }
@@ -113,7 +119,12 @@ public:
    * implement OfflineAudioContext.  They do not support MediaStream inputs.
    */
   explicit MediaStreamGraphImpl(bool aRealtime);
-  virtual ~MediaStreamGraphImpl();
+  ~MediaStreamGraphImpl()
+  {
+    NS_ASSERTION(IsEmpty(),
+                 "All streams should have been destroyed by messages from the main thread");
+    LOG(PR_LOG_DEBUG, ("MediaStreamGraph %p destroyed", this));
+  }
 
   // Main thread only.
   /**
@@ -150,10 +161,6 @@ public:
    */
   void ShutdownThreads();
 
-  /**
-   * Called before the thread runs.
-   */
-  void Init();
   // The following methods run on the graph thread (or possibly the main thread if
   // mLifecycleState > LIFECYCLE_RUNNING)
   /**
@@ -358,13 +365,6 @@ public:
    * Remove aPort from the graph and release it.
    */
   void DestroyPort(MediaInputPort* aPort);
-  /**
-   * Mark the media stream order as dirty.
-   */
-  void SetStreamOrderDirty()
-  {
-    mStreamOrderDirty = true;
-  }
 
   // Data members
 
@@ -554,15 +554,6 @@ public:
    * value is only accessed on the main thread.
    */
   bool mNonRealtimeProcessing;
-  /**
-   * True when a change has happened which requires us to recompute the stream
-   * blocking order.
-   */
-  bool mStreamOrderDirty;
-  /**
-   * Hold a ref to the Latency logger
-   */
-  nsRefPtr<AsyncLatencyLogger> mLatencyLog;
 };
 
 }

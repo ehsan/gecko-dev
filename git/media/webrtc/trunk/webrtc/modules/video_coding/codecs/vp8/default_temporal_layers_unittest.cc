@@ -9,7 +9,7 @@
  */
 
 
-#include "testing/gtest/include/gtest/gtest.h"
+#include "gtest/gtest.h"
 #include "webrtc/modules/video_coding/codecs/interface/video_codec_interface.h"
 #include "webrtc/modules/video_coding/codecs/vp8/default_temporal_layers.h"
 
@@ -215,3 +215,4 @@ TEST(TemporalLayersTest, KeyFrame) {
   EXPECT_EQ(true, vp8_info.layerSync);
 }
 }  // namespace webrtc
+

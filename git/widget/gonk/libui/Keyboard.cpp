@@ -15,17 +15,16 @@
  */
 
 #define LOG_TAG "Keyboard"
-#include "cutils_log.h"
 
 #include <stdlib.h>
 #include <unistd.h>
 #include <limits.h>
 
+#include "utils_Log.h"
 #include "Keyboard.h"
 #include "KeycodeLabels.h"
 #include "KeyLayoutMap.h"
 #include "KeyCharacterMap.h"
-#include "InputDevice.h"
 #include <utils/Errors.h>
 #include <cutils/properties.h>
 
@@ -33,10 +32,13 @@ namespace android {
 
 // --- KeyMap ---
 
-KeyMap::KeyMap() {
+KeyMap::KeyMap() :
+        keyLayoutMap(NULL), keyCharacterMap(NULL) {
 }
 
 KeyMap::~KeyMap() {
+    delete keyLayoutMap;
+    delete keyCharacterMap;
 }
 
 status_t KeyMap::load(const InputDeviceIdentifier& deviceIdenfifier,
@@ -112,12 +114,14 @@ status_t KeyMap::loadKeyLayout(const InputDeviceIdentifier& deviceIdentifier,
         return NAME_NOT_FOUND;
     }
 
-    status_t status = KeyLayoutMap::load(path, &keyLayoutMap);
+    KeyLayoutMap* map;
+    status_t status = KeyLayoutMap::load(path, &map);
     if (status) {
         return status;
     }
 
     keyLayoutFile.setTo(path);
+    keyLayoutMap = map;
     return OK;
 }
 
@@ -129,13 +133,14 @@ status_t KeyMap::loadKeyCharacterMap(const InputDeviceIdentifier& deviceIdentifi
         return NAME_NOT_FOUND;
     }
 
-    status_t status = KeyCharacterMap::load(path,
-            KeyCharacterMap::FORMAT_BASE, &keyCharacterMap);
+    KeyCharacterMap* map;
+    status_t status = KeyCharacterMap::load(path, &map);
     if (status) {
         return status;
     }
 
     keyCharacterMapFile.setTo(path);
+    keyCharacterMap = map;
     return OK;
 }
 

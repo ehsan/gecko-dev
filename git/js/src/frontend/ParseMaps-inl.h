@@ -35,7 +35,7 @@ AtomThingMapPtr<Map>::releaseMap(ExclusiveContext *cx)
 
     AutoLockForExclusiveAccess lock(cx);
     cx->parseMapPool().release(map_);
-    map_ = nullptr;
+    map_ = NULL;
 }
 
 template <typename ParseHandler>

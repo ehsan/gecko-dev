@@ -16,117 +16,56 @@
 #include "jsscriptinlines.h"
 
 using namespace js;
-using namespace js::jit;
-
-MacroAssemblerX86::Double *
-MacroAssemblerX86::getDouble(double d)
-{
-    if (!doubleMap_.initialized()) {
-        enoughMemory_ &= doubleMap_.init();
-        if (!enoughMemory_)
-            return nullptr;
-    }
-    size_t doubleIndex;
-    DoubleMap::AddPtr p = doubleMap_.lookupForAdd(d);
-    if (p) {
-        doubleIndex = p->value();
-    } else {
-        doubleIndex = doubles_.length();
-        enoughMemory_ &= doubles_.append(Double(d));
-        enoughMemory_ &= doubleMap_.add(p, d, doubleIndex);
-        if (!enoughMemory_)
-            return nullptr;
-    }
-    Double &dbl = doubles_[doubleIndex];
-    JS_ASSERT(!dbl.uses.bound());
-    return &dbl;
-}
+using namespace js::ion;
 
 void
 MacroAssemblerX86::loadConstantDouble(double d, const FloatRegister &dest)
 {
     if (maybeInlineDouble(d, dest))
         return;
-    Double *dbl = getDouble(d);
-    if (!dbl)
-        return;
-    masm.movsd_mr(reinterpret_cast<const void *>(dbl->uses.prev()), dest.code());
-    dbl->uses.setPrev(masm.size());
-}
 
-void
-MacroAssemblerX86::addConstantDouble(double d, const FloatRegister &dest)
-{
-    Double *dbl = getDouble(d);
-    if (!dbl)
-        return;
-    masm.addsd_mr(reinterpret_cast<const void *>(dbl->uses.prev()), dest.code());
-    dbl->uses.setPrev(masm.size());
-}
-
-MacroAssemblerX86::Float *
-MacroAssemblerX86::getFloat(float f)
-{
-    if (!floatMap_.initialized()) {
-        enoughMemory_ &= floatMap_.init();
+    if (!doubleMap_.initialized()) {
+        enoughMemory_ &= doubleMap_.init();
         if (!enoughMemory_)
-            return nullptr;
+            return;
     }
-    size_t floatIndex;
-    FloatMap::AddPtr p = floatMap_.lookupForAdd(f);
+    size_t doubleIndex;
+    DoubleMap::AddPtr p = doubleMap_.lookupForAdd(d);
     if (p) {
-        floatIndex = p->value();
+        doubleIndex = p->value;
     } else {
-        floatIndex = floats_.length();
-        enoughMemory_ &= floats_.append(Float(f));
-        enoughMemory_ &= floatMap_.add(p, f, floatIndex);
+        doubleIndex = doubles_.length();
+        enoughMemory_ &= doubles_.append(Double(d));
+        enoughMemory_ &= doubleMap_.add(p, d, doubleIndex);
         if (!enoughMemory_)
-            return nullptr;
+            return;
     }
-    Float &flt = floats_[floatIndex];
-    JS_ASSERT(!flt.uses.bound());
-    return &flt;
+    Double &dbl = doubles_[doubleIndex];
+    JS_ASSERT(!dbl.uses.bound());
+
+    masm.movsd_mr(reinterpret_cast<const void *>(dbl.uses.prev()), dest.code());
+    dbl.uses.setPrev(masm.size());
 }
 
 void
-MacroAssemblerX86::loadConstantFloat32(float f, const FloatRegister &dest)
-{
-    if (maybeInlineFloat(f, dest))
+MacroAssemblerX86::loadStaticDouble(const double *dp, const FloatRegister &dest) {
+    if (maybeInlineDouble(*dp, dest))
         return;
-    Float *flt = getFloat(f);
-    if (!flt)
-        return;
-    masm.movss_mr(reinterpret_cast<const void *>(flt->uses.prev()), dest.code());
-    flt->uses.setPrev(masm.size());
-}
 
-void
-MacroAssemblerX86::addConstantFloat32(float f, const FloatRegister &dest)
-{
-    Float *flt = getFloat(f);
-    if (!flt)
-        return;
-    masm.addss_mr(reinterpret_cast<const void *>(flt->uses.prev()), dest.code());
-    flt->uses.setPrev(masm.size());
+    // x86 can just load from any old immediate address.
+    movsd(dp, dest);
 }
 
 void
 MacroAssemblerX86::finish()
 {
-    if (doubles_.empty() && floats_.empty())
+    if (doubles_.empty())
         return;
 
     masm.align(sizeof(double));
     for (size_t i = 0; i < doubles_.length(); i++) {
         CodeLabel cl(doubles_[i].uses);
         writeDoubleConstant(doubles_[i].value, cl.src());
-        enoughMemory_ &= addCodeLabel(cl);
-        if (!enoughMemory_)
-            return;
-    }
-    for (size_t i = 0; i < floats_.length(); i++) {
-        CodeLabel cl(floats_[i].uses);
-        writeFloatConstant(floats_[i].value, cl.src());
         enoughMemory_ &= addCodeLabel(cl);
         if (!enoughMemory_)
             return;
@@ -163,30 +102,29 @@ MacroAssemblerX86::setupUnalignedABICall(uint32_t args, const Register &scratch)
 }
 
 void
-MacroAssemblerX86::passABIArg(const MoveOperand &from, MoveOp::Type type)
+MacroAssemblerX86::passABIArg(const MoveOperand &from)
 {
     ++passedArgs_;
     MoveOperand to = MoveOperand(StackPointer, stackForCall_);
-    switch (type) {
-      case MoveOp::FLOAT32: stackForCall_ += sizeof(float); break;
-      case MoveOp::DOUBLE:  stackForCall_ += sizeof(double); break;
-      case MoveOp::INT32:   stackForCall_ += sizeof(int32_t); break;
-      case MoveOp::GENERAL: stackForCall_ += sizeof(intptr_t); break;
-      default: MOZ_ASSUME_UNREACHABLE("Unexpected argument type");
+    if (from.isDouble()) {
+        stackForCall_ += sizeof(double);
+        enoughMemory_ &= moveResolver_.addMove(from, to, Move::DOUBLE);
+    } else {
+        stackForCall_ += sizeof(int32_t);
+        enoughMemory_ &= moveResolver_.addMove(from, to, Move::GENERAL);
     }
-    enoughMemory_ &= moveResolver_.addMove(from, to, type);
 }
 
 void
 MacroAssemblerX86::passABIArg(const Register &reg)
 {
-    passABIArg(MoveOperand(reg), MoveOp::GENERAL);
+    passABIArg(MoveOperand(reg));
 }
 
 void
-MacroAssemblerX86::passABIArg(const FloatRegister &reg, MoveOp::Type type)
+MacroAssemblerX86::passABIArg(const FloatRegister &reg)
 {
-    passABIArg(MoveOperand(reg), type);
+    passABIArg(MoveOperand(reg));
 }
 
 void
@@ -197,7 +135,7 @@ MacroAssemblerX86::callWithABIPre(uint32_t *stackAdjust)
 
     if (dynamicAlignment_) {
         *stackAdjust = stackForCall_
-                     + ComputeByteAlignment(stackForCall_ + sizeof(intptr_t),
+                     + ComputeByteAlignment(stackForCall_ + STACK_SLOT_SIZE,
                                             StackAlignment);
     } else {
         *stackAdjust = stackForCall_
@@ -231,19 +169,14 @@ MacroAssemblerX86::callWithABIPre(uint32_t *stackAdjust)
 }
 
 void
-MacroAssemblerX86::callWithABIPost(uint32_t stackAdjust, MoveOp::Type result)
+MacroAssemblerX86::callWithABIPost(uint32_t stackAdjust, Result result)
 {
     freeStack(stackAdjust);
-    if (result == MoveOp::DOUBLE) {
+    if (result == DOUBLE) {
         reserveStack(sizeof(double));
         fstp(Operand(esp, 0));
-        loadDouble(Operand(esp, 0), ReturnFloatReg);
+        movsd(Operand(esp, 0), ReturnFloatReg);
         freeStack(sizeof(double));
-    } else if (result == MoveOp::FLOAT32) {
-        reserveStack(sizeof(float));
-        fstp32(Operand(esp, 0));
-        loadFloat32(Operand(esp, 0), ReturnFloatReg);
-        freeStack(sizeof(float));
     }
     if (dynamicAlignment_)
         pop(esp);
@@ -253,25 +186,16 @@ MacroAssemblerX86::callWithABIPost(uint32_t stackAdjust, MoveOp::Type result)
 }
 
 void
-MacroAssemblerX86::callWithABI(void *fun, MoveOp::Type result)
+MacroAssemblerX86::callWithABI(void *fun, Result result)
 {
     uint32_t stackAdjust;
     callWithABIPre(&stackAdjust);
-    call(ImmPtr(fun));
+    call(ImmWord(fun));
     callWithABIPost(stackAdjust, result);
 }
 
 void
-MacroAssemblerX86::callWithABI(AsmJSImmPtr fun, MoveOp::Type result)
-{
-    uint32_t stackAdjust;
-    callWithABIPre(&stackAdjust);
-    call(fun);
-    callWithABIPost(stackAdjust, result);
-}
-
-void
-MacroAssemblerX86::callWithABI(const Address &fun, MoveOp::Type result)
+MacroAssemblerX86::callWithABI(const Address &fun, Result result)
 {
     uint32_t stackAdjust;
     callWithABIPre(&stackAdjust);
@@ -291,7 +215,7 @@ MacroAssemblerX86::handleFailureWithHandler(void *handler)
     passABIArg(eax);
     callWithABI(handler);
 
-    JitCode *excTail = GetIonContext()->runtime->jitRuntime()->getExceptionTail();
+    IonCode *excTail = GetIonContext()->runtime->ionRuntime()->getExceptionTail();
     jmp(excTail);
 }
 
@@ -317,15 +241,15 @@ MacroAssemblerX86::handleFailureWithHandlerTail()
     // and return from the entry frame.
     bind(&entryFrame);
     moveValue(MagicValue(JS_ION_ERROR), JSReturnOperand);
-    loadPtr(Address(esp, offsetof(ResumeFromException, stackPointer)), esp);
+    movl(Operand(esp, offsetof(ResumeFromException, stackPointer)), esp);
     ret();
 
     // If we found a catch handler, this must be a baseline frame. Restore state
     // and jump to the catch block.
     bind(&catch_);
-    loadPtr(Address(esp, offsetof(ResumeFromException, target)), eax);
-    loadPtr(Address(esp, offsetof(ResumeFromException, framePointer)), ebp);
-    loadPtr(Address(esp, offsetof(ResumeFromException, stackPointer)), esp);
+    movl(Operand(esp, offsetof(ResumeFromException, target)), eax);
+    movl(Operand(esp, offsetof(ResumeFromException, framePointer)), ebp);
+    movl(Operand(esp, offsetof(ResumeFromException, stackPointer)), esp);
     jmp(Operand(eax));
 
     // If we found a finally block, this must be a baseline frame. Push
@@ -333,11 +257,11 @@ MacroAssemblerX86::handleFailureWithHandlerTail()
     // exception.
     bind(&finally);
     ValueOperand exception = ValueOperand(ecx, edx);
-    loadValue(Address(esp, offsetof(ResumeFromException, exception)), exception);
+    loadValue(Operand(esp, offsetof(ResumeFromException, exception)), exception);
 
-    loadPtr(Address(esp, offsetof(ResumeFromException, target)), eax);
-    loadPtr(Address(esp, offsetof(ResumeFromException, framePointer)), ebp);
-    loadPtr(Address(esp, offsetof(ResumeFromException, stackPointer)), esp);
+    movl(Operand(esp, offsetof(ResumeFromException, target)), eax);
+    movl(Operand(esp, offsetof(ResumeFromException, framePointer)), ebp);
+    movl(Operand(esp, offsetof(ResumeFromException, stackPointer)), esp);
 
     pushValue(BooleanValue(true));
     pushValue(exception);
@@ -345,8 +269,8 @@ MacroAssemblerX86::handleFailureWithHandlerTail()
 
     // Only used in debug mode. Return BaselineFrame->returnValue() to the caller.
     bind(&return_);
-    loadPtr(Address(esp, offsetof(ResumeFromException, framePointer)), ebp);
-    loadPtr(Address(esp, offsetof(ResumeFromException, stackPointer)), esp);
+    movl(Operand(esp, offsetof(ResumeFromException, framePointer)), ebp);
+    movl(Operand(esp, offsetof(ResumeFromException, stackPointer)), esp);
     loadValue(Address(ebp, BaselineFrame::reverseOffsetOfReturnValue()), JSReturnOperand);
     movl(ebp, esp);
     pop(ebp);
@@ -355,7 +279,7 @@ MacroAssemblerX86::handleFailureWithHandlerTail()
     // If we are bailing out to baseline to handle an exception, jump to
     // the bailout tail stub.
     bind(&bailout);
-    loadPtr(Address(esp, offsetof(ResumeFromException, bailoutInfo)), ecx);
+    movl(Operand(esp, offsetof(ResumeFromException, bailoutInfo)), ecx);
     movl(Imm32(BAILOUT_RETURN_OK), eax);
     jmp(Operand(esp, offsetof(ResumeFromException, target)));
 }
@@ -406,12 +330,4 @@ MacroAssemblerX86::testNegativeZero(const FloatRegister &reg, const Register &sc
 
     bind(&nonZero);
     return Zero;
-}
-
-Assembler::Condition
-MacroAssemblerX86::testNegativeZeroFloat32(const FloatRegister &reg, const Register &scratch)
-{
-    movd(reg, scratch);
-    cmpl(scratch, Imm32(1));
-    return Overflow;
 }

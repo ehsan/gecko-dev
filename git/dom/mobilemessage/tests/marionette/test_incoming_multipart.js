@@ -40,7 +40,7 @@ function simulateIncomingSms() {
     is(incomingSms.read, false, "read");
     is(incomingSms.receiver, RECEIVER, "receiver");
     is(incomingSms.sender, SENDER, "sender");
-    is(incomingSms.deliveryTimestamp, 0, "deliveryTimestamp is 0");
+    ok(incomingSms.timestamp instanceof Date, "timestamp is istanceof date");
 
     verifySmsExists(incomingSms);
   };

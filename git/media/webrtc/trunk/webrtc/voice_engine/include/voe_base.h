@@ -34,13 +34,12 @@
 #ifndef WEBRTC_VOICE_ENGINE_VOE_BASE_H
 #define WEBRTC_VOICE_ENGINE_VOE_BASE_H
 
-#include "webrtc/common_types.h"
+#include "common_types.h"
 
 namespace webrtc {
 
 class AudioDeviceModule;
 class AudioProcessing;
-class Config;
 
 const int kVoEDefault = -1;
 
@@ -51,7 +50,7 @@ public:
     // This method will be called after the occurrence of any runtime error
     // code, or warning notification, when the observer interface has been
     // installed using VoEBase::RegisterVoiceEngineObserver().
-    virtual void CallbackOnError(int channel, int errCode) = 0;
+    virtual void CallbackOnError(const int channel, const int errCode) = 0;
 
 protected:
     virtual ~VoiceEngineObserver() {}
@@ -64,7 +63,6 @@ public:
     // Creates a VoiceEngine object, which can then be used to acquire
     // sub-APIs. Returns NULL on failure.
     static VoiceEngine* Create();
-    static VoiceEngine* Create(const Config& config);
 
     // Deletes a created VoiceEngine object and releases the utilized resources.
     // Note that if there are outstanding references held via other interfaces,
@@ -74,18 +72,17 @@ public:
 
     // Specifies the amount and type of trace information which will be
     // created by the VoiceEngine.
-    static int SetTraceFilter(unsigned int filter);
+    static int SetTraceFilter(const unsigned int filter);
 
     // Sets the name of the trace file and enables non-encrypted trace messages.
     static int SetTraceFile(const char* fileNameUTF8,
-                            bool addFileCounter = false);
+                            const bool addFileCounter = false);
 
     // Installs the TraceCallback implementation to ensure that the user
     // receives callbacks for generated trace messages.
     static int SetTraceCallback(TraceCallback* callback);
 
     static int SetAndroidObjects(void* javaVM, void* context);
-    static int SetAndroidObjects(void* javaVM, void* env, void* context);
 
 protected:
     VoiceEngine() {}
@@ -132,6 +129,9 @@ public:
 
     // Terminates all VoiceEngine functions and releses allocated resources.
     virtual int Terminate() = 0;
+
+    // Retrieves the maximum number of channels that can be created.
+    virtual int MaxNumOfChannels() = 0;
 
     // Creates a new channel and allocates the required resources for it.
     virtual int CreateChannel() = 0;
@@ -186,6 +186,6 @@ protected:
     virtual ~VoEBase() {}
 };
 
-}  // namespace webrtc
+} // namespace webrtc
 
 #endif  //  WEBRTC_VOICE_ENGINE_VOE_BASE_H

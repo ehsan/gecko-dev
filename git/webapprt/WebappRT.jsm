@@ -28,7 +28,7 @@ this.WebappRT = {
 
     let inputStream = Cc["@mozilla.org/network/file-input-stream;1"].
                       createInstance(Ci.nsIFileInputStream);
-    inputStream.init(webappFile, -1, 0, Ci.nsIFileInputStream.CLOSE_ON_EOF);
+    inputStream.init(webappFile, -1, 0, 0);
     let json = Cc["@mozilla.org/dom/json;1"].createInstance(Ci.nsIJSON);
     let config = json.decodeFromStream(inputStream, webappFile.fileSize);
 
@@ -46,12 +46,8 @@ this.WebappRT = {
   },
 
   get launchURI() {
-    let manifest = this.localeManifest;
+    let manifest = new ManifestHelper(this.config.app.manifest,
+                                      this.config.app.origin);
     return manifest.fullLaunchPath();
-  },
-
-  get localeManifest() {
-    return new ManifestHelper(this.config.app.manifest,
-                              this.config.app.origin);
-  },
+  }
 };

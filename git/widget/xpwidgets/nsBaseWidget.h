@@ -5,7 +5,6 @@
 #ifndef nsBaseWidget_h__
 #define nsBaseWidget_h__
 
-#include "mozilla/EventForwards.h"
 #include "mozilla/WidgetUtils.h"
 #include "nsRect.h"
 #include "nsIWidget.h"
@@ -13,11 +12,10 @@
 #include "nsIFile.h"
 #include "nsString.h"
 #include "nsCOMPtr.h"
+#include "nsGUIEvent.h"
 #include "nsAutoPtr.h"
 #include "nsIRollupListener.h"
 #include "nsIObserver.h"
-#include "nsIWidgetListener.h"
-#include "nsPIDOMWindow.h"
 #include <algorithm>
 class nsIContent;
 class nsAutoRollup;
@@ -40,11 +38,6 @@ class CompositorParent;
 namespace base {
 class Thread;
 }
-
-// Windows specific constant indicating the maximum number of touch points the
-// inject api will allow. This also sets the maximum numerical value for touch
-// ids we can use when injecting touch points on Windows.
-#define TOUCH_INJECT_MAX_POINTS 256
 
 class nsBaseWidget;
 
@@ -141,10 +134,9 @@ public:
   virtual void            CreateCompositor(int aWidth, int aHeight);
   virtual void            PrepareWindowEffects() {}
   virtual void            CleanupWindowEffects() {}
-  virtual bool            PreRender(LayerManagerComposite* aManager) { return true; }
-  virtual void            PostRender(LayerManagerComposite* aManager) {}
-  virtual void            DrawWindowUnderlay(LayerManagerComposite* aManager, nsIntRect aRect) {}
-  virtual void            DrawWindowOverlay(LayerManagerComposite* aManager, nsIntRect aRect) {}
+  virtual void            PreRender(LayerManager* aManager) {}
+  virtual void            DrawWindowUnderlay(LayerManager* aManager, nsIntRect aRect) {}
+  virtual void            DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect) {}
   virtual mozilla::TemporaryRef<mozilla::gfx::DrawTarget> StartRemoteDrawing();
   virtual void            EndRemoteDrawing() { };
   virtual void            CleanupRemoteDrawing() { };
@@ -179,10 +171,8 @@ public:
   virtual void            SetDrawsInTitlebar(bool aState) {}
   virtual bool            ShowsResizeIndicator(nsIntRect* aResizerRect);
   virtual void            FreeNativeData(void * data, uint32_t aDataType) {}
-  NS_IMETHOD              BeginResizeDrag(mozilla::WidgetGUIEvent* aEvent,
-                                          int32_t aHorizontal,
-                                          int32_t aVertical);
-  NS_IMETHOD              BeginMoveDrag(mozilla::WidgetMouseEvent* aEvent);
+  NS_IMETHOD              BeginResizeDrag(nsGUIEvent* aEvent, int32_t aHorizontal, int32_t aVertical);
+  NS_IMETHOD              BeginMoveDrag(nsMouseEvent* aEvent);
   virtual nsresult        ActivateNativeMenuItemAt(const nsAString& indexString) { return NS_ERROR_NOT_IMPLEMENTED; }
   virtual nsresult        ForceUpdateNativeMenuAt(const nsAString& indexString) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              NotifyIME(NotificationToIME aNotification) MOZ_OVERRIDE { return NS_ERROR_NOT_IMPLEMENTED; }
@@ -325,17 +315,14 @@ protected:
                                                     uint32_t aAdditionalFlags)
   { return NS_ERROR_UNEXPECTED; }
 
-  virtual nsresult SynthesizeNativeTouchPoint(uint32_t aPointerId,
-                                              TouchPointerState aPointerState,
-                                              nsIntPoint aPointerScreenPoint,
-                                              double aPointerPressure,
-                                              uint32_t aPointerOrientation)
-  { return NS_ERROR_UNEXPECTED; }
-
-protected:
   // Stores the clip rectangles in aRects into mClipRects. Returns true
   // if the new rectangles are different from the old rectangles.
   bool StoreWindowClipRegion(const nsTArray<nsIntRect>& aRects);
+
+  // We don't want to accelerate small popup windows like menu, but we still
+  // want to accelerate xul panels that may contain arbitrarily complex content.
+  bool IsSmallPopup();
+
 
   virtual already_AddRefed<nsIWidget>
   AllocateChildPopupWidget()
@@ -345,7 +332,7 @@ protected:
     return widget.forget();
   }
 
-  LayerManager* CreateBasicLayerManager();
+  BasicLayerManager* CreateBasicLayerManager();
 
   nsPopupType PopupType() const { return mPopupType; }
 
@@ -430,7 +417,7 @@ protected:
 
 #ifdef DEBUG
 protected:
-  static nsAutoString debug_GuiEventToString(mozilla::WidgetGUIEvent* aGuiEvent);
+  static nsAutoString debug_GuiEventToString(nsGUIEvent * aGuiEvent);
   static bool debug_WantPaintFlashing();
 
   static void debug_DumpInvalidate(FILE *                aFileOut,
@@ -439,11 +426,11 @@ protected:
                                    const nsAutoCString & aWidgetName,
                                    int32_t               aWindowID);
 
-  static void debug_DumpEvent(FILE* aFileOut,
-                              nsIWidget* aWidget,
-                              mozilla::WidgetGUIEvent* aGuiEvent,
-                              const nsAutoCString& aWidgetName,
-                              int32_t aWindowID);
+  static void debug_DumpEvent(FILE *                aFileOut,
+                              nsIWidget *           aWidget,
+                              nsGUIEvent *          aGuiEvent,
+                              const nsAutoCString & aWidgetName,
+                              int32_t               aWindowID);
 
   static void debug_DumpPaintEvent(FILE *                aFileOut,
                                    nsIWidget *           aWidget,

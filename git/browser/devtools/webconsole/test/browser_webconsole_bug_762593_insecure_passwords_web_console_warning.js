@@ -9,7 +9,7 @@ const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/te
 const INSECURE_PASSWORD_MSG = "Password fields present on an insecure (http://) page. This is a security risk that allows user login credentials to be stolen.";
 const INSECURE_FORM_ACTION_MSG = "Password fields present in a form with an insecure (http://) form action. This is a security risk that allows user login credentials to be stolen.";
 const INSECURE_IFRAME_MSG = "Password fields present on an insecure (http://) iframe. This is a security risk that allows user login credentials to be stolen.";
-const INSECURE_PASSWORDS_URI = "https://developer.mozilla.org/docs/Security/InsecurePasswords";
+const INSECURE_PASSWORDS_URI = "https://developer.mozilla.org/en-US/docs/Security/InsecurePasswords";
 
 function test() {
   addTab(TEST_URI);
@@ -38,18 +38,19 @@ function test() {
             severity: SEVERITY_WARNING
           },
         ],
-      }).then(testClickOpenNewTab.bind(null, hud));
+      }).then( () => testClickOpenNewTab(hud));
     });
   }, true);
 }
 
-function testClickOpenNewTab(hud, [result]) {
-  let msg = [...result.matched][0];
-  let warningNode = msg.querySelector(".learn-more-link");
-  ok(warningNode, "learn more link");
+function testClickOpenNewTab(hud) {
+  let warningNode = hud.outputNode.querySelector(
+    ".webconsole-msg-body .webconsole-learn-more-link");
 
-  // Invoke the click event and check if a new tab would open to the correct
-  // page
+  /*
+   * Invoke the click event and check if a new tab would open to the correct
+   * page
+   */
   let linkOpened = false;
   let oldOpenUILinkIn = window.openUILinkIn;
   window.openUILinkIn = function(aLink) {

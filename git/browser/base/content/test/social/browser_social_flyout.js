@@ -10,7 +10,7 @@ function test() {
     origin: "https://example.com",
     sidebarURL: "https://example.com/browser/browser/base/content/test/social/social_sidebar.html",
     workerURL: "https://example.com/browser/browser/base/content/test/social/social_worker.js",
-    iconURL: "https://example.com/browser/browser/base/content/test/general/moz.png"
+    iconURL: "https://example.com/browser/browser/base/content/test/moz.png"
   };
   runSocialTestWithProvider(manifest, function (finishcb) {
     runSocialTests(tests, undefined, undefined, finishcb);
@@ -113,17 +113,15 @@ var tests = {
           port.postMessage({topic: "test-flyout-open"});
           break;
         case "got-flyout-visibility":
-          if (e.data.result != "shown")
-            return;
           let iframe = panel.firstChild;
           iframe.contentDocument.addEventListener("SocialTest-DoneCloseSelf", function _doneHandler() {
             iframe.contentDocument.removeEventListener("SocialTest-DoneCloseSelf", _doneHandler, false);
-            port.close();
             is(panel.state, "closed", "flyout should have closed itself");
             Services.prefs.setBoolPref(ALLOW_SCRIPTS_TO_CLOSE_PREF, oldAllowScriptsToClose);
             next();
           }, false);
           is(panel.state, "open", "flyout should be open");
+          port.close(); // so we don't get the -visibility message as it hides...
           SocialFlyout.dispatchPanelEvent("socialTest-CloseSelf");
           break;
       }
@@ -135,10 +133,12 @@ var tests = {
 
     function onTabOpen(event) {
       gBrowser.tabContainer.removeEventListener("TabOpen", onTabOpen, true);
-      waitForCondition(function() { return panel.state == "closed" }, function() {
+      is(panel.state, "closed", "flyout should be closed");
+      ok(true, "Link should open a new tab");
+      executeSoon(function(){
         gBrowser.removeTab(event.target);
         next();
-      }, "panel should close after tab open");
+      });
     }
 
     let panel = document.getElementById("social-flyout-panel");
@@ -154,7 +154,7 @@ var tests = {
           if (e.data.result == "shown") {
             // click on our test link
             is(panel.state, "open", "flyout should be open");
-            gBrowser.tabContainer.addEventListener("TabOpen", onTabOpen, true);
+            gBrowser.tabContainer.addEventListener("TabOpen", onTabOpen, true); 
             let iframe = panel.firstChild;
             iframe.contentDocument.getElementById('traversal').click();
           }

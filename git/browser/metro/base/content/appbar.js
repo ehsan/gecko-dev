@@ -88,6 +88,12 @@ var Appbar = {
     this._updateStarButton();
   },
 
+  onDownloadButton: function() {
+    let notificationBox = Browser.getNotificationBox();
+    notificationBox.notificationsHidden = !notificationBox.notificationsHidden;
+    ContextUI.dismiss();
+  },
+
   onPinButton: function() {
     if (this.pinButton.checked) {
       Browser.pinSite();
@@ -115,19 +121,23 @@ var Appbar = {
   onMenuButton: function(aEvent) {
       let typesArray = [];
 
-      if (!BrowserUI.isStartTabVisible) {
+      if (!BrowserUI.isStartTabVisible)
         typesArray.push("find-in-page");
-        if (ContextCommands.getPageSource())
-          typesArray.push("view-page-source");
-      }
-      if (ContextCommands.getStoreLink())
-        typesArray.push("ms-meta-data");
       if (ConsolePanelView.enabled)
         typesArray.push("open-error-console");
-      if (!Services.metro.immersive)
+      if (!MetroUtils.immersive)
         typesArray.push("open-jsshell");
 
-      typesArray.push("view-on-desktop");
+      try {
+        // If we have a valid http or https URI then show the view on desktop
+        // menu item.
+        let uri = Services.io.newURI(Browser.selectedBrowser.currentURI.spec,
+                                     null, null);
+        if (uri.schemeIs('http') || uri.schemeIs('https')) {
+          typesArray.push("view-on-desktop");
+        }
+      } catch(ex) {
+      }
 
       var x = this.menuButton.getBoundingClientRect().left;
       var y = Elements.toolbar.getBoundingClientRect().top;
@@ -145,12 +155,16 @@ var Appbar = {
   },
 
   onViewOnDesktop: function() {
-    let appStartup = Components.classes["@mozilla.org/toolkit/app-startup;1"].
-      getService(Components.interfaces.nsIAppStartup);
-
-    Services.prefs.setBoolPref('browser.sessionstore.resume_session_once', true);
-    appStartup.quit(Components.interfaces.nsIAppStartup.eAttemptQuit |
-                    Components.interfaces.nsIAppStartup.eRestart);
+    try {
+      // Make sure we have a valid URI so Windows doesn't prompt
+      // with an unrecognized command, select default program window
+      var uri = Services.io.newURI(Browser.selectedBrowser.currentURI.spec,
+                                   null, null);
+      if (uri.schemeIs('http') || uri.schemeIs('https')) {
+        MetroUtils.launchInDesktop(Browser.selectedBrowser.currentURI.spec, "");
+      }
+    } catch(ex) {
+    }
   },
 
   onAutocompleteCloseButton: function () {

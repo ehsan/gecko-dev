@@ -6,14 +6,12 @@
 
 /* state used in reflow of block frames */
 
-#include "nsBlockReflowState.h"
-
 #include "mozilla/DebugOnly.h"
 
 #include "nsBlockFrame.h"
 #include "nsLineLayout.h"
 #include "nsPresContext.h"
-#include "nsIFrameInlines.h"
+#include "nsIFrame.h"
 #include "mozilla/AutoRestore.h"
 #include <algorithm>
 
@@ -388,7 +386,8 @@ nsBlockReflowState::RecoverFloats(nsLineList::iterator aLine,
     while (fc) {
       nsIFrame* floatFrame = fc->mFloat;
       if (aDeltaY != 0) {
-        floatFrame->MovePositionBy(nsPoint(0, aDeltaY));
+        nsPoint p = floatFrame->GetPosition();
+        floatFrame->SetPosition(nsPoint(p.x, p.y + aDeltaY));
         nsContainerFrame::PositionFrameView(floatFrame);
         nsContainerFrame::PositionChildViews(floatFrame);
       }

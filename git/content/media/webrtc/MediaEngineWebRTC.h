@@ -26,25 +26,25 @@
 #include "AudioSegment.h"
 #include "StreamBuffer.h"
 #include "MediaStreamGraph.h"
-#include "LoadMonitor.h"
 
 // WebRTC library includes follow
 
 // Audio Engine
-#include "webrtc/voice_engine/include/voe_base.h"
-#include "webrtc/voice_engine/include/voe_codec.h"
-#include "webrtc/voice_engine/include/voe_hardware.h"
-#include "webrtc/voice_engine/include/voe_network.h"
-#include "webrtc/voice_engine/include/voe_audio_processing.h"
-#include "webrtc/voice_engine/include/voe_volume_control.h"
-#include "webrtc/voice_engine/include/voe_external_media.h"
-#include "webrtc/voice_engine/include/voe_audio_processing.h"
+#include "voice_engine/include/voe_base.h"
+#include "voice_engine/include/voe_codec.h"
+#include "voice_engine/include/voe_hardware.h"
+#include "voice_engine/include/voe_network.h"
+#include "voice_engine/include/voe_audio_processing.h"
+#include "voice_engine/include/voe_volume_control.h"
+#include "voice_engine/include/voe_external_media.h"
+#include "voice_engine/include/voe_audio_processing.h"
 
 // Video Engine
-#include "webrtc/video_engine/include/vie_base.h"
-#include "webrtc/video_engine/include/vie_codec.h"
-#include "webrtc/video_engine/include/vie_render.h"
-#include "webrtc/video_engine/include/vie_capture.h"
+#include "video_engine/include/vie_base.h"
+#include "video_engine/include/vie_codec.h"
+#include "video_engine/include/vie_render.h"
+#include "video_engine/include/vie_capture.h"
+#include "video_engine/include/vie_file.h"
 #ifdef MOZ_B2G_CAMERA
 #include "CameraPreviewMediaStream.h"
 #include "DOMCameraManager.h"
@@ -111,20 +111,13 @@ public:
     , mSnapshotPath(nullptr)
   {
     mState = kReleased;
-    NS_NewNamedThread("CameraThread", getter_AddRefs(mCameraThread));
+    NS_NewNamedThread("CameraThread", getter_AddRefs(mCameraThread), nullptr);
     Init();
   }
 #else
   // ViEExternalRenderer.
   virtual int FrameSizeChange(unsigned int, unsigned int, unsigned int);
-  virtual int DeliverFrame(unsigned char*,int, uint32_t , int64_t,
-                           void *handle);
-  /**
-   * Does DeliverFrame() support a null buffer and non-null handle
-   * (video texture)?
-   * XXX Investigate!  Especially for Android/B2G
-   */
-  virtual bool IsTextureSupported() { return false; }
+  virtual int DeliverFrame(unsigned char*, int, uint32_t, int64_t);
 
   MediaEngineWebRTCVideoSource(webrtc::VideoEngine* aVideoEnginePtr, int aIndex)
     : mVideoEngine(aVideoEnginePtr)
@@ -136,7 +129,7 @@ public:
     , mHeight(0)
     , mInitDone(false)
     , mInSnapshotMode(false)
-    , mSnapshotPath(nullptr) {
+    , mSnapshotPath(NULL) {
     MOZ_ASSERT(aVideoEnginePtr);
     mState = kReleased;
     Init();
@@ -254,8 +247,9 @@ private:
   bool mInSnapshotMode;
   nsString* mSnapshotPath;
 
-  nsString mDeviceName;
-  nsString mUniqueId;
+  // These are in UTF-8 but webrtc api uses char arrays
+  char mDeviceName[KMaxDeviceNameLength];
+  char mUniqueId[KMaxUniqueIdLength];
 
   void ChooseCapability(const MediaEnginePrefs &aPrefs);
 };
@@ -307,9 +301,9 @@ public:
   }
 
   // VoEMediaProcess.
-  void Process(int channel, webrtc::ProcessingTypes type,
-               int16_t audio10ms[], int length,
-               int samplingFreq, bool isStereo);
+  void Process(const int channel, const webrtc::ProcessingTypes type,
+               WebRtc_Word16 audio10ms[], const int length,
+               const int samplingFreq, const bool isStereo);
 
   NS_DECL_THREADSAFE_ISUPPORTS
 
@@ -360,21 +354,23 @@ public:
     , mAudioEngineInit(false)
     , mCameraManager(aCameraManager)
     , mWindowId(aWindowId)
-    , mHasTabVideoSource(false)
   {
-    AsyncLatencyLogger::Get(true)->AddRef();
-    mLoadMonitor = new LoadMonitor();
-    mLoadMonitor->Init(mLoadMonitor);
+	mVideoSources.Init();
+	mAudioSources.Init();
   }
 #else
-  MediaEngineWebRTC(MediaEnginePrefs &aPrefs);
-#endif
-  ~MediaEngineWebRTC() {
-    Shutdown();
-#ifdef MOZ_B2G_CAMERA
-    AsyncLatencyLogger::Get()->Release();
-#endif
+  MediaEngineWebRTC()
+    : mMutex("mozilla::MediaEngineWebRTC")
+    , mVideoEngine(nullptr)
+    , mVoiceEngine(nullptr)
+    , mVideoEngineInit(false)
+    , mAudioEngineInit(false)
+  {
+    mVideoSources.Init();
+    mAudioSources.Init();
   }
+#endif
+  ~MediaEngineWebRTC() { Shutdown(); }
 
   // Clients should ensure to clean-up sources video/audio sources
   // before invoking Shutdown on this class.
@@ -393,7 +389,6 @@ private:
   // Need this to avoid unneccesary WebRTC calls while enumerating.
   bool mVideoEngineInit;
   bool mAudioEngineInit;
-  bool mHasTabVideoSource;
 
   // Store devices we've already seen in a hashtable for quick return.
   // Maps UUID to MediaEngineSource (one set for audio, one for video).
@@ -411,8 +406,6 @@ private:
   nsDOMCameraManager* mCameraManager;
   uint64_t mWindowId;
 #endif
-
-   nsRefPtr<LoadMonitor> mLoadMonitor;
 };
 
 }

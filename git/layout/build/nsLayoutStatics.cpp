@@ -43,14 +43,13 @@
 #include "txMozillaXSLTProcessor.h"
 #include "nsTreeSanitizer.h"
 #include "nsCellMap.h"
-#include "nsTextFrame.h"
+#include "nsTextFrameTextRunCache.h"
 #include "nsCCUncollectableMarker.h"
 #include "nsTextFragment.h"
 #include "nsCSSRuleProcessor.h"
 #include "nsCrossSiteListenerProxy.h"
 #include "nsHTMLDNSPrefetch.h"
 #include "nsHtml5Module.h"
-#include "mozilla/dom/FallbackEncoding.h"
 #include "nsFocusManager.h"
 #include "nsListControlFrame.h"
 #include "mozilla/dom/HTMLInputElement.h"
@@ -60,9 +59,7 @@
 #include "nsMathMLOperators.h"
 #include "Navigator.h"
 #include "DOMStorageObserver.h"
-#include "CacheObserver.h"
 #include "DisplayItemClip.h"
-#include "ActiveLayerTracker.h"
 
 #include "AudioChannelService.h"
 
@@ -95,12 +92,10 @@
 #endif
 
 #include "AudioStream.h"
-#include "Latency.h"
 #include "WebAudioUtils.h"
 
 #ifdef MOZ_WIDGET_GONK
 #include "nsVolumeService.h"
-#include "SpeakerManagerService.h"
 using namespace mozilla::system;
 #endif
 
@@ -124,10 +119,7 @@ using namespace mozilla::system;
 #include "nsDocument.h"
 #include "mozilla/dom/HTMLVideoElement.h"
 
-extern void NS_ShutdownEventTargetChainRecycler();
-
 using namespace mozilla;
-using namespace mozilla::net;
 using namespace mozilla::dom;
 using namespace mozilla::dom::ipc;
 using namespace mozilla::dom::time;
@@ -255,12 +247,10 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
-  AsyncLatencyLogger::InitializeStatics();
   AudioStream::InitLibrary();
 
   nsContentSink::InitializeStatics();
   nsHtml5Module::InitializeStatics();
-  mozilla::dom::FallbackEncoding::Initialize();
   nsLayoutUtils::Initialize();
   nsIPresShell::InitializeStatics();
   nsRefreshDriver::InitializeStatics();
@@ -283,8 +273,6 @@ nsLayoutStatics::Initialize()
   InitializeDateCacheCleaner();
 
   HTMLVideoElement::Init();
-
-  CacheObserver::Init();
 
   return NS_OK;
 }
@@ -315,7 +303,7 @@ nsLayoutStatics::Shutdown()
   nsFrame::DisplayReflowShutdown();
 #endif
   nsCellMap::Shutdown();
-  ActiveLayerTracker::Shutdown();
+  nsFrame::ShutdownLayerActivityTimer();
 
   // Release all of our atoms
   nsColorNames::ReleaseTable();
@@ -364,7 +352,6 @@ nsLayoutStatics::Shutdown()
 #endif
 
   AudioStream::ShutdownLibrary();
-  AsyncLatencyLogger::ShutdownLogger();
   WebAudioUtils::Shutdown();
 
 #ifdef MOZ_WMF
@@ -373,7 +360,6 @@ nsLayoutStatics::Shutdown()
 
 #ifdef MOZ_WIDGET_GONK
   nsVolumeService::Shutdown();
-  SpeakerManagerService::Shutdown();
 #endif
 
 #ifdef MOZ_WEBSPEECH
@@ -388,11 +374,7 @@ nsLayoutStatics::Shutdown()
 
   nsHtml5Module::ReleaseStatics();
 
-  mozilla::dom::FallbackEncoding::Shutdown();
-
   nsRegion::ShutdownStatic();
-
-  NS_ShutdownEventTargetChainRecycler();
 
   HTMLInputElement::DestroyUploadLastDir();
 
@@ -410,6 +392,4 @@ nsLayoutStatics::Shutdown()
   DisplayItemClip::Shutdown();
 
   nsDocument::XPCOMShutdown();
-
-  CacheObserver::Shutdown();
 }

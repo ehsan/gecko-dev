@@ -4,19 +4,16 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-SOURCES += [
+MODULE = 'locale'
+
+CPP_SOURCES += [
     'nsCollationOS2.cpp',
     'nsDateTimeFormatOS2.cpp',
     'nsOS2Charset.cpp',
     'nsOS2Locale.cpp',
 ]
 
-FINAL_LIBRARY = 'i18n'
+LIBRARY_NAME = 'platlocale_s'
 
-GENERATED_FILES = [
-    'os2charset.properties.h',
-]
-LOCAL_INCLUDES += [
-    '..',
-]
+LIBXUL_LIBRARY = True
 

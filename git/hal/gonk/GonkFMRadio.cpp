@@ -36,8 +36,7 @@ static int sRadioFD;
 static bool sRadioEnabled;
 static pthread_t sRadioThread;
 static hal::FMRadioSettings sRadioSettings;
-static int sMsmFMVersion;
-static bool sMsmFMMode;
+static int sTavaruaVersion;
 
 static int
 setControl(uint32_t id, int32_t value)
@@ -69,12 +68,12 @@ public:
 
 /* Runs on the radio thread */
 static void
-initMsmFMRadio(hal::FMRadioSettings &aInfo)
+initTavaruaRadio(hal::FMRadioSettings &aInfo)
 {
   mozilla::ScopedClose fd(sRadioFD);
   char version[64];
   int rc;
-  snprintf(version, sizeof(version), "%d", sMsmFMVersion);
+  snprintf(version, sizeof(version), "%d", sTavaruaVersion);
   property_set("hw.fm.version", version);
 
   /* Set the mode for soc downloader */
@@ -149,7 +148,6 @@ initMsmFMRadio(hal::FMRadioSettings &aInfo)
   struct v4l2_tuner tuner = {0};
   tuner.rangelow = (aInfo.lowerLimit() * 10000) / 625;
   tuner.rangehigh = (aInfo.upperLimit() * 10000) / 625;
-  tuner.audmode = V4L2_TUNER_MODE_STEREO;
   rc = ioctl(fd, VIDIOC_S_TUNER, &tuner);
   if (rc < 0) {
     HAL_LOG(("Unable to adjust band limits"));
@@ -199,9 +197,9 @@ initMsmFMRadio(hal::FMRadioSettings &aInfo)
 
 /* Runs on the radio thread */
 static void *
-runMsmFMRadio(void *)
+runTavaruaRadio(void *)
 {
-  initMsmFMRadio(sRadioSettings);
+  initTavaruaRadio(sRadioSettings);
   if (!sRadioEnabled) {
     NS_DispatchToMainThread(new RadioUpdate(hal::FM_RADIO_OPERATION_ENABLE,
                                             hal::FM_RADIO_OPERATION_STATUS_FAIL));
@@ -222,8 +220,6 @@ runMsmFMRadio(void *)
       break;
     }
 
-    /* The tavarua driver reports a number of things asynchronously.
-     * In those cases, the status update comes from this thread. */
     for (unsigned int i = 0; i < buffer.bytesused; i++) {
       switch (buf[i]) {
       case TAVARUA_EVT_RADIO_READY:
@@ -234,13 +230,8 @@ runMsmFMRadio(void *)
                                                   hal::FM_RADIO_OPERATION_STATUS_SUCCESS));
         }
         break;
-
       case TAVARUA_EVT_SEEK_COMPLETE:
         NS_DispatchToMainThread(new RadioUpdate(hal::FM_RADIO_OPERATION_SEEK,
-                                                hal::FM_RADIO_OPERATION_STATUS_SUCCESS));
-        break;
-      case TAVARUA_EVT_TUNE_SUCC:
-        NS_DispatchToMainThread(new RadioUpdate(hal::FM_RADIO_OPERATION_TUNE,
                                                 hal::FM_RADIO_OPERATION_STATUS_SUCCESS));
         break;
       default:
@@ -275,8 +266,6 @@ EnableFMRadio(const hal::FMRadioSettings& aInfo)
     return;
   }
 
-  sMsmFMMode = !strcmp((char *)cap.driver, "radio-tavarua") ||
-      !strcmp((char *)cap.driver, "radio-iris");
   HAL_LOG(("Radio: %s (%s)\n", cap.driver, cap.card));
 
   if (!(cap.capabilities & V4L2_CAP_RADIO)) {
@@ -288,32 +277,13 @@ EnableFMRadio(const hal::FMRadioSettings& aInfo)
     HAL_LOG(("/dev/radio0 doesn't support the tuner interface"));
     return;
   }
+  sRadioFD = fd.forget();
   sRadioSettings = aInfo;
 
-  if (sMsmFMMode) {
-    sRadioFD = fd.forget();
-    sMsmFMVersion = cap.version;
-    pthread_create(&sRadioThread, nullptr, runMsmFMRadio, nullptr);
-    return;
-  }
-
-  struct v4l2_tuner tuner = {0};
-  tuner.type = V4L2_TUNER_RADIO;
-  tuner.rangelow = (aInfo.lowerLimit() * 10000) / 625;
-  tuner.rangehigh = (aInfo.upperLimit() * 10000) / 625;
-  tuner.audmode = V4L2_TUNER_MODE_STEREO;
-  rc = ioctl(fd, VIDIOC_S_TUNER, &tuner);
-  if (rc < 0) {
-    HAL_LOG(("Unable to adjust band limits"));
-  }
-
-  sRadioFD = fd.forget();
-  sRadioEnabled = true;
-
-  hal::FMRadioOperationInformation info;
-  info.operation() = hal::FM_RADIO_OPERATION_ENABLE;
-  info.status() = hal::FM_RADIO_OPERATION_STATUS_SUCCESS;
-  hal::NotifyFMRadioStatus(info);
+  // Tavarua specific start
+  sTavaruaVersion = cap.version;
+  pthread_create(&sRadioThread, nullptr, runTavaruaRadio, nullptr);
+  // Tavarua specific end
 }
 
 void
@@ -324,14 +294,14 @@ DisableFMRadio()
 
   sRadioEnabled = false;
 
-  if (sMsmFMMode) {
-    int rc = setControl(V4L2_CID_PRIVATE_TAVARUA_STATE, FM_OFF);
-    if (rc < 0) {
-      HAL_LOG(("Unable to turn off radio"));
-    }
-
-    pthread_join(sRadioThread, nullptr);
+  // Tavarua specific start
+  int rc = setControl(V4L2_CID_PRIVATE_TAVARUA_STATE, FM_OFF);
+  if (rc < 0) {
+    HAL_LOG(("Unable to turn off radio"));
   }
+  // Tavarua specific end
+
+  pthread_join(sRadioThread, nullptr);
 
   close(sRadioFD);
 
@@ -347,32 +317,11 @@ FMRadioSeek(const hal::FMRadioSeekDirection& aDirection)
   struct v4l2_hw_freq_seek seek = {0};
   seek.type = V4L2_TUNER_RADIO;
   seek.seek_upward = aDirection == hal::FMRadioSeekDirection::FM_RADIO_SEEK_DIRECTION_UP;
-
-  /* ICS and older don't have the spacing field */
-#if ANDROID_VERSION == 15
-  seek.reserved[0] = sRadioSettings.spaceType() * 1000;
-#else
-  seek.spacing = sRadioSettings.spaceType() * 1000;
-#endif
-
   int rc = ioctl(sRadioFD, VIDIOC_S_HW_FREQ_SEEK, &seek);
-  if (sMsmFMMode && rc >= 0)
-    return;
-
-  hal::FMRadioOperationInformation info;
-  info.operation() = hal::FM_RADIO_OPERATION_SEEK;
-  info.status() = rc < 0 ? hal::FM_RADIO_OPERATION_STATUS_FAIL :
-                           hal::FM_RADIO_OPERATION_STATUS_SUCCESS;
-  hal::NotifyFMRadioStatus(info);
-
   if (rc < 0) {
     HAL_LOG(("Could not initiate hardware seek"));
     return;
   }
-
-  info.operation() = hal::FM_RADIO_OPERATION_TUNE;
-  info.status() = hal::FM_RADIO_OPERATION_STATUS_SUCCESS;
-  hal::NotifyFMRadioStatus(info);
 }
 
 void
@@ -403,15 +352,6 @@ SetFMRadioFrequency(const uint32_t frequency)
   int rc = ioctl(sRadioFD, VIDIOC_S_FREQUENCY, &freq);
   if (rc < 0)
     HAL_LOG(("Could not set radio frequency"));
-
-  if (sMsmFMMode && rc >= 0)
-    return;
-
-  hal::FMRadioOperationInformation info;
-  info.operation() = hal::FM_RADIO_OPERATION_TUNE;
-  info.status() = rc < 0 ? hal::FM_RADIO_OPERATION_STATUS_FAIL :
-                           hal::FM_RADIO_OPERATION_STATUS_SUCCESS;
-  hal::NotifyFMRadioStatus(info);
 }
 
 uint32_t

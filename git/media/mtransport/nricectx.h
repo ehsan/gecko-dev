@@ -69,7 +69,6 @@ typedef struct nr_ice_peer_ctx_ nr_ice_peer_ctx;
 typedef struct nr_ice_media_stream_ nr_ice_media_stream;
 typedef struct nr_ice_handler_ nr_ice_handler;
 typedef struct nr_ice_handler_vtbl_ nr_ice_handler_vtbl;
-typedef struct nr_ice_candidate_ nr_ice_candidate;
 typedef struct nr_ice_cand_pair_ nr_ice_cand_pair;
 typedef struct nr_ice_stun_server_ nr_ice_stun_server;
 typedef struct nr_ice_turn_server_ nr_ice_turn_server;
@@ -80,9 +79,6 @@ typedef void* NR_SOCKET;
 namespace mozilla {
 
 class NrIceMediaStream;
-
-const std::string kNrIceTransportUdp("udp");
-const std::string kNrIceTransportTcp("tcp");
 
 class NrIceStunServer {
  public:
@@ -102,9 +98,7 @@ class NrIceStunServer {
     return server.forget();
   }
 
-  nsresult ToNicerStunStruct(nr_ice_stun_server *server,
-                             const std::string transport =
-                             kNrIceTransportUdp) const;
+  nsresult ToNicerStunStruct(nr_ice_stun_server *server) const;
 
  protected:
   NrIceStunServer() : addr_() {}
@@ -139,10 +133,9 @@ class NrIceTurnServer : public NrIceStunServer {
  public:
   static NrIceTurnServer *Create(const std::string& addr, uint16_t port,
                                  const std::string& username,
-                                 const std::vector<unsigned char>& password,
-                                 const std::string& transport = kNrIceTransportUdp) {
+                                 const std::vector<unsigned char>& password) {
     ScopedDeletePtr<NrIceTurnServer> server(
-        new NrIceTurnServer(username, password, transport));
+        new NrIceTurnServer(username, password));
 
     nsresult rv = server->Init(addr, port);
     if (NS_FAILED(rv))
@@ -155,26 +148,21 @@ class NrIceTurnServer : public NrIceStunServer {
 
  private:
   NrIceTurnServer(const std::string& username,
-                  const std::vector<unsigned char>& password,
-                  const std::string& transport) :
-      username_(username), password_(password), transport_(transport) {}
+                  const std::vector<unsigned char>& password) :
+      username_(username), password_(password) {}
 
   std::string username_;
   std::vector<unsigned char> password_;
-  std::string transport_;
 };
 
 class NrIceCtx {
  public:
-  enum ConnectionState { ICE_CTX_INIT,
-                         ICE_CTX_CHECKING,
-                         ICE_CTX_OPEN,
-                         ICE_CTX_FAILED
-  };
-
-  enum GatheringState { ICE_CTX_GATHER_INIT,
-                        ICE_CTX_GATHER_STARTED,
-                        ICE_CTX_GATHER_COMPLETE
+  enum State { ICE_CTX_INIT,
+               ICE_CTX_GATHERING,
+               ICE_CTX_GATHERED,
+               ICE_CTX_CHECKING,
+               ICE_CTX_OPEN,
+               ICE_CTX_FAILED
   };
 
   enum Controlling { ICE_CONTROLLING,
@@ -200,14 +188,7 @@ class NrIceCtx {
   const std::string& name() const { return name_; }
 
   // Current state
-  ConnectionState connection_state() const {
-    return connection_state_;
-  }
-
-  // Current state
-  GatheringState gathering_state() const {
-    return gathering_state_;
-  }
+  State state() const { return state_; }
 
   // Get the global attributes
   std::vector<std::string> GetGlobalAttributes();
@@ -240,15 +221,13 @@ class NrIceCtx {
   // more forking.
   nsresult Finalize();
 
-  // Are we trickling?
-  bool generating_trickle() const { return trickle_; }
-
   // Signals to indicate events. API users can (and should)
   // register for these.
-  sigslot::signal2<NrIceCtx*, NrIceCtx::GatheringState>
-    SignalGatheringStateChange;
-  sigslot::signal2<NrIceCtx*, NrIceCtx::ConnectionState>
-    SignalConnectionStateChange;
+  // TODO(ekr@rtfm.com): refactor this to be state change instead
+  // so we don't need to keep adding signals?
+  sigslot::signal1<NrIceCtx *> SignalGatheringCompleted;  // Done gathering
+  sigslot::signal1<NrIceCtx *> SignalCompleted;  // Done handshaking
+  sigslot::signal1<NrIceCtx *> SignalFailed;  // Failure.
 
   // The thread to direct method calls to
   nsCOMPtr<nsIEventTarget> thread() { return sts_target_; }
@@ -258,16 +237,15 @@ class NrIceCtx {
  private:
   NrIceCtx(const std::string& name,
            bool offerer)
-  : connection_state_(ICE_CTX_INIT),
-    gathering_state_(ICE_CTX_GATHER_INIT),
+  : state_(ICE_CTX_INIT),
     name_(name),
     offerer_(offerer),
     streams_(),
     ctx_(nullptr),
     peer_(nullptr),
     ice_handler_vtbl_(nullptr),
-    ice_handler_(nullptr),
-    trickle_(true) {
+    ice_handler_(nullptr)
+  {
     // XXX: offerer_ will be used eventually;  placate clang in the meantime.
     (void)offerer_;
   }
@@ -287,20 +265,18 @@ class NrIceCtx {
   static int msg_recvd(void *obj, nr_ice_peer_ctx *pctx,
                        nr_ice_media_stream *stream, int component_id,
                        unsigned char *msg, int len);
-  static void trickle_cb(void *arg, nr_ice_ctx *ctx, nr_ice_media_stream *stream,
-                         int component_id, nr_ice_candidate *candidate);
+
+  // Iterate through all media streams and emit the candidates
+  // Note that we don't do trickle ICE yet
+  void EmitAllCandidates();
 
   // Find a media stream by stream ptr. Gross
   RefPtr<NrIceMediaStream> FindStream(nr_ice_media_stream *stream);
 
   // Set the state
-  void SetConnectionState(ConnectionState state);
+  void SetState(State state);
 
-  // Set the state
-  void SetGatheringState(GatheringState state);
-
-  ConnectionState connection_state_;
-  GatheringState gathering_state_;
+  State state_;
   const std::string name_;
   bool offerer_;
   std::vector<RefPtr<NrIceMediaStream> > streams_;
@@ -308,7 +284,6 @@ class NrIceCtx {
   nr_ice_peer_ctx *peer_;
   nr_ice_handler_vtbl* ice_handler_vtbl_;  // Must be pointer
   nr_ice_handler* ice_handler_;  // Must be pointer
-  bool trickle_;
   nsCOMPtr<nsIEventTarget> sts_target_; // The thread to run on
 };
 

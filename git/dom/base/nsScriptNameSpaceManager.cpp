@@ -9,6 +9,7 @@
 #include "nsIComponentManager.h"
 #include "nsIComponentRegistrar.h"
 #include "nsICategoryManager.h"
+#include "nsIMemoryReporter.h"
 #include "nsIServiceManager.h"
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
@@ -25,7 +26,6 @@
 #include "nsDOMClassInfo.h"
 #include "nsCRT.h"
 #include "nsIObserverService.h"
-#include "nsISimpleEnumerator.h"
 
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Preferences.h"
@@ -116,17 +116,30 @@ GlobalNameHashInitEntry(PLDHashTable *table, PLDHashEntryHdr *entry,
   return true;
 }
 
-NS_IMPL_ISUPPORTS_INHERITED2(
-  nsScriptNameSpaceManager,
-  MemoryUniReporter,
-  nsIObserver,
-  nsISupportsWeakReference)
+class ScriptNameSpaceManagerReporter MOZ_FINAL : public MemoryReporterBase
+{
+public:
+  ScriptNameSpaceManagerReporter(nsScriptNameSpaceManager* aManager)
+    : MemoryReporterBase(
+        "explicit/script-namespace-manager",
+        KIND_HEAP,
+        nsIMemoryReporter::UNITS_BYTES,
+        "Memory used for the script namespace manager.")
+    , mManager(aManager)
+  {}
+
+private:
+  int64_t Amount() { return mManager->SizeOfIncludingThis(MallocSizeOf); }
+
+  nsScriptNameSpaceManager* mManager;
+};
+
+NS_IMPL_ISUPPORTS2(nsScriptNameSpaceManager,
+                   nsIObserver,
+                   nsISupportsWeakReference)
 
 nsScriptNameSpaceManager::nsScriptNameSpaceManager()
-  : MemoryUniReporter("explicit/script-namespace-manager",
-                      KIND_HEAP, UNITS_BYTES,
-                      "Memory used for the script namespace manager.")
-  , mIsInitialized(false)
+  : mIsInitialized(false)
 {
   MOZ_COUNT_CTOR(nsScriptNameSpaceManager);
 }
@@ -134,7 +147,7 @@ nsScriptNameSpaceManager::nsScriptNameSpaceManager()
 nsScriptNameSpaceManager::~nsScriptNameSpaceManager()
 {
   if (mIsInitialized) {
-    UnregisterWeakMemoryReporter(this);
+    NS_UnregisterMemoryReporter(mReporter);
     // Destroy the hash
     PL_DHashTableFinish(&mGlobalNames);
     PL_DHashTableFinish(&mNavigatorNames);
@@ -323,7 +336,7 @@ nsScriptNameSpaceManager::RegisterInterface(const char* aIfName,
 nsresult
 nsScriptNameSpaceManager::Init()
 {
-  static const PLDHashTableOps hash_table_ops =
+  static PLDHashTableOps hash_table_ops =
   {
     PL_DHashAllocTable,
     PL_DHashFreeTable,
@@ -349,7 +362,8 @@ nsScriptNameSpaceManager::Init()
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  RegisterWeakMemoryReporter(this);
+  mReporter = new ScriptNameSpaceManagerReporter(this);
+  NS_RegisterMemoryReporter(mReporter);
 
   nsresult rv = NS_OK;
 
@@ -867,14 +881,8 @@ SizeOfEntryExcludingThis(PLDHashEntryHdr *aHdr, MallocSizeOf aMallocSizeOf,
     return entry->SizeOfExcludingThis(aMallocSizeOf);
 }
 
-int64_t
-nsScriptNameSpaceManager::Amount()
-{
-  return SizeOfIncludingThis(MallocSizeOf);
-}
-
 size_t
-nsScriptNameSpaceManager::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf)
+nsScriptNameSpaceManager::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf)
 {
   size_t n = 0;
   n += PL_DHashTableSizeOfExcludingThis(&mGlobalNames,

@@ -10,7 +10,7 @@
 
   <binding id="remote-browser" extends="chrome://global/content/bindings/browser.xml#browser">
 
-    <implementation type="application/javascript" implements="nsIObserver, nsIDOMEventListener, nsIMessageListener, nsIMessageListener">
+    <implementation type="application/javascript" implements="nsIAccessibleProvider, nsIObserver, nsIDOMEventListener, nsIMessageListener, nsIMessageListener">
 
       <field name="_securityUI">null</field>
 
@@ -33,9 +33,18 @@
 
       <field name="_remoteWebNavigation">null</field>
 
-      <property name="webNavigation"
-                onget="return this._remoteWebNavigation;"
-                readonly="true"/>
+      <property name="webNavigation" readonly="true">
+        <getter>
+          <![CDATA[
+            if (!this._remoteWebNavigation) {
+              let jsm = "resource://gre/modules/RemoteWebNavigation.jsm";
+              let RemoteWebNavigation = Components.utils.import(jsm, {}).RemoteWebNavigation;
+              this._remoteWebNavigation = new RemoteWebNavigation(this);
+            }
+            return this._remoteWebNavigation;
+          ]]>
+        </getter>
+      </property>
 
       <field name="_remoteWebProgress">null</field>
 
@@ -44,42 +53,15 @@
       	  <![CDATA[
             if (!this._remoteWebProgress) {
               let jsm = "resource://gre/modules/RemoteWebProgress.jsm";
-              let RemoteWebProgressManager = Cu.import(jsm, {}).RemoteWebProgressManager;
-              this._remoteWebProgressManager = new RemoteWebProgressManager(this);
-              this._remoteWebProgress = this._remoteWebProgressManager.topLevelWebProgress;
+              let RemoteWebProgress = Components.utils.import(jsm, {}).RemoteWebProgress;
+              this._remoteWebProgress = new RemoteWebProgress(this);
             }
             return this._remoteWebProgress;
       	  ]]>
       	</getter>
       </property>
 
-      <field name="_remoteFinder">null</field>
-
-      <property name="finder" readonly="true">
-        <getter><![CDATA[
-          if (!this._remoteFinder) {
-            let jsm = "resource://gre/modules/RemoteFinder.jsm";
-            let RemoteFinder = Cu.import(jsm, {}).RemoteFinder;
-            this._remoteFinder = new RemoteFinder(this);
-          }
-          return this._remoteFinder;
-        ]]></getter>
-      </property>
-
       <field name="_documentURI">null</field>
-
-      <!--
-        Used by session restore to ensure that currentURI is set so
-        that switch-to-tab works before the tab is fully
-        restored. This function also invokes onLocationChanged
-        listeners in tabbrowser.xml.
-      -->
-      <method name="_setCurrentURI">
-        <parameter name="aURI"/>
-        <body><![CDATA[
-          this._remoteWebProgressManager.setCurrentURI(aURI);
-        ]]></body>
-      </method>
 
       <property name="documentURI"
                 onget="return this._documentURI;"
@@ -107,31 +89,16 @@
                 onget="return this.contentWindow ? this.contentWindow.document : null"
                 readonly="true"/>
 
-      <field name="_syncHandler">null</field>
-
-      <property name="syncHandler"
-                onget="return this._syncHandler"
-                readonly="true"/>
-
       <field name="_imageDocument">null</field>
 
       <property name="imageDocument"
                 onget="return this._imageDocument"
                 readonly="true"/>
 
-      <property name="autoCompletePopup"
-                onget="return document.getElementById(this.getAttribute('autocompletepopup'))"
-                readonly="true"/>
-
       <constructor>
         <![CDATA[
-          let jsm = "resource://gre/modules/RemoteWebNavigation.jsm";
-          let RemoteWebNavigation = Cu.import(jsm, {}).RemoteWebNavigation;
-          this._remoteWebNavigation = new RemoteWebNavigation(this);
-
           this.messageManager.addMessageListener("DOMTitleChanged", this);
           this.messageManager.addMessageListener("ImageDocumentLoaded", this);
-          this.messageManager.addMessageListener("SetSyncHandler", this);
           this.messageManager.loadFrameScript("chrome://global/content/browser-child.js", true);
 
           if (this.hasAttribute("selectpopup")) {
@@ -140,24 +107,21 @@
             this.messageManager.loadFrameScript("chrome://global/content/select-child.js", true);
           }
 
-          jsm = "resource://gre/modules/RemoteController.jsm";
+          this.webProgress._init();
+
+          let jsm = "resource://gre/modules/RemoteController.jsm";
           let RemoteController = Components.utils.import(jsm, {}).RemoteController;
           this._controller = new RemoteController(this);
           this.controllers.appendController(this._controller);
-
-          jsm = "resource://gre/modules/RemoteAddonsParent.jsm";
-          let RemoteAddonsParent = Components.utils.import(jsm, {}).RemoteAddonsParent;
-          RemoteAddonsParent.init();
-
-          if (!this.hasAttribute("disableglobalhistory")) {
-            this.messageManager.sendAsyncMessage("History:UseGlobalHistory", {enabled:true});
-          }
-
-          if (this.autoCompletePopup) {
-            this.messageManager.sendAsyncMessage("FormAutoComplete:InitPopup");
-          }
         ]]>
       </constructor>
+
+      <destructor>
+        <![CDATA[
+          this.webProgress._destroy();
+          this.controllers.removeController(this._controller);
+        ]]>
+      </destructor>
 
       <method name="receiveMessage">
         <parameter name="aMessage"/>
@@ -172,10 +136,6 @@
                 width: data.width,
                 height: data.height
               };
-              break;
-
-            case "SetSyncHandler":
-              this._syncHandler = aMessage.objects.handler;
               break;
 
             case "Forms:ShowDropDown": {

@@ -47,11 +47,11 @@ ParseMapPool::allocateFresh()
 {
     size_t newAllLength = all.length() + 1;
     if (!all.reserve(newAllLength) || !recyclable.reserve(newAllLength))
-        return nullptr;
+        return NULL;
 
     AtomMapT *map = js_new<AtomMapT>();
     if (!map)
-        return nullptr;
+        return NULL;
 
     all.infallibleAppend(map);
     return (void *) map;
@@ -115,8 +115,8 @@ frontend::InitAtomMap(frontend::AtomIndexMap *indices, HeapPtrAtom *atoms)
         typedef AtomIndexMap::WordMap WordMap;
         const WordMap &wm = indices->asMap();
         for (WordMap::Range r = wm.all(); !r.empty(); r.popFront()) {
-            JSAtom *atom = r.front().key();
-            jsatomid index = r.front().value();
+            JSAtom *atom = r.front().key;
+            jsatomid index = r.front().value;
             JS_ASSERT(index < indices->count());
             atoms[index].init(atom);
         }

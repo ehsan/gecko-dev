@@ -3,7 +3,21 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+DEPTH		= @DEPTH@
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+LIBRARY_NAME	= pref
+EXPORT_LIBRARY = 1
+DEFINES += -DOS_ARCH=$(OS_ARCH) \
+           -DMOZ_WIDGET_TOOLKIT=$(MOZ_WIDGET_TOOLKIT) \
+           $(NULL)
+
 include $(topsrcdir)/config/rules.mk
+include $(topsrcdir)/ipc/chromium/chromium-config.mk
 
 GARBAGE		+= $(addprefix $(DIST)/bin/defaults/pref/, \
 			mailnews.js editor.js \
@@ -26,8 +40,17 @@ grepref_files += $(topsrcdir)/mobile/android/chrome/content/healthreport-prefs.j
 endif
 endif
 
+# Optimizer bug with GCC 3.2.2 on OS/2
+ifeq ($(OS_ARCH), OS2)
+nsPrefService.$(OBJ_SUFFIX): nsPrefService.cpp
+	$(REPORT_BUILD)
+	@$(MAKE_DEPS_AUTO_CXX)
+	$(ELOG) $(CCC) $(OUTOPTION)$@ -c $(COMPILE_CXXFLAGS:-O2=-O1) $(_VPATH_SRCS)
+endif
+
+
 greprefs.js: $(grepref_files)
-	$(call py_action,preprocessor,$(PREF_PPFLAGS) $(DEFINES) $(ACDEFINES) $(XULPPFLAGS) $^ -o $@)
+	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $(PREF_PPFLAGS) $(DEFINES) $(ACDEFINES) $(XULPPFLAGS) $^ > $@
 
 libs:: greprefs.js
 	$(INSTALL) $^ $(DIST)/bin/

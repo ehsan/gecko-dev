@@ -224,7 +224,7 @@ protected:
       mWriteHeader(nullptr),
       mReadHeader(nullptr),
       mPayloadMaxLen(0),
-      mGuard(nullptr),
+      mGuard(NULL),
       mTimeout(INFINITE)
   {
   }

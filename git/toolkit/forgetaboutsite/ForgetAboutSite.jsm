@@ -48,12 +48,12 @@ this.ForgetAboutSite = {
     PlacesUtils.history.removePagesFromHost(aDomain, true);
 
     // Cache
-    let (cs = Cc["@mozilla.org/netwerk/cache-storage-service;1"].
-              getService(Ci.nsICacheStorageService)) {
+    let (cs = Cc["@mozilla.org/network/cache-service;1"].
+              getService(Ci.nsICacheService)) {
       // NOTE: there is no way to clear just that domain, so we clear out
       //       everything)
       try {
-        cs.clear();
+        cs.evictEntries(Ci.nsICache.STORE_ANYWHERE);
       } catch (ex) {
         Cu.reportError("Exception thrown while clearing the cache: " +
           ex.toString());
@@ -98,17 +98,17 @@ this.ForgetAboutSite = {
     // Downloads
     let useJSTransfer = false;
     try {
-      // This method throws an exception if the old Download Manager is disabled.
-      Services.downloads.activeDownloadCount;
-    } catch (ex) {
-      useJSTransfer = true;
-    }
+      useJSTransfer = Services.prefs.getBoolPref("browser.download.useJSTransfer");
+    } catch(ex) { }
 
     if (useJSTransfer) {
       Task.spawn(function() {
-        let list = yield Downloads.getList(Downloads.ALL);
-        list.removeFinished(download => hasRootDomain(
-             NetUtil.newURI(download.source.url).host, aDomain));
+        for (let promiseList of [Downloads.getPublicDownloadList(),
+                                 Downloads.getPrivateDownloadList()]) {
+          let list = yield promiseList;
+          list.removeFinished(download => hasRootDomain(
+               NetUtil.newURI(download.source.url).host, aDomain));
+        }
       }).then(null, Cu.reportError);
     }
     else {
@@ -219,11 +219,5 @@ this.ForgetAboutSite = {
       handleCompletion: function() onContentPrefsRemovalFinished(),
       handleError: function() {}
     });
-
-    // Predictive network data - like cache, no way to clear this per
-    // domain, so just trash it all
-    let ns = Cc["@mozilla.org/network/seer;1"].
-             getService(Ci.nsINetworkSeer);
-    ns.reset();
   }
 };

@@ -1,17 +1,22 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
-"use strict";
+function test() {
+  TestRunner.run();
+}
 
 /**
- * These tests ensures that disabling features by flipping nsIDocShell.allow*
+ * This test ensures that disabling features by flipping nsIDocShell.allow*
  * properties are (re)stored as disabled. Disallowed features must be
  * re-enabled when the tab is re-used by another tab restoration.
  */
-add_task(function docshell_capabilities() {
-  let tab = yield createTab();
+
+function runTests() {
+  // Create a tab that we're going to use for our tests.
+  let tab = gBrowser.selectedTab = gBrowser.addTab("about:mozilla");
   let browser = tab.linkedBrowser;
   let docShell = browser.docShell;
+  yield waitForLoad(browser);
 
   // Get the list of capabilities for docShells.
   let flags = Object.keys(docShell).filter(k => k.startsWith("allow"));
@@ -26,12 +31,9 @@ add_task(function docshell_capabilities() {
   docShell.allowMetaRedirects = false;
 
   // Now reload the document to ensure that these capabilities
-  // are taken into account.
+  // are taken into account
   browser.reload();
-  yield promiseBrowserLoaded(browser);
-
-  // Flush to make sure chrome received all data.
-  SyncHandlers.get(browser).flush();
+  yield whenBrowserLoaded(browser);
 
   // Check that we correctly save disallowed features.
   let disallowedState = JSON.parse(ss.getTabState(tab));
@@ -42,10 +44,7 @@ add_task(function docshell_capabilities() {
 
   // Reuse the tab to restore a new, clean state into it.
   ss.setTabState(tab, JSON.stringify({ entries: [{url: "about:robots"}] }));
-  yield promiseTabRestored(tab);
-
-  // Flush to make sure chrome received all data.
-  SyncHandlers.get(browser).flush();
+  yield waitForLoad(browser);
 
   // After restoring disallowed features must be available again.
   state = JSON.parse(ss.getTabState(tab));
@@ -54,7 +53,7 @@ add_task(function docshell_capabilities() {
 
   // Restore the state with disallowed features.
   ss.setTabState(tab, JSON.stringify(disallowedState));
-  yield promiseTabRestored(tab);
+  yield waitForLoad(browser);
 
   // Check that docShell flags are set.
   ok(!docShell.allowImages, "images not allowed");
@@ -69,10 +68,11 @@ add_task(function docshell_capabilities() {
 
   // Clean up after ourselves.
   gBrowser.removeTab(tab);
-});
+}
 
-function createTab() {
-  let tab = gBrowser.addTab("about:mozilla");
-  let browser = tab.linkedBrowser;
-  return promiseBrowserLoaded(browser).then(() => tab);
+function waitForLoad(aElement) {
+  aElement.addEventListener("load", function onLoad() {
+    aElement.removeEventListener("load", onLoad, true);
+    executeSoon(next);
+  }, true);
 }

@@ -7,7 +7,6 @@
 #define PROFILER_FUNCS_H
 
 #include "mozilla/NullPtr.h"
-#include "js/TypeDecls.h"
 #include <stdint.h>
 
 namespace mozilla {
@@ -18,16 +17,15 @@ class TimeStamp;
 using mozilla::TimeStamp;
 using mozilla::TimeDuration;
 
-class ProfilerBacktrace;
-class ProfilerMarkerPayload;
+struct JSContext;
+class JSObject;
 
 // Returns a handle to pass on exit. This can check that we are popping the
 // correct callstack.
-inline void* mozilla_sampler_call_enter(const char *aInfo, void *aFrameAddress = nullptr,
+inline void* mozilla_sampler_call_enter(const char *aInfo, void *aFrameAddress = NULL,
                                         bool aCopy = false, uint32_t line = 0);
 inline void  mozilla_sampler_call_exit(void* handle);
-void  mozilla_sampler_add_marker(const char *aInfo,
-                                 ProfilerMarkerPayload *aPayload = nullptr);
+inline void  mozilla_sampler_add_marker(const char *aInfo);
 
 void mozilla_sampler_start(int aEntries, double aInterval,
                            const char** aFeatures, uint32_t aFeatureCount,
@@ -35,12 +33,9 @@ void mozilla_sampler_start(int aEntries, double aInterval,
 
 void mozilla_sampler_stop();
 
-ProfilerBacktrace* mozilla_sampler_get_backtrace();
-void mozilla_sampler_free_backtrace(ProfilerBacktrace* aBacktrace);
-
 bool mozilla_sampler_is_active();
 
-void mozilla_sampler_responsiveness(const mozilla::TimeStamp& time);
+void mozilla_sampler_responsiveness(const TimeStamp& time);
 
 void mozilla_sampler_frame_number(int frameNumber);
 
@@ -74,13 +69,9 @@ bool mozilla_sampler_register_thread(const char* name, void* stackTop);
 void mozilla_sampler_unregister_thread();
 
 double mozilla_sampler_time();
-double mozilla_sampler_time(const mozilla::TimeStamp& aTime);
 
 /* Returns true if env var SPS_NEW is set to anything, else false. */
 extern bool sps_version2();
-
-void mozilla_sampler_tracing(const char* aCategory, const char* aInfo,
-                             TracingMetadata aMetaData);
 
 #endif
 

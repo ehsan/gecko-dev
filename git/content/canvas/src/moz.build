@@ -4,6 +4,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+MODULE = 'content'
+
 EXPORTS.mozilla.dom += [
     'CanvasGradient.h',
     'CanvasPattern.h',
@@ -13,33 +15,31 @@ EXPORTS.mozilla.dom += [
     'TextMetrics.h',
 ]
 
-UNIFIED_SOURCES += [
+CPP_SOURCES += [
     'CanvasImageCache.cpp',
     'CanvasRenderingContext2D.cpp',
     'CanvasUtils.cpp',
     'DocumentRendererChild.cpp',
     'DocumentRendererParent.cpp',
     'ImageData.cpp',
-    'ImageEncoder.cpp',
 ]
 
 if CONFIG['MOZ_WEBGL']:
-    UNIFIED_SOURCES += [
-        'WebGL1Context.cpp',
-        'WebGL2Context.cpp',
+    CPP_SOURCES += [
         'WebGLActiveInfo.cpp',
         'WebGLBuffer.cpp',
+        'WebGL1Context.cpp',
+        'WebGL2Context.cpp',
         'WebGLContext.cpp',
         'WebGLContextAsyncQueries.cpp',
         'WebGLContextBuffers.cpp',
-        'WebGLContextExtensions.cpp',
-        'WebGLContextFramebufferOperations.cpp',
         'WebGLContextGL.cpp',
-        'WebGLContextLossTimer.cpp',
+        'WebGLContextUtils.cpp',
         'WebGLContextReporter.cpp',
         'WebGLContextState.cpp',
-        'WebGLContextUtils.cpp',
         'WebGLContextValidate.cpp',
+        'WebGLContextExtensions.cpp',
+        'WebGLContextFramebufferOperations.cpp',
         'WebGLContextVertexArray.cpp',
         'WebGLContextVertices.cpp',
         'WebGLElementArrayCache.cpp',
@@ -53,7 +53,6 @@ if CONFIG['MOZ_WEBGL']:
         'WebGLExtensionElementIndexUint.cpp',
         'WebGLExtensionInstancedArrays.cpp',
         'WebGLExtensionLoseContext.cpp',
-        'WebGLExtensionSRGB.cpp',
         'WebGLExtensionStandardDerivatives.cpp',
         'WebGLExtensionTextureFilterAnisotropic.cpp',
         'WebGLExtensionTextureFloat.cpp',
@@ -71,30 +70,14 @@ if CONFIG['MOZ_WEBGL']:
         'WebGLUniformLocation.cpp',
         'WebGLVertexArray.cpp',
     ]
-    LOCAL_INCLUDES += [
-        '/js/xpconnect/wrappers',
-    ]
 else:
-    UNIFIED_SOURCES += [
+    CPP_SOURCES += [
         'WebGLContextNotSupported.cpp',
     ]
 
 FAIL_ON_WARNINGS = True
 
+LIBXUL_LIBRARY = True
+
 MSVC_ENABLE_PGO = True
-
-include('/ipc/chromium/chromium-config.mozbuild')
-
-FINAL_LIBRARY = 'gklayout'
-LOCAL_INCLUDES += [
-    '/content/base/src',
-    '/content/html/content/src',
-    '/content/xul/content/src',
-    '/dom/base',
-    '/image/src',
-    '/js/xpconnect/src',
-    '/layout/generic',
-    '/layout/style',
-    '/layout/xul',
-]
 

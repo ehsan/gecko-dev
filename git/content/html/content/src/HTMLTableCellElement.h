@@ -23,7 +23,6 @@ public:
   HTMLTableCellElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     : nsGenericHTMLElement(aNodeInfo)
   {
-    SetHasWeirdParserInsertionMode();
   }
   virtual ~HTMLTableCellElement();
 
@@ -163,10 +162,6 @@ protected:
   HTMLTableElement* GetTable() const;
 
   HTMLTableRowElement* GetRow() const;
-
-private:
-  static void MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
-                                    nsRuleData* aData);
 };
 
 } // namespace dom

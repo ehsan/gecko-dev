@@ -141,6 +141,11 @@ public:
     eColorID__moz_mac_menutextselect,
     // text color of disabled text on toolbars
     eColorID__moz_mac_disabledtoolbartext,
+
+    //new in 10.2
+
+    //active list highlight
+    eColorID__moz_mac_alternateprimaryhighlight,
     //inactive light hightlight
     eColorID__moz_mac_secondaryhighlight,
 
@@ -287,6 +292,15 @@ public:
     eIntID_MacLionTheme,
 
     /*
+     * A Boolean value to determine whether Mameo is using the new Fremantle
+     * theme.
+     *
+     * The value of this metric is not used on other platforms. These platforms
+     * should return NS_ERROR_NOT_IMPLEMENTED when queried for this metric.
+     */
+    eIntID_MaemoClassic,
+
+    /*
      * eIntID_AlertNotificationOrigin indicates from which corner of the
      * screen alerts slide in, and from which direction (horizontal/vertical).
      * 0, the default, represents bottom right, sliding vertically.
@@ -355,15 +369,6 @@ public:
      * should be used.
      */
     eIntID_SwipeAnimationEnabled,
-
-    /*
-     * A Boolean value to determine whether we have a color picker available
-     * for <input type="color"> to hook into.
-     *
-     * This lets us selectively enable the style for <input type="color">
-     * based on whether it's functional or not.
-     */
-    eIntID_ColorPickerAvailable,
 
     /*
      * A boolean value indicating whether or not the device has a hardware

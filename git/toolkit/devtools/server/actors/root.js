@@ -8,8 +8,6 @@
 
 /* Root actor for the remote debugging protocol. */
 
-Cu.import("resource://gre/modules/Services.jsm");
-
 /**
  * Methods shared between RootActor and BrowserTabActor.
  */
@@ -175,8 +173,7 @@ RootActor.prototype = {
       /* This is not in the spec, but it's used by tests. */
       testConnectionPrefix: this.conn.prefix,
       traits: {
-        sources: true,
-        editOuterHTML: true
+        sources: true
       }
     };
   },
@@ -190,22 +187,6 @@ RootActor.prototype = {
    * The (chrome) window, for use by child actors
    */
   get window() Services.wm.getMostRecentWindow(DebuggerServer.chromeWindowType),
-
-  /**
-   * URL of the chrome window.
-   */
-  get url() { return this.window ? this.window.document.location.href : null; },
-
-  /**
-   * Getter for the best nsIWebProgress for to watching this window.
-   */
-  get webProgress() {
-    return this.window
-      .QueryInterface(Ci.nsIInterfaceRequestor)
-      .getInterface(Ci.nsIDocShell)
-      .QueryInterface(Ci.nsIInterfaceRequestor)
-      .getInterface(Ci.nsIWebProgress);
-  },
 
   /**
    * Disconnects the actor from the browser window.
@@ -258,11 +239,7 @@ RootActor.prototype = {
       }
 
       /* DebuggerServer.addGlobalActor support: create actors. */
-      if (!this._globalActorPool) {
-        this._globalActorPool = new ActorPool(this.conn);
-        this._createExtraActors(this._parameters.globalActorFactories, this._globalActorPool);
-        this.conn.addActorPool(this._globalActorPool);
-      }
+      this._createExtraActors(this._parameters.globalActorFactories, newActorPool);
 
       /*
        * Drop the old actorID -> actor map. Actors that still mattered were
@@ -279,11 +256,6 @@ RootActor.prototype = {
         "selected": selected || 0,
         "tabs": [actor.form() for (actor of tabActorList)],
       };
-
-      /* If a root window is accessible, include its URL. */
-      if (this.url) {
-        reply.url = this.url;
-      }
 
       /* DebuggerServer.addGlobalActor support: name actors in 'listTabs' reply. */
       this._appendExtraActors(reply);
@@ -358,7 +330,7 @@ RootActor.prototype = {
    */
   preNest: function() {
     // Disable events in all open windows.
-    let e = Services.wm.getEnumerator(null);
+    let e = windowMediator.getEnumerator(null);
     while (e.hasMoreElements()) {
       let win = e.getNext();
       let windowUtils = win.QueryInterface(Ci.nsIInterfaceRequestor)
@@ -373,7 +345,7 @@ RootActor.prototype = {
    */
   postNest: function(aNestData) {
     // Enable events in all open windows.
-    let e = Services.wm.getEnumerator(null);
+    let e = windowMediator.getEnumerator(null);
     while (e.hasMoreElements()) {
       let win = e.getNext();
       let windowUtils = win.QueryInterface(Ci.nsIInterfaceRequestor)
@@ -381,8 +353,32 @@ RootActor.prototype = {
       windowUtils.resumeTimeouts();
       windowUtils.suppressEventHandling(false);
     }
+  },
+
+  /* ChromeDebuggerActor hooks. */
+
+  /**
+   * Add the specified actor to the default actor pool connection, in order to
+   * keep it alive as long as the server is. This is used by breakpoints in the
+   * thread and chrome debugger actors.
+   *
+   * @param actor aActor
+   *        The actor object.
+   */
+  addToParentPool: function(aActor) {
+    this.conn.addActor(aActor);
+  },
+
+  /**
+   * Remove the specified actor from the default actor pool.
+   *
+   * @param BreakpointActor aActor
+   *        The actor object.
+   */
+  removeFromParentPool: function(aActor) {
+    this.conn.removeActor(aActor);
   }
-};
+}
 
 RootActor.prototype.requestTypes = {
   "listTabs": RootActor.prototype.onListTabs,

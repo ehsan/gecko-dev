@@ -21,7 +21,6 @@
 #include "nsCycleCollectionParticipant.h"
 
 #include "nsISMILAttr.h"
-#include "nsIDocument.h"
 
 class nsIDOMAttr;
 class nsIDOMEventListener;
@@ -51,11 +50,7 @@ enum {
   // This bit is only meaningful if the NS_CACHED_TEXT_IS_ONLY_WHITESPACE
   // bit is set, and if so it indicates whether we're only whitespace or
   // not.
-  NS_TEXT_IS_ONLY_WHITESPACE =            DATA_NODE_FLAG_BIT(3),
-
-  // This bit is set to indicate that we must create frames for this text node
-  // even if it's only whitespace next to a block boundary.
-  NS_CREATE_FRAME_FOR_IGNORABLE_WHITESPACE = DATA_NODE_FLAG_BIT(4)
+  NS_TEXT_IS_ONLY_WHITESPACE =            DATA_NODE_FLAG_BIT(3)
 };
 
 // Make sure we have enough space for those bits
@@ -158,9 +153,6 @@ public:
   virtual nsXBLBinding *GetXBLBinding() const MOZ_OVERRIDE;
   virtual void SetXBLBinding(nsXBLBinding* aBinding,
                              nsBindingManager* aOldBindingManager = nullptr) MOZ_OVERRIDE;
-  virtual mozilla::dom::ShadowRoot *GetContainingShadow() const MOZ_OVERRIDE;
-  virtual mozilla::dom::ShadowRoot *GetShadowRoot() const MOZ_OVERRIDE;
-  virtual void SetShadowRoot(mozilla::dom::ShadowRoot* aShadowRoot) MOZ_OVERRIDE;
   virtual nsIContent *GetXBLInsertionParent() const;
   virtual void SetXBLInsertionParent(nsIContent* aContent);
   virtual bool IsNodeOfType(uint32_t aFlags) const MOZ_OVERRIDE;
@@ -244,7 +236,11 @@ protected:
   class nsDataSlots : public nsINode::nsSlots
   {
   public:
-    nsDataSlots();
+    nsDataSlots()
+      : nsINode::nsSlots(),
+        mBindingParent(nullptr)
+    {
+    }
 
     void Traverse(nsCycleCollectionTraversalCallback &cb);
     void Unlink();
@@ -259,11 +255,6 @@ protected:
      * @see nsIContent::GetXBLInsertionParent
      */
     nsCOMPtr<nsIContent> mXBLInsertionParent;
-
-    /**
-     * @see nsIContent::GetContainingShadow
-     */
-    nsRefPtr<mozilla::dom::ShadowRoot> mContainingShadow;
   };
 
   // Override from nsINode

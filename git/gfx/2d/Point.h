@@ -6,10 +6,8 @@
 #ifndef MOZILLA_GFX_POINT_H_
 #define MOZILLA_GFX_POINT_H_
 
-#include "mozilla/Attributes.h"
 #include "Types.h"
 #include "BasePoint.h"
-#include "BasePoint3D.h"
 #include "BaseSize.h"
 
 #include <cmath>
@@ -27,7 +25,7 @@ struct IntPointTyped :
   typedef BasePoint< int32_t, IntPointTyped<units> > Super;
 
   IntPointTyped() : Super() {}
-  MOZ_CONSTEXPR IntPointTyped(int32_t aX, int32_t aY) : Super(aX, aY) {}
+  IntPointTyped(int32_t aX, int32_t aY) : Super(aX, aY) {}
 
   // XXX When all of the code is ported, the following functions to convert to and from
   // unknown types should be removed.
@@ -72,34 +70,13 @@ IntPointTyped<units> RoundedToInt(const PointTyped<units>& aPoint) {
 }
 
 template<class units>
-struct Point3DTyped :
-  public BasePoint3D< Float, Point3DTyped<units> > {
-  typedef BasePoint3D< Float, Point3DTyped<units> > Super;
-
-  Point3DTyped() : Super() {}
-  Point3DTyped(Float aX, Float aY, Float aZ) : Super(aX, aY, aZ) {}
-
-  // XXX When all of the code is ported, the following functions to convert to and from
-  // unknown types should be removed.
-
-  static Point3DTyped<units> FromUnknownPoint(const Point3DTyped<UnknownUnits>& aPoint) {
-    return Point3DTyped<units>(aPoint.x, aPoint.y, aPoint.z);
-  }
-
-  Point3DTyped<UnknownUnits> ToUnknownPoint() const {
-    return Point3DTyped<UnknownUnits>(this->x, this->y, this->z);
-  }
-};
-typedef Point3DTyped<UnknownUnits> Point3D;
-
-template<class units>
 struct IntSizeTyped :
   public BaseSize< int32_t, IntSizeTyped<units> >,
   public units {
   typedef BaseSize< int32_t, IntSizeTyped<units> > Super;
 
-  MOZ_CONSTEXPR IntSizeTyped() : Super() {}
-  MOZ_CONSTEXPR IntSizeTyped(int32_t aWidth, int32_t aHeight) : Super(aWidth, aHeight) {}
+  IntSizeTyped() : Super() {}
+  IntSizeTyped(int32_t aWidth, int32_t aHeight) : Super(aWidth, aHeight) {}
 
   // XXX When all of the code is ported, the following functions to convert to and from
   // unknown types should be removed.
@@ -137,12 +114,6 @@ struct SizeTyped :
   }
 };
 typedef SizeTyped<UnknownUnits> Size;
-
-template<class units>
-IntSizeTyped<units> RoundedToInt(const SizeTyped<units>& aSize) {
-  return IntSizeTyped<units>(int32_t(floorf(aSize.width + 0.5f)),
-                             int32_t(floorf(aSize.height + 0.5f)));
-}
 
 }
 }

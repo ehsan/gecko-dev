@@ -15,7 +15,8 @@ var errorCodes = {
   LANGUAGE_NOT_SUPPORTED : "language-not-supported"
 };
 
-var Services = SpecialPowers.Cu.import("resource://gre/modules/Services.jsm").Services;
+netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+Components.utils.import("resource://gre/modules/Services.jsm");
 
 function EventManager(sr) {
   var self = this;

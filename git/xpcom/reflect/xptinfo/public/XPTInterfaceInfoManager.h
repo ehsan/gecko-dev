@@ -8,7 +8,6 @@
 #define mozilla_XPTInterfaceInfoManager_h_
 
 #include "nsIInterfaceInfoManager.h"
-#include "nsIMemoryReporter.h"
 
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Mutex.h"
@@ -16,7 +15,6 @@
 #include "nsDataHashtable.h"
 
 template<typename T> class nsCOMArray;
-class nsIMemoryReporter;
 class XPTHeader;
 class XPTInterfaceDirectoryEntry;
 class xptiInterfaceEntry;
@@ -26,8 +24,7 @@ class xptiTypelibGuts;
 namespace mozilla {
 
 class XPTInterfaceInfoManager MOZ_FINAL
-    : public mozilla::MemoryUniReporter
-    , public nsIInterfaceInfoManager
+    : public nsIInterfaceInfoManager
 {
     NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSIINTERFACEINFOMANAGER
@@ -49,16 +46,15 @@ public:
     xptiInterfaceEntry* GetInterfaceEntryForIID(const nsIID *iid);
 
     size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
-    int64_t Amount() MOZ_OVERRIDE;
+
+    static int64_t GetXPTIWorkingSetSize();
 
 private:
     XPTInterfaceInfoManager();
     ~XPTInterfaceInfoManager();
 
-    void InitMemoryReporter();
-
     void RegisterXPTHeader(XPTHeader* aHeader);
-
+                          
     // idx is the index of this interface in the XPTHeader
     void VerifyAndAddEntryIfNew(XPTInterfaceDirectoryEntry* iface,
                                 uint16_t idx,

@@ -117,11 +117,8 @@ class Channel : public Message::Sender {
   // socketpair() in which case this method returns -1 for both parameters.
   void GetClientFileDescriptorMapping(int *src_fd, int *dest_fd) const;
 
-  // Return the file descriptor for communication with the peer.
-  int GetFileDescriptor() const;
-
-  // Reset the file descriptor for communication with the peer.
-  void ResetFileDescriptor(int fd);
+  // Return the server side of the socketpair.
+  int GetServerFileDescriptor() const;
 
   // Close the client side of the socketpair.
   void CloseClientFileDescriptor();

@@ -12,9 +12,10 @@
 #include "nsSurfaceTexture.h"
 #include "gfxImageSurface.h"
 #include "AndroidBridge.h"
-#include "nsThreadUtils.h"
 
 using namespace mozilla;
+
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "nsSurfaceTexture" , ## args)
 
 // UGH
 static std::map<int, nsSurfaceTexture*> sInstances;
@@ -139,7 +140,7 @@ nsSurfaceTexture::Create(GLuint aTexture)
 
   nsSurfaceTexture* st = new nsSurfaceTexture();
   if (!st->Init(aTexture)) {
-    printf_stderr("Failed to initialize nsSurfaceTexture");
+    LOG("Failed to initialize nsSurfaceTexture");
     delete st;
     st = nullptr;
   }
@@ -208,7 +209,7 @@ nsSurfaceTexture::~nsSurfaceTexture()
     return;
 
   if (mSurfaceTexture && env) {
-    GeckoAppShell::UnregisterSurfaceTextureFrameListener(mSurfaceTexture);
+    AndroidBridge::Bridge()->UnregisterSurfaceTextureFrameListener(mSurfaceTexture);
 
     env->DeleteGlobalRef(mSurfaceTexture);
     mSurfaceTexture = nullptr;
@@ -237,9 +238,9 @@ void
 nsSurfaceTexture::SetFrameAvailableCallback(nsIRunnable* aRunnable)
 {
   if (aRunnable)
-    GeckoAppShell::RegisterSurfaceTextureFrameListener(mSurfaceTexture, mID);
+    AndroidBridge::Bridge()->RegisterSurfaceTextureFrameListener(mSurfaceTexture, mID);
   else
-    GeckoAppShell::UnregisterSurfaceTextureFrameListener(mSurfaceTexture);
+    AndroidBridge::Bridge()->UnregisterSurfaceTextureFrameListener(mSurfaceTexture);
 
   mFrameAvailableCallback = aRunnable;
 }

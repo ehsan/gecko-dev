@@ -11,15 +11,14 @@
 
 #include "mozilla/dom/quota/Client.h"
 
+#define IDB_DIRECTORY_NAME "idb"
 #define JOURNAL_DIRECTORY_NAME "journals"
 
 BEGIN_INDEXEDDB_NAMESPACE
 
 class Client : public mozilla::dom::quota::Client
 {
-  typedef mozilla::dom::quota::OriginOrPatternString OriginOrPatternString;
-  typedef mozilla::dom::quota::PersistenceType PersistenceType;
-  typedef mozilla::dom::quota::UsageInfo UsageInfo;
+  typedef mozilla::dom::quota::UsageRunnable UsageRunnable;
 
 public:
   NS_IMETHOD_(nsrefcnt)
@@ -35,21 +34,15 @@ public:
   }
 
   virtual nsresult
-  InitOrigin(PersistenceType aPersistenceType,
-             const nsACString& aGroup,
-             const nsACString& aOrigin,
-             UsageInfo* aUsageInfo) MOZ_OVERRIDE;
+  InitOrigin(const nsACString& aOrigin,
+             UsageRunnable* aUsageRunnable) MOZ_OVERRIDE;
 
   virtual nsresult
-  GetUsageForOrigin(PersistenceType aPersistenceType,
-                    const nsACString& aGroup,
-                    const nsACString& aOrigin,
-                    UsageInfo* aUsageInfo) MOZ_OVERRIDE;
+  GetUsageForOrigin(const nsACString& aOrigin,
+                    UsageRunnable* aUsageRunnable) MOZ_OVERRIDE;
 
   virtual void
-  OnOriginClearCompleted(PersistenceType aPersistenceType,
-                         const OriginOrPatternString& aOriginOrPattern)
-                         MOZ_OVERRIDE;
+  OnOriginClearCompleted(const nsACString& aPattern) MOZ_OVERRIDE;
 
   virtual void
   ReleaseIOThreadObjects() MOZ_OVERRIDE;
@@ -78,12 +71,11 @@ public:
 
 private:
   nsresult
-  GetDirectory(PersistenceType aPersistenceType, const nsACString& aOrigin,
-               nsIFile** aDirectory);
+  GetDirectory(const nsACString& aOrigin, nsIFile** aDirectory);
 
   nsresult
   GetUsageForDirectoryInternal(nsIFile* aDirectory,
-                               UsageInfo* aUsageInfo,
+                               UsageRunnable* aUsageRunnable,
                                bool aDatabaseFiles);
 
   nsAutoRefCnt mRefCnt;

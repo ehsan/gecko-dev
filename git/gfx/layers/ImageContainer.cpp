@@ -7,7 +7,6 @@
 #include "ImageContainer.h"
 #include <string.h>                     // for memcpy, memset
 #include "SharedTextureImage.h"         // for SharedTextureImage
-#include "gfx2DGlue.h"
 #include "gfxImageSurface.h"            // for gfxImageSurface
 #include "gfxPlatform.h"                // for gfxPlatform
 #include "gfxUtils.h"                   // for gfxUtils
@@ -17,14 +16,12 @@
 #include "mozilla/layers/ImageBridgeChild.h"  // for ImageBridgeChild
 #include "mozilla/layers/ImageClient.h"  // for ImageClient
 #include "nsISupportsUtils.h"           // for NS_IF_ADDREF
-#include "YCbCrUtils.h"                 // for YCbCr conversions
 #ifdef MOZ_WIDGET_GONK
 #include "GrallocImages.h"
 #endif
 
 #ifdef XP_MACOSX
 #include "mozilla/gfx/QuartzSupport.h"
-#include "MacIOSurfaceImage.h"
 #endif
 
 #ifdef XP_WIN
@@ -52,7 +49,7 @@ Atomic<int32_t> Image::sSerialCounter(0);
 already_AddRefed<Image>
 ImageFactory::CreateImage(const ImageFormat *aFormats,
                           uint32_t aNumFormats,
-                          const gfx::IntSize &,
+                          const gfxIntSize &,
                           BufferRecycleBin *aRecycleBin)
 {
   if (!aNumFormats) {
@@ -77,12 +74,6 @@ ImageFactory::CreateImage(const ImageFormat *aFormats,
     img = new SharedTextureImage();
     return img.forget();
   }
-#ifdef XP_MACOSX
-  if (FormatInList(aFormats, aNumFormats, MAC_IOSURFACE)) {
-    img = new MacIOSurfaceImage();
-    return img.forget();
-  }
-#endif
 #ifdef XP_WIN
   if (FormatInList(aFormats, aNumFormats, D3D9_RGB32_TEXTURE)) {
     img = new D3D9SurfaceImage();
@@ -137,11 +128,7 @@ ImageContainer::ImageContainer(int flag)
   if (flag == ENABLE_ASYNC && ImageBridgeChild::IsCreated()) {
     // the refcount of this ImageClient is 1. we don't use a RefPtr here because the refcount
     // of this class must be done on the ImageBridge thread.
-    if (gfxPlatform::GetPlatform()->UseDeprecatedTextures()) {
-      mImageClient = ImageBridgeChild::GetSingleton()->CreateImageClient(BUFFER_IMAGE_BUFFERED).drop();
-    } else {
-      mImageClient = ImageBridgeChild::GetSingleton()->CreateImageClient(BUFFER_IMAGE_SINGLE).drop();
-    }
+    mImageClient = ImageBridgeChild::GetSingleton()->CreateImageClient(BUFFER_IMAGE_BUFFERED).drop();
     MOZ_ASSERT(mImageClient);
   }
 }
@@ -190,47 +177,22 @@ ImageContainer::SetCurrentImageInternal(Image *aImage)
 }
 
 void
-ImageContainer::ClearCurrentImage()
-{
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-  SetCurrentImageInternal(nullptr);
-}
-
-void
 ImageContainer::SetCurrentImage(Image *aImage)
 {
-  if (!aImage) {
-    ClearAllImages();
-    return;
-  }
-
   ReentrantMonitorAutoEnter mon(mReentrantMonitor);
   if (IsAsync()) {
-    ImageBridgeChild::DispatchImageClientUpdate(mImageClient, this);
+    if (aImage) {
+      ImageBridgeChild::DispatchImageClientUpdate(mImageClient, this);
+    } else {
+      // here we used to have a SetIdle() call on the image bridge to tell
+      // the compositor that the video element is not going to be seen for
+      // moment and that it can release its shared memory. It was causing
+      // crashes so it has been removed.
+      // This may be reimplemented after 858914 lands.
+    }
   }
+
   SetCurrentImageInternal(aImage);
-}
-
- void
-ImageContainer::ClearAllImages()
-{
-  if (IsAsync()) {
-    // Let ImageClient release all TextureClients.
-    ImageBridgeChild::FlushAllImages(mImageClient, this, false);
-    return;
-  }
-
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-  SetCurrentImageInternal(nullptr);
-}
-
-void
-ImageContainer::ClearAllImagesExceptFront()
-{
-  if (IsAsync()) {
-    // Let ImageClient release all TextureClients except front one.
-    ImageBridgeChild::FlushAllImages(mImageClient, this, true);
-  }
 }
 
 void
@@ -289,7 +251,7 @@ ImageContainer::LockCurrentImage()
 }
 
 already_AddRefed<gfxASurface>
-ImageContainer::LockCurrentAsSurface(gfx::IntSize *aSize, Image** aCurrentImage)
+ImageContainer::LockCurrentAsSurface(gfxIntSize *aSize, Image** aCurrentImage)
 {
   ReentrantMonitorAutoEnter mon(mReentrantMonitor);
 
@@ -312,8 +274,8 @@ ImageContainer::LockCurrentAsSurface(gfx::IntSize *aSize, Image** aCurrentImage)
       nsRefPtr<gfxImageSurface> newSurf =
         new gfxImageSurface(mRemoteData->mBitmap.mData, mRemoteData->mSize, mRemoteData->mBitmap.mStride,
                             mRemoteData->mFormat == RemoteImageData::BGRX32 ?
-                                                   gfxImageFormatARGB32 :
-                                                   gfxImageFormatRGB24);
+                                                   gfxASurface::ImageFormatARGB32 :
+                                                   gfxASurface::ImageFormatRGB24);
 
       *aSize = newSurf->GetSize();
     
@@ -347,7 +309,7 @@ ImageContainer::UnlockCurrentImage()
 }
 
 already_AddRefed<gfxASurface>
-ImageContainer::GetCurrentAsSurface(gfx::IntSize *aSize)
+ImageContainer::GetCurrentAsSurface(gfxIntSize *aSize)
 {
   ReentrantMonitorAutoEnter mon(mReentrantMonitor);
 
@@ -366,7 +328,7 @@ ImageContainer::GetCurrentAsSurface(gfx::IntSize *aSize)
   return mActiveImage->GetAsSurface();
 }
 
-gfx::IntSize
+gfxIntSize
 ImageContainer::GetCurrentSize()
 {
   ReentrantMonitorAutoEnter mon(mReentrantMonitor);
@@ -444,7 +406,7 @@ ImageContainer::EnsureActiveImage()
 PlanarYCbCrImage::PlanarYCbCrImage(BufferRecycleBin *aRecycleBin)
   : Image(nullptr, PLANAR_YCBCR)
   , mBufferSize(0)
-  , mOffscreenFormat(gfxImageFormatUnknown)
+  , mOffscreenFormat(gfxASurface::ImageFormatUnknown)
   , mRecycleBin(aRecycleBin)
 {
 }
@@ -492,16 +454,13 @@ PlanarYCbCrImage::CopyData(const Data& aData)
   mData = aData;
 
   // update buffer size
-  size_t size = mData.mCbCrStride * mData.mCbCrSize.height * 2 +
+  mBufferSize = mData.mCbCrStride * mData.mCbCrSize.height * 2 +
                 mData.mYStride * mData.mYSize.height;
 
   // get new buffer
-  mBuffer = AllocateBuffer(size);
+  mBuffer = AllocateBuffer(mBufferSize);
   if (!mBuffer)
     return;
-
-  // update buffer size
-  mBufferSize = size;
 
   mData.mYChannel = mBuffer;
   mData.mCbChannel = mData.mYChannel + mData.mYStride * mData.mYSize.height;
@@ -523,10 +482,10 @@ PlanarYCbCrImage::SetData(const Data &aData)
   CopyData(aData);
 }
 
-gfxImageFormat
+gfxASurface::gfxImageFormat
 PlanarYCbCrImage::GetOffscreenFormat()
 {
-  return mOffscreenFormat == gfxImageFormatUnknown ?
+  return mOffscreenFormat == gfxASurface::ImageFormatUnknown ?
     gfxPlatform::GetPlatform()->GetOffscreenFormat() :
     mOffscreenFormat;
 }
@@ -541,12 +500,11 @@ PlanarYCbCrImage::SetDataNoCopy(const Data &aData)
 uint8_t*
 PlanarYCbCrImage::AllocateAndGetNewBuffer(uint32_t aSize)
 {
+  // update buffer size
+  mBufferSize = aSize;
+
   // get new buffer
-  mBuffer = AllocateBuffer(aSize);
-  if (mBuffer) {
-    // update buffer size
-    mBufferSize = aSize;
-  }
+  mBuffer = AllocateBuffer(mBufferSize); 
   return mBuffer;
 }
 
@@ -558,9 +516,9 @@ PlanarYCbCrImage::GetAsSurface()
     return result.forget();
   }
 
-  gfx::SurfaceFormat format = gfx::ImageFormatToSurfaceFormat(GetOffscreenFormat());
-  gfx::IntSize size(mSize);
-  gfx::GetYCbCrToRGBDestFormatAndSize(mData, format, size);
+  gfxASurface::gfxImageFormat format = GetOffscreenFormat();
+  gfxIntSize size(mSize);
+  gfxUtils::GetYCbCrToRGBDestFormatAndSize(mData, format, size);
   if (size.width > PlanarYCbCrImage::MAX_DIMENSION ||
       size.height > PlanarYCbCrImage::MAX_DIMENSION) {
     NS_ERROR("Illegal image dest width or height");
@@ -568,9 +526,11 @@ PlanarYCbCrImage::GetAsSurface()
   }
 
   nsRefPtr<gfxImageSurface> imageSurface =
-    new gfxImageSurface(gfx::ThebesIntSize(mSize), gfx::SurfaceFormatToImageFormat(format));
+    new gfxImageSurface(mSize, format);
 
-  gfx::ConvertYCbCrToRGB(mData, format, mSize, imageSurface->Data(), imageSurface->Stride());
+  gfxUtils::ConvertYCbCrToRGB(mData, format, mSize,
+                              imageSurface->Data(),
+                              imageSurface->Stride());
 
   mSurface = imageSurface;
 
@@ -582,7 +542,7 @@ RemoteBitmapImage::GetAsSurface()
 {
   nsRefPtr<gfxImageSurface> newSurf =
     new gfxImageSurface(mSize,
-    mFormat == RemoteImageData::BGRX32 ? gfxImageFormatRGB24 : gfxImageFormatARGB32);
+    mFormat == RemoteImageData::BGRX32 ? gfxASurface::ImageFormatRGB24 : gfxASurface::ImageFormatARGB32);
 
   for (int y = 0; y < mSize.height; y++) {
     memcpy(newSurf->Data() + newSurf->Stride() * y,

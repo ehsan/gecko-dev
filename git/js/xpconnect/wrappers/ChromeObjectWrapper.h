@@ -11,10 +11,9 @@
 #include "mozilla/Attributes.h"
 
 #include "FilteringWrapper.h"
+#include "AccessCheck.h"
 
 namespace xpc {
-
-struct ExposedPropertiesOnly;
 
 // When chrome JS objects are exposed to content, they get a ChromeObjectWrapper.
 //

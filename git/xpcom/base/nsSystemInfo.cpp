@@ -3,22 +3,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #include "nsSystemInfo.h"
 #include "prsystem.h"
-#include "prio.h"
+#include "nsString.h"
 #include "prprf.h"
 #include "mozilla/SSE.h"
 #include "mozilla/arm.h"
 
 #ifdef XP_WIN
 #include <windows.h>
-#include <winioctl.h>
-#include "base/scoped_handle_win.h"
-#include "nsAppDirectoryServiceDefs.h"
-#include "nsDirectoryServiceDefs.h"
-#include "nsDirectoryServiceUtils.h"
 #endif
 
 #ifdef MOZ_WIDGET_GTK
@@ -27,7 +22,6 @@
 
 #ifdef MOZ_WIDGET_ANDROID
 #include "AndroidBridge.h"
-using namespace mozilla::widget::android;
 #endif
 
 #ifdef MOZ_WIDGET_GONK
@@ -39,83 +33,6 @@ extern "C" {
 NS_EXPORT int android_sdk_version;
 }
 #endif
-
-#if defined(XP_WIN)
-namespace {
-nsresult GetHDDInfo(const char* aSpecialDirName, nsAutoCString& aModel,
-                    nsAutoCString& aRevision)
-{
-    aModel.Truncate();
-    aRevision.Truncate();
-
-    nsCOMPtr<nsIFile> profDir;
-    nsresult rv = NS_GetSpecialDirectory(aSpecialDirName,
-                                         getter_AddRefs(profDir));
-    NS_ENSURE_SUCCESS(rv, rv);
-    nsAutoString profDirPath;
-    rv = profDir->GetPath(profDirPath);
-    NS_ENSURE_SUCCESS(rv, rv);
-    wchar_t volumeMountPoint[MAX_PATH] = {L'\\', L'\\', L'.', L'\\'};
-    const size_t PREFIX_LEN = 4;
-    if (!::GetVolumePathNameW(profDirPath.get(), volumeMountPoint + PREFIX_LEN,
-                              mozilla::ArrayLength(volumeMountPoint) -
-                              PREFIX_LEN)) {
-        return NS_ERROR_UNEXPECTED;
-    }
-    size_t volumeMountPointLen = wcslen(volumeMountPoint);
-    // Since we would like to open a drive and not a directory, we need to
-    // remove any trailing backslash. A drive handle is valid for
-    // DeviceIoControl calls, a directory handle is not.
-    if (volumeMountPoint[volumeMountPointLen - 1] == L'\\') {
-      volumeMountPoint[volumeMountPointLen - 1] = L'\0';
-    }
-    ScopedHandle handle(::CreateFileW(volumeMountPoint, 0,
-                                      FILE_SHARE_READ | FILE_SHARE_WRITE,
-                                      nullptr, OPEN_EXISTING, 0, nullptr));
-    if (!handle.IsValid()) {
-        return NS_ERROR_UNEXPECTED;
-    }
-    STORAGE_PROPERTY_QUERY queryParameters = {StorageDeviceProperty,
-                                              PropertyStandardQuery};
-    STORAGE_DEVICE_DESCRIPTOR outputHeader = {sizeof(STORAGE_DEVICE_DESCRIPTOR)};
-    DWORD bytesRead = 0;
-    if (!::DeviceIoControl(handle, IOCTL_STORAGE_QUERY_PROPERTY,
-                           &queryParameters, sizeof(queryParameters),
-                           &outputHeader, sizeof(outputHeader), &bytesRead,
-                           nullptr)) {
-        return NS_ERROR_FAILURE;
-    }
-    PSTORAGE_DEVICE_DESCRIPTOR deviceOutput =
-                          (PSTORAGE_DEVICE_DESCRIPTOR)malloc(outputHeader.Size);
-    if (!::DeviceIoControl(handle, IOCTL_STORAGE_QUERY_PROPERTY,
-                           &queryParameters, sizeof(queryParameters),
-                           deviceOutput, outputHeader.Size, &bytesRead,
-                           nullptr)) {
-        free(deviceOutput);
-        return NS_ERROR_FAILURE;
-    }
-    // Some HDDs are including product ID info in the vendor field. Since PNP
-    // IDs include vendor info and product ID concatenated together, we'll do
-    // that here and interpret the result as a unique ID for the HDD model.
-    if (deviceOutput->VendorIdOffset) {
-        aModel = reinterpret_cast<char*>(deviceOutput) +
-                     deviceOutput->VendorIdOffset;
-    }
-    if (deviceOutput->ProductIdOffset) {
-        aModel += reinterpret_cast<char*>(deviceOutput) +
-                      deviceOutput->ProductIdOffset;
-    }
-    aModel.CompressWhitespace();
-    if (deviceOutput->ProductRevisionOffset) {
-        aRevision = reinterpret_cast<char*>(deviceOutput) +
-                        deviceOutput->ProductRevisionOffset;
-        aRevision.CompressWhitespace();
-    }
-    free(deviceOutput);
-    return NS_OK;
-}
-} // anonymous namespace
-#endif // defined(XP_WIN)
 
 using namespace mozilla;
 
@@ -151,7 +68,8 @@ static const struct PropItems {
 nsresult
 nsSystemInfo::Init()
 {
-    nsresult rv;
+    nsresult rv = nsHashPropertyBag::Init();
+    NS_ENSURE_SUCCESS(rv, rv);
 
     static const struct {
       PRSysInfo cmd;
@@ -168,28 +86,12 @@ nsSystemInfo::Init()
       if (PR_GetSystemInfo(items[i].cmd, buf, sizeof(buf)) == PR_SUCCESS) {
         rv = SetPropertyAsACString(NS_ConvertASCIItoUTF16(items[i].name),
                                    nsDependentCString(buf));
-        if (NS_WARN_IF(NS_FAILED(rv)))
-          return rv;
+        NS_ENSURE_SUCCESS(rv, rv);
       }
       else {
         NS_WARNING("PR_GetSystemInfo failed");
       }
     }
-
-#if defined(XP_WIN) && defined(MOZ_METRO)
-    // Create "hasWindowsTouchInterface" property.
-    nsAutoString version;
-    rv = GetPropertyAsAString(NS_LITERAL_STRING("version"), version);
-    NS_ENSURE_SUCCESS(rv, rv);
-    double versionDouble = atof(NS_ConvertUTF16toUTF8(version).get());
-
-    rv = SetPropertyAsBool(NS_ConvertASCIItoUTF16("hasWindowsTouchInterface"),
-      versionDouble >= 6.2);
-    NS_ENSURE_SUCCESS(rv, rv);
-#else
-    rv = SetPropertyAsBool(NS_ConvertASCIItoUTF16("hasWindowsTouchInterface"), false);
-    NS_ENSURE_SUCCESS(rv, rv);
-#endif
 
     // Additional informations not available through PR_GetSystemInfo.
     SetInt32Property(NS_LITERAL_STRING("pagesize"), PR_GetPageSize());
@@ -201,8 +103,7 @@ nsSystemInfo::Init()
     for (uint32_t i = 0; i < ArrayLength(cpuPropItems); i++) {
         rv = SetPropertyAsBool(NS_ConvertASCIItoUTF16(cpuPropItems[i].name),
                                cpuPropItems[i].propfun());
-        if (NS_WARN_IF(NS_FAILED(rv)))
-          return rv;
+        NS_ENSURE_SUCCESS(rv, rv);
     }
 
 #ifdef XP_WIN
@@ -211,30 +112,6 @@ nsSystemInfo::Init()
     NS_WARN_IF_FALSE(gotWow64Value, "IsWow64Process failed");
     if (gotWow64Value) {
       rv = SetPropertyAsBool(NS_LITERAL_STRING("isWow64"), !!isWow64);
-      if (NS_WARN_IF(NS_FAILED(rv)))
-        return rv;
-    }
-    nsAutoCString hddModel, hddRevision;
-    if (NS_SUCCEEDED(GetHDDInfo(NS_APP_USER_PROFILE_50_DIR, hddModel,
-                                hddRevision))) {
-      rv = SetPropertyAsACString(NS_LITERAL_STRING("profileHDDModel"), hddModel);
-      NS_ENSURE_SUCCESS(rv, rv);
-      rv = SetPropertyAsACString(NS_LITERAL_STRING("profileHDDRevision"),
-                                 hddRevision);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-    if (NS_SUCCEEDED(GetHDDInfo(NS_GRE_DIR, hddModel, hddRevision))) {
-      rv = SetPropertyAsACString(NS_LITERAL_STRING("binHDDModel"), hddModel);
-      NS_ENSURE_SUCCESS(rv, rv);
-      rv = SetPropertyAsACString(NS_LITERAL_STRING("binHDDRevision"),
-                                 hddRevision);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-    if (NS_SUCCEEDED(GetHDDInfo(NS_WIN_WINDOWS_DIR, hddModel, hddRevision))) {
-      rv = SetPropertyAsACString(NS_LITERAL_STRING("winHDDModel"), hddModel);
-      NS_ENSURE_SUCCESS(rv, rv);
-      rv = SetPropertyAsACString(NS_LITERAL_STRING("winHDDRevision"),
-                                 hddRevision);
       NS_ENSURE_SUCCESS(rv, rv);
     }
 #endif
@@ -246,8 +123,60 @@ nsSystemInfo::Init()
       rv = SetPropertyAsACString(NS_LITERAL_STRING("secondaryLibrary"),
                                  nsDependentCString(gtkver));
       PR_smprintf_free(gtkver);
-      if (NS_WARN_IF(NS_FAILED(rv)))
-        return rv;
+      NS_ENSURE_SUCCESS(rv, rv);
+    }
+#endif
+
+
+#ifdef MOZ_PLATFORM_MAEMO
+    char *  line = nullptr;
+    size_t  len = 0;
+    ssize_t read;
+#if MOZ_PLATFORM_MAEMO > 5
+    FILE *fp = popen("/usr/bin/sysinfoclient --get /component/product", "r");
+#else
+    FILE *fp = fopen("/proc/component_version", "r");
+#endif
+    if (fp) {
+      while ((read = getline(&line, &len, fp)) != -1) {
+        if (line) {
+          if (strstr(line, "RX-51")) {
+            SetPropertyAsACString(NS_LITERAL_STRING("device"), NS_LITERAL_CSTRING("Nokia N900"));
+            SetPropertyAsACString(NS_LITERAL_STRING("manufacturer"), NS_LITERAL_CSTRING("Nokia"));
+            SetPropertyAsACString(NS_LITERAL_STRING("hardware"), NS_LITERAL_CSTRING("RX-51"));
+            SetPropertyAsBool(NS_LITERAL_STRING("tablet"), false);
+            break;
+          } else if (strstr(line, "RX-44") ||
+                     strstr(line, "RX-48") ||
+                     strstr(line, "RX-32") ) {
+            /* not as accurate as we can be, but these devices are deprecated */
+            SetPropertyAsACString(NS_LITERAL_STRING("device"), NS_LITERAL_CSTRING("Nokia N8xx"));
+            SetPropertyAsACString(NS_LITERAL_STRING("manufacturer"), NS_LITERAL_CSTRING("Nokia"));
+            SetPropertyAsACString(NS_LITERAL_STRING("hardware"), NS_LITERAL_CSTRING("N8xx"));
+            SetPropertyAsBool(NS_LITERAL_STRING("tablet"), false);
+            break;
+          } else if (strstr(line, "RM-680")) {
+            SetPropertyAsACString(NS_LITERAL_STRING("device"), NS_LITERAL_CSTRING("Nokia N950"));
+            SetPropertyAsACString(NS_LITERAL_STRING("manufacturer"), NS_LITERAL_CSTRING("Nokia"));
+            SetPropertyAsACString(NS_LITERAL_STRING("hardware"), NS_LITERAL_CSTRING("N9xx"));
+            SetPropertyAsBool(NS_LITERAL_STRING("tablet"), false);
+            break;
+          } else if (strstr(line, "RM-696")) {
+            SetPropertyAsACString(NS_LITERAL_STRING("device"), NS_LITERAL_CSTRING("Nokia N9"));
+            SetPropertyAsACString(NS_LITERAL_STRING("manufacturer"), NS_LITERAL_CSTRING("Nokia"));
+            SetPropertyAsACString(NS_LITERAL_STRING("hardware"), NS_LITERAL_CSTRING("N9xx"));
+            SetPropertyAsBool(NS_LITERAL_STRING("tablet"), false);
+            break;
+          }
+        }
+      }
+      if (line)
+        free(line);
+#if MOZ_PLATFORM_MAEMO > 5
+      pclose(fp);
+#else
+      fclose(fp);
+#endif
     }
 #endif
 
@@ -266,7 +195,7 @@ nsSystemInfo::Init()
         android_sdk_version = version;
         if (version >= 8 && mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "HARDWARE", str))
             SetPropertyAsAString(NS_LITERAL_STRING("hardware"), str);
-        bool isTablet = GeckoAppShell::IsTablet();
+        bool isTablet = mozilla::AndroidBridge::Bridge()->IsTablet();
         SetPropertyAsBool(NS_LITERAL_STRING("tablet"), isTablet);
         // NSPR "version" is the kernel version. For Android we want the Android version.
         // Rename SDK version to version and put the kernel version into kernel_version.
@@ -279,13 +208,9 @@ nsSystemInfo::Init()
 #endif
 
 #ifdef MOZ_WIDGET_GONK
-    char sdk[PROP_VALUE_MAX], characteristics[PROP_VALUE_MAX];
+    char sdk[PROP_VALUE_MAX];
     if (__system_property_get("ro.build.version.sdk", sdk))
       android_sdk_version = atoi(sdk);
-    if (__system_property_get("ro.build.characteristics", characteristics)) {
-      if (!strcmp(characteristics, "tablet"))
-        SetPropertyAsBool(NS_LITERAL_STRING("tablet"), true);
-    }
 #endif
 
     return NS_OK;

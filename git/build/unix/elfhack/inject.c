@@ -9,12 +9,12 @@
 #undef Elf_Ehdr
 #undef Elf_Addr
 
-#if defined(__LP64__)
-#define Elf_Ehdr Elf64_Ehdr
-#define Elf_Addr Elf64_Addr
-#else
+#if BITS == 32
 #define Elf_Ehdr Elf32_Ehdr
 #define Elf_Addr Elf32_Addr
+#else
+#define Elf_Ehdr Elf64_Ehdr
+#define Elf_Addr Elf64_Addr
 #endif
 
 extern __attribute__((visibility("hidden"))) void original_init(int argc, char **argv, char **env);
@@ -22,8 +22,7 @@ extern __attribute__((visibility("hidden"))) void original_init(int argc, char *
 extern __attribute__((visibility("hidden"))) Elf32_Rel relhack[];
 extern __attribute__((visibility("hidden"))) Elf_Ehdr elf_header;
 
-static inline __attribute__((always_inline))
-void do_relocations(void)
+int init(int argc, char **argv, char **env)
 {
     Elf32_Rel *rel;
     Elf_Addr *ptr, *start;
@@ -32,20 +31,10 @@ void do_relocations(void)
         for (ptr = start; ptr < &start[rel->r_info]; ptr++)
             *ptr += (intptr_t)&elf_header;
     }
-}
 
-__attribute__((section(".text._init_noinit")))
-int init_noinit(int argc, char **argv, char **env)
-{
-    do_relocations();
-    return 0;
-}
-
-__attribute__((section(".text._init")))
-int init(int argc, char **argv, char **env)
-{
-    do_relocations();
+#ifndef NOINIT
     original_init(argc, argv, env);
+#endif
     // Ensure there is no tail-call optimization, avoiding the use of the
     // B.W instruction in Thumb for the call above.
     return 0;

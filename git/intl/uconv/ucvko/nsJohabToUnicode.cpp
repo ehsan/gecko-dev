@@ -6,9 +6,6 @@
 #include "nsJohabToUnicode.h"
 #include "nsUCvKODll.h"
 #include "nsUCConstructors.h"
-#include "mozilla/Telemetry.h"
-
-using namespace mozilla;
 
 //----------------------------------------------------------------------
 // Global functions and data [declaration]
@@ -49,7 +46,6 @@ nsresult
 nsJohabToUnicodeConstructor(nsISupports *aOuter, REFNSIID aIID,
                             void **aResult)
 {
-  Telemetry::Accumulate(Telemetry::DECODER_INSTANTIATED_JOHAB, true);
   return CreateMultiTableDecoder(sizeof(g_JOHABRanges) / sizeof(g_JOHABRanges[0]),
                                  (const uRange*) &g_JOHABRanges,
                                  (uScanClassID*) &g_JOHABScanClassIDs,

@@ -32,7 +32,7 @@
 #ifndef WEBRTC_VOICE_ENGINE_VOE_HARDWARE_H
 #define WEBRTC_VOICE_ENGINE_VOE_HARDWARE_H
 
-#include "webrtc/common_types.h"
+#include "common_types.h"
 
 namespace webrtc {
 
@@ -136,6 +136,6 @@ protected:
     virtual ~VoEHardware() {}
 };
 
-}  // namespace webrtc
+} // namespace webrtc
 
 #endif  //  WEBRTC_VOICE_ENGINE_VOE_HARDWARE_H

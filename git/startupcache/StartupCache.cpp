@@ -1,10 +1,10 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*-  Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2; -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "prio.h"
+#include "prtypes.h"
 #include "pldhash.h"
 #include "nsXPCOMStrings.h"
 #include "mozilla/MemoryReporting.h"
@@ -16,6 +16,7 @@
 #include "nsDirectoryServiceUtils.h"
 #include "nsIClassInfo.h"
 #include "nsIFile.h"
+#include "nsIMemoryReporter.h"
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
 #include "nsIOutputStream.h"
@@ -51,44 +52,42 @@
 namespace mozilla {
 namespace scache {
 
-MOZ_DEFINE_MALLOC_SIZE_OF(StartupCacheMallocSizeOf)
-
-NS_IMETHODIMP
-StartupCache::CollectReports(nsIHandleReportCallback* aHandleReport,
-                             nsISupports* aData)
+static int64_t
+GetStartupCacheMappingSize()
 {
-#define REPORT(_path, _kind, _amount, _desc)                                \
-  do {                                                                      \
-    nsresult rv =                                                           \
-      aHandleReport->Callback(EmptyCString(),                               \
-                              NS_LITERAL_CSTRING(_path),                    \
-                              _kind, UNITS_BYTES, _amount,                  \
-                              NS_LITERAL_CSTRING(_desc), aData);            \
-    NS_ENSURE_SUCCESS(rv, rv);                                              \
-  } while (0)
+    mozilla::scache::StartupCache* sc = mozilla::scache::StartupCache::GetSingleton();
+    return sc ? sc->SizeOfMapping() : 0;
+}
 
-  REPORT("explicit/startup-cache/mapping", KIND_NONHEAP,
-         SizeOfMapping(),
-         "Memory used to hold the mapping of the startup cache from file. "
-         "This memory is likely to be swapped out shortly after start-up.");
+NS_MEMORY_REPORTER_IMPLEMENT(StartupCacheMapping,
+    "explicit/startup-cache/mapping",
+    KIND_NONHEAP,
+    nsIMemoryReporter::UNITS_BYTES,
+    GetStartupCacheMappingSize,
+    "Memory used to hold the mapping of the startup cache from file.  This "
+    "memory is likely to be swapped out shortly after start-up.")
 
-  REPORT("explicit/startup-cache/data", KIND_HEAP,
-         HeapSizeOfIncludingThis(StartupCacheMallocSizeOf),
-         "Memory used by the startup cache for things other than the file "
-         "mapping.");
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(StartupCacheDataMallocSizeOf)
 
-  return NS_OK;
-};
+static int64_t
+GetStartupCacheDataSize()
+{
+    mozilla::scache::StartupCache* sc = mozilla::scache::StartupCache::GetSingleton();
+    return sc ? sc->HeapSizeOfIncludingThis(StartupCacheDataMallocSizeOf) : 0;
+}
+
+NS_MEMORY_REPORTER_IMPLEMENT(StartupCacheData,
+    "explicit/startup-cache/data",
+    KIND_HEAP,
+    nsIMemoryReporter::UNITS_BYTES,
+    GetStartupCacheDataSize,
+    "Memory used by the startup cache for things other than the file mapping.")
 
 static const char sStartupCacheName[] = "startupCache." SC_WORDSIZE "." SC_ENDIAN;
-#if defined(XP_WIN) && defined(MOZ_METRO)
-static const char sMetroStartupCacheName[] = "metroStartupCache." SC_WORDSIZE "." SC_ENDIAN;
-#endif
-
 static NS_DEFINE_CID(kZipReaderCID, NS_ZIPREADER_CID);
 
 StartupCache*
-StartupCache::GetSingleton()
+StartupCache::GetSingleton() 
 {
   if (!gStartupCache) {
     if (XRE_GetProcessType() != GeckoProcessType_Default) {
@@ -104,41 +103,40 @@ StartupCache::GetSingleton()
 void
 StartupCache::DeleteSingleton()
 {
-  StartupCache::gStartupCache = nullptr;
+  delete StartupCache::gStartupCache;
 }
 
 nsresult
-StartupCache::InitSingleton()
+StartupCache::InitSingleton() 
 {
   nsresult rv;
   StartupCache::gStartupCache = new StartupCache();
 
   rv = StartupCache::gStartupCache->Init();
   if (NS_FAILED(rv)) {
+    delete StartupCache::gStartupCache;
     StartupCache::gStartupCache = nullptr;
   }
   return rv;
 }
 
-StaticRefPtr<StartupCache> StartupCache::gStartupCache;
+StartupCache* StartupCache::gStartupCache;
 bool StartupCache::gShutdownInitiated;
 bool StartupCache::gIgnoreDiskCache;
 enum StartupCache::TelemetrifyAge StartupCache::gPostFlushAgeAction = StartupCache::IGNORE_AGE;
 
-NS_IMPL_ISUPPORTS1(StartupCache, nsIMemoryReporter)
+StartupCache::StartupCache() 
+  : mArchive(nullptr), mStartupWriteInitiated(false), mWriteThread(nullptr),
+    mMappingMemoryReporter(nullptr), mDataMemoryReporter(nullptr) { }
 
-StartupCache::StartupCache()
-  : mArchive(nullptr), mStartupWriteInitiated(false), mWriteThread(nullptr)
-{ }
-
-StartupCache::~StartupCache()
+StartupCache::~StartupCache() 
 {
   if (mTimer) {
     mTimer->Cancel();
   }
 
   // Generally, the in-memory table should be empty here,
-  // but an early shutdown means either mTimer didn't run
+  // but an early shutdown means either mTimer didn't run 
   // or the write thread is still running.
   WaitOnWriteThread();
 
@@ -150,16 +148,24 @@ StartupCache::~StartupCache()
     WriteToDisk();
   }
 
-  UnregisterWeakMemoryReporter(this);
+  gStartupCache = nullptr;
+  (void)::NS_UnregisterMemoryReporter(mMappingMemoryReporter);
+  (void)::NS_UnregisterMemoryReporter(mDataMemoryReporter);
+  mMappingMemoryReporter = nullptr;
+  mDataMemoryReporter = nullptr;
 }
 
 nsresult
-StartupCache::Init()
+StartupCache::Init() 
 {
   // workaround for bug 653936
   nsCOMPtr<nsIProtocolHandler> jarInitializer(do_GetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "jar"));
-
+  
   nsresult rv;
+  mTable.Init();
+#ifdef DEBUG
+  mWriteObjectMap.Init();
+#endif
 
   // This allows to override the startup cache filename
   // which is useful from xpcshell, when there is no ProfLDS directory to keep cache in.
@@ -197,30 +203,23 @@ StartupCache::Init()
     if (NS_FAILED(rv) && rv != NS_ERROR_FILE_ALREADY_EXISTS)
       return rv;
 
-#if defined(XP_WIN) && defined(MOZ_METRO)
-    if (XRE_GetWindowsEnvironment() == WindowsEnvironmentType_Metro) {
-      rv = file->AppendNative(NS_LITERAL_CSTRING(sMetroStartupCacheName));
-    } else
-#endif
-    {
-      rv = file->AppendNative(NS_LITERAL_CSTRING(sStartupCacheName));
-    }
+    rv = file->AppendNative(NS_LITERAL_CSTRING(sStartupCacheName));
 
     NS_ENSURE_SUCCESS(rv, rv);
-
+    
     mFile = do_QueryInterface(file);
   }
 
   NS_ENSURE_TRUE(mFile, NS_ERROR_UNEXPECTED);
 
   mObserverService = do_GetService("@mozilla.org/observer-service;1");
-
+  
   if (!mObserverService) {
     NS_WARNING("Could not get observerService.");
     return NS_ERROR_UNEXPECTED;
   }
-
-  mListener = new StartupCacheListener();
+  
+  mListener = new StartupCacheListener();  
   rv = mObserverService->AddObserver(mListener, NS_XPCOM_SHUTDOWN_OBSERVER_ID,
                                      false);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -229,7 +228,7 @@ StartupCache::Init()
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = LoadArchive(RECORD_AGE);
-
+  
   // Sometimes we don't have a cache yet, that's ok.
   // If it's corrupted, just remove it and start over.
   if (gIgnoreDiskCache || (NS_FAILED(rv) && rv != NS_ERROR_FILE_NOT_FOUND)) {
@@ -237,12 +236,15 @@ StartupCache::Init()
     InvalidateCache();
   }
 
-  RegisterWeakMemoryReporter(this);
+  mMappingMemoryReporter = new NS_MEMORY_REPORTER_NAME(StartupCacheMapping);
+  mDataMemoryReporter    = new NS_MEMORY_REPORTER_NAME(StartupCacheData);
+  (void)::NS_RegisterMemoryReporter(mMappingMemoryReporter);
+  (void)::NS_RegisterMemoryReporter(mDataMemoryReporter);
 
   return NS_OK;
 }
 
-/**
+/** 
  * LoadArchive can be called from the main thread or while reloading cache on write thread.
  */
 nsresult
@@ -375,7 +377,7 @@ StartupCache::PutBuffer(const char* id, const char* inbuf, uint32_t len)
 }
 
 size_t
-StartupCache::SizeOfMapping()
+StartupCache::SizeOfMapping() 
 {
     return mArchive ? mArchive->SizeOfMapping() : 0;
 }
@@ -440,7 +442,7 @@ StartupCache::WriteToDisk()
   nsresult rv;
   mStartupWriteInitiated = true;
 
-  if (mTable.Count() == 0)
+  if (!mTable.IsInitialized() || mTable.Count() == 0)
     return;
 
   nsCOMPtr<nsIZipWriter> zipW = do_CreateInstance("@mozilla.org/zipwriter;1");
@@ -532,7 +534,7 @@ StartupCache::WaitOnWriteThread()
   mWriteThread = nullptr;
 }
 
-void
+void 
 StartupCache::ThreadedWrite(void *aClosure)
 {
   PR_SetCurrentThreadName("StartupCache");

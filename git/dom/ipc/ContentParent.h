@@ -7,7 +7,11 @@
 #ifndef mozilla_dom_ContentParent_h
 #define mozilla_dom_ContentParent_h
 
+#include "base/waitable_event_watcher.h"
+
 #include "mozilla/dom/PContentParent.h"
+#include "mozilla/dom/PMemoryReportRequestParent.h"
+#include "mozilla/dom/TabContext.h"
 #include "mozilla/ipc/GeckoChildProcessHost.h"
 #include "mozilla/dom/ipc/Blob.h"
 #include "mozilla/Attributes.h"
@@ -15,12 +19,16 @@
 #include "mozilla/LinkedList.h"
 #include "mozilla/StaticPtr.h"
 
-#include "nsDataHashtable.h"
 #include "nsFrameMessageManager.h"
-#include "nsHashKeys.h"
 #include "nsIObserver.h"
 #include "nsIThreadInternal.h"
+#include "nsNetUtil.h"
+#include "nsIPermissionManager.h"
 #include "nsIDOMGeoPositionCallback.h"
+#include "nsIMemoryReporter.h"
+#include "nsCOMArray.h"
+#include "nsDataHashtable.h"
+#include "nsHashKeys.h"
 #include "PermissionMessageUtils.h"
 
 #define CHILD_PROCESS_SHUTDOWN_MESSAGE NS_LITERAL_STRING("child-process-shutdown")
@@ -28,8 +36,6 @@
 class mozIApplication;
 class nsConsoleService;
 class nsIDOMBlob;
-class nsIMemoryReporter;
-class ParentIdleListener;
 
 namespace mozilla {
 
@@ -41,7 +47,6 @@ class TestShellParent;
 
 namespace jsipc {
 class JavaScriptParent;
-class PJavaScriptParent;
 }
 
 namespace layers {
@@ -54,8 +59,6 @@ class Element;
 class TabParent;
 class PStorageParent;
 class ClonedMessageData;
-class MemoryReport;
-class TabContext;
 
 class ContentParent : public PContentParent
                     , public nsIObserver
@@ -94,8 +97,6 @@ public:
      */
     static already_AddRefed<ContentParent> PreallocateAppProcess();
 
-    static already_AddRefed<ContentParent> RunNuwaProcess();
-
     /**
      * Get or create a content process for the given TabContext.  aFrameElement
      * should be the frame/iframe element with which this process will
@@ -119,8 +120,7 @@ public:
     virtual bool DoSendAsyncMessage(JSContext* aCx,
                                     const nsAString& aMessage,
                                     const mozilla::dom::StructuredCloneData& aData,
-                                    JS::Handle<JSObject *> aCpows,
-                                    nsIPrincipal* aPrincipal) MOZ_OVERRIDE;
+                                    JS::Handle<JSObject *> aCpows) MOZ_OVERRIDE;
     virtual bool CheckPermission(const nsAString& aPermission) MOZ_OVERRIDE;
     virtual bool CheckManifestURL(const nsAString& aManifestURL) MOZ_OVERRIDE;
     virtual bool CheckAppHasPermission(const nsAString& aPermission) MOZ_OVERRIDE;
@@ -143,6 +143,9 @@ public:
     bool IsAlive();
     bool IsForApp();
 
+    void SetChildMemoryReporters(const InfallibleTArray<MemoryReport>& report);
+    void ClearChildMemoryReporters();
+
     GeckoChildProcessHost* Process() {
         return mSubprocess;
     }
@@ -163,8 +166,6 @@ public:
     void KillHard();
 
     uint64_t ChildID() { return mChildID; }
-    const nsString& AppManifestURL() const { return mAppManifestURL; }
-
     bool IsPreallocated();
 
     /**
@@ -175,53 +176,9 @@ public:
      */
     void FriendlyName(nsAString& aName);
 
-    virtual void OnChannelError() MOZ_OVERRIDE;
-
-    virtual PIndexedDBParent* AllocPIndexedDBParent() MOZ_OVERRIDE;
-    virtual bool
-    RecvPIndexedDBConstructor(PIndexedDBParent* aActor) MOZ_OVERRIDE;
-
-    virtual PCrashReporterParent*
-    AllocPCrashReporterParent(const NativeThreadId& tid,
-                        const uint32_t& processType) MOZ_OVERRIDE;
-    virtual bool
-    RecvPCrashReporterConstructor(PCrashReporterParent* actor,
-                                  const NativeThreadId& tid,
-                                  const uint32_t& processType) MOZ_OVERRIDE;
-
-    virtual PNeckoParent* AllocPNeckoParent() MOZ_OVERRIDE;
-    virtual bool RecvPNeckoConstructor(PNeckoParent* aActor) MOZ_OVERRIDE {
-        return PContentParent::RecvPNeckoConstructor(aActor);
-    }
-
-    virtual PHalParent* AllocPHalParent() MOZ_OVERRIDE;
-    virtual bool RecvPHalConstructor(PHalParent* aActor) MOZ_OVERRIDE {
-        return PContentParent::RecvPHalConstructor(aActor);
-    }
-
-    virtual PStorageParent* AllocPStorageParent() MOZ_OVERRIDE;
-    virtual bool RecvPStorageConstructor(PStorageParent* aActor) MOZ_OVERRIDE {
-        return PContentParent::RecvPStorageConstructor(aActor);
-    }
-
-    virtual PJavaScriptParent*
-    AllocPJavaScriptParent() MOZ_OVERRIDE;
-    virtual bool
-    RecvPJavaScriptConstructor(PJavaScriptParent* aActor) MOZ_OVERRIDE {
-        return PContentParent::RecvPJavaScriptConstructor(aActor);
-    }
-
-    virtual bool RecvRecordingDeviceEvents(const nsString& aRecordingStatus,
-                                           const nsString& aPageURL,
-                                           const bool& aIsAudio,
-                                           const bool& aIsVideo) MOZ_OVERRIDE;
 protected:
     void OnChannelConnected(int32_t pid) MOZ_OVERRIDE;
     virtual void ActorDestroy(ActorDestroyReason why);
-    void OnNuwaForkTimeout();
-
-    bool ShouldContinueFromReplyTimeout() MOZ_OVERRIDE;
-    bool ShouldSandboxContentProcesses();
 
 private:
     static nsDataHashtable<nsStringHashKey, ContentParent*> *sAppContentParents;
@@ -253,24 +210,7 @@ private:
                   bool aIsForBrowser,
                   bool aIsForPreallocated,
                   ChildPrivileges aOSPrivileges = base::PRIVILEGES_DEFAULT,
-                  hal::ProcessPriority aInitialPriority = hal::PROCESS_PRIORITY_FOREGROUND,
-                  bool aIsNuwaProcess = false);
-
-#ifdef MOZ_NUWA_PROCESS
-    ContentParent(ContentParent* aTemplate,
-                  const nsAString& aAppManifestURL,
-                  base::ProcessHandle aPid,
-                  const nsTArray<ProtocolFdMapping>& aFds,
-                  ChildPrivileges aOSPrivileges = base::PRIVILEGES_DEFAULT);
-#endif
-
-    // The common initialization for the constructors.
-    void InitializeMembers();
-
-    // The common initialization logic shared by all constuctors.
-    void InitInternal(ProcessPriority aPriority,
-                      bool aSetupOffMainThreadCompositing,
-                      bool aSendRegisteredChrome);
+                  hal::ProcessPriority aInitialPriority = hal::PROCESS_PRIORITY_FOREGROUND);
 
     virtual ~ContentParent();
 
@@ -325,6 +265,7 @@ private:
                                           bool* aIsForBrowser) MOZ_OVERRIDE;
     virtual bool RecvGetXPCOMProcessAttributes(bool* aIsOffline) MOZ_OVERRIDE;
 
+    virtual mozilla::jsipc::PJavaScriptParent* AllocPJavaScriptParent();
     virtual bool DeallocPJavaScriptParent(mozilla::jsipc::PJavaScriptParent*);
 
     virtual PBrowserParent* AllocPBrowserParent(const IPCTabContext& aContext,
@@ -337,21 +278,33 @@ private:
     virtual PBlobParent* AllocPBlobParent(const BlobConstructorParams& aParams);
     virtual bool DeallocPBlobParent(PBlobParent*);
 
+    virtual PCrashReporterParent* AllocPCrashReporterParent(const NativeThreadId& tid,
+                                                            const uint32_t& processType);
     virtual bool DeallocPCrashReporterParent(PCrashReporterParent* crashreporter);
+    virtual bool RecvPCrashReporterConstructor(PCrashReporterParent* actor,
+                                               const NativeThreadId& tid,
+                                               const uint32_t& processType);
 
     virtual bool RecvGetRandomValues(const uint32_t& length,
                                      InfallibleTArray<uint8_t>* randomValues);
 
+    virtual PHalParent* AllocPHalParent() MOZ_OVERRIDE;
     virtual bool DeallocPHalParent(PHalParent*) MOZ_OVERRIDE;
+
+    virtual PIndexedDBParent* AllocPIndexedDBParent();
 
     virtual bool DeallocPIndexedDBParent(PIndexedDBParent* aActor);
 
-    virtual PMemoryReportRequestParent* AllocPMemoryReportRequestParent(const uint32_t& generation);
+    virtual bool
+    RecvPIndexedDBConstructor(PIndexedDBParent* aActor);
+
+    virtual PMemoryReportRequestParent* AllocPMemoryReportRequestParent();
     virtual bool DeallocPMemoryReportRequestParent(PMemoryReportRequestParent* actor);
 
     virtual PTestShellParent* AllocPTestShellParent();
     virtual bool DeallocPTestShellParent(PTestShellParent* shell);
 
+    virtual PNeckoParent* AllocPNeckoParent();
     virtual bool DeallocPNeckoParent(PNeckoParent* necko);
 
     virtual PExternalHelperAppParent* AllocPExternalHelperAppParent(
@@ -360,31 +313,18 @@ private:
             const nsCString& aContentDisposition,
             const bool& aForceSave,
             const int64_t& aContentLength,
-            const OptionalURIParams& aReferrer,
-            PBrowserParent* aBrowser);
+            const OptionalURIParams& aReferrer);
     virtual bool DeallocPExternalHelperAppParent(PExternalHelperAppParent* aService);
 
     virtual PSmsParent* AllocPSmsParent();
     virtual bool DeallocPSmsParent(PSmsParent*);
 
-    virtual PTelephonyParent* AllocPTelephonyParent();
-    virtual bool DeallocPTelephonyParent(PTelephonyParent*);
-
+    virtual PStorageParent* AllocPStorageParent();
     virtual bool DeallocPStorageParent(PStorageParent* aActor);
 
     virtual PBluetoothParent* AllocPBluetoothParent();
     virtual bool DeallocPBluetoothParent(PBluetoothParent* aActor);
     virtual bool RecvPBluetoothConstructor(PBluetoothParent* aActor);
-
-    virtual PFMRadioParent* AllocPFMRadioParent();
-    virtual bool DeallocPFMRadioParent(PFMRadioParent* aActor);
-
-    virtual PAsmJSCacheEntryParent* AllocPAsmJSCacheEntryParent(
-                                 const asmjscache::OpenMode& aOpenMode,
-                                 const int64_t& aSizeToWrite,
-                                 const IPC::Principal& aPrincipal) MOZ_OVERRIDE;
-    virtual bool DeallocPAsmJSCacheEntryParent(
-                                   PAsmJSCacheEntryParent* aActor) MOZ_OVERRIDE;
 
     virtual PSpeechSynthesisParent* AllocPSpeechSynthesisParent();
     virtual bool DeallocPSpeechSynthesisParent(PSpeechSynthesisParent* aActor);
@@ -428,28 +368,19 @@ private:
     virtual bool RecvShowAlertNotification(const nsString& aImageUrl, const nsString& aTitle,
                                            const nsString& aText, const bool& aTextClickable,
                                            const nsString& aCookie, const nsString& aName,
-                                           const nsString& aBidi, const nsString& aLang,
-                                           const IPC::Principal& aPrincipal);
+                                           const nsString& aBidi, const nsString& aLang);
 
-    virtual bool RecvCloseAlert(const nsString& aName,
-                                const IPC::Principal& aPrincipal);
+    virtual bool RecvCloseAlert(const nsString& aName);
 
     virtual bool RecvLoadURIExternal(const URIParams& uri);
 
     virtual bool RecvSyncMessage(const nsString& aMsg,
                                  const ClonedMessageData& aData,
                                  const InfallibleTArray<CpowEntry>& aCpows,
-                                 const IPC::Principal& aPrincipal,
                                  InfallibleTArray<nsString>* aRetvals);
-    virtual bool AnswerRpcMessage(const nsString& aMsg,
-                                  const ClonedMessageData& aData,
-                                  const InfallibleTArray<CpowEntry>& aCpows,
-                                  const IPC::Principal& aPrincipal,
-                                  InfallibleTArray<nsString>* aRetvals);
     virtual bool RecvAsyncMessage(const nsString& aMsg,
                                   const ClonedMessageData& aData,
-                                  const InfallibleTArray<CpowEntry>& aCpows,
-                                  const IPC::Principal& aPrincipal);
+                                  const InfallibleTArray<CpowEntry>& aCpows);
 
     virtual bool RecvFilePathUpdateNotify(const nsString& aType,
                                           const nsString& aStorageName,
@@ -474,34 +405,22 @@ private:
 
     virtual bool RecvFirstIdle();
 
-    virtual bool RecvAudioChannelGetState(const AudioChannelType& aType,
+    virtual bool RecvAudioChannelGetMuted(const AudioChannelType& aType,
                                           const bool& aElementHidden,
                                           const bool& aElementWasHidden,
-                                          AudioChannelState* aValue);
+                                          bool* aValue);
 
-    virtual bool RecvAudioChannelRegisterType(const AudioChannelType& aType,
-                                              const bool& aWithVideo);
+    virtual bool RecvAudioChannelRegisterType(const AudioChannelType& aType);
     virtual bool RecvAudioChannelUnregisterType(const AudioChannelType& aType,
-                                                const bool& aElementHidden,
-                                                const bool& aWithVideo);
+                                                const bool& aElementHidden);
 
     virtual bool RecvAudioChannelChangedNotification();
 
-    virtual bool RecvAudioChannelChangeDefVolChannel(
-      const AudioChannelType& aType, const bool& aHidden);
-
     virtual bool RecvBroadcastVolume(const nsString& aVolumeName);
 
-    virtual bool RecvSpeakerManagerGetSpeakerStatus(bool* aValue);
-
-    virtual bool RecvSpeakerManagerForceSpeaker(const bool& aEnable);
+    virtual bool RecvRecordingDeviceEvents(const nsString& aRecordingStatus);
 
     virtual bool RecvSystemMessageHandled() MOZ_OVERRIDE;
-
-    virtual bool RecvNuwaReady() MOZ_OVERRIDE;
-
-    virtual bool RecvAddNewProcess(const uint32_t& aPid,
-                                   const InfallibleTArray<ProtocolFdMapping>& aFds) MOZ_OVERRIDE;
 
     virtual bool RecvCreateFakeVolume(const nsString& fsName, const nsString& mountPoint) MOZ_OVERRIDE;
 
@@ -512,9 +431,6 @@ private:
 
     virtual void ProcessingError(Result what) MOZ_OVERRIDE;
 
-    virtual bool RecvAddIdleObserver(const uint64_t& observerId, const uint32_t& aIdleTimeInS);
-    virtual bool RecvRemoveIdleObserver(const uint64_t& observerId, const uint32_t& aIdleTimeInS);
-
     // If you add strong pointers to cycle collected objects here, be sure to
     // release these objects in ShutDownProcess.  See the comment there for more
     // details.
@@ -524,6 +440,12 @@ private:
 
     uint64_t mChildID;
     int32_t mGeolocationWatchID;
+
+    // This is a cache of all of the memory reporters
+    // registered in the child process.  To update this, one
+    // can broadcast the topic "child-memory-reporter-request" using
+    // the nsIObserverService.
+    nsCOMArray<nsIMemoryReporter> mMemoryReporters;
 
     nsString mAppManifestURL;
 
@@ -564,25 +486,9 @@ private:
 
     nsRefPtr<nsConsoleService>  mConsoleService;
     nsConsoleService* GetConsoleService();
-
-    nsDataHashtable<nsUint64HashKey, nsCOMPtr<ParentIdleListener> > mIdleListeners;
 };
 
 } // namespace dom
 } // namespace mozilla
-
-class ParentIdleListener : public nsIObserver {
-public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIOBSERVER
-
-  ParentIdleListener(mozilla::dom::ContentParent* aParent, uint64_t aObserver)
-    : mParent(aParent), mObserver(aObserver)
-  {}
-  virtual ~ParentIdleListener() {}
-private:
-  nsRefPtr<mozilla::dom::ContentParent> mParent;
-  uint64_t mObserver;
-};
 
 #endif

@@ -2,10 +2,6 @@
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
 importScripts('worker_test_osfile_shared.js');
-importScripts("resource://gre/modules/workers/require.js");
-
-let SharedAll = require("resource://gre/modules/osfile/osfile_shared_allthreads.jsm");
-SharedAll.Config.DEBUG = true;
 
 function should_throw(f) {
   try {
@@ -31,6 +27,7 @@ self.onmessage = function onmessage_start(msg) {
     test_position();
     test_move_file();
     test_iter_dir();
+    test_mkdir();
     test_info();
     test_path();
     test_exists_file();
@@ -62,9 +59,9 @@ function test_offsetby() {
   }
 
   // Walk through the array with offsetBy by 8 bits
-  let uint8 = SharedAll.Type.uint8_t.in_ptr.implementation(buf);
+  let uint8 = OS.Shared.Type.uint8_t.in_ptr.implementation(buf);
   for (i = 0; i < LENGTH; ++i) {
-    let value = SharedAll.offsetBy(uint8, i).contents;
+    let value = OS.Shared.offsetBy(uint8, i).contents;
     if (value != i%256) {
       is(value, i % 256, "test_offsetby: Walking through array with offsetBy (8 bits)");
       break;
@@ -72,10 +69,10 @@ function test_offsetby() {
   }
 
   // Walk again by 16 bits
-  let uint16 = SharedAll.Type.uint16_t.in_ptr.implementation(buf);
+  let uint16 = OS.Shared.Type.uint16_t.in_ptr.implementation(buf);
   let view2 = new Uint16Array(buf);
   for (i = 0; i < LENGTH/2; ++i) {
-    let value = SharedAll.offsetBy(uint16, i).contents;
+    let value = OS.Shared.offsetBy(uint16, i).contents;
     if (value != view2[i]) {
       is(value, view2[i], "test_offsetby: Walking through array with offsetBy (16 bits)");
       break;
@@ -83,15 +80,15 @@ function test_offsetby() {
   }
 
   // Ensure that offsetBy(..., 0) is idempotent
-  let startptr = SharedAll.offsetBy(uint8, 0);
-  let startptr2 = SharedAll.offsetBy(startptr, 0);
+  let startptr = OS.Shared.offsetBy(uint8, 0);
+  let startptr2 = OS.Shared.offsetBy(startptr, 0);
   is(startptr.toString(), startptr2.toString(), "test_offsetby: offsetBy(..., 0) is idmpotent");
 
   // Ensure that offsetBy(ptr, ...) does not work if ptr is a void*
   let ptr = ctypes.voidptr_t(0);
   let exn;
   try {
-    SharedAll.offsetBy(ptr, 1);
+    OS.Shared.Utils.offsetBy(ptr, 1);
   } catch (x) {
     exn = x;
   }
@@ -652,41 +649,37 @@ function test_info() {
 
   let stop = new Date();
 
-  // We round down/up by 1s as file system precision is lower than
-  // Date precision (no clear specifications about that, but it seems
-  // that this can be a little over 1 second under ext3 and 2 seconds
-  // under FAT).
-  let SLOPPY_FILE_SYSTEM_ADJUSTMENT = 3000;
-  let startMs = start.getTime() - SLOPPY_FILE_SYSTEM_ADJUSTMENT;
-  let stopMs  = stop.getTime() + SLOPPY_FILE_SYSTEM_ADJUSTMENT;
-  info("Testing stat with bounds [ " + startMs + ", " + stopMs +" ]");
+  // We round down/up by 1s as file system precision is lower than Date precision
+  // (no clear specifications about that, but it seems that this can be a little
+  // over 1 second under ext3 and 2 seconds under FAT)
+  let startMs = start.getTime() - 2500;
+  let stopMs  = stop.getTime() + 2500;
 
   (function() {
     let birth;
-    if ("winBirthDate" in stat) {
-      birth = stat.winBirthDate;
-    } else if ("macBirthDate" in stat) {
-      birth = stat.macBirthDate;
+    if ("winBirthDate" in info) {
+      birth = info.winBirthDate;
+    } else if ("macBirthDate" in info) {
+      birth = info.macBirthDate;
     } else {
       ok(true, "Skipping birthdate test");
       return;
     }
     ok(birth.getTime() <= stopMs,
-    "test_info: platformBirthDate is consistent");
-    // Note: Previous versions of this test checked whether the file
-    // has been created after the start of the test. Unfortunately,
-    // this sometimes failed under Windows, in specific circumstances:
-    // if the file has been removed at the start of the test and
-    // recreated immediately, the Windows file system detects this and
-    // decides that the file was actually truncated rather than
-    // recreated, hence that it should keep its previous creation
-    // date.  Debugging hilarity ensues.
+    "test_info: file was created before now - " + stop + ", " + birth);
+    // Note: Previous versions of this test checked whether the file has
+    // been created after the start of the test. Unfortunately, this sometimes
+    // failed under Windows, in specific circumstances: if the file has been
+    // removed at the start of the test and recreated immediately, the Windows
+    // file system detects this and decides that the file was actually truncated
+    // rather than recreated, hence that it should keep its previous creation date.
+    // Debugging hilarity ensues.
   });
 
   let change = stat.lastModificationDate;
-  info("Testing lastModificationDate: " + change);
-  ok(change.getTime() >= startMs && change.getTime() <= stopMs,
-     "test_info: lastModificationDate is consistent");
+  ok(change.getTime() >= startMs
+     && change.getTime() <= stopMs,
+     "test_info: file has changed between the start of the test and now - " + start + ", " + stop + ", " + change);
 
   // Test OS.File.prototype.stat on new file
   file = OS.File.open(filename);
@@ -703,20 +696,23 @@ function test_info() {
 
   stop = new Date();
 
-  // Round up/down as above
-  startMs = start.getTime() - SLOPPY_FILE_SYSTEM_ADJUSTMENT;
-  stopMs  = stop.getTime() + SLOPPY_FILE_SYSTEM_ADJUSTMENT;
-  info("Testing stat 2 with bounds [ " + startMs + ", " + stopMs +" ]");
+  // We round down/up by 1s as file system precision is lower than Date precision
+  startMs = start.getTime() - 1000;
+  stopMs  = stop.getTime() + 1000;
+
+  let birth = stat.creationDate;
+  ok(birth.getTime() <= stopMs,
+      "test_info: file 2 was created between the start of the test and now - " + start +  ", " + stop + ", " + birth);
 
   let access = stat.lastAccessDate;
-  info("Testing lastAccessDate: " + access);
-  ok(access.getTime() >= startMs && access.getTime() <= stopMs,
-     "test_info: lastAccessDate is consistent");
+  ok(access.getTime() >= startMs
+     && access.getTime() <= stopMs,
+     "test_info: file 2 was accessed between the start of the test and now - " + start + ", " + stop + ", " + access);
 
   change = stat.lastModificationDate;
-  info("Testing lastModificationDate 2: " + change);
-  ok(change.getTime() >= startMs && change.getTime() <= stopMs,
-     "test_info: lastModificationDate 2 is consistent");
+  ok(change.getTime() >= startMs
+     && change.getTime() <= stopMs,
+     "test_info: file 2 has changed between the start of the test and now - " + start + ", " + stop + ", " + change);
 
   // Test OS.File.stat on directory
   stat = OS.File.stat(OS.File.getCurrentDirectory());
@@ -724,6 +720,66 @@ function test_info() {
   ok(stat.isDir, "test_info: directory is a directory");
 
   info("test_info: Complete");
+}
+
+function test_mkdir()
+{
+  info("test_mkdir: Starting");
+
+  let dirName = "test_dir.tmp";
+  OS.File.removeEmptyDir(dirName, {ignoreAbsent: true});
+
+  // Check that removing absent directories is handled correctly
+  let exn;
+  try {
+    OS.File.removeEmptyDir(dirName, {ignoreAbsent: true});
+  } catch (x) {
+    exn = x;
+  }
+  ok(!exn, "test_mkdir: ignoreAbsent works");
+
+  exn = null;
+  try {
+    OS.File.removeEmptyDir(dirName);
+  } catch (x) {
+    exn = x;
+  }
+  ok(!!exn, "test_mkdir: removeDir throws if there is no such directory");
+  ok(exn instanceof OS.File.Error && exn.becauseNoSuchFile, "test_mkdir: removeDir throws the correct exception if there is no such directory");
+
+  info("test_mkdir: Creating directory");
+  OS.File.makeDir(dirName);
+  ok(OS.File.stat(dirName).isDir, "test_mkdir: Created directory is a directory");
+
+  info("test_mkdir: Creating directory that already exists");
+  exn = null;
+  try {
+    OS.File.makeDir(dirName);
+  } catch (x) {
+    exn = x;
+  }
+  ok(exn && exn instanceof OS.File.Error && exn.becauseExists, "test_mkdir: makeDir over an existing directory failed for all the right reasons");
+
+  info("test_mkdir: Creating directory that already exists with ignoreExisting");
+  exn = null;
+  try {
+    OS.File.makeDir(dirName, {ignoreExisting: true});
+  } catch(x) {
+    exn = x;
+  }
+  ok(!exn, "test_mkdir: makeDir over an existing directory with ignoreExisting is successful");
+
+  // Cleanup - and check that we have cleaned up
+  OS.File.removeEmptyDir(dirName);
+
+  try {
+    OS.File.stat(dirName);
+    ok(false, "test_mkdir: Directory was not removed");
+  } catch (x) {
+    ok(x instanceof OS.File.Error && x.becauseNoSuchFile, "test_mkdir: Directory was removed");
+  }
+
+  info("test_mkdir: Complete");
 }
 
 // Note that most of the features of path are tested in
@@ -783,16 +839,4 @@ function test_remove_file()
     OS.File.remove(absent_file_name);
   });
   ok(!exn, "test_remove_file: ignoreAbsent works");
-
-  if (OS.Win) {
-    let file_name = "test_osfile_front_file_to_remove.tmp";
-    let file = OS.File.open(file_name, {write: true});
-    file.close();
-    ok(OS.File.exists(file_name), "test_remove_file: test file exists");
-    OS.Win.File.SetFileAttributes(file_name,
-                                  OS.Constants.Win.FILE_ATTRIBUTE_READONLY);
-    OS.File.remove(file_name);
-    ok(!OS.File.exists(file_name),
-       "test_remove_file: test file has been removed");
-  }
 }

@@ -4,8 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/ArrayUtils.h"
-#include "mozilla/MouseEvents.h"
+#include "mozilla/Util.h"
 #include "mozilla/Likely.h"
 
 #include "nscore.h"
@@ -13,7 +12,6 @@
 #include "nsAttrValueInlines.h"
 #include "nsCOMPtr.h"
 #include "nsIAtom.h"
-#include "nsIContentInlines.h"
 #include "nsIContentViewer.h"
 #include "mozilla/css/StyleRule.h"
 #include "nsIDocument.h"
@@ -35,7 +33,7 @@
 #include "nsIURL.h"
 #include "nsNetUtil.h"
 #include "nsEscape.h"
-#include "nsIFrameInlines.h"
+#include "nsIFrame.h"
 #include "nsIScrollableFrame.h"
 #include "nsView.h"
 #include "nsViewManager.h"
@@ -48,7 +46,6 @@
 #include "nsError.h"
 #include "nsScriptLoader.h"
 #include "nsRuleData.h"
-#include "nsIPrincipal.h"
 
 #include "nsPresState.h"
 #include "nsILayoutHistoryState.h"
@@ -70,7 +67,7 @@
 #include "nsFocusManager.h"
 #include "nsAttrValueOrString.h"
 
-#include "mozilla/MutationEvent.h"
+#include "nsMutationEvent.h"
 #include "nsDOMStringMap.h"
 
 #include "nsIEditor.h"
@@ -102,7 +99,6 @@
 #include "nsDOMTouchEvent.h"
 #include "nsGlobalWindow.h"
 #include "mozilla/dom/HTMLBodyElement.h"
-#include "imgIContainer.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -843,7 +839,7 @@ nsGenericHTMLElement::GetEventListenerManagerForAttr(nsIAtom* aAttrName,
     if ((win = document->GetInnerWindow())) {
       nsCOMPtr<EventTarget> piTarget(do_QueryInterface(win));
 
-      return piTarget->GetOrCreateListenerManager();
+      return piTarget->GetListenerManager(true);
     }
 
     return nullptr;
@@ -872,7 +868,8 @@ nsGenericHTMLElement::GetOn##name_()                                          \
   return nsINode::GetOn##name_();                                             \
 }                                                                             \
 void                                                                          \
-nsGenericHTMLElement::SetOn##name_(EventHandlerNonNull* handler)              \
+nsGenericHTMLElement::SetOn##name_(EventHandlerNonNull* handler,              \
+                                   ErrorResult& error)                        \
 {                                                                             \
   if (Tag() == nsGkAtoms::body || Tag() == nsGkAtoms::frameset) {             \
     nsPIDOMWindow* win = OwnerDoc()->GetInnerWindow();                        \
@@ -882,10 +879,10 @@ nsGenericHTMLElement::SetOn##name_(EventHandlerNonNull* handler)              \
                                                                               \
     nsCOMPtr<nsISupports> supports = do_QueryInterface(win);                  \
     nsGlobalWindow* globalWin = nsGlobalWindow::FromSupports(supports);       \
-    return globalWin->SetOn##name_(handler);                                  \
+    return globalWin->SetOn##name_(handler, error);                           \
   }                                                                           \
                                                                               \
-  return nsINode::SetOn##name_(handler);                                      \
+  return nsINode::SetOn##name_(handler, error);                               \
 }
 #define ERROR_EVENT(name_, id_, type_, struct_)                               \
 already_AddRefed<EventHandlerNonNull>                                         \
@@ -911,7 +908,8 @@ nsGenericHTMLElement::GetOn##name_()                                          \
   return handler.forget();                                                    \
 }                                                                             \
 void                                                                          \
-nsGenericHTMLElement::SetOn##name_(EventHandlerNonNull* handler)              \
+nsGenericHTMLElement::SetOn##name_(EventHandlerNonNull* handler,              \
+                                   ErrorResult& error)                        \
 {                                                                             \
   if (Tag() == nsGkAtoms::body || Tag() == nsGkAtoms::frameset) {             \
     nsPIDOMWindow* win = OwnerDoc()->GetInnerWindow();                        \
@@ -925,10 +923,10 @@ nsGenericHTMLElement::SetOn##name_(EventHandlerNonNull* handler)              \
     if (handler) {                                                            \
       errorHandler = new OnErrorEventHandlerNonNull(handler);                 \
     }                                                                         \
-    return globalWin->SetOn##name_(errorHandler);                             \
+    return globalWin->SetOn##name_(errorHandler, error);                      \
   }                                                                           \
                                                                               \
-  return nsINode::SetOn##name_(handler);                                      \
+  return nsINode::SetOn##name_(handler, error);                               \
 }
 #include "nsEventNameList.h" // IWYU pragma: keep
 #undef ERROR_EVENT
@@ -1010,7 +1008,8 @@ nsGenericHTMLElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
       UnsetFlags(NODE_HAS_ACCESSKEY);
     }
     else if (IsEventAttributeName(aAttribute)) {
-      if (nsEventListenerManager* manager = GetExistingListenerManager()) {
+      nsEventListenerManager* manager = GetListenerManager(false);
+      if (manager) {
         manager->RemoveEventHandler(aAttribute, EmptyString());
       }
     }
@@ -1183,6 +1182,24 @@ nsGenericHTMLElement::GetPresContext()
   return nullptr;
 }
 
+static const nsAttrValue::EnumTable kAlignTable[] = {
+  { "left",      NS_STYLE_TEXT_ALIGN_LEFT },
+  { "right",     NS_STYLE_TEXT_ALIGN_RIGHT },
+
+  { "top",       NS_STYLE_VERTICAL_ALIGN_TOP },
+  { "middle",    NS_STYLE_VERTICAL_ALIGN_MIDDLE_WITH_BASELINE },
+  { "bottom",    NS_STYLE_VERTICAL_ALIGN_BASELINE },
+
+  { "center",    NS_STYLE_VERTICAL_ALIGN_MIDDLE_WITH_BASELINE },
+  { "baseline",  NS_STYLE_VERTICAL_ALIGN_BASELINE },
+
+  { "texttop",   NS_STYLE_VERTICAL_ALIGN_TEXT_TOP },
+  { "absmiddle", NS_STYLE_VERTICAL_ALIGN_MIDDLE },
+  { "abscenter", NS_STYLE_VERTICAL_ALIGN_MIDDLE },
+  { "absbottom", NS_STYLE_VERTICAL_ALIGN_BOTTOM },
+  { 0 }
+};
+
 static const nsAttrValue::EnumTable kDivAlignTable[] = {
   { "left", NS_STYLE_TEXT_ALIGN_MOZ_LEFT },
   { "right", NS_STYLE_TEXT_ALIGN_MOZ_RIGHT },
@@ -1223,24 +1240,6 @@ bool
 nsGenericHTMLElement::ParseAlignValue(const nsAString& aString,
                                       nsAttrValue& aResult)
 {
-  static const nsAttrValue::EnumTable kAlignTable[] = {
-    { "left",      NS_STYLE_TEXT_ALIGN_LEFT },
-    { "right",     NS_STYLE_TEXT_ALIGN_RIGHT },
-
-    { "top",       NS_STYLE_VERTICAL_ALIGN_TOP },
-    { "middle",    NS_STYLE_VERTICAL_ALIGN_MIDDLE_WITH_BASELINE },
-    { "bottom",    NS_STYLE_VERTICAL_ALIGN_BASELINE },
-
-    { "center",    NS_STYLE_VERTICAL_ALIGN_MIDDLE_WITH_BASELINE },
-    { "baseline",  NS_STYLE_VERTICAL_ALIGN_BASELINE },
-
-    { "texttop",   NS_STYLE_VERTICAL_ALIGN_TEXT_TOP },
-    { "absmiddle", NS_STYLE_VERTICAL_ALIGN_MIDDLE },
-    { "abscenter", NS_STYLE_VERTICAL_ALIGN_MIDDLE },
-    { "absbottom", NS_STYLE_VERTICAL_ALIGN_BOTTOM },
-    { 0 }
-  };
-
   return aResult.ParseEnumValue(aString, kAlignTable, false);
 }
 
@@ -1814,15 +1813,6 @@ nsGenericHTMLElement::GetURIAttr(nsIAtom* aAttr, nsIAtom* aBaseAttr, nsIURI** aU
                                             attr->GetStringValue(),
                                             OwnerDoc(), baseURI);
   return true;
-}
-
-/* static */ bool
-nsGenericHTMLElement::IsScrollGrabAllowed(JSContext*, JSObject*)
-{
-  // Only allow scroll grabbing in chrome and certified apps.
-  nsIPrincipal* prin = nsContentUtils::GetSubjectPrincipal();
-  return nsContentUtils::IsSystemPrincipal(prin) ||
-    prin->GetAppStatus() == nsIPrincipal::APP_STATUS_CERTIFIED;
 }
 
 nsresult
@@ -2741,8 +2731,8 @@ nsGenericHTMLElement::Click()
   // Click() is never called from native code, but it may be
   // called from chrome JS. Mark this event trusted if Click()
   // is called from chrome code.
-  WidgetMouseEvent event(nsContentUtils::IsCallerChrome(),
-                         NS_MOUSE_CLICK, nullptr, WidgetMouseEvent::eReal);
+  nsMouseEvent event(nsContentUtils::IsCallerChrome(),
+                     NS_MOUSE_CLICK, nullptr, nsMouseEvent::eReal);
   event.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_UNKNOWN;
 
   nsEventDispatcher::Dispatch(static_cast<nsIContent*>(this), context, &event);
@@ -2844,8 +2834,8 @@ nsGenericHTMLElement::PerformAccesskey(bool aKeyCausesActivation,
 
   if (aKeyCausesActivation) {
     // Click on it if the users prefs indicate to do so.
-    WidgetMouseEvent event(aIsTrustedEvent, NS_MOUSE_CLICK, nullptr,
-                           WidgetMouseEvent::eReal);
+    nsMouseEvent event(aIsTrustedEvent, NS_MOUSE_CLICK,
+                       nullptr, nsMouseEvent::eReal);
     event.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_KEYBOARD;
 
     nsAutoPopupStatePusher popupStatePusher(aIsTrustedEvent ?
@@ -3164,7 +3154,7 @@ nsGenericHTMLElement::GetItemValue(JSContext* aCx, JSObject* aScope,
 
   nsString string;
   GetItemValueText(string);
-  JS::Rooted<JS::Value> v(aCx);
+  JS::Value v;
   if (!xpc::NonVoidStringToJsval(aCx, string, &v)) {
     aError.Throw(NS_ERROR_FAILURE);
     return JS::UndefinedValue();

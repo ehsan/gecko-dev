@@ -3,9 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const TEST_BASE_HTTP = "http://example.com/browser/browser/devtools/styleinspector/test/";
-const TEST_BASE_HTTPS = "https://example.com/browser/browser/devtools/styleinspector/test/";
-
 Services.prefs.setBoolPref("devtools.debugger.log", true);
 SimpleTest.registerCleanupFunction(() => {
   Services.prefs.clearUserPref("devtools.debugger.log");
@@ -51,12 +48,6 @@ function openInspector(callback)
   });
 }
 
-function getActiveInspector()
-{
-  let target = TargetFactory.forTab(gBrowser.selectedTab);
-  return gDevTools.getToolbox(target).getPanel("inspector");
-}
-
 function openRuleView(callback)
 {
   openInspector(inspector => {
@@ -73,8 +64,8 @@ function openComputedView(callback)
   openInspector(inspector => {
     inspector.sidebar.once("computedview-ready", () => {
       inspector.sidebar.select("computedview");
-      let computedView = inspector.sidebar.getWindowForTab("computedview").computedview.view;
-      callback(inspector, computedView);
+      let ruleView = inspector.sidebar.getWindowForTab("computedview").computedview.view;
+      callback(inspector, ruleView);
     })
   });
 }
@@ -108,14 +99,12 @@ function tearDown()
   browser = hudId = hud = filterBox = outputNode = cs = null;
 }
 
-function getComputedView() {
-  let inspector = getActiveInspector();
+function getComputedView(inspector) {
   return inspector.sidebar.getWindowForTab("computedview").computedview.view;
 }
 
 function ruleView()
 {
-  let inspector = getActiveInspector();
   return inspector.sidebar.getWindowForTab("ruleview").ruleview.view;
 }
 
@@ -175,67 +164,6 @@ function promiseDone(promise) {
   });
 }
 
-function getComputedPropertyValue(aName)
-{
-  let computedview = getComputedView();
-  let props = computedview.styleDocument.querySelectorAll(".property-view");
-
-  for (let prop of props) {
-    let name = prop.querySelector(".property-name");
-
-    if (name.textContent === aName) {
-      let value = prop.querySelector(".property-value");
-      return value.textContent;
-    }
-  }
-}
-
-/**
- * Polls a given function waiting for it to become true.
- *
- * @param object aOptions
- *        Options object with the following properties:
- *        - validatorFn
- *        A validator function that returns a boolean. This is called every few
- *        milliseconds to check if the result is true. When it is true, succesFn
- *        is called and polling stops. If validatorFn never returns true, then
- *        polling timeouts after several tries and a failure is recorded.
- *        - successFn
- *        A function called when the validator function returns true.
- *        - failureFn
- *        A function called if the validator function timeouts - fails to return
- *        true in the given time.
- *        - name
- *        Name of test. This is used to generate the success and failure
- *        messages.
- *        - timeout
- *        Timeout for validator function, in milliseconds. Default is 5000.
- */
-function waitForSuccess(aOptions)
-{
-  let start = Date.now();
-  let timeout = aOptions.timeout || 5000;
-
-  function wait(validatorFn, successFn, failureFn)
-  {
-    if ((Date.now() - start) > timeout) {
-      // Log the failure.
-      ok(false, "Timed out while waiting for: " + aOptions.name);
-      failureFn(aOptions);
-      return;
-    }
-
-    if (validatorFn(aOptions)) {
-      ok(true, aOptions.name);
-      successFn();
-    }
-    else {
-      setTimeout(function() wait(validatorFn, successFn, failureFn), 100);
-    }
-  }
-
-  wait(aOptions.validatorFn, aOptions.successFn, aOptions.failureFn);
-}
 
 registerCleanupFunction(tearDown);
 

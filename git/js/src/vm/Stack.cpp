@@ -14,13 +14,10 @@
 #include "gc/Marking.h"
 #ifdef JS_ION
 #include "jit/BaselineFrame.h"
-#include "jit/JitCompartment.h"
+#include "jit/IonCompartment.h"
 #endif
-
-#include "jit/IonFrameIterator-inl.h"
 #include "vm/Interpreter-inl.h"
 #include "vm/Probes-inl.h"
-#include "vm/ScopeObject-inl.h"
 
 using namespace js;
 
@@ -37,9 +34,9 @@ StackFrame::initExecuteFrame(JSContext *cx, JSScript *script, AbstractFramePtr e
      * script in the context of another frame and the frame type is determined
      * by the context.
      */
-    flags_ = type | HAS_SCOPECHAIN;
+    flags_ = type | HAS_SCOPECHAIN | HAS_BLOCKCHAIN;
 
-    JSObject *callee = nullptr;
+    JSObject *callee = NULL;
     if (!(flags_ & (GLOBAL))) {
         if (evalInFramePrev) {
             JS_ASSERT(evalInFramePrev.isFunctionFrame() || evalInFramePrev.isGlobalFrame());
@@ -78,9 +75,10 @@ StackFrame::initExecuteFrame(JSContext *cx, JSScript *script, AbstractFramePtr e
     }
 
     scopeChain_ = &scopeChain;
-    prev_ = nullptr;
-    prevpc_ = nullptr;
-    prevsp_ = nullptr;
+    prev_ = NULL;
+    prevpc_ = NULL;
+    prevsp_ = NULL;
+    blockChain_ = NULL;
 
     JS_ASSERT_IF(evalInFramePrev, isDebuggerFrame());
     evalInFramePrev_ = evalInFramePrev;
@@ -98,7 +96,7 @@ StackFrame::copyFrameAndValues(JSContext *cx, Value *vp, StackFrame *otherfp,
 {
     JS_ASSERT(othervp == otherfp->generatorArgsSnapshotBegin());
     JS_ASSERT(othersp >= otherfp->slots());
-    JS_ASSERT(othersp <= otherfp->generatorSlotsSnapshotBegin() + otherfp->script()->nslots());
+    JS_ASSERT(othersp <= otherfp->generatorSlotsSnapshotBegin() + otherfp->script()->nslots);
 
     /* Copy args, StackFrame, and slots. */
     const Value *srcend = otherfp->generatorArgsSnapshotEnd();
@@ -122,6 +120,9 @@ StackFrame::copyFrameAndValues(JSContext *cx, Value *vp, StackFrame *otherfp,
         if (doPostBarrier)
             HeapValue::writeBarrierPost(*dst, dst);
     }
+
+    if (cx->compartment()->debugMode())
+        DebugScopes::onGeneratorFrameChange(otherfp, this, cx);
 }
 
 /* Note: explicit instantiation for js_NewGenerator located in jsiter.cpp. */
@@ -151,13 +152,34 @@ StackFrame::writeBarrierPost()
         HeapValue::writeBarrierPost(rval_, &rval_);
 }
 
+JSGenerator *
+StackFrame::maybeSuspendedGenerator(JSRuntime *rt)
+{
+    /*
+     * A suspended generator's frame is embedded inside the JSGenerator object
+     * and is not currently running.
+     */
+    if (!isGeneratorFrame() || !isSuspended())
+        return NULL;
+
+    /*
+     * Once we know we have a suspended generator frame, there is a static
+     * offset from the frame's snapshot to beginning of the JSGenerator.
+     */
+    char *vp = reinterpret_cast<char *>(generatorArgsSnapshotBegin());
+    char *p = vp - offsetof(JSGenerator, stackSnapshot);
+    JSGenerator *gen = reinterpret_cast<JSGenerator *>(p);
+    JS_ASSERT(gen->fp == this);
+    return gen;
+}
+
 bool
 StackFrame::copyRawFrameSlots(AutoValueVector *vec)
 {
-    if (!vec->resize(numFormalArgs() + script()->nfixed()))
+    if (!vec->resize(numFormalArgs() + script()->nfixed))
         return false;
     PodCopy(vec->begin(), argv(), numFormalArgs());
-    PodCopy(vec->begin() + numFormalArgs(), slots(), script()->nfixed());
+    PodCopy(vec->begin() + numFormalArgs(), slots(), script()->nfixed);
     return true;
 }
 
@@ -165,12 +187,12 @@ JSObject *
 StackFrame::createRestParameter(JSContext *cx)
 {
     JS_ASSERT(fun()->hasRest());
-    unsigned nformal = fun()->nargs() - 1, nactual = numActualArgs();
+    unsigned nformal = fun()->nargs - 1, nactual = numActualArgs();
     unsigned nrest = (nactual > nformal) ? nactual - nformal : 0;
     Value *restvp = argv() + nformal;
-    JSObject *obj = NewDenseCopiedArray(cx, nrest, restvp, nullptr);
+    JSObject *obj = NewDenseCopiedArray(cx, nrest, restvp, NULL);
     if (!obj)
-        return nullptr;
+        return NULL;
     types::FixRestArgumentsType(cx, obj);
     return obj;
 }
@@ -180,7 +202,7 @@ AssertDynamicScopeMatchesStaticScope(JSContext *cx, JSScript *script, JSObject *
 {
 #ifdef DEBUG
     RootedObject enclosingScope(cx, script->enclosingStaticScope());
-    for (StaticScopeIter<NoGC> i(enclosingScope); !i.done(); i++) {
+    for (StaticScopeIter i(cx, enclosingScope); !i.done(); i++) {
         if (i.hasDynamicScopeObject()) {
             /*
              * 'with' does not participate in the static scope of the script,
@@ -190,15 +212,15 @@ AssertDynamicScopeMatchesStaticScope(JSContext *cx, JSScript *script, JSObject *
                 scope = &scope->as<WithObject>().enclosingScope();
 
             switch (i.type()) {
-              case StaticScopeIter<NoGC>::BLOCK:
+              case StaticScopeIter::BLOCK:
                 JS_ASSERT(i.block() == scope->as<ClonedBlockObject>().staticBlock());
                 scope = &scope->as<ClonedBlockObject>().enclosingScope();
                 break;
-              case StaticScopeIter<NoGC>::FUNCTION:
+              case StaticScopeIter::FUNCTION:
                 JS_ASSERT(scope->as<CallObject>().callee().nonLazyScript() == i.funScript());
                 scope = &scope->as<CallObject>().enclosingScope();
                 break;
-              case StaticScopeIter<NoGC>::NAMED_LAMBDA:
+              case StaticScopeIter::NAMED_LAMBDA:
                 scope = &scope->as<DeclEnvObject>().enclosingScope();
                 break;
             }
@@ -230,22 +252,22 @@ StackFrame::prologue(JSContext *cx)
     RootedScript script(cx, this->script());
 
     JS_ASSERT(!isGeneratorFrame());
-    JS_ASSERT(cx->interpreterRegs().pc == script->code());
+    JS_ASSERT(cx->interpreterRegs().pc == script->code);
 
     if (isEvalFrame()) {
-        if (script->strict()) {
+        if (script->strict) {
             CallObject *callobj = CallObject::createForStrictEval(cx, this);
             if (!callobj)
                 return false;
             pushOnScopeChain(*callobj);
             flags_ |= HAS_CALL_OBJ;
         }
-        probes::EnterScript(cx, script, nullptr, this);
+        Probes::enterScript(cx, script, NULL, this);
         return true;
     }
 
     if (isGlobalFrame()) {
-        probes::EnterScript(cx, script, nullptr, this);
+        Probes::enterScript(cx, script, NULL, this);
         return true;
     }
 
@@ -257,14 +279,13 @@ StackFrame::prologue(JSContext *cx)
 
     if (isConstructing()) {
         RootedObject callee(cx, &this->callee());
-        JSObject *obj = CreateThisForFunction(cx, callee,
-                                              useNewType() ? SingletonObject : GenericObject);
+        JSObject *obj = CreateThisForFunction(cx, callee, useNewType());
         if (!obj)
             return false;
         functionThis() = ObjectValue(*obj);
     }
 
-    probes::EnterScript(cx, script, script->function(), this);
+    Probes::enterScript(cx, script, script->function(), this);
     return true;
 }
 
@@ -272,14 +293,15 @@ void
 StackFrame::epilogue(JSContext *cx)
 {
     JS_ASSERT(!isYielding());
+    JS_ASSERT(!hasBlockChain());
 
     RootedScript script(cx, this->script());
-    probes::ExitScript(cx, script, script->function(), hasPushedSPSFrame());
+    Probes::exitScript(cx, script, script->function(), this);
 
     if (isEvalFrame()) {
         if (isStrictEvalFrame()) {
             JS_ASSERT_IF(hasCallObj(), scopeChain()->as<CallObject>().isForEval());
-            if (JS_UNLIKELY(cx->compartment()->debugMode()))
+            if (cx->compartment()->debugMode())
                 DebugScopes::onPopStrictEvalScope(this);
         } else if (isDirectEvalFrame()) {
             if (isDebuggerFrame())
@@ -315,7 +337,7 @@ StackFrame::epilogue(JSContext *cx)
     else
         AssertDynamicScopeMatchesStaticScope(cx, script, scopeChain());
 
-    if (JS_UNLIKELY(cx->compartment()->debugMode()))
+    if (cx->compartment()->debugMode())
         DebugScopes::onPopCall(this, cx);
 
     if (isConstructing() && thisValue().isObject() && returnValue().isPrimitive())
@@ -325,29 +347,45 @@ StackFrame::epilogue(JSContext *cx)
 bool
 StackFrame::pushBlock(JSContext *cx, StaticBlockObject &block)
 {
-    JS_ASSERT (block.needsClone());
+    JS_ASSERT_IF(hasBlockChain(), blockChain_ == block.enclosingBlock());
 
-    Rooted<StaticBlockObject *> blockHandle(cx, &block);
-    ClonedBlockObject *clone = ClonedBlockObject::create(cx, blockHandle, this);
-    if (!clone)
-        return false;
+    if (block.needsClone()) {
+        Rooted<StaticBlockObject *> blockHandle(cx, &block);
+        ClonedBlockObject *clone = ClonedBlockObject::create(cx, blockHandle, this);
+        if (!clone)
+            return false;
 
-    pushOnScopeChain(*clone);
+        pushOnScopeChain(*clone);
 
+        blockChain_ = blockHandle;
+    } else {
+        blockChain_ = &block;
+    }
+
+    flags_ |= HAS_BLOCKCHAIN;
     return true;
 }
 
 void
 StackFrame::popBlock(JSContext *cx)
 {
-    JS_ASSERT(scopeChain_->is<ClonedBlockObject>());
-    popOffScopeChain();
+    JS_ASSERT(hasBlockChain());
+
+    if (cx->compartment()->debugMode())
+        DebugScopes::onPopBlock(cx, this);
+
+    if (blockChain_->needsClone()) {
+        JS_ASSERT(scopeChain_->as<ClonedBlockObject>().staticBlock() == *blockChain_);
+        popOffScopeChain();
+    }
+
+    blockChain_ = blockChain_->enclosingBlock();
 }
 
 void
 StackFrame::popWith(JSContext *cx)
 {
-    if (JS_UNLIKELY(cx->compartment()->debugMode()))
+    if (cx->compartment()->debugMode())
         DebugScopes::onPopWith(this);
 
     JS_ASSERT(scopeChain()->is<WithObject>());
@@ -387,9 +425,6 @@ StackFrame::markValues(JSTracer *trc, Value *sp)
         // Mark callee, |this| and arguments.
         unsigned argc = Max(numActualArgs(), numFormalArgs());
         gc::MarkValueRootRange(trc, argc + 2, argv_ - 2, "fp argv");
-    } else {
-        // Mark callee and |this|
-        gc::MarkValueRootRange(trc, 2, ((Value *)this) - 2, "stack callee and this");
     }
 }
 
@@ -423,14 +458,15 @@ FrameRegs::setToEndOfScript()
 {
     JSScript *script = fp()->script();
     sp = fp()->base();
-    pc = script->codeEnd() - JSOP_RETRVAL_LENGTH;
-    JS_ASSERT(*pc == JSOP_RETRVAL);
+    pc = script->code + script->length - JSOP_STOP_LENGTH;
+    JS_ASSERT(*pc == JSOP_STOP);
 }
 
 /*****************************************************************************/
 
 StackFrame *
-InterpreterStack::pushInvokeFrame(JSContext *cx, const CallArgs &args, InitialFrameFlags initial)
+InterpreterStack::pushInvokeFrame(JSContext *cx, const CallArgs &args, InitialFrameFlags initial,
+                                  FrameGuard *fg)
 {
     LifoAlloc::Mark mark = allocator_.mark();
 
@@ -441,30 +477,32 @@ InterpreterStack::pushInvokeFrame(JSContext *cx, const CallArgs &args, InitialFr
     Value *argv;
     StackFrame *fp = getCallFrame(cx, args, script, &flags, &argv);
     if (!fp)
-        return nullptr;
+        return NULL;
 
     fp->mark_ = mark;
-    fp->initCallFrame(cx, nullptr, nullptr, nullptr, *fun, script, argv, args.length(), flags);
+    fp->initCallFrame(cx, NULL, NULL, NULL, *fun, script, argv, args.length(), flags);
+    fg->setPushed(*this, fp);
     return fp;
 }
 
 StackFrame *
 InterpreterStack::pushExecuteFrame(JSContext *cx, HandleScript script, const Value &thisv,
                                    HandleObject scopeChain, ExecuteType type,
-                                   AbstractFramePtr evalInFrame)
+                                   AbstractFramePtr evalInFrame, FrameGuard *fg)
 {
     LifoAlloc::Mark mark = allocator_.mark();
 
-    unsigned nvars = 2 /* callee, this */ + script->nslots();
+    unsigned nvars = 2 /* callee, this */ + script->nslots;
     uint8_t *buffer = allocateFrame(cx, sizeof(StackFrame) + nvars * sizeof(Value));
     if (!buffer)
-        return nullptr;
+        return NULL;
 
     StackFrame *fp = reinterpret_cast<StackFrame *>(buffer + 2 * sizeof(Value));
     fp->mark_ = mark;
     fp->initExecuteFrame(cx, script, evalInFrame, thisv, *scopeChain, type);
     fp->initVarsToUndefined();
 
+    fg->setPushed(*this, fp);
     return fp;
 }
 
@@ -523,7 +561,7 @@ ScriptFrameIter::settleOnActivation()
 
 #ifdef JS_ION
         if (activation->isJit()) {
-            data_.ionFrames_ = jit::IonFrameIterator(data_.activations_);
+            data_.ionFrames_ = ion::IonFrameIterator(data_.activations_);
 
             // Stop at the first scripted frame.
             while (!data_.ionFrames_.isScripted() && !data_.ionFrames_.done())
@@ -570,11 +608,11 @@ ScriptFrameIter::Data::Data(JSContext *cx, PerThreadData *perThread, SavedOption
     cx_(cx),
     savedOption_(savedOption),
     contextOption_(contextOption),
-    pc_(nullptr),
-    interpFrames_(nullptr),
+    pc_(NULL),
+    interpFrames_(NULL),
     activations_(cx->runtime())
 #ifdef JS_ION
-  , ionFrames_((uint8_t *)nullptr, SequentialExecution)
+  , ionFrames_((uint8_t *)NULL)
 #endif
 {
 }
@@ -597,7 +635,7 @@ ScriptFrameIter::Data::Data(const ScriptFrameIter::Data &other)
 ScriptFrameIter::ScriptFrameIter(JSContext *cx, SavedOption savedOption)
   : data_(cx, &cx->runtime()->mainThread, savedOption, CURRENT_CONTEXT)
 #ifdef JS_ION
-    , ionInlineFrames_(cx, (js::jit::IonFrameIterator*) nullptr)
+    , ionInlineFrames_(cx, (js::ion::IonFrameIterator*) NULL)
 #endif
 {
     settleOnActivation();
@@ -606,7 +644,7 @@ ScriptFrameIter::ScriptFrameIter(JSContext *cx, SavedOption savedOption)
 ScriptFrameIter::ScriptFrameIter(JSContext *cx, ContextOption contextOption, SavedOption savedOption)
   : data_(cx, &cx->runtime()->mainThread, savedOption, contextOption)
 #ifdef JS_ION
-    , ionInlineFrames_(cx, (js::jit::IonFrameIterator*) nullptr)
+    , ionInlineFrames_(cx, (js::ion::IonFrameIterator*) NULL)
 #endif
 {
     settleOnActivation();
@@ -616,7 +654,7 @@ ScriptFrameIter::ScriptFrameIter(const ScriptFrameIter &other)
   : data_(other.data_)
 #ifdef JS_ION
     , ionInlineFrames_(other.data_.cx_,
-                       data_.ionFrames_.isScripted() ? &other.ionInlineFrames_ : nullptr)
+                       data_.ionFrames_.isScripted() ? &other.ionInlineFrames_ : NULL)
 #endif
 {
 }
@@ -624,7 +662,7 @@ ScriptFrameIter::ScriptFrameIter(const ScriptFrameIter &other)
 ScriptFrameIter::ScriptFrameIter(const Data &data)
   : data_(data)
 #ifdef JS_ION
-    , ionInlineFrames_(data.cx_, data_.ionFrames_.isOptimizedJS() ? &data_.ionFrames_ : nullptr)
+    , ionInlineFrames_(data.cx_, data_.ionFrames_.isOptimizedJS() ? &data_.ionFrames_ : NULL)
 #endif
 {
     JS_ASSERT(data.cx_);
@@ -639,7 +677,7 @@ ScriptFrameIter::nextJitFrame()
         data_.pc_ = ionInlineFrames_.pc();
     } else {
         JS_ASSERT(data_.ionFrames_.isBaselineJS());
-        data_.ionFrames_.baselineScriptAndPc(nullptr, &data_.pc_);
+        data_.ionFrames_.baselineScriptAndPc(NULL, &data_.pc_);
     }
 }
 
@@ -724,18 +762,9 @@ ScriptFrameIter::copyData() const
      * This doesn't work for optimized Ion frames since ionInlineFrames_ is
      * not copied.
      */
-    JS_ASSERT(data_.ionFrames_.type() != jit::IonFrame_OptimizedJS);
+    JS_ASSERT(data_.ionFrames_.type() != ion::IonFrame_OptimizedJS);
 #endif
     return data_.cx_->new_<Data>(data_);
-}
-
-AbstractFramePtr
-ScriptFrameIter::copyDataAsAbstractFramePtr() const
-{
-    AbstractFramePtr frame;
-    if (Data *data = copyData())
-        frame.ptr_ = uintptr_t(data);
-    return frame;
 }
 
 JSCompartment *
@@ -906,8 +935,8 @@ ScriptFrameIter::updatePcQuadratic()
       case JIT:
 #ifdef JS_ION
         if (data_.ionFrames_.isBaselineJS()) {
-            jit::BaselineFrame *frame = data_.ionFrames_.baselineFrame();
-            jit::JitActivation *activation = data_.activations_.activation()->asJit();
+            ion::BaselineFrame *frame = data_.ionFrames_.baselineFrame();
+            ion::JitActivation *activation = data_.activations_.activation()->asJit();
 
             // ActivationIterator::ionTop_ may be invalid, so create a new
             // activation iterator.
@@ -916,13 +945,13 @@ ScriptFrameIter::updatePcQuadratic()
                 ++data_.activations_;
 
             // Look for the current frame.
-            data_.ionFrames_ = jit::IonFrameIterator(data_.activations_);
+            data_.ionFrames_ = ion::IonFrameIterator(data_.activations_);
             while (!data_.ionFrames_.isBaselineJS() || data_.ionFrames_.baselineFrame() != frame)
                 ++data_.ionFrames_;
 
             // Update the pc.
             JS_ASSERT(data_.ionFrames_.baselineFrame() == frame);
-            data_.ionFrames_.baselineScriptAndPc(nullptr, &data_.pc_);
+            data_.ionFrames_.baselineScriptAndPc(NULL, &data_.pc_);
             return;
         }
 #endif
@@ -1164,9 +1193,9 @@ ScriptFrameIter::numFrameSlots() const
      case JIT: {
 #ifdef JS_ION
         if (data_.ionFrames_.isOptimizedJS())
-            return ionInlineFrames_.snapshotIterator().slots() - ionInlineFrames_.script()->nfixed();
-        jit::BaselineFrame *frame = data_.ionFrames_.baselineFrame();
-        return frame->numValueSlots() - data_.ionFrames_.script()->nfixed();
+            return ionInlineFrames_.snapshotIterator().slots() - ionInlineFrames_.script()->nfixed;
+        ion::BaselineFrame *frame = data_.ionFrames_.baselineFrame();
+        return frame->numValueSlots() - data_.ionFrames_.script()->nfixed;
 #else
         break;
 #endif
@@ -1187,12 +1216,12 @@ ScriptFrameIter::frameSlotValue(size_t index) const
       case JIT:
 #ifdef JS_ION
         if (data_.ionFrames_.isOptimizedJS()) {
-            jit::SnapshotIterator si(ionInlineFrames_.snapshotIterator());
-            index += ionInlineFrames_.script()->nfixed();
+            ion::SnapshotIterator si(ionInlineFrames_.snapshotIterator());
+            index += ionInlineFrames_.script()->nfixed;
             return si.maybeReadSlotByIndex(index);
         }
 
-        index += data_.ionFrames_.script()->nfixed();
+        index += data_.ionFrames_.script()->nfixed;
         return *data_.ionFrames_.baselineFrame()->valueSlot(index);
 #else
         break;
@@ -1242,22 +1271,28 @@ AbstractFramePtr::hasPushedSPSFrame() const
 
 #ifdef DEBUG
 void
-js::CheckLocalUnaliased(MaybeCheckAliasing checkAliasing, JSScript *script, unsigned i)
+js::CheckLocalUnaliased(MaybeCheckAliasing checkAliasing, JSScript *script,
+                        StaticBlockObject *maybeBlock, unsigned i)
 {
     if (!checkAliasing)
         return;
 
-    JS_ASSERT(i < script->nslots());
-    if (i < script->nfixed()) {
+    JS_ASSERT(i < script->nslots);
+    if (i < script->nfixed) {
         JS_ASSERT(!script->varIsAliased(i));
     } else {
-        // FIXME: The callers of this function do not easily have the PC of the
-        // current frame, and so they do not know the block scope.
+        unsigned depth = i - script->nfixed;
+        for (StaticBlockObject *b = maybeBlock; b; b = b->enclosingBlock()) {
+            if (b->containsVarAtDepth(depth)) {
+                JS_ASSERT(!b->isAliased(depth - b->stackDepth()));
+                break;
+            }
+        }
     }
 }
 #endif
 
-jit::JitActivation::JitActivation(JSContext *cx, bool firstFrameIsConstructing, bool active)
+ion::JitActivation::JitActivation(JSContext *cx, bool firstFrameIsConstructing, bool active)
   : Activation(cx, Jit),
     firstFrameIsConstructing_(firstFrameIsConstructing),
     active_(active)
@@ -1267,12 +1302,12 @@ jit::JitActivation::JitActivation(JSContext *cx, bool firstFrameIsConstructing, 
         prevIonJSContext_ = cx->mainThread().ionJSContext;
         cx->mainThread().ionJSContext = cx;
     } else {
-        prevIonTop_ = nullptr;
-        prevIonJSContext_ = nullptr;
+        prevIonTop_ = NULL;
+        prevIonJSContext_ = NULL;
     }
 }
 
-jit::JitActivation::~JitActivation()
+ion::JitActivation::~JitActivation()
 {
     if (active_) {
         cx_->mainThread().ionTop = prevIonTop_;
@@ -1281,7 +1316,7 @@ jit::JitActivation::~JitActivation()
 }
 
 void
-jit::JitActivation::setActive(JSContext *cx, bool active)
+ion::JitActivation::setActive(JSContext *cx, bool active)
 {
     // Only allowed to deactivate/activate if activation is top.
     // (Not tested and will probably fail in other situations.)
@@ -1303,14 +1338,14 @@ InterpreterFrameIterator &
 InterpreterFrameIterator::operator++()
 {
     JS_ASSERT(!done());
-    if (fp_ != activation_->entryFrame_) {
+    if (fp_ != activation_->entry_) {
         pc_ = fp_->prevpc();
         sp_ = fp_->prevsp();
         fp_ = fp_->prev();
     } else {
-        pc_ = nullptr;
-        sp_ = nullptr;
-        fp_ = nullptr;
+        pc_ = NULL;
+        sp_ = NULL;
+        fp_ = NULL;
     }
     return *this;
 }

@@ -28,13 +28,12 @@
 #include "nsPIDOMWindow.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/WindowsVersion.h"
 #include <io.h>
 #include <propvarutil.h>
 #include <propkey.h>
 #include <shellapi.h>
 
-const wchar_t kShellLibraryName[] =  L"shell32.dll";
+const PRUnichar kShellLibraryName[] =  L"shell32.dll";
 
 static NS_DEFINE_CID(kJumpListBuilderCID, NS_WIN_JUMPLISTBUILDER_CID);
 
@@ -45,12 +44,12 @@ GetHWNDFromDocShell(nsIDocShell *aShell) {
   nsCOMPtr<nsIBaseWindow> baseWindow(do_QueryInterface(reinterpret_cast<nsISupports*>(aShell)));
 
   if (!baseWindow)
-    return nullptr;
+    return NULL;
 
   nsCOMPtr<nsIWidget> widget;
   baseWindow->GetMainWidget(getter_AddRefs(widget));
 
-  return widget ? (HWND)widget->GetNativeData(NS_NATIVE_WINDOW) : nullptr;
+  return widget ? (HWND)widget->GetNativeData(NS_NATIVE_WINDOW) : NULL;
 }
 
 HWND
@@ -59,7 +58,7 @@ GetHWNDFromDOMWindow(nsIDOMWindow *dw) {
 
   nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(dw);
   if (!window) 
-    return nullptr;
+    return NULL;
 
   return GetHWNDFromDocShell(window->GetDocShell());
 }
@@ -209,9 +208,9 @@ WinTaskbar::Initialize() {
   if (mTaskbar)
     return true;
 
-  ::CoInitialize(nullptr);
+  ::CoInitialize(NULL);
   HRESULT hr = ::CoCreateInstance(CLSID_TaskbarList,
-                                  nullptr,
+                                  NULL,
                                   CLSCTX_INPROC_SERVER,
                                   IID_ITaskbarList4,
                                   (void**)&mTaskbar);
@@ -290,15 +289,15 @@ WinTaskbar::GetAppUserModelID(nsAString & aDefaultGroupId) {
   regKey.AppendLiteral("\\TaskBarIDs");
 
   WCHAR path[MAX_PATH];
-  if (GetModuleFileNameW(nullptr, path, MAX_PATH)) {
-    wchar_t* slash = wcsrchr(path, '\\');
+  if (GetModuleFileNameW(NULL, path, MAX_PATH)) {
+    PRUnichar* slash = wcsrchr(path, '\\');
     if (!slash)
       return false;
     *slash = '\0'; // no trailing slash
 
     // The hash is short, but users may customize this, so use a respectable
     // string buffer.
-    wchar_t buf[256];
+    PRUnichar buf[256];
     if (WinUtils::GetRegistryKey(HKEY_LOCAL_MACHINE,
                                  regKey.get(),
                                  path,
@@ -331,7 +330,7 @@ WinTaskbar::GetDefaultGroupId(nsAString & aDefaultGroupId) {
 // (static) Called from AppShell
 bool
 WinTaskbar::RegisterAppUserModelID() {
-  if (!IsWin7OrLater())
+  if (WinUtils::GetWindowsVersion() < WinUtils::WIN7_VERSION)
     return false;
 
   if (XRE_GetWindowsEnvironment() == WindowsEnvironmentType_Metro) {
@@ -366,7 +365,9 @@ WinTaskbar::RegisterAppUserModelID() {
 
 NS_IMETHODIMP
 WinTaskbar::GetAvailable(bool *aAvailable) {
-  *aAvailable = IsWin7OrLater();
+  *aAvailable = 
+    WinUtils::GetWindowsVersion() < WinUtils::WIN7_VERSION ?
+    false : true;
 
   return NS_OK;
 }

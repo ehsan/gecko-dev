@@ -23,18 +23,20 @@ nsScriptObjectTracer::NoteJSChild(void *aScriptThing, const char *name,
   cb->NoteJSChild(aScriptThing);
 }
 
-NS_IMETHODIMP_(void)
+NS_IMETHODIMP
 nsXPCOMCycleCollectionParticipant::Root(void *p)
 {
     nsISupports *s = static_cast<nsISupports*>(p);
     NS_ADDREF(s);
+    return NS_OK;
 }
 
-NS_IMETHODIMP_(void)
+NS_IMETHODIMP
 nsXPCOMCycleCollectionParticipant::Unroot(void *p)
 {
     nsISupports *s = static_cast<nsISupports*>(p);
     NS_RELEASE(s);
+    return NS_OK;
 }
 
 // We define a default trace function because some participants don't need

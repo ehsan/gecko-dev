@@ -9,16 +9,14 @@
 
 #include "mozilla/MemoryReporting.h"
 
-#include "jsobj.h"
-
-#include "gc/Barrier.h"
+#include "jsfun.h"
 
 namespace js {
 
 class AbstractFramePtr;
 class ScriptFrameIter;
 
-namespace jit {
+namespace ion {
 class IonJSFrameLayout;
 }
 
@@ -145,7 +143,7 @@ class ArgumentsObject : public JSObject
     static ArgumentsObject *createUnexpected(JSContext *cx, ScriptFrameIter &iter);
     static ArgumentsObject *createUnexpected(JSContext *cx, AbstractFramePtr frame);
 #if defined(JS_ION)
-    static ArgumentsObject *createForIon(JSContext *cx, jit::IonJSFrameLayout *frame,
+    static ArgumentsObject *createForIon(JSContext *cx, ion::IonJSFrameLayout *frame,
                                          HandleObject scopeChain);
 #endif
 
@@ -276,7 +274,7 @@ class ArgumentsObject : public JSObject
 
     static void MaybeForwardToCallObject(AbstractFramePtr frame, JSObject *obj, ArgumentsData *data);
 #if defined(JS_ION)
-    static void MaybeForwardToCallObject(jit::IonJSFrameLayout *frame, HandleObject callObj,
+    static void MaybeForwardToCallObject(ion::IonJSFrameLayout *frame, HandleObject callObj,
                                          JSObject *obj, ArgumentsData *data);
 #endif
 };
@@ -284,7 +282,7 @@ class ArgumentsObject : public JSObject
 class NormalArgumentsObject : public ArgumentsObject
 {
   public:
-    static const Class class_;
+    static Class class_;
 
     /*
      * Stores arguments.callee, or MagicValue(JS_ARGS_HOLE) if the callee has
@@ -303,7 +301,7 @@ class NormalArgumentsObject : public ArgumentsObject
 class StrictArgumentsObject : public ArgumentsObject
 {
   public:
-    static const Class class_;
+    static Class class_;
 };
 
 } // namespace js

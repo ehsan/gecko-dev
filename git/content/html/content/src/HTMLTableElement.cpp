@@ -3,12 +3,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/Util.h"
+
 #include "mozilla/dom/HTMLTableElement.h"
 #include "nsAttrValueInlines.h"
 #include "nsRuleData.h"
 #include "nsHTMLStyleSheet.h"
 #include "nsMappedAttributes.h"
-#include "mozilla/dom/UnionTypes.h"
+#include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/HTMLCollectionBinding.h"
 #include "mozilla/dom/HTMLTableElementBinding.h"
 #include "nsContentUtils.h"
@@ -39,8 +41,8 @@ public:
     return mParent;
   }
 
-  virtual Element*
-  GetFirstNamedElement(const nsAString& aName, bool& aFound) MOZ_OVERRIDE;
+  virtual JSObject* NamedItem(JSContext* cx, const nsAString& name,
+                              ErrorResult& error);
   virtual void GetSupportedNames(nsTArray<nsString>& aNames);
 
   NS_IMETHOD    ParentDestroyed();
@@ -48,15 +50,13 @@ public:
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(TableRowsCollection)
 
   // nsWrapperCache
-  using nsWrapperCache::GetWrapperPreserveColor;
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
-protected:
-  virtual JSObject* GetWrapperPreserveColorInternal() MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext *cx,
+                               JS::Handle<JSObject*> scope) MOZ_OVERRIDE
   {
-    return nsWrapperCache::GetWrapperPreserveColor();
+    return mozilla::dom::HTMLCollectionBinding::Wrap(cx, scope, this);
   }
 
+protected:
   // Those rows that are not in table sections
   HTMLTableElement* mParent;
   nsRefPtr<nsContentList> mOrphanRows;  
@@ -80,13 +80,6 @@ TableRowsCollection::~TableRowsCollection()
   // release it!  this is to avoid circular references.  The
   // instantiator who provided mParent is responsible for managing our
   // reference for us.
-}
-
-JSObject*
-TableRowsCollection::WrapObject(JSContext* aCx,
-                                JS::Handle<JSObject*> aScope)
-{
-  return HTMLCollectionBinding::Wrap(aCx, aScope, this);
 }
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(TableRowsCollection, mOrphanRows)
@@ -222,14 +215,31 @@ TableRowsCollection::Item(uint32_t aIndex, nsIDOMNode** aReturn)
   return CallQueryInterface(node, aReturn);
 }
 
-Element*
-TableRowsCollection::GetFirstNamedElement(const nsAString& aName, bool& aFound)
+JSObject*
+TableRowsCollection::NamedItem(JSContext* cx, const nsAString& name,
+                               ErrorResult& error)
 {
-  aFound = false;
   DO_FOR_EACH_ROWGROUP(
-    Element* item = rows->NamedGetter(aName, aFound);
-    if (aFound) {
-      return item;
+    nsCOMPtr<nsIHTMLCollection> collection = do_QueryInterface(rows);
+    if (collection) {
+      // We'd like to call the nsIHTMLCollection::NamedItem that returns a
+      // JSObject*, but that relies on collection having a cached wrapper, which
+      // we can't guarantee here.
+      nsCOMPtr<nsIDOMNode> item;
+      error = collection->NamedItem(name, getter_AddRefs(item));
+      if (error.Failed()) {
+        return nullptr;
+      }
+      if (item) {
+        JS::Rooted<JSObject*> wrapper(cx, nsWrapperCache::GetWrapper());
+        JSAutoCompartment ac(cx, wrapper);
+        JS::Rooted<JS::Value> v(cx);
+        if (!mozilla::dom::WrapObject(cx, wrapper, item, &v)) {
+          error.Throw(NS_ERROR_FAILURE);
+          return nullptr;
+        }
+        return &v.toObject();
+      }
     }
   );
   return nullptr;
@@ -286,7 +296,6 @@ HTMLTableElement::HTMLTableElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo),
     mTableInheritedAttributes(TABLE_ATTRS_DIRTY)
 {
-  SetHasWeirdParserInsertionMode();
 }
 
 HTMLTableElement::~HTMLTableElement()
@@ -700,9 +709,9 @@ HTMLTableElement::ParseAttribute(int32_t aNamespaceID,
 
 
 
-void
-HTMLTableElement::MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
-                                        nsRuleData* aData)
+static void
+MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
+                      nsRuleData* aData)
 {
   // XXX Bug 211636:  This function is used by a single style rule
   // that's used to match two different type of elements -- tables, and

@@ -6,15 +6,16 @@
 #ifndef mozilla_dom_workers_xmlhttprequest_h__
 #define mozilla_dom_workers_xmlhttprequest_h__
 
+#include "mozilla/dom/workers/bindings/XMLHttpRequestEventTarget.h"
 #include "mozilla/dom/workers/bindings/WorkerFeature.h"
 
 // Need this for XMLHttpRequestResponseType.
 #include "mozilla/dom/XMLHttpRequestBinding.h"
 
+#include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/TypedArray.h"
 
 #include "js/StructuredClone.h"
-#include "nsXMLHttpRequest.h"
 
 BEGIN_WORKERS_NAMESPACE
 
@@ -22,8 +23,8 @@ class Proxy;
 class XMLHttpRequestUpload;
 class WorkerPrivate;
 
-class XMLHttpRequest MOZ_FINAL: public nsXHREventTarget,
-                                public WorkerFeature
+class XMLHttpRequest : public XMLHttpRequestEventTarget,
+                       public WorkerFeature
 {
 public:
   struct StateData
@@ -45,7 +46,8 @@ public:
   };
 
 private:
-  nsRefPtr<XMLHttpRequestUpload> mUpload;
+  JS::Heap<JSObject*> mJSObject;
+  XMLHttpRequestUpload* mUpload;
   WorkerPrivate* mWorkerPrivate;
   nsRefPtr<Proxy> mProxy;
   XMLHttpRequestResponseType mResponseType;
@@ -53,7 +55,7 @@ private:
 
   uint32_t mTimeout;
 
-  bool mRooted;
+  bool mJSObjectRooted;
   bool mBackgroundRequest;
   bool mWithCredentials;
   bool mCanceled;
@@ -61,27 +63,23 @@ private:
   bool mMozAnon;
   bool mMozSystem;
 
+protected:
+  XMLHttpRequest(JSContext* aCx, WorkerPrivate* aWorkerPrivate);
+  virtual ~XMLHttpRequest();
+
 public:
-  virtual JSObject*
-  WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual void
+  _trace(JSTracer* aTrc) MOZ_OVERRIDE;
 
-  NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(XMLHttpRequest,
-                                                         nsXHREventTarget)
+  virtual void
+  _finalize(JSFreeOp* aFop) MOZ_OVERRIDE;
 
-  nsISupports*
-  GetParentObject() const
-  {
-    // There's only one global on a worker, so we don't need to specify.
-    return nullptr;
-  }
-
-  static already_AddRefed<XMLHttpRequest>
+  static XMLHttpRequest*
   Constructor(const GlobalObject& aGlobal,
               const MozXMLHttpRequestParameters& aParams,
               ErrorResult& aRv);
 
-  static already_AddRefed<XMLHttpRequest>
+  static XMLHttpRequest*
   Constructor(const GlobalObject& aGlobal, const nsAString& ignored,
               ErrorResult& aRv)
   {
@@ -101,7 +99,23 @@ public:
   bool
   Notify(JSContext* aCx, Status aStatus) MOZ_OVERRIDE;
 
-  IMPL_EVENT_HANDLER(readystatechange)
+#define IMPL_GETTER_AND_SETTER(_type)                                          \
+  JSObject*                                                                    \
+  GetOn##_type(JSContext* /* unused */, ErrorResult& aRv)                      \
+  {                                                                            \
+    return GetEventListener(NS_LITERAL_STRING(#_type), aRv);                   \
+  }                                                                            \
+                                                                               \
+  void                                                                         \
+  SetOn##_type(JSContext* /* unused */,  JS::Handle<JSObject*> aListener,      \
+               ErrorResult& aRv)                                               \
+  {                                                                            \
+    SetEventListener(NS_LITERAL_STRING(#_type), aListener, aRv);               \
+  }
+
+  IMPL_GETTER_AND_SETTER(readystatechange)
+
+#undef IMPL_GETTER_AND_SETTER
 
   uint16_t
   ReadyState() const
@@ -109,11 +123,6 @@ public:
     return mStateData.mReadyState;
   }
 
-  void Open(const nsACString& aMethod, const nsAString& aUrl, ErrorResult& aRv)
-  {
-    Open(aMethod, aUrl, true, Optional<nsAString>(),
-         Optional<nsAString>(), aRv);
-  }
   void
   Open(const nsACString& aMethod, const nsAString& aUrl, bool aAsync,
        const Optional<nsAString>& aUser, const Optional<nsAString>& aPassword,
@@ -225,13 +234,13 @@ public:
   JSObject*
   GetResponseXML() const
   {
-    return nullptr;
+    return NULL;
   }
 
   JSObject*
   GetChannel() const
   {
-    return nullptr;
+    return NULL;
   }
 
   JS::Value
@@ -248,7 +257,10 @@ public:
   }
 
   void
-  UpdateState(const StateData& aStateData);
+  UpdateState(const StateData& aStateData)
+  {
+    mStateData = aStateData;
+  }
 
   void
   NullResponseText()
@@ -268,9 +280,6 @@ public:
   }
 
 private:
-  XMLHttpRequest(WorkerPrivate* aWorkerPrivate);
-  ~XMLHttpRequest();
-
   enum ReleaseType { Default, XHRIsGoingAway, WorkerIsGoingAway };
 
   void
@@ -283,14 +292,13 @@ private:
   MaybeDispatchPrematureAbortEvents(ErrorResult& aRv);
 
   void
-  DispatchPrematureAbortEvent(EventTarget* aTarget,
-                              const nsAString& aEventType, bool aUploadTarget,
-                              ErrorResult& aRv);
+  DispatchPrematureAbortEvent(JS::Handle<JSObject*> aTarget, uint8_t aEventType,
+                              bool aUploadTarget, ErrorResult& aRv);
 
   bool
   SendInProgress() const
   {
-    return mRooted;
+    return mJSObjectRooted;
   }
 
   void

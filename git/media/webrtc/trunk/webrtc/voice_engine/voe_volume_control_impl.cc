@@ -8,15 +8,15 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/voice_engine/voe_volume_control_impl.h"
+#include "voe_volume_control_impl.h"
 
-#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
-#include "webrtc/system_wrappers/interface/trace.h"
-#include "webrtc/voice_engine/channel.h"
-#include "webrtc/voice_engine/include/voe_errors.h"
-#include "webrtc/voice_engine/output_mixer.h"
-#include "webrtc/voice_engine/transmit_mixer.h"
-#include "webrtc/voice_engine/voice_engine_impl.h"
+#include "channel.h"
+#include "critical_section_wrapper.h"
+#include "output_mixer.h"
+#include "trace.h"
+#include "transmit_mixer.h"
+#include "voe_errors.h"
+#include "voice_engine_impl.h"
 
 namespace webrtc {
 
@@ -297,8 +297,8 @@ int VoEVolumeControlImpl::SetInputMute(int channel, bool enable)
     else
     {
         // Mute after demultiplexing <=> affects one channel only
-        voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
-        voe::Channel* channelPtr = ch.channel();
+        voe::ScopedChannel sc(_shared->channel_manager(), channel);
+        voe::Channel* channelPtr = sc.ChannelPtr();
         if (channelPtr == NULL)
         {
             _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -326,8 +326,8 @@ int VoEVolumeControlImpl::GetInputMute(int channel, bool& enabled)
     }
     else
     {
-        voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
-        voe::Channel* channelPtr = ch.channel();
+        voe::ScopedChannel sc(_shared->channel_manager(), channel);
+        voe::Channel* channelPtr = sc.ChannelPtr();
         if (channelPtr == NULL)
         {
             _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -422,8 +422,8 @@ int VoEVolumeControlImpl::GetSpeechOutputLevel(int channel,
     }
     else
     {
-        voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
-        voe::Channel* channelPtr = ch.channel();
+        voe::ScopedChannel sc(_shared->channel_manager(), channel);
+        voe::Channel* channelPtr = sc.ChannelPtr();
         if (channelPtr == NULL)
         {
             _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -472,8 +472,8 @@ int VoEVolumeControlImpl::GetSpeechOutputLevelFullRange(int channel,
     }
     else
     {
-        voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
-        voe::Channel* channelPtr = ch.channel();
+        voe::ScopedChannel sc(_shared->channel_manager(), channel);
+        voe::Channel* channelPtr = sc.ChannelPtr();
         if (channelPtr == NULL)
         {
             _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -503,8 +503,8 @@ int VoEVolumeControlImpl::SetChannelOutputVolumeScaling(int channel,
             "SetChannelOutputVolumeScaling() invalid parameter");
         return -1;
     }
-    voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
-    voe::Channel* channelPtr = ch.channel();
+    voe::ScopedChannel sc(_shared->channel_manager(), channel);
+    voe::Channel* channelPtr = sc.ChannelPtr();
     if (channelPtr == NULL)
     {
         _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -524,8 +524,8 @@ int VoEVolumeControlImpl::GetChannelOutputVolumeScaling(int channel,
         _shared->SetLastError(VE_NOT_INITED, kTraceError);
         return -1;
     }
-    voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
-    voe::Channel* channelPtr = ch.channel();
+    voe::ScopedChannel sc(_shared->channel_manager(), channel);
+    voe::Channel* channelPtr = sc.ChannelPtr();
     if (channelPtr == NULL)
     {
         _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -577,8 +577,8 @@ int VoEVolumeControlImpl::SetOutputVolumePan(int channel,
     else
     {
         // Per-channel balance (affects the signal before output mixing)
-        voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
-        voe::Channel* channelPtr = ch.channel();
+        voe::ScopedChannel sc(_shared->channel_manager(), channel);
+        voe::Channel* channelPtr = sc.ChannelPtr();
         if (channelPtr == NULL)
         {
             _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -620,8 +620,8 @@ int VoEVolumeControlImpl::GetOutputVolumePan(int channel,
     }
     else
     {
-        voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
-        voe::Channel* channelPtr = ch.channel();
+        voe::ScopedChannel sc(_shared->channel_manager(), channel);
+        voe::Channel* channelPtr = sc.ChannelPtr();
         if (channelPtr == NULL)
         {
             _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,

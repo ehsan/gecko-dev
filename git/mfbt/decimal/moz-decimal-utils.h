@@ -11,7 +11,7 @@
 // not include it into any file other than Decimal.cpp.
 
 #include "../double-conversion/double-conversion.h"
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 #include "mozilla/Casting.h"
 #include "mozilla/FloatingPoint.h"
 #include "mozilla/NullPtr.h"
@@ -83,8 +83,6 @@ String mozToString(uint64_t aNum) {
   return o.str();
 }
 
-namespace moz_decimal_utils {
-
 class StringBuilder
 {
 public:
@@ -106,8 +104,6 @@ public:
 private:
   std::string mStr;
 };
-
-} // namespace moz-decimal-utils
 
 #endif
 

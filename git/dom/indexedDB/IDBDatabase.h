@@ -16,7 +16,6 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/IDBObjectStoreBinding.h"
 #include "mozilla/dom/IDBTransactionBinding.h"
-#include "mozilla/dom/quota/PersistenceType.h"
 #include "nsDOMEventTargetHelper.h"
 
 #include "mozilla/dom/indexedDB/FileManager.h"
@@ -162,12 +161,6 @@ public:
                             const ObjectStoreInfoGuts& aInfo,
                             ErrorResult& aRv);
 
-  IDBFactory*
-  Factory() const
-  {
-    return mFactory;
-  }
-
   // nsWrapperCache
   virtual JSObject*
   WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
@@ -217,18 +210,11 @@ public:
   IMPL_EVENT_HANDLER(error)
   IMPL_EVENT_HANDLER(versionchange)
 
-  mozilla::dom::StorageType
-  Storage() const
-  {
-    return PersistenceTypeToStorage(mPersistenceType);
-  }
-
   already_AddRefed<IDBRequest>
   MozCreateFileHandle(const nsAString& aName, const Optional<nsAString>& aType,
                       ErrorResult& aRv);
 
   virtual void LastRelease() MOZ_OVERRIDE;
-
 private:
   IDBDatabase();
   ~IDBDatabase();
@@ -245,7 +231,7 @@ private:
   // Set to a copy of the existing DatabaseInfo when starting a versionchange
   // transaction.
   nsRefPtr<DatabaseInfo> mPreviousDatabaseInfo;
-  nsCString mDatabaseId;
+  nsCOMPtr<nsIAtom> mDatabaseId;
   nsString mName;
   nsString mFilePath;
   nsCString mASCIIOrigin;

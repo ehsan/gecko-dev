@@ -1,6 +1,10 @@
-/* Copyright (c) 2001-2011 Timothy B. Terriberry
-   Copyright (c) 2008-2009 Xiph.Org Foundation */
+/* Copyright (c) 2001-2012 IETF Trust, Timothy B. Terriberry,
+                           Xiph.Org Foundation. All rights reserved.*/
 /*
+
+   This file is extracted from RFC6716. Please see that RFC for additional
+   information.
+
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions
    are met:
@@ -11,6 +15,11 @@
    - Redistributions in binary form must reproduce the above copyright
    notice, this list of conditions and the following disclaimer in the
    documentation and/or other materials provided with the distribution.
+
+   - Neither the name of Internet Society, IETF or IETF Trust, nor the
+   names of specific contributors, may be used to endorse or promote
+   products derived from this software without specific prior written
+   permission.
 
    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
    ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
@@ -26,7 +35,6 @@
 */
 
 #include "opus_types.h"
-#include "opus_defines.h"
 
 #if !defined(_entcode_H)
 # define _entcode_H (1)
@@ -84,15 +92,15 @@ struct ec_ctx{
    int            error;
 };
 
-static OPUS_INLINE opus_uint32 ec_range_bytes(ec_ctx *_this){
+static inline opus_uint32 ec_range_bytes(ec_ctx *_this){
   return _this->offs;
 }
 
-static OPUS_INLINE unsigned char *ec_get_buffer(ec_ctx *_this){
+static inline unsigned char *ec_get_buffer(ec_ctx *_this){
   return _this->buf;
 }
 
-static OPUS_INLINE int ec_get_error(ec_ctx *_this){
+static inline int ec_get_error(ec_ctx *_this){
   return _this->error;
 }
 
@@ -102,7 +110,7 @@ static OPUS_INLINE int ec_get_error(ec_ctx *_this){
   Return: The number of bits.
           This will always be slightly larger than the exact value (e.g., all
            rounding error is in the positive direction).*/
-static OPUS_INLINE int ec_tell(ec_ctx *_this){
+static inline int ec_tell(ec_ctx *_this){
   return _this->nbits_total-EC_ILOG(_this->rng);
 }
 

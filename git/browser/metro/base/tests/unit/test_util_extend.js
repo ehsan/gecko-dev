@@ -1,7 +1,6 @@
 "use strict";
 
-Components.utils.import("resource:///modules/ContentUtil.jsm");
-let Util = ContentUtil;
+load("Util.js");
 
 function run_test() {
   do_print("Testing Util.extend");

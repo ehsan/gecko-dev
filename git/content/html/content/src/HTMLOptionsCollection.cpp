@@ -7,23 +7,25 @@
 
 #include "HTMLOptGroupElement.h"
 #include "mozAutoDocUpdate.h"
-#include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/HTMLOptionElement.h"
 #include "mozilla/dom/HTMLOptionsCollectionBinding.h"
 #include "mozilla/dom/HTMLSelectElement.h"
+#include "mozilla/Util.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsError.h"
 #include "nsEventDispatcher.h"
 #include "nsEventStates.h"
 #include "nsFormSubmission.h"
 #include "nsGkAtoms.h"
+#include "nsGUIEvent.h"
 #include "nsIComboboxControlFrame.h"
 #include "nsIDocument.h"
 #include "nsIDOMHTMLOptGroupElement.h"
 #include "nsIFormControlFrame.h"
 #include "nsIForm.h"
 #include "nsIFormProcessor.h"
+#include "nsIFrame.h"
 #include "nsIListControlFrame.h"
 #include "nsLayoutUtils.h"
 #include "nsMappedAttributes.h"
@@ -247,7 +249,7 @@ HTMLOptionsCollection::GetElementAt(uint32_t aIndex)
 }
 
 HTMLOptionElement*
-HTMLOptionsCollection::NamedGetter(const nsAString& aName, bool& aFound)
+HTMLOptionsCollection::GetNamedItem(const nsAString& aName) const
 {
   uint32_t count = mElements.Length();
   for (uint32_t i = 0; i < count; i++) {
@@ -257,12 +259,10 @@ HTMLOptionsCollection::NamedGetter(const nsAString& aName, bool& aFound)
                               eCaseMatters) ||
          content->AttrValueIs(kNameSpaceID_None, nsGkAtoms::id, aName,
                               eCaseMatters))) {
-      aFound = true;
       return content;
     }
   }
 
-  aFound = false;
   return nullptr;
 }
 
@@ -279,6 +279,24 @@ HTMLOptionsCollection::NamedItem(const nsAString& aName,
   NS_IF_ADDREF(*aReturn = GetNamedItem(aName));
 
   return NS_OK;
+}
+
+JSObject*
+HTMLOptionsCollection::NamedItem(JSContext* cx, const nsAString& name,
+                                 ErrorResult& error)
+{
+  nsINode* item = GetNamedItem(name);
+  if (!item) {
+    return nullptr;
+  }
+  JS::Rooted<JSObject*> wrapper(cx, nsWrapperCache::GetWrapper());
+  JSAutoCompartment ac(cx, wrapper);
+  JS::Rooted<JS::Value> v(cx);
+  if (!mozilla::dom::WrapObject(cx, wrapper, item, item, nullptr, &v)) {
+    error.Throw(NS_ERROR_FAILURE);
+    return nullptr;
+  }
+  return &v.toObject();
 }
 
 void

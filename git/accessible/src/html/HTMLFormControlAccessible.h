@@ -131,7 +131,6 @@ public:
   virtual void ApplyARIAState(uint64_t* aState) const;
   virtual mozilla::a11y::role NativeRole();
   virtual uint64_t NativeState();
-  virtual already_AddRefed<nsIPersistentProperties> NativeAttributes() MOZ_OVERRIDE;
 
   // ActionAccessible
   virtual uint8_t ActionCount();
@@ -144,10 +143,7 @@ protected:
   // Accessible
   virtual ENameValueFlag NativeName(nsString& aName) MOZ_OVERRIDE;
 
-  /**
-   * Return a XUL widget element this input is part of.
-   */
-  nsIContent* XULWidgetElm() const { return mContent->GetBindingParent(); }
+  virtual void CacheChildren() MOZ_OVERRIDE;
 };
 
 
@@ -166,30 +162,6 @@ public:
 
 
 /**
- * Used for HTML input@type="number".
- */
-class HTMLSpinnerAccessible : public AccessibleWrap
-{
-public:
-  HTMLSpinnerAccessible(nsIContent* aContent, DocAccessible* aDoc) :
-    AccessibleWrap(aContent, aDoc)
-  {
-    mStateFlags |= eHasNumericValue;
-}
-
-  // Accessible
-  virtual mozilla::a11y::role NativeRole() MOZ_OVERRIDE;
-  virtual void Value(nsString& aValue) MOZ_OVERRIDE;
-
-  virtual double MaxValue() const MOZ_OVERRIDE;
-  virtual double MinValue() const MOZ_OVERRIDE;
-  virtual double CurValue() const MOZ_OVERRIDE;
-  virtual double Step() const MOZ_OVERRIDE;
-  virtual bool SetCurValue(double aValue) MOZ_OVERRIDE;
-};
-
-
-/**
   * Used for input@type="range" element.
   */
 class HTMLRangeAccessible : public LeafAccessible
@@ -201,16 +173,12 @@ public:
     mStateFlags |= eHasNumericValue;
   }
 
+  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_NSIACCESSIBLEVALUE
+
   // Accessible
   virtual void Value(nsString& aValue);
   virtual mozilla::a11y::role NativeRole();
-
-  // Value
-  virtual double MaxValue() const MOZ_OVERRIDE;
-  virtual double MinValue() const MOZ_OVERRIDE;
-  virtual double CurValue() const MOZ_OVERRIDE;
-  virtual double Step() const MOZ_OVERRIDE;
-  virtual bool SetCurValue(double aValue) MOZ_OVERRIDE;
 
   // Widgets
   virtual bool IsWidget() const;
@@ -227,7 +195,7 @@ public:
 
   // Accessible
   virtual mozilla::a11y::role NativeRole();
-  virtual Relation RelationByType(RelationType aType) MOZ_OVERRIDE;
+  virtual Relation RelationByType(uint32_t aType);
 
 protected:
   // Accessible
@@ -248,7 +216,7 @@ public:
 
   // Accessible
   virtual mozilla::a11y::role NativeRole();
-  virtual Relation RelationByType(RelationType aType) MOZ_OVERRIDE;
+  virtual Relation RelationByType(uint32_t aType);
 };
 
 /**
@@ -262,7 +230,7 @@ public:
   // Accessible
   virtual already_AddRefed<nsIPersistentProperties> NativeAttributes() MOZ_OVERRIDE;
   virtual mozilla::a11y::role NativeRole();
-  virtual Relation RelationByType(RelationType aType) MOZ_OVERRIDE;
+  virtual Relation RelationByType(uint32_t aType);
 
 protected:
   // Accessible
@@ -283,7 +251,7 @@ public:
 
   // Accessible
   virtual mozilla::a11y::role NativeRole();
-  virtual Relation RelationByType(RelationType aType) MOZ_OVERRIDE;
+  virtual Relation RelationByType(uint32_t aType);
 };
 
 } // namespace a11y

@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+//* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -7,7 +7,6 @@
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsDebug.h"
-#include "nsPrintfCString.h"
 #include "nsTArray.h"
 #include "nsString.h"
 #include "nsUrlClassifierPrefixSet.h"
@@ -35,12 +34,82 @@ static const PRLogModuleInfo *gUrlClassifierPrefixSetLog = nullptr;
 #define LOG_ENABLED() (false)
 #endif
 
-NS_IMPL_ISUPPORTS2(
-  nsUrlClassifierPrefixSet, nsIUrlClassifierPrefixSet, nsIMemoryReporter)
+class nsPrefixSetReporter : public nsIMemoryReporter
+{
+public:
+  nsPrefixSetReporter(nsUrlClassifierPrefixSet* aParent, const nsACString& aName);
+  virtual ~nsPrefixSetReporter() {}
+
+  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_NSIMEMORYREPORTER
+
+private:
+  nsCString mPath;
+  nsUrlClassifierPrefixSet* mParent;
+};
+
+NS_IMPL_ISUPPORTS1(nsPrefixSetReporter, nsIMemoryReporter)
+
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(StoragePrefixSetMallocSizeOf)
+
+nsPrefixSetReporter::nsPrefixSetReporter(nsUrlClassifierPrefixSet* aParent,
+                                         const nsACString& aName)
+: mParent(aParent)
+{
+  mPath.Assign(NS_LITERAL_CSTRING("explicit/storage/prefixset"));
+  if (!aName.IsEmpty()) {
+    mPath.Append("/");
+    mPath.Append(aName);
+  }
+}
+
+NS_IMETHODIMP
+nsPrefixSetReporter::GetProcess(nsACString& aProcess)
+{
+  aProcess.Truncate();
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsPrefixSetReporter::GetPath(nsACString& aPath)
+{
+  aPath.Assign(mPath);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsPrefixSetReporter::GetKind(int32_t* aKind)
+{
+  *aKind = nsIMemoryReporter::KIND_HEAP;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsPrefixSetReporter::GetUnits(int32_t* aUnits)
+{
+  *aUnits = nsIMemoryReporter::UNITS_BYTES;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsPrefixSetReporter::GetAmount(int64_t* aAmount)
+{
+  *aAmount = mParent->SizeOfIncludingThis(StoragePrefixSetMallocSizeOf);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsPrefixSetReporter::GetDescription(nsACString& aDescription)
+{
+  aDescription.Assign(NS_LITERAL_CSTRING("Memory used by a PrefixSet for "
+                                         "UrlClassifier, in bytes."));
+  return NS_OK;
+}
+
+NS_IMPL_ISUPPORTS1(nsUrlClassifierPrefixSet, nsIUrlClassifierPrefixSet)
 
 nsUrlClassifierPrefixSet::nsUrlClassifierPrefixSet()
   : mHasPrefixes(false)
-  , mMemoryReportPath()
 {
 #if defined(PR_LOGGING)
   if (!gUrlClassifierPrefixSetLog)
@@ -51,20 +120,15 @@ nsUrlClassifierPrefixSet::nsUrlClassifierPrefixSet()
 NS_IMETHODIMP
 nsUrlClassifierPrefixSet::Init(const nsACString& aName)
 {
-  mMemoryReportPath =
-    nsPrintfCString(
-      "explicit/storage/prefix-set/%s",
-      (!aName.IsEmpty() ? PromiseFlatCString(aName).get() : "?!")
-    );
-
-  RegisterWeakMemoryReporter(this);
+  mReporter = new nsPrefixSetReporter(this, aName);
+  NS_RegisterMemoryReporter(mReporter);
 
   return NS_OK;
 }
 
 nsUrlClassifierPrefixSet::~nsUrlClassifierPrefixSet()
 {
-  UnregisterWeakMemoryReporter(this);
+  NS_UnregisterMemoryReporter(mReporter);
 }
 
 NS_IMETHODIMP
@@ -250,21 +314,8 @@ nsUrlClassifierPrefixSet::Contains(uint32_t aPrefix, bool* aFound)
   return NS_OK;
 }
 
-MOZ_DEFINE_MALLOC_SIZE_OF(UrlClassifierMallocSizeOf)
-
-NS_IMETHODIMP
-nsUrlClassifierPrefixSet::CollectReports(nsIHandleReportCallback* aHandleReport,
-                                         nsISupports* aData)
-{
-  return aHandleReport->Callback(
-    EmptyCString(), mMemoryReportPath, KIND_HEAP, UNITS_BYTES,
-    SizeOfIncludingThis(UrlClassifierMallocSizeOf),
-    NS_LITERAL_CSTRING("Memory used by the prefix set for a URL classifier."),
-    aData);
-}
-
 size_t
-nsUrlClassifierPrefixSet::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf)
+nsUrlClassifierPrefixSet::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf)
 {
   size_t n = 0;
   n += aMallocSizeOf(this);

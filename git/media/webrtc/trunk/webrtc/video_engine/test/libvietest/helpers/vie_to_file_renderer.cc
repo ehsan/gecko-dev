@@ -66,7 +66,7 @@ bool ViEToFileRenderer::PrepareForRendering(
 
   assert(output_file_ == NULL);
 
-  output_file_ = fopen((output_path + output_filename).c_str(), "wb");
+  output_file_ = std::fopen((output_path + output_filename).c_str(), "wb");
   if (output_file_ == NULL) {
     return false;
   }
@@ -86,15 +86,15 @@ void ViEToFileRenderer::StopRendering() {
     // Call Stop() repeatedly, waiting for ProcessRenderQueue() to finish.
     while (!thread_->Stop()) continue;
   }
-  fclose(output_file_);
+  std::fclose(output_file_);
   output_file_ = NULL;
 }
 
 bool ViEToFileRenderer::SaveOutputFile(const std::string& prefix) {
   assert(output_file_ == NULL && output_filename_ != "");
-  if (rename((output_path_ + output_filename_).c_str(),
+  if (std::rename((output_path_ + output_filename_).c_str(),
                   (output_path_ + prefix + output_filename_).c_str()) != 0) {
-    perror("Failed to rename output file");
+    std::perror("Failed to rename output file");
     return false;
   }
   ForgetOutputFile();
@@ -103,8 +103,8 @@ bool ViEToFileRenderer::SaveOutputFile(const std::string& prefix) {
 
 bool ViEToFileRenderer::DeleteOutputFile() {
   assert(output_file_ == NULL && output_filename_ != "");
-  if (remove((output_path_ + output_filename_).c_str()) != 0) {
-    perror("Failed to delete output file");
+  if (std::remove((output_path_ + output_filename_).c_str()) != 0) {
+    std::perror("Failed to delete output file");
     return false;
   }
   ForgetOutputFile();
@@ -123,8 +123,7 @@ void ViEToFileRenderer::ForgetOutputFile() {
 int ViEToFileRenderer::DeliverFrame(unsigned char *buffer,
                                     int buffer_size,
                                     uint32_t time_stamp,
-                                    int64_t render_time,
-                                    void* /*handle*/) {
+                                    int64_t render_time) {
   webrtc::CriticalSectionScoped lock(frame_queue_cs_.get());
   test::Frame* frame;
   if (free_frame_queue_.empty()) {
@@ -146,8 +145,6 @@ int ViEToFileRenderer::DeliverFrame(unsigned char *buffer,
   frame_render_event_->Set();
   return 0;
 }
-
-bool ViEToFileRenderer::IsTextureSupported() { return false; }
 
 int ViEToFileRenderer::FrameSizeChange(unsigned int width,
                                        unsigned int height,
@@ -173,7 +170,7 @@ bool ViEToFileRenderer::ProcessRenderQueue() {
     // the renderer.
     frame_queue_cs_->Leave();
     assert(output_file_);
-    int written = fwrite(frame->buffer.get(), sizeof(unsigned char),
+    int written = std::fwrite(frame->buffer.get(), sizeof(unsigned char),
                               frame->buffer_size, output_file_);
     frame_queue_cs_->Enter();
     // Return the frame.

@@ -14,7 +14,6 @@
 #include "mozilla/gfx/Matrix.h"
 #include "mozilla/gfx/Rect.h"
 #include "mozilla/gfx/2D.h"
-#include "gfxColor.h"
 
 namespace mozilla {
 namespace gfx {
@@ -31,11 +30,6 @@ inline Rect ToRect(const gfxRect &aRect)
 {
   return Rect(Float(aRect.x), Float(aRect.y),
               Float(aRect.width), Float(aRect.height));
-}
-
-inline Rect ToRect(const nsIntRect &aRect)
-{
-  return Rect(aRect.x, aRect.y, aRect.width, aRect.height);
 }
 
 inline IntRect ToIntRect(const nsIntRect &aRect)
@@ -55,12 +49,6 @@ inline Matrix ToMatrix(const gfxMatrix &aMatrix)
                 Float(aMatrix.yy), Float(aMatrix.x0), Float(aMatrix.y0));
 }
 
-inline gfxMatrix ThebesMatrix(const Matrix &aMatrix)
-{
-  return gfxMatrix(aMatrix._11, aMatrix._12, aMatrix._21,
-                   aMatrix._22, aMatrix._31, aMatrix._32);
-}
-
 inline Point ToPoint(const gfxPoint &aPoint)
 {
   return Point(Float(aPoint.x), Float(aPoint.y));
@@ -76,25 +64,25 @@ inline IntSize ToIntSize(const gfxIntSize &aSize)
   return IntSize(aSize.width, aSize.height);
 }
 
-inline Filter ToFilter(GraphicsFilter aFilter)
+inline Filter ToFilter(gfxPattern::GraphicsFilter aFilter)
 {
   switch (aFilter) {
-  case GraphicsFilter::FILTER_NEAREST:
+  case gfxPattern::FILTER_NEAREST:
     return FILTER_POINT;
-  case GraphicsFilter::FILTER_GOOD:
+  case gfxPattern::FILTER_GOOD:
     return FILTER_GOOD;
   default:
     return FILTER_LINEAR;
   }
 }
 
-inline GraphicsFilter ThebesFilter(Filter aFilter)
+inline gfxPattern::GraphicsFilter ThebesFilter(Filter aFilter)
 {
   switch (aFilter) {
   case FILTER_POINT:
-    return GraphicsFilter::FILTER_NEAREST;
+    return gfxPattern::FILTER_NEAREST;
   default:
-    return GraphicsFilter::FILTER_BEST;
+    return gfxPattern::FILTER_BEST;
   }
 }
 
@@ -205,52 +193,58 @@ inline JoinStyle ToJoinStyle(gfxContext::GraphicsLineJoin aStyle)
   MOZ_CRASH("Incomplete switch");
 }
 
-inline gfxImageFormat SurfaceFormatToImageFormat(SurfaceFormat aFormat)
+inline gfxMatrix ThebesMatrix(const Matrix &aMatrix)
+{
+  return gfxMatrix(aMatrix._11, aMatrix._12, aMatrix._21,
+                   aMatrix._22, aMatrix._31, aMatrix._32);
+}
+
+inline gfxASurface::gfxImageFormat SurfaceFormatToImageFormat(SurfaceFormat aFormat)
 {
   switch (aFormat) {
   case FORMAT_B8G8R8A8:
-    return gfxImageFormatARGB32;
+    return gfxASurface::ImageFormatARGB32;
   case FORMAT_B8G8R8X8:
-    return gfxImageFormatRGB24;
+    return gfxASurface::ImageFormatRGB24;
   case FORMAT_R5G6B5:
-    return gfxImageFormatRGB16_565;
+    return gfxASurface::ImageFormatRGB16_565;
   case FORMAT_A8:
-    return gfxImageFormatA8;
+    return gfxASurface::ImageFormatA8;
   default:
-    return gfxImageFormatUnknown;
+    return gfxASurface::ImageFormatUnknown;
   }
 }
 
-inline SurfaceFormat ImageFormatToSurfaceFormat(gfxImageFormat aFormat)
+inline SurfaceFormat ImageFormatToSurfaceFormat(gfxASurface::gfxImageFormat aFormat)
 {
   switch (aFormat) {
-  case gfxImageFormatARGB32:
+  case gfxASurface::ImageFormatARGB32:
     return FORMAT_B8G8R8A8;
-  case gfxImageFormatRGB24:
+  case gfxASurface::ImageFormatRGB24:
     return FORMAT_B8G8R8X8;
-  case gfxImageFormatRGB16_565:
+  case gfxASurface::ImageFormatRGB16_565:
     return FORMAT_R5G6B5;
-  case gfxImageFormatA8:
+  case gfxASurface::ImageFormatA8:
     return FORMAT_A8;
   default:
-  case gfxImageFormatUnknown:
+  case gfxASurface::ImageFormatUnknown:
     return FORMAT_B8G8R8A8;
   }
 }
 
-inline gfxContentType ContentForFormat(const SurfaceFormat &aFormat)
+inline gfxASurface::gfxContentType ContentForFormat(const SurfaceFormat &aFormat)
 {
   switch (aFormat) {
   case FORMAT_R5G6B5:
   case FORMAT_B8G8R8X8:
   case FORMAT_R8G8B8X8:
-    return GFX_CONTENT_COLOR;
+    return gfxASurface::CONTENT_COLOR;
   case FORMAT_A8:
-    return GFX_CONTENT_ALPHA;
+    return gfxASurface::CONTENT_ALPHA;
   case FORMAT_B8G8R8A8:
   case FORMAT_R8G8B8A8:
   default:
-    return GFX_CONTENT_COLOR_ALPHA;
+    return gfxASurface::CONTENT_COLOR_ALPHA;
   }
 }
 

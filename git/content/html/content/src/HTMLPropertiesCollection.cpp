@@ -13,7 +13,6 @@
 #include "nsAttrValue.h"
 #include "nsWrapperCacheInlines.h"
 #include "mozilla/dom/HTMLPropertiesCollectionBinding.h"
-#include "jsapi.h"
 
 namespace mozilla {
 namespace dom {
@@ -51,6 +50,7 @@ HTMLPropertiesCollection::HTMLPropertiesCollection(nsGenericHTMLElement* aRoot)
   if (mDoc) {
     mDoc->AddMutationObserver(this);
   }
+  mNamedItemEntries.Init();
 }
 
 HTMLPropertiesCollection::~HTMLPropertiesCollection()
@@ -125,6 +125,16 @@ HTMLPropertiesCollection::NamedItem(const nsAString& aName,
 {
   *aResult = nullptr;
   return NS_OK;
+}
+
+JSObject*
+HTMLPropertiesCollection::NamedItem(JSContext* cx, const nsAString& name,
+                                    mozilla::ErrorResult& error)
+{
+  // HTMLPropertiesCollection.namedItem and the named getter call the NamedItem
+  // that returns a PropertyNodeList, calling HTMLCollection.namedItem doesn't
+  // make sense so this returns null.
+  return nullptr;
 }
 
 Element*
@@ -436,7 +446,7 @@ PropertyNodeList::GetValues(JSContext* aCx, nsTArray<JS::Value >& aResult,
 {
   EnsureFresh();
 
-  JS::Rooted<JSObject*> wrapper(aCx, GetWrapper());
+  JS::RootedObject wrapper(aCx, GetWrapper());
   JSAutoCompartment ac(aCx, wrapper);
   uint32_t length = mElements.Length();
   for (uint32_t i = 0; i < length; ++i) {

@@ -5,21 +5,49 @@
 
 #include "nsFileControlFrame.h"
 
+#include "nsIContent.h"
+#include "nsIAtom.h"
+#include "nsPresContext.h"
 #include "nsGkAtoms.h"
+#include "nsWidgetsCID.h"
+#include "nsIComponentManager.h"
+#include "nsHTMLParts.h"
+#include "nsIDOMHTMLInputElement.h"
+#include "nsIDOMHTMLButtonElement.h"
+#include "nsIFormControl.h"
+#include "nsINameSpaceManager.h"
 #include "nsCOMPtr.h"
+#include "nsIDOMElement.h"
 #include "nsIDocument.h"
+#include "nsIPresShell.h"
+#include "nsXPCOM.h"
+#include "nsISupportsPrimitives.h"
+#include "nsPIDOMWindow.h"
+#include "nsIFilePicker.h"
+#include "nsIDOMMouseEvent.h"
 #include "nsINodeInfo.h"
-#include "mozilla/dom/Element.h"
+#include "nsIFile.h"
 #include "mozilla/dom/HTMLButtonElement.h"
 #include "mozilla/dom/HTMLInputElement.h"
 #include "nsNodeInfoManager.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsContentUtils.h"
+#include "nsDisplayList.h"
+#include "nsEventListenerManager.h"
+
+#include "nsInterfaceHashtable.h"
+#include "nsURIHashKey.h"
+#include "nsNetCID.h"
+#include "nsWeakReference.h"
+#include "nsIVariant.h"
+#include "mozilla/Services.h"
+#include "nsDirectoryServiceDefs.h"
+#include "nsDOMFile.h"
 #include "nsEventStates.h"
-#include "nsIDOMDataTransfer.h"
+#include "nsTextControlFrame.h"
+
 #include "nsIDOMDOMStringList.h"
 #include "nsIDOMDragEvent.h"
-#include "nsIDOMFileList.h"
 #include "nsContentList.h"
 #include "nsIDOMMutationEvent.h"
 #include "nsTextNode.h"
@@ -76,12 +104,16 @@ nsresult
 nsFileControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
 {
   nsCOMPtr<nsIDocument> doc = mContent->GetDocument();
+  nsCOMPtr<nsINodeInfo> nodeInfo;
 
   // Create and setup the file picking button.
-  mBrowse = doc->CreateHTMLElement(nsGkAtoms::button);
-  // NOTE: SetIsNativeAnonymousRoot() has to be called before setting any
-  // attribute.
-  mBrowse->SetIsNativeAnonymousRoot();
+  nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::button, nullptr,
+                                                 kNameSpaceID_XHTML,
+                                                 nsIDOMNode::ELEMENT_NODE);
+  NS_NewHTMLElement(getter_AddRefs(mBrowse), nodeInfo.forget(),
+                    dom::NOT_FROM_PARSER);
+  // NOTE: SetNativeAnonymous() has to be called before setting any attribute.
+  mBrowse->SetNativeAnonymous();
   mBrowse->SetAttr(kNameSpaceID_None, nsGkAtoms::type,
                    NS_LITERAL_STRING("button"), false);
 
@@ -118,14 +150,12 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
   }
 
   // Create and setup the text showing the selected files.
-  nsCOMPtr<nsINodeInfo> nodeInfo;
   nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::label, nullptr,
                                                  kNameSpaceID_XUL,
                                                  nsIDOMNode::ELEMENT_NODE);
   NS_TrustedNewXULElement(getter_AddRefs(mTextContent), nodeInfo.forget());
-  // NOTE: SetIsNativeAnonymousRoot() has to be called before setting any
-  // attribute.
-  mTextContent->SetIsNativeAnonymousRoot();
+  // NOTE: SetNativeAnonymous() has to be called before setting any attribute.
+  mTextContent->SetNativeAnonymous();
   mTextContent->SetAttr(kNameSpaceID_None, nsGkAtoms::crop,
                         NS_LITERAL_STRING("center"), false);
 

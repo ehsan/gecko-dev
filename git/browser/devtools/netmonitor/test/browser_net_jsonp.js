@@ -9,7 +9,7 @@ function test() {
   initNetMonitor(JSONP_URL).then(([aTab, aDebuggee, aMonitor]) => {
     info("Starting test... ");
 
-    let { document, L10N, NetMonitorView } = aMonitor.panelWin;
+    let { document, L10N, SourceEditor, NetMonitorView } = aMonitor.panelWin;
     let { RequestsMenu } = NetMonitorView;
 
     RequestsMenu.lazyUpdate = false;
@@ -30,11 +30,8 @@ function test() {
       EventUtils.sendMouseEvent({ type: "mousedown" },
         document.querySelectorAll("#details-pane tab")[3]);
 
-      let RESPONSE_BODY_DISPLAYED = aMonitor.panelWin.EVENTS.RESPONSE_BODY_DISPLAYED;
-      waitFor(aMonitor.panelWin, RESPONSE_BODY_DISPLAYED)
-        .then(testResponseTab)
-        .then(() => teardown(aMonitor))
-        .then(finish);
+      testResponseTab();
+      teardown(aMonitor).then(finish);
 
       function testResponseTab() {
         let tab = document.querySelectorAll("#details-pane tab")[3];

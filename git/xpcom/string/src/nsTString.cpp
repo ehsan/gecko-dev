@@ -36,15 +36,3 @@ nsTAdoptingString_CharT::operator=( const self_type& str )
     return *this;
   }
 
-void
-nsTString_CharT::Rebind( const char_type* data, size_type length )
-  {
-    // If we currently own a buffer, release it.
-    Finalize();
-
-    mData = const_cast<char_type*>(data);
-    mLength = length;
-    SetDataFlags(F_TERMINATED);
-    AssertValidDepedentString();
-  }
-

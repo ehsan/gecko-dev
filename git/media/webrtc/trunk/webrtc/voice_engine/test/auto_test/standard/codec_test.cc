@@ -8,8 +8,9 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/voice_engine/test/auto_test/fixtures/after_streaming_fixture.h"
-#include "webrtc/voice_engine/voice_engine_defines.h"
+#include "after_streaming_fixture.h"
+#include "voe_test_defines.h"
+#include "voice_engine_defines.h"
 
 class CodecTest : public AfterStreamingFixture {
  protected:

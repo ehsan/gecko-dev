@@ -28,13 +28,9 @@ XPCOMUtils.defineLazyGetter(this, "VARIABLES_SORTING_ENABLED", () =>
   Services.prefs.getBoolPref("devtools.debugger.ui.variables-sorting-enabled")
 );
 
-XPCOMUtils.defineLazyModuleGetter(this, "console",
-  "resource://gre/modules/devtools/Console.jsm");
-
 const MAX_LONG_STRING_LENGTH = 200000;
-const DBG_STRINGS_URI = "chrome://browser/locale/devtools/debugger.properties";
 
-this.EXPORTED_SYMBOLS = ["VariablesViewController", "StackFrameUtils"];
+this.EXPORTED_SYMBOLS = ["VariablesViewController"];
 
 
 /**
@@ -44,21 +40,31 @@ this.EXPORTED_SYMBOLS = ["VariablesViewController", "StackFrameUtils"];
  *
  * @param VariablesView aView
  *        The view to attach to.
- * @param object aOptions [optional]
+ * @param object aOptions
  *        Options for configuring the controller. Supported options:
- *        - getObjectClient: @see this._setClientGetters
- *        - getLongStringClient: @see this._setClientGetters
- *        - getEnvironmentClient: @see this._setClientGetters
- *        - releaseActor: @see this._setClientGetters
- *        - overrideValueEvalMacro: @see _setEvaluationMacros
- *        - getterOrSetterEvalMacro: @see _setEvaluationMacros
- *        - simpleValueEvalMacro: @see _setEvaluationMacros
+ *        - getObjectClient: callback for creating an object grip client
+ *        - getLongStringClient: callback for creating a long string grip client
+ *        - releaseActor: callback for releasing an actor when it's no longer needed
+ *        - overrideValueEvalMacro: callback for creating an overriding eval macro
+ *        - getterOrSetterEvalMacro: callback for creating a getter/setter eval macro
+ *        - simpleValueEvalMacro: callback for creating a simple value eval macro
  */
-function VariablesViewController(aView, aOptions = {}) {
+function VariablesViewController(aView, aOptions) {
   this.addExpander = this.addExpander.bind(this);
 
-  this._setClientGetters(aOptions);
-  this._setEvaluationMacros(aOptions);
+  this._getObjectClient = aOptions.getObjectClient;
+  this._getLongStringClient = aOptions.getLongStringClient;
+  this._releaseActor = aOptions.releaseActor;
+
+  if (aOptions.overrideValueEvalMacro) {
+    this._overrideValueEvalMacro = aOptions.overrideValueEvalMacro;
+  }
+  if (aOptions.getterOrSetterEvalMacro) {
+    this._getterOrSetterEvalMacro = aOptions.getterOrSetterEvalMacro;
+  }
+  if (aOptions.simpleValueEvalMacro) {
+    this._simpleValueEvalMacro = aOptions.simpleValueEvalMacro;
+  }
 
   this._actors = new Set();
   this.view = aView;
@@ -80,52 +86,6 @@ VariablesViewController.prototype = {
    * The default simple value evaluation macro.
    */
   _simpleValueEvalMacro: VariablesView.simpleValueEvalMacro,
-
-  /**
-   * Set the functions used to retrieve debugger client grips.
-   *
-   * @param object aOptions
-   *        Options for getting the client grips. Supported options:
-   *        - getObjectClient: callback for creating an object grip client
-   *        - getLongStringClient: callback for creating a long string grip client
-   *        - getEnvironmentClient: callback for creating an environment client
-   *        - releaseActor: callback for releasing an actor when it's no longer needed
-   */
-  _setClientGetters: function(aOptions) {
-    if (aOptions.getObjectClient) {
-      this._getObjectClient = aOptions.getObjectClient;
-    }
-    if (aOptions.getLongStringClient) {
-      this._getLongStringClient = aOptions.getLongStringClient;
-    }
-    if (aOptions.getEnvironmentClient) {
-      this._getEnvironmentClient = aOptions.getEnvironmentClient;
-    }
-    if (aOptions.releaseActor) {
-      this._releaseActor = aOptions.releaseActor;
-    }
-  },
-
-  /**
-   * Sets the functions used when evaluating strings in the variables view.
-   *
-   * @param object aOptions
-   *        Options for configuring the macros. Supported options:
-   *        - overrideValueEvalMacro: callback for creating an overriding eval macro
-   *        - getterOrSetterEvalMacro: callback for creating a getter/setter eval macro
-   *        - simpleValueEvalMacro: callback for creating a simple value eval macro
-   */
-  _setEvaluationMacros: function(aOptions) {
-    if (aOptions.overrideValueEvalMacro) {
-      this._overrideValueEvalMacro = aOptions.overrideValueEvalMacro;
-    }
-    if (aOptions.getterOrSetterEvalMacro) {
-      this._getterOrSetterEvalMacro = aOptions.getterOrSetterEvalMacro;
-    }
-    if (aOptions.simpleValueEvalMacro) {
-      this._simpleValueEvalMacro = aOptions.simpleValueEvalMacro;
-    }
-  },
 
   /**
    * Populate a long string into a target using a grip.
@@ -172,17 +132,9 @@ VariablesViewController.prototype = {
   _populateFromObject: function(aTarget, aGrip) {
     let deferred = promise.defer();
 
-    // Mark the specified variable as having retrieved all its properties.
-    let finish = variable => {
-      variable._retrieved = true;
-      this.view.commitHierarchy();
-      deferred.resolve();
-    };
-
-    let objectClient = this._getObjectClient(aGrip);
-    objectClient.getPrototypeAndProperties(aResponse => {
+    this._getObjectClient(aGrip).getPrototypeAndProperties(aResponse => {
       let { ownProperties, prototype } = aResponse;
-      // 'safeGetterValues' is new and isn't necessary defined on old actors.
+      // safeGetterValues is new and isn't necessary defined on old actors
       let safeGetterValues = aResponse.safeGetterValues || {};
       let sortable = VariablesView.isSortable(aGrip.class);
 
@@ -190,9 +142,9 @@ VariablesViewController.prototype = {
       // in VariablesView.
       for (let name of Object.keys(safeGetterValues)) {
         if (name in ownProperties) {
-          let { getterValue, getterPrototypeLevel } = safeGetterValues[name];
-          ownProperties[name].getterValue = getterValue;
-          ownProperties[name].getterPrototypeLevel = getterPrototypeLevel;
+          ownProperties[name].getterValue = safeGetterValues[name].getterValue;
+          ownProperties[name].getterPrototypeLevel = safeGetterValues[name]
+                                                     .getterPrototypeLevel;
         } else {
           ownProperties[name] = safeGetterValues[name];
         }
@@ -215,111 +167,20 @@ VariablesViewController.prototype = {
         this.addExpander(proto, prototype);
       }
 
-      // If the object is a function we need to fetch its scope chain
-      // to show them as closures for the respective function.
-      if (aGrip.class == "Function") {
-        objectClient.getScope(aResponse => {
-          if (aResponse.error) {
-            // This function is bound to a built-in object or it's not present
-            // in the current scope chain. Not necessarily an actual error,
-            // it just means that there's no closure for the function.
-            console.warn(aResponse.error + ": " + aResponse.message);
-            return void finish(aTarget);
-          }
-          this._addVarScope(aTarget, aResponse.scope).then(() => finish(aTarget));
-        });
-      } else {
-        finish(aTarget);
-      }
+      // Mark the variable as having retrieved all its properties.
+      aTarget._retrieved = true;
+      this.view.commitHierarchy();
+      deferred.resolve();
     });
 
     return deferred.promise;
   },
 
   /**
-   * Adds the scope chain elements (closures) of a function variable to the
-   * view.
-   *
-   * @param Variable aTarget
-   *        The variable where the properties will be placed into.
-   * @param Scope aScope
-   *        The lexical environment form as specified in the protocol.
-   */
-  _addVarScope: function(aTarget, aScope) {
-    let objectScopes = [];
-    let environment = aScope;
-    let funcScope = aTarget.addItem("<Closure>");
-    funcScope._target.setAttribute("scope", "");
-    funcScope._fetched = true;
-    funcScope.showArrow();
-    do {
-      // Create a scope to contain all the inspected variables.
-      let label = StackFrameUtils.getScopeLabel(environment);
-      // Block scopes have the same label, so make addItem allow duplicates.
-      let closure = funcScope.addItem(label, undefined, true);
-      closure._target.setAttribute("scope", "");
-      closure._fetched = environment.class == "Function";
-      closure.showArrow();
-      // Add nodes for every argument and every other variable in scope.
-      if (environment.bindings) {
-        this._addBindings(closure, environment.bindings);
-        funcScope._retrieved = true;
-        closure._retrieved = true;
-      } else {
-        let deferred = Promise.defer();
-        objectScopes.push(deferred.promise);
-        this._getEnvironmentClient(environment).getBindings(response => {
-          this._addBindings(closure, response.bindings);
-          funcScope._retrieved = true;
-          closure._retrieved = true;
-          deferred.resolve();
-        });
-      }
-    } while ((environment = environment.parent));
-    aTarget.expand();
-
-    return Promise.all(objectScopes).then(() => {
-      // Signal that scopes have been fetched.
-      this.view.emit("fetched", "scopes", funcScope);
-    });
-  },
-
-  /**
-   * Adds nodes for every specified binding to the closure node.
-   *
-   * @param Variable closure
-   *        The node where the bindings will be placed into.
-   * @param object bindings
-   *        The bindings form as specified in the protocol.
-   */
-  _addBindings: function(closure, bindings) {
-    for (let argument of bindings.arguments) {
-      let name = Object.getOwnPropertyNames(argument)[0];
-      let argRef = closure.addItem(name, argument[name]);
-      let argVal = argument[name].value;
-      this.addExpander(argRef, argVal);
-    }
-
-    let aVariables = bindings.variables;
-    let variableNames = Object.keys(aVariables);
-
-    // Sort all of the variables before adding them, if preferred.
-    if (VARIABLES_SORTING_ENABLED) {
-      variableNames.sort();
-    }
-    // Add the variables to the specified scope.
-    for (let name of variableNames) {
-      let varRef = closure.addItem(name, aVariables[name]);
-      let varVal = aVariables[name].value;
-      this.addExpander(varRef, varVal);
-    }
-  },
-
-  /**
    * Adds an 'onexpand' callback for a variable, lazily handling
    * the addition of new properties.
    *
-   * @param Variable aTarget
+   * @param Variable aVar
    *        The variable where the properties will be placed into.
    * @param any aSource
    *        The source to use to populate the target.
@@ -352,19 +213,13 @@ VariablesViewController.prototype = {
       aTarget.showArrow();
     }
 
-    if (aSource.type == "block" || aSource.type == "function") {
-      // Block and function environments already contain scope arguments and
-      // corresponding variables as bindings.
-      this.populate(aTarget, aSource);
-    } else {
-      // Make sure that properties are always available on expansion.
-      aTarget.onexpand = () => this.populate(aTarget, aSource);
+    // Make sure that properties are always available on expansion.
+    aTarget.onexpand = () => this.expand(aTarget, aSource);
 
-      // Some variables are likely to contain a very large number of properties.
-      // It's a good idea to be prepared in case of an expansion.
-      if (aTarget.shouldPrefetch) {
-        aTarget.addEventListener("mouseover", aTarget.onexpand, false);
-      }
+    // Some variables are likely to contain a very large number of properties.
+    // It's a good idea to be prepared in case of an expansion.
+    if (aTarget.shouldPrefetch) {
+      aTarget.addEventListener("mouseover", aTarget.onexpand, false);
     }
 
     // Register all the actors that this controller now depends on.
@@ -379,8 +234,6 @@ VariablesViewController.prototype = {
    * Adds properties to a Scope, Variable, or Property in the view. Triggered
    * when a scope is expanded or certain variables are hovered.
    *
-   * This does not expand the target, it only populates it.
-   *
    * @param Scope aTarget
    *        The Scope to be expanded.
    * @param object aSource
@@ -388,20 +241,20 @@ VariablesViewController.prototype = {
    * @return Promise
    *         The promise that is resolved once the target has been expanded.
    */
-  populate: function(aTarget, aSource) {
+  expand: function(aTarget, aSource) {
     // Fetch the variables only once.
     if (aTarget._fetched) {
       return aTarget._fetched;
-    }
-    // Make sure the source grip is available.
-    if (!aSource) {
-      return promise.reject(new Error("No actor grip was given for the variable."));
     }
 
     let deferred = promise.defer();
     aTarget._fetched = deferred.promise;
 
-    // If the target is a Variable or Property then we're fetching properties.
+    if (!aSource) {
+      throw new Error("No actor grip was given for the variable.");
+    }
+
+    // If the target a Variable or Property then we're fetching properties
     if (VariablesView.isVariable(aTarget)) {
       this._populateFromObject(aTarget, aSource).then(() => {
         deferred.resolve();
@@ -488,48 +341,6 @@ VariablesViewController.prototype = {
       }
     }
   },
-
-  /**
-   * Helper function for setting up a single Scope with a single Variable
-   * contained within it.
-   *
-   * This function will empty the variables view.
-   *
-   * @param object aOptions
-   *        Options for the contents of the view:
-   *        - objectActor: the grip of the new ObjectActor to show.
-   *        - rawObject: the raw object to show.
-   *        - label: the label for the inspected object.
-   * @param object aConfiguration
-   *        Additional options for the controller:
-   *        - overrideValueEvalMacro: @see _setEvaluationMacros
-   *        - getterOrSetterEvalMacro: @see _setEvaluationMacros
-   *        - simpleValueEvalMacro: @see _setEvaluationMacros
-   * @return Object
-   *         - variable: the created Variable.
-   *         - expanded: the Promise that resolves when the variable expands.
-   */
-  setSingleVariable: function(aOptions, aConfiguration = {}) {
-    this._setEvaluationMacros(aConfiguration);
-    this.view.empty();
-
-    let scope = this.view.addScope(aOptions.label);
-    scope.expanded = true; // Expand the scope by default.
-    scope.locked = true; // Prevent collpasing the scope.
-
-    let variable = scope.addItem("", { enumerable: true });
-    let populated;
-
-    if (aOptions.objectActor) {
-      populated = this.populate(variable, aOptions.objectActor);
-      variable.expand();
-    } else if (aOptions.rawObject) {
-      variable.populate(aOptions.rawObject, { expanded: true });
-      populated = promise.resolve();
-    }
-
-    return { variable: variable, expanded: populated };
-  },
 };
 
 
@@ -549,64 +360,3 @@ VariablesViewController.attach = function(aView, aOptions) {
   }
   return new VariablesViewController(aView, aOptions);
 };
-
-/**
- * Utility functions for handling stackframes.
- */
-let StackFrameUtils = {
-  /**
-   * Create a textual representation for the specified stack frame
-   * to display in the stackframes container.
-   *
-   * @param object aFrame
-   *        The stack frame to label.
-   */
-  getFrameTitle: function(aFrame) {
-    if (aFrame.type == "call") {
-      let c = aFrame.callee;
-      return (c.name || c.userDisplayName || c.displayName || "(anonymous)");
-    }
-    return "(" + aFrame.type + ")";
-  },
-
-  /**
-   * Constructs a scope label based on its environment.
-   *
-   * @param object aEnv
-   *        The scope's environment.
-   * @return string
-   *         The scope's label.
-   */
-  getScopeLabel: function(aEnv) {
-    let name = "";
-
-    // Name the outermost scope Global.
-    if (!aEnv.parent) {
-      name = L10N.getStr("globalScopeLabel");
-    }
-    // Otherwise construct the scope name.
-    else {
-      name = aEnv.type.charAt(0).toUpperCase() + aEnv.type.slice(1);
-    }
-
-    let label = L10N.getFormatStr("scopeLabel", name);
-    switch (aEnv.type) {
-      case "with":
-      case "object":
-        label += " [" + aEnv.object.class + "]";
-        break;
-      case "function":
-        let f = aEnv.function;
-        label += " [" +
-          (f.name || f.userDisplayName || f.displayName || "(anonymous)") +
-        "]";
-        break;
-    }
-    return label;
-  }
-};
-
-/**
- * Localization convenience methods.
- */
-let L10N = new ViewHelpers.L10N(DBG_STRINGS_URI);

@@ -1,5 +1,8 @@
 /* run some tests on the file:// protocol handler */
 
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cr = Components.results;
 const PR_RDONLY = 0x1;  // see prio.h
 
 const special_type = "application/x-our-special-type";

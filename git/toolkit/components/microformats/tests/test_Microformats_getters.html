@@ -11,7 +11,8 @@
 
   // Called from onload in iframe
   function test_MicroformatsAPI() {
-    var Microformats = SpecialPowers.Cu.import("resource://gre/modules/Microformats.js").Microformats;
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    Components.utils.import("resource://gre/modules/Microformats.js");
 
     // Test that we can get them all
     var mfs = [];

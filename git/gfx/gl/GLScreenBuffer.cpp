@@ -8,7 +8,6 @@
 #include <cstring>
 #include "gfxImageSurface.h"
 #include "GLContext.h"
-#include "GLBlitHelper.h"
 #include "SharedSurfaceGL.h"
 #include "SurfaceStream.h"
 #ifdef MOZ_WIDGET_GONK
@@ -18,7 +17,6 @@
 #ifdef XP_MACOSX
 #include "SharedSurfaceIO.h"
 #endif
-#include "ScopedGLHelpers.h"
 
 using namespace mozilla::gfx;
 
@@ -68,17 +66,10 @@ GLScreenBuffer::Create(GLContext* gl,
 
 GLScreenBuffer::~GLScreenBuffer()
 {
+    delete mFactory;
     delete mStream;
     delete mDraw;
     delete mRead;
-
-    // bug 914823: it is crucial to destroy the Factory _after_ we destroy
-    // the SharedSurfaces around here! Reason: the shared surfaces will want
-    // to ask the Allocator (e.g. the ClientLayerManager) to destroy their
-    // buffers, but that Allocator may be kept alive by the Factory,
-    // as it currently the case in SurfaceFactory_Gralloc holding a nsRefPtr
-    // to the Allocator!
-    delete mFactory;
 }
 
 
@@ -338,7 +329,8 @@ GLScreenBuffer::AssureBlitted()
 
         MOZ_ASSERT(drawFB != 0);
         MOZ_ASSERT(drawFB != readFB);
-        MOZ_ASSERT(mGL->IsSupported(GLFeature::framebuffer_blit));
+        MOZ_ASSERT(mGL->IsExtensionSupported(GLContext::EXT_framebuffer_blit) ||
+                   mGL->IsExtensionSupported(GLContext::ANGLE_framebuffer_blit));
         MOZ_ASSERT(mDraw->Size() == mRead->Size());
 
         ScopedBindFramebuffer boundFB(mGL);
@@ -483,8 +475,8 @@ GLScreenBuffer::Readback(SharedSurface_GL* src, gfxImageSurface* dest)
 {
     MOZ_ASSERT(src && dest);
     MOZ_ASSERT(dest->GetSize() == src->Size());
-    MOZ_ASSERT(dest->Format() == (src->HasAlpha() ? gfxImageFormatARGB32
-                                                  : gfxImageFormatRGB24));
+    MOZ_ASSERT(dest->Format() == (src->HasAlpha() ? gfxImageSurface::ImageFormatARGB32
+                                                  : gfxImageSurface::ImageFormatRGB24));
 
     mGL->MakeCurrent();
 
@@ -548,8 +540,8 @@ DrawBuffer::Create(GLContext* const gl,
             pStencilRB = nullptr;
     }
 
-    CreateRenderbuffersForOffscreen(gl, formats, size, caps.antialias,
-                                    pColorMSRB, pDepthRB, pStencilRB);
+    gl->CreateRenderbuffersForOffscreen(formats, size, caps.antialias,
+                                        pColorMSRB, pDepthRB, pStencilRB);
 
     GLuint fb = 0;
     gl->fGenFramebuffers(1, &fb);
@@ -601,8 +593,8 @@ ReadBuffer::Create(GLContext* gl,
     GLuint* pDepthRB   = caps.depth   ? &depthRB   : nullptr;
     GLuint* pStencilRB = caps.stencil ? &stencilRB : nullptr;
 
-    CreateRenderbuffersForOffscreen(gl, formats, surf->Size(), caps.antialias,
-                                    nullptr, pDepthRB, pStencilRB);
+    gl->CreateRenderbuffersForOffscreen(formats, surf->Size(), caps.antialias,
+                                        nullptr, pDepthRB, pStencilRB);
 
     GLuint colorTex = 0;
     GLuint colorRB = 0;

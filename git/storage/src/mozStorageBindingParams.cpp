@@ -126,6 +126,7 @@ AsyncBindingParams::AsyncBindingParams(
 )
 : BindingParams(aOwningArray)
 {
+  mNamedParameters.Init();
 }
 
 void

@@ -13,7 +13,7 @@
 
 #include "webrtc/common_audio/resampler/sinusoidal_linear_chirp_source.h"
 
-#include <math.h>
+#include <cmath>
 
 namespace webrtc {
 
@@ -29,7 +29,7 @@ SinusoidalLinearChirpSource::SinusoidalLinearChirpSource(int sample_rate,
   k_ = (max_frequency_ - kMinFrequency) / duration;
 }
 
-void SinusoidalLinearChirpSource::Run(int frames, float* destination) {
+void SinusoidalLinearChirpSource::Run(float* destination, int frames) {
   for (int i = 0; i < frames; ++i, ++current_index_) {
     // Filter out frequencies higher than Nyquist.
     if (Frequency(current_index_) > 0.5 * sample_rate_) {

@@ -4,15 +4,13 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-SOURCES += [
-    'nsHapticFeedback.cpp',
-]
+MODULE = 'dom'
 
-# We fire the nsDOMDeviceAcceleration
-LOCAL_INCLUDES += [
-    '/content/events/src',
+CPP_SOURCES += [
+    'nsHapticFeedback.cpp',
 ]
 
 FAIL_ON_WARNINGS = True
 
-FINAL_LIBRARY = 'gklayout'
+LIBXUL_LIBRARY = True
+

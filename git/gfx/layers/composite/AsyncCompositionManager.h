@@ -14,7 +14,7 @@
 #include "mozilla/TimeStamp.h"          // for TimeStamp
 #include "mozilla/dom/ScreenOrientation.h"  // for ScreenOrientation
 #include "mozilla/gfx/BasePoint.h"      // for BasePoint
-#include "mozilla/layers/LayersMessages.h"  // for TargetConfig
+#include "mozilla/layers/LayerTransaction.h"  // for TargetConfig
 #include "nsAutoPtr.h"                  // for nsRefPtr
 #include "nsISupportsImpl.h"            // for LayerManager::AddRef, etc
 #include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
@@ -30,7 +30,7 @@ class AutoResolveRefLayers;
 // Represents (affine) transforms that are calculated from a content view.
 struct ViewTransform {
   ViewTransform(LayerPoint aTranslation = LayerPoint(),
-                ParentLayerToScreenScale aScale = ParentLayerToScreenScale())
+                LayoutDeviceToScreenScale aScale = LayoutDeviceToScreenScale())
     : mTranslation(aTranslation)
     , mScale(aScale)
   {}
@@ -51,7 +51,7 @@ struct ViewTransform {
   }
 
   LayerPoint mTranslation;
-  ParentLayerToScreenScale mScale;
+  LayoutDeviceToScreenScale mScale;
 };
 
 /**
@@ -117,17 +117,12 @@ public:
   bool IsFirstPaint() { return mIsFirstPaint; }
 
 private:
-  void TransformScrollableLayer(Layer* aLayer);
+  void TransformScrollableLayer(Layer* aLayer, const LayoutDeviceToLayerScale& aResolution);
   // Return true if an AsyncPanZoomController content transform was
   // applied for |aLayer|.  *aWantNextFrame is set to true if the
   // controller wants another animation frame.
   bool ApplyAsyncContentTransformToTree(TimeStamp aCurrentFrame, Layer* aLayer,
                                         bool* aWantNextFrame);
-  /**
-   * Update the shadow trasnform for aLayer assuming that is a scrollbar,
-   * so that it stays in sync with the content that is being scrolled by APZ.
-   */
-  void ApplyAsyncTransformToScrollbar(ContainerLayer* aLayer);
 
   void SetFirstPaintViewport(const LayerIntPoint& aOffset,
                              const CSSToLayerScale& aZoom,
@@ -151,20 +146,19 @@ private:
                         ScreenPoint& aOffset);
 
   /**
-   * Adds a translation to the transform of any fixed position (whose parent
-   * layer is not fixed) or sticky position layer descendant of
-   * aTransformedSubtreeRoot. The translation is chosen so that the layer's
-   * anchor point relative to aTransformedSubtreeRoot's parent layer is the same
-   * as it was when aTransformedSubtreeRoot's GetLocalTransform() was
-   * aPreviousTransformForRoot. For sticky position layers, the translation is
-   * further intersected with the layer's sticky scroll ranges.
+   * Adds a translation to the transform of any fixed-pos layer descendant of
+   * aTransformedSubtreeRoot whose parent layer is not fixed. The translation is
+   * chosen so that the layer's anchor point relative to aTransformedSubtreeRoot's
+   * parent layer is the same as it was when aTransformedSubtreeRoot's
+   * GetLocalTransform() was aPreviousTransformForRoot.
    * This function will also adjust layers so that the given content document
    * fixed position margins will be respected during asynchronous panning and
    * zooming.
    */
-  void AlignFixedAndStickyLayers(Layer* aLayer, Layer* aTransformedSubtreeRoot,
-                                 const gfx3DMatrix& aPreviousTransformForRoot,
-                                 const LayerMargin& aFixedLayerMargins);
+  void AlignFixedLayersForAnchorPoint(Layer* aLayer,
+                                      Layer* aTransformedSubtreeRoot,
+                                      const gfx3DMatrix& aPreviousTransformForRoot,
+                                      const LayerMargin& aFixedLayerMargins);
 
   /**
    * DRAWING PHASE ONLY

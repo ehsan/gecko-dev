@@ -7,6 +7,7 @@
 #include <stddef.h>                     // for size_t
 #include <stdio.h>                      // for printf
 #include "ISurfaceAllocator.h"          // for ISurfaceAllocator, etc
+#include "gfxPoint.h"                   // for gfxIntSize
 #include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
 #include "mozilla/gfx/Types.h"          // for SurfaceFormat::FORMAT_YUV
 #include "mozilla/ipc/SharedMemory.h"   // for SharedMemory, etc
@@ -14,10 +15,8 @@
 #include "mozilla/layers/LayersSurfaces.h"  // for SurfaceDescriptor, etc
 #include "mozilla/layers/TextureClient.h"  // for BufferTextureClient, etc
 #include "mozilla/layers/YCbCrImageDataSerializer.h"
-#include "mozilla/layers/ImageBridgeChild.h"  // for ImageBridgeChild
 #include "mozilla/mozalloc.h"           // for operator delete
 #include "nsISupportsImpl.h"            // for Image::AddRef
-#include "mozilla/ipc/Shmem.h"
 
 class gfxASurface;
 
@@ -28,7 +27,6 @@ using namespace mozilla::ipc;
 
 SharedPlanarYCbCrImage::SharedPlanarYCbCrImage(ImageClient* aCompositable)
 : PlanarYCbCrImage(nullptr)
-, mCompositable(aCompositable)
 {
   mTextureClient = aCompositable->CreateBufferTextureClient(gfx::FORMAT_YUV);
   MOZ_COUNT_CTOR(SharedPlanarYCbCrImage);
@@ -36,20 +34,8 @@ SharedPlanarYCbCrImage::SharedPlanarYCbCrImage(ImageClient* aCompositable)
 
 SharedPlanarYCbCrImage::~SharedPlanarYCbCrImage() {
   MOZ_COUNT_DTOR(SharedPlanarYCbCrImage);
-
-  if (mCompositable->GetAsyncID() != 0 &&
-      !InImageBridgeChildThread()) {
-    ImageBridgeChild::DispatchReleaseTextureClient(mTextureClient.forget().drop());
-    ImageBridgeChild::DispatchReleaseImageClient(mCompositable.forget().drop());
-  }
 }
 
-DeprecatedSharedPlanarYCbCrImage::DeprecatedSharedPlanarYCbCrImage(ISurfaceAllocator* aAllocator)
-: PlanarYCbCrImage(nullptr)
-, mSurfaceAllocator(aAllocator), mAllocated(false)
-{
-  MOZ_COUNT_CTOR(DeprecatedSharedPlanarYCbCrImage);
-}
 
 DeprecatedSharedPlanarYCbCrImage::~DeprecatedSharedPlanarYCbCrImage() {
   MOZ_COUNT_DTOR(DeprecatedSharedPlanarYCbCrImage);
@@ -84,7 +70,7 @@ SharedPlanarYCbCrImage::GetAsSurface()
 }
 
 void
-SharedPlanarYCbCrImage::SetData(const PlanarYCbCrData& aData)
+SharedPlanarYCbCrImage::SetData(const PlanarYCbCrImage::Data& aData)
 {
   // If mShmem has not been allocated (through Allocate(aData)), allocate it.
   // This code path is slower than the one used when Allocate has been called
@@ -125,16 +111,14 @@ SharedPlanarYCbCrImage::AllocateAndGetNewBuffer(uint32_t aSize)
 {
   NS_ABORT_IF_FALSE(!mTextureClient->IsAllocated(), "This image already has allocated data");
   size_t size = YCbCrImageDataSerializer::ComputeMinBufferSize(aSize);
-
-  // get new buffer _without_ setting mBuffer.
-  if (!mTextureClient->Allocate(size)) {
-    return nullptr;
-  }
-
   // update buffer size
   mBufferSize = size;
 
+  // get new buffer _without_ setting mBuffer.
+  bool status = mTextureClient->Allocate(mBufferSize);
+  MOZ_ASSERT(status);
   YCbCrImageDataSerializer serializer(mTextureClient->GetBuffer());
+
   return serializer.GetData();
 }
 
@@ -143,21 +127,8 @@ SharedPlanarYCbCrImage::SetDataNoCopy(const Data &aData)
 {
   mData = aData;
   mSize = aData.mPicSize;
-  /* SetDataNoCopy is used to update YUV plane offsets without (re)allocating
-   * memory previously allocated with AllocateAndGetNewBuffer().
-   * serializer.GetData() returns the address of the memory previously allocated
-   * with AllocateAndGetNewBuffer(), that we subtract from the Y, Cb, Cr
-   * channels to compute 0-based offsets to pass to InitializeBufferInfo.
-   */
   YCbCrImageDataSerializer serializer(mTextureClient->GetBuffer());
-  uint8_t *base = serializer.GetData();
-  uint32_t yOffset = aData.mYChannel - base;
-  uint32_t cbOffset = aData.mCbChannel - base;
-  uint32_t crOffset = aData.mCrChannel - base;
-  serializer.InitializeBufferInfo(yOffset,
-                                  cbOffset,
-                                  crOffset,
-                                  aData.mYSize,
+  serializer.InitializeBufferInfo(aData.mYSize,
                                   aData.mCbCrSize,
                                   aData.mStereoMode);
 }
@@ -179,7 +150,7 @@ SharedPlanarYCbCrImage::IsValid() {
 }
 
 bool
-SharedPlanarYCbCrImage::Allocate(PlanarYCbCrData& aData)
+SharedPlanarYCbCrImage::Allocate(PlanarYCbCrImage::Data& aData)
 {
   NS_ABORT_IF_FALSE(!mTextureClient->IsAllocated(),
                     "This image already has allocated data");
@@ -223,7 +194,7 @@ SharedPlanarYCbCrImage::Allocate(PlanarYCbCrData& aData)
 }
 
 void
-DeprecatedSharedPlanarYCbCrImage::SetData(const PlanarYCbCrData& aData)
+DeprecatedSharedPlanarYCbCrImage::SetData(const PlanarYCbCrImage::Data& aData)
 {
   // If mShmem has not been allocated (through Allocate(aData)), allocate it.
   // This code path is slower than the one used when Allocate has been called
@@ -262,18 +233,16 @@ DeprecatedSharedPlanarYCbCrImage::AllocateAndGetNewBuffer(uint32_t aSize)
 {
   NS_ABORT_IF_FALSE(!mAllocated, "This image already has allocated data");
   size_t size = YCbCrImageDataSerializer::ComputeMinBufferSize(aSize);
-
-  // get new buffer _without_ setting mBuffer.
-  if (!AllocateBuffer(size)) {
-    return nullptr;
-  }
-
   // update buffer size
   mBufferSize = size;
 
+  // get new buffer _without_ setting mBuffer.
+  AllocateBuffer(mBufferSize);
   YCbCrImageDataSerializer serializer(mShmem.get<uint8_t>());
+
   return serializer.GetData();
 }
+
 
 void
 DeprecatedSharedPlanarYCbCrImage::SetDataNoCopy(const Data &aData)
@@ -300,7 +269,7 @@ DeprecatedSharedPlanarYCbCrImage::AllocateBuffer(uint32_t aSize)
 
 
 bool
-DeprecatedSharedPlanarYCbCrImage::Allocate(PlanarYCbCrData& aData)
+DeprecatedSharedPlanarYCbCrImage::Allocate(PlanarYCbCrImage::Data& aData)
 {
   NS_ABORT_IF_FALSE(!mAllocated, "This image already has allocated data");
 
@@ -362,7 +331,7 @@ DeprecatedSharedPlanarYCbCrImage::DropToSurfaceDescriptor(SurfaceDescriptor& aDe
     return false;
   }
   aDesc = YCbCrImage(mShmem, 0);
-  mShmem = mozilla::ipc::Shmem();
+  mShmem = Shmem();
   mAllocated = false;
   return true;
 }

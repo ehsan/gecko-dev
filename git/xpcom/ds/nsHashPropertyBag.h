@@ -6,6 +6,9 @@
 #ifndef nsHashPropertyBag_h___
 #define nsHashPropertyBag_h___
 
+#include "nsCOMPtr.h"
+#include "nsCOMArray.h"
+
 #include "nsIVariant.h"
 #include "nsIWritablePropertyBag.h"
 #include "nsIWritablePropertyBag2.h"
@@ -17,6 +20,8 @@ class nsHashPropertyBag : public nsIWritablePropertyBag
 public:
     nsHashPropertyBag() { }
     virtual ~nsHashPropertyBag() {}
+
+    nsresult Init();
 
     NS_DECL_THREADSAFE_ISUPPORTS
 

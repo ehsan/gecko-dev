@@ -5,39 +5,35 @@
 @namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
 
 findbar {
+  padding: 4px 8px;
   box-shadow: 0 1px 1px rgba(0,0,0,.1) inset;
   background-image: linear-gradient(rgba(0,0,0,.15) 1px, rgba(255,255,255,.15) 1px);
   background-size: 100% 2px;
   background-repeat: no-repeat;
   min-width: 1px;
-  transition-property: margin-bottom, opacity, visibility;
-  transition-duration: 150ms, 150ms, 0s;
-  transition-timing-function: ease-in-out, ease-in-out, linear;
 }
 
-findbar[hidden] {
-  /* Override display:none to make the transition work. */
-  display: -moz-box;
-  visibility: collapse;
-  margin-bottom: -1em;
-  opacity: 0;
-  transition-delay: 0s, 0s, 150ms;
-}
-
-.findbar-container {
-  -moz-padding-start: 8px;
-  padding-top: 4px;
-  padding-bottom: 4px;
+findbar[position="top"] {
+  background-image: none;
+  box-shadow: 0 -1px 0 rgba(0,0,0,.1) inset;
 }
 
 .findbar-closebutton {
   -moz-margin-start: 4px;
-  -moz-padding-start: 0;
-  -moz-padding-end: 8px;
   border: none;
+  padding: 0;
+  list-style-image: url("chrome://global/skin/icons/close.png");
   -moz-appearance: none;
+  -moz-image-region: rect(0, 16px, 16px, 0);
 }
 
+.findbar-closebutton:hover {
+  -moz-image-region: rect(0, 32px, 16px, 16px);
+}
+
+.findbar-closebutton:hover:active {
+  -moz-image-region: rect(0, 48px, 16px, 32px);
+}
 
 /* Search field */
 

@@ -6,7 +6,7 @@
 
 #include "mozilla/dom/DOMError.h"
 #include "mozilla/dom/DOMErrorBinding.h"
-#include "mozilla/dom/DOMException.h"
+#include "nsDOMException.h"
 #include "nsPIDOMWindow.h"
 
 namespace mozilla {

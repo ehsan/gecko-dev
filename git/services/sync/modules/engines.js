@@ -13,7 +13,7 @@ this.EXPORTED_SYMBOLS = [
 const {classes: Cc, interfaces: Ci, results: Cr, utils: Cu} = Components;
 
 Cu.import("resource://services-common/async.js");
-Cu.import("resource://gre/modules/Log.jsm");
+Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-common/observers.js");
 Cu.import("resource://services-common/utils.js");
 Cu.import("resource://services-sync/constants.js");
@@ -42,20 +42,16 @@ this.Tracker = function Tracker(name, engine) {
   this.name = this.file = name.toLowerCase();
   this.engine = engine;
 
-  this._log = Log.repository.getLogger("Sync.Tracker." + name);
+  this._log = Log4Moz.repository.getLogger("Sync.Tracker." + name);
   let level = Svc.Prefs.get("log.logger.engine." + this.name, "Debug");
-  this._log.level = Log.Level[level];
+  this._log.level = Log4Moz.Level[level];
 
   this._score = 0;
   this._ignored = [];
   this.ignoreAll = false;
   this.changedIDs = {};
   this.loadChangedIDs();
-
-  Svc.Obs.add("weave:engine:start-tracking", this);
-  Svc.Obs.add("weave:engine:stop-tracking", this);
-};
-
+}
 Tracker.prototype = {
   /*
    * Score can be called as often as desired to decide which engines to sync
@@ -77,7 +73,7 @@ Tracker.prototype = {
   },
 
   // Should be called by service everytime a sync has been done for an engine
-  resetScore: function () {
+  resetScore: function T_resetScore() {
     this._score = 0;
   },
 
@@ -92,7 +88,7 @@ Tracker.prototype = {
       this._log.debug("Not saving changedIDs.");
       return;
     }
-    Utils.namedTimer(function () {
+    Utils.namedTimer(function() {
       this._log.debug("Saving changed IDs to " + this.file);
       Utils.jsonSave("changes/" + this.file, this, this.changedIDs, cb);
     }, 1000, this, "_lazySave");
@@ -116,43 +112,39 @@ Tracker.prototype = {
   // being processed, or that shouldn't be synced.
   // But note: not persisted to disk
 
-  ignoreID: function (id) {
+  ignoreID: function T_ignoreID(id) {
     this.unignoreID(id);
     this._ignored.push(id);
   },
 
-  unignoreID: function (id) {
+  unignoreID: function T_unignoreID(id) {
     let index = this._ignored.indexOf(id);
     if (index != -1)
       this._ignored.splice(index, 1);
   },
 
-  addChangedID: function (id, when) {
+  addChangedID: function addChangedID(id, when) {
     if (!id) {
       this._log.warn("Attempted to add undefined ID to tracker");
       return false;
     }
-
-    if (this.ignoreAll || (id in this._ignored)) {
+    if (this.ignoreAll || (id in this._ignored))
       return false;
-    }
 
-    // Default to the current time in seconds if no time is provided.
-    if (when == null) {
+    // Default to the current time in seconds if no time is provided
+    if (when == null)
       when = Math.floor(Date.now() / 1000);
-    }
 
-    // Add/update the entry if we have a newer time.
+    // Add/update the entry if we have a newer time
     if ((this.changedIDs[id] || -Infinity) < when) {
       this._log.trace("Adding changed ID: " + id + ", " + when);
       this.changedIDs[id] = when;
       this.saveChangedIDs(this.onSavedChangedIDs);
     }
-
     return true;
   },
 
-  removeChangedID: function (id) {
+  removeChangedID: function T_removeChangedID(id) {
     if (!id) {
       this._log.warn("Attempted to remove undefined ID to tracker");
       return false;
@@ -167,64 +159,10 @@ Tracker.prototype = {
     return true;
   },
 
-  clearChangedIDs: function () {
+  clearChangedIDs: function T_clearChangedIDs() {
     this._log.trace("Clearing changed ID list");
     this.changedIDs = {};
     this.saveChangedIDs();
-  },
-
-  _isTracking: false,
-
-  // Override these in your subclasses.
-  startTracking: function () {
-  },
-
-  stopTracking: function () {
-  },
-
-  engineIsEnabled: function () {
-    if (!this.engine) {
-      // Can't tell -- we must be running in a test!
-      return true;
-    }
-    return this.engine.enabled;
-  },
-
-  onEngineEnabledChanged: function (engineEnabled) {
-    if (engineEnabled == this._isTracking) {
-      return;
-    }
-
-    if (engineEnabled) {
-      this.startTracking();
-      this._isTracking = true;
-    } else {
-      this.stopTracking();
-      this._isTracking = false;
-      this.clearChangedIDs();
-    }
-  },
-
-  observe: function (subject, topic, data) {
-    switch (topic) {
-      case "weave:engine:start-tracking":
-        if (!this.engineIsEnabled()) {
-          return;
-        }
-        this._log.trace("Got start-tracking.");
-        if (!this._isTracking) {
-          this.startTracking();
-          this._isTracking = true;
-        }
-        return;
-      case "weave:engine:stop-tracking":
-        this._log.trace("Got stop-tracking.");
-        if (this._isTracking) {
-          this.stopTracking();
-          this._isTracking = false;
-        }
-        return;
-    }
   }
 };
 
@@ -259,9 +197,9 @@ this.Store = function Store(name, engine) {
   this.name = name.toLowerCase();
   this.engine = engine;
 
-  this._log = Log.repository.getLogger("Sync.Store." + name);
+  this._log = Log4Moz.repository.getLogger("Sync.Store." + name);
   let level = Svc.Prefs.get("log.logger.engine." + this.name, "Debug");
-  this._log.level = Log.Level[level];
+  this._log.level = Log4Moz.Level[level];
 
   XPCOMUtils.defineLazyGetter(this, "_timer", function() {
     return Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
@@ -290,7 +228,7 @@ Store.prototype = {
    * @param  records Array of records to apply
    * @return Array of record IDs which did not apply cleanly
    */
-  applyIncomingBatch: function (records) {
+  applyIncomingBatch: function applyIncomingBatch(records) {
     let failed = [];
     for each (let record in records) {
       try {
@@ -322,7 +260,7 @@ Store.prototype = {
    * @param record
    *        Record to apply
    */
-  applyIncoming: function (record) {
+  applyIncoming: function Store_applyIncoming(record) {
     if (record.deleted)
       this.remove(record);
     else if (!this.itemExists(record.id))
@@ -342,7 +280,7 @@ Store.prototype = {
    * @param record
    *        The store record to create an item from
    */
-  create: function (record) {
+  create: function Store_create(record) {
     throw "override create in a subclass";
   },
 
@@ -355,7 +293,7 @@ Store.prototype = {
    * @param record
    *        The store record to delete an item from
    */
-  remove: function (record) {
+  remove: function Store_remove(record) {
     throw "override remove in a subclass";
   },
 
@@ -368,7 +306,7 @@ Store.prototype = {
    * @param record
    *        The record to use to update an item from
    */
-  update: function (record) {
+  update: function Store_update(record) {
     throw "override update in a subclass";
   },
 
@@ -382,7 +320,7 @@ Store.prototype = {
    *         string record ID
    * @return boolean indicating whether record exists locally
    */
-  itemExists: function (id) {
+  itemExists: function Store_itemExists(id) {
     throw "override itemExists in a subclass";
   },
 
@@ -400,7 +338,7 @@ Store.prototype = {
    *         constructor for the newly-created record.
    * @return record type for this engine
    */
-  createRecord: function (id, collection) {
+  createRecord: function Store_createRecord(id, collection) {
     throw "override createRecord in a subclass";
   },
 
@@ -412,7 +350,7 @@ Store.prototype = {
    * @param  newID
    *         string new record ID
    */
-  changeItemID: function (oldID, newID) {
+  changeItemID: function Store_changeItemID(oldID, newID) {
     throw "override changeItemID in a subclass";
   },
 
@@ -422,7 +360,7 @@ Store.prototype = {
    * @return Object with ID strings as keys and values of true. The values
    *         are ignored.
    */
-  getAllIDs: function () {
+  getAllIDs: function Store_getAllIDs() {
     throw "override getAllIDs in a subclass";
   },
 
@@ -436,7 +374,7 @@ Store.prototype = {
    * can be thought of as clearing out all state and restoring the "new
    * browser" state.
    */
-  wipe: function () {
+  wipe: function Store_wipe() {
     throw "override wipe in a subclass";
   }
 };
@@ -445,20 +383,19 @@ this.EngineManager = function EngineManager(service) {
   this.service = service;
 
   this._engines = {};
-  this._log = Log.repository.getLogger("Sync.EngineManager");
-  this._log.level = Log.Level[Svc.Prefs.get(
+  this._log = Log4Moz.repository.getLogger("Sync.EngineManager");
+  this._log.level = Log4Moz.Level[Svc.Prefs.get(
     "log.logger.service.engines", "Debug")];
 }
 EngineManager.prototype = {
-  get: function (name) {
+  get: function get(name) {
     // Return an array of engines if we have an array of names
     if (Array.isArray(name)) {
       let engines = [];
       name.forEach(function(name) {
         let engine = this.get(name);
-        if (engine) {
+        if (engine)
           engines.push(engine);
-        }
       }, this);
       return engines;
     }
@@ -466,18 +403,17 @@ EngineManager.prototype = {
     let engine = this._engines[name];
     if (!engine) {
       this._log.debug("Could not get engine: " + name);
-      if (Object.keys) {
+      if (Object.keys)
         this._log.debug("Engines are: " + JSON.stringify(Object.keys(this._engines)));
-      }
     }
     return engine;
   },
 
-  getAll: function () {
+  getAll: function getAll() {
     return [engine for ([name, engine] in Iterator(this._engines))];
   },
 
-  getEnabled: function () {
+  getEnabled: function getEnabled() {
     return this.getAll().filter(function(engine) engine.enabled);
   },
 
@@ -489,20 +425,19 @@ EngineManager.prototype = {
    *        Engine object used to get an instance of the engine
    * @return The engine object if anything failed
    */
-  register: function (engineObject) {
-    if (Array.isArray(engineObject)) {
+  register: function register(engineObject) {
+    if (Array.isArray(engineObject))
       return engineObject.map(this.register, this);
-    }
 
     try {
       let engine = new engineObject(this.service);
       let name = engine.name;
-      if (name in this._engines) {
+      if (name in this._engines)
         this._log.error("Engine '" + name + "' is already registered!");
-      } else {
+      else
         this._engines[name] = engine;
-      }
-    } catch (ex) {
+    }
+    catch(ex) {
       this._log.error(CommonUtils.exceptionStr(ex));
 
       let mesg = ex.message ? ex.message : ex;
@@ -517,15 +452,14 @@ EngineManager.prototype = {
     }
   },
 
-  unregister: function (val) {
+  unregister: function unregister(val) {
     let name = val;
-    if (val instanceof Engine) {
+    if (val instanceof Engine)
       name = val.name;
-    }
     delete this._engines[name];
   },
 
-  clear: function () {
+  clear: function clear() {
     for (let name in this._engines) {
       delete this._engines[name];
     }
@@ -542,9 +476,9 @@ this.Engine = function Engine(name, service) {
   this.service = service;
 
   this._notify = Utils.notify("weave:engine:");
-  this._log = Log.repository.getLogger("Sync.Engine." + this.Name);
+  this._log = Log4Moz.repository.getLogger("Sync.Engine." + this.Name);
   let level = Svc.Prefs.get("log.logger.engine." + this.name, "Debug");
-  this._log.level = Log.Level[level];
+  this._log.level = Log4Moz.Level[level];
 
   this._tracker; // initialize tracker to load previously changed IDs
   this._log.debug("Engine initialized");
@@ -559,14 +493,8 @@ Engine.prototype = {
   eEngineAbortApplyIncoming: "error.engine.abort.applyincoming",
 
   get prefName() this.name,
-  get enabled() {
-    return Svc.Prefs.get("engine." + this.prefName, false);
-  },
-
-  set enabled(val) {
-    Svc.Prefs.set("engine." + this.prefName, !!val);
-    this._tracker.onEngineEnabledChanged(val);
-  },
+  get enabled() Svc.Prefs.get("engine." + this.prefName, false),
+  set enabled(val) Svc.Prefs.set("engine." + this.prefName, !!val),
 
   get score() this._tracker.score,
 
@@ -582,30 +510,27 @@ Engine.prototype = {
     return tracker;
   },
 
-  sync: function () {
-    if (!this.enabled) {
+  sync: function Engine_sync() {
+    if (!this.enabled)
       return;
-    }
 
-    if (!this._sync) {
+    if (!this._sync)
       throw "engine does not implement _sync method";
-    }
 
     this._notify("sync", this.name, this._sync)();
   },
 
   /**
-   * Get rid of any local meta-data.
+   * Get rid of any local meta-data
    */
-  resetClient: function () {
-    if (!this._resetClient) {
+  resetClient: function Engine_resetClient() {
+    if (!this._resetClient)
       throw "engine does not implement _resetClient method";
-    }
 
     this._notify("reset-client", this.name, this._resetClient)();
   },
 
-  _wipeClient: function () {
+  _wipeClient: function Engine__wipeClient() {
     this.resetClient();
     this._log.debug("Deleting all local data");
     this._tracker.ignoreAll = true;
@@ -614,7 +539,7 @@ Engine.prototype = {
     this._tracker.clearChangedIDs();
   },
 
-  wipeClient: function () {
+  wipeClient: function Engine_wipeClient() {
     this._notify("wipe-client", this.name, this._wipeClient)();
   }
 };
@@ -681,7 +606,7 @@ SyncEngine.prototype = {
     // Store the value as a string to keep floating point precision
     Svc.Prefs.set(this.name + ".lastSync", value.toString());
   },
-  resetLastSync: function () {
+  resetLastSync: function SyncEngine_resetLastSync() {
     this._log.debug("Resetting " + this.name + " last sync time");
     Svc.Prefs.reset(this.name + ".lastSync");
     Svc.Prefs.set(this.name + ".lastSync", "0");
@@ -700,8 +625,8 @@ SyncEngine.prototype = {
     }, 0, this, "_toFetchDelay");
   },
 
-  loadToFetch: function () {
-    // Initialize to empty if there's no file.
+  loadToFetch: function loadToFetch() {
+    // Initialize to empty if there's no file
     this._toFetch = [];
     Utils.jsonLoad("toFetch/" + this.name, this, function(toFetch) {
       if (toFetch) {
@@ -722,7 +647,7 @@ SyncEngine.prototype = {
     }, 0, this, "_previousFailedDelay");
   },
 
-  loadPreviousFailed: function () {
+  loadPreviousFailed: function loadPreviousFailed() {
     // Initialize to empty if there's no file
     this._previousFailed = [];
     Utils.jsonLoad("failed/" + this.name, this, function(previousFailed) {
@@ -748,12 +673,12 @@ SyncEngine.prototype = {
    * can override this method to bypass the tracker for certain or all
    * changed items.
    */
-  getChangedIDs: function () {
+  getChangedIDs: function getChangedIDs() {
     return this._tracker.changedIDs;
   },
 
-  // Create a new record using the store and add in crypto fields.
-  _createRecord: function (id) {
+  // Create a new record using the store and add in crypto fields
+  _createRecord: function SyncEngine__createRecord(id) {
     let record = this._store.createRecord(id, this.name);
     record.id = id;
     record.collection = this.name;
@@ -761,7 +686,7 @@ SyncEngine.prototype = {
   },
 
   // Any setup that needs to happen at the beginning of each sync.
-  _syncStartup: function () {
+  _syncStartup: function SyncEngine__syncStartup() {
 
     // Determine if we need to wipe on outdated versions
     let metaGlobal = this.service.recordManager.get(this.metaURL);
@@ -1106,11 +1031,11 @@ SyncEngine.prototype = {
    *
    * @return GUID of the similar item; falsy otherwise
    */
-  _findDupe: function (item) {
+  _findDupe: function _findDupe(item) {
     // By default, assume there's no dupe items for the engine
   },
 
-  _deleteId: function (id) {
+  _deleteId: function _deleteId(id) {
     this._tracker.removeChangedID(id);
 
     // Remember this id to delete at the end of sync
@@ -1130,8 +1055,8 @@ SyncEngine.prototype = {
    * @return boolean
    *         Truthy if incoming record should be applied. False if not.
    */
-  _reconcile: function (item) {
-    if (this._log.level <= Log.Level.Trace) {
+  _reconcile: function _reconcile(item) {
+    if (this._log.level <= Log4Moz.Level.Trace) {
       this._log.trace("Incoming: " + item);
     }
 
@@ -1302,8 +1227,8 @@ SyncEngine.prototype = {
     return remoteIsNewer;
   },
 
-  // Upload outgoing records.
-  _uploadOutgoing: function () {
+  // Upload outgoing records
+  _uploadOutgoing: function SyncEngine__uploadOutgoing() {
     this._log.trace("Uploading local changes to server.");
 
     let modifiedIDs = Object.keys(this._modified);
@@ -1348,7 +1273,7 @@ SyncEngine.prototype = {
       for each (let id in modifiedIDs) {
         try {
           let out = this._createRecord(id);
-          if (this._log.level <= Log.Level.Trace)
+          if (this._log.level <= Log4Moz.Level.Trace)
             this._log.trace("Outgoing: " + out);
 
           out.encrypt(this.service.collectionKeys.keyForCollection(this.name));
@@ -1373,7 +1298,7 @@ SyncEngine.prototype = {
 
   // Any cleanup necessary.
   // Save the current snapshot so as to calculate changes at next sync
-  _syncFinish: function () {
+  _syncFinish: function SyncEngine__syncFinish() {
     this._log.trace("Finishing up sync");
     this._tracker.resetScore();
 
@@ -1400,10 +1325,9 @@ SyncEngine.prototype = {
     }
   },
 
-  _syncCleanup: function () {
-    if (!this._modified) {
+  _syncCleanup: function _syncCleanup() {
+    if (!this._modified)
       return;
-    }
 
     // Mark failed WBOs as changed again so they are reuploaded next time.
     for (let [id, when] in Iterator(this._modified)) {
@@ -1412,7 +1336,7 @@ SyncEngine.prototype = {
     this._modified = {};
   },
 
-  _sync: function () {
+  _sync: function SyncEngine__sync() {
     try {
       this._syncStartup();
       Observers.notify("weave:engine:sync:status", "process-incoming");
@@ -1425,7 +1349,7 @@ SyncEngine.prototype = {
     }
   },
 
-  canDecrypt: function () {
+  canDecrypt: function canDecrypt() {
     // Report failure even if there's nothing to decrypt
     let canDecrypt = false;
 
@@ -1453,13 +1377,13 @@ SyncEngine.prototype = {
     return canDecrypt;
   },
 
-  _resetClient: function () {
+  _resetClient: function SyncEngine__resetClient() {
     this.resetLastSync();
     this.previousFailed = [];
     this.toFetch = [];
   },
 
-  wipeServer: function () {
+  wipeServer: function wipeServer() {
     let response = this.service.resource(this.engineURL).delete();
     if (response.status != 200 && response.status != 404) {
       throw response;
@@ -1467,7 +1391,7 @@ SyncEngine.prototype = {
     this._resetClient();
   },
 
-  removeClientData: function () {
+  removeClientData: function removeClientData() {
     // Implement this method in engines that store client specific data
     // on the server.
   },
@@ -1488,7 +1412,7 @@ SyncEngine.prototype = {
    *
    * All return values will be part of the kRecoveryStrategy enumeration.
    */
-  handleHMACMismatch: function (item, mayRetry) {
+  handleHMACMismatch: function handleHMACMismatch(item, mayRetry) {
     // By default we either try again, or bail out noisily.
     return (this.service.handleHMACEvent() && mayRetry) ?
            SyncEngine.kRecoveryStrategy.retry :

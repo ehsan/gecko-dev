@@ -296,7 +296,6 @@ template <class T, uint32_t K> class nsExpirationTracker {
         }
       }
       void Destroy() {
-        mOwner = nullptr;
         nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
         if (obs)
           obs->RemoveObserver(this, "memory-pressure");
@@ -335,7 +334,7 @@ nsExpirationTracker<T, K>::ExpirationTrackerObserver::Observe(nsISupports     *a
                                                               const char      *aTopic,
                                                               const PRUnichar *aData)
 {
-  if (!strcmp(aTopic, "memory-pressure") && mOwner)
+  if (!strcmp(aTopic, "memory-pressure"))
     mOwner->AgeAllGenerations();
   return NS_OK;
 }

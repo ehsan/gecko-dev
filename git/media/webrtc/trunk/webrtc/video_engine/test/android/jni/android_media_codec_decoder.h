@@ -11,14 +11,14 @@
 #ifndef WEBRTC_VIDEO_ENGINE_TEST_ANDROID_JNI_ANDROID_MEDIA_CODEC_DECODER_H_
 #define WEBRTC_VIDEO_ENGINE_TEST_ANDROID_JNI_ANDROID_MEDIA_CODEC_DECODER_H_
 
-#include "webrtc/modules/video_coding/codecs/interface/video_codec_interface.h"
+#include "modules/video_coding/codecs/interface/video_codec_interface.h"
 
 namespace webrtc {
 
 class AndroidMediaCodecDecoder : public VideoDecoder {
  public:
   AndroidMediaCodecDecoder(JavaVM* vm, jobject surface, jclass decoderClass);
-  virtual ~AndroidMediaCodecDecoder();
+  virtual ~AndroidMediaCodecDecoder() { }
 
   // Initialize the decoder with the information from the VideoCodec.
   //
@@ -92,8 +92,7 @@ class AndroidMediaCodecDecoder : public VideoDecoder {
   virtual VideoDecoder* Copy() { return NULL; }
 
  private:
-  void Initialize(JavaVM* vm, jobject surface, jclass decoderClass);
-
+  DecodedImageCallback* decode_complete_callback_;
   JavaVM* vm_;
   jobject surface_;
   jobject mediaCodecDecoder_;

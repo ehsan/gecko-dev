@@ -9,16 +9,17 @@
 
 #include "mozilla/Attributes.h"
 
+#include "jit/InlineList.h"
+#include "jit/Ion.h"
 #include "jit/LIR.h"
-#include "jit/MIRGenerator.h"
+#include "jit/Lowering.h"
+#include "jit/MIR.h"
 #include "jit/MIRGraph.h"
 
 // Generic structures and functions for use by register allocators.
 
 namespace js {
-namespace jit {
-
-class LIRGenerator;
+namespace ion {
 
 // Structure for running a liveness analysis on a finished register allocation.
 // This analysis can be used for two purposes:
@@ -30,7 +31,7 @@ class LIRGenerator;
 //   streamline the process of prototyping new allocators.
 struct AllocationIntegrityState
 {
-    explicit AllocationIntegrityState(const LIRGraph &graph)
+    AllocationIntegrityState(LIRGraph &graph)
       : graph(graph)
     {}
 
@@ -46,7 +47,7 @@ struct AllocationIntegrityState
 
   private:
 
-    const LIRGraph &graph;
+    LIRGraph &graph;
 
     // For all instructions and phis in the graph, keep track of the virtual
     // registers for all inputs and outputs of the nodes. These are overwritten
@@ -254,7 +255,7 @@ class InstructionDataMap
 
   public:
     InstructionDataMap()
-      : insData_(nullptr),
+      : insData_(NULL),
         numIns_(0)
     { }
 
@@ -284,9 +285,6 @@ class InstructionDataMap
 // Common superclass for register allocators.
 class RegisterAllocator
 {
-    void operator=(const RegisterAllocator &) MOZ_DELETE;
-    RegisterAllocator(const RegisterAllocator &) MOZ_DELETE;
-
   protected:
     // Context
     MIRGenerator *mir;
@@ -321,22 +319,16 @@ class RegisterAllocator
 
     bool init();
 
-    TempAllocator &alloc() const {
-        return mir->alloc();
-    }
-
-    static CodePosition outputOf(uint32_t pos) {
+    CodePosition outputOf(uint32_t pos) const {
         return CodePosition(pos, CodePosition::OUTPUT);
     }
-    static CodePosition outputOf(const LInstruction *ins) {
+    CodePosition outputOf(const LInstruction *ins) const {
         return CodePosition(ins->id(), CodePosition::OUTPUT);
     }
-    static CodePosition inputOf(uint32_t pos) {
+    CodePosition inputOf(uint32_t pos) const {
         return CodePosition(pos, CodePosition::INPUT);
     }
-    static CodePosition inputOf(const LInstruction *ins) {
-        // Phi nodes "use" their inputs before the beginning of the block.
-        JS_ASSERT(!ins->isPhi());
+    CodePosition inputOf(const LInstruction *ins) const {
         return CodePosition(ins->id(), CodePosition::INPUT);
     }
 
@@ -348,6 +340,17 @@ class RegisterAllocator
     }
     LMoveGroup *getMoveGroupAfter(CodePosition pos) {
         return getMoveGroupAfter(pos.ins());
+    }
+
+    size_t findFirstNonCallSafepoint(CodePosition from) const
+    {
+        size_t i = 0;
+        for (; i < graph.numNonCallSafepoints(); i++) {
+            const LInstruction *ins = graph.getNonCallSafepoint(i);
+            if (from <= inputOf(ins))
+                break;
+        }
+        return i;
     }
 
     CodePosition minimalDefEnd(LInstruction *ins) {
@@ -367,14 +370,14 @@ class RegisterAllocator
 };
 
 static inline AnyRegister
-GetFixedRegister(const LDefinition *def, const LUse *use)
+GetFixedRegister(LDefinition *def, const LUse *use)
 {
-    return def->isFloatReg()
+    return def->type() == LDefinition::DOUBLE
            ? AnyRegister(FloatRegister::FromCode(use->registerCode()))
            : AnyRegister(Register::FromCode(use->registerCode()));
 }
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_RegisterAllocator_h */

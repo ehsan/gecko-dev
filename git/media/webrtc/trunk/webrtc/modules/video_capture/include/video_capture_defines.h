@@ -11,9 +11,9 @@
 #ifndef WEBRTC_MODULES_VIDEO_CAPTURE_INCLUDE_VIDEO_CAPTURE_DEFINES_H_
 #define WEBRTC_MODULES_VIDEO_CAPTURE_INCLUDE_VIDEO_CAPTURE_DEFINES_H_
 
-#include "webrtc/common_video/interface/i420_video_frame.h"
-#include "webrtc/modules/interface/module_common_types.h"
 #include "webrtc/typedefs.h"
+#include "webrtc/modules/interface/module_common_types.h"
+#include "webrtc/common_video/interface/i420_video_frame.h"
 
 namespace webrtc
 {
@@ -134,6 +134,9 @@ class VideoCaptureDataCallback
 public:
     virtual void OnIncomingCapturedFrame(const int32_t id,
                                          I420VideoFrame& videoFrame) = 0;
+    virtual void OnIncomingCapturedEncodedFrame(const int32_t id,
+                                                VideoFrame& videoFrame,
+                                                VideoCodecType codecType) = 0;
     virtual void OnCaptureDelayChanged(const int32_t id,
                                        const int32_t delay) = 0;
 protected:

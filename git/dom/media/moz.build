@@ -7,12 +7,7 @@
 if CONFIG['MOZ_WEBRTC']:
     DIRS += ['bridge']
 
-    LOCAL_INCLUDES += [
-        '/media/webrtc/signaling/src/common',
-        '/media/webrtc/trunk',
-    ]
-
-TEST_DIRS += ['tests/mochitest', 'tests/ipc']
+TEST_DIRS += ['tests/mochitest']
 
 XPIDL_SOURCES += [
     'nsIDOMMediaStream.idl',
@@ -22,16 +17,13 @@ XPIDL_SOURCES += [
 
 XPIDL_MODULE = 'dom_media'
 
-EXPORTS.mozilla.dom += [
-    'GetUserMediaRequest.h',
-]
+MODULE = 'dom'
 
 EXPORTS.mozilla += [
     'MediaManager.h',
 ]
 
-UNIFIED_SOURCES += [
-    'GetUserMediaRequest.cpp',
+CPP_SOURCES += [
     'MediaManager.cpp',
 ]
 
@@ -40,21 +32,7 @@ EXTRA_COMPONENTS += [
     'PeerConnection.manifest',
 ]
 
-if CONFIG['MOZ_B2G']:
-    EXPORTS.mozilla += [
-        'MediaPermissionGonk.h',
-    ]
-    SOURCES += [
-        'MediaPermissionGonk.cpp',
-    ]
-
 FAIL_ON_WARNINGS = True
 
-LOCAL_INCLUDES += [
-    '../base',
-    '../camera',
-]
+LIBXUL_LIBRARY = True
 
-include('/ipc/chromium/chromium-config.mozbuild')
-
-FINAL_LIBRARY = 'gklayout'

@@ -9,10 +9,8 @@
 #include "RasterImage.h"
 #include "imgDecoderObserver.h"
 #include "mozilla/RefPtr.h"
-#include "DecodeStrategy.h"
 #include "ImageMetadata.h"
 #include "Orientation.h"
-#include "mozilla/Telemetry.h"
 
 namespace mozilla {
 namespace image {
@@ -51,7 +49,7 @@ public:
    *
    * Notifications Sent: TODO
    */
-  void Write(const char* aBuffer, uint32_t aCount, DecodeStrategy aStrategy);
+  void Write(const char* aBuffer, uint32_t aCount);
 
   /**
    * Informs the decoder that all the data has been written.
@@ -93,6 +91,16 @@ public:
   {
     NS_ABORT_IF_FALSE(!mInitialized, "Can't set size decode after Init()!");
     mSizeDecode = aSizeDecode;
+  }
+
+  void SetSynchronous(bool aSynchronous)
+  {
+    mSynchronous = aSynchronous;
+  }
+
+  bool IsSynchronous() const
+  {
+    return mSynchronous;
   }
 
   void SetObserver(imgDecoderObserver* aObserver)
@@ -151,7 +159,7 @@ public:
   // will be called again with nullptr and 0 as arguments.
   void NeedNewFrame(uint32_t frameNum, uint32_t x_offset, uint32_t y_offset,
                     uint32_t width, uint32_t height,
-                    gfxImageFormat format,
+                    gfxASurface::gfxImageFormat format,
                     uint8_t palette_depth = 0);
 
   virtual bool NeedsNewFrame() const { return mNeedsNewFrame; }
@@ -173,7 +181,7 @@ protected:
    * only these methods.
    */
   virtual void InitInternal();
-  virtual void WriteInternal(const char* aBuffer, uint32_t aCount, DecodeStrategy aStrategy);
+  virtual void WriteInternal(const char* aBuffer, uint32_t aCount);
   virtual void FinishInternal();
 
   /*
@@ -250,7 +258,7 @@ private:
 
     NewFrameData(uint32_t num, uint32_t offsetx, uint32_t offsety,
                  uint32_t width, uint32_t height,
-                 gfxImageFormat format, uint8_t paletteDepth)
+                 gfxASurface::gfxImageFormat format, uint8_t paletteDepth)
       : mFrameNum(num)
       , mOffsetX(offsetx)
       , mOffsetY(offsety)
@@ -264,7 +272,7 @@ private:
     uint32_t mOffsetY;
     uint32_t mWidth;
     uint32_t mHeight;
-    gfxImageFormat mFormat;
+    gfxASurface::gfxImageFormat mFormat;
     uint8_t mPaletteDepth;
   };
   NewFrameData mNewFrameData;
@@ -273,6 +281,7 @@ private:
   bool mSizeDecode;
   bool mInFrame;
   bool mIsAnimated;
+  bool mSynchronous;
 };
 
 } // namespace image

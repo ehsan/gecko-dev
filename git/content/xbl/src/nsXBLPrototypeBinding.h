@@ -36,7 +36,7 @@ class nsCSSStyleSheet;
 class nsXBLPrototypeBinding
 {
 public:
-  nsIContent* GetBindingElement() const { return mBinding; }
+  already_AddRefed<nsIContent> GetBindingElement();
   void SetBindingElement(nsIContent* aElement);
 
   nsIURI* BindingURI() const { return mBindingURI; }
@@ -48,7 +48,7 @@ public:
   // binding URIs.
   bool CompareBindingURI(nsIURI* aURI) const;
 
-  bool GetAllowScripts() const;
+  bool GetAllowScripts();
 
   nsresult BindingAttached(nsIContent* aBoundElement);
   nsresult BindingDetached(nsIContent* aBoundElement);
@@ -57,7 +57,6 @@ public:
   nsresult AddResource(nsIAtom* aResourceType, const nsAString& aSrc);
 
   bool InheritsStyle() const { return mInheritStyle; }
-  void SetInheritsStyle(bool aInheritStyle) { mInheritStyle = aInheritStyle; }
 
   nsXBLPrototypeHandler* GetPrototypeHandlers() { return mPrototypeHandler; }
   void SetPrototypeHandlers(nsXBLPrototypeHandler* aHandler) { mPrototypeHandler = aHandler; }
@@ -117,7 +116,6 @@ public:
   void SetInitialAttributes(nsIContent* aBoundElement, nsIContent* aAnonymousContent);
 
   nsIStyleRuleProcessor* GetRuleProcessor();
-  nsXBLPrototypeResources::sheet_array_type* GetOrCreateStyleSheets();
   nsXBLPrototypeResources::sheet_array_type* GetStyleSheets();
   
   bool HasStyleSheets() {

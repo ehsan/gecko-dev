@@ -47,7 +47,13 @@ nsNodeInfoManager::GetNodeInfoInnerHashValue(const void *key)
   const nsINodeInfo::nsNodeInfoInner *node =
     reinterpret_cast<const nsINodeInfo::nsNodeInfoInner *>(key);
 
-  return node->mName ? node->mName->hash() : HashString(*(node->mNameString));
+  if (node->mName) {
+    // Ideally, we'd return node->mName->hash() here.  But that doesn't work at
+    // the moment because node->mName->hash() is not the same as
+    // HashString(*(node->mNameString)).  See bug 732815.
+    return HashString(nsDependentAtomString(node->mName));
+  }
+  return HashString(*(node->mNameString));
 }
 
 

@@ -14,10 +14,10 @@
 #include <map>
 #include <vector>
 
-#include "webrtc/video_engine/include/vie_codec.h"
-#include "webrtc/video_engine/include/vie_image_process.h"
-#include "webrtc/video_engine/test/auto_test/interface/vie_autotest_defines.h"
-#include "webrtc/video_engine/test/libvietest/include/vie_to_file_renderer.h"
+#include "video_engine/include/vie_codec.h"
+#include "video_engine/include/vie_image_process.h"
+#include "video_engine/test/auto_test/interface/vie_autotest_defines.h"
+#include "video_engine/test/libvietest/include/vie_to_file_renderer.h"
 
 class FrameDropDetector;
 struct NetworkParameters;
@@ -223,11 +223,10 @@ class FrameDropMonitoringRemoteFileRenderer : public ViEToFileRenderer {
 
   // Implementation of ExternalRenderer:
   int FrameSizeChange(unsigned int width, unsigned int height,
-                      unsigned int number_of_streams) OVERRIDE;
+                      unsigned int number_of_streams);
   int DeliverFrame(unsigned char* buffer, int buffer_size,
                    uint32_t time_stamp,
-                   int64_t render_time,
-                   void* handle) OVERRIDE;
+                   int64_t render_time);
  private:
   FrameDropDetector* frame_drop_detector_;
 };

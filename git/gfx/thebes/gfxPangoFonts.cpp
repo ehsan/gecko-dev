@@ -3,6 +3,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/Util.h"
+
+#include "prtypes.h"
 #include "prlink.h"
 #include "gfxTypes.h"
 
@@ -26,7 +29,6 @@
 #include "nsUnicodeScriptCodes.h"
 #include "gfxFontconfigUtils.h"
 #include "gfxUserFontSet.h"
-#include "gfxFontConstants.h"
 
 #include <cairo.h>
 #include <cairo-ft.h>
@@ -947,7 +949,8 @@ gfxFcFontSet::SortPreferredFonts(bool &aWaitForUserFont)
     double requestedSize = -1.0;
     FcPatternGetDouble(mSortPattern, FC_PIXEL_SIZE, 0, &requestedSize);
 
-    nsTHashtable<gfxFontconfigUtils::DepFcStrEntry> existingFamilies(50);
+    nsTHashtable<gfxFontconfigUtils::DepFcStrEntry> existingFamilies;
+    existingFamilies.Init(50);
     FcChar8 *family;
     for (int v = 0;
          FcPatternGetString(mSortPattern,
@@ -1410,7 +1413,10 @@ gfxPangoFontGroup::GetFontAt(int32_t i)
 void
 gfxPangoFontGroup::UpdateFontList()
 {
-    uint64_t newGeneration = GetGeneration();
+    if (!mUserFontSet)
+        return;
+
+    uint64_t newGeneration = mUserFontSet->GetGeneration();
     if (newGeneration == mCurrGeneration)
         return;
 

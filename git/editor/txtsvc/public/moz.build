@@ -9,7 +9,7 @@ XPIDL_SOURCES += [
     'nsITextServicesFilter.idl',
 ]
 
-XPIDL_MODULE = 'txtsvc'
+MODULE = 'txtsvc'
 
 EXPORTS += [
     'nsISpellChecker.h',

@@ -18,7 +18,6 @@
 #include "nsISystemMessagesInternal.h"
 #include "nsString.h"
 #include "nsTArray.h"
-#include "nsServiceManagerUtils.h"
 
 BEGIN_BLUETOOTH_NAMESPACE
 
@@ -30,7 +29,7 @@ SetJsObject(JSContext* aContext,
   MOZ_ASSERT(aContext && aObj);
 
   if (aValue.type() != BluetoothValue::TArrayOfBluetoothNamedValue) {
-    BT_WARNING("SetJsObject: Invalid parameter type");
+    NS_WARNING("SetJsObject: Invalid parameter type");
     return false;
   }
 
@@ -57,14 +56,14 @@ SetJsObject(JSContext* aContext,
         val = BOOLEAN_TO_JSVAL(v.get_bool());
         break;
       default:
-        BT_WARNING("SetJsObject: Parameter is not handled");
+        NS_WARNING("SetJsObject: Parameter is not handled");
         break;
     }
 
     if (!JS_SetProperty(aContext, aObj,
                         NS_ConvertUTF16toUTF8(arr[i].name()).get(),
                         val)) {
-      BT_WARNING("Failed to set property");
+      NS_WARNING("Failed to set property");
       return false;
     }
   }
@@ -95,7 +94,7 @@ GetAddressFromObjectPath(const nsAString& aObjectPath)
   nsString address(aObjectPath);
   int addressHead = address.RFind("/") + 5;
 
-  MOZ_ASSERT(addressHead + BLUETOOTH_ADDRESS_LENGTH == (int)address.Length());
+  MOZ_ASSERT(addressHead + BLUETOOTH_ADDRESS_LENGTH == address.Length());
 
   address.Cut(0, addressHead);
   address.ReplaceChar('_', ':');
@@ -111,14 +110,14 @@ BroadcastSystemMessage(const nsAString& aType,
   NS_ASSERTION(!::JS_IsExceptionPending(cx),
       "Shouldn't get here when an exception is pending!");
 
-  JS::Rooted<JSObject*> obj(cx, JS_NewObject(cx, nullptr, nullptr, nullptr));
+  JS::RootedObject obj(cx, JS_NewObject(cx, NULL, NULL, NULL));
   if (!obj) {
-    BT_WARNING("Failed to new JSObject for system message!");
+    NS_WARNING("Failed to new JSObject for system message!");
     return false;
   }
 
   if (!SetJsObject(cx, aData, obj)) {
-    BT_WARNING("Failed to set properties of system message!");
+    NS_WARNING("Failed to set properties of system message!");
     return false;
   }
 
@@ -150,7 +149,7 @@ DispatchBluetoothReply(BluetoothReplyRunnable* aRunnable,
 
   aRunnable->SetReply(reply);
   if (NS_FAILED(NS_DispatchToMainThread(aRunnable))) {
-    BT_WARNING("Failed to dispatch to main thread!");
+    NS_WARNING("Failed to dispatch to main thread!");
   }
 }
 

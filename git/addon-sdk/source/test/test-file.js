@@ -24,22 +24,22 @@ const dirNameInProfile = 'extensions';
 const filePathInProfile = file.join(profilePath, fileNameInProfile);
 const dirPathInProfile = file.join(profilePath, dirNameInProfile);
 
-exports.testDirName = function(assert) {
-  assert.equal(file.dirname(dirPathInProfile), profilePath,
+exports.testDirName = function(test) {
+  test.assertEqual(file.dirname(dirPathInProfile), profilePath,
                    "file.dirname() of dir should return parent dir");
 
-  assert.equal(file.dirname(filePathInProfile), profilePath,
+  test.assertEqual(file.dirname(filePathInProfile), profilePath,
                    "file.dirname() of file should return its dir");
 
   let dir = profilePath;
   while (dir)
     dir = file.dirname(dir);
 
-  assert.equal(dir, "",
+  test.assertEqual(dir, "",
                    "dirname should return empty string when dir has no parent");
 };
 
-exports.testBasename = function(assert) {
+exports.testBasename = function(test) {
   // Get the top-most path -- the path with no basename.  E.g., on Unix-like
   // systems this will be /.  We'll use it below to build up some test paths.
   // We have to go to this trouble because file.join() needs a legal path as a
@@ -52,144 +52,144 @@ exports.testBasename = function(assert) {
   }
 
   let path = topPath;
-  assert.equal(file.basename(path), "",
+  test.assertEqual(file.basename(path), "",
                    "basename should work on paths with no components");
 
   path = file.join(path, "foo");
-  assert.equal(file.basename(path), "foo",
+  test.assertEqual(file.basename(path), "foo",
                    "basename should work on paths with a single component");
 
   path = file.join(path, "bar");
-  assert.equal(file.basename(path), "bar",
+  test.assertEqual(file.basename(path), "bar",
                    "basename should work on paths with multiple components");
 };
 
-exports.testList = function(assert) {
+exports.testList = function(test) {
   let list = file.list(profilePath);
   let found = [ true for each (name in list)
                     if (name === fileNameInProfile) ];
 
   if (found.length > 1)
-    assert.fail("a dir can't contain two files of the same name!");
-  assert.equal(found[0], true, "file.list() should work");
+    test.fail("a dir can't contain two files of the same name!");
+  test.assertEqual(found[0], true, "file.list() should work");
 
-  assert.throws(function() {
+  test.assertRaises(function() {
     file.list(filePathInProfile);
   }, ERRORS.NOT_A_DIRECTORY, "file.list() on non-dir should raise error");
 
-  assert.throws(function() {
+  test.assertRaises(function() {
     file.list(file.join(dirPathInProfile, "does-not-exist"));
   }, ERRORS.FILE_NOT_FOUND, "file.list() on nonexistent should raise error");
 };
 
-exports.testRead = function(assert) {
+exports.testRead = function(test) {
   let contents = file.read(filePathInProfile);
-  assert.ok(/Compatibility/.test(contents),
+  test.assertMatches(contents, /Compatibility/,
                      "file.read() should work");
 
-  assert.throws(function() {
+  test.assertRaises(function() {
     file.read(file.join(dirPathInProfile, "does-not-exists"));
   }, ERRORS.FILE_NOT_FOUND, "file.read() on nonexistent file should throw");
 
-  assert.throws(function() {
+  test.assertRaises(function() {
     file.read(dirPathInProfile);
   }, ERRORS.NOT_A_FILE, "file.read() on dir should throw");
 };
 
-exports.testJoin = function(assert) {
+exports.testJoin = function(test) {
   let baseDir = file.dirname(filePathInProfile);
 
-  assert.equal(file.join(baseDir, fileNameInProfile),
+  test.assertEqual(file.join(baseDir, fileNameInProfile),
                    filePathInProfile, "file.join() should work");
 };
 
-exports.testOpenNonexistentForRead = function (assert) {
+exports.testOpenNonexistentForRead = function (test) {
   var filename = file.join(profilePath, 'does-not-exists');
-  assert.throws(function() {
+  test.assertRaises(function() {
     file.open(filename);
   }, ERRORS.FILE_NOT_FOUND, "file.open() on nonexistent file should throw");
 
-  assert.throws(function() {
+  test.assertRaises(function() {
     file.open(filename, "r");
   }, ERRORS.FILE_NOT_FOUND, "file.open('r') on nonexistent file should throw");
 
-  assert.throws(function() {
+  test.assertRaises(function() {
     file.open(filename, "zz");
   }, ERRORS.FILE_NOT_FOUND, "file.open('zz') on nonexistent file should throw");
 };
 
-exports.testOpenNonexistentForWrite = function (assert) {
+exports.testOpenNonexistentForWrite = function (test) {
   let filename = file.join(profilePath, 'open.txt');
 
   let stream = file.open(filename, "w");
   stream.close();
 
-  assert.ok(file.exists(filename),
+  test.assert(file.exists(filename),
               "file.exists() should return true after file.open('w')");
   file.remove(filename);
-  assert.ok(!file.exists(filename),
+  test.assert(!file.exists(filename),
               "file.exists() should return false after file.remove()");
 
   stream = file.open(filename, "rw");
   stream.close();
 
-  assert.ok(file.exists(filename),
+  test.assert(file.exists(filename),
               "file.exists() should return true after file.open('rw')");
   file.remove(filename);
-  assert.ok(!file.exists(filename),
+  test.assert(!file.exists(filename),
               "file.exists() should return false after file.remove()");
 };
 
-exports.testOpenDirectory = function (assert) {
+exports.testOpenDirectory = function (test) {
   let dir = dirPathInProfile;
-  assert.throws(function() {
+  test.assertRaises(function() {
     file.open(dir);
   }, ERRORS.NOT_A_FILE, "file.open() on directory should throw");
 
-  assert.throws(function() {
+  test.assertRaises(function() {
     file.open(dir, "w");
   }, ERRORS.NOT_A_FILE, "file.open('w') on directory should throw");
 };
 
-exports.testOpenTypes = function (assert) {
+exports.testOpenTypes = function (test) {
   let filename = file.join(profilePath, 'open-types.txt');
 
 
   // Do the opens first to create the data file.
   var stream = file.open(filename, "w");
-  assert.ok(stream instanceof textStreams.TextWriter,
+  test.assert(stream instanceof textStreams.TextWriter,
               "open(w) should return a TextWriter");
   stream.close();
 
   stream = file.open(filename, "wb");
-  assert.ok(stream instanceof byteStreams.ByteWriter,
+  test.assert(stream instanceof byteStreams.ByteWriter,
               "open(wb) should return a ByteWriter");
   stream.close();
 
   stream = file.open(filename);
-  assert.ok(stream instanceof textStreams.TextReader,
+  test.assert(stream instanceof textStreams.TextReader,
               "open() should return a TextReader");
   stream.close();
 
   stream = file.open(filename, "r");
-  assert.ok(stream instanceof textStreams.TextReader,
+  test.assert(stream instanceof textStreams.TextReader,
               "open(r) should return a TextReader");
   stream.close();
 
   stream = file.open(filename, "b");
-  assert.ok(stream instanceof byteStreams.ByteReader,
+  test.assert(stream instanceof byteStreams.ByteReader,
               "open(b) should return a ByteReader");
   stream.close();
 
   stream = file.open(filename, "rb");
-  assert.ok(stream instanceof byteStreams.ByteReader,
+  test.assert(stream instanceof byteStreams.ByteReader,
               "open(rb) should return a ByteReader");
   stream.close();
 
   file.remove(filename);
 };
 
-exports.testMkpathRmdir = function (assert) {
+exports.testMkpathRmdir = function (test) {
   let basePath = profilePath;
   let dirs = [];
   for (let i = 0; i < 3; i++)
@@ -202,74 +202,72 @@ exports.testMkpathRmdir = function (assert) {
   }
 
   for (let i = 0; i < paths.length; i++) {
-    assert.ok(!file.exists(paths[i]),
+    test.assert(!file.exists(paths[i]),
                 "Sanity check: path should not exist: " + paths[i]);
   }
 
   file.mkpath(paths[0]);
-  assert.ok(file.exists(paths[0]), "mkpath should create path: " + paths[0]);
+  test.assert(file.exists(paths[0]), "mkpath should create path: " + paths[0]);
 
   for (let i = 0; i < paths.length; i++) {
     file.rmdir(paths[i]);
-    assert.ok(!file.exists(paths[i]),
+    test.assert(!file.exists(paths[i]),
                 "rmdir should remove path: " + paths[i]);
   }
 };
 
-exports.testMkpathTwice = function (assert) {
+exports.testMkpathTwice = function (test) {
   let dir = profilePath;
   let path = file.join(dir, "test-file-dir");
-  assert.ok(!file.exists(path),
+  test.assert(!file.exists(path),
               "Sanity check: path should not exist: " + path);
   file.mkpath(path);
-  assert.ok(file.exists(path), "mkpath should create path: " + path);
+  test.assert(file.exists(path), "mkpath should create path: " + path);
   file.mkpath(path);
-  assert.ok(file.exists(path),
+  test.assert(file.exists(path),
               "After second mkpath, path should still exist: " + path);
   file.rmdir(path);
-  assert.ok(!file.exists(path), "rmdir should remove path: " + path);
+  test.assert(!file.exists(path), "rmdir should remove path: " + path);
 };
 
-exports.testMkpathExistingNondirectory = function (assert) {
+exports.testMkpathExistingNondirectory = function (test) {
   var fname = file.join(profilePath, 'conflict.txt');
   file.open(fname, "w").close();
-  assert.ok(file.exists(fname), "File should exist");
-  assert.throws(function() file.mkpath(fname),
+  test.assert(file.exists(fname), "File should exist");
+  test.assertRaises(function() file.mkpath(fname),
                     /^The path already exists and is not a directory: .+$/,
                     "mkpath on file should raise error");
   file.remove(fname);
 };
 
-exports.testRmdirNondirectory = function (assert) {
+exports.testRmdirNondirectory = function (test) {
   var fname = file.join(profilePath, 'not-a-dir')
   file.open(fname, "w").close();
-  assert.ok(file.exists(fname), "File should exist");
-  assert.throws(function() {
+  test.assert(file.exists(fname), "File should exist");
+  test.assertRaises(function() {
     file.rmdir(fname);
   }, ERRORS.NOT_A_DIRECTORY, "rmdir on file should raise error");
   file.remove(fname);
-  assert.ok(!file.exists(fname), "File should not exist");
-  assert.throws(function () file.rmdir(fname),
+  test.assert(!file.exists(fname), "File should not exist");
+  test.assertRaises(function () file.rmdir(fname),
                     ERRORS.FILE_NOT_FOUND,
                     "rmdir on non-existing file should raise error");
 };
 
-exports.testRmdirNonempty = function (assert) {
+exports.testRmdirNonempty = function (test) {
   let dir = profilePath;
   let path = file.join(dir, "test-file-dir");
-  assert.ok(!file.exists(path),
+  test.assert(!file.exists(path),
               "Sanity check: path should not exist: " + path);
   file.mkpath(path);
   let filePath = file.join(path, "file");
   file.open(filePath, "w").close();
-  assert.ok(file.exists(filePath),
+  test.assert(file.exists(filePath),
               "Sanity check: path should exist: " + filePath);
-  assert.throws(function () file.rmdir(path),
+  test.assertRaises(function () file.rmdir(path),
                     /^The directory is not empty: .+$/,
                     "rmdir on non-empty directory should raise error");
   file.remove(filePath);
   file.rmdir(path);
-  assert.ok(!file.exists(path), "Path should not exist");
+  test.assert(!file.exists(path), "Path should not exist");
 };
-
-require('sdk/test').run(exports);

@@ -4,8 +4,6 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.prompts.Prompt;
-import org.mozilla.gecko.prompts.PromptService;
 import org.mozilla.gecko.util.ActivityResultHandler;
 import org.mozilla.gecko.util.ActivityResultHandlerMap;
 import org.mozilla.gecko.util.ThreadUtils;

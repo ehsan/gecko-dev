@@ -12,14 +12,14 @@
 #include "mozilla/Alignment.h"
 
 #include "jit/BaselineFrame.h"
+#include "jit/BaselineJIT.h"
 #include "jit/BaselineRegisters.h"
+#include "jit/BytecodeAnalysis.h"
 #include "jit/FixedList.h"
 #include "jit/IonMacroAssembler.h"
 
 namespace js {
-namespace jit {
-
-struct BytecodeInfo;
+namespace ion {
 
 // FrameInfo overview.
 //
@@ -160,6 +160,8 @@ class StackValue
 
 enum StackAdjustment { AdjustStack, DontAdjustStack };
 
+class BaselineCompilerShared;
+
 class FrameInfo
 {
     RootedScript script;
@@ -176,13 +178,13 @@ class FrameInfo
         spIndex(0)
     { }
 
-    bool init(TempAllocator &alloc);
+    bool init();
 
     uint32_t nlocals() const {
-        return script->nfixed();
+        return script->nfixed;
     }
     uint32_t nargs() const {
-        return script->function()->nargs();
+        return script->function()->nargs;
     }
 
   private:
@@ -284,6 +286,9 @@ class FrameInfo
     Address addressOfScopeChain() const {
         return Address(BaselineFrameReg, BaselineFrame::reverseOffsetOfScopeChain());
     }
+    Address addressOfBlockChain() const {
+        return Address(BaselineFrameReg, BaselineFrame::reverseOffsetOfBlockChain());
+    }
     Address addressOfFlags() const {
         return Address(BaselineFrameReg, BaselineFrame::reverseOffsetOfFlags());
     }
@@ -322,7 +327,7 @@ class FrameInfo
 #endif
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif // JS_ION

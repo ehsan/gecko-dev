@@ -8,18 +8,17 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/rtp_rtcp/test/BWEStandAlone/TestSenderReceiver.h"
-
 #include <stdio.h>
-#include <stdlib.h>
 
-#include "webrtc/modules/rtp_rtcp/interface/rtp_rtcp.h"
-#include "webrtc/modules/rtp_rtcp/test/BWEStandAlone/TestLoadGenerator.h"
-#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
-#include "webrtc/system_wrappers/interface/event_wrapper.h"
-#include "webrtc/system_wrappers/interface/thread_wrapper.h"
-#include "webrtc/system_wrappers/interface/tick_util.h"
-#include "webrtc/test/channel_transport/udp_transport.h"
+#include "rtp_rtcp.h"
+#include "udp_transport.h"
+#include "event_wrapper.h"
+#include "thread_wrapper.h"
+#include "tick_util.h"
+#include "critical_section_wrapper.h"
+#include "TestSenderReceiver.h"
+#include "TestLoadGenerator.h"
+#include <stdlib.h>
 
 #define NR_OF_SOCKET_BUFFERS 500
 

@@ -557,7 +557,10 @@ var BookmarkPropertiesPanel = {
 
     if (this._loadInSidebar) {
       let annoObj = { name   : PlacesUIUtils.LOAD_IN_SIDEBAR_ANNO,
-                      value  : true };
+                      type   : Ci.nsIAnnotationService.TYPE_INT32,
+                      flags  : 0,
+                      value  : this._loadInSidebar,
+                      expires: Ci.nsIAnnotationService.EXPIRE_NEVER };
       let setLoadTxn = new PlacesSetItemAnnotationTransaction(-1, annoObj);
       childTransactions.push(setLoadTxn);
     }

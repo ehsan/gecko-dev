@@ -1,3 +1,8 @@
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+const Cr = Components.results;
+
 Cu.import("resource://testing-common/httpd.js");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
@@ -43,7 +48,7 @@ function run_all_tests() {
     handlers_called = 0;
     var chan = makeChan(URL, test[0], test[1]);
     chan.asyncOpen(new ChannelListener(doneFirstLoad, test[2]), null);
-    yield undefined;
+    yield;
   }
 
   // We can't easily cause webapp data to be cleared from the child process, so skip
@@ -63,7 +68,7 @@ function run_all_tests() {
     handlers_called = 0;
     var chan = makeChan(URL, test[0], test[1]);
     chan.asyncOpen(new ChannelListener(doneFirstLoad, test[2]), null);
-    yield undefined;
+    yield;
   }
 
   subject = {
@@ -77,7 +82,7 @@ function run_all_tests() {
     handlers_called = 0;
     var chan = makeChan(URL, test[0], test[1]);
     chan.asyncOpen(new ChannelListener(doneFirstLoad, test[2]), null);
-    yield undefined;
+    yield;
   }
 }
 

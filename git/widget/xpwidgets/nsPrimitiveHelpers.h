@@ -7,6 +7,7 @@
 #ifndef nsPrimitiveHelpers_h___
 #define nsPrimitiveHelpers_h___
 
+#include "prtypes.h"
 #include "nsError.h"
 #include "nscore.h"
 
@@ -20,7 +21,7 @@ public:
     // Given some data and the flavor it corresponds to, creates the appropriate
     // nsISupports* wrapper for passing across IDL boundaries. The length parameter
     // should not include the null if the data is null terminated.
-  static void CreatePrimitiveForData ( const char* aFlavor, const void* aDataBuff,
+  static void CreatePrimitiveForData ( const char* aFlavor, void* aDataBuff, 
                                          uint32_t aDataLen, nsISupports** aPrimitive ) ;
 
     // Given a nsISupports* primitive and the flavor it represents, creates a new data

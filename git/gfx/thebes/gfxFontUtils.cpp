@@ -5,28 +5,29 @@
 
 #ifdef MOZ_LOGGING
 #define FORCE_PR_LOG /* Allow logging in the release build */
-#include "prlog.h"
 #endif
+#include "prlog.h"
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #include "gfxFontUtils.h"
 
 #include "nsServiceManagerUtils.h"
 
-#include "mozilla/dom/EncodingUtils.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Services.h"
 
 #include "nsIUUIDGenerator.h"
-#include "nsIObserverService.h"
-#include "nsIUnicodeDecoder.h"
-#include "nsCRT.h"
+#include "nsMemory.h"
+#include "nsICharsetConverterManager.h"
 
 #include "harfbuzz/hb.h"
 
 #include "plbase64.h"
 #include "prlog.h"
+
+#ifdef XP_MACOSX
+#include <CoreFoundation/CoreFoundation.h>
+#endif
 
 #ifdef PR_LOGGING
 
@@ -38,7 +39,6 @@
 #define UNICODE_BMP_LIMIT 0x10000
 
 using namespace mozilla;
-using mozilla::services::GetObserverService;
 
 #pragma pack(1)
 
@@ -1200,6 +1200,8 @@ const char* gfxFontUtils::gMSFontNameCharsets[] =
     /*[10] ENCODING_ID_MICROSOFT_UNICODEFULL */ ""
 };
 
+#define ARRAY_SIZE(A) (sizeof(A) / sizeof(A[0]))
+
 // Return the name of the charset we should use to decode a font name
 // given the name table attributes.
 // Special return values:
@@ -1215,7 +1217,7 @@ gfxFontUtils::GetCharsetForFontName(uint16_t aPlatform, uint16_t aScript, uint16
 
     case PLATFORM_ID_MAC:
         {
-            uint32_t lo = 0, hi = ArrayLength(gMacFontNameCharsets);
+            uint32_t lo = 0, hi = ARRAY_SIZE(gMacFontNameCharsets);
             MacFontNameCharsetMapping searchValue = { aScript, aLanguage, nullptr };
             for (uint32_t i = 0; i < 2; ++i) {
                 // binary search; if not found, set language to ANY and try again
@@ -1235,20 +1237,20 @@ gfxFontUtils::GetCharsetForFontName(uint16_t aPlatform, uint16_t aScript, uint16
                 }
 
                 // no match, so reset high bound for search and re-try
-                hi = ArrayLength(gMacFontNameCharsets);
+                hi = ARRAY_SIZE(gMacFontNameCharsets);
                 searchValue.mLanguage = ANY;
             }
         }
         break;
 
     case PLATFORM_ID_ISO:
-        if (aScript < ArrayLength(gISOFontNameCharsets)) {
+        if (aScript < ARRAY_SIZE(gISOFontNameCharsets)) {
             return gISOFontNameCharsets[aScript];
         }
         break;
 
     case PLATFORM_ID_MICROSOFT:
-        if (aScript < ArrayLength(gMSFontNameCharsets)) {
+        if (aScript < ARRAY_SIZE(gMSFontNameCharsets)) {
             return gMSFontNameCharsets[aScript];
         }
         break;
@@ -1294,15 +1296,23 @@ gfxFontUtils::DecodeFontName(const char *aNameData, int32_t aByteLen,
         return true;
     }
 
-    nsCOMPtr<nsIUnicodeDecoder> decoder =
-        mozilla::dom::EncodingUtils::DecoderForEncoding(csName);
-    if (!decoder) {
+    nsresult rv;
+    nsCOMPtr<nsICharsetConverterManager> ccm =
+        do_GetService(NS_CHARSETCONVERTERMANAGER_CONTRACTID, &rv);
+    NS_ASSERTION(NS_SUCCEEDED(rv), "failed to get charset converter manager");
+    if (NS_FAILED(rv)) {
+        return false;
+    }
+
+    nsCOMPtr<nsIUnicodeDecoder> decoder;
+    rv = ccm->GetUnicodeDecoderRaw(csName, getter_AddRefs(decoder));
+    if (NS_FAILED(rv)) {
         NS_WARNING("failed to get the decoder for a font name string");
         return false;
     }
 
     int32_t destLength;
-    nsresult rv = decoder->GetMaxLength(aNameData, aByteLen, &destLength);
+    rv = decoder->GetMaxLength(aNameData, aByteLen, &destLength);
     if (NS_FAILED(rv)) {
         NS_WARNING("decoder->GetMaxLength failed, invalid font name?");
         return false;
@@ -1420,107 +1430,3 @@ gfxFontUtils::IsCffFont(const uint8_t* aFontData)
 }
 
 #endif
-
-NS_IMPL_ISUPPORTS1(gfxFontInfoLoader::ShutdownObserver, nsIObserver)
-
-NS_IMETHODIMP
-gfxFontInfoLoader::ShutdownObserver::Observe(nsISupports *aSubject,
-                                             const char *aTopic,
-                                             const PRUnichar *someData)
-{
-    if (!nsCRT::strcmp(aTopic, "quit-application")) {
-        mLoader->CancelLoader();
-    } else {
-        NS_NOTREACHED("unexpected notification topic");
-    }
-    return NS_OK;
-}
-
-void
-gfxFontInfoLoader::StartLoader(uint32_t aDelay, uint32_t aInterval)
-{
-    mInterval = aInterval;
-
-    // sanity check
-    if (mState != stateInitial && mState != stateTimerOff) {
-        CancelLoader();
-    }
-
-    // set up timer
-    if (!mTimer) {
-        mTimer = do_CreateInstance("@mozilla.org/timer;1");
-        if (!mTimer) {
-            NS_WARNING("Failure to create font info loader timer");
-            return;
-        }
-    }
-
-    // need an initial delay?
-    uint32_t timerInterval;
-
-    if (aDelay) {
-        mState = stateTimerOnDelay;
-        timerInterval = aDelay;
-    } else {
-        mState = stateTimerOnInterval;
-        timerInterval = mInterval;
-    }
-
-    InitLoader();
-
-    // start timer
-    mTimer->InitWithFuncCallback(LoaderTimerCallback, this, timerInterval,
-                                 nsITimer::TYPE_REPEATING_SLACK);
-
-    nsCOMPtr<nsIObserverService> obs = GetObserverService();
-    if (obs) {
-        mObserver = new ShutdownObserver(this);
-        obs->AddObserver(mObserver, "quit-application", false);
-    }
-}
-
-void
-gfxFontInfoLoader::CancelLoader()
-{
-    if (mState == stateInitial) {
-        return;
-    }
-    mState = stateTimerOff;
-    if (mTimer) {
-        mTimer->Cancel();
-        mTimer = nullptr;
-    }
-    RemoveShutdownObserver();
-    FinishLoader();
-}
-
-void
-gfxFontInfoLoader::LoaderTimerFire()
-{
-    if (mState == stateTimerOnDelay) {
-        mState = stateTimerOnInterval;
-        mTimer->SetDelay(mInterval);
-    }
-
-    bool done = RunLoader();
-    if (done) {
-        CancelLoader();
-    }
-}
-
-gfxFontInfoLoader::~gfxFontInfoLoader()
-{
-    RemoveShutdownObserver();
-}
-
-void
-gfxFontInfoLoader::RemoveShutdownObserver()
-{
-    if (mObserver) {
-        nsCOMPtr<nsIObserverService> obs = GetObserverService();
-        if (obs) {
-            obs->RemoveObserver(mObserver, "quit-application");
-            mObserver = nullptr;
-        }
-    }
-}

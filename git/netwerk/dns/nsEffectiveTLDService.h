@@ -3,12 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef EffectiveTLDService_h
-#define EffectiveTLDService_h
-
 #include "nsIEffectiveTLDService.h"
 
-#include "nsIMemoryReporter.h"
 #include "nsTHashtable.h"
 #include "nsString.h"
 #include "nsCOMPtr.h"
@@ -16,6 +12,7 @@
 #include "mozilla/MemoryReporting.h"
 
 class nsIIDNService;
+class nsIMemoryReporter;
 
 #define ETLD_ENTRY_N_INDEX_BITS 30
 
@@ -105,18 +102,15 @@ private:
 #undef ETLD_STR_NUM1
 };
 
-class nsEffectiveTLDService MOZ_FINAL
-  : public mozilla::MemoryUniReporter
-  , public nsIEffectiveTLDService
+class nsEffectiveTLDService MOZ_FINAL : public nsIEffectiveTLDService
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIEFFECTIVETLDSERVICE
 
-  nsEffectiveTLDService();
+  nsEffectiveTLDService() { }
   nsresult Init();
 
-  int64_t Amount() MOZ_OVERRIDE;
   size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
 
 private:
@@ -124,8 +118,7 @@ private:
   nsresult NormalizeHostname(nsCString &aHostname);
   ~nsEffectiveTLDService();
 
+  nsIMemoryReporter*          mReporter;
   nsTHashtable<nsDomainEntry> mHash;
   nsCOMPtr<nsIIDNService>     mIDNService;
 };
-
-#endif // EffectiveTLDService_h

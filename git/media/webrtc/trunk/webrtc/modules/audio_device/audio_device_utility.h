@@ -11,7 +11,7 @@
 #ifndef WEBRTC_AUDIO_DEVICE_AUDIO_DEVICE_UTILITY_H
 #define WEBRTC_AUDIO_DEVICE_AUDIO_DEVICE_UTILITY_H
 
-#include "webrtc/typedefs.h"
+#include "typedefs.h"
 
 namespace webrtc
 {
@@ -32,3 +32,4 @@ public:
 }  // namespace webrtc
 
 #endif  // WEBRTC_AUDIO_DEVICE_AUDIO_DEVICE_UTILITY_H
+

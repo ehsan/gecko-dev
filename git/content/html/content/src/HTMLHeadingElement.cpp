@@ -6,6 +6,7 @@
 #include "mozilla/dom/HTMLHeadingElement.h"
 #include "mozilla/dom/HTMLHeadingElementBinding.h"
 
+#include "mozilla/Util.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
 #include "nsMappedAttributes.h"
@@ -49,9 +50,8 @@ HTMLHeadingElement::ParseAttribute(int32_t aNamespaceID,
                                               aResult);
 }
 
-void
-HTMLHeadingElement::MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
-                                          nsRuleData* aData)
+static void
+MapAttributesIntoRule(const nsMappedAttributes* aAttributes, nsRuleData* aData)
 {
   nsGenericHTMLElement::MapDivAlignAttributeInto(aAttributes, aData);
   nsGenericHTMLElement::MapCommonAttributesInto(aAttributes, aData);

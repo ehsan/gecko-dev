@@ -68,7 +68,8 @@
   test_MicroformatsAPI();
 
   function test_MicroformatsAPI() {
-    var Microformats = SpecialPowers.Cu.import("resource://gre/modules/Microformats.js").Microformats;
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    Components.utils.import("resource://gre/modules/Microformats.js");
 
     // Test to see if we can get the invalid vcard
     var mfs = Microformats.get("hCard",

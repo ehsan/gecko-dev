@@ -8,7 +8,6 @@
 #ifndef xpcpublic_h
 #define xpcpublic_h
 
-#include "jsapi.h"
 #include "jsproxy.h"
 #include "js/HeapAPI.h"
 #include "js/GCAPI.h"
@@ -22,53 +21,26 @@
 #include "mozilla/dom/JSSlots.h"
 #include "nsMathUtils.h"
 #include "nsStringBuffer.h"
+#include "nsIGlobalObject.h"
 #include "mozilla/dom/BindingDeclarations.h"
 
 class nsIPrincipal;
+class nsIXPConnectWrappedJS;
 class nsScriptNameSpaceManager;
 class nsIGlobalObject;
-class nsIMemoryReporterCallback;
 
 #ifndef BAD_TLS_INDEX
 #define BAD_TLS_INDEX ((uint32_t) -1)
 #endif
 
 namespace xpc {
-
-class Scriptability {
-public:
-    Scriptability(JSCompartment *c);
-    bool Allowed();
-    bool IsImmuneToScriptPolicy();
-
-    void Block();
-    void Unblock();
-    void SetDocShellAllowsScript(bool aAllowed);
-
-    static Scriptability& Get(JSObject *aScope);
-
-private:
-    // Whenever a consumer wishes to prevent script from running on a global,
-    // it increments this value with a call to Block(). When it wishes to
-    // re-enable it (if ever), it decrements this value with a call to Unblock().
-    // Script may not run if this value is non-zero.
-    uint32_t mScriptBlocks;
-
-    // Whether the docshell allows javascript in this scope. If this scope
-    // doesn't have a docshell, this value is always true.
-    bool mDocShellAllowsScript;
-
-    // Whether this scope is immune to user-defined or addon-defined script
-    // policy.
-    bool mImmuneToScriptPolicy;
-
-    // Whether the new-style domain policy when this compartment was created
-    // forbids script execution.
-    bool mScriptBlockedByPolicy;
-};
-
 JSObject *
 TransplantObject(JSContext *cx, JS::HandleObject origobj, JS::HandleObject target);
+
+JSObject *
+TransplantObjectWithWrapper(JSContext *cx,
+                            JS::HandleObject origobj, JS::HandleObject origwrapper,
+                            JS::HandleObject targetobj, JS::HandleObject targetwrapper);
 
 // Return a raw XBL scope object corresponding to contentScope, which must
 // be an object whose global is a DOM window.
@@ -87,21 +59,11 @@ GetXBLScope(JSContext *cx, JSObject *contentScope);
 bool
 AllowXBLScope(JSCompartment *c);
 
-// Returns whether we will use an XBL scope for this compartment. This is
-// semantically equivalent to comparing global != GetXBLScope(global), but it
-// does not have the side-effect of eagerly creating the XBL scope if it does
-// not already exist.
-bool
-UseXBLScope(JSCompartment *c);
-
 bool
 IsSandboxPrototypeProxy(JSObject *obj);
 
 bool
 IsReflector(JSObject *obj);
-
-bool
-IsXrayWrapper(JSObject *obj);
 } /* namespace xpc */
 
 namespace JS {
@@ -119,11 +81,32 @@ struct RuntimeStats;
 
 #define XPCONNECT_GLOBAL_FLAGS XPCONNECT_GLOBAL_FLAGS_WITH_EXTRA_SLOTS(0)
 
+void
+TraceXPCGlobal(JSTracer *trc, JSObject *obj);
+
+// XXX These should be moved into XPCJSRuntime!
+NS_EXPORT_(bool)
+xpc_LocalizeRuntime(JSRuntime *rt);
+NS_EXPORT_(void)
+xpc_DelocalizeRuntime(JSRuntime *rt);
+
+// If IS_WN_CLASS for the JSClass of an object is true, the object is a
+// wrappednative wrapper, holding the XPCWrappedNative in its private slot.
+
+static inline bool IS_WN_CLASS(js::Class* clazz)
+{
+    return clazz->ext.isWrappedNative;
+}
+static inline bool IS_WN_REFLECTOR(JSObject *obj)
+{
+    return IS_WN_CLASS(js::GetObjectClass(obj));
+}
+
 extern bool
 xpc_OkToHandOutWrapper(nsWrapperCache *cache);
 
 inline JSObject*
-xpc_FastGetCachedWrapper(nsWrapperCache *cache, JSObject *scope, JS::MutableHandleValue vp)
+xpc_FastGetCachedWrapper(nsWrapperCache *cache, JSObject *scope, jsval *vp)
 {
     if (cache) {
         JSObject* wrapper = cache->GetWrapper();
@@ -131,7 +114,7 @@ xpc_FastGetCachedWrapper(nsWrapperCache *cache, JSObject *scope, JS::MutableHand
             js::GetObjectCompartment(wrapper) == js::GetObjectCompartment(scope) &&
             (cache->IsDOMBinding() ? !cache->HasSystemOnlyWrapper() :
                                      xpc_OkToHandOutWrapper(cache))) {
-            vp.setObject(*wrapper);
+            *vp = OBJECT_TO_JSVAL(wrapper);
             return wrapper;
         }
     }
@@ -153,6 +136,23 @@ xpc_IsGrayGCThing(void *thing)
 extern bool
 xpc_GCThingIsGrayCCThing(void *thing);
 
+// Unmark gray for known-nonnull cases
+MOZ_ALWAYS_INLINE void
+xpc_UnmarkNonNullGrayObject(JSObject *obj)
+{
+    JS::ExposeGCThingToActiveJS(obj, JSTRACE_OBJECT);
+}
+
+// Remove the gray color from the given JSObject and any other objects that can
+// be reached through it.
+MOZ_ALWAYS_INLINE JSObject *
+xpc_UnmarkGrayObject(JSObject *obj)
+{
+    if (obj)
+        xpc_UnmarkNonNullGrayObject(obj);
+    return obj;
+}
+
 inline JSScript *
 xpc_UnmarkGrayScript(JSScript *script)
 {
@@ -160,6 +160,21 @@ xpc_UnmarkGrayScript(JSScript *script)
         JS::ExposeGCThingToActiveJS(script, JSTRACE_SCRIPT);
 
     return script;
+}
+
+inline JSContext *
+xpc_UnmarkGrayContext(JSContext *cx)
+{
+    if (cx) {
+        JSObject *global = js::DefaultObjectForContextOrNull(cx);
+        xpc_UnmarkGrayObject(global);
+        if (global && JS_IsInRequest(JS_GetRuntime(cx))) {
+            JSObject *scope = JS::CurrentGlobalOrNull(cx);
+            if (scope != global)
+                xpc_UnmarkGrayObject(scope);
+        }
+    }
+    return cx;
 }
 
 // If aVariant is an XPCVariant, this marks the object to be in aGeneration.
@@ -179,40 +194,28 @@ xpc_UnmarkSkippableJSHolders();
 NS_EXPORT_(void)
 xpc_ActivateDebugMode();
 
+class nsIMemoryMultiReporterCallback;
+
 // readable string conversions, static methods and members only
 class XPCStringConvert
 {
-    // One-slot cache, because it turns out it's common for web pages to
-    // get the same string a few times in a row.  We get about a 40% cache
-    // hit rate on this cache last it was measured.  We'd get about 70%
-    // hit rate with a hashtable with removal on finalization, but that
-    // would take a lot more machinery.
-    struct ZoneStringCache
-    {
-        nsStringBuffer* mBuffer;
-        JSString* mString;
-    };
-
 public:
 
     // If the string shares the readable's buffer, that buffer will
     // get assigned to *sharedBuffer.  Otherwise null will be
     // assigned.
-    static bool ReadableToJSVal(JSContext *cx, const nsAString &readable,
-                                nsStringBuffer** sharedBuffer,
-                                JS::MutableHandleValue vp);
+    static jsval ReadableToJSVal(JSContext *cx, const nsAString &readable,
+                                 nsStringBuffer** sharedBuffer);
 
     // Convert the given stringbuffer/length pair to a jsval
     static MOZ_ALWAYS_INLINE bool
     StringBufferToJSVal(JSContext* cx, nsStringBuffer* buf, uint32_t length,
-                        JS::MutableHandleValue rval, bool* sharedBuffer)
+                        JS::Value* rval, bool* sharedBuffer)
     {
-        JS::Zone *zone = js::GetContextZone(cx);
-        ZoneStringCache *cache = static_cast<ZoneStringCache*>(JS_GetZoneUserData(zone));
-        if (cache && buf == cache->mBuffer) {
-            MOZ_ASSERT(JS::GetGCThingZone(cache->mString) == zone);
-            JS::MarkStringAsLive(zone, cache->mString);
-            rval.setString(cache->mString);
+        if (buf == sCachedBuffer &&
+            JS::GetGCThingZone(sCachedString) == js::GetContextZone(cx))
+        {
+            *rval = JS::StringValue(sCachedString);
             *sharedBuffer = false;
             return true;
         }
@@ -223,21 +226,18 @@ public:
         if (!str) {
             return false;
         }
-        rval.setString(str);
-        if (!cache) {
-            cache = new ZoneStringCache();
-            JS_SetZoneUserData(zone, cache);
-        }
-        cache->mBuffer = buf;
-        cache->mString = str;
+        *rval = JS::StringValue(str);
+        sCachedString = str;
+        sCachedBuffer = buf;
         *sharedBuffer = true;
         return true;
     }
 
-    static void FreeZoneCache(JS::Zone *zone);
-    static void ClearZoneCache(JS::Zone *zone);
+    static void ClearCache();
 
 private:
+    static nsStringBuffer* sCachedBuffer;
+    static JSString* sCachedString;
     static const JSStringFinalizer sDOMStringFinalizer;
 
     static void FinalizeDOMString(const JSStringFinalizer *fin, jschar *chars);
@@ -256,26 +256,26 @@ NS_EXPORT_(bool) Base64Decode(JSContext *cx, JS::Value val, JS::Value *out);
  * Note, the ownership of the string buffer may be moved from str to rval.
  * If that happens, str will point to an empty string after this call.
  */
-bool NonVoidStringToJsval(JSContext *cx, nsAString &str, JS::MutableHandleValue rval);
-inline bool StringToJsval(JSContext *cx, nsAString &str, JS::MutableHandleValue rval)
+bool NonVoidStringToJsval(JSContext *cx, nsAString &str, JS::Value *rval);
+inline bool StringToJsval(JSContext *cx, nsAString &str, JS::Value *rval)
 {
     // From the T_DOMSTRING case in XPCConvert::NativeData2JS.
     if (str.IsVoid()) {
-        rval.setNull();
+        *rval = JSVAL_NULL;
         return true;
     }
     return NonVoidStringToJsval(cx, str, rval);
 }
 
 inline bool
-NonVoidStringToJsval(JSContext* cx, const nsAString& str, JS::MutableHandleValue rval)
+NonVoidStringToJsval(JSContext* cx, const nsAString& str, JS::Value *rval)
 {
     nsString mutableCopy(str);
     return NonVoidStringToJsval(cx, mutableCopy, rval);
 }
 
 inline bool
-StringToJsval(JSContext* cx, const nsAString& str, JS::MutableHandleValue rval)
+StringToJsval(JSContext* cx, const nsAString& str, JS::Value *rval)
 {
     nsString mutableCopy(str);
     return StringToJsval(cx, mutableCopy, rval);
@@ -286,7 +286,7 @@ StringToJsval(JSContext* cx, const nsAString& str, JS::MutableHandleValue rval)
  */
 MOZ_ALWAYS_INLINE
 bool NonVoidStringToJsval(JSContext* cx, mozilla::dom::DOMString& str,
-                          JS::MutableHandleValue rval)
+                          JS::Value *rval)
 {
     if (!str.HasStringBuffer()) {
         // It's an actual XPCOM string
@@ -295,7 +295,7 @@ bool NonVoidStringToJsval(JSContext* cx, mozilla::dom::DOMString& str,
 
     uint32_t length = str.StringBufferLength();
     if (length == 0) {
-        rval.set(JS_GetEmptyStringValue(cx));
+        *rval = JS_GetEmptyStringValue(cx);
         return true;
     }
 
@@ -314,22 +314,44 @@ bool NonVoidStringToJsval(JSContext* cx, mozilla::dom::DOMString& str,
 
 MOZ_ALWAYS_INLINE
 bool StringToJsval(JSContext* cx, mozilla::dom::DOMString& str,
-                   JS::MutableHandleValue rval)
+                   JS::Value *rval)
 {
     if (str.IsNull()) {
-        rval.setNull();
+        *rval = JS::NullValue();
         return true;
     }
     return NonVoidStringToJsval(cx, str, rval);
 }
 
 nsIPrincipal *GetCompartmentPrincipal(JSCompartment *compartment);
+nsIPrincipal *GetObjectPrincipal(JSObject *obj);
 
 bool IsXBLScope(JSCompartment *compartment);
-bool IsInXBLScope(JSObject *obj);
 
 void SetLocationForGlobal(JSObject *global, const nsACString& location);
 void SetLocationForGlobal(JSObject *global, nsIURI *locationURI);
+
+/**
+ * Define quick stubs on the given object, @a proto.
+ *
+ * @param cx
+ *     A context.  Requires request.
+ * @param proto
+ *     The (newly created) prototype object for a DOM class.  The JS half
+ *     of an XPCWrappedNativeProto.
+ * @param flags
+ *     Property flags for the quick stub properties--should be either
+ *     JSPROP_ENUMERATE or 0.
+ * @param interfaceCount
+ *     The number of interfaces the class implements.
+ * @param interfaceArray
+ *     The interfaces the class implements; interfaceArray and
+ *     interfaceCount are like what nsIClassInfo.getInterfaces returns.
+ */
+bool
+DOM_DefineQuickStubs(JSContext *cx, JSObject *proto, uint32_t flags,
+                     uint32_t interfaceCount, const nsIID **interfaceArray);
+
 
 // ReportJSRuntimeExplicitTreeStats will expect this in the |extra| member
 // of JS::ZoneStats.
@@ -368,8 +390,8 @@ private:
 nsresult
 ReportJSRuntimeExplicitTreeStats(const JS::RuntimeStats &rtStats,
                                  const nsACString &rtPath,
-                                 nsIMemoryReporterCallback *cb,
-                                 nsISupports *closure, size_t *rtTotal = nullptr);
+                                 nsIMemoryMultiReporterCallback *cb,
+                                 nsISupports *closure, size_t *rtTotal = NULL);
 
 /**
  * Throws an exception on cx and returns false.
@@ -404,13 +426,6 @@ GetJunkScope();
 nsIGlobalObject *
 GetJunkScopeGlobal();
 
-/**
- * If |aObj| has a window for a global, returns the associated nsGlobalWindow.
- * Otherwise, returns null.
- */
-nsGlobalWindow*
-WindowGlobalOrNull(JSObject *aObj);
-
 // Error reporter used when there is no associated DOM window on to which to
 // report errors and warnings.
 void
@@ -426,12 +441,6 @@ SystemErrorReporterExternal(JSContext *cx, const char *message,
 
 NS_EXPORT_(void)
 SimulateActivityCallback(bool aActive);
-
-void
-RecordAdoptedNode(JSCompartment *c);
-
-void
-RecordDonatedNode(JSCompartment *c);
 
 } // namespace xpc
 
@@ -454,6 +463,8 @@ typedef JSObject*
 typedef bool
 (ConstructorEnabled)(JSContext* cx, JS::Handle<JSObject*> obj);
 
+extern bool
+DefineStaticJSVals(JSContext *cx);
 void
 Register(nsScriptNameSpaceManager* aNameSpaceManager);
 

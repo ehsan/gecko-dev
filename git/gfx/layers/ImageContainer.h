@@ -15,7 +15,6 @@
 #include "mozilla/Mutex.h"              // for Mutex
 #include "mozilla/ReentrantMonitor.h"   // for ReentrantMonitorAutoEnter, etc
 #include "mozilla/TimeStamp.h"          // for TimeStamp
-#include "mozilla/gfx/Point.h"          // For IntSize
 #include "mozilla/layers/LayersTypes.h"  // for LayersBackend, etc
 #include "mozilla/mozalloc.h"           // for operator delete, etc
 #include "nsAutoPtr.h"                  // for nsRefPtr, nsAutoArrayPtr, etc
@@ -26,61 +25,10 @@
 #include "nsRect.h"                     // for nsIntRect
 #include "nsSize.h"                     // for nsIntSize
 #include "nsTArray.h"                   // for nsTArray
+#include "nsThreadUtils.h"              // for NS_IsMainThread
 #include "mozilla/Atomics.h"
-#include "nsThreadUtils.h"
 
-#ifndef XPCOM_GLUE_AVOID_NSPR
-/**
- * We need to be able to hold a reference to a gfxASurface from Image
- * subclasses. This is potentially a problem since Images can be addrefed
- * or released off the main thread. We can ensure that we never AddRef
- * a gfxASurface off the main thread, but we might want to Release due
- * to an Image being destroyed off the main thread.
- *
- * We use nsCountedRef<nsMainThreadSurfaceRef> to reference the
- * gfxASurface. When AddRefing, we assert that we're on the main thread.
- * When Releasing, if we're not on the main thread, we post an event to
- * the main thread to do the actual release.
- */
 class nsMainThreadSurfaceRef;
-
-template <>
-class nsAutoRefTraits<nsMainThreadSurfaceRef> {
-public:
-  typedef gfxASurface* RawRef;
-
-  /**
-   * The XPCOM event that will do the actual release on the main thread.
-   */
-  class SurfaceReleaser : public nsRunnable {
-  public:
-    SurfaceReleaser(RawRef aRef) : mRef(aRef) {}
-    NS_IMETHOD Run() {
-      mRef->Release();
-      return NS_OK;
-    }
-    RawRef mRef;
-  };
-
-  static RawRef Void() { return nullptr; }
-  static void Release(RawRef aRawRef)
-  {
-    if (NS_IsMainThread()) {
-      aRawRef->Release();
-      return;
-    }
-    nsCOMPtr<nsIRunnable> runnable = new SurfaceReleaser(aRawRef);
-    NS_DispatchToMainThread(runnable);
-  }
-  static void AddRef(RawRef aRawRef)
-  {
-    NS_ASSERTION(NS_IsMainThread(),
-                 "Can only add a reference on the main thread");
-    aRawRef->AddRef();
-  }
-};
-
-#endif
 
 #ifdef XP_WIN
 struct ID3D10Texture2D;
@@ -148,7 +96,7 @@ public:
   void* GetImplData() { return mImplData; }
 
   virtual already_AddRefed<gfxASurface> GetAsSurface() = 0;
-  virtual gfx::IntSize GetSize() = 0;
+  virtual gfxIntSize GetSize() = 0;
   virtual nsIntRect GetPictureRect()
   {
     return nsIntRect(0, 0, GetSize().width, GetSize().height);
@@ -263,7 +211,7 @@ protected:
 
   virtual already_AddRefed<Image> CreateImage(const ImageFormat* aFormats,
                                               uint32_t aNumFormats,
-                                              const gfx::IntSize &aScaleHint,
+                                              const gfxIntSize &aScaleHint,
                                               BufferRecycleBin *aRecycleBin);
 
 };
@@ -386,25 +334,6 @@ public:
   void SetCurrentImage(Image* aImage);
 
   /**
-   * Clear all images. Let ImageClient release all TextureClients.
-   */
-  void ClearAllImages();
-
-  /**
-   * Clear all images except current one.
-   * Let ImageClient release all TextureClients except front one.
-   */
-  void ClearAllImagesExceptFront();
-
-  /**
-   * Clear the current image.
-   * This function is expect to be called only from a CompositableClient
-   * that belongs to ImageBridgeChild. Created to prevent dead lock.
-   * See Bug 901224.
-   */
-  void ClearCurrentImage();
-
-  /**
    * Set an Image as the current image to display. The Image must have
    * been created by this ImageContainer.
    * Must be called on the main thread, within a layers transaction.
@@ -484,7 +413,7 @@ public:
    * the lock methods should be used to avoid the copy, however this should be
    * avoided if the surface is required for a long period of time.
    */
-  already_AddRefed<gfxASurface> GetCurrentAsSurface(gfx::IntSize* aSizeResult);
+  already_AddRefed<gfxASurface> GetCurrentAsSurface(gfxIntSize* aSizeResult);
 
   /**
    * This is similar to GetCurrentAsSurface, however this does not make a copy
@@ -494,7 +423,7 @@ public:
    * type of image. Optionally a pointer can be passed to receive the current
    * image.
    */
-  already_AddRefed<gfxASurface> LockCurrentAsSurface(gfx::IntSize* aSizeResult,
+  already_AddRefed<gfxASurface> LockCurrentAsSurface(gfxIntSize* aSizeResult,
                                                      Image** aCurrentImage = nullptr);
 
   /**
@@ -502,7 +431,7 @@ public:
    * Can be called on any thread. This method takes mReentrantMonitor when accessing
    * thread-shared state.
    */
-  gfx::IntSize GetCurrentSize();
+  gfxIntSize GetCurrentSize();
 
   /**
    * Sets a size that the image is expected to be rendered at.
@@ -674,7 +603,7 @@ public:
   ~AutoLockImage() { if (mContainer) { mContainer->UnlockCurrentImage(); } }
 
   Image* GetImage() { return mImage; }
-  const gfx::IntSize &GetSize() { return mSize; }
+  const gfxIntSize &GetSize() { return mSize; }
 
   void Unlock() { 
     if (mContainer) {
@@ -699,40 +628,7 @@ public:
 private:
   ImageContainer *mContainer;
   nsRefPtr<Image> mImage;
-  gfx::IntSize mSize;
-};
-
-struct PlanarYCbCrData {
-  // Luminance buffer
-  uint8_t* mYChannel;
-  int32_t mYStride;
-  gfxIntSize mYSize;
-  int32_t mYSkip;
-  // Chroma buffers
-  uint8_t* mCbChannel;
-  uint8_t* mCrChannel;
-  int32_t mCbCrStride;
-  gfxIntSize mCbCrSize;
-  int32_t mCbSkip;
-  int32_t mCrSkip;
-  // Picture region
-  uint32_t mPicX;
-  uint32_t mPicY;
-  gfxIntSize mPicSize;
-  StereoMode mStereoMode;
-
-  nsIntRect GetPictureRect() const {
-    return nsIntRect(mPicX, mPicY,
-                     mPicSize.width,
-                     mPicSize.height);
-  }
-
-  PlanarYCbCrData()
-    : mYChannel(nullptr), mYStride(0), mYSize(0, 0), mYSkip(0)
-    , mCbChannel(nullptr), mCrChannel(nullptr)
-    , mCbCrStride(0), mCbCrSize(0, 0) , mCbSkip(0), mCrSkip(0)
-    , mPicX(0), mPicY(0), mPicSize(0, 0), mStereoMode(STEREO_MODE_MONO)
-  {}
+  gfxIntSize mSize;
 };
 
 /****** Image subtypes for the different formats ******/
@@ -773,7 +669,38 @@ struct PlanarYCbCrData {
  */
 class PlanarYCbCrImage : public Image {
 public:
-  typedef PlanarYCbCrData Data;
+  struct Data {
+    // Luminance buffer
+    uint8_t* mYChannel;
+    int32_t mYStride;
+    gfxIntSize mYSize;
+    int32_t mYSkip;
+    // Chroma buffers
+    uint8_t* mCbChannel;
+    uint8_t* mCrChannel;
+    int32_t mCbCrStride;
+    gfxIntSize mCbCrSize;
+    int32_t mCbSkip;
+    int32_t mCrSkip;
+    // Picture region
+    uint32_t mPicX;
+    uint32_t mPicY;
+    gfxIntSize mPicSize;
+    StereoMode mStereoMode;
+
+    nsIntRect GetPictureRect() const {
+      return nsIntRect(mPicX, mPicY,
+                       mPicSize.width,
+                       mPicSize.height);
+    }
+
+    Data()
+      : mYChannel(nullptr), mYStride(0), mYSize(0, 0), mYSkip(0)
+      , mCbChannel(nullptr), mCrChannel(nullptr)
+      , mCbCrStride(0), mCbCrSize(0, 0) , mCbSkip(0), mCrSkip(0)
+      , mPicX(0), mPicY(0), mPicSize(0, 0), mStereoMode(STEREO_MODE_MONO)
+    {}
+  };
 
   enum {
     MAX_DIMENSION = 16384
@@ -820,7 +747,7 @@ public:
 
   virtual bool IsValid() { return !!mBufferSize; }
 
-  virtual gfx::IntSize GetSize() { return mSize; }
+  virtual gfxIntSize GetSize() { return mSize; }
 
   PlanarYCbCrImage(BufferRecycleBin *aRecycleBin);
 
@@ -844,14 +771,14 @@ protected:
 
   already_AddRefed<gfxASurface> GetAsSurface();
 
-  void SetOffscreenFormat(gfxImageFormat aFormat) { mOffscreenFormat = aFormat; }
-  gfxImageFormat GetOffscreenFormat();
+  void SetOffscreenFormat(gfxASurface::gfxImageFormat aFormat) { mOffscreenFormat = aFormat; }
+  gfxASurface::gfxImageFormat GetOffscreenFormat();
 
   nsAutoArrayPtr<uint8_t> mBuffer;
   uint32_t mBufferSize;
   Data mData;
-  gfx::IntSize mSize;
-  gfxImageFormat mOffscreenFormat;
+  gfxIntSize mSize;
+  gfxASurface::gfxImageFormat mOffscreenFormat;
   nsCountedRef<nsMainThreadSurfaceRef> mSurface;
   nsRefPtr<BufferRecycleBin> mRecycleBin;
 };
@@ -882,11 +809,12 @@ public:
 
   virtual already_AddRefed<gfxASurface> GetAsSurface()
   {
+    NS_ASSERTION(NS_IsMainThread(), "Must be main thread");
     nsRefPtr<gfxASurface> surface = mSurface.get();
     return surface.forget();
   }
 
-  gfx::IntSize GetSize() { return mSize; }
+  gfxIntSize GetSize() { return mSize; }
 
   CairoImage() : Image(nullptr, CAIRO_SURFACE) {}
 
@@ -900,7 +828,7 @@ public:
 
   already_AddRefed<gfxASurface> GetAsSurface();
 
-  gfx::IntSize GetSize() { return mSize; }
+  gfxIntSize GetSize() { return mSize; }
 
   unsigned char *mData;
   int mStride;

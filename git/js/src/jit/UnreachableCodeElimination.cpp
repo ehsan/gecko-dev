@@ -8,11 +8,10 @@
 
 #include "jit/AliasAnalysis.h"
 #include "jit/IonAnalysis.h"
-#include "jit/MIRGenerator.h"
 #include "jit/ValueNumbering.h"
 
 using namespace js;
-using namespace jit;
+using namespace ion;
 
 bool
 UnreachableCodeElimination::analyze()
@@ -82,8 +81,8 @@ UnreachableCodeElimination::removeUnmarkedBlocksAndCleanup()
 
     // Pass 5: It's important for optimizations to re-run GVN (and in
     // turn alias analysis) after UCE if we eliminated branches.
-    if (rerunAliasAnalysis_ && mir_->optimizationInfo().gvnEnabled()) {
-        ValueNumberer gvn(mir_, graph_, mir_->optimizationInfo().gvnKind() == GVN_Optimistic);
+    if (rerunAliasAnalysis_ && js_IonOptions.gvn) {
+        ValueNumberer gvn(mir_, graph_, js_IonOptions.gvnIsOptimistic);
         if (!gvn.clear() || !gvn.analyze())
             return false;
         IonSpewPass("GVN-after-UCE");
@@ -112,18 +111,19 @@ UnreachableCodeElimination::optimizableSuccessor(MBasicBlock *block)
 {
     // If the last instruction in `block` is a test instruction of a
     // constant value, returns the successor that the branch will
-    // always branch to at runtime. Otherwise, returns nullptr.
+    // always branch to at runtime. Otherwise, returns NULL.
 
     MControlInstruction *ins = block->lastIns();
     if (!ins->isTest())
-        return nullptr;
+        return NULL;
 
     MTest *testIns = ins->toTest();
     MDefinition *v = testIns->getOperand(0);
     if (!v->isConstant())
-        return nullptr;
+        return NULL;
 
-    BranchDirection bdir = v->toConstant()->valueToBoolean() ? TRUE_BRANCH : FALSE_BRANCH;
+    const Value &val = v->toConstant()->value();
+    BranchDirection bdir = ToBoolean(val) ? TRUE_BRANCH : FALSE_BRANCH;
     return testIns->branchSuccessor(bdir);
 }
 
@@ -188,12 +188,12 @@ UnreachableCodeElimination::prunePointlessBranchesAndMarkReachableBlocks()
         MBasicBlock *succ = optimizableSuccessor(block);
         JS_ASSERT(succ);
 
-        MGoto *gotoIns = MGoto::New(graph_.alloc(), succ);
+        MGoto *gotoIns = MGoto::New(succ);
         block->discardLastIns();
         block->end(gotoIns);
         MBasicBlock *successorWithPhis = block->successorWithPhis();
         if (successorWithPhis && successorWithPhis != succ)
-            block->setSuccessorWithPhis(nullptr, 0);
+            block->setSuccessorWithPhis(NULL, 0);
     }
 
     return true;
@@ -204,7 +204,7 @@ UnreachableCodeElimination::checkDependencyAndRemoveUsesFromUnmarkedBlocks(MDefi
 {
     // When the instruction depends on removed block,
     // alias analysis needs to get rerun to have the right dependency.
-    if (!disableAliasAnalysis_ && instr->dependency() && !instr->dependency()->block()->isMarked())
+    if (instr->dependency() && !instr->dependency()->block()->isMarked())
         rerunAliasAnalysis_ = true;
 
     for (MUseIterator iter(instr->usesBegin()); iter != instr->usesEnd(); ) {
@@ -249,7 +249,7 @@ UnreachableCodeElimination::removeUnmarkedBlocksAndClearDominators()
                 // predecessors need to have the successorWithPhis
                 // flag cleared.
                 for (size_t i = 0; i < block->numPredecessors(); i++)
-                    block->getPredecessor(i)->setSuccessorWithPhis(nullptr, 0);
+                    block->getPredecessor(i)->setSuccessorWithPhis(NULL, 0);
             }
 
             if (block->isLoopBackedge()) {
@@ -297,7 +297,7 @@ UnreachableCodeElimination::removeUnmarkedBlocksAndClearDominators()
                     MCall *call = iter->toCall();
                     for (size_t i = 0; i < call->numStackArgs(); i++) {
                         JS_ASSERT(call->getArg(i)->isPassArg());
-                        JS_ASSERT(call->getArg(i)->hasOneDefUse());
+                        JS_ASSERT(call->getArg(i)->defUseCount() == 1);
                         MPassArg *arg = call->getArg(i)->toPassArg();
                         arg->replaceAllUsesWith(arg->getArgument());
                     }

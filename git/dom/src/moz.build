@@ -14,4 +14,4 @@ DIRS += [
     'notification',
 ]
 
-JAR_MANIFESTS += ['jar.mn']
+TEST_DIRS += ['foo']

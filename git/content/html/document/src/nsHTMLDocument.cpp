@@ -4,15 +4,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsHTMLDocument.h"
-
 #include "mozilla/DebugOnly.h"
-#include "mozilla/dom/HTMLAllCollection.h"
+
 #include "nsCOMPtr.h"
 #include "nsXPIDLString.h"
 #include "nsPrintfCString.h"
 #include "nsReadableUtils.h"
 #include "nsUnicharUtils.h"
+#include "nsHTMLDocument.h"
 #include "nsIHTMLContentSink.h"
 #include "nsIXMLContentSink.h"
 #include "nsHTMLParts.h"
@@ -32,7 +31,7 @@
 #include "nsIContentViewerContainer.h"
 #include "nsIContentViewer.h"
 #include "nsIMarkupDocumentViewer.h"
-#include "nsDocShell.h"
+#include "nsIDocShell.h"
 #include "nsDocShellLoadTypes.h"
 #include "nsIWebNavigation.h"
 #include "nsIBaseWindow.h"
@@ -78,11 +77,11 @@
 #include "nsArrayUtils.h"
 #include "nsIEffectiveTLDService.h"
 
+#include "nsIPrompt.h"
 //AHMED 12-2
 #include "nsBidiUtils.h"
 
 #include "mozilla/dom/EncodingUtils.h"
-#include "mozilla/dom/FallbackEncoding.h"
 #include "nsIEditingSession.h"
 #include "nsIEditor.h"
 #include "nsNodeInfoManager.h"
@@ -117,6 +116,10 @@ using namespace mozilla::dom;
 
 #include "prtime.h"
 
+// Find/Search Includes
+const int32_t kForward  = 0;
+const int32_t kBackward = 1;
+
 //#define DEBUG_charset
 
 static NS_DEFINE_CID(kCParserCID, NS_PARSER_CID);
@@ -142,6 +145,15 @@ static bool ConvertToMidasInternalCommand(const nsAString & inCommandID,
 // ==================================================================
 // =
 // ==================================================================
+static void
+ReportUseOfDeprecatedMethod(nsHTMLDocument* aDoc, const char* aWarning)
+{
+  nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
+                                  NS_LITERAL_CSTRING("DOM Events"), aDoc,
+                                  nsContentUtils::eDOM_PROPERTIES,
+                                  aWarning);
+}
+
 static nsresult
 RemoveFromAgentSheets(nsCOMArray<nsIStyleSheet> &aAgentSheets, const nsAString& url)
 {
@@ -197,20 +209,43 @@ nsHTMLDocument::nsHTMLDocument()
 
 nsHTMLDocument::~nsHTMLDocument()
 {
+  mAll = nullptr;
 }
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_11(nsHTMLDocument, nsDocument,
-                                      mAll,
-                                      mImages,
-                                      mApplets,
-                                      mEmbeds,
-                                      mLinks,
-                                      mAnchors,
-                                      mScripts,
-                                      mForms,
-                                      mFormControls,
-                                      mWyciwygChannel,
-                                      mMidasCommandManager)
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsHTMLDocument)
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsHTMLDocument, nsDocument)
+  NS_ASSERTION(!nsCCUncollectableMarker::InGeneration(cb, tmp->GetMarkedCCGeneration()),
+               "Shouldn't traverse nsHTMLDocument!");
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mImages)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mApplets)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mEmbeds)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mLinks)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mAnchors)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mScripts)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mForms)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mFormControls)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mWyciwygChannel)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mMidasCommandManager)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsHTMLDocument, nsDocument)
+  tmp->mAll = nullptr;
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mImages)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mApplets)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mEmbeds)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mLinks)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mAnchors)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mScripts)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mForms)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mFormControls)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mWyciwygChannel)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mMidasCommandManager)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
+NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(nsHTMLDocument, nsDocument)
+  NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mAll)
+NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_ADDREF_INHERITED(nsHTMLDocument, nsDocument)
 NS_IMPL_RELEASE_INHERITED(nsHTMLDocument, nsDocument)
@@ -386,8 +421,22 @@ nsHTMLDocument::TryCacheCharset(nsICachingChannel* aCachingChannel,
   }
 }
 
+static bool
+CheckSameOrigin(nsINode* aNode1, nsINode* aNode2)
+{
+  NS_PRECONDITION(aNode1, "Null node?");
+  NS_PRECONDITION(aNode2, "Null node?");
+
+  bool equal;
+  return
+    NS_SUCCEEDED(aNode1->NodePrincipal()->
+                   Equals(aNode2->NodePrincipal(), &equal)) &&
+    equal;
+}
+
 void
 nsHTMLDocument::TryParentCharset(nsIDocShell*  aDocShell,
+                                 nsIDocument* aParentDocument,
                                  int32_t& aCharsetSource,
                                  nsACString& aCharset)
 {
@@ -400,13 +449,11 @@ nsHTMLDocument::TryParentCharset(nsIDocShell*  aDocShell,
 
   int32_t parentSource;
   nsAutoCString parentCharset;
-  nsCOMPtr<nsIPrincipal> parentPrincipal;
-  aDocShell->GetParentCharset(parentCharset,
-                              &parentSource,
-                              getter_AddRefs(parentPrincipal));
+  aDocShell->GetParentCharset(parentCharset);
   if (parentCharset.IsEmpty()) {
     return;
   }
+  aDocShell->GetParentCharsetSource(&parentSource);
   if (kCharsetFromParentForced == parentSource ||
       kCharsetFromUserForced == parentSource) {
     if (WillIgnoreCharsetOverride() ||
@@ -419,13 +466,33 @@ nsHTMLDocument::TryParentCharset(nsIDocShell*  aDocShell,
     return;
   }
 
+  if (aCharsetSource >= kCharsetFromHintPrevDoc) {
+    return;
+  }
+
+  if (kCharsetFromHintPrevDoc == parentSource) {
+    // Make sure that's OK
+    if (!aParentDocument ||
+        !CheckSameOrigin(this, aParentDocument) ||
+        !EncodingUtils::IsAsciiCompatible(parentCharset)) {
+      return;
+    }
+
+    // if parent is posted doc, set this prevent autodetections
+    // I'm not sure this makes much sense... but whatever.
+    aCharset.Assign(parentCharset);
+    aCharsetSource = kCharsetFromHintPrevDoc;
+    return;
+  }
+
   if (aCharsetSource >= kCharsetFromParentFrame) {
     return;
   }
 
   if (kCharsetFromCache <= parentSource) {
     // Make sure that's OK
-    if (!NodePrincipal()->Equals(parentPrincipal) ||
+    if (!aParentDocument ||
+        !CheckSameOrigin(this, aParentDocument) ||
         !EncodingUtils::IsAsciiCompatible(parentCharset)) {
       return;
     }
@@ -436,13 +503,45 @@ nsHTMLDocument::TryParentCharset(nsIDocShell*  aDocShell,
 }
 
 void
-nsHTMLDocument::TryFallback(int32_t& aCharsetSource, nsACString& aCharset)
+nsHTMLDocument::TryWeakDocTypeDefault(int32_t& aCharsetSource,
+                                      nsACString& aCharset)
 {
-  if (kCharsetFromFallback <= aCharsetSource)
+  if (kCharsetFromWeakDocTypeDefault <= aCharsetSource)
     return;
 
-  aCharsetSource = kCharsetFromFallback;
-  FallbackEncoding::FromLocale(aCharset);
+  const nsAdoptingCString& defCharset =
+    Preferences::GetLocalizedCString("intl.charset.default");
+
+  // Don't let the user break things by setting intl.charset.default to
+  // not a rough ASCII superset
+  nsAutoCString canonical;
+  if (EncodingUtils::FindEncodingForLabel(defCharset, canonical) &&
+      EncodingUtils::IsAsciiCompatible(canonical)) {
+    aCharset = canonical;
+  } else {
+    aCharset.AssignLiteral("windows-1252");
+  }
+  aCharsetSource = kCharsetFromWeakDocTypeDefault;
+  return;
+}
+
+void
+nsHTMLDocument::TryDefaultCharset( nsIMarkupDocumentViewer* aMarkupDV,
+                                   int32_t& aCharsetSource,
+                                   nsACString& aCharset)
+{
+  if(kCharsetFromUserDefault <= aCharsetSource)
+    return;
+
+  nsAutoCString defaultCharsetFromDocShell;
+  if (aMarkupDV) {
+    nsresult rv =
+      aMarkupDV->GetDefaultCharacterSet(defaultCharsetFromDocShell);
+    if(NS_SUCCEEDED(rv) && EncodingUtils::IsAsciiCompatible(defaultCharsetFromDocShell)) {
+      aCharset = defaultCharsetFromDocShell;
+      aCharsetSource = kCharsetFromUserDefault;
+    }
+  }
 }
 
 void
@@ -579,13 +678,21 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
   }
 
   nsCOMPtr<nsIDocShell> parent(do_QueryInterface(parentAsItem));
+  nsCOMPtr<nsIDocument> parentDocument;
   nsCOMPtr<nsIContentViewer> parentContentViewer;
   if (parent) {
     rv = parent->GetContentViewer(getter_AddRefs(parentContentViewer));
     NS_ENSURE_SUCCESS(rv, rv);
+    if (parentContentViewer) {
+      parentDocument = parentContentViewer->GetDocument();
+    }
   }
 
+  //
+  // The following logic is mirrored in nsWebShell::Embed!
+  //
   nsCOMPtr<nsIMarkupDocumentViewer> muCV;
+  bool muCVIsParent = false;
   nsCOMPtr<nsIContentViewer> cv;
   if (docShell) {
     docShell->GetContentViewer(getter_AddRefs(cv));
@@ -594,6 +701,9 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
      muCV = do_QueryInterface(cv);
   } else {
     muCV = do_QueryInterface(parentContentViewer);
+    if (muCV) {
+      muCVIsParent = true;
+    }
   }
 
   nsAutoCString urlSpec;
@@ -620,7 +730,7 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
   }
 
   if (!IsHTML() || !docShell) { // no docshell for text/html XHR
-    charsetSource = IsHTML() ? kCharsetFromFallback
+    charsetSource = IsHTML() ? kCharsetFromWeakDocTypeDefault
                              : kCharsetFromDocTypeDefault;
     charset.AssignLiteral("UTF-8");
     TryChannelCharset(aChannel, charsetSource, charset, executor);
@@ -655,13 +765,34 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
     TryUserForcedCharset(muCV, docShell, charsetSource, charset);
 
     TryHintCharset(muCV, charsetSource, charset); // XXX mailnews-only
-    TryParentCharset(docShell, charsetSource, charset);
+    TryParentCharset(docShell, parentDocument, charsetSource, charset);
 
     if (cachingChan && !urlSpec.IsEmpty()) {
       TryCacheCharset(cachingChan, charsetSource, charset);
     }
 
-    TryFallback(charsetSource, charset);
+    TryDefaultCharset(muCV, charsetSource, charset);
+
+    TryWeakDocTypeDefault(charsetSource, charset);
+
+    bool isPostPage = false;
+    // check if current doc is from POST command
+    nsCOMPtr<nsIHttpChannel> httpChannel(do_QueryInterface(aChannel));
+    if (httpChannel) {
+      nsAutoCString methodStr;
+      rv = httpChannel->GetRequestMethod(methodStr);
+      isPostPage = (NS_SUCCEEDED(rv) &&
+                    methodStr.EqualsLiteral("POST"));
+    }
+
+    if (isPostPage && muCV && kCharsetFromHintPrevDoc > charsetSource) {
+      nsAutoCString requestCharset;
+      muCV->GetPrevDocCharacterSet(requestCharset);
+      if (!requestCharset.IsEmpty()) {
+        charsetSource = kCharsetFromHintPrevDoc;
+        charset = requestCharset;
+      }
+    }
 
     if (wyciwygChannel) {
       // We know for sure that the parser needs to be using UTF16.
@@ -690,6 +821,11 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
 
   SetDocumentCharacterSetSource(charsetSource);
   SetDocumentCharacterSet(charset);
+
+  // set doc charset to muCV for next document.
+  // Don't propagate this back up to the parent document if we have one.
+  if (muCV && !muCVIsParent)
+    muCV->SetPrevDocCharacterSet(charset);
 
   if (cachingChan) {
     NS_ASSERTION(charset == parserCharset,
@@ -740,7 +876,7 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
     NS_ASSERTION(NS_SUCCEEDED(rv) && bundle, "chrome://global/locale/browser.properties could not be loaded");
     nsXPIDLString title;
     if (bundle) {
-      bundle->GetStringFromName(MOZ_UTF16("plainText.wordWrap"), getter_Copies(title));
+      bundle->GetStringFromName(NS_LITERAL_STRING("plainText.wordWrap").get(), getter_Copies(title));
     }
     SetSelectedStyleSheetSet(title);
   }
@@ -1202,8 +1338,8 @@ nsHTMLDocument::GetCookie(nsAString& aCookie, ErrorResult& rv)
     service->GetCookieString(codebaseURI, mChannel, getter_Copies(cookie));
     // CopyUTF8toUTF16 doesn't handle error
     // because it assumes that the input is valid.
-    nsContentUtils::ConvertStringFromEncoding(NS_LITERAL_CSTRING("UTF-8"),
-                                              cookie, aCookie);
+    nsContentUtils::ConvertStringFromCharset(NS_LITERAL_CSTRING("utf-8"),
+                                             cookie, aCookie);
   }
 }
 
@@ -1232,6 +1368,12 @@ nsHTMLDocument::SetCookie(const nsAString& aCookie, ErrorResult& rv)
   // not having a cookie service isn't an error
   nsCOMPtr<nsICookieService> service = do_GetService(NS_COOKIESERVICE_CONTRACTID);
   if (service && mDocumentURI) {
+    nsCOMPtr<nsIPrompt> prompt;
+    nsCOMPtr<nsPIDOMWindow> window = GetWindow();
+    if (window) {
+      window->GetPrompter(getter_AddRefs(prompt));
+    }
+
     // The for getting the URI matches nsNavigator::GetCookieEnabled
     nsCOMPtr<nsIURI> codebaseURI;
     NodePrincipal()->GetURI(getter_AddRefs(codebaseURI));
@@ -1244,7 +1386,7 @@ nsHTMLDocument::SetCookie(const nsAString& aCookie, ErrorResult& rv)
     }
 
     NS_ConvertUTF16toUTF8 cookie(aCookie);
-    service->SetCookieString(codebaseURI, nullptr, cookie.get(), mChannel);
+    service->SetCookieString(codebaseURI, prompt, cookie.get(), mChannel);
   }
 }
 
@@ -1355,7 +1497,7 @@ nsHTMLDocument::Open(JSContext* cx,
   }
 
   // check whether we're in the middle of unload.  If so, ignore this call.
-  nsCOMPtr<nsIDocShell> shell(mDocumentContainer);
+  nsCOMPtr<nsIDocShell> shell = do_QueryReferent(mDocumentContainer);
   if (!shell) {
     // We won't be able to create a parser anyway.
     nsCOMPtr<nsIDocument> ret = this;
@@ -1531,7 +1673,7 @@ nsHTMLDocument::Open(JSContext* cx,
     SetIsInitialDocument(false);
 
     nsCOMPtr<nsIScriptGlobalObject> newScope(do_QueryReferent(mScopeObject));
-    JS::Rooted<JSObject*> wrapper(cx, GetWrapper());
+    JS::RootedObject wrapper(cx, GetWrapper());
     if (oldScope && newScope != oldScope && wrapper) {
       rv = mozilla::dom::ReparentWrapper(cx, wrapper);
       if (rv.Failed()) {
@@ -2096,7 +2238,7 @@ nsHTMLDocument::GetSelection(nsISelection** aReturn)
   return rv.ErrorCode();
 }
 
-already_AddRefed<Selection>
+already_AddRefed<nsISelection>
 nsHTMLDocument::GetSelection(ErrorResult& rv)
 {
   nsCOMPtr<nsIDOMWindow> window = do_QueryInterface(GetScopeObject());
@@ -2112,21 +2254,20 @@ nsHTMLDocument::GetSelection(ErrorResult& rv)
 
   nsCOMPtr<nsISelection> sel;
   rv = window->GetSelection(getter_AddRefs(sel));
-  nsRefPtr<Selection> selection = static_cast<Selection*>(sel.get());
-  return selection.forget();
+  return sel.forget();
 }
 
 NS_IMETHODIMP
 nsHTMLDocument::CaptureEvents(int32_t aEventFlags)
 {
-  WarnOnceAbout(nsIDocument::eUseOfCaptureEvents);
+  ReportUseOfDeprecatedMethod(this, "UseOfCaptureEventsWarning");
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsHTMLDocument::ReleaseEvents(int32_t aEventFlags)
 {
-  WarnOnceAbout(nsIDocument::eUseOfReleaseEvents);
+  ReportUseOfDeprecatedMethod(this, "UseOfReleaseEventsWarning");
   return NS_OK;
 }
 
@@ -2579,10 +2720,23 @@ JSObject*
 nsHTMLDocument::GetAll(JSContext* aCx, ErrorResult& aRv)
 {
   if (!mAll) {
-    mAll = new HTMLAllCollection(this);
+    JS::Rooted<JSObject*> wrapper(aCx, GetWrapper());
+    JSAutoCompartment ac(aCx, wrapper);
+    mAll = JS_NewObject(aCx, &sHTMLDocumentAllClass, nullptr,
+                        JS_GetGlobalForObject(aCx, wrapper));
+    if (!mAll) {
+      aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
+      return nullptr;
+    }
+
+    // Make the JSObject hold a reference to this.
+    JS_SetPrivate(mAll, static_cast<nsINode*>(this));
+    NS_ADDREF_THIS();
+
+    PreserveWrapper(static_cast<nsINode*>(this));
   }
 
-  return mAll->GetObject(aCx, aRv);
+  return mAll;
 }
 
 static void
@@ -3145,6 +3299,47 @@ ConvertToMidasInternalCommand(const nsAString & inCommandID,
                                             dummyBool, dummyBool, true);
 }
 
+jsid
+nsHTMLDocument::sCutCopyInternal_id = JSID_VOID;
+jsid
+nsHTMLDocument::sPasteInternal_id = JSID_VOID;
+
+/* Helper function to check security of clipboard commands. If aPaste is */
+/* true, we check paste, else we check cutcopy */
+nsresult
+nsHTMLDocument::DoClipboardSecurityCheck(bool aPaste)
+{
+  nsresult rv = NS_ERROR_FAILURE;
+
+  JSContext *cx = nsContentUtils::GetCurrentJSContext();
+  if (!cx) {
+    return NS_OK;
+  }
+
+  NS_NAMED_LITERAL_CSTRING(classNameStr, "Clipboard");
+
+  nsIScriptSecurityManager *secMan = nsContentUtils::GetSecurityManager();
+
+  if (aPaste) {
+    if (nsHTMLDocument::sPasteInternal_id == JSID_VOID) {
+      nsHTMLDocument::sPasteInternal_id =
+        INTERNED_STRING_TO_JSID(cx, ::JS_InternString(cx, "paste"));
+    }
+    rv = secMan->CheckPropertyAccess(cx, nullptr, classNameStr.get(),
+                                     nsHTMLDocument::sPasteInternal_id,
+                                     nsIXPCSecurityManager::ACCESS_GET_PROPERTY);
+  } else {
+    if (nsHTMLDocument::sCutCopyInternal_id == JSID_VOID) {
+      nsHTMLDocument::sCutCopyInternal_id =
+        INTERNED_STRING_TO_JSID(cx, ::JS_InternString(cx, "cutcopy"));
+    }
+    rv = secMan->CheckPropertyAccess(cx, nullptr, classNameStr.get(),
+                                     nsHTMLDocument::sCutCopyInternal_id,
+                                     nsIXPCSecurityManager::ACCESS_GET_PROPERTY);
+  }
+  return rv;
+}
+
 /* TODO: don't let this call do anything if the page is not done loading */
 /* boolean execCommand(in DOMString commandID, in boolean doShowUI,
                                                in DOMString value); */
@@ -3192,11 +3387,14 @@ nsHTMLDocument::ExecCommand(const nsAString& commandID,
     return false;
   }
 
-  bool restricted = commandID.LowerCaseEqualsLiteral("cut") ||
-                    commandID.LowerCaseEqualsLiteral("copy")||
-                    commandID.LowerCaseEqualsLiteral("paste");
-  if (restricted && !nsContentUtils::IsCallerChrome()) {
-    rv = NS_ERROR_DOM_SECURITY_ERR;
+  if (commandID.LowerCaseEqualsLiteral("cut") ||
+      commandID.LowerCaseEqualsLiteral("copy")) {
+    rv = DoClipboardSecurityCheck(false);
+  } else if (commandID.LowerCaseEqualsLiteral("paste")) {
+    rv = DoClipboardSecurityCheck(true);
+  }
+
+  if (rv.Failed()) {
     return false;
   }
 
@@ -3591,9 +3789,9 @@ nsHTMLDocument::RemovedFromDocShell()
 }
 
 /* virtual */ void
-nsHTMLDocument::DocAddSizeOfExcludingThis(nsWindowSizes* aWindowSizes) const
+nsHTMLDocument::DocSizeOfExcludingThis(nsWindowSizes* aWindowSizes) const
 {
-  nsDocument::DocAddSizeOfExcludingThis(aWindowSizes);
+  nsDocument::DocSizeOfExcludingThis(aWindowSizes);
 
   // Measurement of the following members may be added later if DMD finds it is
   // worthwhile:

@@ -9,6 +9,8 @@
  * is loaded and they are destroyed when gklayout is unloaded.
  */
 
+#include "mozilla/Util.h"
+
 #include "nsGkAtoms.h"
 #include "nsStaticAtom.h"
 
