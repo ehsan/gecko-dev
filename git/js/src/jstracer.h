@@ -253,6 +253,7 @@ class TraceRecorder {
     void clearFrameSlotsFromCache();
     bool forInProlog(nanojit::LIns*& iterobj_ins);
 
+    JSInlineFrame* synthesizeFrame(JSObject* callee, JSObject *thisp, jsbytecode* pc);
 public:
     int backEdgeCount;
 
