@@ -386,11 +386,10 @@ class Type
         Fixnum = AsmJSNumLit::Fixnum,
         Signed = AsmJSNumLit::NegativeInt,
         Unsigned = AsmJSNumLit::BigUnsigned,
-        DoubleLit = AsmJSNumLit::Double,
+        Double = AsmJSNumLit::Double,
         Float = AsmJSNumLit::Float,
         Int32x4 = AsmJSNumLit::Int32x4,
         Float32x4 = AsmJSNumLit::Float32x4,
-        Double,
         MaybeDouble,
         MaybeFloat,
         Floatish,
@@ -429,20 +428,19 @@ class Type
 
     inline bool operator<=(Type rhs) const {
         switch (rhs.which_) {
-          case Signed:      return isSigned();
-          case Unsigned:    return isUnsigned();
-          case DoubleLit:   return isDoubleLit();
-          case Double:      return isDouble();
-          case Float:       return isFloat();
-          case Int32x4:     return isInt32x4();
-          case Float32x4:   return isFloat32x4();
-          case MaybeDouble: return isMaybeDouble();
-          case MaybeFloat:  return isMaybeFloat();
-          case Floatish:    return isFloatish();
-          case Int:         return isInt();
-          case Intish:      return isIntish();
-          case Fixnum:      return isFixnum();
-          case Void:        return isVoid();
+          case Type::Signed:      return isSigned();
+          case Type::Unsigned:    return isUnsigned();
+          case Type::Double:      return isDouble();
+          case Type::Float:       return isFloat();
+          case Type::Int32x4:     return isInt32x4();
+          case Type::Float32x4:   return isFloat32x4();
+          case Type::MaybeDouble: return isMaybeDouble();
+          case Type::MaybeFloat:  return isMaybeFloat();
+          case Type::Floatish:    return isFloatish();
+          case Type::Int:         return isInt();
+          case Type::Intish:      return isIntish();
+          case Type::Fixnum:      return isFixnum();
+          case Type::Void:        return isVoid();
         }
         MOZ_MAKE_COMPILER_ASSUME_IS_UNREACHABLE("unexpected this type");
     }
@@ -467,12 +465,8 @@ class Type
         return isInt() || which_ == Intish;
     }
 
-    bool isDoubleLit() const {
-        return which_ == DoubleLit;
-    }
-
     bool isDouble() const {
-        return isDoubleLit() || which_ == Double;
+        return which_ == Double;
     }
 
     bool isMaybeDouble() const {
@@ -518,7 +512,6 @@ class Type
     MIRType toMIRType() const {
         switch (which_) {
           case Double:
-          case DoubleLit:
           case MaybeDouble:
             return MIRType_Double;
           case Float:
@@ -550,7 +543,6 @@ class Type
             return Float;
           // Scalar types
           case Double:
-          case DoubleLit:
           case MaybeDouble:
           case Float:
           case MaybeFloat:
@@ -575,7 +567,30 @@ class Type
             return Floatish;
           // Scalar types
           case Double:
-          case DoubleLit:
+          case MaybeDouble:
+          case Float:
+          case MaybeFloat:
+          case Floatish:
+          case Fixnum:
+          case Int:
+          case Signed:
+          case Unsigned:
+          case Intish:
+          case Void:
+            break;
+        }
+        MOZ_MAKE_COMPILER_ASSUME_IS_UNREACHABLE("Invalid SIMD Type");
+    }
+
+    AsmJSSimdType simdToSimdType() const {
+        MOZ_ASSERT(isSimd());
+        switch (which_) {
+          case Int32x4:
+            return AsmJSSimdType_int32x4;
+          case Float32x4:
+            return AsmJSSimdType_float32x4;
+          // Scalar types
+          case Double:
           case MaybeDouble:
           case Float:
           case MaybeFloat:
@@ -594,7 +609,6 @@ class Type
     const char *toChars() const {
         switch (which_) {
           case Double:      return "double";
-          case DoubleLit:   return "doublelit";
           case MaybeDouble: return "double?";
           case Float:       return "float";
           case Floatish:    return "floatish";
@@ -4932,8 +4946,7 @@ CheckMathBuiltinCall(FunctionCompiler &f, ParseNode *callNode, AsmJSMathBuiltinF
 
 typedef Vector<MDefinition*, 4, SystemAllocPolicy> DefinitionVector;
 
-namespace {  
-// Include CheckSimdCallArgs in unnamed namespace to avoid MSVC name lookup bug.
+namespace {
 
 template<class CheckArgOp>
 static bool
@@ -4955,7 +4968,7 @@ CheckSimdCallArgs(FunctionCompiler &f, ParseNode *call, unsigned expectedArity,
         Type argType;
         if (!CheckExpr(f, arg, &argDefs[i], &argType))
             return false;
-        if (!checkArg(f, arg, i, argType, &argDefs[i]))
+        if (!checkArg(f, arg, i, argType))
             return false;
     }
 
@@ -4969,42 +4982,11 @@ class CheckArgIsSubtypeOf
   public:
     explicit CheckArgIsSubtypeOf(Type t) : formalType_(t) {}
 
-    bool operator()(FunctionCompiler &f, ParseNode *arg, unsigned argIndex, Type actualType,
-                    MDefinition **def) const
+    bool operator()(FunctionCompiler &f, ParseNode *arg, unsigned argIndex, Type actualType) const
     {
         if (!(actualType <= formalType_)) {
             return f.failf(arg, "%s is not a subtype of %s", actualType.toChars(),
                            formalType_.toChars());
-        }
-        return true;
-    }
-};
-
-class CheckSimdScalarArgs
-{
-    Type simdType_;
-    Type formalType_;
-
-  public:
-    CheckSimdScalarArgs(Type simdType)
-      : simdType_(simdType), formalType_(simdType.simdToCoercedScalarType())
-    {}
-
-    bool operator()(FunctionCompiler &f, ParseNode *arg, unsigned argIndex, Type actualType,
-                    MDefinition **def) const
-    {
-        if (!(actualType <= formalType_)) {
-            // As a special case, accept doublelit arguments to float32x4 ops by
-            // re-emitting them as float32 constants.
-            if (!simdType_.isFloat32x4() || !actualType.isDoubleLit()) {
-                return f.failf(arg, "%s is not a subtype of %s%s",
-                               actualType.toChars(), formalType_.toChars(),
-                               simdType_.isFloat32x4() ? " or doublelit" : "");
-            }
-
-            AsmJSNumLit doubleLit = ExtractNumericLiteral(f.m(), arg);
-            MOZ_ASSERT(doubleLit.which() == AsmJSNumLit::Double);
-            *def = f.constant(doubleLit.scalarValue(), Type::Float);
         }
         return true;
     }
@@ -5017,8 +4999,7 @@ class CheckSimdSelectArgs
   public:
     explicit CheckSimdSelectArgs(Type t) : formalType_(t) {}
 
-    bool operator()(FunctionCompiler &f, ParseNode *arg, unsigned argIndex, Type actualType,
-                    MDefinition **def) const
+    bool operator()(FunctionCompiler &f, ParseNode *arg, unsigned argIndex, Type actualType) const
     {
         if (argIndex == 0) {
             // First argument of select is an int32x4 mask.
@@ -5042,8 +5023,7 @@ class CheckSimdVectorScalarArgs
   public:
     explicit CheckSimdVectorScalarArgs(Type t) : formalType_(t) {}
 
-    bool operator()(FunctionCompiler &f, ParseNode *arg, unsigned argIndex, Type actualType,
-                    MDefinition **def) const
+    bool operator()(FunctionCompiler &f, ParseNode *arg, unsigned argIndex, Type actualType) const
     {
         MOZ_ASSERT(argIndex < 2);
         if (argIndex == 0) {
@@ -5296,7 +5276,8 @@ CheckSimdOperationCall(FunctionCompiler &f, ParseNode *call, const ModuleCompile
 
       case AsmJSSimdOperation_splat: {
         DefinitionVector defs;
-        if (!CheckSimdCallArgs(f, call, 1, CheckSimdScalarArgs(retType), &defs))
+        Type formalType = retType.simdToCoercedScalarType();
+        if (!CheckSimdCallArgs(f, call, 1, CheckArgIsSubtypeOf(formalType), &defs))
             return false;
         *def = f.splatSimd(defs[0], retType.toMIRType());
         *type = retType;
@@ -5330,13 +5311,16 @@ CheckSimdCtorCall(FunctionCompiler &f, ParseNode *call, const ModuleCompiler::Gl
     AsmJSSimdType simdType = global->simdCtorType();
     Type retType = simdType;
     unsigned length = SimdTypeToLength(simdType);
+    Type formalType = retType.simdToCoercedScalarType();
     DefinitionVector defs;
-    if (!CheckSimdCallArgs(f, call, length, CheckSimdScalarArgs(retType), &defs))
+    if (!CheckSimdCallArgs(f, call, length, CheckArgIsSubtypeOf(formalType), &defs))
         return false;
 
     // This code will need to be generalized when we handle float64x2
     MOZ_ASSERT(length == 4);
-    *def = f.constructSimd<MSimdValueX4>(defs[0], defs[1], defs[2], defs[3], retType.toMIRType());
+
+    MIRType opType = retType.toMIRType();
+    *def = f.constructSimd<MSimdValueX4>(defs[0], defs[1], defs[2], defs[3], opType);
     *type = retType;
     return true;
 }
@@ -8497,7 +8481,7 @@ static bool
 FinishModule(ModuleCompiler &m,
              ScopedJSDeletePtr<AsmJSModule> *module)
 {
-    LifoAlloc lifo(TempAllocator::PreferredLifoChunkSize);
+    LifoAlloc lifo(LIFO_ALLOC_PRIMARY_CHUNK_SIZE);
     TempAllocator alloc(&lifo);
     IonContext ionContext(m.cx(), &alloc);
 

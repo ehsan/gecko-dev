@@ -39,6 +39,9 @@ ImageAccessible::~ImageAccessible()
 {
 }
 
+NS_IMPL_ISUPPORTS_INHERITED(ImageAccessible, Accessible,
+                            nsIAccessibleImage)
+
 ////////////////////////////////////////////////////////////////////////////////
 // Accessible public
 
@@ -97,7 +100,7 @@ ImageAccessible::NativeRole()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Accessible
+// nsIAccessible
 
 uint8_t
 ImageAccessible::ActionCount()

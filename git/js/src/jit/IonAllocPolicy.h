@@ -24,13 +24,6 @@ class TempAllocator
     LifoAllocScope lifoScope_;
 
   public:
-    // Most infallible Ion allocations are small, so we use a ballast of 16
-    // KiB. And with a ballast of 16 KiB, a chunk size of 32 KiB works well,
-    // because TempAllocators with a peak allocation size of less than 16 KiB
-    // (which is most of them) only have to allocate a single chunk.
-    static const size_t BallastSize;            // 16 KiB
-    static const size_t PreferredLifoChunkSize; // 32 KiB
-
     explicit TempAllocator(LifoAlloc *lifoAlloc)
       : lifoScope_(lifoAlloc)
     { }
@@ -65,7 +58,9 @@ class TempAllocator
     }
 
     bool ensureBallast() {
-        return lifoScope_.alloc().ensureUnusedApproximate(BallastSize);
+        // Most infallible Ion allocations are small, so we use a ballast of
+        // ~16K for now.
+        return lifoScope_.alloc().ensureUnusedApproximate(16 * 1024);
     }
 };
 

@@ -100,6 +100,8 @@ JSCompartment::init(JSContext *cx)
     if (cx)
         cx->runtime()->dateTimeInfo.updateTimeZoneAdjustment();
 
+    activeAnalysis = false;
+
     if (!crossCompartmentWrappers.init(0))
         return false;
 

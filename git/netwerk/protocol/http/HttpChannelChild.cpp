@@ -1888,12 +1888,8 @@ HttpChannelChild::DivertToParent(ChannelDiverterChild **aChild)
   // Once this is set, it should not be unset before the child is taken down.
   mDivertingToParent = true;
 
-  HttpChannelDiverterArgs args;
-  args.mChannelChild() = this;
-  args.mApplyConversion() = mApplyConversion;
-
   PChannelDiverterChild* diverter =
-    gNeckoChild->SendPChannelDiverterConstructor(args);
+    gNeckoChild->SendPChannelDiverterConstructor(this);
   MOZ_RELEASE_ASSERT(diverter);
 
   *aChild = static_cast<ChannelDiverterChild*>(diverter);

@@ -21,7 +21,7 @@ HTMLWin32ObjectOwnerAccessible::
 {
   // Our only child is a HTMLWin32ObjectAccessible object.
   if (mHwnd)
-    mNativeAccessible = new HTMLWin32ObjectAccessible(mHwnd, aDoc);
+    mNativeAccessible = new HTMLWin32ObjectAccessible(mHwnd);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -63,9 +63,8 @@ HTMLWin32ObjectOwnerAccessible::CacheChildren()
 // HTMLWin32ObjectAccessible
 ////////////////////////////////////////////////////////////////////////////////
 
-HTMLWin32ObjectAccessible::HTMLWin32ObjectAccessible(void* aHwnd,
-                                                     DocAccessible* aDoc) :
-  DummyAccessible(aDoc)
+HTMLWin32ObjectAccessible::HTMLWin32ObjectAccessible(void* aHwnd) :
+  DummyAccessible()
 {
   mHwnd = aHwnd;
   if (mHwnd) {
@@ -80,7 +79,7 @@ HTMLWin32ObjectAccessible::HTMLWin32ObjectAccessible(void* aHwnd,
   }
 }
 
-void
+NS_IMETHODIMP 
 HTMLWin32ObjectAccessible::GetNativeInterface(void** aNativeAccessible)
 {
   if (mHwnd) {
@@ -88,5 +87,6 @@ HTMLWin32ObjectAccessible::GetNativeInterface(void** aNativeAccessible)
                                  OBJID_WINDOW, IID_IAccessible,
                                  aNativeAccessible);
   }
+  return NS_OK;
 }
 

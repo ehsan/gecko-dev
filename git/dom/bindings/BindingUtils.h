@@ -40,8 +40,8 @@ class nsIJSID;
 class nsPIDOMWindow;
 
 extern nsresult
-xpc_qsUnwrapArgImpl(JSContext* cx, JS::Handle<JSObject*> src, const nsIID& iid,
-                    void** ppArg);
+xpc_qsUnwrapArgImpl(JSContext* cx, JS::Handle<JS::Value> v, const nsIID& iid, void** ppArg,
+                    nsISupports** ppArgRef, JS::MutableHandle<JS::Value> vp);
 
 namespace mozilla {
 namespace dom {
@@ -57,12 +57,17 @@ struct SelfRef
 };
 
 /** Convert a jsval to an XPCOM pointer. */
-template <class Interface>
+template <class Interface, class StrongRefType>
 inline nsresult
-UnwrapArg(JSContext* cx, JS::Handle<JSObject*> src, Interface** ppArg)
+UnwrapArg(JSContext* cx, JS::Handle<JS::Value> v, Interface** ppArg,
+          StrongRefType** ppArgRef, JS::MutableHandle<JS::Value> vp)
 {
-  return xpc_qsUnwrapArgImpl(cx, src, NS_GET_TEMPLATE_IID(Interface),
-                             reinterpret_cast<void**>(ppArg));
+  nsISupports* argRef = *ppArgRef;
+  nsresult rv = xpc_qsUnwrapArgImpl(cx, v, NS_GET_TEMPLATE_IID(Interface),
+                                    reinterpret_cast<void**>(ppArg), &argRef,
+                                    vp);
+  *ppArgRef = static_cast<StrongRefType*>(argRef);
+  return rv;
 }
 
 inline const ErrNum

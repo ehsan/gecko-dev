@@ -10,6 +10,7 @@
 
 #include "Accessible.h"
 #include "IUnknownImpl.h"
+#include "nsIAccessibleRelation.h"
 
 #include <utility>
 #include "nsTArray.h"

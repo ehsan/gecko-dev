@@ -8,8 +8,7 @@
 #include "jscntxt.h" /* for error messages */
 #include "jsobj.h" /* for unwrapping without a context */
 
-using namespace js;
-using JS::PerfMeasurement;
+using namespace JS;
 
 // You cannot forward-declare a static object in C++, so instead
 // we have to forward-declare the helper function that refers to it.

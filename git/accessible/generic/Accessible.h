@@ -11,6 +11,12 @@
 #include "mozilla/a11y/Role.h"
 #include "mozilla/a11y/States.h"
 
+#include "xpcAccessible.h"
+#include "xpcAccessibleHyperLink.h"
+#include "nsIAccessibleStates.h"
+#include "xpcAccessibleSelectable.h"
+#include "xpcAccessibleValue.h"
+
 #include "nsIContent.h"
 #include "nsString.h"
 #include "nsTArray.h"
@@ -22,7 +28,6 @@ struct nsRect;
 class nsIFrame;
 class nsIAtom;
 struct nsIntRect;
-class nsIPersistentProperties;
 class nsView;
 
 namespace mozilla {
@@ -31,7 +36,6 @@ namespace a11y {
 class Accessible;
 class AccEvent;
 class AccGroupInfo;
-class ApplicationAccessible;
 class DocAccessible;
 class EmbeddedObjCollector;
 class HTMLImageMapAccessible;
@@ -119,15 +123,21 @@ typedef nsRefPtrHashtable<nsPtrHashKey<const void>, Accessible>
   { 0xbd, 0x50, 0x42, 0x6b, 0xd1, 0xd6, 0xe1, 0xad }    \
 }
 
-class Accessible : public nsISupports
+class Accessible : public xpcAccessible,
+                   public xpcAccessibleHyperLink,
+                   public xpcAccessibleSelectable,
+                   public xpcAccessibleValue
 {
 public:
   Accessible(nsIContent* aContent, DocAccessible* aDoc);
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS(Accessible)
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(Accessible, nsIAccessible)
 
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_ACCESSIBLE_IMPL_IID)
+
+  // nsIAccessible
+  NS_IMETHOD GetNativeInterface(void** aOutAccessible);
 
   //////////////////////////////////////////////////////////////////////////////
   // Public methods
@@ -183,11 +193,6 @@ public:
    * Get the value of this accessible.
    */
   virtual void Value(nsString& aValue);
-
-  /**
-   * Get help string for the accessible.
-   */
-  void Help(nsString& aHelp) const { aHelp.Truncate(); }
 
   /**
    * Get the name of this accessible.
@@ -529,11 +534,6 @@ public:
   virtual void SetSelected(bool aSelect);
 
   /**
-   * Extend selection to this accessible.
-   */
-  void ExtendSelection() { };
-
-  /**
    * Select the accessible within its container.
    */
   void TakeSelection();
@@ -553,12 +553,6 @@ public:
    */
   void ScrollToPoint(uint32_t aCoordinateType, int32_t aX, int32_t aY);
 
-  /**
-   * Get a pointer to accessibility interface for this node, which is specific
-   * to the OS/accessibility toolkit we're running on.
-   */
-  virtual void GetNativeInterface(void** aNativeAccessible);
-
   //////////////////////////////////////////////////////////////////////////////
   // Downcasting and types
 
@@ -569,7 +563,6 @@ public:
   }
 
   bool IsApplication() const { return mType == eApplicationType; }
-  ApplicationAccessible* AsApplication();
 
   bool IsAutoComplete() const { return HasGenericType(eAutoComplete); }
 
@@ -741,7 +734,7 @@ public:
   /**
    * Return an array of selected items.
    */
-  virtual void SelectedItems(nsTArray<Accessible*>* aItems);
+  virtual already_AddRefed<nsIArray> SelectedItems();
 
   /**
    * Return the number of selected items.

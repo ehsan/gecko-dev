@@ -65,7 +65,11 @@ EvalCacheHashPolicy::match(const EvalCacheEntry &cacheEntry, const EvalCacheLook
 
     MOZ_ASSERT(IsEvalCacheCandidate(script));
 
-    return EqualStrings(cacheEntry.str, l.str) &&
+    // Get the source string passed for safekeeping in the atom map
+    // by the prior eval to frontend::CompileScript.
+    JSAtom *keyStr = script->atoms[0];
+
+    return EqualStrings(keyStr, l.str) &&
            cacheEntry.callerScript == l.callerScript &&
            script->getVersion() == l.version &&
            cacheEntry.pc == l.pc;
@@ -90,7 +94,7 @@ class EvalScriptGuard
     ~EvalScriptGuard() {
         if (script_) {
             script_->cacheForEval();
-            EvalCacheEntry cacheEntry = {lookupStr_, script_, lookup_.callerScript, lookup_.pc};
+            EvalCacheEntry cacheEntry = {script_, lookup_.callerScript, lookup_.pc};
             lookup_.str = lookupStr_;
             if (lookup_.str && IsEvalCacheCandidate(script_))
                 cx_->runtime()->evalCache.relookupOrAdd(p_, lookup_, cacheEntry);

@@ -10,6 +10,7 @@
 #include "mozilla/Attributes.h"
 #include "nsGenericHTMLElement.h"
 #include "nsIDOMHTMLOptionElement.h"
+#include "nsIJSNativeInitializer.h"
 #include "mozilla/dom/HTMLFormElement.h"
 
 namespace mozilla {

@@ -18,11 +18,10 @@
     // killed.
     SimpleTest.requestLongerTimeout(100);
 
-    // The crash observer registration functions are stubbed out here to
-    // prevent the iframe test runner from breaking later crash-related tests.
+    // Disable crash observers as it breaks later tests.
     function iframeScriptFirst() {
-      SpecialPowers.prototype.registerProcessCrashObservers = () => {};
-      SpecialPowers.prototype.unregisterProcessCrashObservers = () => {};
+      SpecialPowers.prototype.registerProcessCrashObservers = function() { };
+      SpecialPowers.prototype.unregisterProcessCrashObservers = function() { };
 
       content.wrappedJSObject.RunSet.reloadAndRunAll({
         preventDefault: function() { },

@@ -525,7 +525,6 @@ nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
       mCurrentTableItem(nullptr),
       mCurrentFrame(aReferenceFrame),
       mCurrentReferenceFrame(aReferenceFrame),
-      mWillChangeBudgetCalculated(false),
       mDirtyRect(-1,-1,-1,-1),
       mGlassDisplayItem(nullptr),
       mMode(aMode),
@@ -761,7 +760,7 @@ nsDisplayScrollLayer::ComputeFrameMetrics(nsIFrame* aForFrame,
         metrics.mMayHaveTouchListeners = innerWin->HasTouchEventListeners();
       }
     }
-    metrics.SetMayHaveTouchCaret(presShell->MayHaveTouchCaret());
+    metrics.mMayHaveTouchCaret = presShell->MayHaveTouchCaret();
   }
 
   LayoutDeviceToParentLayerScale layoutToParentLayerScale =
@@ -1108,54 +1107,6 @@ nsDisplayListBuilder::AdjustWindowDraggingRegion(nsIFrame* aFrame)
       mWindowDraggingRegion.SubOut(borderBox);
     }
   }
-}
-
-void
-nsDisplayListBuilder::AddToWillChangeBudget(nsIFrame* aFrame, const nsSize& aRect) {
-  // Make sure that we don't query the budget before the display list is fully
-  // built and that the will change budget is locked in.
-  MOZ_ASSERT(!mWillChangeBudgetCalculated,
-             "Can't modify the budget once it's been used.");
-
-  DocumentWillChangeBudget budget;
-
-  nsPresContext* key = aFrame->PresContext();
-  if (mWillChangeBudget.Contains(key)) {
-    mWillChangeBudget.Get(key, &budget);
-  }
-
-  // There's significant overhead for each layer created from Gecko
-  // (IPC+Shared Objects) and from the backend (like an OpenGL texture).
-  // Therefore we set a minimum cost threshold of a 64x64 area.
-  int minBudgetCost = 64 * 64;
-
-  budget.mBudget +=
-    std::max(minBudgetCost,
-      nsPresContext::AppUnitsToIntCSSPixels(aRect.width) *
-      nsPresContext::AppUnitsToIntCSSPixels(aRect.height));
-
-  mWillChangeBudget.Put(key, budget);
-}
-
-bool
-nsDisplayListBuilder::IsInWillChangeBudget(nsIFrame* aFrame) const {
-  mWillChangeBudgetCalculated = true;
-
-  nsPresContext* key = aFrame->PresContext();
-  if (!mWillChangeBudget.Contains(key)) {
-    MOZ_ASSERT(false, "If we added nothing to our budget then this "
-                      "shouldn't be called.");
-    return false;
-  }
-
-  DocumentWillChangeBudget budget;
-  mWillChangeBudget.Get(key, &budget);
-
-  nsRect area = aFrame->PresContext()->GetVisibleArea();
-  uint32_t budgetLimit = nsPresContext::AppUnitsToIntCSSPixels(area.width) *
-    nsPresContext::AppUnitsToIntCSSPixels(area.height);
-
-  return budget.mBudget / 3 < budgetLimit;
 }
 
 void nsDisplayListSet::MoveTo(const nsDisplayListSet& aDestination) const
@@ -1840,8 +1791,7 @@ nsDisplaySolidColor::Paint(nsDisplayListBuilder* aBuilder,
 {
   int32_t appUnitsPerDevPixel = mFrame->PresContext()->AppUnitsPerDevPixel();
   DrawTarget* drawTarget = aCtx->GetDrawTarget();
-  Rect rect =
-    NSRectToSnappedRect(mVisibleRect, appUnitsPerDevPixel, *drawTarget);
+  Rect rect = NSRectToRect(mVisibleRect, appUnitsPerDevPixel, *drawTarget);
   drawTarget->FillRect(rect, ColorPattern(ToDeviceColor(mColor)));
 }
 
@@ -3119,7 +3069,7 @@ nsDisplayBoxShadowInner::Paint(nsDisplayListBuilder* aBuilder,
 
   for (uint32_t i = 0; i < rects.Length(); ++i) {
     gfx->Save();
-    gfx->Clip(NSRectToSnappedRect(rects[i], appUnitsPerDevPixel, *drawTarget));
+    gfx->Clip(NSRectToRect(rects[i], appUnitsPerDevPixel, *drawTarget));
     nsCSSRendering::PaintBoxShadowInner(presContext, *aCtx, mFrame,
                                         borderRect, rects[i]);
     gfx->Restore();
@@ -3468,9 +3418,9 @@ IsItemTooSmallForActiveLayer(nsDisplayItem* aItem)
 }
 
 bool
-nsDisplayOpacity::NeedsActiveLayer(nsDisplayListBuilder* aBuilder)
+nsDisplayOpacity::NeedsActiveLayer()
 {
-  if (ActiveLayerTracker::IsStyleAnimated(aBuilder, mFrame, eCSSProperty_opacity) &&
+  if (ActiveLayerTracker::IsStyleAnimated(mFrame, eCSSProperty_opacity) &&
       !IsItemTooSmallForActiveLayer(this))
     return true;
   if (mFrame->GetContent()) {
@@ -3497,7 +3447,7 @@ nsDisplayOpacity::ApplyOpacity(nsDisplayListBuilder* aBuilder,
 bool
 nsDisplayOpacity::ShouldFlattenAway(nsDisplayListBuilder* aBuilder)
 {
-  if (NeedsActiveLayer(aBuilder))
+  if (NeedsActiveLayer())
     return false;
 
   nsDisplayItem* child = mList.GetBottom();
@@ -3515,7 +3465,7 @@ nsDisplayItem::LayerState
 nsDisplayOpacity::GetLayerState(nsDisplayListBuilder* aBuilder,
                                 LayerManager* aManager,
                                 const ContainerLayerParameters& aParameters) {
-  if (NeedsActiveLayer(aBuilder))
+  if (NeedsActiveLayer())
     return LAYER_ACTIVE;
 
   return RequiredLayerStateForChildren(aBuilder, aManager, aParameters, mList,
@@ -3792,18 +3742,11 @@ nsDisplaySubDocument::ComputeFrameMetrics(Layer* aLayer,
                        false, isRootContentDocument, params));
 }
 
-static bool
-UseDisplayPortForViewport(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
-                          nsRect* aDisplayPort = nullptr)
-{
-  return aBuilder->IsPaintingToWindow() &&
-      nsLayoutUtils::ViewportHasDisplayPort(aFrame->PresContext(), aDisplayPort);
-}
-
 nsRect
 nsDisplaySubDocument::GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap)
 {
-  bool usingDisplayPort = UseDisplayPortForViewport(aBuilder, mFrame);
+  bool usingDisplayPort =
+    nsLayoutUtils::ViewportHasDisplayPort(mFrame->PresContext());
 
   if ((mFlags & GENERATE_SCROLLABLE_LAYER) && usingDisplayPort) {
     *aSnap = false;
@@ -3818,7 +3761,8 @@ nsDisplaySubDocument::ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                         nsRegion* aVisibleRegion)
 {
   nsRect displayport;
-  bool usingDisplayPort = UseDisplayPortForViewport(aBuilder, mFrame, &displayport);
+  bool usingDisplayPort =
+    nsLayoutUtils::ViewportHasDisplayPort(mFrame->PresContext(), &displayport);
 
   if (!(mFlags & GENERATE_SCROLLABLE_LAYER) || !usingDisplayPort) {
     return nsDisplayWrapList::ComputeVisibility(aBuilder, aVisibleRegion);
@@ -3854,7 +3798,8 @@ nsDisplaySubDocument::ComputeVisibility(nsDisplayListBuilder* aBuilder,
 bool
 nsDisplaySubDocument::ShouldBuildLayerEvenIfInvisible(nsDisplayListBuilder* aBuilder)
 {
-  bool usingDisplayPort = UseDisplayPortForViewport(aBuilder, mFrame);
+  bool usingDisplayPort =
+    nsLayoutUtils::ViewportHasDisplayPort(mFrame->PresContext());
 
   if ((mFlags & GENERATE_SCROLLABLE_LAYER) && usingDisplayPort) {
     return true;
@@ -3866,7 +3811,8 @@ nsDisplaySubDocument::ShouldBuildLayerEvenIfInvisible(nsDisplayListBuilder* aBui
 nsRegion
 nsDisplaySubDocument::GetOpaqueRegion(nsDisplayListBuilder* aBuilder, bool* aSnap)
 {
-  bool usingDisplayPort = UseDisplayPortForViewport(aBuilder, mFrame);
+  bool usingDisplayPort =
+    nsLayoutUtils::ViewportHasDisplayPort(mFrame->PresContext());
 
   if ((mFlags & GENERATE_SCROLLABLE_LAYER) && usingDisplayPort) {
     *aSnap = false;
@@ -4431,7 +4377,8 @@ bool nsDisplayZoom::ComputeVisibility(nsDisplayListBuilder *aBuilder,
   // If we are to generate a scrollable layer we call
   // nsDisplaySubDocument::ComputeVisibility to make the necessary adjustments
   // for ComputeVisibility, it does all it's calculations in the child APD.
-  bool usingDisplayPort = UseDisplayPortForViewport(aBuilder, mFrame);
+  bool usingDisplayPort =
+    nsLayoutUtils::ViewportHasDisplayPort(mFrame->PresContext());
   if (!(mFlags & GENERATE_SCROLLABLE_LAYER) || !usingDisplayPort) {
     retval =
       mList.ComputeVisibilityForSublist(aBuilder, &visibleRegion,
@@ -4556,15 +4503,8 @@ nsDisplayTransform::Init(nsDisplayListBuilder* aBuilder)
 {
   mStoredList.SetClip(aBuilder, DisplayItemClip::NoClip());
   mStoredList.SetVisibleRect(mChildrenVisibleRect);
-  mMaybePrerender = ShouldPrerenderTransformedContent(aBuilder, mFrame);
-
-  const nsStyleDisplay* disp = mFrame->StyleDisplay();
-  if ((disp->mWillChangeBitField & NS_STYLE_WILL_CHANGE_TRANSFORM)) {
-    // We will only pre-render if this will-change is on budget.
-    mMaybePrerender = true;
-  }
-
-  if (mMaybePrerender) {
+  mPrerender = ShouldPrerenderTransformedContent(aBuilder, mFrame);
+  if (mPrerender) {
     bool snap;
     mVisibleRect = GetBounds(aBuilder, &snap);
   }
@@ -4911,7 +4851,7 @@ nsDisplayTransform::GetResultingTransformMatrixInternal(const FrameTransformProp
 bool
 nsDisplayOpacity::CanUseAsyncAnimations(nsDisplayListBuilder* aBuilder)
 {
-  if (ActiveLayerTracker::IsStyleAnimated(aBuilder, mFrame, eCSSProperty_opacity)) {
+  if (ActiveLayerTracker::IsStyleAnimated(mFrame, eCSSProperty_opacity)) {
     return true;
   }
 
@@ -4925,30 +4865,9 @@ nsDisplayOpacity::CanUseAsyncAnimations(nsDisplayListBuilder* aBuilder)
 }
 
 bool
-nsDisplayTransform::ShouldPrerender(nsDisplayListBuilder* aBuilder) {
-  if (!mMaybePrerender) {
-    return false;
-  }
-
-  if (ShouldPrerenderTransformedContent(aBuilder, mFrame)) {
-    return true;
-  }
-
-  const nsStyleDisplay* disp = mFrame->StyleDisplay();
-  if ((disp->mWillChangeBitField & NS_STYLE_WILL_CHANGE_TRANSFORM) &&
-      aBuilder->IsInWillChangeBudget(mFrame)) {
-    return true;
-  }
-
-  return false;
-}
-
-bool
 nsDisplayTransform::CanUseAsyncAnimations(nsDisplayListBuilder* aBuilder)
 {
-  if (mMaybePrerender) {
-    // TODO We need to make sure that if we use async animation we actually
-    // pre-render even if we're out of will change budget.
+  if (mPrerender) {
     return true;
   }
   DebugOnly<bool> prerender = ShouldPrerenderTransformedContent(aBuilder, mFrame, true);
@@ -4965,7 +4884,7 @@ nsDisplayTransform::ShouldPrerenderTransformedContent(nsDisplayListBuilder* aBui
   // have a compositor-animated transform, can be prerendered. An element
   // might have only just had its transform animated in which case
   // the ActiveLayerManager may not have been notified yet.
-  if (!ActiveLayerTracker::IsStyleMaybeAnimated(aFrame, eCSSProperty_transform) &&
+  if (!ActiveLayerTracker::IsStyleAnimated(aFrame, eCSSProperty_transform) &&
       (!aFrame->GetContent() ||
        !nsLayoutUtils::HasAnimationsForCompositor(aFrame->GetContent(),
                                                   eCSSProperty_transform))) {
@@ -5063,7 +4982,7 @@ nsDisplayTransform::GetTransform()
 bool
 nsDisplayTransform::ShouldBuildLayerEvenIfInvisible(nsDisplayListBuilder* aBuilder)
 {
-  return ShouldPrerender(aBuilder);
+  return ShouldPrerender();
 }
 
 already_AddRefed<Layer> nsDisplayTransform::BuildLayer(nsDisplayListBuilder *aBuilder,
@@ -5077,7 +4996,7 @@ already_AddRefed<Layer> nsDisplayTransform::BuildLayer(nsDisplayListBuilder *aBu
     return nullptr;
   }
 
-  uint32_t flags = ShouldPrerender(aBuilder) ?
+  uint32_t flags = ShouldPrerender() ?
     FrameLayerBuilder::CONTAINER_NOT_CLIPPED_BY_ANCESTORS : 0;
   nsRefPtr<ContainerLayer> container = aManager->GetLayerBuilder()->
     BuildContainerLayerFor(aBuilder, aManager, mFrame, this, mStoredList.GetChildren(),
@@ -5098,7 +5017,7 @@ already_AddRefed<Layer> nsDisplayTransform::BuildLayer(nsDisplayListBuilder *aBu
   nsDisplayListBuilder::AddAnimationsAndTransitionsToLayer(container, aBuilder,
                                                            this, mFrame,
                                                            eCSSProperty_transform);
-  if (ShouldPrerender(aBuilder)) {
+  if (ShouldPrerender()) {
     container->SetUserData(nsIFrame::LayerIsPrerenderedDataKey(),
                            /*the value is irrelevant*/nullptr);
     container->SetContentFlags(container->GetContentFlags() | Layer::CONTENT_MAY_CHANGE_TRANSFORM);
@@ -5120,7 +5039,7 @@ nsDisplayTransform::GetLayerState(nsDisplayListBuilder* aBuilder,
   }
   // Here we check if the *post-transform* bounds of this item are big enough
   // to justify an active layer.
-  if (ActiveLayerTracker::IsStyleAnimated(aBuilder, mFrame, eCSSProperty_transform) &&
+  if (ActiveLayerTracker::IsStyleAnimated(mFrame, eCSSProperty_transform) &&
       !IsItemTooSmallForActiveLayer(this))
     return LAYER_ACTIVE;
   if (mFrame->GetContent()) {
@@ -5151,7 +5070,7 @@ bool nsDisplayTransform::ComputeVisibility(nsDisplayListBuilder *aBuilder,
    * think that it's painting in its original rectangular coordinate space.
    * If we can't untransform, take the entire overflow rect */
   nsRect untransformedVisibleRect;
-  if (ShouldPrerender(aBuilder) ||
+  if (ShouldPrerender() ||
       !UntransformVisibleRect(aBuilder, &untransformedVisibleRect))
   {
     untransformedVisibleRect = mFrame->GetVisualOverflowRectRelativeToSelf();
@@ -5281,7 +5200,7 @@ nsDisplayTransform::GetHitDepthAtPoint(nsDisplayListBuilder* aBuilder, const nsP
  */
 nsRect nsDisplayTransform::GetBounds(nsDisplayListBuilder *aBuilder, bool* aSnap)
 {
-  nsRect untransformedBounds = MaybePrerender() ?
+  nsRect untransformedBounds = ShouldPrerender() ?
     mFrame->GetVisualOverflowRectRelativeToSelf() :
     mStoredList.GetBounds(aBuilder, aSnap);
   *aSnap = false;
@@ -5319,7 +5238,7 @@ nsRegion nsDisplayTransform::GetOpaqueRegion(nsDisplayListBuilder *aBuilder,
   // covers the entire window, but it allows our transform to be
   // updated extremely cheaply, without invalidating any other
   // content.
-  if (MaybePrerender() ||
+  if (ShouldPrerender() ||
       !UntransformVisibleRect(aBuilder, &untransformedVisible)) {
       return nsRegion();
   }
