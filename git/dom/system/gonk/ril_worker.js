@@ -615,8 +615,12 @@ RilObject.prototype = {
       case GECKO_CARDLOCK_HNCK:
       case GECKO_CARDLOCK_CCK:
       case GECKO_CARDLOCK_SPCK:
-      case GECKO_CARDLOCK_RCCK:
-      case GECKO_CARDLOCK_RSPCK:
+      case GECKO_CARDLOCK_RCCK: // Fall through.
+      case GECKO_CARDLOCK_RSPCK: {
+        let type = GECKO_PERSO_LOCK_TO_CARD_PERSO_LOCK[options.lockType];
+        this.enterDepersonalization(type, options.pin, options);
+        break;
+      }
       case GECKO_CARDLOCK_NCK_PUK:
       case GECKO_CARDLOCK_NCK1_PUK:
       case GECKO_CARDLOCK_NCK2_PUK:
@@ -624,13 +628,14 @@ RilObject.prototype = {
       case GECKO_CARDLOCK_CCK_PUK:
       case GECKO_CARDLOCK_SPCK_PUK:
       case GECKO_CARDLOCK_RCCK_PUK: // Fall through.
-      case GECKO_CARDLOCK_RSPCK_PUK:
-        options.personlization =
-          GECKO_PERSO_LOCK_TO_CARD_PERSO_LOCK[options.lockType];
-        this.enterDepersonalization(options);
+      case GECKO_CARDLOCK_RSPCK_PUK: {
+        let type = GECKO_PERSO_LOCK_TO_CARD_PERSO_LOCK[options.lockType];
+        this.enterDepersonalization(type, options.puk, options);
         break;
+      }
       default:
-        options.errorMsg = GECKO_ERROR_REQUEST_NOT_SUPPORTED;
+        options.errorMsg = "Unsupported Card Lock.";
+        options.success = false;
         this.sendChromeMessage(options);
     }
   },
@@ -638,7 +643,7 @@ RilObject.prototype = {
   /**
    * Enter a PIN to unlock the ICC.
    *
-   * @param password
+   * @param pin
    *        String containing the PIN.
    * @param [optional] aid
    *        AID value.
@@ -647,7 +652,7 @@ RilObject.prototype = {
     let Buf = this.context.Buf;
     Buf.newParcel(REQUEST_ENTER_SIM_PIN, options);
     Buf.writeInt32(this.v5Legacy ? 1 : 2);
-    Buf.writeString(options.password);
+    Buf.writeString(options.pin);
     if (!this.v5Legacy) {
       Buf.writeString(options.aid || this.aid);
     }
@@ -657,7 +662,7 @@ RilObject.prototype = {
   /**
    * Enter a PIN2 to unlock the ICC.
    *
-   * @param password
+   * @param pin
    *        String containing the PIN2.
    * @param [optional] aid
    *        AID value.
@@ -666,7 +671,7 @@ RilObject.prototype = {
     let Buf = this.context.Buf;
     Buf.newParcel(REQUEST_ENTER_SIM_PIN2, options);
     Buf.writeInt32(this.v5Legacy ? 1 : 2);
-    Buf.writeString(options.password);
+    Buf.writeString(options.pin);
     if (!this.v5Legacy) {
       Buf.writeString(options.aid || this.aid);
     }
@@ -676,25 +681,66 @@ RilObject.prototype = {
   /**
    * Requests a network personalization be deactivated.
    *
-   * @param personlization
-   *        One of CARD_PERSOSUBSTATE_*
+   * @param type
+   *        Integer indicating the network personalization be deactivated.
    * @param password
    *        String containing the password.
    */
-  enterDepersonalization: function(options) {
+  enterDepersonalization: function(type, password, options) {
     let Buf = this.context.Buf;
     Buf.newParcel(REQUEST_ENTER_NETWORK_DEPERSONALIZATION_CODE, options);
-    Buf.writeInt32(options.personlization);
-    Buf.writeString(options.password);
+    Buf.writeInt32(type);
+    Buf.writeString(password);
     Buf.sendParcel();
+  },
+
+  /**
+   * Helper function for changing ICC locks.
+   */
+  iccSetCardLock: function(options) {
+    if (options.newPin !== undefined) { // Change PIN lock.
+      switch (options.lockType) {
+        case GECKO_CARDLOCK_PIN:
+          this.changeICCPIN(options);
+          break;
+        case GECKO_CARDLOCK_PIN2:
+          this.changeICCPIN2(options);
+          break;
+        default:
+          options.errorMsg = "Unsupported Card Lock.";
+          options.success = false;
+          this.sendChromeMessage(options);
+      }
+    } else { // Enable/Disable lock.
+      switch (options.lockType) {
+        case GECKO_CARDLOCK_PIN:
+          options.facility = ICC_CB_FACILITY_SIM;
+          options.password = options.pin;
+          break;
+        case GECKO_CARDLOCK_FDN:
+          options.facility = ICC_CB_FACILITY_FDN;
+          options.password = options.pin2;
+          break;
+        default:
+          options.errorMsg = "Unsupported Card Lock.";
+          options.success = false;
+          this.sendChromeMessage(options);
+          return;
+      }
+      options.enabled = options.enabled;
+      options.serviceClass = ICC_SERVICE_CLASS_VOICE |
+                             ICC_SERVICE_CLASS_DATA  |
+                             ICC_SERVICE_CLASS_FAX;
+      this.setICCFacilityLock(options);
+    }
   },
 
   /**
    * Change the current ICC PIN number.
    *
-   * @param password
+   * @param pin
    *        String containing the old PIN value
-   * @param newPassword
+   * @param newPin
    *        String containing the new PIN value
    * @param [optional] aid
    *        AID value.
@@ -703,8 +749,8 @@ RilObject.prototype = {
     let Buf = this.context.Buf;
     Buf.newParcel(REQUEST_CHANGE_SIM_PIN, options);
     Buf.writeInt32(this.v5Legacy ? 2 : 3);
-    Buf.writeString(options.password);
-    Buf.writeString(options.newPassword);
+    Buf.writeString(options.pin);
+    Buf.writeString(options.newPin);
     if (!this.v5Legacy) {
       Buf.writeString(options.aid || this.aid);
     }
@@ -714,9 +760,9 @@ RilObject.prototype = {
   /**
    * Change the current ICC PIN2 number.
    *
-   * @param password
+   * @param pin
    *        String containing the old PIN2 value
-   * @param newPassword
+   * @param newPin
    *        String containing the new PIN2 value
    * @param [optional] aid
    *        AID value.
@@ -725,20 +771,19 @@ RilObject.prototype = {
     let Buf = this.context.Buf;
     Buf.newParcel(REQUEST_CHANGE_SIM_PIN2, options);
     Buf.writeInt32(this.v5Legacy ? 2 : 3);
-    Buf.writeString(options.password);
-    Buf.writeString(options.newPassword);
+    Buf.writeString(options.pin);
+    Buf.writeString(options.newPin);
     if (!this.v5Legacy) {
       Buf.writeString(options.aid || this.aid);
     }
     Buf.sendParcel();
   },
-
   /**
    * Supplies ICC PUK and a new PIN to unlock the ICC.
    *
-   * @param password
+   * @param puk
    *        String containing the PUK value.
-   * @param newPassword
+   * @param newPin
    *        String containing the new PIN value.
    * @param [optional] aid
    *        AID value.
@@ -747,7 +792,7 @@ RilObject.prototype = {
      let Buf = this.context.Buf;
      Buf.newParcel(REQUEST_ENTER_SIM_PUK, options);
      Buf.writeInt32(this.v5Legacy ? 2 : 3);
-     Buf.writeString(options.password);
+     Buf.writeString(options.puk);
      Buf.writeString(options.newPin);
      if (!this.v5Legacy) {
        Buf.writeString(options.aid || this.aid);
@@ -758,9 +803,9 @@ RilObject.prototype = {
   /**
    * Supplies ICC PUK2 and a new PIN2 to unlock the ICC.
    *
-   * @param password
+   * @param puk
    *        String containing the PUK2 value.
-   * @param newPassword
+   * @param newPin
    *        String containing the new PIN2 value.
    * @param [optional] aid
    *        AID value.
@@ -769,7 +814,7 @@ RilObject.prototype = {
      let Buf = this.context.Buf;
      Buf.newParcel(REQUEST_ENTER_SIM_PUK2, options);
      Buf.writeInt32(this.v5Legacy ? 2 : 3);
-     Buf.writeString(options.password);
+     Buf.writeString(options.puk);
      Buf.writeString(options.newPin);
      if (!this.v5Legacy) {
        Buf.writeString(options.aid || this.aid);
@@ -778,54 +823,19 @@ RilObject.prototype = {
    },
 
   /**
-   * Helper function for changing ICC locks.
-   */
-  iccChangeCardLockPassword: function(options) {
-    switch (options.lockType) {
-      case GECKO_CARDLOCK_PIN:
-        this.changeICCPIN(options);
-        break;
-      case GECKO_CARDLOCK_PIN2:
-        this.changeICCPIN2(options);
-        break;
-      default:
-        options.errorMsg = GECKO_ERROR_REQUEST_NOT_SUPPORTED;
-        this.sendChromeMessage(options);
-    }
-  },
-
-  /**
-   * Helper function for setting the state of ICC locks.
-   */
-  iccSetCardLockEnabled: function(options) {
-    switch (options.lockType) {
-      case GECKO_CARDLOCK_PIN: // Fall through.
-      case GECKO_CARDLOCK_FDN:
-        options.facility = GECKO_CARDLOCK_TO_FACILITY[options.lockType];
-        break;
-      default:
-        options.errorMsg = GECKO_ERROR_REQUEST_NOT_SUPPORTED;
-        this.sendChromeMessage(options);
-        return;
-    }
-
-    options.serviceClass = ICC_SERVICE_CLASS_VOICE |
-                           ICC_SERVICE_CLASS_DATA  |
-                           ICC_SERVICE_CLASS_FAX;
-    this.setICCFacilityLock(options);
-  },
-
-  /**
    * Helper function for fetching the state of ICC locks.
    */
-  iccGetCardLockEnabled: function(options) {
+  iccGetCardLockState: function(options) {
     switch (options.lockType) {
-      case GECKO_CARDLOCK_PIN: // Fall through.
+      case GECKO_CARDLOCK_PIN:
+        options.facility = ICC_CB_FACILITY_SIM;
+        break;
       case GECKO_CARDLOCK_FDN:
-        options.facility = GECKO_CARDLOCK_TO_FACILITY[options.lockType];
+        options.facility = ICC_CB_FACILITY_FDN;
         break;
       default:
-        options.errorMsg = GECKO_ERROR_REQUEST_NOT_SUPPORTED;
+        options.errorMsg = "Unsupported Card Lock.";
+        options.success = false;
         this.sendChromeMessage(options);
         return;
     }
@@ -844,30 +854,34 @@ RilObject.prototype = {
    * not support the request id and their rild doesn't return an error.
    */
   iccGetCardLockRetryCount: function(options) {
-    if (!RILQUIRKS_HAVE_QUERY_ICC_LOCK_RETRY_COUNT) {
-      // Only the emulator supports this request.
-      options.errorMsg = GECKO_ERROR_REQUEST_NOT_SUPPORTED;
+    var selCode = {
+      pin: ICC_SEL_CODE_SIM_PIN,
+      puk: ICC_SEL_CODE_SIM_PUK,
+      pin2: ICC_SEL_CODE_SIM_PIN2,
+      puk2: ICC_SEL_CODE_SIM_PUK2,
+      nck: ICC_SEL_CODE_PH_NET_PIN,
+      cck: ICC_SEL_CODE_PH_CORP_PIN,
+      spck: ICC_SEL_CODE_PH_SP_PIN
+    };
+
+    if (typeof(selCode[options.lockType]) === 'undefined') {
+      /* unknown lock type */
+      options.errorMsg = GECKO_ERROR_GENERIC_FAILURE;
+      options.success = false;
       this.sendChromeMessage(options);
       return;
     }
 
-    switch (options.lockType) {
-      case GECKO_CARDLOCK_PIN:
-      case GECKO_CARDLOCK_PIN2:
-      case GECKO_CARDLOCK_PUK:
-      case GECKO_CARDLOCK_PUK2:
-      case GECKO_CARDLOCK_NCK:
-      case GECKO_CARDLOCK_CCK: // Fall through.
-      case GECKO_CARDLOCK_SPCK:
-        options.selCode = GECKO_CARDLOCK_TO_SEL_CODE[options.lockType];
-        break;
-      default:
-        options.errorMsg = GECKO_ERROR_REQUEST_NOT_SUPPORTED;
-        this.sendChromeMessage(options);
-        return;
+    if (RILQUIRKS_HAVE_QUERY_ICC_LOCK_RETRY_COUNT) {
+      /* Only the emulator supports this request, ... */
+      options.selCode = selCode[options.lockType];
+      this.queryICCLockRetryCount(options);
+    } else {
+      /* ... while the phones do not. */
+      options.errorMsg = GECKO_ERROR_REQUEST_NOT_SUPPORTED;
+      options.success = false;
+      this.sendChromeMessage(options);
     }
-
-    this.queryICCLockRetryCount(options);
   },
 
   /**
@@ -2459,8 +2473,8 @@ RilObject.prototype = {
           return;
         }
 
-        options.password = mmi.sia;
-        options.newPassword = mmi.sib;
+        options.pin = mmi.sia;
+        options.newPin = mmi.sib;
         this.changeICCPIN(options);
         return;
 
@@ -2474,8 +2488,8 @@ RilObject.prototype = {
           return;
         }
 
-        options.password = mmi.sia;
-        options.newPassword = mmi.sib;
+        options.pin = mmi.sia;
+        options.newPin = mmi.sib;
         this.changeICCPIN2(options);
         return;
 
@@ -2489,7 +2503,7 @@ RilObject.prototype = {
           return;
         }
 
-        options.password = mmi.sia;
+        options.puk = mmi.sia;
         options.newPin = mmi.sib;
         this.enterICCPUK(options);
         return;
@@ -2504,7 +2518,7 @@ RilObject.prototype = {
           return;
         }
 
-        options.password = mmi.sia;
+        options.puk = mmi.sia;
         options.newPin = mmi.sib;
         this.enterICCPUK2(options);
         return;
