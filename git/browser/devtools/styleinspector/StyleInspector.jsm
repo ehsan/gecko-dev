@@ -112,7 +112,7 @@ StyleInspector.prototype = {
     let boundIframeOnLoad = function loadedInitializeIframe() {
       if (this.iframe &&
           this.iframe.getAttribute("src") ==
-          "chrome://browser/content/devtools/csshtmltree.xul") {
+          "chrome://browser/content/csshtmltree.xhtml") {
         let selectedNode = this.selectedNode || null;
         this.cssHtmlTree = new CssHtmlTree(this);
         this.cssLogic.highlight(selectedNode);
@@ -152,6 +152,10 @@ StyleInspector.prototype = {
     panel.setAttribute("width", 350);
     panel.setAttribute("height", this.window.screen.height / 2);
 
+    let vbox = this.document.createElement("vbox");
+    vbox.setAttribute("flex", "1");
+    panel.appendChild(vbox);
+
     let iframe = this.document.createElement("iframe");
     let boundIframeOnLoad = function loadedInitializeIframe()
     {
@@ -161,12 +165,24 @@ StyleInspector.prototype = {
         aCallback(this);
     }.bind(this);
 
-    iframe.flex = 1;
+    iframe.setAttribute("flex", "1");
     iframe.setAttribute("tooltip", "aHTMLTooltip");
     iframe.addEventListener("load", boundIframeOnLoad, true);
-    iframe.setAttribute("src", "chrome://browser/content/devtools/csshtmltree.xul");
+    iframe.setAttribute("src", "chrome://browser/content/csshtmltree.xhtml");
 
-    panel.appendChild(iframe);
+    vbox.appendChild(iframe);
+
+    let hbox = this.document.createElement("hbox");
+    hbox.setAttribute("class", "resizerbox");
+    vbox.appendChild(hbox);
+
+    let spacer = this.document.createElement("spacer");
+    spacer.setAttribute("flex", "1");
+    hbox.appendChild(spacer);
+
+    let resizer = this.document.createElement("resizer");
+    resizer.setAttribute("dir", "bottomend");
+    hbox.appendChild(resizer);
     popupSet.appendChild(panel);
 
     this._boundPopupShown = this.popupShown.bind(this);
@@ -266,7 +282,7 @@ StyleInspector.prototype = {
     this.selectNode(aSelection);
     if (this.openDocked) {
       if (!this.iframeReady) {
-        this.iframe.setAttribute("src", "chrome://browser/content/devtools/csshtmltree.xul");
+        this.iframe.setAttribute("src", "chrome://browser/content/csshtmltree.xhtml");
       }
     } else {
       this.panel.openPopup(this.window.gBrowser.selectedBrowser, "end_before", 0, 0,

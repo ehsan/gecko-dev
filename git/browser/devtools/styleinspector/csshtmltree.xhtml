@@ -1,4 +1,20 @@
-<?xml version="1.0"?>
+<!DOCTYPE html [
+  <!ENTITY % htmlDTD PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "DTD/xhtml1-strict.dtd">
+  %htmlDTD;
+  <!ENTITY % inspectorDTD SYSTEM "chrome://browser/locale/devtools/styleinspector.dtd">
+  %inspectorDTD;
+  <!ELEMENT loop ANY>
+  <!ATTLIST li foreach CDATA #IMPLIED>
+  <!ATTLIST div foreach CDATA #IMPLIED>
+  <!ATTLIST loop foreach CDATA #IMPLIED>
+  <!ATTLIST a target CDATA #IMPLIED>
+  <!ATTLIST a __pathElement CDATA #IMPLIED>
+  <!ATTLIST div _id CDATA #IMPLIED>
+  <!ATTLIST div save CDATA #IMPLIED>
+  <!ATTLIST table save CDATA #IMPLIED>
+  <!ATTLIST loop if CDATA #IMPLIED>
+  <!ATTLIST tr if CDATA #IMPLIED>
+]>
 <!-- ***** BEGIN LICENSE BLOCK *****
    - Version: MPL 1.1/GPL 2.0/LGPL 2.1
    -
@@ -36,28 +52,19 @@
    - the terms of any one of the MPL, the GPL or the LGPL.
    -
    - ***** END LICENSE BLOCK ***** -->
-<?xml-stylesheet href="chrome://global/skin/global.css"?>
-<?xml-stylesheet href="chrome://browser/skin/devtools/csshtmltree.css" type="text/css"?>
-<!DOCTYPE window [
-  <!ENTITY % inspectorDTD SYSTEM "chrome://browser/locale/devtools/styleinspector.dtd">
-  %inspectorDTD;
-  <!ELEMENT loop ANY>
-  <!ATTLIST li foreach CDATA #IMPLIED>
-  <!ATTLIST div foreach CDATA #IMPLIED>
-  <!ATTLIST loop foreach CDATA #IMPLIED>
-  <!ATTLIST a target CDATA #IMPLIED>
-  <!ATTLIST a __pathElement CDATA #IMPLIED>
-  <!ATTLIST div _id CDATA #IMPLIED>
-  <!ATTLIST div save CDATA #IMPLIED>
-  <!ATTLIST table save CDATA #IMPLIED>
-  <!ATTLIST loop if CDATA #IMPLIED>
-  <!ATTLIST tr if CDATA #IMPLIED>
-]>
-<xul:window xmlns="http://www.w3.org/1999/xhtml"
-            xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+<html xmlns="http://www.w3.org/1999/xhtml"
+  xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+<head>
+  <meta http-equiv="Content-Type"
+    content="application/xhtml+xml; charset=UTF-8" />
+  <link rel="stylesheet" type="text/css"
+    href="chrome://browser/skin/devtools/csshtmltree.css" />
+</head>
+<body role="application">
 
 <!-- The output from #templateRoot (below) is inserted here. -->
-<div id="root"></div>
+<div id="root">
+</div>
 
 <!-- The output from #templatePath (below) is inserted here. -->
 <div id="path">
@@ -67,14 +74,6 @@
 <div id="propertyContainer">
 </div>
 
-<xul:hbox id="footer">
-  <xul:label class="legendKey bestmatch">&bestMatch;</xul:label>
-  <xul:label class="legendKey matched">&matched;</xul:label>
-  <xul:label class="legendKey parentmatch">&parentMatch;</xul:label>
-  <xul:label class="legendKey unmatched">&unmatched;</xul:label>
-  <xul:spacer flex="1"/>
-  <xul:resizer dir="bottomright"/>
-</xul:hbox>
 <!--
 To visually debug the templates without running firefox, alter the display:none
 -->
@@ -84,16 +83,15 @@ To visually debug the templates without running firefox, alter the display:none
   styles" checkbox. For data it needs an instance of CssHtmlTree.
   -->
   <div id="templateRoot">
-    <xul:hbox class="header" flex="1">
-      <label class="userStylesLabel">
-        <input class="onlyuserstyles" save="${onlyUserStylesCheckbox}"
-               type="checkbox" onchange="${onlyUserStylesChanged}" checked=""/>
+    <div class="filters">
+      <label class="userStylesLabel" dir="${getRTLAttr}">
         &userStylesLabel;
+        <input class="userStyles" save="${onlyUserStylesCheckbox}" type="checkbox"
+               onchange="${onlyUserStylesChanged}" checked=""/>
       </label>
-      <xul:textbox class="searchfield" type="search" save="${searchField}"
-                    placeholder="&userStylesSearch;"
-                    oncommand="${filterChanged}"/>
-    </xul:hbox>
+      <input save="${searchField}" class="searchfield" type="text"
+             oninput="${filterChanged}"/>
+    </div>
   </div>
 
   <!--
@@ -101,17 +99,16 @@ To visually debug the templates without running firefox, alter the display:none
   at. For data it needs an instance of CssHtmlTree.
   -->
   <div id="templatePath">
-    <span class="selectedElementLabel">
-      &selectedElementLabel;
-    </span>
-    <!-- following broken in RTL mode, see bug 699900 -->
-    <ol>
-      <li foreach="item in ${pathElements}">
-        <a href="#" onclick="${pathClick}" __pathElement="${item.element}">
-          ${__element.pathElement = item.element; item.display}
-        </a>
-      </li>
-    </ol>
+    <p class="path">
+      <label dir="${getRTLAttr}">&lookingAtLabel;</label>
+      <ol>
+        <li foreach="item in ${pathElements}" dir="${getRTLAttr}">
+          <a href="#" onclick="${pathClick}" __pathElement="${item.element}">
+            ${__element.pathElement = item.element; item.display}
+          </a>
+        </li>
+      </ol>
+    </p>
   </div>
 
   <!--
@@ -121,28 +118,29 @@ To visually debug the templates without running firefox, alter the display:none
   }
   -->
   <div id="templateProperty">
-    <div class="${className}" save="${element}">
-      <div class="property-header" save="${propertyHeader}"
-           onclick="${propertyHeaderClick}">
-        <div save="${matchedExpander}" class="match expander"/>
-        <div class="property-name">${name}</div>
-        <div class="helplink-container">
-          <a href="${link}" class="helplink" title="&helpLinkTitle;" onclick="${mdnLinkClick}">
-            &helpLinkTitle;
-          </a>
+    <div class="${className}" save="${element}" dir="${getRTLAttr}">
+      <div class="property-header">
+        <div class="property-name" dir="${getRTLAttr}">
+          <a class="link" target="_blank" title="&helpLinkTitle;"
+              href="${link}">${name}</a>
         </div>
         <div save="${valueNode}" class="property-value" dir="ltr">${value}</div>
       </div>
 
-      <div save="${matchedSelectorsContainer}" class="rulelink">
+      <div save="${matchedSelectorsContainer}" class="rulelink" dir="${getRTLAttr}">
+        <div onclick="${matchedSelectorsClick}" class="rule-matched">
+          <div save="${matchedExpander}" class="expander"></div>
+          <div save="${matchedSelectorsTitleNode}">&matchedSelectors;</div>
+        </div>
+        <table save="${matchedSelectorTable}" dir="${getRTLAttr}"></table>
       </div>
-      <div save="${unmatchedSelectorsContainer}" class="rulelink">
-        <div save="${unmatchedTitleBlock}" onclick="${unmatchedSelectorsClick}"
-             class="rule-unmatched">
-          <div save="${unmatchedExpander}" class="expander"/>
+
+      <div save="${unmatchedSelectorsContainer}" class="rulelink" dir="${getRTLAttr}">
+        <div onclick="${unmatchedSelectorsClick}" class="rule-unmatched">
+          <div save="${unmatchedExpander}" class="expander"></div>
           <div save="${unmatchedSelectorsTitleNode}">&unmatchedSelectors;</div>
         </div>
-        <div save="${unmatchedSelectorTable}" class="unmatchedSelectorTable"/>
+        <table save="${unmatchedSelectorTable}" dir="${getRTLAttr}"></table>
       </div>
     </div>
   </div>
@@ -174,7 +172,7 @@ To visually debug the templates without running firefox, alter the display:none
 
   <!--
   A templateUnmatchedSelectors sits inside each templateProperties showing the
-  list of selectors that do not affect that property. Each needs data like this:
+  list of selectors that fail to affect that property. Each needs data like this:
   {
     unmatchedSelectorViews: ..., // from cssHtmlTree.propertyViews[name].unmatchedSelectorViews
   }
@@ -185,7 +183,7 @@ To visually debug the templates without running firefox, alter the display:none
     <table>
       <loop foreach="selector in ${unmatchedSelectorViews}">
         <tr>
-          <td dir="ltr" class="rule-text ${selector.statusClass}">
+          <td dir="ltr" class="rule-text unmatched">
             ${selector.humanReadableText(__element)}
           </td>
           <td class="rule-link">
@@ -198,4 +196,5 @@ To visually debug the templates without running firefox, alter the display:none
   </div>
 </div>
 
-</xul:window>
+</body>
+</html>

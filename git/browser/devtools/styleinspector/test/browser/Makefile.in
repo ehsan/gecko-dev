@@ -53,7 +53,6 @@ _BROWSER_TEST_FILES = \
   browser_styleinspector_bug_672744_search_filter.js \
   browser_bug_692400_element_style.js \
   browser_ruleview_editor.js \
-  browser_ruleview_inherit.js \
   browser_ruleview_manipulation.js \
   browser_ruleview_override.js \
   browser_ruleview_ui.js \
@@ -66,7 +65,7 @@ _BROWSER_TEST_PAGES = \
   $(NULL)
 
 libs:: $(_BROWSER_TEST_FILES)
-	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/browser/$(relativesrcdir)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/$(mochitestdir)/browser/$(relativesrcdir)
 
 libs:: $(_BROWSER_TEST_PAGES)
-	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/browser/$(relativesrcdir)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/$(mochitestdir)/browser/$(relativesrcdir)
