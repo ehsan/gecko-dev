@@ -9,7 +9,6 @@
 #include "mozilla/DebugOnly.h"
 
 #include "jit/BitSet.h"
-#include "jit/IonBuilder.h"
 #include "jit/IonSpewer.h"
 
 using namespace js;
@@ -84,7 +83,7 @@ LinearScanAllocator::allocateRegisters()
 
     // Iterate through all intervals in ascending start order.
     CodePosition prevPosition = CodePosition::MIN;
-    while ((current = unhandled.dequeue()) != NULL) {
+    while ((current = unhandled.dequeue()) != nullptr) {
         JS_ASSERT(current->getAllocation()->isUse());
         JS_ASSERT(current->numRanges() > 0);
 
@@ -1132,6 +1131,9 @@ LinearScanAllocator::canCoexist(LiveInterval *a, LiveInterval *b)
 void
 LinearScanAllocator::validateIntervals()
 {
+    if (!js_IonOptions.assertGraphConsistency)
+        return;
+
     for (IntervalIterator i(active.begin()); i != active.end(); i++) {
         JS_ASSERT(i->numRanges() > 0);
         JS_ASSERT(i->covers(current->start()));
@@ -1175,6 +1177,9 @@ LinearScanAllocator::validateIntervals()
 void
 LinearScanAllocator::validateAllocations()
 {
+    if (!js_IonOptions.assertGraphConsistency)
+        return;
+
     for (IntervalIterator i(handled.begin()); i != handled.end(); i++) {
         for (IntervalIterator j(handled.begin()); j != i; j++) {
             JS_ASSERT(*i != *j);
@@ -1284,8 +1289,8 @@ LinearScanAllocator::setIntervalRequirement(LiveInterval *interval)
         }
     }
 
-    UsePosition *fixedOp = NULL;
-    UsePosition *registerOp = NULL;
+    UsePosition *fixedOp = nullptr;
+    UsePosition *registerOp = nullptr;
 
     // Search uses at the start of the interval for requirements.
     UsePositionIterator usePos(interval->usesBegin());
@@ -1386,7 +1391,7 @@ void
 LinearScanAllocator::UnhandledQueue::assertSorted()
 {
 #ifdef DEBUG
-    LiveInterval *prev = NULL;
+    LiveInterval *prev = nullptr;
     for (IntervalIterator i(begin()); i != end(); i++) {
         if (prev) {
             JS_ASSERT(prev->start() >= i->start());
@@ -1402,7 +1407,7 @@ LiveInterval *
 LinearScanAllocator::UnhandledQueue::dequeue()
 {
     if (rbegin() == rend())
-        return NULL;
+        return nullptr;
 
     LiveInterval *result = *rbegin();
     remove(result);

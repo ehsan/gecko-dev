@@ -18,7 +18,14 @@ function waitForCondition(condition, nextTest, errorMsg) {
       ok(false, errorMsg);
       moveOn();
     }
-    if (condition()) {
+    var conditionPassed;
+    try {
+      conditionPassed = condition();
+    } catch (e) {
+      ok(false, e + "\n" + e.stack);
+      conditionPassed = false;
+    }
+    if (conditionPassed) {
       moveOn();
     }
     tries++;
@@ -237,7 +244,7 @@ function checkSocialUI(win) {
 
   isbool(!doc.getElementById("social-toolbar-item").hidden, active, "toolbar items visible?");
   if (active) {
-    if (!enabled) {
+    if (!enabled || (Social.defaultProvider.statusURL && Social.allowMultipleWorkers)) {
       _ok(!win.SocialToolbar.button.style.listStyleImage, "toolbar button is default icon");
     } else {
       _is(win.SocialToolbar.button.style.listStyleImage, 'url("' + Social.defaultProvider.iconURL + '")', "toolbar button has provider icon");
@@ -296,6 +303,14 @@ function checkSocialUI(win) {
   isbool(!doc.getElementById("socialActiveBroadcaster").hidden, active, "socialActiveBroadcaster hidden?");
   // and report on overall success of failure of the various checks here.
   is(numGoodTests, numTests, "The Social UI tests succeeded.")
+}
+
+function waitForNotification(topic, cb) {
+  function observer(subject, topic, data) {
+    Services.obs.removeObserver(observer, topic);
+    cb();
+  }
+  Services.obs.addObserver(observer, topic, false);
 }
 
 // blocklist testing
@@ -561,4 +576,3 @@ function closeAllChats() {
   let chatbar = window.SocialChatBar.chatbar;
   chatbar.removeAll();
 }
-

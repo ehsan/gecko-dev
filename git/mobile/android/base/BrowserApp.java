@@ -19,7 +19,9 @@ import org.mozilla.gecko.health.BrowserHealthReporter;
 import org.mozilla.gecko.home.BrowserSearch;
 import org.mozilla.gecko.home.HomePager;
 import org.mozilla.gecko.home.HomePager.OnUrlOpenListener;
+import org.mozilla.gecko.home.SearchEngine;
 import org.mozilla.gecko.menu.GeckoMenu;
+import org.mozilla.gecko.prompts.Prompt;
 import org.mozilla.gecko.util.Clipboard;
 import org.mozilla.gecko.util.GamepadUtils;
 import org.mozilla.gecko.util.HardwareUtils;
@@ -57,7 +59,6 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.view.InputDevice;
 import android.view.KeyEvent;
-import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
@@ -347,6 +348,26 @@ abstract public class BrowserApp extends GeckoApp
         });
     }
 
+    void handleReaderListStatusRequest(final String url) {
+        ThreadUtils.postToBackgroundThread(new Runnable() {
+            @Override
+            public void run() {
+                final int inReadingList = BrowserDB.isReadingListItem(getContentResolver(), url) ? 1 : 0;
+
+                final JSONObject json = new JSONObject();
+                try {
+                    json.put("url", url);
+                    json.put("inReadingList", inReadingList);
+                } catch (JSONException e) {
+                    Log.e(LOGTAG, "JSON error - failed to return inReadingList status", e);
+                    return;
+                }
+
+                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Reader:ListStatusReturn", json.toString()));
+            }
+        });
+    }
+
     void handleReaderAdded(int result, final String title, final String url) {
         if (result != READER_ADD_SUCCESS) {
             if (result == READER_ADD_FAILED) {
@@ -387,7 +408,9 @@ abstract public class BrowserApp extends GeckoApp
     public void onCreate(Bundle savedInstanceState) {
         mAboutHomeStartupTimer = new Telemetry.Timer("FENNEC_STARTUP_TIME_ABOUTHOME");
 
-        String args = getIntent().getStringExtra("args");
+        final Intent intent = getIntent();
+
+        String args = intent.getStringExtra("args");
         if (args != null && args.contains(GUEST_BROWSING_ARG)) {
             mProfile = GeckoProfile.createGuestProfile(this);
         } else {
@@ -397,6 +420,10 @@ abstract public class BrowserApp extends GeckoApp
         super.onCreate(savedInstanceState);
 
         mBrowserToolbar = (BrowserToolbar) findViewById(R.id.browser_toolbar);
+        if (Intent.ACTION_VIEW.equals(intent.getAction())) {
+            // Show the target URL immediately in the toolbar
+            mBrowserToolbar.setTitle(intent.getDataString());
+        }
 
         ((GeckoApp.MainLayout) mMainLayout).setTouchEventInterceptor(new HideTabsTouchListener());
         ((GeckoApp.MainLayout) mMainLayout).setMotionEventInterceptor(new MotionEventInterceptor() {
@@ -597,7 +624,7 @@ abstract public class BrowserApp extends GeckoApp
                     String title = tab.getDisplayTitle();
                     Bitmap favicon = tab.getFavicon();
                     if (url != null && title != null) {
-                        GeckoAppShell.createShortcut(title, url, url, favicon == null ? null : favicon, "");
+                        GeckoAppShell.createShortcut(title, url, url, favicon, "");
                     }
                 }
             }
@@ -703,21 +730,22 @@ abstract public class BrowserApp extends GeckoApp
 
         if (itemId == R.id.add_to_launcher) {
             Tab tab = Tabs.getInstance().getSelectedTab();
-            if (tab != null) {
-                final String url = tab.getURL();
-                final String title = tab.getDisplayTitle();
-                if (url == null || title == null) {
-                    return true;
-                }
-
-                Favicons.loadFavicon(url, tab.getFaviconURL(), 0,
-                new OnFaviconLoadedListener() {
-                    @Override
-                    public void onFaviconLoaded(String url, Bitmap favicon) {
-                        GeckoAppShell.createShortcut(title, url, url, favicon == null ? null : favicon, "");
-                    }
-                });
+            if (tab == null) {
+                return true;
             }
+
+            final String url = tab.getURL();
+            final String title = tab.getDisplayTitle();
+            if (url == null || title == null) {
+                return true;
+            }
+
+            final OnFaviconLoadedListener listener = new GeckoAppShell.CreateShortcutFaviconLoadedListener(url, title);
+            Favicons.getFaviconForSize(url,
+                                       tab.getFaviconURL(),
+                                       Integer.MAX_VALUE,
+                                       LoadFaviconTask.FLAG_PERSIST,
+                                       listener);
             return true;
         }
 
@@ -1108,6 +1136,8 @@ abstract public class BrowserApp extends GeckoApp
                 Telemetry.HistogramAdd("FENNEC_THUMBNAILS_COUNT", BrowserDB.getCount(getContentResolver(), "thumbnails"));
             } else if (event.equals("Reader:ListCountRequest")) {
                 handleReaderListCountRequest();
+            } else if (event.equals("Reader:ListStatusRequest")) {
+                handleReaderListStatusRequest(message.getString("url"));
             } else if (event.equals("Reader:Added")) {
                 final int result = message.getInt("result");
                 final String title = message.getString("title");
@@ -1277,13 +1307,13 @@ abstract public class BrowserApp extends GeckoApp
         }
 
         final Tabs tabs = Tabs.getInstance();
-        final int tabId = tabs.getTabIdForUrl(url);
+        final int tabId = tabs.getTabIdForUrl(url, tabs.getSelectedTab().isPrivate());
         if (tabId < 0) {
             return false;
         }
 
         // If this tab is already selected, just hide the home pager.
-        if (tabs.isSelectedTab(tabs.getTab(tabId))) {
+        if (tabs.isSelectedTabId(tabId)) {
             hideHomePager();
         } else {
             tabs.selectTab(tabId);
@@ -1329,41 +1359,29 @@ abstract public class BrowserApp extends GeckoApp
         Tabs.getInstance().loadUrl(ABOUT_HOME, Tabs.LOADURL_READING_LIST);
     }
 
-    /* Favicon methods */
+    /* Favicon stuff. */
+    private static OnFaviconLoadedListener sFaviconLoadedListener = new OnFaviconLoadedListener() {
+        @Override
+        public void onFaviconLoaded(String pageUrl, String faviconURL, Bitmap favicon) {
+            // If we failed to load a favicon, we use the default favicon instead.
+            Tabs.getInstance()
+                .updateFaviconForURL(pageUrl,
+                                     (favicon == null) ? Favicons.sDefaultFavicon : favicon);
+        }
+    };
+
     private void loadFavicon(final Tab tab) {
         maybeCancelFaviconLoad(tab);
 
-        int flags = LoadFaviconTask.FLAG_SCALE | ( (tab.isPrivate() || tab.getErrorType() != Tab.ErrorType.NONE) ? 0 : LoadFaviconTask.FLAG_PERSIST);
-        int id = Favicons.loadFavicon(tab.getURL(), tab.getFaviconURL(), flags,
-                        new OnFaviconLoadedListener() {
+        final int tabFaviconSize = getResources().getDimensionPixelSize(R.dimen.browser_toolbar_favicon_size);
 
-            @Override
-            public void onFaviconLoaded(String pageUrl, Bitmap favicon) {
-                // Leave favicon UI untouched if we failed to load the image
-                // for some reason.
-                if (favicon == null)
-                    return;
-
-                // The tab might be pointing to another URL by the time the
-                // favicon is finally loaded, in which case we simply ignore it.
-                if (!tab.getURL().equals(pageUrl))
-                    return;
-
-                tab.updateFavicon(favicon);
-                tab.setFaviconLoadId(Favicons.NOT_LOADING);
-
-                Tabs.getInstance().notifyListeners(tab, Tabs.TabEvents.FAVICON);
-            }
-        });
-
+        int flags = (tab.isPrivate() || tab.getErrorType() != Tab.ErrorType.NONE) ? 0 : LoadFaviconTask.FLAG_PERSIST;
+        int id = Favicons.getFaviconForSize(tab.getURL(), tab.getFaviconURL(), tabFaviconSize, flags, sFaviconLoadedListener);
         tab.setFaviconLoadId(id);
     }
 
     private void maybeCancelFaviconLoad(Tab tab) {
         int faviconLoadId = tab.getFaviconLoadId();
-
-        if (faviconLoadId == Favicons.NOT_LOADING)
-            return;
 
         // Cancel pending favicon load task
         Favicons.cancelFaviconLoad(faviconLoadId);
@@ -1416,7 +1434,6 @@ abstract public class BrowserApp extends GeckoApp
         }
 
         final String url = mBrowserToolbar.commitEdit();
-        animateHideHomePager();
         hideBrowserSearch();
 
         // HACK: We don't know the url that will be loaded when hideHomePager is initially called
@@ -1461,7 +1478,8 @@ abstract public class BrowserApp extends GeckoApp
 
                 final String keywordUrl = BrowserDB.getUrlForKeyword(getContentResolver(), keyword);
 
-                // If there isn't a bookmark keyword, just load the URL.
+                // If there isn't a bookmark keyword, load the url. This may result in a query
+                // using the default search engine.
                 if (TextUtils.isEmpty(keywordUrl)) {
                     Tabs.getInstance().loadUrl(url, Tabs.LOADURL_USER_ENTERED);
                     return;
@@ -1479,15 +1497,18 @@ abstract public class BrowserApp extends GeckoApp
     /**
      * Record in Health Report that a search has occurred.
      *
-     * @param identifier
-     *        a search identifier, such as "partnername". Can be null.
+     * @param engine
+     *        a search engine instance. Can be null.
      * @param where
      *        where the search was initialized; one of the values in
      *        {@link BrowserHealthRecorder#SEARCH_LOCATIONS}.
      */
-    private static void recordSearch(String identifier, String where) {
-        Log.i(LOGTAG, "Recording search: " + identifier + ", " + where);
+    private static void recordSearch(SearchEngine engine, String where) {
+        Log.i(LOGTAG, "Recording search: " +
+                      ((engine == null) ? "null" : engine.name) +
+                      ", " + where);
         try {
+            String identifier = (engine == null) ? "other" : engine.getEngineIdentifier();
             JSONObject message = new JSONObject();
             message.put("type", BrowserHealthRecorder.EVENT_SEARCH);
             message.put("location", where);
@@ -1505,10 +1526,7 @@ abstract public class BrowserApp extends GeckoApp
 
         mBrowserToolbar.cancelEdit();
 
-        // Resetting the visibility of HomePager, which might have been hidden
-        // by the filterEditingMode().
-        mHomePager.setVisibility(View.VISIBLE);
-        animateHideHomePager();
+        hideHomePager();
         hideBrowserSearch();
 
         return true;
@@ -1516,11 +1534,9 @@ abstract public class BrowserApp extends GeckoApp
 
     void filterEditingMode(String searchTerm, AutocompleteHandler handler) {
         if (TextUtils.isEmpty(searchTerm)) {
-            mHomePager.setVisibility(View.VISIBLE);
             hideBrowserSearch();
         } else {
             showBrowserSearch();
-            mHomePager.setVisibility(View.INVISIBLE);
             mBrowserSearch.filter(searchTerm, handler);
         }
     }
@@ -1602,13 +1618,6 @@ abstract public class BrowserApp extends GeckoApp
         mLayerView.setVisibility(View.INVISIBLE);
     }
 
-    private void animateHideHomePager() {
-        final Tab selectedTab = Tabs.getInstance().getSelectedTab();
-        final String url = (selectedTab != null) ? selectedTab.getURL() : null;
-
-        hideHomePagerWithAnimation(true, url);
-    }
-
     /**
      * Hides the HomePager, using the url of the currently selected tab as the url to be
      * loaded.
@@ -1620,11 +1629,11 @@ abstract public class BrowserApp extends GeckoApp
         hideHomePager(url);
     }
 
+    /**
+     * Hides the HomePager. The given url should be the url of the page to be loaded, or null
+     * if a new page is not being loaded.
+     */
     private void hideHomePager(final String url) {
-        hideHomePagerWithAnimation(false, url);
-    }
-
-    private void hideHomePagerWithAnimation(boolean animate, final String url) {
         if (!isHomePagerVisible() || TextUtils.equals(url, ABOUT_HOME)) {
             return;
         }
@@ -1635,7 +1644,6 @@ abstract public class BrowserApp extends GeckoApp
         // Display the previously hidden web content (which prevented screen reader access).
         mLayerView.setVisibility(View.VISIBLE);
 
-        // FIXME: do animation if animate is true
         if (mHomePager != null) {
             mHomePager.hide();
         }
@@ -1652,6 +1660,9 @@ abstract public class BrowserApp extends GeckoApp
         }
 
         mBrowserSearchContainer.setVisibility(View.VISIBLE);
+
+        // Prevent overdraw by hiding the underlying HomePager View.
+        mHomePager.setVisibility(View.INVISIBLE);
 
         final FragmentManager fm = getSupportFragmentManager();
 
@@ -1670,6 +1681,10 @@ abstract public class BrowserApp extends GeckoApp
         if (!mBrowserSearch.getUserVisibleHint()) {
             return;
         }
+
+        // To prevent overdraw, the HomePager is hidden when BrowserSearch is displayed:
+        // reverse that.
+        mHomePager.setVisibility(View.VISIBLE);
 
         mBrowserSearchContainer.setVisibility(View.INVISIBLE);
 
@@ -1834,13 +1849,14 @@ abstract public class BrowserApp extends GeckoApp
         // Set attribute for the menu item in cache, if available
         if (mAddonMenuItemsCache != null && !mAddonMenuItemsCache.isEmpty()) {
             for (MenuItemInfo item : mAddonMenuItemsCache) {
-                 if (item.id == id) {
-                     item.checkable = options.optBoolean("checkable", item.checkable);
-                     item.checked = options.optBoolean("checked", item.checked);
-                     item.enabled = options.optBoolean("enabled", item.enabled);
-                     item.visible = options.optBoolean("visible", item.visible);
-                     break;
-                 }
+                if (item.id == id) {
+                    item.label = options.optString("name", item.label);
+                    item.checkable = options.optBoolean("checkable", item.checkable);
+                    item.checked = options.optBoolean("checked", item.checked);
+                    item.enabled = options.optBoolean("enabled", item.enabled);
+                    item.visible = options.optBoolean("visible", item.visible);
+                    break;
+                }
             }
         }
 
@@ -1849,6 +1865,7 @@ abstract public class BrowserApp extends GeckoApp
 
         MenuItem menuItem = mMenu.findItem(id);
         if (menuItem != null) {
+            menuItem.setTitle(options.optString("name", menuItem.getTitle().toString()));
             menuItem.setCheckable(options.optBoolean("checkable", menuItem.isCheckable()));
             menuItem.setChecked(options.optBoolean("checked", menuItem.isChecked()));
             menuItem.setEnabled(options.optBoolean("enabled", menuItem.isEnabled()));
@@ -2355,9 +2372,9 @@ abstract public class BrowserApp extends GeckoApp
 
     // BrowserSearch.OnSearchListener
     @Override
-    public void onSearch(String engineId, String text) {
-        recordSearch(engineId, "barsuggest");
-        openUrl(text, engineId);
+    public void onSearch(SearchEngine engine, String text) {
+        recordSearch(engine, "barsuggest");
+        openUrl(text, engine.name);
     }
 
     // BrowserSearch.OnEditSuggestionListener

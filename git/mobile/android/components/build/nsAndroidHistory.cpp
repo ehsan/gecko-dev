@@ -2,6 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "nsThreadUtils.h"
 #include "nsAndroidHistory.h"
 #include "AndroidBridge.h"
 #include "Link.h"
@@ -12,7 +13,7 @@ using mozilla::dom::Link;
 
 NS_IMPL_ISUPPORTS2(nsAndroidHistory, IHistory, nsIRunnable)
 
-nsAndroidHistory* nsAndroidHistory::sHistory = NULL;
+nsAndroidHistory* nsAndroidHistory::sHistory = nullptr;
 
 /*static*/
 nsAndroidHistory*

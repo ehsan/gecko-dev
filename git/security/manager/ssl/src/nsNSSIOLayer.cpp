@@ -37,6 +37,7 @@
 #include "ScopedNSSTypes.h"
 #include "SharedSSLState.h"
 #include "mozilla/Preferences.h"
+#include "nsContentUtils.h"
 
 #include "ssl.h"
 #include "sslproto.h"
@@ -606,11 +607,7 @@ nsHandleSSLError(nsNSSSocketInfo *socketInfo,
   socketInfo->GetErrorLogMessage(err, errtype, errorString);
   
   if (!errorString.IsEmpty()) {
-    nsCOMPtr<nsIConsoleService> console;
-    console = do_GetService(NS_CONSOLESERVICE_CONTRACTID);
-    if (console) {
-      console->LogStringMessage(errorString.get());
-    }
+    nsContentUtils::LogSimpleConsoleError(errorString, "SSL");
   }
 }
 
@@ -1145,13 +1142,13 @@ nsSSLIOLayerPoll(PRFileDesc * fd, int16_t in_flags, int16_t *out_flags)
 }
 
 nsSSLIOLayerHelpers::nsSSLIOLayerHelpers()
-: mutex("nsSSLIOLayerHelpers.mutex")
-, mRenegoUnrestrictedSites(nullptr)
+: mRenegoUnrestrictedSites(nullptr)
 , mTreatUnsafeNegotiationAsBroken(false)
 , mWarnLevelMissingRFC5746(1)
 , mTLSIntoleranceInfo(16)
 , mFalseStartRequireNPN(true)
 , mFalseStartRequireForwardSecrecy(false)
+, mutex("nsSSLIOLayerHelpers.mutex")
 {
 }
 

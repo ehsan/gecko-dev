@@ -359,8 +359,15 @@ public class Tab {
         return mFaviconLoadId;
     }
 
-    public void updateFavicon(Bitmap favicon) {
+    /**
+     * Returns true if the favicon changed.
+     */
+    public boolean updateFavicon(Bitmap favicon) {
+        if (mFavicon == favicon) {
+            return false;
+        }
         mFavicon = favicon;
+        return true;
     }
 
     public synchronized void updateFaviconURL(String faviconUrl, int size) {
@@ -464,7 +471,7 @@ public class Tab {
             Tabs.getInstance().loadUrl(ReaderModeUtils.getUrlFromAboutReader(mUrl));
         } else if (mReaderEnabled) {
             mEnteringReaderMode = true;
-            Tabs.getInstance().loadUrl(ReaderModeUtils.getAboutReaderForUrl(mUrl, mId, mReadingListItem));
+            Tabs.getInstance().loadUrl(ReaderModeUtils.getAboutReaderForUrl(mUrl, mId));
         }
     }
 

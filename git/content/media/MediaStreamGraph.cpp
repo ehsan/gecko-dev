@@ -347,6 +347,7 @@ MediaStreamGraphImpl::UpdateCurrentTime()
     // listeners that streams have ended still needs to run.
   }
 
+  nsTArray<MediaStream*> streamsReadyToFinish;
   for (uint32_t i = 0; i < mStreams.Length(); ++i) {
     MediaStream* stream = mStreams[i];
 
@@ -382,8 +383,20 @@ MediaStreamGraphImpl::UpdateCurrentTime()
       }
     }
 
-    if (stream->mFinished && !stream->mNotifiedFinished &&
-        stream->mBufferStartTime + stream->GetBufferEnd() <= nextCurrentTime) {
+    if (stream->mFinished && !stream->mNotifiedFinished) {
+      streamsReadyToFinish.AppendElement(stream);
+    }
+    LOG(PR_LOG_DEBUG+1, ("MediaStream %p bufferStartTime=%f blockedTime=%f",
+                         stream, MediaTimeToSeconds(stream->mBufferStartTime),
+                         MediaTimeToSeconds(blockedTime)));
+  }
+
+  mCurrentTime = nextCurrentTime;
+
+  // Do this after setting mCurrentTime so that StreamTimeToGraphTime works properly.
+  for (uint32_t i = 0; i < streamsReadyToFinish.Length(); ++i) {
+    MediaStream* stream = streamsReadyToFinish[i];
+    if (StreamTimeToGraphTime(stream, stream->GetBufferEnd()) <= mCurrentTime) {
       stream->mNotifiedFinished = true;
       stream->mLastPlayedVideoFrame.SetNull();
       for (uint32_t j = 0; j < stream->mListeners.Length(); ++j) {
@@ -391,13 +404,7 @@ MediaStreamGraphImpl::UpdateCurrentTime()
         l->NotifyFinished(this);
       }
     }
-
-    LOG(PR_LOG_DEBUG+1, ("MediaStream %p bufferStartTime=%f blockedTime=%f",
-                         stream, MediaTimeToSeconds(stream->mBufferStartTime),
-                         MediaTimeToSeconds(blockedTime)));
   }
-
-  mCurrentTime = nextCurrentTime;
 }
 
 bool
@@ -492,16 +499,18 @@ MediaStreamGraphImpl::UpdateStreamOrderForStream(mozilla::LinkedList<MediaStream
       // mute all nodes we find, or just mute the node itself.
       if (!iter) {
         // The node is connected to itself.
+        // There can't be a non-AudioNodeStream here, because only AudioNodes
+        // can be self-connected.
         iter = aStack->getLast();
+        MOZ_ASSERT(iter->AsAudioNodeStream());
         iter->AsAudioNodeStream()->Mute();
       } else {
         MOZ_ASSERT(iter);
         do {
-          // There can't be non-AudioNodeStream here, MediaStreamAudio{Source,
-          // Destination}Node are connected to regular MediaStreams, but they can't be
-          // in a cycle (there is no content API to do so).
-          MOZ_ASSERT(iter->AsAudioNodeStream());
-          iter->AsAudioNodeStream()->Mute();
+          AudioNodeStream* nodeStream = iter->AsAudioNodeStream();
+          if (nodeStream) {
+            nodeStream->Mute();
+          }
         } while((iter = iter->getNext()));
       }
     }
@@ -761,8 +770,12 @@ MediaStreamGraphImpl::CreateOrDestroyAudioStreams(GraphTime aAudioOutputStartTim
         audioOutputStream->mStream = AudioStream::AllocateStream();
         // XXX for now, allocate stereo output. But we need to fix this to
         // match the system's ideal channel configuration.
-        audioOutputStream->mStream->Init(2, tracks->GetRate(), AUDIO_CHANNEL_NORMAL);
+        audioOutputStream->mStream->Init(2, tracks->GetRate(), AUDIO_CHANNEL_NORMAL, AudioStream::LowLatency);
         audioOutputStream->mTrackID = tracks->GetID();
+
+        LogLatency(AsyncLatencyLogger::AudioStreamCreate,
+                   reinterpret_cast<uint64_t>(aStream),
+                   reinterpret_cast<int64_t>(audioOutputStream->mStream.get()));
       }
     }
   }
@@ -845,7 +858,9 @@ MediaStreamGraphImpl::PlayAudio(MediaStream* aStream,
                              aStream, MediaTimeToSeconds(t), MediaTimeToSeconds(end),
                              startTicks, endTicks));
       }
-      output.WriteTo(audioOutput.mStream);
+      // Need unique id for stream & track - and we want it to match the inserter
+      output.WriteTo(LATENCY_STREAM_ID(aStream, track->GetID()),
+                     audioOutput.mStream);
       t = end;
     }
   }
@@ -856,7 +871,7 @@ SetImageToBlackPixel(PlanarYCbCrImage* aImage)
 {
   uint8_t blackPixel[] = { 0x10, 0x80, 0x80 };
 
-  PlanarYCbCrImage::Data data;
+  PlanarYCbCrData data;
   data.mYChannel = blackPixel;
   data.mCbChannel = blackPixel + 1;
   data.mCrChannel = blackPixel + 2;
@@ -2358,6 +2373,7 @@ MediaStreamGraphImpl::MediaStreamGraphImpl(bool aRealtime)
   , mRealtime(aRealtime)
   , mNonRealtimeProcessing(false)
   , mStreamOrderDirty(false)
+  , mLatencyLog(AsyncLatencyLogger::Get())
 {
 #ifdef PR_LOGGING
   if (!gMediaStreamGraphLog) {
