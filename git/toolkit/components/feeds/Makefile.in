@@ -69,10 +69,10 @@ EXTRA_COMPONENTS = FeedProcessor.js FeedProcessor.manifest
 
 include $(topsrcdir)/config/rules.mk
 
-ABS_SRCDIR := $(call core_abspath,$(srcdir))
+ABS_SRCDIR := $(shell cd $(srcdir) && pwd)
 ifeq ($(OS_ARCH),WINNT)
 
-ABS_DEPTH := $(call core_abspath,$(DEPTH))
+ABS_DEPTH := $(shell cd $(DEPTH) && pwd)
 
 check::
 	cd $(srcdir)/test; $(LIBXUL_DIST)/bin/xpcshell$(BIN_SUFFIX) shell.js 

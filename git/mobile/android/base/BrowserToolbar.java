@@ -181,7 +181,7 @@ public class BrowserToolbar {
 
                 // Calculate the left margin for the arrow based on the position of the lock icon.
                 int leftMargin = lockLocation[0] - lockLayoutParams.rightMargin;
-                SiteIdentityPopup.getInstance().show(leftMargin);
+                GeckoApp.mSiteIdentityPopup.show(leftMargin);
             }
         });
 

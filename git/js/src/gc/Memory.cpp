@@ -15,7 +15,6 @@ namespace gc {
 
 #if defined(XP_WIN)
 #include "jswin.h"
-#include <psapi.h>
 
 static size_t AllocationGranularity = 0;
 
@@ -90,15 +89,6 @@ MarkPagesInUse(void *p, size_t size)
 {
     JS_ASSERT(uintptr_t(p) % PageSize == 0);
     return true;
-}
-
-size_t
-GetPageFaultCount()
-{
-    PROCESS_MEMORY_COUNTERS pmc;
-    if (!GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc)))
-        return 0;
-    return pmc.PageFaultCount;
 }
 
 #elif defined(XP_OS2)
@@ -226,12 +216,6 @@ MarkPagesInUse(void *p, size_t size)
     return true;
 }
 
-size_t
-GetPageFaultCount()
-{
-    return 0;
-}
-
 #elif defined(SOLARIS)
 
 #include <sys/mman.h>
@@ -283,18 +267,10 @@ MarkPagesInUse(void *p, size_t size)
     return true;
 }
 
-size_t
-GetPageFaultCount()
-{
-    return 0;
-}
-
 #elif defined(XP_UNIX) || defined(XP_MACOSX) || defined(DARWIN)
 
 #include <sys/mman.h>
 #include <unistd.h>
-#include <sys/time.h>
-#include <sys/resource.h>
 
 void
 InitMemorySubsystem()
@@ -358,16 +334,6 @@ MarkPagesInUse(void *p, size_t size)
 {
     JS_ASSERT(uintptr_t(p) % PageSize == 0);
     return true;
-}
-
-size_t
-GetPageFaultCount()
-{
-    struct rusage usage;
-    int err = getrusage(RUSAGE_SELF, &usage);
-    if (err)
-        return 0;
-    return usage.ru_minflt + usage.ru_majflt;
 }
 
 #else

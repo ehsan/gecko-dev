@@ -1318,8 +1318,8 @@ JS_FRIEND_DATA(Class) js::ObjectProxyClass = {
     proxy_Finalize,          /* finalize    */
     NULL,                    /* checkAccess */
     NULL,                    /* call        */
-    proxy_HasInstance,       /* hasInstance */
     NULL,                    /* construct   */
+    proxy_HasInstance,       /* hasInstance */
     proxy_TraceObject,       /* trace       */
     JS_NULL_CLASS_EXT,
     {
@@ -1446,8 +1446,8 @@ JS_FRIEND_DATA(Class) js::FunctionProxyClass = {
     NULL,                    /* finalize */
     NULL,                    /* checkAccess */
     proxy_Call,
-    FunctionClass.hasInstance,
     proxy_Construct,
+    FunctionClass.hasInstance,
     proxy_TraceFunction,     /* trace       */
     JS_NULL_CLASS_EXT,
     {

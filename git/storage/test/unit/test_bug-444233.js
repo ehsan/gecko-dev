@@ -37,6 +37,15 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+// copy from test_storage_statement_wrapper.js
+var wrapper = new Components.Constructor("@mozilla.org/storage/statement-wrapper;1",
+                                         Ci.mozIStorageStatementWrapper,
+                                         "initialize");
+// we want to override the default function for this file
+createStatement = function(aSQL) {
+    return new wrapper(getOpenedDatabase().createStatement(aSQL));
+}
+
 function setup() {
     // Create the table
     getOpenedDatabase().createTable("test_bug444233",
@@ -46,12 +55,12 @@ function setup() {
     var stmt = createStatement("INSERT INTO test_bug444233 (value) VALUES (:value)");
     stmt.params.value = "value1"
     stmt.execute();
-    stmt.finalize();
+    stmt.statement.finalize();
     
     stmt = createStatement("INSERT INTO test_bug444233 (value) VALUES (:value)");
     stmt.params.value = "value2"
     stmt.execute();
-    stmt.finalize();
+    stmt.statement.finalize();
 }
 
 function test_bug444233() {
@@ -59,10 +68,10 @@ function test_bug444233() {
     
     // Check that there are 2 results
     var stmt = createStatement("SELECT COUNT(*) AS number FROM test_bug444233");
-    do_check_true(stmt.executeStep());
+    do_check_true(stmt.step());
     do_check_eq(2, stmt.row.number);
     stmt.reset();
-    stmt.finalize();
+    stmt.statement.finalize();
 
     print("*** test_bug444233: doing delete");
     
@@ -75,7 +84,7 @@ function test_bug444233() {
     } catch (e) {
         print("*** test_bug444233: successfully caught exception");
     }
-    stmt.finalize();
+    stmt.statement.finalize();
 }
 
 function run_test() {

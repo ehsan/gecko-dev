@@ -898,12 +898,13 @@ LayerManagerOGL::Render()
                          right * 2.0f - 1.0f,
                          -(bottom * 2.0f - 1.0f) };
 
-    // Use inverted texture coordinates since our projection matrix also has a
-    // flip and we need to cancel that out.
-    float coords[] = { left, 1 - top,
-                       right, 1 - top,
-                       left, 1 - bottom,
-                       right, 1 - bottom };
+    // Use flipped texture coordinates since our
+    // projection matrix also has a flip and we
+    // need to cancel that out.
+    float coords[] = { left, bottom,
+                       right, bottom,
+                       left, top,
+                       right, top };
 
     mGLContext->fVertexAttribPointer(vcattr,
                                      2, LOCAL_GL_FLOAT,

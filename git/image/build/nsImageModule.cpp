@@ -128,7 +128,6 @@ static const mozilla::Module::CategoryEntry kImageCategories[] = {
 static nsresult
 imglib_Initialize()
 {
-  mozilla::image::DiscardTracker::Initialize();
   imgLoader::InitCache();
   return NS_OK;
 }

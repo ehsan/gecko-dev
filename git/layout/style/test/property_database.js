@@ -2976,14 +2976,6 @@ var gCSSProperties = {
 			"-moz-calc(3em * 3em / 100%)"
 		]
 	},
-	"word-break": {
-		domProp: "wordBreak",
-		inherited: true,
-		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "normal" ],
-		other_values: [ "break-all", "keep-all" ],
-		invalid_values: []
-	},
 	"word-spacing": {
 		domProp: "wordSpacing",
 		inherited: true,

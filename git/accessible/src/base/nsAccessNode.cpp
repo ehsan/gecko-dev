@@ -49,6 +49,8 @@
 #include "nsIDOMWindow.h"
 #include "nsIFrame.h"
 #include "nsIInterfaceRequestorUtils.h"
+#include "nsIPrefBranch.h"
+#include "nsIPrefService.h"
 #include "nsIPresShell.h"
 #include "nsIServiceManager.h"
 #include "nsIStringBundle.h"
@@ -63,6 +65,8 @@ using namespace mozilla::a11y;
  */
 
 nsIStringBundle *nsAccessNode::gStringBundle = 0;
+
+bool nsAccessNode::gIsFormFillEnabled = false;
 
 ApplicationAccessible* nsAccessNode::gApplicationAccessible = nsnull;
 
@@ -157,6 +161,11 @@ void nsAccessNode::InitXPAccessibility()
     // Static variables are released in ShutdownAllXPAccessibility();
     stringBundleService->CreateBundle(ACCESSIBLE_BUNDLE_URL, 
                                       &gStringBundle);
+  }
+
+  nsCOMPtr<nsIPrefBranch> prefBranch(do_GetService(NS_PREFSERVICE_CONTRACTID));
+  if (prefBranch) {
+    prefBranch->GetBoolPref("browser.formfill.enable", &gIsFormFillEnabled);
   }
 }
 

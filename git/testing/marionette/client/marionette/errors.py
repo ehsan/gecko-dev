@@ -44,10 +44,10 @@ class MarionetteException(Exception):
 
     def __str__(self):
         if self.stacktrace:
-            return '%s\nstacktrace:\n%s' % (str(self.message),
+            return '%s\nstacktrace:\n%s' % (self.message,
                 ''.join(['\t%s\n' % x for x in self.stacktrace.split('\n')]))
         else:
-            return str(self.message)
+            return self.message
 
 class TimeoutException(MarionetteException):
     pass

@@ -93,21 +93,21 @@ GetCurrentNetworkInformation(NetworkInformation* aNetworkInfo)
 }
 
 void
-EnableScreenConfigurationNotifications()
+EnableScreenOrientationNotifications()
 {
-  Hal()->SendEnableScreenConfigurationNotifications();
+  Hal()->SendEnableScreenOrientationNotifications();
 }
 
 void
-DisableScreenConfigurationNotifications()
+DisableScreenOrientationNotifications()
 {
-  Hal()->SendDisableScreenConfigurationNotifications();
+  Hal()->SendDisableScreenOrientationNotifications();
 }
 
 void
-GetCurrentScreenConfiguration(ScreenConfiguration* aScreenConfiguration)
+GetCurrentScreenOrientation(ScreenOrientation* aScreenOrientation)
 {
-  Hal()->SendGetCurrentScreenConfiguration(aScreenConfiguration);
+  Hal()->SendGetCurrentScreenOrientation(aScreenOrientation);
 }
 
 bool
@@ -265,7 +265,7 @@ class HalParent : public PHalParent
                 , public NetworkObserver
                 , public ISensorObserver
                 , public WakeLockObserver
-                , public ScreenConfigurationObserver
+                , public ScreenOrientationObserver
                 , public SwitchObserver
 {
 public:
@@ -353,20 +353,20 @@ public:
   }
 
   NS_OVERRIDE virtual bool
-  RecvEnableScreenConfigurationNotifications() {
-    hal::RegisterScreenConfigurationObserver(this);
+  RecvEnableScreenOrientationNotifications() {
+    hal::RegisterScreenOrientationObserver(this);
     return true;
   }
 
   NS_OVERRIDE virtual bool
-  RecvDisableScreenConfigurationNotifications() {
-    hal::UnregisterScreenConfigurationObserver(this);
+  RecvDisableScreenOrientationNotifications() {
+    hal::UnregisterScreenOrientationObserver(this);
     return true;
   }
 
   NS_OVERRIDE virtual bool
-  RecvGetCurrentScreenConfiguration(ScreenConfiguration* aScreenConfiguration) {
-    hal::GetCurrentScreenConfiguration(aScreenConfiguration);
+  RecvGetCurrentScreenOrientation(ScreenOrientation* aScreenOrientation) {
+    hal::GetCurrentScreenOrientation(aScreenOrientation);
     return true;
   }
 
@@ -384,8 +384,8 @@ public:
     return true;
   }
 
-  void Notify(const ScreenConfiguration& aScreenConfiguration) {
-    unused << SendNotifyScreenConfigurationChange(aScreenConfiguration);
+  void Notify(const ScreenOrientationWrapper& aScreenOrientation) {
+    unused << SendNotifyScreenOrientationChange(aScreenOrientation.orientation);
   }
 
   NS_OVERRIDE virtual bool
@@ -574,8 +574,8 @@ public:
   }
 
   NS_OVERRIDE virtual bool
-  RecvNotifyScreenConfigurationChange(const ScreenConfiguration& aScreenConfiguration) {
-    hal::NotifyScreenConfigurationChange(aScreenConfiguration);
+  RecvNotifyScreenOrientationChange(const ScreenOrientation& aScreenOrientation) {
+    hal::NotifyScreenOrientationChange(aScreenOrientation);
     return true;
   }
 

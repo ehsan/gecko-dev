@@ -167,6 +167,11 @@ protected:
   bool mDisabledChanged;
   bool mInInternalActivate;
   bool mInhibitStateRestoration;
+
+private:
+  // The analogue of defaultValue in the DOM for input and textarea
+  nsresult SetDefaultValue(const nsAString& aDefaultValue);
+  nsresult GetDefaultValue(nsAString& aDefaultValue);
 };
 
 
@@ -523,6 +528,19 @@ nsHTMLButtonElement::UnbindFromTree(bool aDeep, bool aNullParent)
 
   // Update our state; we may no longer be the default submit element
   UpdateState(false);
+}
+
+nsresult
+nsHTMLButtonElement::GetDefaultValue(nsAString& aDefaultValue)
+{
+  GetAttr(kNameSpaceID_None, nsGkAtoms::value, aDefaultValue);
+  return NS_OK;
+}
+
+nsresult
+nsHTMLButtonElement::SetDefaultValue(const nsAString& aDefaultValue)
+{
+  return SetAttr(kNameSpaceID_None, nsGkAtoms::value, aDefaultValue, true);
 }
 
 NS_IMETHODIMP

@@ -736,12 +736,12 @@ AndroidGeckoLayerClient::SyncViewportInfo(const nsIntRect& aDisplayPort, float a
 }
 
 jobject
-AndroidGeckoSurfaceView::GetSoftwareDrawBitmap(AutoLocalJNIFrame *jniFrame)
+AndroidGeckoSurfaceView::GetSoftwareDrawBitmap(JNIEnv *env, AutoLocalJNIFrame *jniFrame)
 {
-    if (!jniFrame || !jniFrame->GetEnv())
+    if (!env || !jniFrame)
         return nsnull;
 
-    jobject ret = jniFrame->GetEnv()->CallObjectMethod(wrapped_obj, jGetSoftwareDrawBitmapMethod);
+    jobject ret = env->CallObjectMethod(wrapped_obj, jGetSoftwareDrawBitmapMethod);
     if (jniFrame->CheckForException())
         return nsnull;
 
@@ -749,12 +749,12 @@ AndroidGeckoSurfaceView::GetSoftwareDrawBitmap(AutoLocalJNIFrame *jniFrame)
 }
 
 jobject
-AndroidGeckoSurfaceView::GetSoftwareDrawBuffer(AutoLocalJNIFrame *jniFrame)
+AndroidGeckoSurfaceView::GetSoftwareDrawBuffer(JNIEnv *env, AutoLocalJNIFrame *jniFrame)
 {
-    if (!jniFrame || !jniFrame->GetEnv())
+    if (!env || !jniFrame)
         return nsnull;
 
-    jobject ret = jniFrame->GetEnv()->CallObjectMethod(wrapped_obj, jGetSoftwareDrawBufferMethod);
+    jobject ret = env->CallObjectMethod(wrapped_obj, jGetSoftwareDrawBufferMethod);
     if (jniFrame->CheckForException())
         return nsnull;
 
@@ -762,12 +762,12 @@ AndroidGeckoSurfaceView::GetSoftwareDrawBuffer(AutoLocalJNIFrame *jniFrame)
 }
 
 jobject
-AndroidGeckoSurfaceView::GetSurface(AutoLocalJNIFrame *jniFrame)
+AndroidGeckoSurfaceView::GetSurface(JNIEnv *env, AutoLocalJNIFrame *jniFrame)
 {
-    if (!jniFrame || !jniFrame->GetEnv())
+    if (!env || !jniFrame)
         return nsnull;
 
-    jobject ret = jniFrame->GetEnv()->CallObjectMethod(wrapped_obj, jGetSurfaceMethod);
+    jobject ret = env->CallObjectMethod(wrapped_obj, jGetSurfaceMethod);
     if (jniFrame->CheckForException())
         return nsnull;
 
@@ -775,12 +775,12 @@ AndroidGeckoSurfaceView::GetSurface(AutoLocalJNIFrame *jniFrame)
 }
 
 jobject
-AndroidGeckoSurfaceView::GetSurfaceHolder(AutoLocalJNIFrame *jniFrame)
+AndroidGeckoSurfaceView::GetSurfaceHolder(JNIEnv *env, AutoLocalJNIFrame *jniFrame)
 {
-    if (!jniFrame || !jniFrame->GetEnv())
+    if (!env || !jniFrame)
         return nsnull;
 
-    jobject ret = jniFrame->GetEnv()->CallObjectMethod(wrapped_obj, jGetHolderMethod);
+    jobject ret = env->CallObjectMethod(wrapped_obj, jGetHolderMethod);
     if (jniFrame->CheckForException())
         return nsnull;
 
@@ -788,96 +788,53 @@ AndroidGeckoSurfaceView::GetSurfaceHolder(AutoLocalJNIFrame *jniFrame)
 }
 
 bool
-AndroidGeckoLayerClient::CreateFrame(AutoLocalJNIFrame *jniFrame, AndroidLayerRendererFrame& aFrame)
+AndroidGeckoLayerClient::CreateFrame(JNIEnv *env, AndroidLayerRendererFrame& aFrame)
 {
-    if (!jniFrame || !jniFrame->GetEnv())
-        return false;
+    AutoLocalJNIFrame jniFrame(env, 1);
 
-    jobject frameJObj = jniFrame->GetEnv()->CallObjectMethod(wrapped_obj, jCreateFrameMethod);
-    if (jniFrame->CheckForException())
+    jobject frameJObj = env->CallObjectMethod(wrapped_obj, jCreateFrameMethod);
+    if (jniFrame.CheckForException())
         return false;
     NS_ABORT_IF_FALSE(frameJObj, "No frame object!");
 
-    aFrame.Init(jniFrame->GetEnv(), frameJObj);
+    aFrame.Init(env, frameJObj);
     return true;
 }
 
-bool
-AndroidGeckoLayerClient::ActivateProgram(AutoLocalJNIFrame *jniFrame)
+void
+AndroidGeckoLayerClient::ActivateProgram(JNIEnv *env)
 {
-    if (!jniFrame || !jniFrame->GetEnv())
-        return false;
-
-    jniFrame->GetEnv()->CallVoidMethod(wrapped_obj, jActivateProgramMethod);
-    if (jniFrame->CheckForException())
-        return false;
-
-    return true;
+    env->CallVoidMethod(wrapped_obj, jActivateProgramMethod);
 }
 
-bool
-AndroidGeckoLayerClient::DeactivateProgram(AutoLocalJNIFrame *jniFrame)
+void
+AndroidGeckoLayerClient::DeactivateProgram(JNIEnv *env)
 {
-    if (!jniFrame || !jniFrame->GetEnv())
-        return false;
-
-    jniFrame->GetEnv()->CallVoidMethod(wrapped_obj, jDeactivateProgramMethod);
-    if (jniFrame->CheckForException())
-        return false;
-
-    return true;
+    env->CallVoidMethod(wrapped_obj, jDeactivateProgramMethod);
 }
 
-bool
-AndroidLayerRendererFrame::BeginDrawing(AutoLocalJNIFrame *jniFrame)
+void
+AndroidLayerRendererFrame::BeginDrawing(JNIEnv *env)
 {
-    if (!jniFrame || !jniFrame->GetEnv())
-        return false;
-
-    jniFrame->GetEnv()->CallVoidMethod(wrapped_obj, jBeginDrawingMethod);
-    if (jniFrame->CheckForException())
-        return false;
-
-    return true;
+    env->CallVoidMethod(wrapped_obj, jBeginDrawingMethod);
 }
 
-bool
-AndroidLayerRendererFrame::DrawBackground(AutoLocalJNIFrame *jniFrame)
+void
+AndroidLayerRendererFrame::DrawBackground(JNIEnv *env)
 {
-    if (!jniFrame || !jniFrame->GetEnv())
-        return false;
-
-    jniFrame->GetEnv()->CallVoidMethod(wrapped_obj, jDrawBackgroundMethod);
-    if (jniFrame->CheckForException())
-        return false;
-
-    return true;
+    env->CallVoidMethod(wrapped_obj, jDrawBackgroundMethod);
 }
 
-bool
-AndroidLayerRendererFrame::DrawForeground(AutoLocalJNIFrame *jniFrame)
+void
+AndroidLayerRendererFrame::DrawForeground(JNIEnv *env)
 {
-    if (!jniFrame || !jniFrame->GetEnv())
-        return false;
-
-    jniFrame->GetEnv()->CallVoidMethod(wrapped_obj, jDrawForegroundMethod);
-    if (jniFrame->CheckForException())
-        return false;
-
-    return true;
+    env->CallVoidMethod(wrapped_obj, jDrawForegroundMethod);
 }
 
-bool
-AndroidLayerRendererFrame::EndDrawing(AutoLocalJNIFrame *jniFrame)
+void
+AndroidLayerRendererFrame::EndDrawing(JNIEnv *env)
 {
-    if (!jniFrame || !jniFrame->GetEnv())
-        return false;
-
-    jniFrame->GetEnv()->CallVoidMethod(wrapped_obj, jEndDrawingMethod);
-    if (jniFrame->CheckForException())
-        return false;
-
-    return true;
+    env->CallVoidMethod(wrapped_obj, jEndDrawingMethod);
 }
 
 float

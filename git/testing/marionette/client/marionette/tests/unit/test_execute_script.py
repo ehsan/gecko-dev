@@ -53,10 +53,7 @@ class TestExecuteContent(MarionetteTestCase):
     def test_execute_permission(self):
         self.assertRaises(JavascriptException,
                           self.marionette.execute_script,
-                          """
-let prefs = Components.classes["@mozilla.org/preferences-service;1"]
-                              .getService(Components.interfaces.nsIPrefBranch);
-""")
+                          "return Components.classes;")
 
     def test_complex_return_values(self):
         self.assertEqual(self.marionette.execute_script("return [1, 2];"), [1, 2])
@@ -67,13 +64,6 @@ let prefs = Components.classes["@mozilla.org/preferences-service;1"]
         self.assertEqual(self.marionette.execute_script("return {'foo': [1, 'a', 2]};"),
                          {'foo': [1, 'a', 2]})
 
-    def test_sandbox_reuse(self):
-        # Sandboxes between `execute_script()` invocations are shared.
-        self.marionette.execute_script("this.foobar = [23, 42];")
-        self.assertEqual(self.marionette.execute_script("return this.foobar;", new_sandbox=False), [23, 42])
-
-        self.marionette.execute_script("global.barfoo = [42, 23];")
-        self.assertEqual(self.marionette.execute_script("return global.barfoo;", new_sandbox=False), [42, 23])
 
 class TestExecuteChrome(TestExecuteContent):
     def setUp(self):
@@ -83,5 +73,3 @@ class TestExecuteChrome(TestExecuteContent):
     def test_execute_permission(self):
         self.assertEqual(1, self.marionette.execute_script("var c = Components.classes;return 1;"))
 
-    def test_sandbox_reuse(self):
-        pass

@@ -171,8 +171,12 @@ public:
         }
     }
 
-    bool MakeCurrentImpl()
+    bool MakeCurrentImpl(bool aForce = false)
     {
+        if (!aForce && [NSOpenGLContext currentContext] == mContext) {
+            return true;
+        }
+
         if (mContext) {
             [mContext makeCurrentContext];
         }
@@ -210,8 +214,7 @@ public:
                             const nsIntSize& aSize,
                             GLenum aWrapMode,
                             TextureImage::ContentType aContentType,
-                            GLContext* aContext,
-                            TextureImage::Flags aFlags = TextureImage::NoFlags);
+                            GLContext* aContext);
 
     NSOpenGLContext *mContext;
     NSOpenGLPixelBuffer *mPBuffer;
@@ -316,8 +319,7 @@ class TextureImageCGL : public BasicTextureImage
                                           const nsIntSize&,
                                           GLenum,
                                           TextureImage::ContentType,
-                                          GLContext*,
-                                          TextureImage::Flags);
+                                          GLContext*);
 public:
     ~TextureImageCGL()
     {
@@ -403,9 +405,8 @@ private:
                     const nsIntSize& aSize,
                     GLenum aWrapMode,
                     ContentType aContentType,
-                    GLContext* aContext,
-                    TextureImage::Flags aFlags = TextureImage::NoFlags)
-        : BasicTextureImage(aTexture, aSize, aWrapMode, aContentType, aContext, aFlags)
+                    GLContext* aContext)
+        : BasicTextureImage(aTexture, aSize, aWrapMode, aContentType, aContext)
         , mPixelBuffer(0)
         , mPixelBufferSize(0)
         , mBoundPixelBuffer(false)
@@ -421,11 +422,10 @@ GLContextCGL::CreateBasicTextureImage(GLuint aTexture,
                                       const nsIntSize& aSize,
                                       GLenum aWrapMode,
                                       TextureImage::ContentType aContentType,
-                                      GLContext* aContext,
-                                      TextureImage::Flags aFlags)
+                                      GLContext* aContext)
 {
     nsRefPtr<TextureImageCGL> teximage
-        (new TextureImageCGL(aTexture, aSize, aWrapMode, aContentType, aContext, aFlags));
+        (new TextureImageCGL(aTexture, aSize, aWrapMode, aContentType, aContext));
     return teximage.forget();
 }
 

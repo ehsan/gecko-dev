@@ -1,5 +1,5 @@
 /* gzread.c -- zlib functions for reading gzip files
- * Copyright (C) 2004, 2005, 2010, 2011, 2012 Mark Adler
+ * Copyright (C) 2004, 2005, 2010, 2011 Mark Adler
  * For conditions of distribution and use, see copyright notice in zlib.h
  */
 
@@ -57,13 +57,8 @@ local int gz_avail(state)
     if (state->err != Z_OK && state->err != Z_BUF_ERROR)
         return -1;
     if (state->eof == 0) {
-        if (strm->avail_in) {       /* copy what's there to the start */
-            unsigned char *p = state->in, *q = strm->next_in;
-            unsigned n = strm->avail_in;
-            do {
-                *p++ = *q++;
-            } while (--n);
-        }
+        if (strm->avail_in)
+            memmove(state->in, strm->next_in, strm->avail_in);
         if (gz_load(state, state->in + strm->avail_in,
                     state->size - strm->avail_in, &got) == -1)
             return -1;
@@ -345,7 +340,7 @@ int ZEXPORT gzread(file, buf, len)
             /* get more output, looking for header if required */
             if (gz_fetch(state) == -1)
                 return -1;
-            continue;       /* no progress yet -- go back to copy above */
+            continue;       /* no progress yet -- go back to memcpy() above */
             /* the copy above assures that we will leave with space in the
                output buffer, allowing at least one gzungetc() to succeed */
         }
@@ -378,8 +373,7 @@ int ZEXPORT gzread(file, buf, len)
 }
 
 /* -- see zlib.h -- */
-#undef gzgetc
-int ZEXPORT gzgetc(file)
+int ZEXPORT gzgetc_(file)
     gzFile file;
 {
     int ret;
@@ -408,11 +402,12 @@ int ZEXPORT gzgetc(file)
     return ret < 1 ? -1 : buf[0];
 }
 
-int ZEXPORT gzgetc_(file)
+#undef gzgetc
+int ZEXPORT gzgetc(file)
 gzFile file;
 {
-    return gzgetc(file);
-}
+    return gzgetc_(file);
+}    
 
 /* -- see zlib.h -- */
 int ZEXPORT gzungetc(c, file)

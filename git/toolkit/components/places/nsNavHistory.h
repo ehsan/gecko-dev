@@ -46,6 +46,7 @@
 #include "nsPIPlacesDatabase.h"
 #include "nsPIPlacesHistoryListenersNotifier.h"
 #include "nsIBrowserHistory.h"
+#include "nsIGlobalHistory.h"
 #include "nsINavBookmarksService.h"
 #include "nsIPrivateBrowsingService.h"
 #include "nsIFaviconService.h"

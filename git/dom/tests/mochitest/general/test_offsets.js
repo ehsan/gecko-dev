@@ -32,6 +32,11 @@ function toNearestAppunit(v)
   return Math.round(v*60)/60;
 }
 
+function floorToNearestAppunit(v)
+{
+  return Math.floor(toNearestAppunit(v));
+}
+
 function isEqualAppunits(a, b, msg)
 {
   is(toNearestAppunit(a), toNearestAppunit(b), msg);
@@ -62,11 +67,11 @@ function testElement(element)
   var scrollWidth, scrollHeight, clientWidth, clientHeight;
   if (element.id == "scrollbox") {
     var lastchild = $("lastline");
-    scrollWidth = lastchild.getBoundingClientRect().width + paddingLeft + paddingRight;
+    scrollWidth = floorToNearestAppunit(lastchild.getBoundingClientRect().width + paddingLeft + paddingRight);
     var top = element.firstChild.getBoundingClientRect().top;
     var bottom = element.lastChild.getBoundingClientRect().bottom;
     var contentsHeight = bottom - top;
-    scrollHeight = contentsHeight + paddingTop + paddingBottom;
+    scrollHeight = floorToNearestAppunit(contentsHeight + paddingTop + paddingBottom);
     clientWidth = paddingLeft + width + paddingRight - scrollbarWidth;
     clientHeight = paddingTop + height + paddingBottom - scrollbarHeight;
   }

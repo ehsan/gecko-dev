@@ -181,10 +181,10 @@ public:
     void Init(JNIEnv *env, jobject jobj);
     void Dispose(JNIEnv *env);
 
-    bool BeginDrawing(AutoLocalJNIFrame *jniFrame);
-    bool DrawBackground(AutoLocalJNIFrame *jniFrame);
-    bool DrawForeground(AutoLocalJNIFrame *jniFrame);
-    bool EndDrawing(AutoLocalJNIFrame *jniFrame);
+    void BeginDrawing(JNIEnv *env);
+    void DrawBackground(JNIEnv *env);
+    void DrawForeground(JNIEnv *env);
+    void EndDrawing(JNIEnv *env);
 
 private:
     static jclass jLayerRendererFrameClass;
@@ -208,9 +208,9 @@ public:
     void SetPageSize(float aZoom, float aPageWidth, float aPageHeight, float aCssPageWidth, float aCssPageHeight);
     void SyncViewportInfo(const nsIntRect& aDisplayPort, float aDisplayResolution, bool aLayersUpdated,
                           nsIntPoint& aScrollOffset, float& aScaleX, float& aScaleY);
-    bool CreateFrame(AutoLocalJNIFrame *jniFrame, AndroidLayerRendererFrame& aFrame);
-    bool ActivateProgram(AutoLocalJNIFrame *jniFrame);
-    bool DeactivateProgram(AutoLocalJNIFrame *jniFrame);
+    bool CreateFrame(JNIEnv *env, AndroidLayerRendererFrame& aFrame);
+    void ActivateProgram(JNIEnv *env);
+    void DeactivateProgram(JNIEnv *env);
 
 protected:
     static jclass jGeckoLayerClientClass;
@@ -242,14 +242,14 @@ public:
     };
 
     int BeginDrawing();
-    jobject GetSoftwareDrawBitmap(AutoLocalJNIFrame *jniFrame);
-    jobject GetSoftwareDrawBuffer(AutoLocalJNIFrame *jniFrame);
+    jobject GetSoftwareDrawBitmap(JNIEnv *env, AutoLocalJNIFrame *jniFrame);
+    jobject GetSoftwareDrawBuffer(JNIEnv *env, AutoLocalJNIFrame *jniFrame);
     void EndDrawing();
     void Draw2D(jobject bitmap, int width, int height);
     void Draw2D(jobject buffer, int stride);
 
-    jobject GetSurface(AutoLocalJNIFrame *jniFrame);
-    jobject GetSurfaceHolder(AutoLocalJNIFrame *jniFrame);
+    jobject GetSurface(JNIEnv *env, AutoLocalJNIFrame *jniFrame);
+    jobject GetSurfaceHolder(JNIEnv *env, AutoLocalJNIFrame *jniFrame);
 
 protected:
     static jclass jGeckoSurfaceViewClass;

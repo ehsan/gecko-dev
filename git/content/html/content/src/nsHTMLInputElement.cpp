@@ -860,6 +860,11 @@ nsHTMLInputElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
       UpdateTypeMismatchValidityState();
     }
 
+    UpdateEditableState(aNotify);
+    nsTextEditorState *state = GetEditorState();
+    if (state) {
+      state->UpdateEditableState(aNotify);
+    }
     UpdateState(aNotify);
   }
 
@@ -1236,6 +1241,15 @@ nsHTMLInputElement::GetPlaceholderNode()
     return state->GetPlaceholderNode();
   }
   return nsnull;
+}
+
+NS_IMETHODIMP_(void)
+nsHTMLInputElement::UpdatePlaceholderText(bool aNotify)
+{
+  nsTextEditorState *state = GetEditorState();
+  if (state) {
+    state->UpdatePlaceholderText(aNotify);
+  }
 }
 
 NS_IMETHODIMP_(void)
@@ -4087,6 +4101,16 @@ nsHTMLInputElement::GetTextEditorValue(nsAString& aValue,
   nsTextEditorState *state = GetEditorState();
   if (state) {
     state->GetValue(aValue, aIgnoreWrap);
+  }
+}
+
+NS_IMETHODIMP_(void)
+nsHTMLInputElement::SetTextEditorValue(const nsAString& aValue,
+                                       bool aUserInput)
+{
+  nsTextEditorState *state = GetEditorState();
+  if (state) {
+    state->SetValue(aValue, aUserInput);
   }
 }
 

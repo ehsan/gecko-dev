@@ -80,12 +80,12 @@ void DisableNetworkNotifications();
 /**
  * Enables screen orientation notifications from the backend.
  */
-void EnableScreenConfigurationNotifications();
+void EnableScreenOrientationNotifications();
 
 /**
  * Disables screen orientation notifications from the backend.
  */
-void DisableScreenConfigurationNotifications();
+void DisableScreenOrientationNotifications();
 
 /**
  * Enable switch notifications from the backend

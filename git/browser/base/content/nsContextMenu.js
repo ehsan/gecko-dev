@@ -775,8 +775,7 @@ nsContextMenu.prototype = {
     urlSecurityCheck(frameURL, this.browser.contentPrincipal,
                      Ci.nsIScriptSecurityManager.DISALLOW_SCRIPT);
     var referrer = doc.referrer;
-    openUILinkIn(frameURL, "current", { disallowInheritPrincipal: true,
-                                        referrerURI: referrer ? makeURI(referrer) : null });
+    this.browser.loadURI(frameURL, referrer ? makeURI(referrer) : null);
   },
 
   // View Partial Source
@@ -848,8 +847,7 @@ nsContextMenu.prototype = {
     }
 
     var doc = this.target.ownerDocument;
-    openUILink(viewURL, e, { disallowInheritPrincipal: true,
-                             referrerURI: doc.documentURIObject });
+    openUILink(viewURL, e, null, null, null, null, doc.documentURIObject );
   },
 
   saveVideoFrameAsImage: function () {
@@ -885,8 +883,7 @@ nsContextMenu.prototype = {
                      this.browser.contentPrincipal,
                      Ci.nsIScriptSecurityManager.DISALLOW_SCRIPT);
     var doc = this.target.ownerDocument;
-    openUILink(this.bgImageURL, e, { disallowInheritPrincipal: true,
-                                     referrerURI: doc.documentURIObject });
+    openUILink(this.bgImageURL, e, null, null, null, null, doc.documentURIObject );
   },
 
   disableSetDesktopBackground: function() {

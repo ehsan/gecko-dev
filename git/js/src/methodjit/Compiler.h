@@ -248,7 +248,6 @@ class Compiler : public BaseCompiler
         PropertyName *name;
         bool hasTypeCheck;
         bool typeMonitored;
-        bool cached;
         types::TypeSet *rhsTypes;
         ValueRemat vr;
         union {
@@ -288,7 +287,6 @@ class Compiler : public BaseCompiler
                 ic.u.get.hasTypeCheck = hasTypeCheck;
             }
             ic.typeMonitored = typeMonitored;
-            ic.cached = cached;
             ic.rhsTypes = rhsTypes;
             if (ic.isGet())
                 ic.setLabels(getPropLabels());
@@ -470,8 +468,6 @@ private:
     js::Vector<CallPatchInfo, 64, CompilerAllocPolicy> callPatches;
     js::Vector<InternalCallSite, 64, CompilerAllocPolicy> callSites;
     js::Vector<DoublePatch, 16, CompilerAllocPolicy> doubleList;
-    js::Vector<JSObject*, 0, CompilerAllocPolicy> rootedTemplates;
-    js::Vector<RegExpShared*, 0, CompilerAllocPolicy> rootedRegExps;
     js::Vector<uint32_t> fixedIntToDoubleEntries;
     js::Vector<uint32_t> fixedDoubleToAnyEntries;
     js::Vector<JumpTable, 16> jumpTables;
@@ -525,7 +521,7 @@ private:
     }
 
     JITScript *outerJIT() {
-        return outerScript->getJIT(isConstructing, cx->compartment->needsBarrier());
+        return outerScript->getJIT(isConstructing);
     }
 
     ChunkDescriptor &outerChunkRef() {
@@ -696,7 +692,6 @@ private:
     void leaveBlock();
     void emitEval(uint32_t argc);
     bool jsop_tableswitch(jsbytecode *pc);
-    Jump getNewObject(JSContext *cx, RegisterID result, JSObject *templateObject);
 
     /* Fast arithmetic. */
     bool jsop_binary_slow(JSOp op, VoidStub stub, JSValueType type, FrameEntry *lhs, FrameEntry *rhs);

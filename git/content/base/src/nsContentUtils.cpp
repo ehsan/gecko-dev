@@ -288,6 +288,7 @@ nsString* nsContentUtils::sModifierSeparator = nsnull;
 bool nsContentUtils::sInitialized = false;
 bool nsContentUtils::sIsFullScreenApiEnabled = false;
 bool nsContentUtils::sTrustedFullScreenOnly = true;
+bool nsContentUtils::sFullScreenKeyInputRestricted = true;
 
 PRUint32 nsContentUtils::sHandlingInputTimeout = 1000;
 
@@ -423,6 +424,9 @@ nsContentUtils::Init()
 
   Preferences::AddBoolVarCache(&sTrustedFullScreenOnly,
                                "full-screen-api.allow-trusted-requests-only");
+
+  Preferences::AddBoolVarCache(&sFullScreenKeyInputRestricted,
+                               "full-screen-api.key-input-restricted");
 
   Preferences::AddUintVarCache(&sHandlingInputTimeout,
                                "dom.event.handling-user-input-time-limit",
@@ -2801,44 +2805,18 @@ nsContentUtils::IsDraggableLink(const nsIContent* aContent) {
   return aContent->IsLink(getter_AddRefs(absURI));
 }
 
-static bool
-TestSitePerm(nsIPrincipal* aPrincipal, const char* aType, PRUint32 aPerm)
+bool
+nsContentUtils::IsSitePermAllow(nsIURI* aURI, const char* aType)
 {
-  if (nsContentUtils::IsSystemPrincipal(aPrincipal)) {
-    // System principal is always allowed and never denied permission.
-    return aPerm == nsIPermissionManager::ALLOW_ACTION;
-  }
-
-  nsCOMPtr<nsIURI> uri;
-  if (NS_FAILED(!aPrincipal ||
-      aPrincipal->GetURI(getter_AddRefs(uri))) ||
-      !uri) {
-    // We always deny (i.e. don't allow) the permission if we don't
-    // have a principal or we don't know the URI.
-    return aPerm != nsIPermissionManager::ALLOW_ACTION;
-  }
-
   nsCOMPtr<nsIPermissionManager> permMgr =
     do_GetService("@mozilla.org/permissionmanager;1");
   NS_ENSURE_TRUE(permMgr, false);
 
   PRUint32 perm;
-  nsresult rv = permMgr->TestPermission(uri, aType, &perm);
+  nsresult rv = permMgr->TestPermission(aURI, aType, &perm);
   NS_ENSURE_SUCCESS(rv, false);
   
-  return perm == aPerm;
-}
-
-bool
-nsContentUtils::IsSitePermAllow(nsIPrincipal* aPrincipal, const char* aType)
-{
-  return TestSitePerm(aPrincipal, aType, nsIPermissionManager::ALLOW_ACTION);
-}
-
-bool
-nsContentUtils::IsSitePermDeny(nsIPrincipal* aPrincipal, const char* aType)
-{
-  return TestSitePerm(aPrincipal, aType, nsIPermissionManager::DENY_ACTION);
+  return perm == nsIPermissionManager::ALLOW_ACTION;
 }
 
 static const char *gEventNames[] = {"event"};
@@ -3473,9 +3451,18 @@ nsContentUtils::DispatchChromeEvent(nsIDocument *aDoc,
   if (!aDoc->GetWindow())
     return NS_ERROR_INVALID_ARG;
 
-  nsIDOMEventTarget* piTarget = aDoc->GetWindow()->GetParentTarget();
+  nsIDOMEventTarget* piTarget = aDoc->GetWindow()->GetChromeEventHandler();
   if (!piTarget)
     return NS_ERROR_INVALID_ARG;
+
+  nsCOMPtr<nsIFrameLoaderOwner> flo = do_QueryInterface(piTarget);
+  if (flo) {
+    nsRefPtr<nsFrameLoader> fl = flo->GetFrameLoader();
+    if (fl) {
+      nsIDOMEventTarget* t = fl->GetTabChildGlobalAsEventTarget();
+      piTarget = t ? t : piTarget;
+    }
+  }
 
   nsEventStatus status = nsEventStatus_eIgnore;
   rv = piTarget->DispatchDOMEvent(nsnull, event, nsnull, &status);
@@ -6352,7 +6339,7 @@ nsContentUtils::AllowXULXBLForPrincipal(nsIPrincipal* aPrincipal)
   
   return princURI &&
          ((sAllowXULXBL_for_file && SchemeIs(princURI, "file")) ||
-          IsSitePermAllow(aPrincipal, "allowXULXBL"));
+          IsSitePermAllow(princURI, "allowXULXBL"));
 }
 
 already_AddRefed<nsIDocumentLoaderFactory>
@@ -6525,12 +6512,17 @@ nsContentUtils::IsFullScreenApiEnabled()
   return sIsFullScreenApiEnabled;
 }
 
-bool
-nsContentUtils::IsRequestFullScreenAllowed()
+bool nsContentUtils::IsRequestFullScreenAllowed()
 {
   return !sTrustedFullScreenOnly ||
          nsEventStateManager::IsHandlingUserInput() ||
          IsCallerChrome();
+}
+
+bool
+nsContentUtils::IsFullScreenKeyInputRestricted()
+{
+  return sFullScreenKeyInputRestricted;
 }
 
 static void

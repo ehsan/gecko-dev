@@ -5367,8 +5367,8 @@ JS_FRIEND_DATA(Class) js::XMLClass = {
     NULL,                    /* finalize    */
     NULL,                    /* checkAccess */
     NULL,                    /* call        */
-    xml_hasInstance,
     NULL,                    /* construct   */
+    xml_hasInstance,
     xml_trace,
     JS_NULL_CLASS_EXT,
     {

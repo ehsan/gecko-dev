@@ -143,6 +143,15 @@ PatchSetFallback(VMFrame &f, ic::SetGlobalNameIC *ic)
 }
 
 void
+SetGlobalNameIC::patchExtraShapeGuard(Repatcher &repatcher, const Shape *shape)
+{
+    JS_ASSERT(hasExtraStub);
+
+    JSC::CodeLocationLabel label(JSC::MacroAssemblerCodePtr(extraStub.start()));
+    repatcher.repatch(label.dataLabelPtrAtOffset(extraShapeGuard), shape);
+}
+
+void
 SetGlobalNameIC::patchInlineShapeGuard(Repatcher &repatcher, const Shape *shape)
 {
     JSC::CodeLocationDataLabelPtr label = fastPathStart.dataLabelPtrAtOffset(shapeOffset);
@@ -607,7 +616,7 @@ class CallCompiler : public BaseCompiler
         // - script->jitHandle{Ctor,Normal}->value is neither NULL nor UNJITTABLE, and
         // - script->jitHandle{Ctor,Normal}->value->arityCheckEntry is not NULL.
         //
-        size_t offset = JSScript::jitHandleOffset(callingNew, f.cx->compartment->needsBarrier());
+        size_t offset = JSScript::jitHandleOffset(callingNew);
         masm.loadPtr(Address(t0, offset), t0);
         Jump hasNoJitCode = masm.branchPtr(Assembler::BelowOrEqual, t0,
                                            ImmPtr(JSScript::JITScriptHandle::UNJITTABLE));
@@ -691,7 +700,7 @@ class CallCompiler : public BaseCompiler
     bool patchInlinePath(JSScript *script, JSObject *obj)
     {
         JS_ASSERT(ic.frameSize.isStatic());
-        JITScript *jit = script->getJIT(callingNew, f.cx->compartment->needsBarrier());
+        JITScript *jit = script->getJIT(callingNew);
 
         /* Very fast path. */
         Repatcher repatch(f.chunk());

@@ -51,7 +51,6 @@
 #include "nsFrameLoader.h"
 #include "nsIPrivateDOMEvent.h"
 #include "xpcpublic.h"
-#include "nsIMozBrowserFrame.h"
 
 bool SendSyncMessageToParent(void* aCallbackData,
                              const nsAString& aMessage,
@@ -116,15 +115,6 @@ nsInProcessTabChildGlobal::nsInProcessTabChildGlobal(nsIDocShell* aShell,
 : mDocShell(aShell), mInitialized(false), mLoadingScript(false),
   mDelayedDisconnect(false), mOwner(aOwner), mChromeMessageManager(aChrome)
 {
-
-  // If owner corresponds to an <iframe mozbrowser>, we'll have to tweak our
-  // PreHandleEvent implementation.
-  nsCOMPtr<nsIMozBrowserFrame> browserFrame = do_QueryInterface(mOwner);
-  bool isBrowser = false;
-  if (browserFrame) {
-    browserFrame->GetReallyIsBrowser(&isBrowser);
-  }
-  mIsBrowserFrame = isBrowser;
 }
 
 nsInProcessTabChildGlobal::~nsInProcessTabChildGlobal()
@@ -280,17 +270,7 @@ nsresult
 nsInProcessTabChildGlobal::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
   aVisitor.mCanHandle = true;
-
-  if (mIsBrowserFrame) {
-    if (mOwner) {
-      nsPIDOMWindow* innerWindow = mOwner->OwnerDoc()->GetInnerWindow();
-      if (innerWindow) {
-        aVisitor.mParentTarget = innerWindow->GetParentTarget();
-      }
-    }
-  } else {
-    aVisitor.mParentTarget = mOwner;
-  }
+  aVisitor.mParentTarget = mOwner;
 
 #ifdef DEBUG
   if (mOwner) {

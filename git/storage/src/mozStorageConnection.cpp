@@ -813,13 +813,6 @@ Connection::setClosedState()
   return NS_OK;
 }
 
-bool
-Connection::isAsyncClosing() {
-  MutexAutoLock lockedScope(sharedAsyncExecutionMutex);
-  return mAsyncExecutionThreadShuttingDown && !!mAsyncExecutionThread &&
-    ConnectionReady();
-}
-
 nsresult
 Connection::internalClose()
 {
@@ -1133,7 +1126,7 @@ Connection::Clone(bool aReadOnly,
 NS_IMETHODIMP
 Connection::GetConnectionReady(bool *_ready)
 {
-  *_ready = ConnectionReady();
+  *_ready = (mDBConn != nsnull);
   return NS_OK;
 }
 

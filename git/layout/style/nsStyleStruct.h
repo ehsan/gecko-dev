@@ -1319,7 +1319,6 @@ struct nsStyleText {
   PRUint8 mTextAlignLast;               // [inherited] see nsStyleConsts.h
   PRUint8 mTextTransform;               // [inherited] see nsStyleConsts.h
   PRUint8 mWhiteSpace;                  // [inherited] see nsStyleConsts.h
-  PRUint8 mWordBreak;                   // [inherited] see nsStyleConsts.h
   PRUint8 mWordWrap;                    // [inherited] see nsStyleConsts.h
   PRUint8 mHyphens;                     // [inherited] see nsStyleConsts.h
   PRUint8 mTextSizeAdjust;              // [inherited] see nsStyleConsts.h

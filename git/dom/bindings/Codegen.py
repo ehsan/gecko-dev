@@ -106,8 +106,8 @@ DOMJSClass Class = {
     %s, /* finalize */
     NULL,                  /* checkAccess */
     NULL,                  /* call */
-    NULL,                  /* hasInstance */
     NULL,                  /* construct */
+    NULL,                  /* hasInstance */
     %s, /* trace */
     JSCLASS_NO_INTERNAL_MEMBERS
   },
@@ -141,8 +141,8 @@ static JSClass PrototypeClass = {
   NULL,                  /* finalize */
   NULL,                  /* checkAccess */
   NULL,                  /* call */
-  NULL,                  /* hasInstance */
   NULL,                  /* construct */
+  NULL,                  /* hasInstance */
   NULL,                  /* trace */
   JSCLASS_NO_INTERNAL_MEMBERS
 };
@@ -173,12 +173,12 @@ static JSClass InterfaceObjectClass = {
   NULL,                  /* finalize */
   NULL,                  /* checkAccess */
   %s, /* call */
-  %s, /* hasInstance */
   %s, /* construct */
+  %s, /* hasInstance */
   NULL,                  /* trace */
   JSCLASS_NO_INTERNAL_MEMBERS
 };
-""" % (ctorname, hasinstance, ctorname)
+""" % (ctorname, ctorname, hasinstance)
 
 class CGList(CGThing):
     """

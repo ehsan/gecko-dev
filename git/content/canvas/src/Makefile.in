@@ -69,7 +69,6 @@ CPPSRCS	= \
 	DocumentRendererParent.cpp \
 	DocumentRendererChild.cpp \
 	ImageData.cpp \
-	WebGLExtensionCompressedTextureS3TC.cpp \
 	$(NULL)
 
 ifdef MOZ_WEBGL
@@ -83,7 +82,6 @@ CPPSRCS += \
 	WebGLExtensionStandardDerivatives.cpp \
 	WebGLExtensionTextureFilterAnisotropic.cpp \
 	WebGLExtensionLoseContext.cpp \
-	WebGLTexelConversions.cpp \
 	$(NULL)
 
 DEFINES += -DUSE_ANGLE

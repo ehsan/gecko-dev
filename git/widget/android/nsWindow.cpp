@@ -917,7 +917,7 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
                 JNIEnv *env = AndroidBridge::GetJNIEnv();
                 if (env) {
                     AutoLocalJNIFrame jniFrame(env);
-                    jobject surface = sview.GetSurface(&jniFrame);
+                    jobject surface = sview.GetSurface(env, &jniFrame);
                     if (surface) {
                         sNativeWindow = AndroidBridge::Bridge()->AcquireNativeWindow(env, surface);
                         if (sNativeWindow) {
@@ -1181,7 +1181,7 @@ nsWindow::OnDraw(AndroidGeckoEvent *ae)
 
             AndroidBridge::Bridge()->UnlockWindow(sNativeWindow);
         } else if (AndroidBridge::Bridge()->HasNativeBitmapAccess()) {
-            jobject bitmap = sview.GetSoftwareDrawBitmap(&jniFrame);
+            jobject bitmap = sview.GetSoftwareDrawBitmap(env, &jniFrame);
             if (!bitmap) {
                 ALOG("no bitmap to draw into - skipping draw");
                 return;
@@ -1210,7 +1210,7 @@ nsWindow::OnDraw(AndroidGeckoEvent *ae)
             AndroidBridge::Bridge()->UnlockBitmap(bitmap);
             sview.Draw2D(bitmap, mBounds.width, mBounds.height);
         } else {
-            jobject bytebuf = sview.GetSoftwareDrawBuffer(&jniFrame);
+            jobject bytebuf = sview.GetSoftwareDrawBuffer(env, &jniFrame);
             if (!bytebuf) {
                 ALOG("no buffer to draw into - skipping draw");
                 return;
@@ -2233,11 +2233,15 @@ nsWindow::DrawWindowUnderlay(LayerManager* aManager, nsIntRect aRect)
     AutoLocalJNIFrame jniFrame(env);
 
     AndroidGeckoLayerClient& client = AndroidBridge::Bridge()->GetLayerClient();
-    if (!client.CreateFrame(&jniFrame, mLayerRendererFrame)) return;
-    if (!client.ActivateProgram(&jniFrame)) return;
-    if (!mLayerRendererFrame.BeginDrawing(&jniFrame)) return;
-    if (!mLayerRendererFrame.DrawBackground(&jniFrame)) return;
-    if (!client.DeactivateProgram(&jniFrame)) return; // redundant, but in case somebody adds code after this...
+    if (!client.CreateFrame(env, mLayerRendererFrame))
+        return;
+    client.ActivateProgram(env);
+    if (jniFrame.CheckForException()) return;
+    mLayerRendererFrame.BeginDrawing(env);
+    if (jniFrame.CheckForException()) return;
+    mLayerRendererFrame.DrawBackground(env);
+    if (jniFrame.CheckForException()) return;
+    client.DeactivateProgram(env);
 }
 
 void
@@ -2255,10 +2259,15 @@ nsWindow::DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect)
 
     AndroidGeckoLayerClient& client = AndroidBridge::Bridge()->GetLayerClient();
 
-    if (!client.ActivateProgram(&jniFrame)) return;
-    if (!mLayerRendererFrame.DrawForeground(&jniFrame)) return;
-    if (!mLayerRendererFrame.EndDrawing(&jniFrame)) return;
-    if (!client.DeactivateProgram(&jniFrame)) return;
+    client.ActivateProgram(env);
+    if (jniFrame.CheckForException()) return;
+    mLayerRendererFrame.DrawForeground(env);
+    if (jniFrame.CheckForException()) return;
+    mLayerRendererFrame.EndDrawing(env);
+    if (jniFrame.CheckForException()) return;
+    client.DeactivateProgram(env);
+    if (jniFrame.CheckForException()) return;
+
     mLayerRendererFrame.Dispose(env);
 }
 

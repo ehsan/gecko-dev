@@ -270,7 +270,7 @@ public:
    */
   static bool GetLiveAttrValue(PRUint32 aRule, nsAString& aValue);
 
-#ifdef DEBUG
+#ifdef DEBUG_A11Y
   /**
    * Detect whether the given accessible object implements nsIAccessibleText,
    * when it is text or has text child node.

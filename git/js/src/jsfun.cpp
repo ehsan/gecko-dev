@@ -67,6 +67,7 @@
 #include "jsstr.h"
 
 #include "frontend/BytecodeCompiler.h"
+#include "frontend/BytecodeEmitter.h"
 #include "frontend/TokenStream.h"
 #include "gc/Marking.h"
 #include "vm/Debugger.h"
@@ -546,8 +547,8 @@ JS_FRIEND_DATA(Class) js::FunctionClass = {
     NULL,                    /* finalize    */
     NULL,                    /* checkAccess */
     NULL,                    /* call        */
-    fun_hasInstance,
     NULL,                    /* construct   */
+    fun_hasInstance,
     fun_trace
 };
 

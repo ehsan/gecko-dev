@@ -138,6 +138,7 @@ abstract public class GeckoApp
 
     public static BrowserToolbar mBrowserToolbar;
     public static DoorHangerPopup mDoorHangerPopup;
+    public static SiteIdentityPopup mSiteIdentityPopup;
     public static FormAssistPopup mFormAssistPopup;
     public Favicons mFavicons;
 
@@ -906,7 +907,7 @@ abstract public class GeckoApp
                         handleDocumentStart(tabId, showProgress, uri);
                     } else if ((state & GeckoAppShell.WPL_STATE_STOP) != 0) {
                         Log.i(LOGTAG, "Got a document stop");
-                        handleDocumentStop(tabId, success, uri);
+                        handleDocumentStop(tabId, success);
                     }
                 }
             } else if (event.equals("Content:LoadError")) {
@@ -1234,7 +1235,7 @@ abstract public class GeckoApp
         });
     }
 
-    void handleDocumentStop(int tabId, boolean success, final String uri) {
+    void handleDocumentStop(int tabId, boolean success) {
         final Tab tab = Tabs.getInstance().getTab(tabId);
         if (tab == null)
             return;
@@ -1250,9 +1251,6 @@ abstract public class GeckoApp
         });
         GeckoAppShell.getHandler().postDelayed(new Runnable() {
             public void run() {
-                if (!uri.equals(tab.getURL()))
-                    return;
-
                 getAndProcessThumbnailForTab(tab);
                 if (Tabs.getInstance().isSelectedTab(tab)) {
                     GeckoAppShell.sendEventToGecko(GeckoEvent.createStartPaintListentingEvent(tab.getId()));
@@ -1660,6 +1658,7 @@ abstract public class GeckoApp
         mPluginContainer = (AbsoluteLayout) findViewById(R.id.plugin_container);
 
         mDoorHangerPopup = new DoorHangerPopup(this);
+        mSiteIdentityPopup = new SiteIdentityPopup(this);
         mFormAssistPopup = (FormAssistPopup) findViewById(R.id.form_assist_popup);
 
         Log.w(LOGTAG, "zerdatime " + SystemClock.uptimeMillis() + " - UI almost up");
@@ -1950,7 +1949,8 @@ abstract public class GeckoApp
         // Undo whatever we did in onPause.
         super.onResume();
 
-        SiteIdentityPopup.getInstance().dismiss();
+        if (mSiteIdentityPopup != null)
+            mSiteIdentityPopup.dismiss();
 
         int newOrientation = getResources().getConfiguration().orientation;
 
@@ -2079,7 +2079,8 @@ abstract public class GeckoApp
             mOrientation = newConfig.orientation;
             if (mFormAssistPopup != null)
                 mFormAssistPopup.hide();
-            SiteIdentityPopup.getInstance().dismiss();
+            if (mSiteIdentityPopup != null)
+                mSiteIdentityPopup.dismiss();
             refreshActionBar();
         }
     }
@@ -2242,7 +2243,8 @@ abstract public class GeckoApp
                 public void run() {
                     Log.i(LOGTAG, "Checking profile migration in: " + profileDir.getAbsolutePath());
 
-                    ProfileMigrator profileMigrator = new ProfileMigrator(app);
+                    ProfileMigrator profileMigrator =
+                        new ProfileMigrator(app, profileDir);
 
                     // Do a migration run on the first start after an upgrade.
                     if (!profileMigrator.hasMigrationRun()) {
@@ -2272,7 +2274,7 @@ abstract public class GeckoApp
 
                         profileMigrator.setLongOperationCallbacks(startCallback,
                                                                   stopCallback);
-                        profileMigrator.launchPlaces(profileDir);
+                        profileMigrator.launchPlaces();
 
                         long timeDiff = SystemClock.uptimeMillis() - currentTime;
                         Log.i(LOGTAG, "Profile migration took " + timeDiff + " ms");
@@ -2289,7 +2291,8 @@ abstract public class GeckoApp
         final File profileDir = getProfile().getDir();
         if (profileDir != null) {
             final GeckoApp app = GeckoApp.mAppContext;
-            ProfileMigrator profileMigrator = new ProfileMigrator(app);
+            ProfileMigrator profileMigrator =
+                new ProfileMigrator(app, profileDir);
             if (!profileMigrator.hasSyncMigrated()) {
                 Log.i(LOGTAG, "Checking Sync settings in: " + profileDir.getAbsolutePath());
                 profileMigrator.launchSyncPrefs();
@@ -2521,9 +2524,8 @@ abstract public class GeckoApp
             return;
         }
 
-        SiteIdentityPopup identityPopup = SiteIdentityPopup.getInstance();
-        if (identityPopup.isShowing()) {
-            identityPopup.dismiss();
+        if (mSiteIdentityPopup.isShowing()) {
+            mSiteIdentityPopup.dismiss();
             return;
         }
 

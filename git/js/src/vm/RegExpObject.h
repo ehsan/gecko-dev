@@ -179,16 +179,13 @@ class RegExpCode
  * deleted. However, some RegExpShareds are not deleted:
  *
  *   1. Any RegExpShared with pointers from the C++ stack is not deleted.
- *   2. Any RegExpShared which has been embedded into jitcode is not deleted.
- *      This rarely comes into play, as jitcode is usually purged before the
- *      RegExpShared are sweeped.
- *   3. Any RegExpShared that was installed in a RegExpObject during an
+ *   2. Any RegExpShared that was installed in a RegExpObject during an
  *      incremental GC is not deleted. This is because the RegExpObject may have
  *      been traced through before the new RegExpShared was installed, in which
  *      case deleting the RegExpShared would turn the RegExpObject's reference
  *      into a dangling pointer
  *
- * The activeUseCount and gcNumberWhenUsed fields are used to track these
+ * The activeUseCount and gcNumberWhenUsed fields are used to track these two
  * conditions.
  */
 class RegExpShared
@@ -221,8 +218,6 @@ class RegExpShared
     /* Accessors */
 
     size_t getParenCount() const        { return parenCount; }
-    void incRef()                       { activeUseCount++; }
-    void decRef()                       { JS_ASSERT(activeUseCount > 0); activeUseCount--; }
 
     /* Accounts for the "0" (whole match) pair. */
     size_t pairCount() const            { return parenCount + 1; }
@@ -246,21 +241,22 @@ class RegExpGuard
   public:
     RegExpGuard() : re_(NULL) {}
     RegExpGuard(RegExpShared &re) : re_(&re) {
-        re_->incRef();
+        re_->activeUseCount++;
     }
     void init(RegExpShared &re) {
         JS_ASSERT(!re_);
         re_ = &re;
-        re_->incRef();
+        re_->activeUseCount++;
     }
     ~RegExpGuard() {
-        if (re_)
-            re_->decRef();
+        if (re_) {
+            JS_ASSERT(re_->activeUseCount > 0);
+            re_->activeUseCount--;
+        }
     }
     bool initialized() const { return !!re_; }
-    RegExpShared *re() const { JS_ASSERT(initialized()); return re_; }
-    RegExpShared *operator->() { return re(); }
-    RegExpShared &operator*() { return *re(); }
+    RegExpShared *operator->() { JS_ASSERT(initialized()); return re_; }
+    RegExpShared &operator*() { JS_ASSERT(initialized()); return *re_; }
 };
 
 class RegExpCompartment
@@ -427,6 +423,9 @@ class RegExpObject : public JSObject
      */
     bool createShared(JSContext *cx, RegExpGuard *g);
     RegExpShared *maybeShared() const;
+
+    RegExpObject() MOZ_DELETE;
+    RegExpObject &operator=(const RegExpObject &reo) MOZ_DELETE;
 
     /* Call setShared in preference to setPrivate. */
     void setPrivate(void *priv) MOZ_DELETE;

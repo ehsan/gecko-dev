@@ -373,9 +373,7 @@ nsHttpChannel::SpeculativeConnect()
     if (mApplicationCache || gIOService->IsOffline())
         return;
 
-    // LOAD_ONLY_FROM_CACHE and LOAD_NO_NETWORK_IO must not hit network.
-    // LOAD_FROM_CACHE and LOAD_CHECK_OFFLINE_CACHE are unlikely to hit network,
-    // so skip preconnects for them.
+    // Channel loads with this flags are meant to be local only
     if (mLoadFlags & (LOAD_ONLY_FROM_CACHE | LOAD_FROM_CACHE |
                       LOAD_NO_NETWORK_IO | LOAD_CHECK_OFFLINE_CACHE))
         return;
@@ -1024,6 +1022,8 @@ nsHttpChannel::ProcessResponse()
     LOG(("nsHttpChannel::ProcessResponse [this=%p httpStatus=%u]\n",
         this, httpStatus));
 
+    UpdateInhibitPersistentCachingFlag();
+
     if (mTransaction->SSLConnectFailed()) {
         if (!ShouldSSLProxyResponseContinue(httpStatus))
             return ProcessFailedSSLConnect(httpStatus);
@@ -1270,8 +1270,6 @@ nsHttpChannel::ContinueProcessNormal(nsresult rv)
     mCachedContentIsPartial = false;
 
     ClearBogusContentEncodingIfNeeded();
-
-    UpdateInhibitPersistentCachingFlag();
 
     // this must be called before firing OnStartRequest, since http clients,
     // such as imagelib, expect our cache entry to already have the correct
@@ -5178,40 +5176,20 @@ nsHttpChannel::SetChooseApplicationCache(bool aChoose)
     return NS_OK;
 }
 
-nsHttpChannel::OfflineCacheEntryAsForeignMarker*
-nsHttpChannel::GetOfflineCacheEntryAsForeignMarker()
+NS_IMETHODIMP
+nsHttpChannel::MarkOfflineCacheEntryAsForeign()
 {
     if (!mApplicationCache)
-        return nsnull;
+        return NS_ERROR_NOT_AVAILABLE;
 
     nsresult rv;
 
     nsCAutoString cacheKey;
     rv = GenerateCacheKey(mPostID, cacheKey);
-    NS_ENSURE_SUCCESS(rv, nsnull);
+    NS_ENSURE_SUCCESS(rv, rv);
 
-    return new OfflineCacheEntryAsForeignMarker(mApplicationCache, cacheKey);
-}
-
-nsresult
-nsHttpChannel::OfflineCacheEntryAsForeignMarker::MarkAsForeign()
-{
-    return mApplicationCache->MarkEntry(mCacheKey,
-                                        nsIApplicationCache::ITEM_FOREIGN);
-}
-
-NS_IMETHODIMP
-nsHttpChannel::MarkOfflineCacheEntryAsForeign()
-{
-    nsresult rv;
-
-    nsAutoPtr<OfflineCacheEntryAsForeignMarker> marker(
-        GetOfflineCacheEntryAsForeignMarker());
-
-    if (!marker)
-        return NS_ERROR_NOT_AVAILABLE;
-
-    rv = marker->MarkAsForeign();
+    rv = mApplicationCache->MarkEntry(cacheKey,
+                                      nsIApplicationCache::ITEM_FOREIGN);
     NS_ENSURE_SUCCESS(rv, rv);
 
     return NS_OK;

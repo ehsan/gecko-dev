@@ -162,10 +162,7 @@ public:
   /*
    * Capture/restore frame state for the frame subtree rooted at aFrame.
    * aState is the document state storage object onto which each frame
-   * stores its state.  Callers of CaptureFrameState are responsible for
-   * traversing next continuations of special siblings of aFrame as
-   * needed; this method will only work with actual frametree descendants
-   * of aFrame.
+   * stores its state.
    */
 
   NS_HIDDEN_(void) CaptureFrameState(nsIFrame*              aFrame,

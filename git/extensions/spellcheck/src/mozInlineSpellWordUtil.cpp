@@ -972,7 +972,6 @@ WordSplitState::FindSpecialWord()
         protocol.EqualsIgnoreCase("news") ||
         protocol.EqualsIgnoreCase("file") ||
         protocol.EqualsIgnoreCase("javascript") ||
-        protocol.EqualsIgnoreCase("data") ||
         protocol.EqualsIgnoreCase("ftp")) {
       return mDOMWordText.Length() - mDOMWordOffset;
     }

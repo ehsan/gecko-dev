@@ -42,8 +42,8 @@
 
 #include "jsfun.h"
 
+#include "frontend/BytecodeEmitter.h"
 #include "frontend/Parser.h"
-#include "frontend/TreeContext.h"
 
 #include "jsobjinlines.h"
 #include "jsfuninlines.h"
@@ -189,14 +189,13 @@ MarkExtensibleScopeDescendants(JSContext *context, FunctionBox *funbox, bool has
 }
 
 bool
-frontend::AnalyzeFunctions(Parser *parser)
+frontend::AnalyzeFunctions(TreeContext *tc)
 {
-    TreeContext *tc = parser->tc;
     if (!tc->functionList)
         return true;
-    if (!MarkExtensibleScopeDescendants(tc->context, tc->functionList, false))
+    if (!MarkExtensibleScopeDescendants(tc->parser->context, tc->functionList, false))
         return false;
-    bool isDirectEval = !!parser->callerFrame;
+    bool isDirectEval = !!tc->parser->callerFrame;
     SetFunctionKinds(tc->functionList, &tc->flags, isDirectEval);
     return true;
 }

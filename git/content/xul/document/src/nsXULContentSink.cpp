@@ -928,7 +928,15 @@ XULContentSinkImpl::OpenScript(const PRUnichar** aAttributes,
               langID = nsIProgrammingLanguage::JAVASCRIPT;
               version = JSVERSION_LATEST;
           } else {
-              langID = nsIProgrammingLanguage::UNKNOWN;
+              // Use the script object factory to locate the language.
+              nsCOMPtr<nsIScriptRuntime> runtime;
+              rv = NS_GetJSRuntime(getter_AddRefs(runtime));
+              if (NS_FAILED(rv) || runtime == nsnull) {
+                  // Failed to get the explicitly specified language
+                  NS_WARNING("Failed to find a scripting language");
+                  langID = nsIProgrammingLanguage::UNKNOWN;
+              } else
+                  langID = nsIProgrammingLanguage::JAVASCRIPT;
           }
 
           if (langID != nsIProgrammingLanguage::UNKNOWN) {

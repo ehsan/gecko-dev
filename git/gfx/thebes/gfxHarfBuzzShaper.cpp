@@ -1187,6 +1187,7 @@ gfxHarfBuzzShaper::SetGlyphsFromRun(gfxContext *aContext,
 
     while (glyphStart < PRInt32(numGlyphs)) {
 
+        bool inOrder = true;
         PRInt32 charEnd = ginfo[glyphStart].cluster;
         PRInt32 glyphEnd = glyphStart;
         PRInt32 charLimit = wordLength;
@@ -1230,6 +1231,9 @@ gfxHarfBuzzShaper::SetGlyphsFromRun(gfxContext *aContext,
                 if (glyphCharIndex < charStart || glyphCharIndex >= charEnd) {
                     allGlyphsAreWithinCluster = false;
                     break;
+                }
+                if (glyphCharIndex <= prevGlyphCharIndex) {
+                    inOrder = false;
                 }
                 prevGlyphCharIndex = glyphCharIndex;
             }
@@ -1365,7 +1369,8 @@ gfxHarfBuzzShaper::SetGlyphsFromRun(gfxContext *aContext,
         while (++baseCharIndex != endCharIndex &&
                baseCharIndex < PRInt32(wordLength)) {
             gfxTextRun::CompressedGlyph g;
-            g.SetComplex(aShapedWord->IsClusterStart(baseCharIndex),
+            g.SetComplex(inOrder &&
+                         aShapedWord->IsClusterStart(baseCharIndex),
                          false, 0);
             aShapedWord->SetGlyphs(baseCharIndex, g, nsnull);
         }

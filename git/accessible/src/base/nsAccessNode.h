@@ -167,6 +167,8 @@ protected:
   // Static data, we do our own refcounting for our static data.
   static nsIStringBundle* gStringBundle;
 
+  static bool gIsFormFillEnabled;
+
 private:
   nsAccessNode() MOZ_DELETE;
   nsAccessNode(const nsAccessNode&) MOZ_DELETE;

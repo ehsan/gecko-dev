@@ -71,11 +71,11 @@ class TestExecuteAsyncContent(MarionetteTestCase):
     def test_same_context(self):
         var1 = 'testing'
         self.assertEqual(self.marionette.execute_script("""
-            this.testvar = '%s';
-            return this.testvar;
+            window.wrappedJSObject._testvar = '%s';
+            return window.wrappedJSObject._testvar;
             """ % var1), var1)
         self.assertEqual(self.marionette.execute_async_script(
-            "marionetteScriptFinished(this.testvar);", new_sandbox=False), var1)
+            "marionetteScriptFinished(window.wrappedJSObject._testvar);"), var1)
 
     def test_execute_no_return(self):
         self.assertEqual(self.marionette.execute_async_script("marionetteScriptFinished()"), None)
@@ -98,23 +98,9 @@ class TestExecuteAsyncContent(MarionetteTestCase):
 
     def test_execute_permission(self):
         self.assertRaises(JavascriptException, self.marionette.execute_async_script, """
-let prefs = Components.classes["@mozilla.org/preferences-service;1"]
-                              .getService(Components.interfaces.nsIPrefBranch);
+var c = Components.classes;
 marionetteScriptFinished(1);
 """)
-
-    def test_sandbox_reuse(self):
-        # Sandboxes between `execute_script()` invocations are shared.
-        self.marionette.execute_async_script("this.foobar = [23, 42];"
-                                             "marionetteScriptFinished();")
-        self.assertEqual(self.marionette.execute_async_script(
-            "marionetteScriptFinished(this.foobar);", new_sandbox=False), [23, 42])
-
-        self.marionette.execute_async_script("global.barfoo = [42, 23];"
-                                             "marionetteScriptFinished();")
-        self.assertEqual(self.marionette.execute_async_script(
-            "marionetteScriptFinished(global.barfoo);", new_sandbox=False), [42, 23])
-
 
 class TestExecuteAsyncChrome(TestExecuteAsyncContent):
     def setUp(self):
@@ -132,7 +118,4 @@ class TestExecuteAsyncChrome(TestExecuteAsyncContent):
 var c = Components.classes;
 marionetteScriptFinished(1);
 """))
-
-    def test_sandbox_reuse(self):
-        pass
 

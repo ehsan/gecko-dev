@@ -42,7 +42,7 @@
 
 namespace js {
 
-struct Parser;
+struct TreeContext;
 
 namespace frontend {
 
@@ -52,7 +52,7 @@ namespace frontend {
  * accordingly.
  */
 bool
-AnalyzeFunctions(Parser *parser);
+AnalyzeFunctions(TreeContext *tc);
 
 } /* namespace frontend */
 } /* namespace js */

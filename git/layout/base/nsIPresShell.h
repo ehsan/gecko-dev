@@ -147,10 +147,10 @@ typedef struct CapturingContentInfo {
   nsIContent* mContent;
 } CapturingContentInfo;
 
-// d2236911-9b7c-490a-a08b-2580d5f7a6de
+// a0d9bae4-2257-4b0b-b08a-3d95122419e2
 #define NS_IPRESSHELL_IID \
-  { 0xd2236911, 0x9b7c, 0x490a, \
-    { 0xa0, 0x8b, 0x25, 0x80, 0xd5, 0xf7, 0xa6, 0xde } }
+  { 0xa0d9bae4, 0x2257, 0x4b0b, \
+    { 0xb0, 0x8a, 0x3d, 0x95, 0x12, 0x24, 0x19, 0xe2 } }
 
 // debug VerifyReflow flags
 #define VERIFY_REFLOW_ON                    0x01
@@ -227,27 +227,8 @@ public:
    * to the same aSize value.  AllocateFrame returns zero-filled memory.
    * AllocateFrame is fallible, it returns nsnull on out-of-memory.
    */
-  void* AllocateFrame(nsQueryFrame::FrameIID aID, size_t aSize)
-  {
-#ifdef DEBUG
-    mPresArenaAllocCount++;
-#endif
-    void* result = mFrameArena.AllocateByFrameID(aID, aSize);
-  
-    if (result) {
-      memset(result, 0, aSize);
-    }
-    return result;
-  }
-
-  void FreeFrame(nsQueryFrame::FrameIID aID, void* aPtr)
-  {
-#ifdef DEBUG
-    mPresArenaAllocCount--;
-#endif
-    if (PRESARENA_MUST_FREE_DURING_DESTROY || !mIsDestroying)
-      mFrameArena.FreeByFrameID(aID, aPtr);
-  }
+  virtual void* AllocateFrame(nsQueryFrame::FrameIID aID, size_t aSize) = 0;
+  virtual void  FreeFrame(nsQueryFrame::FrameIID aID, void* aChunk) = 0;
 
   /**
    * This is for allocating other types of objects (not frames).  Separate free
@@ -255,27 +236,8 @@ public:
    * the same aSize value.  AllocateByObjectID returns zero-filled memory.
    * AllocateByObjectID is fallible, it returns nsnull on out-of-memory.
    */
-  void* AllocateByObjectID(nsPresArena::ObjectID aID, size_t aSize)
-  {
-#ifdef DEBUG
-    mPresArenaAllocCount++;
-#endif
-    void* result = mFrameArena.AllocateByObjectID(aID, aSize);
-  
-    if (result) {
-      memset(result, 0, aSize);
-    }
-    return result;
-  }
-
-  void FreeByObjectID(nsPresArena::ObjectID aID, void* aPtr)
-  {
-#ifdef DEBUG
-    mPresArenaAllocCount--;
-#endif
-    if (PRESARENA_MUST_FREE_DURING_DESTROY || !mIsDestroying)
-      mFrameArena.FreeByObjectID(aID, aPtr);
-  }
+  virtual void* AllocateByObjectID(nsPresArena::ObjectID aID, size_t aSize) = 0;
+  virtual void  FreeByObjectID(nsPresArena::ObjectID aID, void* aPtr) = 0;
 
   /**
    * Other objects closely related to the frame tree that are allocated
@@ -286,22 +248,8 @@ public:
    *
    * @deprecated use AllocateByObjectID/FreeByObjectID instead
    */
-  void* AllocateMisc(size_t aSize)
-  {
-#ifdef DEBUG
-    mPresArenaAllocCount++;
-#endif
-    return mFrameArena.AllocateBySize(aSize);
-  }
-
-  void FreeMisc(size_t aSize, void* aPtr)
-  {
-#ifdef DEBUG
-    mPresArenaAllocCount--;
-#endif
-    if (PRESARENA_MUST_FREE_DURING_DESTROY || !mIsDestroying)
-      mFrameArena.FreeBySize(aSize, aPtr);
-  }
+  virtual void* AllocateMisc(size_t aSize) = 0;
+  virtual void  FreeMisc(size_t aSize, void* aChunk) = 0;
 
   nsIDocument* GetDocument() const { return mDocument; }
 
@@ -1273,8 +1221,7 @@ public:
   virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                    size_t *aArenasSize,
                                    size_t *aStyleSetsSize,
-                                   size_t *aTextRunsSize,
-                                   size_t *aPresContextSize) const = 0;
+                                   size_t *aTextRunsSize) const = 0;
 
   /**
    * Refresh observer management.
@@ -1340,7 +1287,6 @@ protected:
   nsStyleSet*               mStyleSet;      // [OWNS]
   nsCSSFrameConstructor*    mFrameConstructor; // [OWNS]
   nsIViewManager*           mViewManager;   // [WEAK] docViewer owns it so I don't have to
-  nsPresArena               mFrameArena;
   nsFrameSelection*         mSelection;
   // Pointer into mFrameConstructor - this is purely so that FrameManager() and
   // GetRootFrame() can be inlined:
@@ -1349,8 +1295,6 @@ protected:
 
 #ifdef NS_DEBUG
   nsIFrame*                 mDrawEventTargetFrame;
-  // Ensure that every allocation from the PresArena is eventually freed.
-  PRUint32                  mPresArenaAllocCount;
 #endif
 
   // Count of the number of times this presshell has been painted to

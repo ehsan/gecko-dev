@@ -35,7 +35,7 @@ html|a {
   background-image: url(chrome://mozapps/skin/plugins/contentPluginDownload.png);
 }
 :-moz-handler-clicktoplay .icon {
-  background-image: url(chrome://mozapps/skin/plugins/contentPluginClickToPlay.png);
+  background-image: url(chrome://mozapps/skin/plugins/contentPluginMissing.png);
 }
 :-moz-handler-disabled .icon {
   background-image: url(chrome://mozapps/skin/plugins/contentPluginDisabled.png);

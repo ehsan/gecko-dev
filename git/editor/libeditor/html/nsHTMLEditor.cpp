@@ -417,12 +417,6 @@ nsHTMLEditor::FindSelectionRoot(nsINode *aNode)
   }
 
   if (!content->HasFlag(NODE_IS_EDITABLE)) {
-    // If the content is in read-write state but is not editable itself,
-    // return it as the selection root.
-    if (content->IsElement() &&
-        content->AsElement()->State().HasState(NS_EVENT_STATE_MOZ_READWRITE)) {
-      return content.forget();
-    }
     return nsnull;
   }
 
@@ -1888,7 +1882,7 @@ nsHTMLEditor::SelectElement(nsIDOMElement* aElement)
   nsresult res = NS_ERROR_NULL_POINTER;
 
   // Must be sure that element is contained in the document body
-  if (IsDescendantOfEditorRoot(aElement)) {
+  if (IsNodeInActiveEditor(aElement)) {
     nsCOMPtr<nsISelection> selection;
     res = GetSelection(getter_AddRefs(selection));
     NS_ENSURE_SUCCESS(res, res);
@@ -1920,7 +1914,7 @@ nsHTMLEditor::SetCaretAfterElement(nsIDOMElement* aElement)
   nsresult res = NS_ERROR_NULL_POINTER;
 
   // Be sure the element is contained in the document body
-  if (aElement && IsDescendantOfEditorRoot(aElement)) {
+  if (aElement && IsNodeInActiveEditor(aElement)) {
     nsCOMPtr<nsISelection> selection;
     res = GetSelection(getter_AddRefs(selection));
     NS_ENSURE_SUCCESS(res, res);
@@ -3982,12 +3976,29 @@ void nsHTMLEditor::IsTextPropertySetByContent(nsIDOMNode        *aNode,
 
 
 bool
+nsHTMLEditor::IsNodeInActiveEditor(nsIDOMNode* aNode)
+{
+  nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
+  return node && IsNodeInActiveEditor(node);
+}
+
+bool
+nsHTMLEditor::IsNodeInActiveEditor(nsINode* aNode)
+{
+  nsIContent* activeEditingHost = GetActiveEditingHost();
+  if (!activeEditingHost) {
+    return false;
+  }
+  return nsContentUtils::ContentIsDescendantOf(aNode, activeEditingHost);
+}
+
+bool
 nsHTMLEditor::SetCaretInTableCell(nsIDOMElement* aElement)
 {
   nsCOMPtr<dom::Element> element = do_QueryInterface(aElement);
   if (!element || !element->IsHTML() ||
       !nsHTMLEditUtils::IsTableElement(element) ||
-      !IsDescendantOfEditorRoot(element)) {
+      !IsNodeInActiveEditor(element)) {
     return false;
   }
 
@@ -4342,11 +4353,10 @@ nsHTMLEditor::GetPriorHTMLNode(nsIDOMNode *inNode, nsCOMPtr<nsIDOMNode> *outNode
     return NS_OK;
   }
 
-  nsresult res = GetPriorNode(inNode, true, address_of(*outNode),
-                              bNoBlockCrossing);
+  nsresult res = GetPriorNode(inNode, true, address_of(*outNode), bNoBlockCrossing, activeEditingHost);
   NS_ENSURE_SUCCESS(res, res);
   
-  NS_ASSERTION(!*outNode || IsDescendantOfEditorRoot(*outNode),
+  NS_ASSERTION(!*outNode || IsNodeInActiveEditor(*outNode),
                "GetPriorNode screwed up");
   return res;
 }
@@ -4366,11 +4376,10 @@ nsHTMLEditor::GetPriorHTMLNode(nsIDOMNode *inParent, PRInt32 inOffset, nsCOMPtr<
     return NS_OK;
   }
 
-  nsresult res = GetPriorNode(inParent, inOffset, true, address_of(*outNode),
-                              bNoBlockCrossing);
+  nsresult res = GetPriorNode(inParent, inOffset, true, address_of(*outNode), bNoBlockCrossing, activeEditingHost);
   NS_ENSURE_SUCCESS(res, res);
   
-  NS_ASSERTION(!*outNode || IsDescendantOfEditorRoot(*outNode),
+  NS_ASSERTION(!*outNode || IsNodeInActiveEditor(*outNode),
                "GetPriorNode screwed up");
   return res;
 }
@@ -4388,7 +4397,7 @@ nsHTMLEditor::GetNextHTMLNode(nsIDOMNode *inNode, nsCOMPtr<nsIDOMNode> *outNode,
   NS_ENSURE_SUCCESS(res, res);
   
   // if it's not in the body, then zero it out
-  if (*outNode && !IsDescendantOfEditorRoot(*outNode)) {
+  if (*outNode && !IsNodeInActiveEditor(*outNode)) {
     *outNode = nsnull;
   }
   return res;
@@ -4406,7 +4415,7 @@ nsHTMLEditor::GetNextHTMLNode(nsIDOMNode *inParent, PRInt32 inOffset, nsCOMPtr<n
   NS_ENSURE_SUCCESS(res, res);
   
   // if it's not in the body, then zero it out
-  if (*outNode && !IsDescendantOfEditorRoot(*outNode)) {
+  if (*outNode && !IsNodeInActiveEditor(*outNode)) {
     *outNode = nsnull;
   }
   return res;
@@ -5465,7 +5474,7 @@ nsHTMLEditor::IsActiveInDOMWindow()
   return true;
 }
 
-dom::Element*
+nsIContent*
 nsHTMLEditor::GetActiveEditingHost()
 {
   NS_ENSURE_TRUE(mDocWeak, nsnull);
@@ -5705,25 +5714,4 @@ nsHTMLEditor::GetInputEventTargetContent()
 {
   nsCOMPtr<nsIContent> target = GetActiveEditingHost();
   return target.forget();
-}
-
-bool
-nsHTMLEditor::IsEditable(nsIContent* aNode) {
-  if (!nsPlaintextEditor::IsEditable(aNode)) {
-    return false;
-  }
-  if (aNode->IsElement()) {
-    // If we're dealing with an element, then ask it whether it's editable.
-    return aNode->IsEditable();
-  }
-  // We might be dealing with a text node for example, which we always consider
-  // to be editable.
-  return true;
-}
-
-// virtual MOZ_OVERRIDE
-dom::Element*
-nsHTMLEditor::GetEditorRoot()
-{
-  return GetActiveEditingHost();
 }

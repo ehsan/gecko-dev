@@ -207,7 +207,7 @@ menuitem.bookmark-item {
   list-style-image: url("moz-icon://stock/gtk-directory?size=menu");
 }
 
-.bookmark-item[container][livemark] {
+.bookmark-item[container][livemark] { 
   list-style-image: url("chrome://browser/skin/feeds/feedIcon16.png");
 }
 
@@ -1051,10 +1051,6 @@ toolbar[iconsize="small"] #feed-button {
   list-style-image: url(chrome://browser/skin/identity-icons-https-ev.png);
 }
 
-.mixedContent > #identity-box-inner > #page-proxy-stack > #page-proxy-favicon {
-  list-style-image: url(chrome://browser/skin/identity-icons-https-mixed.png);
-}
-
 #identity-box:hover > #identity-box-inner > #page-proxy-stack > #page-proxy-favicon {
   -moz-image-region: rect(0, 32px, 16px, 16px);
 }
@@ -1311,7 +1307,7 @@ toolbar[iconsize="small"] #feed-button {
 }
 
 #treecolAutoCompleteImage {
-  max-width : 36px;
+  max-width : 36px; 
 }
 
 .ac-result-type-bookmark,
@@ -1363,7 +1359,7 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   color: inherit !important;
 }
 
-.autocomplete-treebody::-moz-tree-cell-text(suggesthint, treecolAutoCompleteComment),
+.autocomplete-treebody::-moz-tree-cell-text(suggesthint, treecolAutoCompleteComment), 
 .autocomplete-treebody::-moz-tree-cell-text(suggestfirst, treecolAutoCompleteComment) {
   color: GrayText;
   font-size: smaller;
@@ -2156,6 +2152,7 @@ html|*#highlighter-nodeinfobar-pseudo-classes {
 #full-screen-warning-message {
   background-color: hsl(0,0%,15%);
   color: white;
+  font-size: 32px;
   border-radius: 8px;
   margin-top: 30px;
   padding: 30px 50px;
@@ -2163,20 +2160,13 @@ html|*#highlighter-nodeinfobar-pseudo-classes {
 }
 
 #full-screen-warning-container[obscure-browser] {
-  background-color: rgba(0,0,0,0.3);
+  background-color: rgba(0,0,0,0.75);
 }
 
-.full-screen-description {
-  font-size: 150%;
-}
-
-#full-screen-domain-text {
-  font-size: 300%;
-}
-
-.full-screen-approval-button,
-#full-screen-remember-decision {
-  font-size: 120%;
+#full-screen-warning-container[stop-obscuring-browser] {
+  -moz-transition-property: background-color;
+  -moz-transition-duration: 500ms;
+  background-color: rgba(0,0,0,0);
 }
 
 /* Highlighter toolbar - breadcrumbs */

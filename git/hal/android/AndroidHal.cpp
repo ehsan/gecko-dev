@@ -41,10 +41,8 @@
 #include "AndroidBridge.h"
 #include "mozilla/dom/network/Constants.h"
 #include "mozilla/dom/ScreenOrientation.h"
-#include "nsIScreenManager.h"
 
-using namespace mozilla::dom;
-using namespace mozilla::hal;
+using mozilla::hal::WindowIdentifier;
 
 namespace mozilla {
 namespace hal_impl {
@@ -157,7 +155,7 @@ GetCurrentNetworkInformation(hal::NetworkInformation* aNetworkInfo)
 }
 
 void
-EnableScreenConfigurationNotifications()
+EnableScreenOrientationNotifications()
 {
   AndroidBridge* bridge = AndroidBridge::Bridge();
   if (!bridge) {
@@ -168,7 +166,7 @@ EnableScreenConfigurationNotifications()
 }
 
 void
-DisableScreenConfigurationNotifications()
+DisableScreenOrientationNotifications()
 {
   AndroidBridge* bridge = AndroidBridge::Bridge();
   if (!bridge) {
@@ -179,45 +177,27 @@ DisableScreenConfigurationNotifications()
 }
 
 void
-GetCurrentScreenConfiguration(ScreenConfiguration* aScreenConfiguration)
+GetCurrentScreenOrientation(dom::ScreenOrientation* aScreenOrientation)
 {
   AndroidBridge* bridge = AndroidBridge::Bridge();
   if (!bridge) {
     return;
   }
 
-  nsresult rv;
-  nsCOMPtr<nsIScreenManager> screenMgr =
-    do_GetService("@mozilla.org/gfx/screenmanager;1", &rv);
-  if (NS_FAILED(rv)) {
-    NS_ERROR("Can't find nsIScreenManager!");
-    return;
-  }
-
-  nsIntRect rect;
-  PRInt32 colorDepth, pixelDepth;
-  ScreenOrientation orientation;
-  nsCOMPtr<nsIScreen> screen;
-
-  screenMgr->GetPrimaryScreen(getter_AddRefs(screen));
-  screen->GetRect(&rect.x, &rect.y, &rect.width, &rect.height);
-  screen->GetColorDepth(&colorDepth);
-  screen->GetPixelDepth(&pixelDepth);
-  orientation = static_cast<ScreenOrientation>(bridge->GetScreenOrientation());
-
-  *aScreenConfiguration =
-    hal::ScreenConfiguration(rect, orientation, colorDepth, pixelDepth);
+  dom::ScreenOrientationWrapper orientationWrapper;
+  bridge->GetScreenOrientation(orientationWrapper);
+  *aScreenOrientation = orientationWrapper.orientation;
 }
 
 bool
-LockScreenOrientation(const ScreenOrientation& aOrientation)
+LockScreenOrientation(const dom::ScreenOrientation& aOrientation)
 {
   AndroidBridge* bridge = AndroidBridge::Bridge();
   if (!bridge) {
     return false;
   }
 
-  bridge->LockScreenOrientation(aOrientation);
+  bridge->LockScreenOrientation(dom::ScreenOrientationWrapper(aOrientation));
   return true;
 }
 

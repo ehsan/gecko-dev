@@ -1154,7 +1154,7 @@ AndroidBridge::CallEglCreateWindowSurface(void *dpy, void *config, AndroidGeckoS
      * We can't do it from java, because the EGLConfigImpl constructor is private.
      */
 
-    jobject surfaceHolder = sview.GetSurfaceHolder(&jniFrame);
+    jobject surfaceHolder = sview.GetSurfaceHolder(env, &jniFrame);
     if (!surfaceHolder)
         return nsnull;
 
@@ -2260,21 +2260,21 @@ AndroidBridge::HideSurface(jobject surface)
 #endif
 }
 
-uint32_t
-AndroidBridge::GetScreenOrientation()
+void
+AndroidBridge::GetScreenOrientation(dom::ScreenOrientationWrapper& aOrientation)
 {
     ALOG_BRIDGE("AndroidBridge::GetScreenOrientation");
     JNIEnv* env = GetJNIEnv();
     if (!env)
-        return dom::eScreenOrientation_None;
+        return;
 
     AutoLocalJNIFrame jniFrame(env, 0);
 
     jshort orientation = env->CallStaticShortMethod(mGeckoAppShellClass, jGetScreenOrientation);
     if (jniFrame.CheckForException())
-        return dom::eScreenOrientation_None;
+        return;
 
-    return static_cast<dom::ScreenOrientation>(orientation);
+    aOrientation.orientation = static_cast<dom::ScreenOrientation>(orientation);
 }
 
 void
@@ -2302,7 +2302,7 @@ AndroidBridge::DisableScreenOrientationNotifications()
 }
 
 void
-AndroidBridge::LockScreenOrientation(uint32_t aOrientation)
+AndroidBridge::LockScreenOrientation(const dom::ScreenOrientationWrapper& aOrientation)
 {
     ALOG_BRIDGE("AndroidBridge::LockScreenOrientation");
     JNIEnv* env = GetJNIEnv();
@@ -2310,7 +2310,7 @@ AndroidBridge::LockScreenOrientation(uint32_t aOrientation)
         return;
 
     AutoLocalJNIFrame jniFrame(env, 0);
-    env->CallStaticVoidMethod(mGeckoAppShellClass, jLockScreenOrientation, aOrientation);
+    env->CallStaticVoidMethod(mGeckoAppShellClass, jLockScreenOrientation, aOrientation.orientation);
 }
 
 void
@@ -2402,14 +2402,10 @@ nsresult AndroidBridge::TakeScreenshot(nsIDOMWindow *window, PRInt32 srcX, PRInt
         nsCOMPtr<nsIDOMDocument> doc;
         rv = window->GetDocument(getter_AddRefs(doc));
         NS_ENSURE_SUCCESS(rv, rv);
-        if (!doc)
-            return NS_ERROR_FAILURE;
 
         nsCOMPtr<nsIDOMElement> docElement;
         rv = doc->GetDocumentElement(getter_AddRefs(docElement));
         NS_ENSURE_SUCCESS(rv, rv);
-        if (!docElement)
-            return NS_ERROR_FAILURE;
 
         PRInt32 viewportHeight;
         PRInt32 pageWidth;

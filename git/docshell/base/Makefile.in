@@ -53,6 +53,7 @@ DEFINES += -DMOZ_TOOLKIT_SEARCH
 endif
 
 SDK_XPIDLSRCS = \
+  nsIGlobalHistory.idl \
   nsIClipboardCommands.idl \
   $(NULL)
 

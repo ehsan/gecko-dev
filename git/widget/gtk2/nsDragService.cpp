@@ -137,8 +137,7 @@ invisibleSourceDragDataGet(GtkWidget        *aWidget,
                            gpointer          aData);
 
 nsDragService::nsDragService()
-    : mScheduledTask(eDragTaskNone)
-    , mTaskSource(0)
+    : mTaskSource(0)
 {
     // We have to destroy the hidden widget before the event loop stops
     // running.

@@ -40,7 +40,7 @@
 #ifndef mozilla_storage_mozStorageAsyncStatementParams_h_
 #define mozilla_storage_mozStorageAsyncStatementParams_h_
 
-#include "mozIStorageStatementParams.h"
+#include "mozIStorageStatementWrapper.h"
 #include "nsIXPCScriptable.h"
 
 class mozIStorageAsyncStatement;

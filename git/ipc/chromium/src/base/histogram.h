@@ -395,8 +395,6 @@ class Histogram {
 
   virtual void AddSampleSet(const SampleSet& sample);
 
-  void Clear();
-
   // This method is an interface, used only by LinearHistogram.
   virtual void SetRangeDescriptions(const DescriptionPair descriptions[]);
 

@@ -443,10 +443,10 @@ nsAccUtils::GetLiveAttrValue(PRUint32 aRule, nsAString& aValue)
   return false;
 }
 
-#ifdef DEBUG
+#ifdef DEBUG_A11Y
 
 bool
-nsAccUtils::IsTextInterfaceSupportCorrect(nsAccessible* aAccessible)
+nsAccUtils::IsTextInterfaceSupportCorrect(nsAccessible *aAccessible)
 {
   // Don't test for accessible docs, it makes us create accessibles too
   // early and fire mutation events before we need to
@@ -455,8 +455,8 @@ nsAccUtils::IsTextInterfaceSupportCorrect(nsAccessible* aAccessible)
 
   bool foundText = false;
   PRInt32 childCount = aAccessible->GetChildCount();
-  for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
-    nsAccessible* child = aAccessible->GetChildAt(childIdx);
+  for (PRint32 childIdx = 0; childIdx < childCount; childIdx++) {
+    nsAccessible *child = GetChildAt(childIdx);
     if (IsText(child)) {
       foundText = true;
       break;
@@ -470,7 +470,7 @@ nsAccUtils::IsTextInterfaceSupportCorrect(nsAccessible* aAccessible)
       return false;
   }
 
-  return true;
+  return true; 
 }
 #endif
 

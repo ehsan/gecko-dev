@@ -39,7 +39,6 @@
 
 #include "IDBTransaction.h"
 
-#include "nsIAppShell.h"
 #include "nsIScriptContext.h"
 
 #include "mozilla/storage.h"
@@ -50,7 +49,6 @@
 #include "nsPIDOMWindow.h"
 #include "nsProxyRelease.h"
 #include "nsThreadUtils.h"
-#include "nsWidgetsCID.h"
 
 #include "AsyncConnectionHelper.h"
 #include "DatabaseInfo.h"
@@ -66,8 +64,6 @@
 USING_INDEXEDDB_NAMESPACE
 
 namespace {
-
-NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 
 PLDHashOperator
 DoomCachedStatements(const nsACString& aQuery,
@@ -142,10 +138,19 @@ IDBTransaction::Create(IDBDatabase* aDatabase,
   }
 
   if (!aDispatchDelayed) {
-    nsCOMPtr<nsIAppShell> appShell = do_GetService(kAppShellCID);
-    NS_ENSURE_TRUE(appShell, nsnull);
+    nsCOMPtr<nsIThreadInternal> thread =
+      do_QueryInterface(NS_GetCurrentThread());
+    NS_ENSURE_TRUE(thread, nsnull);
 
-    nsresult rv = appShell->RunBeforeNextEvent(transaction);
+    // We need the current recursion depth first.
+    PRUint32 depth;
+    nsresult rv = thread->GetRecursionDepth(&depth);
+    NS_ENSURE_SUCCESS(rv, nsnull);
+
+    NS_ASSERTION(depth, "This should never be 0!");
+    transaction->mCreatedRecursionDepth = depth - 1;
+
+    rv = thread->AddObserver(transaction);
     NS_ENSURE_SUCCESS(rv, nsnull);
 
     transaction->mCreating = true;
@@ -163,6 +168,7 @@ IDBTransaction::IDBTransaction()
 : mReadyState(IDBTransaction::INITIAL),
   mMode(IDBTransaction::READ_ONLY),
   mPendingRequests(0),
+  mCreatedRecursionDepth(0),
   mSavepointCount(0),
   mAborted(false),
   mCreating(false)
@@ -499,7 +505,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(IDBTransaction)
   NS_INTERFACE_MAP_ENTRY(nsIIDBTransaction)
-  NS_INTERFACE_MAP_ENTRY(nsIRunnable)
+  NS_INTERFACE_MAP_ENTRY(nsIThreadObserver)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(IDBTransaction)
 NS_INTERFACE_MAP_END_INHERITING(IDBWrapperCache)
 
@@ -636,20 +642,52 @@ IDBTransaction::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   return NS_OK;
 }
 
+// XXX Once nsIThreadObserver gets split this method will disappear.
 NS_IMETHODIMP
-IDBTransaction::Run()
+IDBTransaction::OnDispatchedEvent(nsIThreadInternal* aThread)
+{
+  NS_NOTREACHED("Don't call me!");
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+IDBTransaction::OnProcessNextEvent(nsIThreadInternal* aThread,
+                                   bool aMayWait,
+                                   PRUint32 aRecursionDepth)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  NS_ASSERTION(aRecursionDepth > mCreatedRecursionDepth,
+               "Should be impossible!");
+  NS_ASSERTION(mCreating, "Should be true!");
+  return NS_OK;
+}
 
-  // We're back at the event loop, no longer newborn.
-  mCreating = false;
+NS_IMETHODIMP
+IDBTransaction::AfterProcessNextEvent(nsIThreadInternal* aThread,
+                                      PRUint32 aRecursionDepth)
+{
+  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  NS_ASSERTION(aThread, "This should never be null!");
+  NS_ASSERTION(aRecursionDepth >= mCreatedRecursionDepth,
+               "Should be impossible!");
+  NS_ASSERTION(mCreating, "Should be true!");
 
-  // Maybe set the readyState to DONE if there were no requests generated.
-  if (mReadyState == IDBTransaction::INITIAL) {
-    mReadyState = IDBTransaction::DONE;
+  if (aRecursionDepth == mCreatedRecursionDepth) {
+    // We're back at the event loop, no longer newborn.
+    mCreating = false;
 
-    if (NS_FAILED(CommitOrRollback())) {
-      NS_WARNING("Failed to commit!");
+    // Maybe set the readyState to DONE if there were no requests generated.
+    if (mReadyState == IDBTransaction::INITIAL) {
+      mReadyState = IDBTransaction::DONE;
+
+      if (NS_FAILED(CommitOrRollback())) {
+        NS_WARNING("Failed to commit!");
+      }
+    }
+
+    // No longer need to observe thread events.
+    if(NS_FAILED(aThread->RemoveObserver(this))) {
+      NS_ERROR("Failed to remove observer!");
     }
   }
 

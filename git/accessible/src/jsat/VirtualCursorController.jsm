@@ -43,28 +43,21 @@ var VirtualCursorController = {
     dump('keypress ' + aEvent.keyCode + '\n');
 
     switch (aEvent.keyCode) {
-      case aEvent.DOM_VK_END:
+      case aEvent.DOM_END:
         VirtualCursorController.moveForward(document, true);
         break;
-      case aEvent.DOM_VK_HOME:
+      case aEvent.DOM_HOME:
         VirtualCursorController.moveBackward(document, true);
         break;
-      case aEvent.DOM_VK_RIGHT:
+      case aEvent.DOM_VK_DOWN:
         VirtualCursorController.moveForward(document, aEvent.shiftKey);
         break;
-      case aEvent.DOM_VK_LEFT:
+      case aEvent.DOM_VK_UP:
         VirtualCursorController.moveBackward(document, aEvent.shiftKey);
         break;
-      case aEvent.DOM_VK_UP:
-        if (Services.appinfo.OS == 'Android')
-          // Return focus to browser chrome, which in Android is a native widget.
-          Cc['@mozilla.org/android/bridge;1'].
-            getService(Ci.nsIAndroidBridge).handleGeckoMessage(
-              JSON.stringify({ gecko: { type: 'ToggleChrome:Focus' } }));
-        break;
       case aEvent.DOM_VK_RETURN:
-        // XXX: It is true that desktop does not map the keypad enter key to
-        // DOM_VK_ENTER. So for desktop we require a ctrl+return instead.
+        //It is true that desktop does not map the kp enter key to ENTER.
+        //So for desktop we require a ctrl+return instead.
         if (Services.appinfo.OS == 'Android' || !aEvent.ctrlKey)
           return;
       case aEvent.DOM_VK_ENTER:
@@ -89,10 +82,20 @@ var VirtualCursorController = {
 
   moveBackward: function moveBackward(document, first) {
     let virtualCursor = this.getVirtualCursor(document);
+
     if (first) {
       virtualCursor.moveFirst(this.SimpleTraversalRule);
-    } else {
-      virtualCursor.movePrevious(this.SimpleTraversalRule);
+      return
+
+    }
+
+    if (!virtualCursor.movePrevious(this.SimpleTraversalRule) &&
+        Services.appinfo.OS == 'Android') {
+      // Return focus to browser chrome, which in Android is a native widget.
+      Cc['@mozilla.org/android/bridge;1'].
+        getService(Ci.nsIAndroidBridge).handleGeckoMessage(
+          JSON.stringify({ gecko: { type: 'ToggleChrome:Focus' } }));
+      virtualCursor.position = null;
     }
   },
 

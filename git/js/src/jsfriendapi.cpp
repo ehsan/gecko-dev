@@ -156,12 +156,6 @@ js::IsGCScheduled(JSRuntime *rt)
 }
 
 JS_FRIEND_API(void)
-js::SkipCompartmentForGC(JSCompartment *comp)
-{
-    comp->unscheduleGC();
-}
-
-JS_FRIEND_API(void)
 js::GCForReason(JSRuntime *rt, gcreason::Reason reason)
 {
     GC(rt, GC_NORMAL, reason);
@@ -299,12 +293,6 @@ JS_FRIEND_API(JSObject *)
 js::GetGlobalForObjectCrossCompartment(JSObject *obj)
 {
     return &obj->global();
-}
-
-JS_FRIEND_API(void)
-js::NotifyAnimationActivity(JSObject *obj)
-{
-    obj->compartment()->lastAnimationTime = PRMJ_Now();
 }
 
 JS_FRIEND_API(uint32_t)
@@ -753,7 +741,7 @@ NotifyDidPaint(JSRuntime *rt)
 extern JS_FRIEND_API(bool)
 IsIncrementalGCEnabled(JSRuntime *rt)
 {
-    return rt->gcIncrementalEnabled && rt->gcMode == JSGC_MODE_INCREMENTAL;
+    return rt->gcIncrementalEnabled;
 }
 
 extern JS_FRIEND_API(void)

@@ -373,7 +373,8 @@ protected:
   // helper for GetPriorNode and GetNextNode
   nsIContent* FindNextLeafNode(nsINode  *aCurrentNode,
                                bool      aGoForward,
-                               bool      bNoBlockCrossing);
+                               bool      bNoBlockCrossing,
+                               nsIContent *aActiveEditorRoot);
 
   // Get nsIWidget interface
   nsresult GetWidget(nsIWidget **aWidget);
@@ -476,24 +477,29 @@ public:
     *                       skipping non-editable nodes if aEditableNode is true.
     *                       If there is no prior node, aResultNode will be nsnull.
     * @param bNoBlockCrossing If true, don't move across "block" nodes, whatever that means.
+    * @param aActiveEditorRoot If non-null, only return descendants of aActiveEditorRoot.
     */
   nsresult GetPriorNode(nsIDOMNode  *aCurrentNode, 
                         bool         aEditableNode,
                         nsCOMPtr<nsIDOMNode> *aResultNode,
-                        bool         bNoBlockCrossing = false);
+                        bool         bNoBlockCrossing = false,
+                        nsIContent  *aActiveEditorRoot = nsnull);
   nsIContent* GetPriorNode(nsINode* aCurrentNode, bool aEditableNode,
-                           bool aNoBlockCrossing = false);
+                           bool aNoBlockCrossing = false,
+                           nsIContent* aActiveEditorRoot = nsnull);
 
   // and another version that takes a {parent,offset} pair rather than a node
   nsresult GetPriorNode(nsIDOMNode  *aParentNode, 
                         PRInt32      aOffset, 
                         bool         aEditableNode, 
                         nsCOMPtr<nsIDOMNode> *aResultNode,
-                        bool         bNoBlockCrossing = false);
+                        bool         bNoBlockCrossing = false,
+                        nsIContent  *aActiveEditorRoot = nsnull);
   nsIContent* GetPriorNode(nsINode* aParentNode,
                            PRInt32 aOffset,
                            bool aEditableNode,
-                           bool aNoBlockCrossing = false);
+                           bool aNoBlockCrossing = false,
+                           nsIContent* aActiveEditorRoot = nsnull);
 
 
   /** get the node immediately after to aCurrentNode
@@ -506,27 +512,32 @@ public:
   nsresult GetNextNode(nsIDOMNode  *aCurrentNode, 
                        bool         aEditableNode,
                        nsCOMPtr<nsIDOMNode> *aResultNode,
-                       bool         bNoBlockCrossing = false);
+                       bool         bNoBlockCrossing = false,
+                       nsIContent  *aActiveEditorRoot = nsnull);
   nsIContent* GetNextNode(nsINode* aCurrentNode,
                           bool aEditableNode,
-                          bool bNoBlockCrossing = false);
+                          bool bNoBlockCrossing = false,
+                          nsIContent* aActiveEditorRoot = nsnull);
 
   // and another version that takes a {parent,offset} pair rather than a node
   nsresult GetNextNode(nsIDOMNode  *aParentNode, 
                        PRInt32      aOffset, 
                        bool         aEditableNode, 
                        nsCOMPtr<nsIDOMNode> *aResultNode,
-                       bool         bNoBlockCrossing = false);
+                       bool         bNoBlockCrossing = false,
+                       nsIContent  *aActiveEditorRoot = nsnull);
   nsIContent* GetNextNode(nsINode* aParentNode,
                           PRInt32 aOffset,
                           bool aEditableNode,
-                          bool aNoBlockCrossing = false);
+                          bool aNoBlockCrossing = false,
+                          nsIContent* aActiveEditorRoot = nsnull);
 
   // Helper for GetNextNode and GetPriorNode
   nsIContent* FindNode(nsINode *aCurrentNode,
                        bool     aGoForward,
                        bool     aEditableNode,
-                       bool     bNoBlockCrossing);
+                       bool     bNoBlockCrossing,
+                       nsIContent *aActiveEditorRoot);
   /**
    * Get the rightmost child of aCurrentNode;
    * return nsnull if aCurrentNode has no children.
@@ -566,22 +577,19 @@ public:
   virtual bool TagCanContainTag(nsIAtom* aParentTag, nsIAtom* aChildTag);
 
   /** returns true if aNode is our root node */
-  bool IsRoot(nsIDOMNode* inNode);
-  bool IsRoot(nsINode* inNode);
-  bool IsEditorRoot(nsINode* aNode);
+  bool IsRootNode(nsIDOMNode *inNode);
+  bool IsRootNode(nsINode *inNode);
 
   /** returns true if aNode is a descendant of our root node */
-  bool IsDescendantOfRoot(nsIDOMNode* inNode);
-  bool IsDescendantOfRoot(nsINode* inNode);
-  bool IsDescendantOfEditorRoot(nsIDOMNode* aNode);
-  bool IsDescendantOfEditorRoot(nsINode* aNode);
+  bool IsDescendantOfBody(nsIDOMNode *inNode);
+  bool IsDescendantOfBody(nsINode *inNode);
 
   /** returns true if aNode is a container */
   virtual bool IsContainer(nsIDOMNode *aNode);
 
   /** returns true if aNode is an editable node */
   bool IsEditable(nsIDOMNode *aNode);
-  virtual bool IsEditable(nsIContent *aNode);
+  bool IsEditable(nsIContent *aNode);
 
   /**
    * aNode must be a non-null text node.
@@ -663,10 +671,6 @@ public:
 
   // Fast non-refcounting editor root element accessor
   mozilla::dom::Element *GetRoot();
-
-  // Likewise, but gets the editor's root instead, which is different for HTML
-  // editors
-  virtual mozilla::dom::Element* GetEditorRoot();
 
   // Accessor methods to flags
   bool IsPlaintextEditor() const

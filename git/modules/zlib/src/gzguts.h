@@ -12,7 +12,7 @@
 #  endif
 #endif
 
-#ifdef HAVE_HIDDEN
+#if ((__GNUC__-0) * 10 + __GNUC_MINOR__-0 >= 33) && !defined(NO_VIZ)
 #  define ZLIB_INTERNAL __attribute__((visibility ("hidden")))
 #else
 #  define ZLIB_INTERNAL
@@ -27,11 +27,7 @@
 #endif
 #include <fcntl.h>
 
-#ifdef _WIN32
-#  include <stddef.h>
-#endif
-
-#if defined(__TURBOC__) || defined(_MSC_VER) || defined(_WIN32)
+#if defined(__TURBOC__) || defined(_MSC_VER)
 #  include <io.h>
 #endif
 
@@ -104,7 +100,7 @@
 #  include <windows.h>
 #  define zstrerror() gz_strwinerror((DWORD)GetLastError())
 #else
-#  ifndef NO_STRERROR
+#  ifdef STDC
 #    include <errno.h>
 #    define zstrerror() strerror(errno)
 #  else

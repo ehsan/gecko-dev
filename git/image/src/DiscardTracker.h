@@ -48,39 +48,32 @@ class DiscardTracker
 
     /**
      * Add an image to the front of the tracker's list, or move it to the front
-     * if it's already in the list.  This function is main thread only.
+     * if it's already in the list.
      */
     static nsresult Reset(struct Node* node);
 
     /**
      * Remove a node from the tracker; do nothing if the node is currently
-     * untracked.  This function is main thread only.
+     * untracked.
      */
     static void Remove(struct Node* node);
 
     /**
-     * Initializes the discard tracker.  This function is main thread only.
-     */
-    static nsresult Initialize();
-
-    /**
      * Shut the discard tracker down.  This should be called on XPCOM shutdown
-     * so we destroy the discard timer's nsITimer.  This function is main thread
-     * only.
+     * so we destroy the discard timer's nsITimer.
      */
     static void Shutdown();
 
     /**
      * Discard the decoded image data for all images tracked by the discard
-     * tracker.  This function is main thread only.
+     * tracker.
      */
     static void DiscardAll();
 
     /**
      * Inform the discard tracker that we've allocated or deallocated some
      * memory for a decoded image.  We use this to determine when we've
-     * allocated too much memory and should discard some images.  This function
-     * can be called from any thread and is thread-safe.
+     * allocated too much memory and should discard some images.
      */
     static void InformAllocation(PRInt64 bytes);
 
@@ -99,6 +92,7 @@ class DiscardTracker
       NS_IMETHOD Run();
     };
 
+    static nsresult Initialize();
     static void ReloadTimeout();
     static nsresult EnableTimer();
     static void DisableTimer();
@@ -110,12 +104,10 @@ class DiscardTracker
     static nsCOMPtr<nsITimer> sTimer;
     static bool sInitialized;
     static bool sTimerOn;
-    static PRInt32 sDiscardRunnablePending;
+    static bool sDiscardRunnablePending;
     static PRInt64 sCurrentDecodedImageBytes;
     static PRUint32 sMinDiscardTimeoutMs;
     static PRUint32 sMaxDecodedImageKB;
-    // Lock for safegarding the 64-bit sCurrentDecodedImageBytes
-    static PRLock *sAllocationLock;
 };
 
 } // namespace image

@@ -145,20 +145,6 @@ nsITextControlElement::GetWrapPropertyEnum(nsIContent* aContent,
   return false;
 }
 
-/*static*/
-already_AddRefed<nsITextControlElement>
-nsITextControlElement::GetTextControlElementFromEditingHost(nsIContent* aHost)
-{
-  if (!aHost) {
-    return nsnull;
-  }
-
-  nsCOMPtr<nsITextControlElement> parent =
-    do_QueryInterface(aHost->GetParent());
-
-  return parent.forget();
-}
-
 static bool
 SuppressEventHandlers(nsPresContext* aPresContext)
 {
@@ -1580,9 +1566,6 @@ nsTextEditorState::CreateRootNode()
 nsresult
 nsTextEditorState::InitializeRootNode()
 {
-  // Make our root node editable
-  mRootNode->SetFlags(NODE_IS_EDITABLE);
-
   // Set the necessary classes on the text control. We use class values
   // instead of a 'style' attribute so that the style comes from a user-agent
   // style sheet and is still applied even if author styles are disabled.

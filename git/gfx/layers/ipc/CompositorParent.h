@@ -86,9 +86,7 @@ class CompositorParent : public PCompositorParent,
 {
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(CompositorParent)
 public:
-  CompositorParent(nsIWidget* aWidget, MessageLoop* aMsgLoop,
-                   PlatformThreadId aThreadID, bool aRenderToEGLSurface = false,
-                   int aSurfaceWidth = -1, int aSurfaceHeight = -1);
+  CompositorParent(nsIWidget* aWidget, MessageLoop* aMsgLoop, PlatformThreadId aThreadID);
 
   virtual ~CompositorParent();
 
@@ -121,7 +119,6 @@ protected:
   virtual void SetPageSize(float aZoom, float aPageWidth, float aPageHeight, float aCssPageWidth, float aCssPageHeight);
   virtual void SyncViewportInfo(const nsIntRect& aDisplayPort, float aDisplayResolution, bool aLayersUpdated,
                                 nsIntPoint& aScrollOffset, float& aScaleX, float& aScaleY);
-  void SetEGLSurfaceSize(int width, int height);
 
 private:
   void PauseComposition();
@@ -167,8 +164,6 @@ private:
 
   MessageLoop* mCompositorLoop;
   PlatformThreadId mThreadID;
-  bool mRenderToEGLSurface;
-  nsIntSize mEGLSurfaceSize;
 
   DISALLOW_EVIL_CONSTRUCTORS(CompositorParent);
 };

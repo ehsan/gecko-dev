@@ -692,6 +692,19 @@ protected:
   NS_HIDDEN_(nsresult) SetUnsignedIntAttr(nsIAtom* aAttr, PRUint32 aValue);
 
   /**
+   * Helper method for NS_IMPL_DOUBLE_ATTR macro.
+   * Gets the double-value of an attribute, returns specified default value
+   * if the attribute isn't set or isn't set to a double. Only works for
+   * attributes in null namespace.
+   *
+   * @param aAttr    name of attribute.
+   * @param aDefault default-value to return if attribute isn't set.
+   * @param aResult  result value [out]
+   */
+  NS_HIDDEN_(nsresult) GetDoubleAttr(nsIAtom* aAttr, double aDefault, double* aValue);
+
+  /**
+   * Helper method for NS_IMPL_DOUBLE_ATTR macro.
    * Sets value of attribute to specified double. Only works for attributes
    * in null namespace.
    *
@@ -897,6 +910,8 @@ protected:
   virtual nsresult AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                 const nsAttrValue* aValue, bool aNotify);
 
+  void UpdateEditableFormControlState(bool aNotify);
+
   /**
    * This method will update the form owner, using @form or looking to a parent.
    *
@@ -1077,6 +1092,26 @@ PR_STATIC_ASSERT(ELEMENT_TYPE_SPECIFIC_BITS_OFFSET + 1 < 32);
       return NS_ERROR_DOM_INDEX_SIZE_ERR;                                 \
     }                                                                     \
     return SetUnsignedIntAttr(nsGkAtoms::_atom, aValue);                  \
+  }
+
+/**
+ * A macro to implement the getter and setter for a given double-precision
+ * floating point valued content property. The method uses GetDoubleAttr and
+ * SetDoubleAttr methods.
+ */
+#define NS_IMPL_DOUBLE_ATTR(_class, _method, _atom)                    \
+  NS_IMPL_DOUBLE_ATTR_DEFAULT_VALUE(_class, _method, _atom, 0.0)
+
+#define NS_IMPL_DOUBLE_ATTR_DEFAULT_VALUE(_class, _method, _atom, _default) \
+  NS_IMETHODIMP                                                             \
+  _class::Get##_method(double* aValue)                                      \
+  {                                                                         \
+    return GetDoubleAttr(nsGkAtoms::_atom, _default, aValue);               \
+  }                                                                         \
+  NS_IMETHODIMP                                                             \
+  _class::Set##_method(double aValue)                                       \
+  {                                                                         \
+    return SetDoubleAttr(nsGkAtoms::_atom, aValue);                         \
   }
 
 /**

@@ -186,6 +186,9 @@ class PollSensor {
       }
 
       for (int i = 0; i < n; ++i) {
+        if (SensorseventStatus(buffer[i]) == SENSOR_STATUS_UNRELIABLE) {
+          continue;
+        }
         NS_DispatchToMainThread(new SensorRunnable(buffer[i]));
       }
 

@@ -380,6 +380,7 @@ public class GeckoAppShell
 
     public static void setupGeckoEnvironment(Context context) {
         GeckoProfile profile = GeckoProfile.get(context);
+        profile.moveProfilesToAppInstallLocation();
 
         setupPluginEnvironment((GeckoApp) context);
         setupDownloadEnvironment((GeckoApp) context);
@@ -2145,7 +2146,7 @@ public class GeckoAppShell
 
     public static void pumpMessageLoop() {
         // We're going to run the Looper below, but we need a way to break out, so
-        // we post this Runnable that throws an AssertionError. This causes the loop
+        // we post this Runnable that throws a RuntimeException. This causes the loop
         // to exit without marking the Looper as dead. The Runnable is added to the
         // end of the queue, so it will be executed after anything
         // else that has been added prior.
@@ -2156,13 +2157,13 @@ public class GeckoAppShell
         // here we are.
         sGeckoHandler.post(new Runnable() {
             public void run() {
-                throw new AssertionError();
+                throw new RuntimeException();
             }
         });
         
         try {
             Looper.loop();
-        } catch(Throwable ex) {}
+        } catch(Exception ex) {}
     }
 
     static class AsyncResultHandler extends GeckoApp.FilePickerResultHandler {

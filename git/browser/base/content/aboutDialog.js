@@ -153,7 +153,7 @@ function appUpdater()
 
   if (this.isPending) {
     this.setupUpdateButton("update.restart." +
-                           (this.isMajor ? "upgradeButton" : "updateButton"));
+                           (this.isMajor ? "upgradeButton" : "applyButton"));
     return;
   }
 
@@ -542,7 +542,7 @@ appUpdater.prototype =
       this.removeDownloadListener();
       this.selectPanel("updateButtonBox");
       this.setupUpdateButton("update.restart." +
-                             (this.isMajor ? "upgradeButton" : "updateButton"));
+                             (this.isMajor ? "upgradeButton" : "applyButton"));
       break;
     default:
       this.removeDownloadListener();

@@ -81,7 +81,6 @@ waitFor(function() {
         # Verify that the callstate changes to connected on the caller as well.
         self.assertTrue(receiver.execute_async_script("""
 waitFor(function() {
-    window.wrappedJSObject.incoming.hangUp();
     marionetteScriptFinished(true);
 }, function() {
     return window.wrappedJSObject.callstate == "connected";

@@ -463,8 +463,8 @@ listTemplate = (
 "    NULL,                   /* finalize    */\n"
 "    NULL,                   /* checkAccess */\n"
 "    NULL,                   /* call        */\n"
-"    interface_hasInstance,\n"
-"    NULL                    /* construct   */\n"
+"    NULL,                   /* construct   */\n"
+"    interface_hasInstance\n"
 "};\n"
 "\n")
 

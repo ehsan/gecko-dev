@@ -348,9 +348,8 @@ XPCWrappedNative::WrapNewGlobal(XPCCallContext &ccx, xpcObjectHelper &nativeHelp
 
     // ...and then ScriptableInfo. We need all this stuff now because it's going
     // to tell us the JSClass of the object we're going to create.
-    AutoMarkingNativeScriptableInfoPtr
-        si(ccx, XPCNativeScriptableInfo::Construct(ccx, &sciWrapper));
-    MOZ_ASSERT(si.get());
+    XPCNativeScriptableInfo *si = XPCNativeScriptableInfo::Construct(ccx, &sciWrapper);
+    MOZ_ASSERT(si);
 
     // Finally, we get to the JSClass.
     JSClass *clasp = si->GetJSClass();

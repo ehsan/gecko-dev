@@ -1552,7 +1552,7 @@ nsIContent::HasIndependentSelection()
   return (frame && frame->GetStateBits() & NS_FRAME_INDEPENDENT_SELECTION);
 }
 
-dom::Element*
+nsIContent*
 nsIContent::GetEditingHost()
 {
   // If this isn't editable, return NULL.
@@ -1566,12 +1566,12 @@ nsIContent::GetEditingHost()
   }
 
   nsIContent* content = this;
-  for (dom::Element* parent = GetElementParent();
+  for (nsIContent* parent = GetParent();
        parent && parent->HasFlag(NODE_IS_EDITABLE);
-       parent = content->GetElementParent()) {
+       parent = content->GetParent()) {
     content = parent;
   }
-  return content->AsElement();
+  return content;
 }
 
 nsresult
@@ -2142,10 +2142,7 @@ nsGenericElement::SetScrollTop(PRInt32 aScrollTop)
   if (sf) {
     nsPoint pt = sf->GetScrollPosition();
     pt.y = nsPresContext::CSSPixelsToAppUnits(aScrollTop);
-    nscoord halfPixel = nsPresContext::CSSPixelsToAppUnits(0.5f);
-    // Don't allow pt.y + halfPixel since that would round up to the next CSS pixel.
-    nsRect range(pt.x, pt.y - halfPixel, 0, halfPixel*2 - 1);
-    sf->ScrollTo(pt, nsIScrollableFrame::INSTANT, &range);
+    sf->ScrollTo(pt, nsIScrollableFrame::INSTANT);
   }
   return NS_OK;
 }
@@ -2175,10 +2172,7 @@ nsGenericElement::SetScrollLeft(PRInt32 aScrollLeft)
   if (sf) {
     nsPoint pt = sf->GetScrollPosition();
     pt.x = nsPresContext::CSSPixelsToAppUnits(aScrollLeft);
-    nscoord halfPixel = nsPresContext::CSSPixelsToAppUnits(0.5f);
-    // Don't allow pt.x + halfPixel since that would round up to the next CSS pixel.
-    nsRect range(pt.x - halfPixel, pt.y, halfPixel*2 - 1, 0);
-    sf->ScrollTo(pt, nsIScrollableFrame::INSTANT, &range);
+    sf->ScrollTo(pt, nsIScrollableFrame::INSTANT);
   }
   return NS_OK;
 }
@@ -6488,20 +6482,6 @@ nsINode::Length() const
   }
 }
 
-static const char*
-GetFullScreenError(nsIDocument* aDoc)
-{
-  if (!nsContentUtils::IsRequestFullScreenAllowed()) {
-    return "FullScreenDeniedNotInputDriven";
-  }
-  
-  if (nsContentUtils::IsSitePermDeny(aDoc->NodePrincipal(), "fullscreen")) {
-    return "FullScreenDeniedBlocked";
-  }
-
-  return nsnull;
-}
-
 nsresult nsGenericElement::MozRequestFullScreen()
 {
   // Only grant full-screen requests if this is called from inside a trusted
@@ -6509,12 +6489,11 @@ nsresult nsGenericElement::MozRequestFullScreen()
   // This stops the full-screen from being abused similar to the popups of old,
   // and it also makes it harder for bad guys' script to go full-screen and
   // spoof the browser chrome/window and phish logins etc.
-  const char* error = GetFullScreenError(OwnerDoc());
-  if (error) {
+  if (!nsContentUtils::IsRequestFullScreenAllowed()) {
     nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
                                     "DOM", OwnerDoc(),
                                     nsContentUtils::eDOM_PROPERTIES,
-                                    error);
+                                    "FullScreenDeniedNotInputDriven");
     nsRefPtr<nsAsyncDOMEvent> e =
       new nsAsyncDOMEvent(OwnerDoc(),
                           NS_LITERAL_STRING("mozfullscreenerror"),

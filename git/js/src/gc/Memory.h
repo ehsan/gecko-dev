@@ -31,9 +31,6 @@ bool MarkPagesUnused(void *p, size_t size);
 // platforms.
 bool MarkPagesInUse(void *p, size_t size);
 
-// Returns #(hard faults) + #(soft faults)
-size_t GetPageFaultCount();
-
 } /* namespace gc */
 } /* namespace js */
 

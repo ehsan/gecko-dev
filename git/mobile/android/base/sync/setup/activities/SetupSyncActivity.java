@@ -153,21 +153,13 @@ public class SetupSyncActivity extends AccountAuthenticatorActivity {
     if (jClient != null) {
       jClient.abort(Constants.JPAKE_ERROR_USERABORT);
     }
-    if (pairWithPin) {
-      finish();
-    }
   }
 
   @Override
   public void onNewIntent(Intent intent) {
     Logger.debug(LOG_TAG, "Started SetupSyncActivity with new intent.");
     setIntent(intent);
-  }
-
-  @Override
-  public void onDestroy() {
-    Logger.debug(LOG_TAG, "onDestroy() called.");
-    super.onDestroy();
+    onResume();
   }
 
   /* Click Handlers */

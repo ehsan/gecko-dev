@@ -161,16 +161,13 @@ nsMenuBarListener::KeyUp(nsIDOMEvent* aKeyEvent)
 
   if (mAccessKey && mAccessKeyFocuses)
   {
-    bool defaultPrevented = false;
-    aKeyEvent->GetDefaultPrevented(&defaultPrevented);
-
     // On a press of the ALT key by itself, we toggle the menu's 
     // active/inactive state.
     // Get the ascii key code.
     PRUint32 theChar;
     keyEvent->GetKeyCode(&theChar);
 
-    if (!defaultPrevented && mAccessKeyDown && !mAccessKeyDownCanceled &&
+    if (mAccessKeyDown && !mAccessKeyDownCanceled &&
         (PRInt32)theChar == mAccessKey)
     {
       // The access key was down and is now up, and no other
@@ -343,9 +340,6 @@ nsMenuBarListener::KeyDown(nsIDOMEvent* aKeyEvent)
 
   if (mAccessKey && mAccessKeyFocuses)
   {
-    bool defaultPrevented = false;
-    aKeyEvent->GetDefaultPrevented(&defaultPrevented);
-
     nsCOMPtr<nsIDOMKeyEvent> keyEvent = do_QueryInterface(aKeyEvent);
     PRUint32 theChar;
     keyEvent->GetKeyCode(&theChar);
@@ -366,14 +360,12 @@ nsMenuBarListener::KeyDown(nsIDOMEvent* aKeyEvent)
 
       // Otherwise, accept the accesskey state.
       mAccessKeyDown = true;
-      // If default is prevented already, cancel the access key down.
-      mAccessKeyDownCanceled = defaultPrevented;
+      mAccessKeyDownCanceled = false;
       return NS_OK;
     }
 
-    // If the pressed accesskey was canceled already or the event was
-    // consumed already, ignore the event.
-    if (mAccessKeyDownCanceled || defaultPrevented) {
+    // If the pressed accesskey was canceled already, ignore the event.
+    if (mAccessKeyDownCanceled) {
       return NS_OK;
     }
 

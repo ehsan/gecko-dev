@@ -44,20 +44,12 @@ function runTest() {
   var numTitleChanges = 0;
 
   iframe1.addEventListener('mozbrowsertitlechange', function(e) {
-    // Ignore empty titles; these come from about:blank.
-    if (e.detail == '')
-      return;
-
     numTitleChanges++;
 
     if (numTitleChanges == 1) {
       is(e.detail, 'Title');
-      SpecialPowers.getBrowserFrameMessageManager(iframe1)
-                   .loadFrameScript("data:,content.document.title='New title';",
-                                    /* allowDelayedLoad = */ false);
-      SpecialPowers.getBrowserFrameMessageManager(iframe2)
-                   .loadFrameScript("data:,content.document.title='BAD TITLE 2';",
-                                    /* allowDelayedLoad = */ false);
+      iframe1.contentDocument.title = 'New title';
+      iframe2.contentDocument.title = 'BAD TITLE 2';
     }
     else if (numTitleChanges == 2) {
       is(e.detail, 'New title');

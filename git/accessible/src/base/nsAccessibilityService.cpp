@@ -46,7 +46,6 @@
 #include "AtkSocketAccessible.h"
 #endif
 #include "FocusManager.h"
-#include "HTMLListAccessible.h"
 #include "nsAccessiblePivot.h"
 #include "nsAccUtils.h"
 #include "nsARIAMap.h"
@@ -223,7 +222,7 @@ nsAccessibilityService::CreateHTMLLIAccessible(nsIContent* aContent,
                                                nsIPresShell* aPresShell)
 {
   nsAccessible* accessible = 
-    new HTMLLIAccessible(aContent, GetDocAccessible(aPresShell));
+    new nsHTMLLIAccessible(aContent, GetDocAccessible(aPresShell));
   NS_ADDREF(accessible);
   return accessible;
 }
@@ -600,7 +599,7 @@ nsAccessibilityService::UpdateListBullet(nsIPresShell* aPresShell,
   if (document) {
     nsAccessible* accessible = document->GetAccessible(aHTMLListItemContent);
     if (accessible) {
-      HTMLLIAccessible* listItem = accessible->AsHTMLListItem();
+      nsHTMLLIAccessible* listItem = accessible->AsHTMLListItem();
       if (listItem)
         listItem->UpdateBullet(aHasBullet);
     }
@@ -1659,7 +1658,7 @@ nsAccessibilityService::CreateHTMLAccessibleByMarkup(nsIFrame* aFrame,
 
   if (tag == nsGkAtoms::ul || tag == nsGkAtoms::ol ||
       tag == nsGkAtoms::dl) {
-    nsAccessible* accessible = new HTMLListAccessible(aContent, aDoc);
+    nsAccessible* accessible = new nsHTMLListAccessible(aContent, aDoc);
     NS_IF_ADDREF(accessible);
     return accessible;
   }
@@ -1686,7 +1685,7 @@ nsAccessibilityService::CreateHTMLAccessibleByMarkup(nsIFrame* aFrame,
     // Normally for li, it is created by the list item frame (in nsBlockFrame)
     // which knows about the bullet frame; however, in this case the list item
     // must have been styled using display: foo
-    nsAccessible* accessible = new HTMLLIAccessible(aContent, aDoc);
+    nsAccessible* accessible = new nsHTMLLIAccessible(aContent, aDoc);
     NS_IF_ADDREF(accessible);
     return accessible;
   }

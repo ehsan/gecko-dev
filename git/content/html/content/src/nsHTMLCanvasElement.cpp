@@ -659,6 +659,12 @@ nsHTMLCanvasElement::UpdateContext(nsIPropertyBag *aNewContextOptions)
   return rv;
 }
 
+nsIFrame *
+nsHTMLCanvasElement::GetPrimaryCanvasFrame()
+{
+  return GetPrimaryFrame(Flush_Frames);
+}
+
 nsIntSize
 nsHTMLCanvasElement::GetSize()
 {
