@@ -71,10 +71,6 @@ public:
   int32_t State() const               { return mState; }
   const char* StateStr() const        { return NS_VolumeStateStr(mState); }
 
-  bool IsFake() const                 { return mIsFake; }
-  bool IsMediaPresent() const         { return mIsMediaPresent; }
-  bool IsSharing() const              { return mIsSharing; }
-
   typedef nsTArray<nsRefPtr<nsVolume> > Array;
 
 private:
@@ -84,6 +80,9 @@ private:
   void UpdateMountLock(const nsAString& aMountLockState);
   void UpdateMountLock(bool aMountLocked);
 
+  bool IsFake() const                 { return mIsFake; }
+  bool IsMediaPresent() const         { return mIsMediaPresent; }
+  bool IsSharing() const              { return mIsSharing; }
   void SetIsFake(bool aIsFake);
   void SetState(int32_t aState);
 
