@@ -114,13 +114,6 @@ public:
   void InitializeBufferInfo(uint32_t aYOffset,
                             uint32_t aCbOffset,
                             uint32_t aCrOffset,
-                            uint32_t aYStride,
-                            uint32_t aCbCrStride,
-                            const gfx::IntSize& aYSize,
-                            const gfx::IntSize& aCbCrSize,
-                            StereoMode aStereoMode);
-  void InitializeBufferInfo(uint32_t aYStride,
-                            uint32_t aCbCrStride,
                             const gfx::IntSize& aYSize,
                             const gfx::IntSize& aCbCrSize,
                             StereoMode aStereoMode);

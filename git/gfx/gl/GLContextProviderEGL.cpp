@@ -363,6 +363,15 @@ public:
         mIsDoubleBuffered = aIsDB;
     }
 
+    virtual EGLContext GetEGLContext() {
+        return mContext;
+    }
+
+    virtual GLLibraryEGL* GetLibraryEGL() {
+        return &sEGLLibrary;
+    }
+
+
     bool SupportsRobustness()
     {
         return sEGLLibrary.HasRobustness();
@@ -409,7 +418,7 @@ public:
         return true;
     }
 
-    void SetEGLSurfaceOverride(EGLSurface surf) {
+    virtual void SetEGLSurfaceOverride(EGLSurface surf) MOZ_OVERRIDE {
         if (Screen()) {
             /* Blit `draw` to `read` if we need to, before we potentially juggle
              * `read` around. If we don't, we might attach a different `read`,
@@ -892,16 +901,6 @@ GLContextProviderEGL::GetGlobalContext(const ContextFlags)
 void
 GLContextProviderEGL::Shutdown()
 {
-}
-
-GLContextEGL* DowncastGLContextEGL(GLContext* context)
-{
-    return static_cast<GLContextEGL*>(context);
-}
-
-void SetEGLSurfaceOverride(GLContextEGL* context, EGLSurface surf)
-{
-    context->SetEGLSurfaceOverride(surf);
 }
 
 } /* namespace gl */

@@ -4779,7 +4779,8 @@ ShouldPutNextSiblingOnNewLine(nsIFrame* aLastFrame)
   // XXX the IS_DIRTY check is a wallpaper for bug 822910.
   if (type == nsGkAtoms::textFrame &&
       !(aLastFrame->GetStateBits() & NS_FRAME_IS_DIRTY)) {
-    return aLastFrame->HasSignificantTerminalNewline();
+    return aLastFrame->HasTerminalNewline() &&
+      aLastFrame->StyleText()->NewlineIsSignificant();
   }
   return false;
 }

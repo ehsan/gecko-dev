@@ -18,9 +18,7 @@ public:
   enum MetadataKind {
     METADATA_OPUS,    // Represent the Opus metadata
     METADATA_VP8,
-    METADATA_AVC,
-    METADATA_AAC,
-    METADATA_UNKNOWN  // Metadata Kind not set
+    METADATA_UNKNOW   // Metadata Kind not set
   };
   virtual ~TrackMetadataBase() {}
   // Return the specific metadata kind

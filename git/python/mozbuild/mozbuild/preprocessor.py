@@ -378,7 +378,7 @@ class Preprocessor:
         self.out = output
 
         self.do_include(input, False)
-        self.warnUnused(input.name)
+        self.warnUnused(input)
 
         if depfile:
             mk = Makefile()
