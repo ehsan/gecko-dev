@@ -1120,9 +1120,8 @@ Worker::create(JSContext *parentcx, WorkerParent *parent, JSString *scriptName, 
         return NULL;
     }
 
-    JSScript *script;
-    JS_DescribeScriptedCaller(parentcx, &script, NULL);
-    const char *base = JS_GetScriptFilename(parentcx, script);
+    JSStackFrame *frame = JS_GetScriptedCaller(parentcx, NULL);
+    const char *base = JS_GetScriptFilename(parentcx, JS_GetFrameScript(parentcx, frame));
     JSString *scriptPath = ResolveRelativePath(parentcx, base, scriptName);
     if (!scriptPath)
         return NULL;

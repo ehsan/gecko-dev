@@ -52,7 +52,7 @@ function testSteps()
     let indexCount = event.target.result;
 
     for each (let unique in [false, true]) {
-      let index = db.transaction(autoIncrement, "readwrite")
+      let index = db.transaction(autoIncrement, IDBTransaction.READ_WRITE)
                     .objectStore(autoIncrement)
                     .index(unique);
 
@@ -86,7 +86,7 @@ function testSteps()
       is(sawEntry, true, "Saw entry for key value " + modifiedEntry);
 
       // Recount index. Shouldn't change.
-      index = db.transaction(autoIncrement, "readwrite")
+      index = db.transaction(autoIncrement, IDBTransaction.READ_WRITE)
                 .objectStore(autoIncrement)
                 .index(unique);
 
@@ -121,7 +121,7 @@ function testSteps()
       is(sawEntry, true, "Saw entry for key value " + modifiedEntry);
 
       // Recount objectStore. Should be unchanged.
-      objectStore = db.transaction(autoIncrement, "readwrite")
+      objectStore = db.transaction(autoIncrement, IDBTransaction.READ_WRITE)
                       .objectStore(autoIncrement);
 
       objectStore.count().onsuccess = grabEventAndContinueHandler;

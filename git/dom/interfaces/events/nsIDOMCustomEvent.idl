@@ -50,7 +50,8 @@ interface nsIDOMCustomEvent : nsIDOMEvent
                        in nsIVariant detailArg);
 };
 
-dictionary CustomEventInit : EventInit
+[scriptable, uuid(8c166794-06af-4eac-b76b-bc132e421b06)]
+interface nsICustomEventInit : nsIEventInit
 {
-  nsIVariant detail;
+  attribute nsIVariant detail;
 };

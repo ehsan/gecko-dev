@@ -86,9 +86,11 @@ Connection::Connection()
 }
 
 void
-Connection::Init(nsPIDOMWindow* aWindow)
+Connection::Init(nsPIDOMWindow *aWindow, nsIScriptContext* aScriptContext)
 {
-  BindToOwner(aWindow);
+  // Those vars come from nsDOMEventTargetHelper.
+  mOwner = aWindow;
+  mScriptContext = aScriptContext;
 
   hal::RegisterNetworkObserver(this);
 

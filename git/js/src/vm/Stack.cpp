@@ -978,7 +978,6 @@ StackIter::poisonRegs()
 {
     sp_ = (Value *)0xbad;
     pc_ = (jsbytecode *)0xbad;
-    script_ = (JSScript *)0xbad;
 }
 
 void
@@ -1020,8 +1019,6 @@ StackIter::popFrame()
             JS_ASSERT(oldfp->isDummyFrame());
             sp_ = (Value *)oldfp;
         }
-
-        script_ = fp_->maybeScript();
     } else {
         poisonRegs();
     }
@@ -1047,8 +1044,6 @@ StackIter::settleOnNewSegment()
     if (FrameRegs *regs = seg_->maybeRegs()) {
         sp_ = regs->sp;
         pc_ = regs->pc;
-        if (fp_)
-            script_ = fp_->maybeScript();
     } else {
         poisonRegs();
     }

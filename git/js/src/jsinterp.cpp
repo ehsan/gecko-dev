@@ -2710,9 +2710,8 @@ BEGIN_CASE(JSOP_FUNAPPLY)
             if (!InvokeKernel(cx, args))
                 goto error;
         }
-        Value *newsp = args.spAfterCall();
-        TypeScript::Monitor(cx, script, regs.pc, newsp[-1]);
-        regs.sp = newsp;
+        regs.sp = args.spAfterCall();
+        TypeScript::Monitor(cx, script, regs.pc, regs.sp[-1]);
         CHECK_INTERRUPT_HANDLER();
         len = JSOP_CALL_LENGTH;
         DO_NEXT_OP(len);

@@ -73,12 +73,6 @@ source-package::
 upload::
 	@$(MAKE) -C xulrunner/installer upload
 
-source-upload::
-	@$(MAKE) -C xulrunner/installer source-upload
-
-hg-bundle::
-	@$(MAKE) -C xulrunner/installer hg-bundle
-
 ifeq ($(OS_TARGET),Linux)
 deb: package
 	@$(MAKE) -C xulrunner/installer deb

@@ -42,6 +42,7 @@ html {
 }
 
 body {
+  text-align: justify;
   width: 90%;
   margin-left: 5%;
   margin-right: 5%;

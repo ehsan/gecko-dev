@@ -325,11 +325,7 @@ public:
 
         MakeCurrent();
         SetupLookupFunction();
-        if (!InitWithPrefix("gl", true))
-            return false;
-
-        InitFramebuffers();
-        return true;
+        return InitWithPrefix("gl", true);
     }
 
     bool MakeCurrentImpl(bool aForce = false)

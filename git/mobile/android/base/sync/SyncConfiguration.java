@@ -332,7 +332,7 @@ public class SyncConfiguration implements CredentialsSource {
     return clusterURL.toASCIIString();
   }
 
-  protected void setAndPersistClusterURL(URI u, SharedPreferences prefs) {
+  public void setAndPersistClusterURL(URI u, SharedPreferences prefs) {
     boolean shouldPersist = (prefs != null) && (clusterURL == null);
 
     Logger.debug(LOG_TAG, "Setting cluster URL to " + u.toASCIIString() +
@@ -345,7 +345,11 @@ public class SyncConfiguration implements CredentialsSource {
     }
   }
 
-  protected void setClusterURL(URI u, SharedPreferences prefs) {
+  public void setClusterURL(URI u) {
+    setClusterURL(u, this.getPrefs());
+  }
+
+  public void setClusterURL(URI u, SharedPreferences prefs) {
     if (u == null) {
       Logger.warn(LOG_TAG, "Refusing to set cluster URL to null.");
       return;
@@ -359,8 +363,8 @@ public class SyncConfiguration implements CredentialsSource {
     Logger.info(LOG_TAG, "Set cluster URL to " + clusterURL.toASCIIString() + ", given input " + u.toASCIIString());
   }
 
-  public void setClusterURL(URI u) {
-    setClusterURL(u, this.getPrefs());
+  public void setClusterURL(String url) throws URISyntaxException {
+    this.setClusterURL(new URI(url));
   }
 
   /**

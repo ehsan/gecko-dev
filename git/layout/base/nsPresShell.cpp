@@ -5127,9 +5127,6 @@ void PresShell::SetRenderingState(const RenderingState& aState)
 
 void PresShell::SynthesizeMouseMove(bool aFromScroll)
 {
-  if (!sSynthMouseMove)
-    return;
-
   if (mPaintingSuppressed || !mIsActive || !mPresContext) {
     return;
   }

@@ -156,8 +156,7 @@ Prompt.prototype = {
     if (aCheckMsg)
       aInputs.push({ type: "checkbox", label: PromptUtils.cleanUpLabel(aCheckMsg), checked: aCheckState.value });
 
-    if (this._domWin)
-      PromptUtils.fireDialogEvent(this._domWin, "DOMWillOpenModalDialog");
+    PromptUtils.fireDialogEvent(this._domWin, "DOMWillOpenModalDialog");
 
     let msg = { type: "Prompt:Show" };
     if (aTitle) msg.title = aTitle;

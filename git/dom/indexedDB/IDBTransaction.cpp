@@ -110,14 +110,15 @@ StartTransactionRunnable gStartTransactionRunnable;
 already_AddRefed<IDBTransaction>
 IDBTransaction::Create(IDBDatabase* aDatabase,
                        nsTArray<nsString>& aObjectStoreNames,
-                       Mode aMode,
+                       PRUint16 aMode,
                        bool aDispatchDelayed)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   nsRefPtr<IDBTransaction> transaction = new IDBTransaction();
 
-  transaction->BindToOwner(aDatabase);
+  transaction->mScriptContext = aDatabase->GetScriptContext();
+  transaction->mOwner = aDatabase->GetOwner();
   if (!transaction->SetScriptOwner(aDatabase->GetScriptOwner())) {
     return nsnull;
   }
@@ -156,7 +157,7 @@ IDBTransaction::Create(IDBDatabase* aDatabase,
     transaction->mCreating = true;
   }
 
-  if (aMode != IDBTransaction::VERSION_CHANGE) {
+  if (aMode != nsIIDBTransaction::VERSION_CHANGE) {
     TransactionThreadPool* pool = TransactionThreadPool::GetOrCreate();
     pool->Dispatch(transaction, &gStartTransactionRunnable, false, nsnull);
   }
@@ -165,8 +166,8 @@ IDBTransaction::Create(IDBDatabase* aDatabase,
 }
 
 IDBTransaction::IDBTransaction()
-: mReadyState(IDBTransaction::INITIAL),
-  mMode(IDBTransaction::READ_ONLY),
+: mReadyState(nsIIDBTransaction::INITIAL),
+  mMode(nsIIDBTransaction::READ_ONLY),
   mPendingRequests(0),
   mCreatedRecursionDepth(0),
   mSavepointCount(0),
@@ -196,9 +197,9 @@ IDBTransaction::OnNewRequest()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   if (!mPendingRequests) {
-    NS_ASSERTION(mReadyState == IDBTransaction::INITIAL,
+    NS_ASSERTION(mReadyState == nsIIDBTransaction::INITIAL,
                  "Reusing a transaction!");
-    mReadyState = IDBTransaction::LOADING;
+    mReadyState = nsIIDBTransaction::LOADING;
   }
   ++mPendingRequests;
 }
@@ -210,7 +211,7 @@ IDBTransaction::OnRequestFinished()
   NS_ASSERTION(mPendingRequests, "Mismatched calls!");
   --mPendingRequests;
   if (!mPendingRequests) {
-    NS_ASSERTION(mAborted || mReadyState == IDBTransaction::LOADING,
+    NS_ASSERTION(mAborted || mReadyState == nsIIDBTransaction::LOADING,
                  "Bad state!");
     mReadyState = IDBTransaction::COMMITTING;
     CommitOrRollback();
@@ -220,7 +221,7 @@ IDBTransaction::OnRequestFinished()
 void
 IDBTransaction::RemoveObjectStore(const nsAString& aName)
 {
-  NS_ASSERTION(mMode == IDBTransaction::VERSION_CHANGE,
+  NS_ASSERTION(mMode == nsIIDBTransaction::VERSION_CHANGE,
                "Only remove object stores on VERSION_CHANGE transactions");
 
   mDatabaseInfo->RemoveObjectStore(aName);
@@ -343,7 +344,7 @@ IDBTransaction::GetOrCreateConnection(mozIStorageConnection** aResult)
 
     nsRefPtr<UpdateRefcountFunction> function;
     nsCString beginTransaction;
-    if (mMode != IDBTransaction::READ_ONLY) {
+    if (mMode != nsIIDBTransaction::READ_ONLY) {
       function = new UpdateRefcountFunction(Database()->Manager());
       NS_ENSURE_TRUE(function, NS_ERROR_OUT_OF_MEMORY);
 
@@ -416,7 +417,7 @@ IDBTransaction::IsOpen() const
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   // If we haven't started anything then we're open.
-  if (mReadyState == IDBTransaction::INITIAL) {
+  if (mReadyState == nsIIDBTransaction::INITIAL) {
     NS_ASSERTION(AsyncConnectionHelper::GetCurrentTransaction() != this,
                  "This should be some other transaction (or null)!");
     return true;
@@ -427,7 +428,7 @@ IDBTransaction::IsOpen() const
   // from the time we were created) then we are open. Otherwise check the
   // currently running transaction to see if it's the same. We only allow other
   // requests to be made if this transaction is currently running.
-  if (mReadyState == IDBTransaction::LOADING) {
+  if (mReadyState == nsIIDBTransaction::LOADING) {
     if (mCreating) {
       return true;
     }
@@ -528,21 +529,20 @@ IDBTransaction::GetDb(nsIIDBDatabase** aDB)
 }
 
 NS_IMETHODIMP
-IDBTransaction::GetMode(nsAString& aMode)
+IDBTransaction::GetReadyState(PRUint16* aReadyState)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  switch(mMode) {
-    case READ_ONLY:
-      aMode.AssignLiteral("readonly");
-      break;
-    case READ_WRITE:
-      aMode.AssignLiteral("readwrite");
-      break;
-    case VERSION_CHANGE:
-      aMode.AssignLiteral("versionchange");
-  }
+  *aReadyState = mReadyState;
+  return NS_OK;
+}
 
+NS_IMETHODIMP
+IDBTransaction::GetMode(PRUint16* aMode)
+{
+  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
+  *aMode = mMode;
   return NS_OK;
 }
 
@@ -587,7 +587,7 @@ IDBTransaction::ObjectStore(const nsAString& aName,
 
   ObjectStoreInfo* info = nsnull;
 
-  if (mMode == IDBTransaction::VERSION_CHANGE ||
+  if (mMode == nsIIDBTransaction::VERSION_CHANGE ||
       mObjectStoreNames.Contains(aName)) {
     info = mDatabaseInfo->GetObjectStore(aName);
   }
@@ -615,12 +615,12 @@ IDBTransaction::Abort()
     return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
   }
 
-  bool needToCommitOrRollback = mReadyState == IDBTransaction::INITIAL;
+  bool needToCommitOrRollback = mReadyState == nsIIDBTransaction::INITIAL;
 
   mAborted = true;
-  mReadyState = IDBTransaction::DONE;
+  mReadyState = nsIIDBTransaction::DONE;
 
-  if (Mode() == IDBTransaction::VERSION_CHANGE) {
+  if (Mode() == nsIIDBTransaction::VERSION_CHANGE) {
     // If a version change transaction is aborted, the db must be closed
     mDatabase->Close();
   }
@@ -677,8 +677,8 @@ IDBTransaction::AfterProcessNextEvent(nsIThreadInternal* aThread,
     mCreating = false;
 
     // Maybe set the readyState to DONE if there were no requests generated.
-    if (mReadyState == IDBTransaction::INITIAL) {
-      mReadyState = IDBTransaction::DONE;
+    if (mReadyState == nsIIDBTransaction::INITIAL) {
+      mReadyState = nsIIDBTransaction::DONE;
 
       if (NS_FAILED(CommitOrRollback())) {
         NS_WARNING("Failed to commit!");
@@ -725,7 +725,7 @@ CommitHelper::Run()
   if (NS_IsMainThread()) {
     NS_ASSERTION(mDoomedObjects.IsEmpty(), "Didn't release doomed objects!");
 
-    mTransaction->mReadyState = IDBTransaction::DONE;
+    mTransaction->mReadyState = nsIIDBTransaction::DONE;
 
     // Release file infos on the main thread, so they will eventually get
     // destroyed on correct thread.
@@ -737,7 +737,7 @@ CommitHelper::Run()
 
     nsCOMPtr<nsIDOMEvent> event;
     if (mAborted) {
-      if (mTransaction->GetMode() == IDBTransaction::VERSION_CHANGE) {
+      if (mTransaction->Mode() == nsIIDBTransaction::VERSION_CHANGE) {
         // This will make the database take a snapshot of it's DatabaseInfo
         mTransaction->Database()->Close();
         // Then remove the info from the hash as it contains invalid data.

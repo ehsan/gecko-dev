@@ -4752,15 +4752,10 @@ var XULBrowserWindow = {
       }
 
       // Show or hide browser chrome based on the whitelist
-      if (this.hideChromeForLocation(location)) {
+      if (this.hideChromeForLocation(location))
         document.documentElement.setAttribute("disablechrome", "true");
-      } else {
-        let ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
-        if (ss.getTabValue(gBrowser.selectedTab, "appOrigin"))
-          document.documentElement.setAttribute("disablechrome", "true");
-        else
-          document.documentElement.removeAttribute("disablechrome");
-      }
+      else
+        document.documentElement.removeAttribute("disablechrome");
 
       // Disable find commands in documents that ask for them to be disabled.
       let disableFind = false;
@@ -9104,6 +9099,7 @@ XPCOMUtils.defineLazyGetter(window, "gShowPageResizers", function () {
   return false;
 #endif
 });
+
 
 var MousePosTracker = {
   _listeners: [],

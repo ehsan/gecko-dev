@@ -518,6 +518,12 @@ JS_GetFramePC(JSContext *cx, JSStackFrame *fp)
     return Valueify(fp)->pcQuadratic(cx->stack);
 }
 
+JS_PUBLIC_API(JSStackFrame *)
+JS_GetScriptedCaller(JSContext *cx, JSStackFrame *fp)
+{
+    return Jsvalify(js_GetScriptedCaller(cx, Valueify(fp)));
+}
+
 JS_PUBLIC_API(void *)
 JS_GetFrameAnnotation(JSContext *cx, JSStackFrame *fpArg)
 {
@@ -1662,25 +1668,3 @@ JS_UnwrapObject(JSObject *obj)
 {
     return UnwrapObject(obj);
 }
-
-JS_FRIEND_API(JSBool)
-js_CallContextDebugHandler(JSContext *cx)
-{
-    FrameRegsIter iter(cx);
-    JS_ASSERT(!iter.done());
-
-    jsval rval;
-    switch (js::CallContextDebugHandler(cx, iter.script(), iter.pc(), &rval)) {
-      case JSTRAP_ERROR:
-        JS_ClearPendingException(cx);
-        return JS_FALSE;
-      case JSTRAP_THROW:
-        JS_SetPendingException(cx, rval);
-        return JS_FALSE;
-      case JSTRAP_RETURN:
-      case JSTRAP_CONTINUE:
-      default:
-        return JS_TRUE;
-    }
-}
-

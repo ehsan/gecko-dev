@@ -67,9 +67,6 @@ XPCOMUtils.defineLazyGetter(this, "PlacesUtils", function() {
 XPCOMUtils.defineLazyModuleGetter(this, "KeywordURLResetPrompter",
                                   "resource:///modules/KeywordURLResetPrompter.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "webappsUI", 
-                                  "resource://gre/modules/webappsUI.jsm");
-
 const PREF_PLUGINS_NOTIFYUSER = "plugins.update.notifyUser";
 const PREF_PLUGINS_UPDATEURL  = "plugins.update.url";
 
@@ -349,7 +346,6 @@ BrowserGlue.prototype = {
     if (this._isPlacesShutdownObserver)
       os.removeObserver(this, "places-shutdown");
     os.removeObserver(this, "defaultURIFixup-using-keyword-pref");
-    webappsUI.uninit();
   },
 
   _onAppDefaults: function BG__onAppDefaults() {
@@ -373,9 +369,6 @@ BrowserGlue.prototype = {
 
     // handle any UI migration
     this._migrateUI();
-
-    // Initialize webapps UI
-    webappsUI.init();
 
     Services.obs.notifyObservers(null, "browser-ui-startup-complete", "");
   },
@@ -411,6 +404,7 @@ BrowserGlue.prototype = {
       this._showTelemetryNotification();
 #endif
     }
+
 
     // Show update notification, if needed.
     if (Services.prefs.prefHasUserValue("app.update.postupdate"))

@@ -311,6 +311,14 @@ nsXULMenuitemAccessible::GetLevelInternal()
   return nsAccUtils::GetLevelForXULContainerItem(mContent);
 }
 
+void
+nsXULMenuitemAccessible::GetPositionAndSizeInternal(PRInt32 *aPosInSet,
+                                                    PRInt32 *aSetSize)
+{
+  nsAccUtils::GetPositionAndSizeForXULContainerItem(mContent, aPosInSet,
+                                                    aSetSize);
+}
+
 bool
 nsXULMenuitemAccessible::CanHaveAnonChildren()
 {

@@ -23,7 +23,6 @@
  *   Vladimir Vukicevic <vladimir@pobox.com>
  *   Mark Steele <mwsteele@gmail.com>
  *   Bas Schouten <bschouten@mozilla.com>
- *   Jeff Gilbert <jgilbert@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -518,6 +517,23 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
         fGetIntegerv(LOCAL_GL_MAX_RENDERBUFFER_SIZE, &mMaxRenderbufferSize);
         mMaxTextureImageSize = mMaxTextureSize;
 
+        mSupport_ES_ReadPixels_BGRA_UByte = false;
+        if (mIsGLES2) {
+            if (IsExtensionSupported(gl::GLContext::EXT_bgra)) {
+                mSupport_ES_ReadPixels_BGRA_UByte = true;
+            } else if (IsExtensionSupported(gl::GLContext::EXT_read_format_bgra) ||
+                       IsExtensionSupported(gl::GLContext::IMG_read_format)) {
+                GLint auxFormat = 0;
+                GLint auxType = 0;
+
+                fGetIntegerv(LOCAL_GL_IMPLEMENTATION_COLOR_READ_FORMAT, &auxFormat);
+                fGetIntegerv(LOCAL_GL_IMPLEMENTATION_COLOR_READ_TYPE, &auxType);
+
+                if (auxFormat == LOCAL_GL_BGRA && auxType == LOCAL_GL_UNSIGNED_BYTE)
+                    mSupport_ES_ReadPixels_BGRA_UByte = true;
+            }
+        }
+
         UpdateActualFormat();
     }
 
@@ -540,7 +556,6 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
     else {
         // if initialization fails, ensure all symbols are zero, to avoid hard-to-understand bugs
         mSymbols.Zero();
-        NS_WARNING("InitWithPrefix failed!");
     }
 
     return mInitialized;
@@ -1152,8 +1167,8 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize, const bool aUseReadFBO, c
             !mIsGLES2 || IsExtensionSupported(OES_packed_depth_stencil);
 
     // save a few things for later restoring
-    curBoundFramebufferDraw = GetUserBoundDrawFBO();
-    curBoundFramebufferRead = GetUserBoundReadFBO();
+    curBoundFramebufferDraw = GetBoundDrawFBO();
+    curBoundFramebufferRead = GetBoundReadFBO();
     fGetIntegerv(LOCAL_GL_RENDERBUFFER_BINDING, (GLint*) &curBoundRenderbuffer);
     fGetIntegerv(LOCAL_GL_TEXTURE_BINDING_2D, (GLint*) &curBoundTexture);
     fGetIntegerv(LOCAL_GL_VIEWPORT, viewport);
@@ -1321,7 +1336,7 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize, const bool aUseReadFBO, c
     }
 
     // Now assemble the FBO
-    BindInternalFBO(newOffscreenDrawFBO);    // If we're not using a separate draw FBO, this will be the read FBO
+    fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, newOffscreenDrawFBO);    // If we're not using a separate draw FBO, this will be the read FBO
     if (useDrawMSFBO) {
         fFramebufferRenderbuffer(LOCAL_GL_FRAMEBUFFER,
                                  LOCAL_GL_COLOR_ATTACHMENT0,
@@ -1355,7 +1370,7 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize, const bool aUseReadFBO, c
     }
 
     if (aUseReadFBO) {
-        BindInternalFBO(newOffscreenReadFBO);
+        fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, newOffscreenReadFBO);
         fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER,
                               LOCAL_GL_COLOR_ATTACHMENT0,
                               LOCAL_GL_TEXTURE_2D,
@@ -1367,7 +1382,7 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize, const bool aUseReadFBO, c
     GLenum status;
     bool framebuffersComplete = true;
 
-    BindInternalFBO(newOffscreenDrawFBO);
+    fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, newOffscreenDrawFBO);
     status = fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER);
     if (status != LOCAL_GL_FRAMEBUFFER_COMPLETE) {
         NS_WARNING("DrawFBO: Incomplete");
@@ -1377,7 +1392,7 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize, const bool aUseReadFBO, c
         framebuffersComplete = false;
     }
 
-    BindInternalFBO(newOffscreenReadFBO);
+    fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, newOffscreenReadFBO);
     status = fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER);
     if (status != LOCAL_GL_FRAMEBUFFER_COMPLETE) {
         NS_WARNING("ReadFBO: Incomplete");
@@ -1398,8 +1413,8 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize, const bool aUseReadFBO, c
         fDeleteRenderbuffers(1, &newOffscreenDepthRB);
         fDeleteRenderbuffers(1, &newOffscreenStencilRB);
 
-        BindUserDrawFBO(curBoundFramebufferDraw);
-        BindUserReadFBO(curBoundFramebufferRead);
+        BindReadFBO(curBoundFramebufferRead);
+        BindDrawFBO(curBoundFramebufferDraw);
         fBindTexture(LOCAL_GL_TEXTURE_2D, curBoundTexture);
         fBindRenderbuffer(LOCAL_GL_RENDERBUFFER, curBoundRenderbuffer);
         fViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
@@ -1452,18 +1467,18 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize, const bool aUseReadFBO, c
     }
 #endif
 
+    // Make sure we know that the buffers are new and thus dirty:
+    ForceDirtyFBOs();
+
     // We're good, and the framebuffer is already attached.
     // Now restore the GL state back to what it was before the resize took place.
     // If the user was using fb 0, this will bind the offscreen framebuffer we
     // just created.
-    BindUserDrawFBO(curBoundFramebufferDraw);
-    BindUserReadFBO(curBoundFramebufferRead);
+    BindDrawFBO(curBoundFramebufferDraw);
+    BindReadFBO(curBoundFramebufferRead);
     fBindTexture(LOCAL_GL_TEXTURE_2D, curBoundTexture);
     fBindRenderbuffer(LOCAL_GL_RENDERBUFFER, curBoundRenderbuffer);
     fViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
-
-    // Make sure we know that the buffers are new and thus dirty:
-    ForceDirtyFBOs();
 
     return true;
 }
@@ -1800,35 +1815,6 @@ GLContext::ReadTextureImage(GLuint aTexture,
     return isurf.forget();
 }
 
-static void
-GetOptimalReadFormats(GLContext* gl, GLenum& format, GLenum& type) {
-    if (gl->IsGLES2()) {
-        bool has_BGRA_UByte = false;
-        if (gl->IsExtensionSupported(gl::GLContext::EXT_bgra)) {
-          has_BGRA_UByte = true;
-        } else if (gl->IsExtensionSupported(gl::GLContext::EXT_read_format_bgra) ||
-                   gl->IsExtensionSupported(gl::GLContext::IMG_read_format)) {
-            // Note that these extensions are not required to query this value.
-            // However, we should never get back BGRA unless one of these is supported.
-            GLint auxFormat = 0;
-            GLint auxType = 0;
-
-            gl->fGetIntegerv(LOCAL_GL_IMPLEMENTATION_COLOR_READ_FORMAT, &auxFormat);
-            gl->fGetIntegerv(LOCAL_GL_IMPLEMENTATION_COLOR_READ_TYPE, &auxType);
-
-            if (auxFormat == LOCAL_GL_BGRA && auxType == LOCAL_GL_UNSIGNED_BYTE)
-              has_BGRA_UByte = true;
-        }
-
-        format = has_BGRA_UByte ? LOCAL_GL_BGRA : LOCAL_GL_RGBA;
-        type = LOCAL_GL_UNSIGNED_BYTE;
-    } else {
-        // defaults for desktop
-        format = LOCAL_GL_BGRA;
-        type = LOCAL_GL_UNSIGNED_INT_8_8_8_8_REV;
-    }
-}
-
 void
 GLContext::ReadPixelsIntoImageSurface(GLint aX, GLint aY,
                                       GLsizei aWidth, GLsizei aHeight,
@@ -1853,21 +1839,29 @@ GLContext::ReadPixelsIntoImageSurface(GLint aX, GLint aY,
 
     GLint currentPackAlignment = 0;
     fGetIntegerv(LOCAL_GL_PACK_ALIGNMENT, &currentPackAlignment);
+    fPixelStorei(LOCAL_GL_PACK_ALIGNMENT, 4);
 
-    if (currentPackAlignment != 4)
-        fPixelStorei(LOCAL_GL_PACK_ALIGNMENT, 4);
+    // defaults for desktop
+    GLenum format = LOCAL_GL_BGRA;
+    GLenum datatype = LOCAL_GL_UNSIGNED_INT_8_8_8_8_REV;
+    bool swap = false;
 
-    GLenum format;
-    GLenum datatype;
+    if (IsGLES2()) {
+        datatype = LOCAL_GL_UNSIGNED_BYTE;
 
-    GetOptimalReadFormats(this, format, datatype);
+        if (mSupport_ES_ReadPixels_BGRA_UByte) {
+            format = LOCAL_GL_BGRA;
+        } else {
+            format = LOCAL_GL_RGBA;
+            swap = true;
+        }
+    }
 
     fReadPixels(0, 0, aWidth, aHeight,
                 format, datatype,
                 aDest->Data());
 
-    // Output should be in BGRA, so swap if RGBA
-    if (format == LOCAL_GL_RGBA) {
+    if (swap) {
         // swap B and R bytes
         for (int j = 0; j < aHeight; ++j) {
             PRUint32 *row = (PRUint32*) (aDest->Data() + aDest->Stride() * j);
@@ -1878,8 +1872,7 @@ GLContext::ReadPixelsIntoImageSurface(GLint aX, GLint aY,
         }
     }
 
-    if (currentPackAlignment != 4)
-        fPixelStorei(LOCAL_GL_PACK_ALIGNMENT, currentPackAlignment);
+    fPixelStorei(LOCAL_GL_PACK_ALIGNMENT, currentPackAlignment);
 }
 
 void

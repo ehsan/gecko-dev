@@ -1,13 +1,45 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this file,
- * You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Android Sync Client.
+ *
+ * The Initial Developer of the Original Code is
+ * the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Richard Newman <rnewman@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 package org.mozilla.gecko.sync.synchronizer;
 
 
 import java.util.concurrent.ExecutorService;
 
-import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.repositories.InactiveSessionException;
 import org.mozilla.gecko.sync.repositories.InvalidSessionTransitionException;
 import org.mozilla.gecko.sync.repositories.RepositorySession;
@@ -17,34 +49,8 @@ import org.mozilla.gecko.sync.repositories.delegates.DeferredRepositorySessionFi
 import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionFinishDelegate;
 
 import android.content.Context;
+import android.util.Log;
 
-/**
- * I coordinate the moving parts of a sync started by
- * {@link Synchronizer#synchronize}.
- *
- * I flow records twice: first from A to B, and then from B to A. I provide
- * fine-grained feedback by calling my delegate's callback methods.
- *
- * Initialize me by creating me with a Synchronizer and a
- * SynchronizerSessionDelegate. Kick things off by calling `init` with two
- * RepositorySessionBundles, and then call `synchronize` in your `onInitialized`
- * callback.
- *
- * I always call exactly one of my delegate's `onInitialized` or
- * `onSessionError` callback methods from `init`.
- *
- * I call my delegate's `onSynchronizeSkipped` callback method if there is no
- * data to be synchronized in `synchronize`.
- *
- * In addition, I call `onFetchError`, `onStoreError`, and `onSessionError` when
- * I encounter a fetch, store, or session error while synchronizing.
- *
- * Typically my delegate will call `abort` in its error callbacks, which will
- * call my delegate's `onSynchronizeAborted` method and halt the sync.
- *
- * I always call exactly one of my delegate's `onSynchronized` or
- * `onSynchronizeFailed` callback methods if I have not seen an error.
- */
 public class SynchronizerSession
 extends DeferrableRepositorySessionCreationDelegate
 implements RecordsChannelDelegate,
@@ -73,6 +79,20 @@ implements RecordsChannelDelegate,
   private long storeEndBTimestamp = -1;
   private boolean flowAToBCompleted = false;
   private boolean flowBToACompleted = false;
+
+  private static void warn(String msg, Exception e) {
+    System.out.println("WARN: " + msg);
+    e.printStackTrace(System.err);
+    Log.w(LOG_TAG, msg, e);
+  }
+  private static void warn(String msg) {
+    System.out.println("WARN: " + msg);
+    Log.w(LOG_TAG, msg);
+  }
+  private static void info(String msg) {
+    System.out.println("INFO: " + msg);
+    Log.i(LOG_TAG, msg);
+  }
 
   /*
    * Public API: constructor, init, synchronize.
@@ -110,7 +130,7 @@ implements RecordsChannelDelegate,
     // First thing: decide whether we should.
     if (!sessionA.dataAvailable() &&
         !sessionB.dataAvailable()) {
-      Logger.info(LOG_TAG, "Neither session reports data available. Short-circuiting sync.");
+      info("Neither session reports data available. Short-circuiting sync.");
       sessionA.abort();
       sessionB.abort();
       this.delegate.onSynchronizeSkipped(this);
@@ -120,15 +140,10 @@ implements RecordsChannelDelegate,
     final SynchronizerSession session = this;
 
     // TODO: failed record handling.
-
-    // This is the *second* record channel to flow.
-    // I, SynchronizerSession, am the delegate for the *second* flow.
     final RecordsChannel channelBToA = new RecordsChannel(this.sessionB, this.sessionA, this);
-
-    // This is the delegate for the *first* flow.
-    RecordsChannelDelegate channelAToBDelegate = new RecordsChannelDelegate() {
+    RecordsChannelDelegate channelDelegate = new RecordsChannelDelegate() {
       public void onFlowCompleted(RecordsChannel recordsChannel, long fetchEnd, long storeEnd) {
-        Logger.info(LOG_TAG, "First RecordsChannel onFlowCompleted. Fetch end is " + fetchEnd +
+        info("First RecordsChannel flow completed. Fetch end is " + fetchEnd +
              ". Store end is " + storeEnd + ". Starting next.");
         pendingATimestamp = fetchEnd;
         storeEndBTimestamp = storeEnd;
@@ -138,35 +153,25 @@ implements RecordsChannelDelegate,
 
       @Override
       public void onFlowBeginFailed(RecordsChannel recordsChannel, Exception ex) {
-        Logger.warn(LOG_TAG, "First RecordsChannel onFlowBeginFailed. Reporting session error.", ex);
+        warn("First RecordsChannel flow failed to begin.");
         session.delegate.onSessionError(ex);
-      }
-
-      @Override
-      public void onFlowFetchFailed(RecordsChannel recordsChannel, Exception ex) {
-        // TODO: clean up, tear down, abort.
-        Logger.warn(LOG_TAG, "First RecordsChannel onFlowFetchFailed. Reporting fetch error.", ex);
-        session.delegate.onFetchError(ex);
       }
 
       @Override
       public void onFlowStoreFailed(RecordsChannel recordsChannel, Exception ex) {
         // TODO: clean up, tear down, abort.
-        Logger.warn(LOG_TAG, "First RecordsChannel onFlowStoreFailed. Reporting store error.", ex);
+        warn("First RecordsChannel flow failed.");
         session.delegate.onStoreError(ex);
       }
 
       @Override
       public void onFlowFinishFailed(RecordsChannel recordsChannel, Exception ex) {
-        Logger.warn(LOG_TAG, "First RecordsChannel onFlowFinishedFailed. Reporting session error.", ex);
-        session.delegate.onSessionError(ex);
+        warn("onFlowFinishedFailed. Reporting store error.", ex);
+        session.delegate.onStoreError(ex);
       }
     };
-
-    // This is the *first* channel to flow.
-    final RecordsChannel channelAToB = new RecordsChannel(this.sessionA, this.sessionB, channelAToBDelegate);
-
-    Logger.info(LOG_TAG, "Starting A to B flow. Channel is " + channelAToB);
+    final RecordsChannel channelAToB = new RecordsChannel(this.sessionA, this.sessionB, channelDelegate);
+    info("Starting A to B flow. Channel is " + channelAToB);
     try {
       channelAToB.beginAndFlow();
     } catch (InvalidSessionTransitionException e) {
@@ -176,7 +181,7 @@ implements RecordsChannelDelegate,
 
   @Override
   public void onFlowCompleted(RecordsChannel channel, long fetchEnd, long storeEnd) {
-    Logger.info(LOG_TAG, "Second RecordsChannel onFlowCompleted. Fetch end is " + fetchEnd +
+    info("Second RecordsChannel flow completed. Fetch end is " + fetchEnd +
          ". Store end is " + storeEnd + ". Finishing.");
 
     pendingBTimestamp = fetchEnd;
@@ -193,45 +198,24 @@ implements RecordsChannelDelegate,
 
   @Override
   public void onFlowBeginFailed(RecordsChannel recordsChannel, Exception ex) {
-    Logger.warn(LOG_TAG, "Second RecordsChannel onFlowBeginFailed. Reporting session error.", ex);
-    this.delegate.onSessionError(ex);
+    warn("Second RecordsChannel flow failed to begin.", ex);
   }
 
-  @Override
-  public void onFlowFetchFailed(RecordsChannel recordsChannel, Exception ex) {
-    // TODO: clean up, tear down, abort.
-    Logger.warn(LOG_TAG, "Second RecordsChannel onFlowFetchFailed. Reporting fetch error.", ex);
-    this.delegate.onFetchError(ex);
-  }
-
-  /**
-   * We ignore possible store errors, since failure to store a record is not
-   * necessarily a cause to abort. It might mean that the record should be
-   * tracked for re-downloading, or skipped, or we might abort.
-   *
-   * TODO: Bug 709371.
-   */
   @Override
   public void onFlowStoreFailed(RecordsChannel recordsChannel, Exception ex) {
-    // TODO: clean up, tear down, abort.
-    Logger.warn(LOG_TAG, "Second RecordsChannel onFlowStoreFailed. Ignoring store error.", ex);
+    // TODO Auto-generated method stub
+    warn("Second RecordsChannel flow failed.");
   }
 
   @Override
   public void onFlowFinishFailed(RecordsChannel recordsChannel, Exception ex) {
-    Logger.warn(LOG_TAG, "Second RecordsChannel onFlowFinishedFailed. Reporting session error.", ex);
-    this.delegate.onSessionError(ex);
+    // TODO Auto-generated method stub
+    warn("First RecordsChannel flow failed to finish.");
   }
+
 
   /*
    * RepositorySessionCreationDelegate methods.
-   */
-
-  /**
-   * I could be called twice: once for sessionA and once for sessionB.
-   *
-   * I try to clean up sessionA if it is not null, since the creation of
-   * sessionB must have failed.
    */
   @Override
   public void onSessionCreateFailed(Exception ex) {
@@ -250,12 +234,6 @@ implements RecordsChannelDelegate,
     this.delegate.onSessionError(ex);
   }
 
-  /**
-   * I should be called twice: first for sessionA and second for sessionB.
-   *
-   * If I am called for sessionB, I call my delegate's `onInitialized` callback
-   * method because my repository sessions are correctly initialized.
-   */
   // TODO: some of this "finish and clean up" code can be refactored out.
   @Override
   public void onSessionCreated(RepositorySession session) {
@@ -303,47 +281,31 @@ implements RecordsChannelDelegate,
   /*
    * RepositorySessionFinishDelegate methods.
    */
-
-  /**
-   * I could be called twice: once for sessionA and once for sessionB.
-   *
-   * If sessionB couldn't be created, I don't fail again.
-   */
   @Override
   public void onFinishFailed(Exception ex) {
     if (this.sessionB == null) {
       // Ah, it was a problem cleaning up. Never mind.
-      Logger.warn(LOG_TAG, "Got exception cleaning up first after second session creation failed.", ex);
+      warn("Got exception cleaning up first after second session creation failed.", ex);
       return;
     }
     String session = (this.sessionA == null) ? "B" : "A";
     this.delegate.onSynchronizeFailed(this, ex, "Finish of session " + session + " failed.");
   }
 
-  /**
-   * I should be called twice: first for sessionA and second for sessionB.
-   *
-   * If I am called for sessionA, I try to finish sessionB.
-   *
-   * If I am called for sessionB, I call my delegate's `onSynchronized` callback
-   * method because my flows should have completed.
-   */
   @Override
   public void onFinishSucceeded(RepositorySession session,
                                 RepositorySessionBundle bundle) {
-    Logger.info(LOG_TAG, "onFinishSucceeded. Flows? " + flowAToBCompleted + ", " + flowBToACompleted);
+    info("onFinishSucceeded. Flows? " +
+         flowAToBCompleted + ", " + flowBToACompleted);
 
     if (session == sessionA) {
       if (flowAToBCompleted) {
-        Logger.info(LOG_TAG, "onFinishSucceeded: bumping session A's timestamp to " + pendingATimestamp + " or " + storeEndATimestamp);
+        info("onFinishSucceeded: bumping session A's timestamp to " + pendingATimestamp + " or " + storeEndATimestamp);
         bundle.bumpTimestamp(Math.max(pendingATimestamp, storeEndATimestamp));
         this.synchronizer.bundleA = bundle;
-      } else {
-        // Should not happen!
-        this.delegate.onSessionError(new UnexpectedSessionException(sessionA));
       }
       if (this.sessionB != null) {
-        Logger.info(LOG_TAG, "Finishing session B.");
+        info("Finishing session B.");
         // On to the next.
         try {
           this.sessionB.finish(this);
@@ -353,14 +315,11 @@ implements RecordsChannelDelegate,
       }
     } else if (session == sessionB) {
       if (flowBToACompleted) {
-        Logger.info(LOG_TAG, "onFinishSucceeded: bumping session B's timestamp to " + pendingBTimestamp + " or " + storeEndBTimestamp);
+        info("onFinishSucceeded: bumping session B's timestamp to " + pendingBTimestamp + " or " + storeEndBTimestamp);
         bundle.bumpTimestamp(Math.max(pendingBTimestamp, storeEndBTimestamp));
         this.synchronizer.bundleB = bundle;
-        Logger.info(LOG_TAG, "Notifying delegate.onSynchronized.");
+        info("Notifying delegate.onSynchronized.");
         this.delegate.onSynchronized(this);
-      } else {
-        // Should not happen!
-        this.delegate.onSessionError(new UnexpectedSessionException(sessionB));
       }
     } else {
       // TODO: hurrrrrr...

@@ -492,6 +492,13 @@ nsresult nsNPAPIPluginInstance::SetWindow(NPWindow* window)
 }
 
 nsresult
+nsNPAPIPluginInstance::NewStreamToPlugin(nsIPluginStreamListener** listener)
+{
+  // This method can be removed at the next opportunity.
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+nsresult
 nsNPAPIPluginInstance::NewStreamFromPlugin(const char* type, const char* target,
                                            nsIOutputStream* *result)
 {
@@ -639,6 +646,18 @@ nsresult nsNPAPIPluginInstance::GetNPP(NPP* aNPP)
     return NS_ERROR_NULL_POINTER;
 
   return NS_OK;
+}
+
+void
+nsNPAPIPluginInstance::SetURI(nsIURI* uri)
+{
+  mURI = uri;
+}
+
+nsIURI*
+nsNPAPIPluginInstance::GetURI()
+{
+  return mURI.get();
 }
 
 NPError nsNPAPIPluginInstance::SetWindowless(bool aWindowless)

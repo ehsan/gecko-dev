@@ -98,6 +98,7 @@ public:
   nsresult Start();
   nsresult Stop();
   nsresult SetWindow(NPWindow* window);
+  nsresult NewStreamToPlugin(nsIPluginStreamListener** listener);
   nsresult NewStreamFromPlugin(const char* type, const char* target, nsIOutputStream* *result);
   nsresult Print(NPPrint* platformPrint);
 #ifdef MOZ_WIDGET_ANDROID
@@ -139,6 +140,9 @@ public:
   nsNPAPIPlugin* GetPlugin();
 
   nsresult GetNPP(NPP * aNPP);
+
+  void SetURI(nsIURI* uri);
+  nsIURI* GetURI();
 
   NPError SetWindowless(bool aWindowless);
 
@@ -296,6 +300,8 @@ private:
   // Timestamp for the last time this plugin was stopped.
   // This is only valid when the plugin is actually stopped!
   mozilla::TimeStamp mStopTime;
+
+  nsCOMPtr<nsIURI> mURI;
 
   bool mUsePluginLayersPref;
 #ifdef MOZ_WIDGET_ANDROID

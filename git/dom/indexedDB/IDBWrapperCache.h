@@ -27,6 +27,16 @@ public:
   }
   bool SetScriptOwner(JSObject* aScriptOwner);
 
+  nsIScriptContext* GetScriptContext() const
+  {
+    return mScriptContext;
+  }
+
+  nsPIDOMWindow* GetOwner() const
+  {
+    return mOwner;
+  }
+
   JSObject* GetParentObject()
   {
     if (mScriptOwner) {

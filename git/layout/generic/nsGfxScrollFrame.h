@@ -180,9 +180,7 @@ public:
   nsPoint RestrictToDevPixels(const nsPoint& aPt, nsIntPoint* aPtDevPx, bool aShouldClamp) const;
   nsPoint ClampScrollPosition(const nsPoint& aPt) const;
   static void AsyncScrollCallback(nsITimer *aTimer, void* anInstance);
-  void ScrollTo(nsPoint aScrollPosition, nsIScrollableFrame::ScrollMode aMode) {
-    ScrollToWithSmoothnessProfile(aScrollPosition, aMode, nsGkAtoms::other);
-  };
+  void ScrollTo(nsPoint aScrollPosition, nsIScrollableFrame::ScrollMode aMode);
   void ScrollToImpl(nsPoint aScrollPosition);
   void ScrollVisual(nsPoint aOldScrolledFramePosition);
   void ScrollBy(nsIntPoint aDelta, nsIScrollableFrame::ScrollUnit aUnit,
@@ -342,12 +340,6 @@ public:
   // If true, the layer should always be active because we always build a layer.
   // Used for asynchronous scrolling.
   bool mShouldBuildLayer:1;
-
-protected:
-  void ScrollToWithSmoothnessProfile(nsPoint aScrollPosition,
-                                     nsIScrollableFrame::ScrollMode aMode,
-                                     nsIAtom *aProfile); // nsnull indicates no smooth scroll
-
 };
 
 /**

@@ -6,7 +6,8 @@
 
 interface nsIDOMMozSmsMessage;
 interface nsIDOMMozSmsRequest;
-interface nsIDOMMozSmsManager;
+interface nsPIDOMWindow;
+interface nsIScriptContext;
 
 %{C++
 #define SMS_REQUEST_MANAGER_CID \
@@ -35,7 +36,8 @@ interface nsISmsRequestManager : nsISupports
    *
    * @return the request ID.
    */
-  long createRequest(in nsIDOMMozSmsManager aManager,
+  long createRequest(in nsPIDOMWindow aWindow,
+                     in nsIScriptContext aScriptContext,
                      out nsIDOMMozSmsRequest aRequest);
 
   /**

@@ -686,7 +686,8 @@ public class AwesomeBarTabs extends TabHost {
             titleView.setText(name);
             urlView.setText(searchText);
             Drawable drawable = getDrawableFromDataURI(iconURI);
-            faviconView.setImageDrawable(drawable);
+            if (drawable != null)
+                faviconView.setImageDrawable(drawable);
         }
     };
 

@@ -44,9 +44,6 @@
 #include "txKey.h"
 #include "txXSLTPatterns.h"
 #include "txNamespaceMap.h"
-#include "mozilla/HashFunctions.h"
-
-using namespace mozilla;
 
 /*
  * txKeyFunctionCall
@@ -166,13 +163,10 @@ txKeyValueHashEntry::KeyEquals(KeyTypePointer aKey) const
 PLDHashNumber
 txKeyValueHashEntry::HashKey(KeyTypePointer aKey)
 {
-    const txKeyValueHashKey* key =
-        static_cast<const txKeyValueHashKey*>(aKey);
-
-    return AddToHash(HashString(key->mKeyValue),
-                     key->mKeyName.mNamespaceID,
-                     key->mRootIdentifier,
-                     key->mKeyName.mLocalName.get());
+    return aKey->mKeyName.mNamespaceID ^
+           NS_PTR_TO_INT32(aKey->mKeyName.mLocalName.get()) ^
+           aKey->mRootIdentifier ^
+           HashString(aKey->mKeyValue);
 }
 
 bool
@@ -185,11 +179,9 @@ txIndexedKeyHashEntry::KeyEquals(KeyTypePointer aKey) const
 PLDHashNumber
 txIndexedKeyHashEntry::HashKey(KeyTypePointer aKey)
 {
-    const txIndexedKeyHashKey* key =
-        static_cast<const txIndexedKeyHashKey*>(aKey);
-    return HashGeneric(key->mKeyName.mNamespaceID,
-                       key->mRootIdentifier,
-                       key->mKeyName.mLocalName.get());
+    return aKey->mKeyName.mNamespaceID ^
+           NS_PTR_TO_INT32(aKey->mKeyName.mLocalName.get()) ^
+           aKey->mRootIdentifier;
 }
 
 /*

@@ -60,7 +60,6 @@
 #include "nsPrincipal.h"
 
 #include "mozilla/Preferences.h"
-#include "mozilla/HashFunctions.h"
 
 using namespace mozilla;
 
@@ -802,7 +801,7 @@ nsPrincipal::GetHashValue(PRUint32* aValue)
 
   // If there is a certificate, it takes precendence over the codebase.
   if (mCert) {
-    *aValue = HashString(mCert->fingerprint);
+    *aValue = nsCRT::HashCode(mCert->fingerprint.get());
   }
   else {
     *aValue = nsScriptSecurityManager::HashPrincipalByOrigin(this);

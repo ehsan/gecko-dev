@@ -39,8 +39,11 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include "mozilla/Preferences.h"
 #include "mozilla/Util.h"
-// please add new includes below Qt, otherwise it break Qt build due malloc wrapper conflicts
+
+#include "nsIScreen.h"
+#include "nsIScreenManager.h"
 
 #if defined(XP_UNIX)
 
@@ -89,6 +92,7 @@ typedef void *EGLNativeWindowType;
 
 #elif defined(XP_WIN)
 
+#include "mozilla/Preferences.h"
 #include "nsILocalFile.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -147,9 +151,6 @@ public:
 
 #endif
 
-#include "mozilla/Preferences.h"
-#include "nsIScreen.h"
-#include "nsIScreenManager.h"
 #include "gfxUtils.h"
 #include "gfxFailure.h"
 #include "gfxASurface.h"
@@ -1099,9 +1100,6 @@ public:
         }
 #endif
 
-        if (ok)
-            InitFramebuffers();
-
         return ok;
     }
 
@@ -1319,6 +1317,9 @@ public:
     }
 
     void *GetD3DShareHandle() {
+        if (!mPBufferCanBindToTexture)
+            return nsnull;
+
         if (!sEGLLibrary.HasANGLESurfaceD3DTexture2DShareHandle()) {
             return nsnull;
         }
@@ -2392,7 +2393,7 @@ GLContextEGL::CreateEGLPBufferOffscreenContext(const gfxIntSize& aSize,
 
     // if we're running under ANGLE, we can't set BIND_TO_TEXTURE --
     // it's not supported, and we have dx interop pbuffers anyway
-    if (sEGLLibrary.IsANGLE() || bufferUnused)
+    if (sEGLLibrary.IsANGLE())
         configCanBindToTexture = false;
 
     nsTArray<EGLint> attribs(32);
@@ -2432,7 +2433,6 @@ TRY_ATTRIBS_AGAIN:
         }
 
         // no configs? no pbuffers!
-        NS_WARNING("Failed to select acceptable config for PBuffer creation!");
         return nsnull;
     }
 
@@ -2451,10 +2451,8 @@ TRY_ATTRIBS_AGAIN:
                                                                     : LOCAL_EGL_TEXTURE_RGB)
                                                                  : LOCAL_EGL_NONE,
                                                                  pbsize);
-    if (!surface) {
-        NS_WARNING("Failed to create PBuffer for context!");
+    if (!surface)
         return nsnull;
-    }
 
     sEGLLibrary.fBindAPI(LOCAL_EGL_OPENGL_ES_API);
 
@@ -2466,7 +2464,7 @@ TRY_ATTRIBS_AGAIN:
                                          sEGLLibrary.HasRobustness() ? gContextAttribsRobustness
                                                                      : gContextAttribs);
     if (!context) { 
-        NS_WARNING("Failed to create GLContext from PBuffer");
+        NS_WARNING("Failed to create context");
         sEGLLibrary.fDestroySurface(EGL_DISPLAY(), surface);
         return nsnull;
     }
@@ -2476,15 +2474,13 @@ TRY_ATTRIBS_AGAIN:
                                                         true);
 
     if (!glContext->Init()) {
-        NS_WARNING("Failed to initialize GLContext!");
         return nsnull;
     }
 
-    glContext->mPBufferCanBindToTexture = configCanBindToTexture;
-
-    if (!bufferUnused) {  // We *are* using the buffer
+    if (!bufferUnused) {
       glContext->SetOffscreenSize(aSize, pbsize);
       glContext->mIsPBuffer = true;
+      glContext->mPBufferCanBindToTexture = configCanBindToTexture;
     }
 
     return glContext.forget();
@@ -2645,20 +2641,13 @@ GLContextProviderEGL::CreateOffscreen(const gfxIntSize& aSize,
     }
 
 #if defined(ANDROID) || defined(XP_WIN)
-    bool usePBuffers = false; // Generally, prefer FBOs to PBuffers
-
-    if (sEGLLibrary.IsANGLE())
-      usePBuffers = true; // For d3d share handle, we need an EGL surface
-
-    gfxIntSize pbufferSize = usePBuffers ? aSize : gfxIntSize(16, 16);
     nsRefPtr<GLContextEGL> glContext =
-        GLContextEGL::CreateEGLPBufferOffscreenContext(pbufferSize, aFormat, !usePBuffers);
+        GLContextEGL::CreateEGLPBufferOffscreenContext(gfxIntSize(16, 16), aFormat, true);
 
     if (!glContext)
         return nsnull;
 
-    gfxIntSize fboSize = usePBuffers ? glContext->OffscreenActualSize() : aSize;
-    if (!glContext->ResizeOffscreenFBO(fboSize, !usePBuffers))
+    if (!glContext->ResizeOffscreenFBO(aSize, true))
         return nsnull;
 
     return glContext.forget();

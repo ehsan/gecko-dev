@@ -837,8 +837,6 @@ nsAppStartup::TrackStartupCrashBegin(bool *aIsSafeModeNecessary)
 
   mStartupCrashTrackingEnded = false;
 
-  StartupTimeline::Record(StartupTimeline::STARTUP_CRASH_DETECTION_BEGIN);
-
   bool hasLastSuccess = Preferences::HasUserValue(kPrefLastSuccess);
   if (!hasLastSuccess) {
     // Clear so we don't get stuck with SafeModeNecessary returning true if we
@@ -890,9 +888,6 @@ nsAppStartup::TrackStartupCrashBegin(bool *aIsSafeModeNecessary)
   if (PR_Now() / PR_USEC_PER_SEC <= lastSuccessfulStartup)
     return NS_ERROR_FAILURE;
 
-  // The last startup was a crash so include it in the count regardless of when it happened.
-  Telemetry::Accumulate(Telemetry::STARTUP_CRASH_DETECTED, true);
-
   if (inSafeMode) {
     GetAutomaticSafeModeNecessary(aIsSafeModeNecessary);
     return NS_OK;
@@ -934,8 +929,6 @@ nsAppStartup::TrackStartupCrashEnd()
   if (mStartupCrashTrackingEnded || (mIsSafeModeNecessary && !inSafeMode))
     return NS_OK;
   mStartupCrashTrackingEnded = true;
-
-  StartupTimeline::Record(StartupTimeline::STARTUP_CRASH_DETECTION_END);
 
   // Use the timestamp of XRE_main as an approximation for the lock file timestamp.
   // See MAX_STARTUP_BUFFER for the buffer time period.
