@@ -177,7 +177,8 @@ struct PropertyTable {
      * heap-allocated) and its |entries| array.
      */
     size_t sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf) const {
-        return mallocSizeOf(this) + mallocSizeOf(entries);
+        return mallocSizeOf(this, sizeof(PropertyTable)) +
+               mallocSizeOf(entries, sizeOfEntries(capacity()));
     }
 
     /* Whether we need to grow.  We want to do this if the load factor is >= 0.75 */

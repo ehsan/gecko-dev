@@ -56,7 +56,7 @@
 #include "mozilla/Telemetry.h"
 
 #include "nsContentUtils.h"
-#include "nsCCUncollectableMarker.h"
+
 #include "jsfriendapi.h"
 #include "js/MemoryMetrics.h"
 
@@ -573,30 +573,12 @@ XPCJSRuntime::AddXPConnectRoots(JSContext* cx,
 
     XPCWrappedNativeScope::SuspectAllWrappers(this, cx, cb);
 
-    for (XPCRootSetElem *e = mVariantRoots; e ; e = e->GetNextRoot()) {
-        XPCTraceableVariant* v = static_cast<XPCTraceableVariant*>(e);
-        if (nsCCUncollectableMarker::InGeneration(cb,
-                                                  v->CCGeneration())) {
-           jsval val = v->GetJSValPreserveColor();
-           if (val.isObject() && !xpc_IsGrayGCThing(&val.toObject()))
-               continue;
-        }
-        cb.NoteXPCOMRoot(v);
-    }
+    for (XPCRootSetElem *e = mVariantRoots; e ; e = e->GetNextRoot())
+        cb.NoteXPCOMRoot(static_cast<XPCTraceableVariant*>(e));
 
     for (XPCRootSetElem *e = mWrappedJSRoots; e ; e = e->GetNextRoot()) {
         nsXPCWrappedJS *wrappedJS = static_cast<nsXPCWrappedJS*>(e);
         JSObject *obj = wrappedJS->GetJSObjectPreserveColor();
-        // If traversing wrappedJS wouldn't release it, nor
-        // cause any other objects to be added to the graph, no
-        // need to add it to the graph at all.
-        if (nsCCUncollectableMarker::sGeneration &&
-            !cb.WantAllTraces() && (!obj || !xpc_IsGrayGCThing(obj)) &&
-            !wrappedJS->IsSubjectToFinalization() &&
-            wrappedJS->GetRootWrapper() == wrappedJS &&
-            !wrappedJS->IsAggregatedToNative()) {
-            continue;
-        }
 
         // Only suspect wrappedJSObjects that are in a compartment that
         // participates in cycle collection.
@@ -991,7 +973,7 @@ size_t
 XPCJSRuntime::SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf)
 {
     size_t n = 0;
-    n += mallocSizeOf(this);
+    n += mallocSizeOf(this, sizeof(XPCJSRuntime));
     n += mWrappedJSMap->SizeOfIncludingThis(mallocSizeOf);
     n += mIID2NativeInterfaceMap->SizeOfIncludingThis(mallocSizeOf);
     n += mClassInfo2NativeSetMap->ShallowSizeOfIncludingThis(mallocSizeOf);

@@ -271,9 +271,10 @@ moz_malloc_usable_size(void *ptr)
 #endif
 }
 
-size_t moz_malloc_size_of(const void *ptr)
+size_t moz_malloc_size_of(const void *ptr, size_t computedSize)
 {
-    return moz_malloc_usable_size((void *)ptr);
+    size_t usable = moz_malloc_usable_size((void *)ptr);
+    return usable ? usable : computedSize;
 }
 
 namespace mozilla {

@@ -43,7 +43,6 @@ function loadUtilsScript() {
   let loader = Cc["@mozilla.org/moz/jssubscript-loader;1"].
                getService(Ci.mozIJSSubScriptLoader);
   loader.loadSubScript("chrome://global/content/contentAreaUtils.js");
-  Components.utils.import("resource://gre/modules/DownloadLastDir.jsm");
 }
 
 do_get_profile();

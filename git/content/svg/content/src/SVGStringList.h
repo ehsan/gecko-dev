@@ -38,9 +38,8 @@
 #ifndef MOZILLA_SVGSTRINGLIST_H__
 #define MOZILLA_SVGSTRINGLIST_H__
 
-#include "nsDebug.h"
 #include "nsTArray.h"
-#include "nsString.h" // IWYU pragma: keep
+#include "nsSVGElement.h"
 
 namespace mozilla {
 

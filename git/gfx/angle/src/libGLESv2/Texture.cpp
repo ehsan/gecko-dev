@@ -1728,13 +1728,11 @@ Texture2D::Texture2D(GLuint id) : Texture(id)
 {
     mTexStorage = NULL;
     mSurface = NULL;
-    mColorbufferProxy = NULL;
-    mProxyRefs = 0;
 }
 
 Texture2D::~Texture2D()
 {
-    mColorbufferProxy = NULL;
+    mColorbufferProxy.set(NULL);
 
     delete mTexStorage;
     mTexStorage = NULL;
@@ -1744,23 +1742,6 @@ Texture2D::~Texture2D()
         mSurface->setBoundTexture(NULL);
         mSurface = NULL;
     }
-}
-
-// We need to maintain a count of references to renderbuffers acting as 
-// proxies for this texture, so that we do not attempt to use a pointer 
-// to a renderbuffer proxy which has been deleted.
-void Texture2D::addProxyRef(const Renderbuffer *proxy)
-{
-    mProxyRefs++;
-}
-
-void Texture2D::releaseProxy(const Renderbuffer *proxy)
-{
-    if (mProxyRefs > 0)
-        mProxyRefs--;
-
-    if (mProxyRefs == 0)
-        mColorbufferProxy = NULL;
 }
 
 GLenum Texture2D::getTarget() const
@@ -2319,12 +2300,12 @@ Renderbuffer *Texture2D::getRenderbuffer(GLenum target)
         return error(GL_INVALID_OPERATION, (Renderbuffer *)NULL);
     }
 
-    if (mColorbufferProxy == NULL)
+    if (mColorbufferProxy.get() == NULL)
     {
-        mColorbufferProxy = new Renderbuffer(id(), new RenderbufferTexture(this, target));
+        mColorbufferProxy.set(new Renderbuffer(id(), new RenderbufferTexture(this, target)));
     }
 
-    return mColorbufferProxy;
+    return mColorbufferProxy.get();
 }
 
 IDirect3DSurface9 *Texture2D::getRenderTarget(GLenum target)
@@ -2408,51 +2389,17 @@ unsigned int TextureStorageCubeMap::getRenderTargetSerial(GLenum target) const
 TextureCubeMap::TextureCubeMap(GLuint id) : Texture(id)
 {
     mTexStorage = NULL;
-    for (int i = 0; i < 6; i++)
-    {
-        mFaceProxies[i] = NULL;
-        mFaceProxyRefs[i] = 0;
-    }
 }
 
 TextureCubeMap::~TextureCubeMap()
 {
     for (int i = 0; i < 6; i++)
     {
-        mFaceProxies[i] = NULL;
+        mFaceProxies[i].set(NULL);
     }
 
     delete mTexStorage;
     mTexStorage = NULL;
-}
-
-// We need to maintain a count of references to renderbuffers acting as 
-// proxies for this texture, so that the texture is not deleted while 
-// proxy references still exist. If the reference count drops to zero,
-// we set our proxy pointer NULL, so that a new attempt at referencing
-// will cause recreation.
-void TextureCubeMap::addProxyRef(const Renderbuffer *proxy)
-{
-    for (int i = 0; i < 6; i++)
-    {
-        if (mFaceProxies[i] == proxy)
-            mFaceProxyRefs[i]++;
-    }
-}
-
-void TextureCubeMap::releaseProxy(const Renderbuffer *proxy)
-{
-    for (int i = 0; i < 6; i++)
-    {
-        if (mFaceProxies[i] == proxy)
-        {
-            if (mFaceProxyRefs[i] > 0)
-                mFaceProxyRefs[i]--;
-
-            if (mFaceProxyRefs[i] == 0)
-                mFaceProxies[i] = NULL;
-        }
-    }
 }
 
 GLenum TextureCubeMap::getTarget() const
@@ -3054,12 +3001,12 @@ Renderbuffer *TextureCubeMap::getRenderbuffer(GLenum target)
 
     unsigned int face = faceIndex(target);
 
-    if (mFaceProxies[face] == NULL)
+    if (mFaceProxies[face].get() == NULL)
     {
-        mFaceProxies[face] = new Renderbuffer(id(), new RenderbufferTexture(this, target));
+        mFaceProxies[face].set(new Renderbuffer(id(), new RenderbufferTexture(this, target)));
     }
 
-    return mFaceProxies[face];
+    return mFaceProxies[face].get();
 }
 
 IDirect3DSurface9 *TextureCubeMap::getRenderTarget(GLenum target)

@@ -41,16 +41,18 @@
 #ifndef MOZILLA_SVGMOTIONSMILPATHUTILS_H_
 #define MOZILLA_SVGMOTIONSMILPATHUTILS_H_
 
-#include "gfxContext.h"
-#include "gfxPlatform.h"
-#include "nsCOMPtr.h"
-#include "nsDebug.h"
 #include "nsSMILParserUtils.h"
+#include "nsAutoPtr.h"
 #include "nsTArray.h"
+#include "nsDebug.h"
+#include "gfxContext.h"
+#include "nsSVGUtils.h"
+#include "gfxPlatform.h"
 
-class gfxFlattenedPath;
-class nsAString;
 class nsSVGElement;
+class nsIContent;
+class nsIDocument;
+class nsAString;
 
 namespace mozilla {
 

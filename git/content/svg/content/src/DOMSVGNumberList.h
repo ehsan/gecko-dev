@@ -37,13 +37,11 @@
 #ifndef MOZILLA_DOMSVGNUMBERLIST_H__
 #define MOZILLA_DOMSVGNUMBERLIST_H__
 
-#include "DOMSVGAnimatedNumberList.h"
-#include "nsAutoPtr.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsDebug.h"
 #include "nsIDOMSVGNumberList.h"
-#include "nsTArray.h"
 #include "SVGNumberList.h"
+#include "DOMSVGAnimatedNumberList.h"
+#include "nsCOMArray.h"
+#include "nsAutoPtr.h"
 
 class nsSVGElement;
 

@@ -51,6 +51,7 @@
 #include "nsICharsetDetectionObserver.h"
 #include "nsIStringCharsetDetector.h"
 #include "nsCyrillicDetector.h"
+#include "nsXMLEncodingCID.h"
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsRUProbDetector)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsUKProbDetector)

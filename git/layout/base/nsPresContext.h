@@ -971,7 +971,8 @@ public:
   }
   virtual NS_MUST_OVERRIDE size_t
         SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
-    return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
+    return aMallocSizeOf(this, sizeof(nsPresContext)) +
+           SizeOfExcludingThis(aMallocSizeOf);
   }
 
   bool IsRootContentDocument();
@@ -1324,7 +1325,8 @@ public:
   }
   virtual NS_MUST_OVERRIDE size_t
         SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE {
-    return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
+    return aMallocSizeOf(this, sizeof(nsRootPresContext)) +
+           SizeOfExcludingThis(aMallocSizeOf);
   }
 
 protected:

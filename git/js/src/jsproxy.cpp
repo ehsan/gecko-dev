@@ -180,10 +180,7 @@ ProxyHandler::set(JSContext *cx, JSObject *proxy, JSObject *receiver, jsid id, b
         if (desc.attrs & JSPROP_READONLY)
             return true;
         if (!desc.setter) {
-            // Be wary of the odd explicit undefined setter case possible through
-            // Object.defineProperty.
-            if (!(desc.attrs & JSPROP_SETTER))
-                desc.setter = JS_StrictPropertyStub;
+            desc.setter = JS_StrictPropertyStub;
         } else if ((desc.attrs & JSPROP_SETTER) || desc.setter != JS_StrictPropertyStub) {
             if (!CallSetter(cx, receiver, id, desc.setter, desc.attrs, desc.shortid, strict, vp))
                 return false;
@@ -192,11 +189,8 @@ ProxyHandler::set(JSContext *cx, JSObject *proxy, JSObject *receiver, jsid id, b
             if (desc.attrs & JSPROP_SHARED)
                 return true;
         }
-        if (!desc.getter) {
-            // Same as above for the null setter case.
-            if (!(desc.attrs & JSPROP_GETTER))
-                desc.getter = JS_PropertyStub;
-        }
+        if (!desc.getter)
+            desc.getter = JS_PropertyStub;
         desc.value = *vp;
         return defineProperty(cx, receiver, id, &desc);
     }
@@ -206,10 +200,7 @@ ProxyHandler::set(JSContext *cx, JSObject *proxy, JSObject *receiver, jsid id, b
         if (desc.attrs & JSPROP_READONLY)
             return true;
         if (!desc.setter) {
-            // Be wary of the odd explicit undefined setter case possible through
-            // Object.defineProperty.
-            if (!(desc.attrs & JSPROP_SETTER))
-                desc.setter = JS_StrictPropertyStub;
+            desc.setter = JS_StrictPropertyStub;
         } else if ((desc.attrs & JSPROP_SETTER) || desc.setter != JS_StrictPropertyStub) {
             if (!CallSetter(cx, receiver, id, desc.setter, desc.attrs, desc.shortid, strict, vp))
                 return false;
@@ -218,11 +209,8 @@ ProxyHandler::set(JSContext *cx, JSObject *proxy, JSObject *receiver, jsid id, b
             if (desc.attrs & JSPROP_SHARED)
                 return true;
         }
-        if (!desc.getter) {
-            // Same as above for the null setter case.
-            if (!(desc.attrs & JSPROP_GETTER))
-                desc.getter = JS_PropertyStub;
-        }
+        if (!desc.getter)
+            desc.getter = JS_PropertyStub;
         return defineProperty(cx, receiver, id, &desc);
     }
 

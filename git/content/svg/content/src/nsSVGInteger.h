@@ -37,15 +37,9 @@
 #ifndef __NS_SVGINTEGER_H__
 #define __NS_SVGINTEGER_H__
 
-#include "nsAutoPtr.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsError.h"
 #include "nsIDOMSVGAnimatedInteger.h"
-#include "nsISMILAttr.h"
 #include "nsSVGElement.h"
-
-class nsISMILAnimationElement;
-class nsSMILValue;
+#include "nsDOMError.h"
 
 class nsSVGInteger
 {

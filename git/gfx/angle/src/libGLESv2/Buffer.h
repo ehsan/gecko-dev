@@ -18,7 +18,7 @@
 #include <GLES2/gl2.h>
 
 #include "common/angleutils.h"
-#include "common/RefCountObject.h"
+#include "libGLESv2/RefCountObject.h"
 
 namespace gl
 {

@@ -1154,6 +1154,14 @@ JSObject::isNative() const
     return lastProperty()->isNative();
 }
 
+inline const js::Shape *
+JSObject::nativeLookup(JSContext *cx, jsid id)
+{
+    JS_ASSERT(isNative());
+    js::Shape **spp;
+    return js::Shape::search(cx, lastProperty(), id, &spp);
+}
+
 inline bool
 JSObject::nativeContains(JSContext *cx, jsid id)
 {
@@ -1210,7 +1218,7 @@ JSObject::sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf,
 {
     if (hasDynamicSlots()) {
         size_t computedSize = numDynamicSlots() * sizeof(js::Value);
-        *slotsSize = mallocSizeOf ? mallocSizeOf(slots) : computedSize;
+        *slotsSize = mallocSizeOf ? mallocSizeOf(slots, computedSize) : computedSize;
     } else {
         *slotsSize = 0;
     }
@@ -1219,7 +1227,7 @@ JSObject::sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf,
             (js::ObjectElements::VALUES_PER_HEADER +
              getElementsHeader()->capacity) * sizeof(js::Value);
         *elementsSize =
-            mallocSizeOf ? mallocSizeOf(getElementsHeader()) : computedSize;
+            mallocSizeOf ? mallocSizeOf(getElementsHeader(), computedSize) : computedSize;
     } else {
         *elementsSize = 0;
     }

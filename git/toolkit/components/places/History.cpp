@@ -1705,7 +1705,7 @@ History::SizeOfEntryExcludingThis(KeyClass* aEntry, nsMallocSizeOfFun aMallocSiz
 size_t
 History::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOfThis)
 {
-  return aMallocSizeOfThis(this) +
+  return aMallocSizeOfThis(this, sizeof(History)) +
          mObservers.SizeOfExcludingThis(SizeOfEntryExcludingThis, aMallocSizeOfThis);
 }
 

@@ -400,10 +400,7 @@ RotaryStore.prototype = {
   },
 
   changeItemID: function(oldID, newID) {
-    if (oldID in this.items) {
-      this.items[newID] = this.items[oldID];
-    }
-
+    this.items[newID] = this.items[oldID];
     delete this.items[oldID];
   },
 

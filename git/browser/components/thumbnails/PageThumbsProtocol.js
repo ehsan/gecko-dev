@@ -52,7 +52,7 @@ Protocol.prototype = {
    * The flags specific to this protocol implementation.
    */
   get protocolFlags() {
-    return Ci.nsIProtocolHandler.URI_DANGEROUS_TO_LOAD |
+    return Ci.nsIProtocolHandler.URI_IS_UI_RESOURCE |
            Ci.nsIProtocolHandler.URI_NORELATIVE |
            Ci.nsIProtocolHandler.URI_NOAUTH;
   },
