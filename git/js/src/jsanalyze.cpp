@@ -148,7 +148,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
     numSlots = TotalSlots(script);
 
     codeArray = tla.newArray<Bytecode*>(length);
-    escapedSlots = tla.newArray<bool>(numSlots);
+    escapedSlots = tla.newArray<JSPackedBool>(numSlots);
 
     if (!codeArray || !escapedSlots) {
         setOOM(cx);

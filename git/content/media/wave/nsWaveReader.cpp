@@ -43,7 +43,7 @@
 #include "nsTimeRanges.h"
 #include "VideoUtils.h"
 
-#include "mozilla/StandardInteger.h"
+#include "mozilla/StdInt.h"
 
 using namespace mozilla;
 

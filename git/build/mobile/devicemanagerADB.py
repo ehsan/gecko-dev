@@ -449,8 +449,8 @@ class DeviceManagerADB(DeviceManager):
   def getDirectory(self, remoteDir, localDir, checkDir=True):
     ret = []
     p = self.runCmd(["pull", remoteDir, localDir])
-    p.stdout.readline()
-    line = p.stdout.readline()
+    p.stderr.readline()
+    line = p.stderr.readline()
     while (line):
       els = line.split()
       f = els[len(els) - 1]
@@ -463,7 +463,7 @@ class DeviceManagerADB(DeviceManager):
       if (i > 0):
         f = f[0:i]
       ret.append(f)
-      line =  p.stdout.readline()
+      line =  p.stderr.readline()
     #the last line is a summary
     if (len(ret) > 0):
       ret.pop()

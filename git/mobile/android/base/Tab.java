@@ -250,7 +250,7 @@ public final class Tab {
                 }
                 GeckoApp.mAppContext.mMainHandler.post(new Runnable() {
                     public void run() {
-                        Tabs.getInstance().notifyListeners(tab, Tabs.TabEvents.THUMBNAIL);
+                        GeckoApp.mAppContext.onTabsChanged(tab);
                     }
                 });
             }
@@ -332,7 +332,7 @@ public final class Tab {
         mHasTouchListeners = aValue;
     }
 
-    public boolean getHasTouchListeners() {
+    public boolean hasTouchListeners() {
         return mHasTouchListeners;
     }
 

@@ -9,7 +9,7 @@
 #define ObjectImpl_h___
 
 #include "mozilla/Assertions.h"
-#include "mozilla/StandardInteger.h"
+#include "mozilla/StdInt.h"
 
 #include "jsfriendapi.h"
 #include "jsinfer.h"

@@ -1534,13 +1534,11 @@ public:
   bool
   WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
   {
-    JSRuntime *rt = JS_GetRuntime(aCx);
-    if (mIsQuick) {
-      *static_cast<int64_t*>(mData) = JS::GetExplicitNonHeapForRuntime(rt, JsWorkerMallocSizeOf);
-      *mSucceeded = true;
-    } else {
-      *mSucceeded = JS::CollectRuntimeStats(rt, static_cast<JS::RuntimeStats*>(mData));
-    }
+    JSAutoSuspendRequest asr(aCx);
+
+    *mSucceeded = mIsQuick
+      ? JS::GetExplicitNonHeapForRuntime(JS_GetRuntime(aCx), static_cast<int64_t*>(mData), JsWorkerMallocSizeOf)
+      : JS::CollectRuntimeStats(JS_GetRuntime(aCx), static_cast<JS::RuntimeStats*>(mData));
 
     {
       MutexAutoLock lock(mMutex);

@@ -58,7 +58,7 @@
 #include "mozilla/dom/indexedDB/IndexedDatabaseManager.h"
 
 #include "mozilla/GuardObjects.h"
-#include "mozilla/StandardInteger.h"
+#include "mozilla/StdInt.h"
 
 class nsIFile;
 class nsIInputStream;

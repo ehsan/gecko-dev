@@ -158,6 +158,12 @@ abstract public class GeckoApp
     private static final String HANDLER_MSG_TYPE = "type";
     private static final int HANDLER_MSG_TYPE_INITIALIZE = 1;
 
+    public interface OnTabsChangedListener {
+        public void onTabsChanged(Tab tab);
+    }
+    
+    private static ArrayList<OnTabsChangedListener> mTabsChangedListeners;
+
     static class ExtraMenuItem implements MenuItem.OnMenuItemClickListener {
         String label;
         String icon;
@@ -685,7 +691,7 @@ abstract public class GeckoApp
                 if (Tabs.getInstance().isSelectedTab(tab))
                     mBrowserToolbar.setFavicon(tab.getFavicon());
 
-                Tabs.getInstance().notifyListeners(tab, Tabs.TabEvents.FAVICON);
+                onTabsChanged(tab);
             }
         });
 
@@ -744,6 +750,7 @@ abstract public class GeckoApp
                     mBrowserToolbar.setSecurityMode("unknown");
                     mDoorHangerPopup.updatePopup();
                     mBrowserToolbar.setShadowVisibility(!(tab.getURL().startsWith("about:")));
+                    mLayerController.setWaitForTouchListeners(false);
 
                     if (tab != null)
                         hidePlugins(tab, true);
@@ -851,6 +858,30 @@ abstract public class GeckoApp
         intent.addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY);
         startActivity(intent);
         overridePendingTransition(R.anim.grow_fade_in, 0);
+    }
+
+    public static void registerOnTabsChangedListener(OnTabsChangedListener listener) {
+        if (mTabsChangedListeners == null)
+            mTabsChangedListeners = new ArrayList<OnTabsChangedListener>();
+        
+        mTabsChangedListeners.add(listener);
+    }
+
+    public static void unregisterOnTabsChangedListener(OnTabsChangedListener listener) {
+        if (mTabsChangedListeners == null)
+            return;
+        
+        mTabsChangedListeners.remove(listener);
+    }
+
+    public void onTabsChanged(Tab tab) {
+        if (mTabsChangedListeners == null)
+            return;
+
+        Iterator<OnTabsChangedListener> items = mTabsChangedListeners.iterator();
+        while (items.hasNext()) {
+            items.next().onTabsChanged(tab);
+        }
     }
 
     public void handleMessage(String event, JSONObject message) {
@@ -1245,7 +1276,7 @@ abstract public class GeckoApp
                     if (showProgress)
                         mBrowserToolbar.setProgressVisibility(true);
                 }
-                Tabs.getInstance().notifyListeners(tab, Tabs.TabEvents.START);
+                onTabsChanged(tab);
             }
         });
     }
@@ -1261,7 +1292,7 @@ abstract public class GeckoApp
             public void run() {
                 if (Tabs.getInstance().isSelectedTab(tab))
                     mBrowserToolbar.setProgressVisibility(false);
-                Tabs.getInstance().notifyListeners(tab, Tabs.TabEvents.STOP);
+                onTabsChanged(tab);
             }
         });
 
@@ -1300,7 +1331,7 @@ abstract public class GeckoApp
                 if (Tabs.getInstance().isSelectedTab(tab))
                     mBrowserToolbar.setTitle(tab.getDisplayTitle());
 
-                Tabs.getInstance().notifyListeners(tab, Tabs.TabEvents.LOADED);
+                onTabsChanged(tab);
             }
         });
     }
@@ -1316,7 +1347,7 @@ abstract public class GeckoApp
             public void run() {
                 if (Tabs.getInstance().isSelectedTab(tab))
                     mBrowserToolbar.setTitle(tab.getDisplayTitle());
-                Tabs.getInstance().notifyListeners(tab, Tabs.TabEvents.TITLE);
+                onTabsChanged(tab);
             }
         });
     }
@@ -1954,13 +1985,6 @@ abstract public class GeckoApp
             // We're exiting and shouldn't try to do anything else just incase
             // we're hung for some reason we'll force the process to exit
             System.exit(0);
-            return;
-        }
-
-        // if we were previously OOM killed, we can end up here when launching
-        // from external shortcuts, so set this as the intent for initialization
-        if (!mInitialized) {
-            setIntent(intent);
             return;
         }
 

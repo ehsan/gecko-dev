@@ -49,8 +49,7 @@ let TelemetryStopwatch = {
 
     if (timers.hasOwnProperty(aHistogram)) {
       delete timers[aHistogram];
-      Cu.reportError("TelemetryStopwatch: key \"" +
-                     aHistogram + "\" was already initialized");
+      Cu.reportError("TelemetryStopwatch: key was already initialized");
       return false;
     }
 

@@ -73,6 +73,7 @@
 
 #include "imgIEncoder.h"
 #include "nsComponentManagerUtils.h"
+#include "gfxContext.h"
 #include "prmem.h"
 #include "nsISupportsUtils.h"
 #include "plbase64.h"

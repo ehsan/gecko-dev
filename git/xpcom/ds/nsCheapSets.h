@@ -39,7 +39,7 @@
 #define __nsCheapSets_h__
 
 #include "nsTHashtable.h"
-#include "mozilla/StandardInteger.h"
+#include "mozilla/StdInt.h"
 
 /**
  * A set that takes up minimal size when there are 0 or 1 entries in the set.
