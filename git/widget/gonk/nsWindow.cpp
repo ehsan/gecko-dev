@@ -480,16 +480,14 @@ nsWindow::GetLayerManager(PLayersChild* aShadowManager,
     if (mLayerManager)
         return mLayerManager;
 
-    // Set mUseAcceleratedRendering here to make it consistent with
-    // nsBaseWidget::GetLayerManager
+      // Set mUseAcceleratedRendering here to make it consistent with
+      // nsBaseWidget::GetLayerManager
     mUseAcceleratedRendering = GetShouldAccelerate();
     if (!mUseAcceleratedRendering) {
+        sFramebufferOpen = Framebuffer::Open();
         if (!sFramebufferOpen) {
-            sFramebufferOpen = Framebuffer::Open();
-            if (!sFramebufferOpen) {
-                LOG("Failed to mmap fb(?!?), aborting ...");
-                NS_RUNTIMEABORT("Can't open GL context and can't fall back on /dev/graphics/fb0 ...");
-            }
+            LOG("Failed to mmap fb(?!?), aborting ...");
+            NS_RUNTIMEABORT("Can't open GL context and can't fall back on /dev/graphics/fb0 ...");
         }
     }
 
@@ -507,9 +505,7 @@ nsWindow::GetLayerManager(PLayersChild* aShadowManager,
     }
 
     DebugOnly<nsIntRect> fbBounds = gScreenBounds;
-    if (!sGLContext) {
-      sGLContext = GLContextProvider::CreateForWindow(this);
-    }
+    sGLContext = GLContextProvider::CreateForWindow(this);
     MOZ_ASSERT(fbBounds.value == gScreenBounds);
     if (sGLContext) {
         nsRefPtr<LayerManagerOGL> layerManager = new LayerManagerOGL(this);

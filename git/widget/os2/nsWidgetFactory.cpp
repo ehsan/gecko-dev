@@ -26,11 +26,12 @@
 #include "nsIModule.h"
 #include "nsCOMPtr.h"
 #include "nsWidgetsCID.h"
+
 // class definition headers
-#include "nsWindow.h"
 #include "nsAppShell.h"
 #include "nsAppShellSingleton.h"
 #include "nsBidiKeyboard.h"
+#include "nsWindow.h"
 #include "nsDragService.h"
 #include "nsIFile.h"
 #include "nsFilePicker.h"

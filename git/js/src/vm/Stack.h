@@ -8,7 +8,6 @@
 #ifndef Stack_h__
 #define Stack_h__
 
-#include "jsapi.h"
 #include "jsfun.h"
 #include "jsautooplen.h"
 
@@ -116,7 +115,7 @@ namespace detail {
  *
  * A call to a native (C++) function does not push a frame. Instead, an array
  * of values is passed to the native. The layout of this array is abstracted by
- * JS::CallArgs. With respect to the StackSegment layout above, the args to a
+ * js::CallArgs. With respect to the StackSegment layout above, the args to a
  * native call are inserted anywhere there can be values. A sample memory layout
  * looks like:
  *
@@ -162,6 +161,98 @@ namespace detail {
 
 /*****************************************************************************/
 
+class CallReceiver
+{
+  protected:
+#ifdef DEBUG
+    mutable bool usedRval_;
+    void setUsedRval() const { usedRval_ = true; }
+    void clearUsedRval() const { usedRval_ = false; }
+#else
+    void setUsedRval() const {}
+    void clearUsedRval() const {}
+#endif
+    Value *argv_;
+  public:
+    friend CallReceiver CallReceiverFromVp(Value *);
+    friend CallReceiver CallReceiverFromArgv(Value *);
+    Value *base() const { return argv_ - 2; }
+    JSObject &callee() const { JS_ASSERT(!usedRval_); return argv_[-2].toObject(); }
+    Value &calleev() const { JS_ASSERT(!usedRval_); return argv_[-2]; }
+    Value &thisv() const { return argv_[-1]; }
+
+    Value &rval() const {
+        setUsedRval();
+        return argv_[-2];
+    }
+
+    Value *spAfterCall() const {
+        setUsedRval();
+        return argv_ - 1;
+    }
+
+    void setCallee(Value calleev) {
+        clearUsedRval();
+        this->calleev() = calleev;
+    }
+};
+
+JS_ALWAYS_INLINE CallReceiver
+CallReceiverFromArgv(Value *argv)
+{
+    CallReceiver receiver;
+    receiver.clearUsedRval();
+    receiver.argv_ = argv;
+    return receiver;
+}
+
+JS_ALWAYS_INLINE CallReceiver
+CallReceiverFromVp(Value *vp)
+{
+    return CallReceiverFromArgv(vp + 2);
+}
+
+/*****************************************************************************/
+
+class CallArgs : public CallReceiver
+{
+  protected:
+    unsigned argc_;
+  public:
+    friend CallArgs CallArgsFromVp(unsigned, Value *);
+    friend CallArgs CallArgsFromArgv(unsigned, Value *);
+    friend CallArgs CallArgsFromSp(unsigned, Value *);
+    Value &operator[](unsigned i) const { JS_ASSERT(i < argc_); return argv_[i]; }
+    Value *array() const { return argv_; }
+    unsigned length() const { return argc_; }
+    Value *end() const { return argv_ + argc_; }
+    bool hasDefined(unsigned i) const { return i < argc_ && !argv_[i].isUndefined(); }
+};
+
+JS_ALWAYS_INLINE CallArgs
+CallArgsFromArgv(unsigned argc, Value *argv)
+{
+    CallArgs args;
+    args.clearUsedRval();
+    args.argv_ = argv;
+    args.argc_ = argc;
+    return args;
+}
+
+JS_ALWAYS_INLINE CallArgs
+CallArgsFromVp(unsigned argc, Value *vp)
+{
+    return CallArgsFromArgv(argc, vp + 2);
+}
+
+JS_ALWAYS_INLINE CallArgs
+CallArgsFromSp(unsigned argc, Value *sp)
+{
+    return CallArgsFromArgv(argc, sp - argc);
+}
+
+/*****************************************************************************/
+
 /*
  * For calls to natives, the InvokeArgsGuard object provides a record of the
  * call for the debugger's callstack. For this to work, the InvokeArgsGuard
@@ -169,7 +260,7 @@ namespace detail {
  * InvokeArgsGuard can be pushed long before and popped long after the actual
  * call, during which time many stack-observing things can happen).
  */
-class CallArgsList : public JS::CallArgs
+class CallArgsList : public CallArgs
 {
     friend class StackSegment;
     CallArgsList *prev_;

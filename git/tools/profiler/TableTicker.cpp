@@ -702,9 +702,6 @@ void doSampleStackTrace(ProfileStack *aStack, ThreadProfile &aProfile, TickSampl
 #ifdef ENABLE_SPS_LEAF_DATA
   if (sample) {
     aProfile.addTag(ProfileEntry('l', (void*)sample->pc));
-#ifdef ENABLE_ARM_LR_SAVING
-    aProfile.addTag(ProfileEntry('L', (void*)sample->lr));
-#endif
   }
 #endif
 }
@@ -785,12 +782,12 @@ std::ostream& operator<<(std::ostream& stream, const ProfileEntry& entry)
 {
   if (entry.mTagName == 'r') {
     stream << entry.mTagName << "-" << std::fixed << entry.mTagFloat << "\n";
-  } else if (entry.mTagName == 'l' || entry.mTagName == 'L') {
+  } else if (entry.mTagName == 'l') {
     // Bug 739800 - Force l-tag addresses to have a "0x" prefix on all platforms
     // Additionally, stringstream seemed to be ignoring formatter flags.
     char tagBuff[1024];
     unsigned long long pc = (unsigned long long)(uintptr_t)entry.mTagPtr;
-    snprintf(tagBuff, 1024, "%c-%#llx\n", entry.mTagName, pc);
+    snprintf(tagBuff, 1024, "l-%#llx\n", pc);
     stream << tagBuff;
   } else if (entry.mTagName == 'd') {
     // TODO implement 'd' tag for text profile
