@@ -606,7 +606,8 @@ BrowserTabActor.prototype = {
       return;
     }
 
-    if (this._detach()) {
+    if (this.attached) {
+      this._detach();
       this.conn.send({ from: this.actorID,
                        type: "tabDetached" });
     }
@@ -674,12 +675,10 @@ BrowserTabActor.prototype = {
 
   /**
    * Does the actual work of detaching from a tab.
-   *
-   * @returns false if the tab wasn't attached or true of detahing succeeds.
    */
   _detach: function BTA_detach() {
     if (!this.attached) {
-      return false;
+      return;
     }
 
     if (this._progressListener) {
@@ -700,7 +699,6 @@ BrowserTabActor.prototype = {
     }
 
     this._attached = false;
-    return true;
   },
 
   // Protocol Request Handlers
@@ -716,9 +714,11 @@ BrowserTabActor.prototype = {
   },
 
   onDetach: function BTA_onDetach(aRequest) {
-    if (!this._detach()) {
+    if (!this.attached) {
       return { error: "wrongState" };
     }
+
+    this._detach();
 
     return { type: "detached" };
   },

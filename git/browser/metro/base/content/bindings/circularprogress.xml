@@ -67,9 +67,7 @@
               ctx.clip();
 
               // Draw circle image.
-              ctx.translate(center, center);
-              ctx.rotate(endAngle);
-              ctx.drawImage(this._img, -center, -center);
+              ctx.drawImage(this._img, 0, 0);
 
               ctx.restore();
             } else {

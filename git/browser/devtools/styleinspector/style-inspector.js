@@ -49,11 +49,10 @@ function RuleViewTool(aInspector, aWindow, aIFrame)
 
     // Chrome stylesheets are not listed in the style editor, so show
     // these sheets in the view source window instead.
-    if (!sheet || sheet.isSystem) {
+    if (!sheet || !rule.href || sheet.isSystem) {
       let contentDoc = this.inspector.selection.document;
       let viewSourceUtils = this.inspector.viewSourceUtils;
-      let href = rule.nodeHref || rule.href;
-      viewSourceUtils.viewSource(href, null, contentDoc, rule.line || 0);
+      viewSourceUtils.viewSource(rule.href, null, contentDoc, rule.line || 0);
       return;
     }
 

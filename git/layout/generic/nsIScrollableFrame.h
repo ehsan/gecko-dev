@@ -25,7 +25,6 @@ class nsIFrame;
 class nsPresContext;
 class nsIContent;
 class nsRenderingContext;
-class nsIAtom;
 
 /**
  * Interface for frames that are scrollable. This interface exposes
@@ -187,8 +186,7 @@ public:
    * number of layer pixels (so the operation is fast and looks clean).
    * The scroll mode is INSTANT.
    */
-  virtual void ScrollToCSSPixelsApproximate(const mozilla::CSSPoint& aScrollPosition,
-                                            nsIAtom *aOrigin = nullptr) = 0;
+  virtual void ScrollToCSSPixelsApproximate(const mozilla::CSSPoint& aScrollPosition) = 0;
 
   /**
    * Returns the scroll position in integer CSS pixels, rounded to the nearest
@@ -270,15 +268,6 @@ public:
    * visibility heuristics for how close it is to the visible scrollport.
    */
   virtual bool IsRectNearlyVisible(const nsRect& aRect) = 0;
-  /**
-   * Returns the origin passed in to the last ScrollToImpl call that took
-   * effect.
-   */
-  virtual nsIAtom* OriginOfLastScroll() = 0;
-  /**
-   * Clears the "origin of last scroll" property stored in this frame.
-   */
-  virtual void ResetOriginOfLastScroll() = 0;
 };
 
 #endif

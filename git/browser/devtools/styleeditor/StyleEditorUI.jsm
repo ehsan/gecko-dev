@@ -435,28 +435,7 @@ StyleEditorUI.prototype = {
     editor.getSourceEditor().then(() => {
       editor.sourceEditor.setCursor({line: line, ch: col});
     });
-
-    this.getEditorSummary(editor).then((summary) => {
-      this._view.activeSummary = summary;
-    })
-  },
-
-  getEditorSummary: function(editor) {
-    if (editor.summary) {
-      return promise.resolve(editor.summary);
-    }
-
-    let deferred = promise.defer();
-    let self = this;
-
-    this.on("editor-added", function onAdd(e, selected) {
-      if (selected == editor) {
-        self.off("editor-added", onAdd);
-        deferred.resolve(editor.summary);
-      }
-    });
-
-    return deferred.promise;
+    this._view.activeSummary = editor.summary;
   },
 
   /**
