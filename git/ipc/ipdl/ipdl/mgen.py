@@ -11,14 +11,10 @@
 # for the specific language governing rights and limitations under the
 # License.
 #
-# The Original Code is Mozilla code.
-#
-# The Initial Developer of the Original Code is
-# Netscape Communications Corporation.
-# Portions created by the Initial Developer are Copyright (C) 1999
-# the Initial Developer. All Rights Reserved.
+# The Original Code is mozilla.org code.
 #
 # Contributor(s):
+#   Benoit Girard <bgirard@mozilla.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -34,23 +30,25 @@
 #
 # ***** END LICENSE BLOCK *****
 
-DEPTH 		= ../../..
-topsrcdir	= @top_srcdir@
-srcdir		= @srcdir@
-VPATH		= @srcdir@
+import sys
 
-include $(DEPTH)/config/autoconf.mk
+from ipdl.cgen import CodePrinter
+from ipdl.cxx.ast import TypeArray, Visitor
 
-MODULE		= jsloader
-LIBRARY_NAME	= jsloader_s
-FORCE_STATIC_LIB = 1
-LIBXUL_LIBRARY = 1
-LOCAL_INCLUDES += -I$(srcdir)/../src
+class DependGen(CodePrinter, Visitor):
+    def __init__(self, outf=sys.stdout, indentCols=4):
+        CodePrinter.__init__(self, outf, indentCols)
 
-CPPSRCS		= mozJSComponentLoader.cpp mozJSSubScriptLoader.cpp mozJSLoaderUtils.cpp
+    def mgen(self, cxxfile):
+        cxxfile.accept(self)
 
-EXTRA_JS_MODULES = XPCOMUtils.jsm
+    def visitTranslationUnit(self, tu):
+        self.write(tu.filename)
+        self.write(": ")
 
-include $(topsrcdir)/config/rules.mk
+        for pinc in tu.protocolIncludes:
+            self.write(pinc.file)
+            self.write(" ")
 
-DEFINES		+= -DJSFILE -DJS_THREADSAFE
+        self.println();
+
