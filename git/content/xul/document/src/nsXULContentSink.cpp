@@ -14,6 +14,7 @@
 
 #include "nsXULContentSink.h"
 
+#include "jsapi.h"
 #include "jsfriendapi.h"
 
 #include "nsCOMPtr.h"

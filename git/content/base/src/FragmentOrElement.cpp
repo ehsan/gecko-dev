@@ -79,7 +79,7 @@
 #include "nsIBaseWindow.h"
 #include "nsIWidget.h"
 
-#include "js/GCAPI.h"
+#include "jsapi.h"
 
 #include "nsNodeInfoManager.h"
 #include "nsICategoryManager.h"

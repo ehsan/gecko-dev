@@ -60,6 +60,7 @@
 #include "MediaStreamList.h"
 #include "MediaStreamTrack.h"
 #include "nsIScriptGlobalObject.h"
+#include "jsapi.h"
 #include "DOMMediaStream.h"
 #endif
 

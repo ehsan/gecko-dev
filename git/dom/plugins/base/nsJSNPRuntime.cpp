@@ -5,6 +5,7 @@
 
 #include "base/basictypes.h"
 
+#include "jsapi.h"
 #include "jsfriendapi.h"
 #include "jswrapper.h"
 

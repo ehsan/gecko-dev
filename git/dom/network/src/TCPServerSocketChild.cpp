@@ -9,6 +9,7 @@
 #include "mozilla/dom/TabChild.h"
 #include "nsIDOMTCPSocket.h"
 #include "nsJSUtils.h"
+#include "jsapi.h"
 #include "jsfriendapi.h"
 
 using mozilla::net::gNeckoChild;

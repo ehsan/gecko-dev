@@ -4,6 +4,7 @@
 
 #include "mozilla/dom/StkCommandEvent.h"
 
+#include "jsapi.h"
 #include "jsfriendapi.h"
 #include "nsJSON.h"
 #include "SimToolKit.h"
