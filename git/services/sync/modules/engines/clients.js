@@ -96,7 +96,7 @@ ClientStore.prototype = {
   },
 
   _ClientStore_init: function ClientStore__init() {
-    this._init.call(this);
+    this.__proto__.__proto__._init.call(this);
     this.clients = {};
     this.loadSnapshot();
   },

@@ -474,14 +474,10 @@ WeaveSvc.prototype = {
 
       this._log.debug("Logging in user " + this.username);
 
-      try {
-        yield this.verifyLogin(self.cb, this.username, this.password);
-        this._loggedIn = true;
-        self.done(true);
-      } catch (e) {
-        this._loggedIn = false;
-        self.done(false);
-      }
+      yield this.verifyLogin(self.cb, this.username, this.password);
+
+      this._loggedIn = true;
+      self.done(true);
     };
     this._localLock(
       this._catchAll(
