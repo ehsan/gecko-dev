@@ -63,12 +63,7 @@ enum DrawType {
     COMMENT,
     END_COMMENT_GROUP,
 
-    // new ops -- feel free to re-alphabetize on next version bump
-    DRAW_DRRECT,
-    PUSH_CULL,
-    POP_CULL,
-
-    LAST_DRAWTYPE_ENUM = POP_CULL
+    LAST_DRAWTYPE_ENUM = END_COMMENT_GROUP
 };
 
 // In the 'match' method, this constant will match any flavor of DRAW_BITMAP*
@@ -270,7 +265,7 @@ public:
         buffer.setTypefaceRecorder(controller->getTypefaceSet());
         buffer.setNamedFactoryRecorder(controller->getNamedFactorySet());
 
-        Traits::Flatten(buffer, obj);
+        Traits::flatten(buffer, obj);
         size_t size = buffer.bytesWritten();
         SkASSERT(SkIsAlign4(size));
 
@@ -299,7 +294,7 @@ public:
             facePlayback->setupBuffer(buffer);
         }
 
-        Traits::Unflatten(buffer, result);
+        Traits::unflatten(buffer, result);
         SkASSERT(fFlatSize == (int32_t)buffer.offset());
     }
 
@@ -505,9 +500,7 @@ private:
         const SkFlatData& scratch = this->resetScratch(element, this->count()+1);
 
         SkFlatData* candidate = fHash.find(scratch);
-        if (candidate != NULL) {
-            return candidate;
-        }
+        if (candidate != NULL) return candidate;
 
         SkFlatData* detached = this->detachScratch();
         fHash.add(detached);
@@ -523,7 +516,7 @@ private:
         // Layout of fScratch: [ SkFlatData header, 20 bytes ] [ data ..., 4-byte aligned ]
         fScratch.reset();
         fScratch.reserve(sizeof(SkFlatData));
-        Traits::Flatten(fScratch, element);
+        Traits::flatten(fScratch, element);
         const size_t dataSize = fScratch.bytesWritten() - sizeof(SkFlatData);
 
         // Reinterpret data in fScratch as an SkFlatData.
@@ -568,7 +561,15 @@ private:
                    SkFlatData::Identity, SkFlatData::Hash, SkFlatData::Equal> fHash;
 };
 
-typedef SkFlatDictionary<SkPaint, SkPaint::FlatteningTraits> SkPaintDictionary;
+struct SkPaintTraits {
+    static void flatten(SkWriteBuffer& buffer, const SkPaint& paint) {
+        paint.flatten(buffer);
+    }
+    static void unflatten(SkReadBuffer& buffer, SkPaint* paint) {
+        paint->unflatten(buffer);
+    }
+};
+typedef SkFlatDictionary<SkPaint, SkPaintTraits> SkPaintDictionary;
 
 class SkChunkFlatController : public SkFlatController {
 public:

@@ -75,16 +75,6 @@ public:
     }
 
     /**
-     * Destroy the lazy object (if it was created via init() or set())
-     */
-    void reset() {
-        if (this->isValid()) {
-            fPtr->~T();
-            fPtr = NULL;
-        }
-    }
-
-    /**
      *  Returns true if a valid object has been initialized in the SkTLazy,
      *  false otherwise.
      */

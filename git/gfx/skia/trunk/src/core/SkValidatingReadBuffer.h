@@ -75,6 +75,7 @@ private:
         return SkIsAlign4((uintptr_t)ptr);
     }
 
+    SkReader32 fReader;
     bool fError;
 
     typedef SkReadBuffer INHERITED;

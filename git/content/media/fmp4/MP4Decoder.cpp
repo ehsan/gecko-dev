@@ -12,9 +12,6 @@
 #ifdef XP_WIN
 #include "mozilla/WindowsVersion.h"
 #endif
-#ifdef MOZ_FFMPEG
-#include "FFmpegDecoderModule.h"
-#endif
 
 namespace mozilla {
 
@@ -68,32 +65,16 @@ MP4Decoder::GetSupportedCodecs(const nsACString& aType,
 }
 
 static bool
-IsFFmpegAvailable()
-{
-#ifndef MOZ_FFMPEG
-  return false;
-#else
-  if (!Preferences::GetBool("media.fragmented-mp4.ffmpeg.enabled", false)) {
-    return false;
-  }
-
-  // If we can link to FFmpeg, then we can almost certainly play H264 and AAC
-  // with it.
-  return FFmpegDecoderModule::Link();
-#endif
-}
-
-static bool
 HavePlatformMPEGDecoders()
 {
-  return Preferences::GetBool("media.fragmented-mp4.use-blank-decoder") ||
+  return
+    Preferences::GetBool("media.fragmented-mp4.use-blank-decoder") ||
 #ifdef XP_WIN
-         // We have H.264/AAC platform decoders on Windows Vista and up.
-         IsVistaOrLater() ||
+    // We have H.264/AAC platform decoders on Windows Vista and up.
+    IsVistaOrLater() ||
 #endif
-         IsFFmpegAvailable() ||
-         // TODO: Other platforms...
-         false;
+    // TODO: Other platforms...
+    false;
 }
 
 /* static */

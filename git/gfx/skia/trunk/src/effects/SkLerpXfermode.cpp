@@ -104,7 +104,7 @@ void SkLerpXfermode::xferA8(SkAlpha dst[], const SkPMColor src[], int count,
     }
 }
 
-#ifndef SK_IGNORE_TO_STRING
+#ifdef SK_DEVELOPER
 void SkLerpXfermode::toString(SkString* str) const {
     str->printf("SkLerpXfermode: scale: %g", fScale256 / 256.0);
 }

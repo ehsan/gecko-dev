@@ -10,7 +10,7 @@
 
 #include "ExtendedValidation.h"
 #include "certdb.h"
-#include "pkix/pkix.h"
+#include "insanity/pkix.h"
 #include "mozilla/Telemetry.h"
 #include "nss.h"
 #include "ocsp.h"
@@ -21,7 +21,7 @@
 #include "secerr.h"
 #include "secmod.h"
 
-using namespace mozilla::pkix;
+using namespace insanity::pkix;
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gCertVerifierLog;
@@ -53,7 +53,7 @@ NSSCertDBTrustDomain::NSSCertDBTrustDomain(SECTrustType certDBTrustType,
 SECStatus
 NSSCertDBTrustDomain::FindPotentialIssuers(
   const SECItem* encodedIssuerName, PRTime time,
-  /*out*/ mozilla::pkix::ScopedCERTCertList& results)
+  /*out*/ insanity::pkix::ScopedCERTCertList& results)
 {
   // TODO: normalize encodedIssuerName
   // TODO: NSS seems to be ambiguous between "no potential issuers found" and
@@ -131,12 +131,12 @@ SECStatus
 NSSCertDBTrustDomain::VerifySignedData(const CERTSignedData* signedData,
                                        const CERTCertificate* cert)
 {
-  return ::mozilla::pkix::VerifySignedData(signedData, cert, mPinArg);
+  return ::insanity::pkix::VerifySignedData(signedData, cert, mPinArg);
 }
 
 SECStatus
 NSSCertDBTrustDomain::CheckRevocation(
-  mozilla::pkix::EndEntityOrCA endEntityOrCA,
+  insanity::pkix::EndEntityOrCA endEntityOrCA,
   const CERTCertificate* cert,
   /*const*/ CERTCertificate* issuerCert,
   PRTime time,
@@ -146,7 +146,7 @@ NSSCertDBTrustDomain::CheckRevocation(
   // GetCertTrust.
 
   // TODO: need to verify that IsRevoked isn't called for trust anchors AND
-  // that that fact is documented in mozillapkix.
+  // that that fact is documented in insanity.
 
   PR_LOG(gCertVerifierLog, PR_LOG_DEBUG,
          ("NSSCertDBTrustDomain: Top of CheckRevocation\n"));

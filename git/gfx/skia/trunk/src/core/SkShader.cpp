@@ -5,13 +5,13 @@
  * found in the LICENSE file.
  */
 
-#include "SkBitmapProcShader.h"
-#include "SkReadBuffer.h"
-#include "SkMallocPixelRef.h"
-#include "SkPaint.h"
+
 #include "SkScalar.h"
 #include "SkShader.h"
+#include "SkReadBuffer.h"
 #include "SkWriteBuffer.h"
+#include "SkPaint.h"
+#include "SkMallocPixelRef.h"
 
 SkShader::SkShader() {
     fLocalMatrix.reset();
@@ -176,10 +176,10 @@ GrEffectRef* SkShader::asNewEffect(GrContext*, const SkPaint&) const {
 
 SkShader* SkShader::CreateBitmapShader(const SkBitmap& src,
                                        TileMode tmx, TileMode tmy) {
-    return ::CreateBitmapShader(src, tmx, tmy, NULL);
+    return SkShader::CreateBitmapShader(src, tmx, tmy, NULL, 0);
 }
 
-#ifndef SK_IGNORE_TO_STRING
+#ifdef SK_DEVELOPER
 void SkShader::toString(SkString* str) const {
     if (this->hasLocalMatrix()) {
         str->append(" ");
@@ -309,7 +309,7 @@ SkShader::GradientType SkColorShader::asAGradient(GradientInfo* info) const {
     return kColor_GradientType;
 }
 
-#ifndef SK_IGNORE_TO_STRING
+#ifdef SK_DEVELOPER
 void SkColorShader::toString(SkString* str) const {
     str->append("SkColorShader: (");
 
@@ -348,7 +348,7 @@ void SkEmptyShader::shadeSpanAlpha(int x, int y, uint8_t alpha[], int count) {
     SkDEBUGFAIL("should never get called, since setContext() returned false");
 }
 
-#ifndef SK_IGNORE_TO_STRING
+#ifdef SK_DEVELOPER
 void SkEmptyShader::toString(SkString* str) const {
     str->append("SkEmptyShader: (");
 

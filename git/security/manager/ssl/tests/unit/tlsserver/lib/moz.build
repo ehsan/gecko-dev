@@ -10,8 +10,8 @@ UNIFIED_SOURCES += [
 ]
 
 LOCAL_INCLUDES += [
-    '../../../../../../pkix/include',
-    '../../../../../../pkix/test/lib',
+    '../../../../../../insanity/include',
+    '../../../../../../insanity/test/lib',
 ]
 
 LIBRARY_NAME = 'tlsserver'

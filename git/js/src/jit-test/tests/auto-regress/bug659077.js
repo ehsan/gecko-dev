@@ -8,7 +8,7 @@ try {
     var _ = q;
 } catch (e) {    }
 try {
-    v = new ArrayBuffer();
+    v = ArrayBuffer();
     s = [];
     function e() {        }
     let a;

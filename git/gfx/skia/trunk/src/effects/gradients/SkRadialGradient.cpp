@@ -563,7 +563,7 @@ GrEffectRef* SkRadialGradient::asNewEffect(GrContext*, const SkPaint&) const {
 
 #endif
 
-#ifndef SK_IGNORE_TO_STRING
+#ifdef SK_DEVELOPER
 void SkRadialGradient::toString(SkString* str) const {
     str->append("SkRadialGradient: (");
 

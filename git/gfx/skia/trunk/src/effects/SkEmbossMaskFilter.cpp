@@ -49,7 +49,7 @@ SkMaskFilter* SkBlurMaskFilter::CreateEmboss(SkScalar blurSigma, const SkScalar 
     light.fAmbient = SkToU8(am);
     light.fSpecular = SkToU8(sp);
 
-    return SkEmbossMaskFilter::Create(blurSigma, light);
+    return SkNEW_ARGS(SkEmbossMaskFilter, (blurSigma, light));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -66,6 +66,13 @@ static void normalize(SkScalar v[3]) {
 SkEmbossMaskFilter::SkEmbossMaskFilter(SkScalar blurSigma, const Light& light)
     : fLight(light), fBlurSigma(blurSigma) {
     normalize(fLight.fDirection);
+}
+
+SkEmbossMaskFilter::SkEmbossMaskFilter(const Light& light, SkScalar blurRadius)
+        : fLight(light) {
+    normalize(fLight.fDirection);
+
+    fBlurSigma = SkBlurMask::ConvertRadiusToSigma(blurRadius);
 }
 
 SkMask::Format SkEmbossMaskFilter::getFormat() const {
@@ -140,7 +147,7 @@ void SkEmbossMaskFilter::flatten(SkWriteBuffer& buffer) const {
     buffer.writeScalar(fBlurSigma);
 }
 
-#ifndef SK_IGNORE_TO_STRING
+#ifdef SK_DEVELOPER
 void SkEmbossMaskFilter::toString(SkString* str) const {
     str->append("SkEmbossMaskFilter: (");
 

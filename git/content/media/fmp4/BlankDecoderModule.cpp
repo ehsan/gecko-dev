@@ -45,8 +45,8 @@ public:
                 MediaDataDecoderCallback* aCallback,
                 BlankMediaDataCreator* aCreator)
       : mSample(aSample)
-      , mCreator(aCreator)
       , mCallback(aCallback)
+      , mCreator(aCreator)
     {
     }
     NS_IMETHOD Run() MOZ_OVERRIDE
@@ -161,9 +161,10 @@ public:
   BlankAudioDataCreator(uint32_t aChannelCount,
                         uint32_t aSampleRate,
                         uint16_t aBitsPerSample)
-    : mFrameSum(0)
-    , mChannelCount(aChannelCount)
-    , mSampleRate(aSampleRate)
+    : mFrameSum(0),
+      mChannelCount(aChannelCount),
+      mSampleRate(aSampleRate),
+      mBitsPerSample(aBitsPerSample)
   {
   }
 
@@ -203,6 +204,7 @@ private:
   int64_t mFrameSum;
   uint32_t mChannelCount;
   uint32_t mSampleRate;
+  uint16_t mBitsPerSample;
 };
 
 class BlankDecoderModule : public PlatformDecoderModule {

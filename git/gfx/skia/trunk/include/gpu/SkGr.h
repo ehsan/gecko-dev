@@ -50,7 +50,6 @@ GR_STATIC_ASSERT((int)kIDA_GrBlendCoeff  == (int)SkXfermode::kIDA_Coeff);
  *  kUnknown_PixelConfig if the conversion cannot be done.
  */
 GrPixelConfig SkBitmapConfig2GrPixelConfig(SkBitmap::Config);
-GrPixelConfig SkImageInfo2GrPixelConfig(SkColorType, SkAlphaType);
 bool GrPixelConfig2ColorType(GrPixelConfig, SkColorType*);
 
 static inline GrColor SkColor2GrColor(SkColor c) {

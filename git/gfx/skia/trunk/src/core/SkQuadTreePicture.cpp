@@ -10,5 +10,5 @@
 #include "SkQuadTree.h"
 
 SkBBoxHierarchy* SkQuadTreePicture::createBBoxHierarchy() const {
-    return SkNEW_ARGS(SkQuadTree, (fBounds));
+    return SkQuadTree::Create(fBounds);
 }

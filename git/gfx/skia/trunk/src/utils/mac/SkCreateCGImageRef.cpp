@@ -22,19 +22,13 @@ static bool getBitmapInfo(const SkBitmap& bm,
         *upscaleTo32 = false;
     }
 
-    switch (bm.colorType()) {
-        case kRGB_565_SkColorType:
-#if 0
-            // doesn't see quite right. Are they thinking 1555?
-            *bitsPerComponent = 5;
-            *info = kCGBitmapByteOrder16Little | kCGImageAlphaNone;
-            break;
-#endif
+    switch (bm.config()) {
+        case SkBitmap::kRGB_565_Config:
             if (upscaleTo32) {
                 *upscaleTo32 = true;
             }
             // fall through
-        case kPMColor_SkColorType:
+        case SkBitmap::kARGB_8888_Config:
             *bitsPerComponent = 8;
 #if SK_PMCOLOR_BYTE_ORDER(R,G,B,A)
             *info = kCGBitmapByteOrder32Big;
@@ -66,7 +60,14 @@ This will probably not work.
             }
 #endif
             break;
-        case kARGB_4444_SkColorType:
+#if 0
+        case SkBitmap::kRGB_565_Config:
+            // doesn't see quite right. Are they thinking 1555?
+            *bitsPerComponent = 5;
+            *info = kCGBitmapByteOrder16Little | kCGImageAlphaNone;
+            break;
+#endif
+        case SkBitmap::kARGB_4444_Config:
             *bitsPerComponent = 4;
             *info = kCGBitmapByteOrder16Little;
             if (bm.isOpaque()) {
@@ -94,7 +95,7 @@ static SkBitmap* prepareForImageRef(const SkBitmap& bm,
         copy = new SkBitmap;
         // here we make a ceep copy of the pixels, since CG won't take our
         // 565 directly
-        bm.copyTo(copy, kPMColor_SkColorType);
+        bm.copyTo(copy, SkBitmap::kARGB_8888_Config);
     } else {
         copy = new SkBitmap(bm);
     }

@@ -16,6 +16,7 @@
 #include "GrContext.h"
 #include "effects/GrSimpleTextureEffect.h"
 #include "SkGr.h"
+#include "SkImageFilterUtils.h"
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -44,7 +45,7 @@ void SkXfermodeImageFilter::flatten(SkWriteBuffer& buffer) const {
 
 bool SkXfermodeImageFilter::onFilterImage(Proxy* proxy,
                                             const SkBitmap& src,
-                                            const Context& ctx,
+                                            const SkMatrix& ctm,
                                             SkBitmap* dst,
                                             SkIPoint* offset) const {
     SkBitmap background = src, foreground = src;
@@ -52,23 +53,24 @@ bool SkXfermodeImageFilter::onFilterImage(Proxy* proxy,
     SkImageFilter* foregroundInput = getInput(1);
     SkIPoint backgroundOffset = SkIPoint::Make(0, 0);
     if (backgroundInput &&
-        !backgroundInput->filterImage(proxy, src, ctx, &background, &backgroundOffset)) {
+        !backgroundInput->filterImage(proxy, src, ctm, &background, &backgroundOffset)) {
         return false;
     }
     SkIPoint foregroundOffset = SkIPoint::Make(0, 0);
     if (foregroundInput &&
-        !foregroundInput->filterImage(proxy, src, ctx, &foreground, &foregroundOffset)) {
+        !foregroundInput->filterImage(proxy, src, ctm, &foreground, &foregroundOffset)) {
         return false;
     }
 
     SkIRect bounds, foregroundBounds;
-    if (!applyCropRect(ctx, foreground, foregroundOffset, &foregroundBounds)) {
-        return false;
-    }
-    if (!applyCropRect(ctx, background, backgroundOffset, &bounds)) {
-        return false;
-    }
+    background.getBounds(&bounds);
+    bounds.offset(backgroundOffset);
+    foreground.getBounds(&foregroundBounds);
+    foregroundBounds.offset(foregroundOffset);
     bounds.join(foregroundBounds);
+    if (!applyCropRect(&bounds, ctm)) {
+        return false;
+    }
 
     SkAutoTUnref<SkBaseDevice> device(proxy->createDevice(bounds.width(), bounds.height()));
     if (NULL == device.get()) {
@@ -96,20 +98,20 @@ bool SkXfermodeImageFilter::onFilterImage(Proxy* proxy,
 
 bool SkXfermodeImageFilter::filterImageGPU(Proxy* proxy,
                                            const SkBitmap& src,
-                                           const Context& ctx,
+                                           const SkMatrix& ctm,
                                            SkBitmap* result,
                                            SkIPoint* offset) const {
-    SkBitmap background = src;
+    SkBitmap background;
     SkIPoint backgroundOffset = SkIPoint::Make(0, 0);
-    if (getInput(0) && !getInput(0)->getInputResultGPU(proxy, src, ctx, &background,
-                                                       &backgroundOffset)) {
+    if (!SkImageFilterUtils::GetInputResultGPU(getInput(0), proxy, src, ctm, &background,
+                                               &backgroundOffset)) {
         return false;
     }
     GrTexture* backgroundTex = background.getTexture();
-    SkBitmap foreground = src;
+    SkBitmap foreground;
     SkIPoint foregroundOffset = SkIPoint::Make(0, 0);
-    if (getInput(1) && !getInput(1)->getInputResultGPU(proxy, src, ctx, &foreground,
-                                                       &foregroundOffset)) {
+    if (!SkImageFilterUtils::GetInputResultGPU(getInput(1), proxy, src, ctm, &foreground,
+                                               &foregroundOffset)) {
         return false;
     }
     GrTexture* foregroundTex = foreground.getTexture();
@@ -158,8 +160,7 @@ bool SkXfermodeImageFilter::filterImageGPU(Proxy* proxy,
     }
     offset->fX = backgroundOffset.fX;
     offset->fY = backgroundOffset.fY;
-    WrapTexture(dst, src.width(), src.height(), result);
-    return true;
+    return SkImageFilterUtils::WrapTexture(dst, src.width(), src.height(), result);
 }
 
 #endif

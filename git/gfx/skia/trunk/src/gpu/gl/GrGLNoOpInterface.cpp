@@ -119,6 +119,9 @@ GrGLvoid GR_GL_FUNCTION_TYPE noOpGLDepthMask(GrGLboolean flag) {
 GrGLvoid GR_GL_FUNCTION_TYPE noOpGLDisable(GrGLenum cap) {
 }
 
+GrGLvoid GR_GL_FUNCTION_TYPE noOpGLDisableClientState(GrGLenum) {
+}
+
 GrGLvoid GR_GL_FUNCTION_TYPE noOpGLDisableVertexAttribArray(GrGLuint index) {
 }
 
@@ -141,6 +144,9 @@ GrGLvoid GR_GL_FUNCTION_TYPE noOpGLDrawElements(GrGLenum mode,
 }
 
 GrGLvoid GR_GL_FUNCTION_TYPE noOpGLEnable(GrGLenum cap) {
+}
+
+GrGLvoid GR_GL_FUNCTION_TYPE noOpGLEnableClientState(GrGLenum cap) {
 }
 
 GrGLvoid GR_GL_FUNCTION_TYPE noOpGLEnableVertexAttribArray(GrGLuint index) {
@@ -377,6 +383,9 @@ GrGLvoid GR_GL_FUNCTION_TYPE noOpGLVertexAttribPointer(GrGLuint indx,
                                                        GrGLboolean normalized,
                                                        GrGLsizei stride,
                                                        const GrGLvoid* ptr) {
+}
+
+GrGLvoid GR_GL_FUNCTION_TYPE noOpGLVertexPointer(GrGLint, GrGLenum, GrGLsizei, const GrGLvoid*) {
 }
 
 GrGLvoid GR_GL_FUNCTION_TYPE noOpGLViewport(GrGLint x,
@@ -646,11 +655,4 @@ GrGLvoid GR_GL_FUNCTION_TYPE noOpGLGetTexLevelParameteriv(GrGLenum target,
 GrGLint GR_GL_FUNCTION_TYPE noOpGLGetUniformLocation(GrGLuint program, const char* name) {
     static int gUniLocation = 0;
     return ++gUniLocation;
-}
-
-GrGLvoid GR_GL_FUNCTION_TYPE noOpGLInsertEventMarker(GrGLsizei length, const char* marker) {
-}
-GrGLvoid GR_GL_FUNCTION_TYPE noOpGLPushGroupMarker(GrGLsizei length  , const char* marker) {
-}
-GrGLvoid GR_GL_FUNCTION_TYPE noOpGLPopGroupMarker() {
 }

@@ -25,7 +25,7 @@
 #include "nsIContent.h"
 #include "nsStyleContext.h"
 #include "nsIBoxObject.h"
-#include "nsIDOMCustomEvent.h"
+#include "nsIDOMDataContainerEvent.h"
 #include "nsIDOMMouseEvent.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMNodeList.h"
@@ -64,7 +64,6 @@
 
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
-#include "nsIWritablePropertyBag2.h"
 #endif
 #ifdef IBMBIDI
 #include "nsBidiUtils.h"
@@ -4534,32 +4533,32 @@ nsTreeBodyFrame::FireRowCountChangedEvent(int32_t aIndex, int32_t aCount)
     return;
 
   nsCOMPtr<nsIDOMEvent> event;
-  domDoc->CreateEvent(NS_LITERAL_STRING("customevent"),
+  domDoc->CreateEvent(NS_LITERAL_STRING("datacontainerevents"),
                       getter_AddRefs(event));
 
-  nsCOMPtr<nsIDOMCustomEvent> treeEvent(do_QueryInterface(event));
+  nsCOMPtr<nsIDOMDataContainerEvent> treeEvent(do_QueryInterface(event));
   if (!treeEvent)
     return;
 
-  nsCOMPtr<nsIWritablePropertyBag2> propBag(
-    do_CreateInstance("@mozilla.org/hash-property-bag;1"));
-  if (!propBag)
-    return;
+  event->InitEvent(NS_LITERAL_STRING("TreeRowCountChanged"), true, false);
 
   // Set 'index' data - the row index rows are changed from.
-  propBag->SetPropertyAsInt32(NS_LITERAL_STRING("index"), aIndex);
-
-  // Set 'count' data - the number of changed rows.
-  propBag->SetPropertyAsInt32(NS_LITERAL_STRING("count"), aCount);
-
-  nsCOMPtr<nsIWritableVariant> detailVariant(
+  nsCOMPtr<nsIWritableVariant> indexVariant(
     do_CreateInstance("@mozilla.org/variant;1"));
-  if (!detailVariant)
+  if (!indexVariant)
     return;
 
-  detailVariant->SetAsISupports(propBag);
-  treeEvent->InitCustomEvent(NS_LITERAL_STRING("TreeRowCountChanged"),
-                             true, false, detailVariant);
+  indexVariant->SetAsInt32(aIndex);
+  treeEvent->SetData(NS_LITERAL_STRING("index"), indexVariant);
+
+  // Set 'count' data - the number of changed rows.
+  nsCOMPtr<nsIWritableVariant> countVariant(
+    do_CreateInstance("@mozilla.org/variant;1"));
+  if (!countVariant)
+    return;
+
+  countVariant->SetAsInt32(aCount);
+  treeEvent->SetData(NS_LITERAL_STRING("count"), countVariant);
 
   event->SetTrusted(true);
 
@@ -4582,56 +4581,64 @@ nsTreeBodyFrame::FireInvalidateEvent(int32_t aStartRowIdx, int32_t aEndRowIdx,
     return;
 
   nsCOMPtr<nsIDOMEvent> event;
-  domDoc->CreateEvent(NS_LITERAL_STRING("customevent"),
+  domDoc->CreateEvent(NS_LITERAL_STRING("datacontainerevents"),
                       getter_AddRefs(event));
 
-  nsCOMPtr<nsIDOMCustomEvent> treeEvent(do_QueryInterface(event));
+  nsCOMPtr<nsIDOMDataContainerEvent> treeEvent(do_QueryInterface(event));
   if (!treeEvent)
     return;
 
-  nsCOMPtr<nsIWritablePropertyBag2> propBag(
-    do_CreateInstance("@mozilla.org/hash-property-bag;1"));
-  if (!propBag)
-    return;
+  event->InitEvent(NS_LITERAL_STRING("TreeInvalidated"), true, false);
 
   if (aStartRowIdx != -1 && aEndRowIdx != -1) {
     // Set 'startrow' data - the start index of invalidated rows.
-    propBag->SetPropertyAsInt32(NS_LITERAL_STRING("startrow"),
-                                aStartRowIdx);
+    nsCOMPtr<nsIWritableVariant> startRowVariant(
+      do_CreateInstance("@mozilla.org/variant;1"));
+    if (!startRowVariant)
+      return;
+
+    startRowVariant->SetAsInt32(aStartRowIdx);
+    treeEvent->SetData(NS_LITERAL_STRING("startrow"), startRowVariant);
 
     // Set 'endrow' data - the end index of invalidated rows.
-    propBag->SetPropertyAsInt32(NS_LITERAL_STRING("endrow"),
-                                aEndRowIdx);
+    nsCOMPtr<nsIWritableVariant> endRowVariant(
+      do_CreateInstance("@mozilla.org/variant;1"));
+    if (!endRowVariant)
+      return;
+
+    endRowVariant->SetAsInt32(aEndRowIdx);
+    treeEvent->SetData(NS_LITERAL_STRING("endrow"), endRowVariant);
   }
 
   if (aStartCol && aEndCol) {
     // Set 'startcolumn' data - the start index of invalidated rows.
+    nsCOMPtr<nsIWritableVariant> startColVariant(
+      do_CreateInstance("@mozilla.org/variant;1"));
+    if (!startColVariant)
+      return;
+
     int32_t startColIdx = 0;
     nsresult rv = aStartCol->GetIndex(&startColIdx);
     if (NS_FAILED(rv))
       return;
 
-    propBag->SetPropertyAsInt32(NS_LITERAL_STRING("startcolumn"),
-                                startColIdx);
+    startColVariant->SetAsInt32(startColIdx);
+    treeEvent->SetData(NS_LITERAL_STRING("startcolumn"), startColVariant);
 
     // Set 'endcolumn' data - the start index of invalidated rows.
+    nsCOMPtr<nsIWritableVariant> endColVariant(
+      do_CreateInstance("@mozilla.org/variant;1"));
+    if (!endColVariant)
+      return;
+
     int32_t endColIdx = 0;
     rv = aEndCol->GetIndex(&endColIdx);
     if (NS_FAILED(rv))
       return;
 
-    propBag->SetPropertyAsInt32(NS_LITERAL_STRING("endcolumn"),
-                                endColIdx);
+    endColVariant->SetAsInt32(endColIdx);
+    treeEvent->SetData(NS_LITERAL_STRING("endcolumn"), endColVariant);
   }
-
-  nsCOMPtr<nsIWritableVariant> detailVariant(
-    do_CreateInstance("@mozilla.org/variant;1"));
-  if (!detailVariant)
-    return;
-
-  detailVariant->SetAsISupports(propBag);
-  treeEvent->InitCustomEvent(NS_LITERAL_STRING("TreeInvalidated"),
-                             true, false, detailVariant);
 
   event->SetTrusted(true);
 

@@ -15,15 +15,15 @@
 SkPictureImageFilter::SkPictureImageFilter(SkPicture* picture)
   : INHERITED(0, 0),
     fPicture(picture),
-    fCropRect(SkRect::MakeWH(picture ? SkIntToScalar(picture->width()) : 0,
-                             picture ? SkIntToScalar(picture->height()) : 0)) {
+    fRect(SkRect::MakeWH(picture ? SkIntToScalar(picture->width()) : 0,
+                         picture ? SkIntToScalar(picture->height()) : 0)) {
     SkSafeRef(fPicture);
 }
 
-SkPictureImageFilter::SkPictureImageFilter(SkPicture* picture, const SkRect& cropRect)
+SkPictureImageFilter::SkPictureImageFilter(SkPicture* picture, const SkRect& rect)
   : INHERITED(0, 0),
     fPicture(picture),
-    fCropRect(cropRect) {
+    fRect(rect) {
     SkSafeRef(fPicture);
 }
 
@@ -41,7 +41,7 @@ SkPictureImageFilter::SkPictureImageFilter(SkReadBuffer& buffer)
 #else
     buffer.readBool();
 #endif
-    buffer.readRect(&fCropRect);
+    buffer.readRect(&fRect);
 }
 
 void SkPictureImageFilter::flatten(SkWriteBuffer& buffer) const {
@@ -55,11 +55,11 @@ void SkPictureImageFilter::flatten(SkWriteBuffer& buffer) const {
 #else
     buffer.writeBool(false);
 #endif
-    buffer.writeRect(fCropRect);
+    buffer.writeRect(fRect);
 }
 
-bool SkPictureImageFilter::onFilterImage(Proxy* proxy, const SkBitmap&, const Context& ctx,
-                                         SkBitmap* result, SkIPoint* offset) const {
+bool SkPictureImageFilter::onFilterImage(Proxy* proxy, const SkBitmap&, const SkMatrix& matrix,
+                                   SkBitmap* result, SkIPoint* offset) const {
     if (!fPicture) {
         offset->fX = offset->fY = 0;
         return true;
@@ -67,7 +67,7 @@ bool SkPictureImageFilter::onFilterImage(Proxy* proxy, const SkBitmap&, const Co
 
     SkRect floatBounds;
     SkIRect bounds;
-    ctx.ctm().mapRect(&floatBounds, fCropRect);
+    matrix.mapRect(&floatBounds, fRect);
     floatBounds.roundOut(&bounds);
 
     if (bounds.isEmpty()) {
@@ -84,7 +84,7 @@ bool SkPictureImageFilter::onFilterImage(Proxy* proxy, const SkBitmap&, const Co
     SkPaint paint;
 
     canvas.translate(-SkIntToScalar(bounds.fLeft), -SkIntToScalar(bounds.fTop));
-    canvas.concat(ctx.ctm());
+    canvas.concat(matrix);
     canvas.drawPicture(*fPicture);
 
     *result = device.get()->accessBitmap(false);

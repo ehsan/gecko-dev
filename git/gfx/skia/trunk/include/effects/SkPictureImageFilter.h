@@ -16,17 +16,13 @@ public:
     /**
      *  Refs the passed-in picture.
      */
-    static SkPictureImageFilter* Create(SkPicture* picture) {
-        return SkNEW_ARGS(SkPictureImageFilter, (picture));
-    }
+    explicit SkPictureImageFilter(SkPicture* picture);
 
     /**
-     *  Refs the passed-in picture. cropRect can be used to crop or expand the destination rect when
+     *  Refs the passed-in picture. rect can be used to crop or expand the destination rect when
      *  the picture is drawn. (No scaling is implied by the dest rect; only the CTM is applied.)
      */
-    static SkPictureImageFilter* Create(SkPicture* picture, const SkRect& cropRect) {
-        return SkNEW_ARGS(SkPictureImageFilter, (picture, cropRect));
-    }
+    SkPictureImageFilter(SkPicture* picture, const SkRect& rect);
 
     SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkPictureImageFilter)
 
@@ -40,18 +36,12 @@ protected:
      */
     explicit SkPictureImageFilter(SkReadBuffer&);
     virtual void flatten(SkWriteBuffer&) const SK_OVERRIDE;
-    virtual bool onFilterImage(Proxy*, const SkBitmap& src, const Context&,
+    virtual bool onFilterImage(Proxy*, const SkBitmap& src, const SkMatrix&,
                                SkBitmap* result, SkIPoint* offset) const SK_OVERRIDE;
-
-#ifdef SK_SUPPORT_LEGACY_PUBLICEFFECTCONSTRUCTORS
-public:
-#endif
-    explicit SkPictureImageFilter(SkPicture* picture);
-    SkPictureImageFilter(SkPicture* picture, const SkRect& cropRect);
 
 private:
     SkPicture* fPicture;
-    SkRect     fCropRect;
+    SkRect     fRect;
     typedef SkImageFilter INHERITED;
 };
 

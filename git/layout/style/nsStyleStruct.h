@@ -131,7 +131,7 @@ struct nsStyleGradientStop {
   nscolor mColor;
 };
 
-class nsStyleGradient MOZ_FINAL {
+class nsStyleGradient {
 public:
   nsStyleGradient();
   uint8_t mShape;  // NS_STYLE_GRADIENT_SHAPE_*
@@ -162,7 +162,6 @@ public:
   NS_INLINE_DECL_REFCOUNTING(nsStyleGradient)
 
 private:
-  // Private destructor, to discourage deletion outside of Release():
   ~nsStyleGradient() {}
 
   nsStyleGradient(const nsStyleGradient& aOther) MOZ_DELETE;
@@ -707,7 +706,7 @@ struct nsCSSShadowItem {
   }
 };
 
-class nsCSSShadowArray MOZ_FINAL {
+class nsCSSShadowArray {
   public:
     void* operator new(size_t aBaseSize, uint32_t aArrayLen) {
       // We can allocate both this nsCSSShadowArray and the
@@ -729,9 +728,6 @@ class nsCSSShadowArray MOZ_FINAL {
         new (&mArray[i]) nsCSSShadowItem();
       }
     }
-
-private:
-    // Private destructor, to discourage deletion outside of Release():
     ~nsCSSShadowArray() {
       MOZ_COUNT_DTOR(nsCSSShadowArray);
       for (uint32_t i = 1; i < mLength; ++i) {
@@ -739,7 +735,6 @@ private:
       }
     }
 
-public:
     uint32_t Length() const { return mLength; }
     nsCSSShadowItem* ShadowAt(uint32_t i) {
       NS_ABORT_IF_FALSE(i < mLength, "Accessing too high an index in the text shadow array!");
