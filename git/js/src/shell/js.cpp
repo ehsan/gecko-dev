@@ -1859,8 +1859,13 @@ DisassWithSrc(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
 static JSBool
 Tracing(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
-    FILE *file;
+    JSBool bval;
+    JSString *str;
 
+#if JS_THREADED_INTERP
+    JS_ReportError(cx, "tracing not supported in JS_THREADED_INTERP builds");
+    return JS_FALSE;
+#else
     if (argc == 0) {
         *rval = BOOLEAN_TO_JSVAL(cx->tracefp != 0);
         return JS_TRUE;
@@ -1868,39 +1873,24 @@ Tracing(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 
     switch (JS_TypeOfValue(cx, argv[0])) {
       case JSTYPE_NUMBER:
-      case JSTYPE_BOOLEAN: {
-        JSBool bval;
-        if (!JS_ValueToBoolean(cx, argv[0], &bval))
-            goto bad_argument;
-        file = bval ? stderr : NULL;
+        bval = JSVAL_IS_INT(argv[0])
+               ? JSVAL_TO_INT(argv[0])
+               : (jsint) *JSVAL_TO_DOUBLE(argv[0]);
         break;
-      }
-      case JSTYPE_STRING: {
-        char *name = JS_GetStringBytes(JSVAL_TO_STRING(argv[0]));
-        file = fopen(name, "w");
-        if (!file) {
-            JS_ReportError(cx, "tracing: couldn't open output file %s: %s", 
-                           name, strerror(errno));
-            return JS_FALSE;
-        }
+      case JSTYPE_BOOLEAN:
+        bval = JSVAL_TO_BOOLEAN(argv[0]);
         break;
-      }
       default:
-          goto bad_argument;
-    }
-    if (cx->tracefp && cx->tracefp != stderr)
-      fclose((FILE *)cx->tracefp);
-    cx->tracefp = file;
-    cx->tracePrevOp = JSOP_LIMIT;
-    return JS_TRUE;
-
- bad_argument:
-    JSString *str = JS_ValueToString(cx, argv[0]);
-    if (!str)
+        str = JS_ValueToString(cx, argv[0]);
+        if (!str)
+            return JS_FALSE;
+        JS_ReportError(cx, "tracing: illegal argument %s",
+                       JS_GetStringBytes(str));
         return JS_FALSE;
-    JS_ReportError(cx, "tracing: illegal argument %s",
-                   JS_GetStringBytes(str));
-    return JS_FALSE;
+    }
+    cx->tracefp = bval ? stderr : NULL;
+    return JS_TRUE;
+#endif
 }
 
 static void
@@ -3686,8 +3676,7 @@ static const char *const shell_help_messages[] = {
 "dumpHeap([fileName[, start[, toFind[, maxDepth[, toIgnore]]]]])\n"
 "  Interface to JS_DumpHeap with output sent to file",
 "notes([fun])             Show source notes for functions",
-"tracing([true|false|filename]) Turn bytecode execution tracing on/off.\n"
-"                         With filename, send to file.\n",
+"tracing([toggle])        Turn tracing on or off",
 "stats([string ...])      Dump 'arena', 'atom', 'global' stats",
 #endif
 #ifdef TEST_CVTARGS

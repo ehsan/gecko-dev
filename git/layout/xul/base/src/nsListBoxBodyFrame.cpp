@@ -1209,10 +1209,9 @@ nsListBoxBodyFrame::GetNextItemBox(nsIBox* aBox, PRInt32 aOffset,
       nsIContent *nextContent = parentContent->GetChildAt(i + aOffset + 1);
 
       nsPresContext* presContext = PresContext();
-      nsIFrame* existingFrame =
-        presContext->GetPresShell()->GetPrimaryFrameFor(nextContent);
+      result = presContext->GetPresShell()->GetPrimaryFrameFor(nextContent);
 
-      if (!existingFrame) {
+      if (!result) {
         // Either append the new frame, or insert it after the current frame
         PRBool isAppend = result != mLinkupFrame && mRowsToPrepend <= 0;
         nsIFrame* prevFrame = isAppend ? nsnull : aBox;
@@ -1226,8 +1225,6 @@ nsListBoxBodyFrame::GetNextItemBox(nsIBox* aBox, PRInt32 aOffset,
             *aCreated = PR_TRUE;
         } else
           return GetNextItemBox(aBox, ++aOffset, aCreated);
-      } else {
-        result = existingFrame;
       }
             
       mLinkupFrame = nsnull;

@@ -592,15 +592,9 @@ void nsViewManager::AddCoveringWidgetsToOpaqueRegion(nsRegion &aRgn, nsIDeviceCo
 void nsViewManager::RenderViews(nsView *aView, nsIRenderingContext& aRC,
                                 const nsRegion& aRegion)
 {
-  nsView* displayRoot = GetDisplayRootFor(aView);
-  // Make sure we call Paint from the view manager that owns displayRoot.
-  // (Bug 485275)
-  nsViewManager* displayRootVM = displayRoot->GetViewManager();
-  if (displayRootVM && displayRootVM != this)
-    return displayRootVM->RenderViews(aView, aRC, aRegion);
-
   if (mObserver) {
-    nsPoint offsetToRoot = aView->GetOffsetTo(displayRoot);
+    nsView* displayRoot = GetDisplayRootFor(aView);
+    nsPoint offsetToRoot = aView->GetOffsetTo(displayRoot); 
     nsRegion damageRegion(aRegion);
     damageRegion.MoveBy(offsetToRoot);
 

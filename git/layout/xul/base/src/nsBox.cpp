@@ -280,9 +280,11 @@ nsBox::SetBounds(nsBoxLayoutState& aState, const nsRect& aRect, PRBool aRemoveOv
 
     // Nuke the overflow area. The caller is responsible for restoring
     // it if necessary.
-    if (aRemoveOverflowArea && HasOverflowRect()) {
+    if (aRemoveOverflowArea && (GetStateBits() & NS_FRAME_OUTSIDE_CHILDREN)) {
       // remove the previously stored overflow area
-      ClearOverflowRect();
+      PresContext()->PropertyTable()->
+        DeleteProperty(this, nsGkAtoms::overflowAreaProperty);
+      RemoveStateBits(NS_FRAME_OUTSIDE_CHILDREN);
     }
 
     if (!(flags & NS_FRAME_NO_MOVE_VIEW))
