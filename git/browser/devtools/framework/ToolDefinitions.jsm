@@ -135,7 +135,7 @@ let styleEditorDefinition = {
   tooltip: l10n("ToolboxStyleEditor.tooltip", styleEditorStrings),
 
   isTargetSupported: function(target) {
-    return target.isLocalTab;
+    return !target.isRemote && !target.isChrome;
   },
 
   build: function(iframeWindow, toolbox) {
@@ -152,7 +152,11 @@ let profilerDefinition = {
   tooltip: l10n("profiler.tooltip", profilerStrings),
 
   isTargetSupported: function (target) {
-    return !target.isRemote;
+    if (target.isRemote || target.isChrome) {
+      return false;
+    }
+
+    return true;
   },
 
   build: function (frame, target) {

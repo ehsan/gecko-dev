@@ -38,8 +38,7 @@ function testBottomHost(aToolbox)
   checkHostType(Toolbox.HostType.BOTTOM);
 
   // test UI presence
-  let nbox = gBrowser.getNotificationBox();
-  let iframe = document.getAnonymousElementByAttribute(nbox, "class", "devtools-toolbox-bottom-iframe");
+  let iframe = document.getElementById("devtools-toolbox-bottom-iframe");
   ok(iframe, "toolbox bottom iframe exists");
 
   checkToolboxLoaded(iframe);
@@ -52,11 +51,10 @@ function testSidebarHost()
   checkHostType(Toolbox.HostType.SIDE);
 
   // test UI presence
-  let nbox = gBrowser.getNotificationBox();
-  let bottom = document.getAnonymousElementByAttribute(nbox, "class", "devtools-toolbox-bottom-iframe");
+  let bottom = document.getElementById("devtools-toolbox-bottom-iframe");
   ok(!bottom, "toolbox bottom iframe doesn't exist");
 
-  let iframe = document.getAnonymousElementByAttribute(nbox, "class", "devtools-toolbox-side-iframe");
+  let iframe = document.getElementById("devtools-toolbox-side-iframe");
   ok(iframe, "toolbox side iframe exists");
 
   checkToolboxLoaded(iframe);
@@ -68,8 +66,7 @@ function testWindowHost()
 {
   checkHostType(Toolbox.HostType.WINDOW);
 
-  let nbox = gBrowser.getNotificationBox();
-  let sidebar = document.getAnonymousElementByAttribute(nbox, "class", "devtools-toolbox-side-iframe");
+  let sidebar = document.getElementById("devtools-toolbox-side-iframe");
   ok(!sidebar, "toolbox sidebar iframe doesn't exist");
 
   let win = Services.wm.getMostRecentWindow("devtools:toolbox");

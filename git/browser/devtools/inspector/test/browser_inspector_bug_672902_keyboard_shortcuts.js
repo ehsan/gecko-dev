@@ -30,7 +30,7 @@ function test()
     openInspector(findAndHighlightNode);
   }
 
-  function findAndHighlightNode(aInspector, aToolbox)
+  function findAndHighlightNode(aInspector)
   {
     inspector = aInspector;
 

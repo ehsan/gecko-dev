@@ -1152,8 +1152,7 @@
           </stack>
           <toolbarbutton id="developer-toolbar-toolbox-button"
                          class="developer-toolbar-button"
-                         observes="devtoolsMenuBroadcaster_DevToolbox"
-                         tooltiptext="&devToolbarToolsButton.tooltip;"/>
+                         observes="devtoolsMenuBroadcaster_DevToolbox"/>
 #ifndef XP_MACOSX
           <toolbarbutton id="developer-toolbar-closebutton"
                          class="devtools-closebutton"

@@ -36,10 +36,8 @@ function test()
   {
     is(getActiveInspector().selection.node, objectNode, "selection matches node");
     let target = TargetFactory.forTab(gBrowser.selectedTab);
-    executeSoon(function() {
-      gDevTools.closeToolbox(target);
-      finishUp();
-    });
+    gDevTools.closeToolbox(target);
+    finishUp();
   }
 
 
