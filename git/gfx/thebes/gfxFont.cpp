@@ -2786,13 +2786,12 @@ gfxGlyphExtents::GetTightGlyphExtentsAppUnits(gfxFont *aFont,
             return false;
         }
 
-        if (aFont->SetupCairoFont(aContext)) {
+        aFont->SetupCairoFont(aContext);
 #ifdef DEBUG_TEXT_RUN_STORAGE_METRICS
-            ++gGlyphExtentsSetupLazyTight;
+        ++gGlyphExtentsSetupLazyTight;
 #endif
-            aFont->SetupGlyphExtents(aContext, aGlyphID, true, this);
-            entry = mTightGlyphExtents.GetEntry(aGlyphID);
-        }
+        aFont->SetupGlyphExtents(aContext, aGlyphID, true, this);
+        entry = mTightGlyphExtents.GetEntry(aGlyphID);
         if (!entry) {
             NS_WARNING("Could not get glyph extents");
             return false;
@@ -5454,11 +5453,8 @@ gfxTextRun::FetchGlyphExtents(gfxContext *aRefContext)
                     PRUint32 glyphIndex = glyphData->GetSimpleGlyph();
                     if (!extents->IsGlyphKnown(glyphIndex)) {
                         if (!fontIsSetup) {
-                            if (!font->SetupCairoFont(aRefContext)) {
-                                NS_WARNING("failed to set up font for glyph extents");
-                                break;
-                            }
-                            fontIsSetup = true;
+                            font->SetupCairoFont(aRefContext);
+                             fontIsSetup = true;
                         }
 #ifdef DEBUG_TEXT_RUN_STORAGE_METRICS
                         ++gGlyphExtentsSetupEagerSimple;
@@ -5479,10 +5475,7 @@ gfxTextRun::FetchGlyphExtents(gfxContext *aRefContext)
                     PRUint32 glyphIndex = details->mGlyphID;
                     if (!extents->IsGlyphKnownWithTightExtents(glyphIndex)) {
                         if (!fontIsSetup) {
-                            if (!font->SetupCairoFont(aRefContext)) {
-                                NS_WARNING("failed to set up font for glyph extents");
-                                break;
-                            }
+                            font->SetupCairoFont(aRefContext);
                             fontIsSetup = true;
                         }
 #ifdef DEBUG_TEXT_RUN_STORAGE_METRICS

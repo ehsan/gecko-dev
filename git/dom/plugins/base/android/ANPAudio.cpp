@@ -143,7 +143,9 @@ AudioRunnable::Run()
   if (!jenv)
     return NS_ERROR_FAILURE;
 
-  mozilla::AndroidBridge::AutoLocalJNIFrame autoFrame(jenv);
+  if (jenv->PushLocalFrame(128)) {
+    return NS_ERROR_FAILURE;
+  }
 
   jbyteArray bytearray = jenv->NewByteArray(mTrack->bufferSize);
   if (!bytearray) {
@@ -199,6 +201,7 @@ AudioRunnable::Run()
   free(mTrack);
 
   jenv->ReleaseByteArrayElements(bytearray, byte, 0);
+  jenv->PopLocalFrame(NULL);
 
   return NS_OK;
 }

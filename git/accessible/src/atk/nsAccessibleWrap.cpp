@@ -38,9 +38,11 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include "mozilla/Util.h"
+
+#include "nsAccessible.h"
 #include "nsAccessibleWrap.h"
 
-#include "Accessible-inl.h"
 #include "InterfaceInitFuncs.h"
 #include "nsAccUtils.h"
 #include "nsApplicationAccessibleWrap.h"
@@ -58,7 +60,6 @@
 #include "Relation.h"
 #include "States.h"
 
-#include "mozilla/Util.h"
 #include "nsXPCOMStrings.h"
 #include "nsComponentManagerUtils.h"
 

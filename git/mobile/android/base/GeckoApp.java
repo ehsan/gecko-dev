@@ -1649,10 +1649,6 @@ abstract public class GeckoApp
             mBrowserToolbar.updateTabCount(1);
         }
 
-        // Start migrating as early as possible, can do this in
-        // parallel with Gecko load.
-        checkMigrateProfile();
-
         Uri data = intent.getData();
         if (data != null && "http".equals(data.getScheme()) &&
             isHostOnPrefetchWhitelist(data.getHost())) {
@@ -1775,9 +1771,6 @@ abstract public class GeckoApp
         GeckoAppShell.getHandler().postDelayed(new Runnable() {
             public void run() {
                 Log.w(LOGTAG, "zerdatime " + SystemClock.uptimeMillis() + " - pre checkLaunchState");
-                // Sync settings need Gecko to be loaded, so
-                // no hurry in starting this.
-                checkMigrateSync();
 
                 /*
                   XXXX see bug 635342
@@ -1791,6 +1784,8 @@ abstract public class GeckoApp
                 if (!checkLaunchState(LaunchState.Launched)) {
                     return;
                 }
+
+                checkMigrateProfile();
             }
         }, 50);
     }
@@ -2283,49 +2278,30 @@ abstract public class GeckoApp
     }
 
     private void checkMigrateProfile() {
-        final File profileDir = getProfile().getDir();
-        final long currentTime = SystemClock.uptimeMillis();
+        File profileDir = getProfile().getDir();
+        long currentTime = SystemClock.uptimeMillis();
 
         if (profileDir != null) {
-            Log.i(LOGTAG, "Checking profile migration in: " + profileDir.getAbsolutePath());
+            Log.i(LOGTAG, "checking profile migration in: " + profileDir.getAbsolutePath());
             final GeckoApp app = GeckoApp.mAppContext;
-            final ProfileMigrator profileMigrator =
+            ProfileMigrator profileMigrator =
                 new ProfileMigrator(app, profileDir);
 
             // Do a migration run on the first start after an upgrade.
             if (!profileMigrator.hasMigrationRun()) {
                 final SetupScreen setupScreen = new SetupScreen(app);
 
-                // Don't show unless this take a while.
+                // don't show unless this take a while
                 setupScreen.showDelayed(mMainHandler);
+                profileMigrator.launch();
+                setupScreen.dismiss();
 
-                GeckoAppShell.getHandler().post(new Runnable() {
-                    public void run() {
-                        profileMigrator.launchPlaces();
-                        setupScreen.dismiss();
-
-                        long timeDiff = SystemClock.uptimeMillis() - currentTime;
-                        Log.i(LOGTAG, "Profile migration took " + timeDiff + " ms");
-
-                        // Update about:home with the new information.
-                        updateAboutHomeTopSites();
-                    }
-                });
+                // Update about:home with the new information.
+                updateAboutHomeTopSites();
             }
         }
-    }
-
-    private void checkMigrateSync() {
-        final File profileDir = getProfile().getDir();
-        if (profileDir != null) {
-            final GeckoApp app = GeckoApp.mAppContext;
-            ProfileMigrator profileMigrator =
-                new ProfileMigrator(app, profileDir);
-            if (!profileMigrator.hasSyncMigrated()) {
-                Log.i(LOGTAG, "Checking Sync settings in: " + profileDir.getAbsolutePath());
-                profileMigrator.launchSyncPrefs();
-            }
-        }
+        long timeDiff = SystemClock.uptimeMillis() - currentTime;
+        Log.i(LOGTAG, "Profile migration took " + timeDiff + " ms");
     }
 
     /**

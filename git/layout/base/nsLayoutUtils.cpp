@@ -3554,9 +3554,6 @@ DrawImageInternal(nsRenderingContext* aRenderingContext,
                   const nsIntSize&     aImageSize,
                   PRUint32             aImageFlags)
 {
-  if (aDest.Contains(aFill)) {
-    aImageFlags |= imgIContainer::FLAG_CLAMP;
-  }
   PRInt32 appUnitsPerDevPixel = aRenderingContext->AppUnitsPerDevPixel();
   gfxContext* ctx = aRenderingContext->ThebesContext();
 

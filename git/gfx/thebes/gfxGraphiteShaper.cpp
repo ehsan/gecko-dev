@@ -160,9 +160,7 @@ gfxGraphiteShaper::ShapeWord(gfxContext      *aContext,
                              const PRUnichar *aText)
 {
     // some font back-ends require this in order to get proper hinted metrics
-    if (!mFont->SetupCairoFont(aContext)) {
-        return false;
-    }
+    mFont->SetupCairoFont(aContext);
 
     mCallbackData.mContext = aContext;
 

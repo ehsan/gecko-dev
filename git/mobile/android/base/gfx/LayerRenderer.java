@@ -268,7 +268,9 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
     public void onDrawFrame(GL10 gl) {
 	/* This code is causing crashes when the surface changes. (bug 738188)
 	 * I'm not sure if it actually works, so I'm disabling it now to avoid the crash.
-        Frame frame = createFrame(mView.getController().getViewportMetrics());
+        RenderContext pageContext = createPageContext(mView.getController().getViewportMetrics());
+        RenderContext screenContext = createScreenContext();
+        Frame frame = createFrame(pageContext, screenContext);
         synchronized (mView.getController()) {
             frame.beginDrawing();
             frame.drawBackground();
@@ -300,13 +302,15 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
         return pixelBuffer;
     }
 
-    private RenderContext createScreenContext(ImmutableViewportMetrics metrics) {
-        RectF viewport = new RectF(0.0f, 0.0f, metrics.getWidth(), metrics.getHeight());
-        FloatSize pageSize = new FloatSize(metrics.getPageSize());
+    public RenderContext createScreenContext() {
+        LayerController layerController = mView.getController();
+        IntSize viewportSize = new IntSize(layerController.getViewportSize());
+        RectF viewport = new RectF(0.0f, 0.0f, viewportSize.width, viewportSize.height);
+        FloatSize pageSize = new FloatSize(layerController.getPageSize());
         return createContext(viewport, pageSize, 1.0f);
     }
 
-    private RenderContext createPageContext(ImmutableViewportMetrics metrics) {
+    public RenderContext createPageContext(ImmutableViewportMetrics metrics) {
         Rect viewport = RectUtils.round(metrics.getViewport());
         FloatSize pageSize = metrics.getPageSize();
         float zoomFactor = metrics.zoomFactor;
@@ -316,6 +320,31 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
     private RenderContext createContext(RectF viewport, FloatSize pageSize, float zoomFactor) {
         return new RenderContext(viewport, pageSize, zoomFactor, mPositionHandle, mTextureHandle,
                                  mCoordBuffer);
+    }
+
+    private Rect getPageRect() {
+        LayerController controller = mView.getController();
+
+        Point origin = PointUtils.round(controller.getOrigin());
+        IntSize pageSize = new IntSize(controller.getPageSize());
+
+        origin.negate();
+
+        return new Rect(origin.x, origin.y,
+                        origin.x + pageSize.width, origin.y + pageSize.height);
+    }
+
+    private Rect transformToScissorRect(Rect rect) {
+        LayerController controller = mView.getController();
+        IntSize screenSize = new IntSize(controller.getViewportSize());
+
+        int left = Math.max(0, rect.left);
+        int top = Math.max(0, rect.top);
+        int right = Math.min(screenSize.width, rect.right);
+        int bottom = Math.min(screenSize.height, rect.bottom);
+
+        return new Rect(left, screenSize.height - bottom, right,
+                        (screenSize.height - bottom) + (bottom - top));
     }
 
     public void onSurfaceChanged(GL10 gl, final int width, final int height) {
@@ -416,8 +445,8 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
         return shader;
     }
 
-    public Frame createFrame(ImmutableViewportMetrics metrics) {
-        return new Frame(metrics);
+    public Frame createFrame(RenderContext pageContext, RenderContext screenContext) {
+        return new Frame(pageContext, screenContext);
     }
 
     class FadeRunnable implements Runnable {
@@ -459,18 +488,15 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
     public class Frame {
         // The timestamp recording the start of this frame.
         private long mFrameStartTime;
-        // A fixed snapshot of the viewport metrics that this frame is using to render content.
-        private ImmutableViewportMetrics mFrameMetrics;
         // A rendering context for page-positioned layers, and one for screen-positioned layers.
         private RenderContext mPageContext, mScreenContext;
         // Whether a layer was updated.
         private boolean mUpdated;
         private final Rect mPageRect;
 
-        public Frame(ImmutableViewportMetrics metrics) {
-            mFrameMetrics = metrics;
-            mPageContext = createPageContext(metrics);
-            mScreenContext = createScreenContext(metrics);
+        public Frame(RenderContext pageContext, RenderContext screenContext) {
+            mPageContext = pageContext;
+            mScreenContext = screenContext;
             mPageRect = getPageRect();
         }
 
@@ -479,28 +505,6 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
             GLES20.glEnable(GLES20.GL_SCISSOR_TEST);
             GLES20.glScissor(scissorRect.left, scissorRect.top,
                              scissorRect.width(), scissorRect.height());
-        }
-
-        private Rect transformToScissorRect(Rect rect) {
-            IntSize screenSize = new IntSize(mFrameMetrics.getSize());
-
-            int left = Math.max(0, rect.left);
-            int top = Math.max(0, rect.top);
-            int right = Math.min(screenSize.width, rect.right);
-            int bottom = Math.min(screenSize.height, rect.bottom);
-
-            return new Rect(left, screenSize.height - bottom, right,
-                            (screenSize.height - bottom) + (bottom - top));
-        }
-
-        private Rect getPageRect() {
-            Point origin = PointUtils.round(mFrameMetrics.getOrigin());
-            IntSize pageSize = new IntSize(mFrameMetrics.getPageSize());
-
-            origin.negate();
-
-            return new Rect(origin.x, origin.y,
-                            origin.x + pageSize.width, origin.y + pageSize.height);
         }
 
         /** This function is invoked via JNI; be careful when modifying signature. */
@@ -512,7 +516,8 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
 
             mUpdated = true;
 
-            Layer rootLayer = mView.getController().getRoot();
+            LayerController controller = mView.getController();
+            Layer rootLayer = controller.getRoot();
 
             if (!mPageContext.fuzzyEquals(mLastPageContext)) {
                 // the viewport or page changed, so show the scrollbars again
@@ -585,6 +590,8 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
 
         /** This function is invoked via JNI; be careful when modifying signature. */
         public void drawForeground() {
+            LayerController controller = mView.getController();
+
             /* Draw any extra layers that were added (likely plugins) */
             if (mExtraLayers.size() > 0) {
                 // This is a hack. SurfaceTextureLayer draws with its own program, so disable ours here
@@ -599,15 +606,16 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
             }
 
             /* Draw the vertical scrollbar. */
-            if (mPageRect.height() > mFrameMetrics.getHeight())
+            IntSize screenSize = new IntSize(controller.getViewportSize());
+            if (mPageRect.height() > screenSize.height)
                 mVertScrollLayer.draw(mPageContext);
 
             /* Draw the horizontal scrollbar. */
-            if (mPageRect.width() > mFrameMetrics.getWidth())
+            if (mPageRect.width() > screenSize.width)
                 mHorizScrollLayer.draw(mPageContext);
 
             /* Measure how much of the screen is checkerboarding */
-            Layer rootLayer = mView.getController().getRoot();
+            Layer rootLayer = controller.getRoot();
             if ((rootLayer != null) &&
                 (mProfileRender || PanningPerfAPI.isRecordingCheckerboard())) {
                 // Find out how much of the viewport area is valid
