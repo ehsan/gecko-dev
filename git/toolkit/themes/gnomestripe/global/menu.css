@@ -74,24 +74,14 @@ menuitem[disabled="true"] {
 
 menubar > menu {
   padding: 0px 4px;
-  color: -moz-menubartext;
-}
-
-menubar:-moz-lwtheme > menu {
-  text-shadow: none;
-}
-
-menubar:-moz-lwtheme > menu:not([open="true"]) {
-  color: inherit;
-  text-shadow: inherit;
 }
 
 menubar > menu[_moz-menuactive="true"] {
-  color: -moz-menubartext;
+  color: MenuText;
 }
 
 menubar > menu[open] {
-  color: -moz-menubarhovertext;
+  color: -moz-menuhovertext;
   background-color: -moz-menuhover;
 }
 menuitem.spell-suggestion {

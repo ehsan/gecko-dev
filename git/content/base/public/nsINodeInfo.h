@@ -163,7 +163,7 @@ public:
    *
    * For the HTML element "<body>" in a HTML document this will return a null
    * string and for the XML element "<html:body>" (assuming that this element,
-   * or one of its ancestors has an
+   * or one of it's ancestors has an
    * xmlns:html='http://www.w3.org/1999/xhtml' attribute) this will return
    * the string "http://www.w3.org/1999/xhtml".
    */
@@ -175,7 +175,7 @@ public:
    *
    * For the HTML element "<body>" in a HTML document this will return
    * kNameSpaceID_None and for the XML element "<html:body>" (assuming that
-   * this element, or one of its ancestors has an
+   * this element, or one of it's ancestors has an
    * xmlns:html='http://www.w3.org/1999/xhtml' attribute) this will return
    * the namespace ID for "http://www.w3.org/1999/xhtml".
    */
@@ -270,13 +270,15 @@ public:
     if (!GetPrefixAtom())
       return Equals(aNameAtom);
 
-    return QualifiedNameEqualsInternal(nsDependentAtomString(aNameAtom));
+    const char* utf8;
+    aNameAtom->GetUTF8String(&utf8);
+    return QualifiedNameEqualsInternal(nsDependentCString(utf8));
   }
 
-  PRBool QualifiedNameEquals(const nsAString& aQualifiedName) const
+  PRBool QualifiedNameEquals(const nsACString& aQualifiedName) const
   {
     if (!GetPrefixAtom())
-      return mInner.mName->Equals(aQualifiedName);
+      return mInner.mName->EqualsUTF8(aQualifiedName);
 
     return QualifiedNameEqualsInternal(aQualifiedName);    
   }
@@ -291,7 +293,7 @@ public:
 
 protected:
   virtual PRBool
-    QualifiedNameEqualsInternal(const nsAString& aQualifiedName) const = 0;
+    QualifiedNameEqualsInternal(const nsACString& aQualifiedName) const = 0;
 
   /*
    * nsNodeInfoInner is used for two things:
@@ -310,26 +312,14 @@ protected:
   class nsNodeInfoInner
   {
   public:
-    nsNodeInfoInner()
-      : mName(nsnull), mPrefix(nsnull), mNamespaceID(kNameSpaceID_Unknown),
-        mNameString(nsnull)
-    {
-    }
     nsNodeInfoInner(nsIAtom *aName, nsIAtom *aPrefix, PRInt32 aNamespaceID)
-      : mName(aName), mPrefix(aPrefix), mNamespaceID(aNamespaceID),
-        mNameString(nsnull)
-    {
-    }
-    nsNodeInfoInner(const nsAString& aTmpName, nsIAtom *aPrefix, PRInt32 aNamespaceID)
-      : mName(nsnull), mPrefix(aPrefix), mNamespaceID(aNamespaceID),
-        mNameString(&aTmpName)
+      : mName(aName), mPrefix(aPrefix), mNamespaceID(aNamespaceID)
     {
     }
 
     nsIAtom*            mName;
     nsIAtom*            mPrefix;
     PRInt32             mNamespaceID;
-    const nsAString*    mNameString;
   };
 
   // nsNodeInfoManager needs to pass mInner to the hash table.

@@ -35,16 +35,14 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsWindowMediator_h_
-#define nsWindowMediator_h_
+#ifndef __nsWindowMediator_h
+#define __nsWindowMediator_h
 
 #include "nsCOMPtr.h"
 #include "nsIWindowMediator.h"
 #include "nsISupportsArray.h"
-#include "nsIObserver.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsXPIDLString.h"
-#include "nsWeakReference.h"
 #include "nsCRT.h"
 
 class nsAppShellWindowEnumerator;
@@ -57,10 +55,7 @@ class nsASXULWindowBackToFrontEnumerator;
 struct nsWindowInfo;
 struct PRLock;
 
-class nsWindowMediator :
-  public nsIWindowMediator,
-  public nsIObserver,
-  public nsSupportsWeakReference
+class nsWindowMediator : public nsIWindowMediator
 {
 friend class nsAppShellWindowEnumerator;
 friend class nsASXULWindowEarlyToLateEnumerator;
@@ -73,33 +68,34 @@ friend class nsASXULWindowBackToFrontEnumerator;
 public:
   nsWindowMediator();
   virtual ~nsWindowMediator();
-
   nsresult Init();
 
-  NS_DECL_ISUPPORTS
   NS_DECL_NSIWINDOWMEDIATOR
-  NS_DECL_NSIOBSERVER
+  
+  // COM 
+  NS_DECL_ISUPPORTS 
 
 private:
-  PRInt32 AddEnumerator(nsAppShellWindowEnumerator* inEnumerator);
-  PRInt32 RemoveEnumerator(nsAppShellWindowEnumerator* inEnumerator);
+  // Helper functions
+  PRInt32 AddEnumerator( nsAppShellWindowEnumerator* inEnumerator );
+  PRInt32 RemoveEnumerator( nsAppShellWindowEnumerator* inEnumerator);
   nsWindowInfo *MostRecentWindowInfo(const PRUnichar* inType);
 
-  nsresult      UnregisterWindow(nsWindowInfo *inInfo);
+  NS_IMETHOD    UnregisterWindow(nsWindowInfo *inInfo);
   nsWindowInfo *GetInfoFor(nsIXULWindow *aWindow);
   nsWindowInfo *GetInfoFor(nsIWidget *aWindow);
   void          SortZOrderFrontToBack();
   void          SortZOrderBackToFront();
 
-  nsTArray<nsAppShellWindowEnumerator*> mEnumeratorList;
-  nsWindowInfo *mOldestWindow;
-  nsWindowInfo *mTopmostWindow;
+  nsVoidArray   mEnumeratorList;
+  nsWindowInfo *mOldestWindow,
+               *mTopmostWindow;
   PRInt32       mTimeStamp;
   PRBool        mSortingZOrder;
-  PRBool        mReady;
   PRLock       *mListLock;
-
   nsCOMPtr<nsISupportsArray> mListeners;
+
+  static PRInt32 gRefCnt;
 };
 
 #endif

@@ -38,7 +38,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "jscntxt.h"
 #include "nscore.h"
 #include "plstr.h"
 #include "nsXPITriggerInfo.h"
@@ -50,7 +49,6 @@
 #include "nsIJSContextStack.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsICryptoHash.h"
-#include "nsIX509Cert.h"
 
 //
 // nsXPITriggerItem
@@ -120,6 +118,16 @@ nsXPITriggerItem::~nsXPITriggerItem()
     MOZ_COUNT_DTOR(nsXPITriggerItem);
 }
 
+PRBool nsXPITriggerItem::IsRelativeURL()
+{
+    PRInt32 cpos = mURL.FindChar(':');
+    if (cpos == kNotFound)
+        return PR_TRUE;
+
+    PRInt32 spos = mURL.FindChar('/');
+    return (cpos > spos);
+}
+
 const PRUnichar*
 nsXPITriggerItem::GetSafeURLString()
 {
@@ -155,17 +163,10 @@ nsXPITriggerItem::SetPrincipal(nsIPrincipal* aPrincipal)
     PRBool hasCert;
     aPrincipal->GetHasCertificate(&hasCert);
     if (hasCert) {
-        nsCOMPtr<nsISupports> certificate;
-        aPrincipal->GetCertificate(getter_AddRefs(certificate));
-
-        nsCOMPtr<nsIX509Cert> x509 = do_QueryInterface(certificate);
-        if (x509) {
-            x509->GetCommonName(mCertName);
-            if (mCertName.Length() > 0)
-                return;
-        }
-
         nsCAutoString prettyName;
+        // XXXbz should this really be using the prettyName?  Perhaps
+        // it wants to get the subjectName or nsIX509Cert and display
+        // it sanely?
         aPrincipal->GetPrettyName(prettyName);
         CopyUTF8toUTF16(prettyName, mCertName);
     }
@@ -195,7 +196,7 @@ nsXPITriggerInfo::~nsXPITriggerInfo()
 
     if ( mCx && !JSVAL_IS_NULL(mCbval) ) {
         JS_BeginRequest(mCx);
-        JS_RemoveValueRoot(mCx, &mCbval );
+        JS_RemoveRoot( mCx, &mCbval );
         JS_EndRequest(mCx);
     }
 
@@ -205,21 +206,26 @@ nsXPITriggerInfo::~nsXPITriggerInfo()
 void nsXPITriggerInfo::SaveCallback( JSContext *aCx, jsval aVal )
 {
     NS_ASSERTION( mCx == 0, "callback set twice, memory leak" );
-    // We'll only retain the callback if we can get a strong reference to the
-    // context.
-    if (!(JS_GetOptions(aCx) & JSOPTION_PRIVATE_IS_NSISUPPORTS))
-        return;
-    mContextWrapper = static_cast<nsISupports *>(JS_GetContextPrivate(aCx));
-    if (!mContextWrapper)
-        return;
-
     mCx = aCx;
+    JSObject *obj = JS_GetGlobalObject( mCx );
+
+    JSClass* clazz;
+
+    clazz = ::JS_GET_CLASS(aCx, obj);
+
+    if (clazz &&
+        (clazz->flags & JSCLASS_HAS_PRIVATE) &&
+        (clazz->flags & JSCLASS_PRIVATE_IS_NSISUPPORTS)) {
+      mGlobalWrapper =
+        do_QueryInterface((nsISupports*)::JS_GetPrivate(aCx, obj));
+    }
+
     mCbval = aVal;
     mThread = do_GetCurrentThread();
 
     if ( !JSVAL_IS_NULL(mCbval) ) {
         JS_BeginRequest(mCx);
-        JS_AddValueRoot(mCx, &mCbval );
+        JS_AddRoot( mCx, &mCbval );
         JS_EndRequest(mCx);
     }
 }
@@ -227,86 +233,85 @@ void nsXPITriggerInfo::SaveCallback( JSContext *aCx, jsval aVal )
 XPITriggerEvent::~XPITriggerEvent()
 {
     JS_BeginRequest(cx);
-    JS_RemoveValueRoot(cx, &cbval);
+    JS_RemoveRoot(cx, &cbval);
     JS_EndRequest(cx);
 }
 
 NS_IMETHODIMP
 XPITriggerEvent::Run()
 {
-    JSAutoRequest ar(cx);
+    jsval  ret;
+    void*  mark;
+    jsval* args;
 
-    // If Components doesn't exist in the global object then XPConnect has
-    // been torn down, probably because the page was closed. Bail out if that
-    // is the case.
-    JSObject* innerGlobal = JS_GetGlobalForObject(cx, JSVAL_TO_OBJECT(cbval));
-    jsval components;
-    if (!JS_LookupProperty(cx, innerGlobal, "Components", &components) ||
-        !JSVAL_IS_OBJECT(components))
-        return 0;
+    JS_BeginRequest(cx);
+    args = JS_PushArguments(cx, &mark, "Wi",
+                            URL.get(),
+                            status);
+    if ( args )
+    {
+        // This code is all in a JS request, and here we're about to
+        // push the context onto the context stack and also push
+        // arguments. Be very very sure that no early returns creep in
+        // here w/o doing the proper cleanup!
 
-    // Build arguments into rooted jsval array
-    jsval args[2] = { JSVAL_NULL, JSVAL_NULL };
-    js::AutoArrayRooter tvr(cx, JS_ARRAY_LENGTH(args), args);
+        const char *errorStr = nsnull;
 
-    // args[0] is the URL
-    JSString *str = JS_NewUCStringCopyZ(cx, reinterpret_cast<const jschar*>(URL.get()));
-    if (!str)
-        return 0;
-    args[0] = STRING_TO_JSVAL(str);
+        nsCOMPtr<nsIJSContextStack> stack =
+            do_GetService("@mozilla.org/js/xpc/ContextStack;1");
+        if (stack)
+            stack->Push(cx);
 
-    // args[1] is the status
-    if (!JS_NewNumberValue(cx, status, &args[1]))
-        return 0;
+        nsCOMPtr<nsIScriptSecurityManager> secman =
+            do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID);
 
-    class StackPushGuard {
-        nsCOMPtr<nsIJSContextStack> mStack;
-    public:
-        StackPushGuard(JSContext *cx)
-          : mStack(do_GetService("@mozilla.org/js/xpc/ContextStack;1"))
+        if (!secman)
         {
-            if (mStack)
-                mStack->Push(cx);
+            errorStr = "Could not get script security manager service";
         }
 
-        ~StackPushGuard()
+        nsCOMPtr<nsIPrincipal> principal;
+        if (!errorStr)
         {
-            if (mStack)
-                mStack->Pop(nsnull);
+            secman->GetSubjectPrincipal(getter_AddRefs(principal));
+            if (!principal)
+            {
+                errorStr = "Could not get principal from script security manager";
+            }
         }
-    } stackPushGuard(cx);
 
-    nsCOMPtr<nsIScriptSecurityManager> secman =
-        do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID);
-    if (!secman)
-    {
-        JS_ReportError(cx, "Could not get script security manager service");
-        return 0;
+        if (!errorStr)
+        {
+            PRBool equals = PR_FALSE;
+            principal->Equals(princ, &equals);
+
+            if (!equals)
+            {
+                errorStr = "Principal of callback context is different than InstallTriggers";
+            }
+        }
+
+        if (errorStr)
+        {
+            JS_ReportError(cx, errorStr);
+        }
+        else
+        {
+            JS_CallFunctionValue(cx,
+                                 JSVAL_TO_OBJECT(global),
+                                 cbval,
+                                 2,
+                                 args,
+                                 &ret);
+        }
+
+        if (stack)
+            stack->Pop(nsnull);
+
+        JS_PopArguments(cx, mark);
     }
+    JS_EndRequest(cx);
 
-    nsCOMPtr<nsIPrincipal> principal;
-    secman->GetSubjectPrincipal(getter_AddRefs(principal));
-    if (!principal)
-    {
-         JS_ReportError(cx, "Could not get principal from script security manager");
-         return 0;
-    }
-
-    PRBool equals = PR_FALSE;
-    principal->Equals(princ, &equals);
-    if (!equals)
-    {
-        JS_ReportError(cx, "Principal of callback context is different than InstallTriggers");
-        return 0;
-    }
-
-    jsval ret;
-    JS_CallFunctionValue(cx,
-                         JS_GetGlobalObject(cx),
-                         cbval,
-                         2,
-                         args,
-                         &ret);
     return 0;
 }
 
@@ -315,7 +320,7 @@ void nsXPITriggerInfo::SendStatus(const PRUnichar* URL, PRInt32 status)
 {
     nsresult rv;
 
-    if ( mCx && mContextWrapper && !JSVAL_IS_NULL(mCbval) )
+    if ( mCx && mGlobalWrapper && !JSVAL_IS_NULL(mCbval) )
     {
         // create event and post it
         nsRefPtr<XPITriggerEvent> event = new XPITriggerEvent();
@@ -326,15 +331,21 @@ void nsXPITriggerInfo::SendStatus(const PRUnichar* URL, PRInt32 status)
             event->cx       = mCx;
             event->princ    = mPrincipal;
 
+            JSObject *obj = nsnull;
+
+            mGlobalWrapper->GetJSObject(&obj);
+
+            event->global   = OBJECT_TO_JSVAL(obj);
+
             event->cbval    = mCbval;
             JS_BeginRequest(event->cx);
-            JS_AddNamedValueRoot(event->cx, &event->cbval,
+            JS_AddNamedRoot(event->cx, &event->cbval,
                             "XPITriggerEvent::cbval" );
             JS_EndRequest(event->cx);
 
             // Hold a strong reference to keep the underlying
             // JSContext from dying before we handle this event.
-            event->ref      = mContextWrapper;
+            event->ref      = mGlobalWrapper;
 
             rv = mThread->Dispatch(event, NS_DISPATCH_NORMAL);
         }
@@ -344,7 +355,7 @@ void nsXPITriggerInfo::SendStatus(const PRUnichar* URL, PRInt32 status)
         if ( NS_FAILED( rv ) )
         {
             // couldn't get event queue -- maybe window is gone or
-            // some similarly catastrophic occurrence
+            // some similarly catastrophic occurrance
             NS_WARNING("failed to dispatch XPITriggerEvent");
         }
     }

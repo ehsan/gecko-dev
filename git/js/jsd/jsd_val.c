@@ -40,9 +40,6 @@
  */
 
 #include "jsd.h"
-#include "jsapi.h"
-#include "jspubtd.h"
-#include "jsprvtd.h"
 
 #ifdef DEBUG
 void JSD_ASSERT_VALID_VALUE(JSDValue* jsdval)
@@ -190,12 +187,13 @@ jsd_GetValueInt(JSDContext* jsdc, JSDValue* jsdval)
     return JSVAL_TO_INT(val);
 }
 
-jsdouble
+jsdouble*
 jsd_GetValueDouble(JSDContext* jsdc, JSDValue* jsdval)
 {
-    if(!JSVAL_IS_DOUBLE(jsdval->val))
+    jsval val = jsdval->val;
+    if(!JSVAL_IS_DOUBLE(val))
         return 0;
-    return JSVAL_TO_DOUBLE(jsdval->val);
+    return JSVAL_TO_DOUBLE(val);
 }
 
 JSString*
@@ -217,7 +215,7 @@ jsd_GetValueString(JSDContext* jsdc, JSDValue* jsdval)
             JS_RestoreExceptionState(cx, exceptionState);
             if(jsdval->string)
             {
-                if(!JS_AddNamedStringRoot(cx, &jsdval->string, "ValueString"))
+                if(!JS_AddNamedRoot(cx, &jsdval->string, "ValueString"))
                     jsdval->string = NULL;
             }
             JS_EndRequest(cx);
@@ -261,7 +259,7 @@ jsd_NewValue(JSDContext* jsdc, jsval val)
     {
         JSBool ok = JS_FALSE;
         JS_BeginRequest(jsdc->dumbContext);
-        ok = JS_AddNamedValueRoot(jsdc->dumbContext, &jsdval->val, "JSDValue");
+        ok = JS_AddNamedRoot(jsdc->dumbContext, &jsdval->val, "JSDValue");
         JS_EndRequest(jsdc->dumbContext);
         if(!ok)
         {
@@ -286,7 +284,7 @@ jsd_DropValue(JSDContext* jsdc, JSDValue* jsdval)
         if(JSVAL_IS_GCTHING(jsdval->val))
         {
             JS_BeginRequest(jsdc->dumbContext);
-            JS_RemoveValueRoot(jsdc->dumbContext, &jsdval->val);
+            JS_RemoveRoot(jsdc->dumbContext, &jsdval->val);
             JS_EndRequest(jsdc->dumbContext);
         }
         free(jsdval);
@@ -296,22 +294,7 @@ jsd_DropValue(JSDContext* jsdc, JSDValue* jsdval)
 jsval
 jsd_GetValueWrappedJSVal(JSDContext* jsdc, JSDValue* jsdval)
 {
-    JSObject* obj;
-    JSContext* cx;
-    jsval val = jsdval->val;
-    if (!JSVAL_IS_PRIMITIVE(val)) {
-        cx = JSD_GetDefaultJSContext(jsdc);
-        obj = js_ObjectToOuterObject(cx, JSVAL_TO_OBJECT(val));
-        if (!obj)
-        {
-            JS_ClearPendingException(cx);
-            val = JSVAL_NULL;
-        }
-        else
-            val = OBJECT_TO_JSVAL(obj);
-    }
-    
-    return val;
+    return jsdval->val;
 }
 
 static JSDProperty* _newProperty(JSDContext* jsdc, JSPropertyDesc* pd,
@@ -407,7 +390,7 @@ jsd_RefreshValue(JSDContext* jsdc, JSDValue* jsdval)
         if(!JSVAL_IS_STRING(jsdval->val))
         {
             JS_BeginRequest(cx);
-            JS_RemoveStringRoot(cx, &jsdval->string);
+            JS_RemoveRoot(cx, &jsdval->string);
             JS_EndRequest(cx);
         }
         jsdval->string = NULL;
@@ -477,8 +460,7 @@ jsd_GetValueProperty(JSDContext* jsdc, JSDValue* jsdval, JSString* name)
     JSPropertyDesc pd;
     const jschar * nameChars;
     size_t nameLen;
-    jsval val, nameval;
-    jsid nameid;
+    jsval val;
 
     if(!jsd_IsValueObject(jsdc, jsdval))
         return NULL;
@@ -534,14 +516,8 @@ jsd_GetValueProperty(JSDContext* jsdc, JSDValue* jsdval, JSString* name)
 
     JS_EndRequest(cx);
 
-    nameval = STRING_TO_JSVAL(name);
-    if (!JS_ValueToId(cx, nameval, &nameid) ||
-        !JS_IdToValue(cx, nameid, &pd.id)) {
-        return NULL;
-    }
-
-    pd.slot = pd.spare = 0;
-    pd.alias = JSVAL_NULL;
+    pd.id = STRING_TO_JSVAL(name);
+    pd.alias = pd.slot = pd.spare = 0;
     pd.flags |= (attrs & JSPROP_ENUMERATE) ? JSPD_ENUMERATE : 0
         | (attrs & JSPROP_READONLY)  ? JSPD_READONLY  : 0
         | (attrs & JSPROP_PERMANENT) ? JSPD_PERMANENT : 0;
@@ -648,37 +624,6 @@ jsd_GetValueClassName(JSDContext* jsdc, JSDValue* jsdval)
     }
     return jsdval->className;
 }
-
-JSDScript*
-jsd_GetScriptForValue(JSDContext* jsdc, JSDValue* jsdval)
-{
-    JSContext* cx = jsdc->dumbContext;
-    jsval val = jsdval->val;
-    JSFunction* fun;
-    JSExceptionState* exceptionState;
-    JSScript* script = NULL;
-    JSDScript* jsdscript;
-
-    if (!jsd_IsValueFunction(jsdc, jsdval))
-        return NULL;
-
-    JS_BeginRequest(cx);
-    exceptionState = JS_SaveExceptionState(cx);
-    fun = JS_ValueToFunction(cx, val);
-    JS_RestoreExceptionState(cx, exceptionState);
-    if (fun)
-        script = JS_GetFunctionScript(cx, fun);
-    JS_EndRequest(cx);
-
-    if (!script)
-        return NULL;
-
-    JSD_LOCK_SCRIPTS(jsdc);
-    jsdscript = jsd_FindJSDScript(jsdc, script);
-    JSD_UNLOCK_SCRIPTS(jsdc);
-    return jsdscript;
-}
-
 
 /***************************************************************************/
 /***************************************************************************/

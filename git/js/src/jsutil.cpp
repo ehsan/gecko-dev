@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+/* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -41,47 +41,26 @@
 /*
  * PR assertion checker.
  */
+#include "jsstddef.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include "jstypes.h"
-#include "jsstdint.h"
 #include "jsutil.h"
 
 #ifdef WIN32
 #    include <windows.h>
-#else
-#    include <signal.h>
 #endif
-
-using namespace js;
-
-/*
- * Checks the assumption that JS_FUNC_TO_DATA_PTR and JS_DATA_TO_FUNC_PTR
- * macros uses to implement casts between function and data pointers.
- */
-JS_STATIC_ASSERT(sizeof(void *) == sizeof(void (*)()));
 
 JS_PUBLIC_API(void) JS_Assert(const char *s, const char *file, JSIntn ln)
 {
     fprintf(stderr, "Assertion failure: %s, at %s:%d\n", s, file, ln);
-    fflush(stderr);
 #if defined(WIN32)
-    /*
-     * We used to call DebugBreak() on Windows, but amazingly, it causes
-     * the MSVS 2010 debugger not to be able to recover a call stack.
-     */
-    *((int *) NULL) = 0;
+    DebugBreak();
     exit(3);
-#elif defined(__APPLE__)
-    /*
-     * On Mac OS X, Breakpad ignores signals. Only real Mach exceptions are
-     * trapped.
-     */
-    *((int *) NULL) = 0;  /* To continue from here in GDB: "return" then "continue". */
-    raise(SIGABRT);  /* In case above statement gets nixed by the optimizer. */
-#else
-    raise(SIGABRT);  /* To continue from here in GDB: "signal 0". */
+#elif defined(XP_OS2) || (defined(__GNUC__) && defined(__i386))
+    asm("int $3");
 #endif
+    abort();
 }
 
 #ifdef JS_BASIC_STATS
@@ -110,7 +89,7 @@ BinToVal(uintN logscale, uintN bin)
     if (logscale == 2)
         return JS_BIT(bin);
     JS_ASSERT(logscale == 10);
-    return (uint32) pow(10.0, (double) bin);
+    return (uint32) pow(10, (double) bin);
 }
 
 static uintN
@@ -148,7 +127,7 @@ JS_BasicStatsAccum(JSBasicStats *bs, uint32 val)
             if (newscale != oldscale) {
                 uint32 newhist[11], newbin;
 
-                PodArrayZero(newhist);
+                memset(newhist, 0, sizeof newhist);
                 for (bin = 0; bin <= 10; bin++) {
                     newbin = ValToBin(newscale, BinToVal(oldscale, bin));
                     newhist[newbin] += bs->hist[bin];
@@ -231,7 +210,7 @@ JS_DumpHistogram(JSBasicStats *bs, FILE *fp)
 
 #endif /* JS_BASIC_STATS */
 
-#if defined(DEBUG_notme) && defined(XP_UNIX)
+#if defined DEBUG_notme && defined XP_UNIX
 
 #define __USE_GNU 1
 #include <dlfcn.h>
@@ -271,7 +250,7 @@ CallTree(void **bp)
 
         csp = &parent->kids;
         while ((site = *csp) != NULL) {
-            if (site->pc == (uint32)pc) {
+            if (site->pc == pc) {
                 /* Put the most recently used site at the front of siblings. */
                 *csp = site->siblings;
                 site->siblings = parent->kids;
@@ -285,7 +264,7 @@ CallTree(void **bp)
 
         /* Check for recursion: see if pc is on our ancestor line. */
         for (site = parent; site; site = site->parent) {
-            if (site->pc == (uint32)pc)
+            if (site->pc == pc)
                 goto upward;
         }
 
@@ -312,12 +291,12 @@ CallTree(void **bp)
             return NULL;
 
         /* Create a new callsite record. */
-        site = (JSCallsite *) js_malloc(sizeof(JSCallsite));
+        site = (JSCallsite *) malloc(sizeof(JSCallsite));
         if (!site)
             return NULL;
 
         /* Insert the new site into the tree. */
-        site->pc = (uint32)pc;
+        site->pc = pc;
         site->name = method;
         site->library = info.dli_fname;
         site->offset = offset;
@@ -335,7 +314,7 @@ CallTree(void **bp)
     return site;
 }
 
-JS_FRIEND_API(JSCallsite *)
+JSCallsite *
 JS_Backtrace(int skip)
 {
     void **bp, **bpdown;
@@ -363,14 +342,4 @@ JS_Backtrace(int skip)
     return CallTree(bp);
 }
 
-JS_FRIEND_API(void)
-JS_DumpBacktrace(JSCallsite *trace)
-{
-    while (trace) {
-        fprintf(stdout, "%s [%s +0x%X]\n", trace->name, trace->library,
-                trace->offset);
-        trace = trace->parent;
-    }
-}
-
-#endif /* defined(DEBUG_notme) && defined(XP_UNIX) */
+#endif /* DEBUG_notme && XP_UNIX */

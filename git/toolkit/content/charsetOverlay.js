@@ -118,19 +118,21 @@ function SetForcedCharset(charset)
 var gPrevCharset = null;
 function UpdateCurrentCharset()
 {
-    // extract the charset from DOM
+    var menuitem = null;
+
+    // exctract the charset from DOM
     var wnd = document.commandDispatcher.focusedWindow;
     if ((window == wnd) || (wnd == null)) wnd = window.content;
+    menuitem = document.getElementById('charset.' + wnd.document.characterSet);
 
-    // Uncheck previous item
-    if (gPrevCharset) {
-        var pref_item = document.getElementById('charset.' + gPrevCharset);
-        if (pref_item)
-          pref_item.setAttribute('checked', 'false');
-    }
-
-    var menuitem = document.getElementById('charset.' + wnd.document.characterSet);
     if (menuitem) {
+        // uncheck previously checked item to workaround Mac checkmark problem
+        // bug 98625
+        if (gPrevCharset) {
+            var pref_item = document.getElementById('charset.' + gPrevCharset);
+            if (pref_item)
+              pref_item.setAttribute('checked', 'false');
+        }
         menuitem.setAttribute('checked', 'true');
     }
 }
@@ -245,34 +247,28 @@ function mailCharsetLoadListener (event)
     }
 }
 
-function InitCharsetMenu()
+var wintype = document.documentElement.getAttribute('windowtype');
+if (window && (wintype == "navigator:browser"))
 {
-    removeEventListener("load", InitCharsetMenu, true);
-
-    var wintype = document.documentElement.getAttribute('windowtype');
-    if (window && (wintype == "navigator:browser"))
+    var contentArea = window.document.getElementById("appcontent");
+    if (contentArea)
+        contentArea.addEventListener("pageshow", charsetLoadListener, true);
+}
+else
+{
+    var arrayOfStrings = wintype.split(":");
+    if (window && arrayOfStrings[0] == "mail") 
     {
-        var contentArea = window.document.getElementById("appcontent");
-        if (contentArea)
-            contentArea.addEventListener("pageshow", charsetLoadListener, true);
+        var messageContent = window.document.getElementById("messagepane");
+        if (messageContent)
+            messageContent.addEventListener("pageshow", mailCharsetLoadListener, true);
     }
     else
+    if (window && arrayOfStrings[0] == "composer") 
     {
-        var arrayOfStrings = wintype.split(":");
-        if (window && arrayOfStrings[0] == "mail")
-        {
-            var messageContent = window.document.getElementById("messagepane");
-            if (messageContent)
-                messageContent.addEventListener("pageshow", mailCharsetLoadListener, true);
-        }
-        else
-        if (window && arrayOfStrings[0] == "composer")
-        {
-            contentArea = window.document.getElementById("appcontent");
-            if (contentArea)
-                contentArea.addEventListener("pageshow", composercharsetLoadListener, true);
-        }
+        contentArea = window.document.getElementById("appcontent");
+        if (contentArea)
+            contentArea.addEventListener("pageshow", composercharsetLoadListener, true);
     }
-}
 
-addEventListener("load", InitCharsetMenu, true);
+}

@@ -42,7 +42,7 @@
  * Mozilla Applications linking to Mozilla websites are strongly encouraged to use
  * URLs of the following format:
  *
- *   http[s]://%SERVICE%.mozilla.[com|org]/%LOCALE%/
+ *   http[s]://%LOCALE%.%SERVICE%.mozilla.[com|org]/%LOCALE%/
  */
 
 const Cc = Components.classes;
@@ -53,6 +53,8 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 function nsURLFormatterService() {}
 nsURLFormatterService.prototype = {
+  classDescription: "Application URL Formatter Service",
+  contractID: "@mozilla.org/toolkit/URLFormatterService;1",
   classID: Components.ID("{e6156350-2be8-11db-a98b-0800200c9a66}"),
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIURLFormatter]),
 
@@ -103,7 +105,7 @@ nsURLFormatterService.prototype = {
     }
 
     if (!PS.prefHasUserValue(aPref) &&
-        /^(data:text\/plain,.+=.+|chrome:\/\/.+\/locale\/.+\.properties)$/.test(format)) {
+        /^chrome:\/\/.+\/locale\/.+\.properties$/.test(format)) {
       // This looks as if it might be a localised preference
       try {
         format = PS.getComplexValue(aPref, Ci.nsIPrefLocalizedString).data;
@@ -114,4 +116,5 @@ nsURLFormatterService.prototype = {
   }
 };
 
-var NSGetFactory = XPCOMUtils.generateNSGetFactory([nsURLFormatterService]);
+function NSGetModule(aCompMgr, aFileSpec)
+  XPCOMUtils.generateModule([nsURLFormatterService]);

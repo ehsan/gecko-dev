@@ -52,8 +52,6 @@
 #define SFTK_HANDLE_STRING_ARG(param,target,value,command) \
     if (PORT_Strncasecmp(param,value,sizeof(value)-1) == 0) { \
 	param += sizeof(value)-1; \
-	if (target) \
-	    PORT_Free(target); \
 	target = sftk_argFetchValue(param,&next); \
 	param += next; \
 	command ;\
@@ -76,7 +74,7 @@ static PRBool sftk_argGetPair(char c) {
 }
 
 static PRBool sftk_argIsBlank(char c) {
-   return isspace((unsigned char )c);
+   return isspace(c);
 }
 
 static PRBool sftk_argIsEscape(char c) {
@@ -340,7 +338,7 @@ static CK_RV
 sftk_parseTokenParameters(char *param, sftk_token_parameters *parsed) 
 {
     int next;
-    char *tmp = NULL;
+    char *tmp;
     char *index;
     index = sftk_argStrip(param);
 
@@ -357,9 +355,9 @@ sftk_parseTokenParameters(char *param, sftk_token_parameters *parsed)
 						"updateTokenDescription=",;)
 	SFTK_HANDLE_STRING_ARG(index,parsed->slotdes,"slotDescription=",;)
 	SFTK_HANDLE_STRING_ARG(index,tmp,"minPWLen=", 
-	   if(tmp) { parsed->minPW=atoi(tmp); PORT_Free(tmp); tmp = NULL; })
+			if(tmp) { parsed->minPW=atoi(tmp); PORT_Free(tmp); })
 	SFTK_HANDLE_STRING_ARG(index,tmp,"flags=", 
-	   if(tmp) { sftk_parseTokenFlags(param,parsed); PORT_Free(tmp); tmp = NULL; })
+	   if(tmp) { sftk_parseTokenFlags(param,parsed); PORT_Free(tmp); })
 	SFTK_HANDLE_FINAL_ARG(index)
    }
    return CKR_OK;
@@ -415,7 +413,7 @@ CK_RV
 sftk_parseParameters(char *param, sftk_parameters *parsed, PRBool isFIPS) 
 {
     int next;
-    char *tmp = NULL;
+    char *tmp;
     char *index;
     char *certPrefix = NULL, *keyPrefix = NULL;
     char *tokdes = NULL, *ptokdes = NULL, *pupdtokdes = NULL;
@@ -446,9 +444,9 @@ sftk_parseParameters(char *param, sftk_parameters *parsed, PRBool isFIPS)
 	SFTK_HANDLE_STRING_ARG(index,minPW,"minPWLen=",;)
 
 	SFTK_HANDLE_STRING_ARG(index,tmp,"flags=", 
-		if(tmp) { sftk_parseFlags(param,parsed); PORT_Free(tmp); tmp = NULL; })
+		if(tmp) { sftk_parseFlags(param,parsed); PORT_Free(tmp); })
 	SFTK_HANDLE_STRING_ARG(index,tmp,"tokens=", 
-		if(tmp) { sftk_parseTokens(tmp,parsed); PORT_Free(tmp); tmp = NULL; })
+		if(tmp) { sftk_parseTokens(tmp,parsed); PORT_Free(tmp); })
 	SFTK_HANDLE_FINAL_ARG(index)
     }
     if (parsed->tokens == NULL) {
@@ -548,11 +546,7 @@ const char *
 sftk_EvaluateConfigDir(const char *configdir, SDBType *dbType, char **appName)
 {
     *appName = NULL;
-#ifdef NSS_DISABLE_DBM
-    *dbType = SDB_SQL;
-#else
     *dbType = SDB_LEGACY;
-#endif
     if (PORT_Strncmp(configdir, MULTIACCESS, sizeof(MULTIACCESS)-1) == 0) {
 	char *cdir;
 	*dbType = SDB_MULTIACCESS;

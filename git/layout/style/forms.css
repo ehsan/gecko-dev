@@ -49,23 +49,19 @@
 
 /* miscellaneous form elements */
 
-fieldset > legend {
+legend {
   padding-left: 2px;
   padding-right: 2px;
   border: none;
-  position: static;
-  float: none;
-  width: -moz-fit-content;
-  min-width: 0;
-  max-width: none;
-  height: auto;
-  min-height: 0;
-  max-height: none;
+  position: static ! important;
+  float: none ! important;
+  width: -moz-fit-content ! important;
+  min-width: 0 ! important;
+  max-width: none ! important;
+  height: auto ! important;
+  min-height: 0 ! important;
+  max-height: none ! important;
   white-space: nowrap;
-}
-
-legend {
-  display: block;
 }
 
 fieldset {
@@ -109,9 +105,7 @@ input {
 }
 
 input > .anonymous-div {
-  word-wrap: normal !important;
-  /* Make the line-height equal to the available height */
-  line-height: -moz-block-height;
+  white-space: pre;
 }
 
 textarea {
@@ -127,13 +121,11 @@ textarea {
   letter-spacing: normal;
   vertical-align: text-bottom;
   cursor: text;
-  resize: both;
   -moz-binding: url("chrome://global/content/platformHTMLBindings.xml#textAreas");
   -moz-appearance: textfield-multiline;
   text-indent: 0;
   -moz-user-select: text;
   text-shadow: none;
-  word-wrap: break-word;
 }
 
 textarea > scrollbar {
@@ -142,7 +134,6 @@ textarea > scrollbar {
 
 textarea > .anonymous-div,
 input > .anonymous-div {
-  white-space: pre;
   overflow: auto;
   border: 0px !important;
   /* The 1px horizontal padding is for parity with Win/IE */
@@ -152,33 +143,6 @@ input > .anonymous-div {
      but it's needed to make 'text-decoration' "work" on text inputs. */
   text-decoration: inherit;
   ime-mode: inherit;
-  resize: inherit;
-}
-
-textarea > .anonymous-div.wrap,
-input > .anonymous-div.wrap {
-  white-space: pre-wrap;
-}
-textarea > .anonymous-div.inherit-overflow,
-input > .anonymous-div.inherit-overflow {
-  overflow: inherit;
-}
-
-input > .placeholder,
-textarea > .placeholder {
-  color: GrayText;
-  overflow: hidden;
-  pointer-events: none;
-  resize: none;
-}
-
-textarea > .placeholder {
-  white-space: pre-wrap;
-}
-
-input > .placeholder.hidden,
-textarea > .placeholder.hidden {
-  visibility: hidden;
 }
 
 input:-moz-read-write,
@@ -189,12 +153,11 @@ textarea:-moz-read-write {
 select {
   margin: 0;
   border-color: ThreeDFace;
-  background-color: -moz-Combobox;
-  color: -moz-ComboboxText;
+  background-color: -moz-Field;
+  color: -moz-FieldText;
   font: -moz-list;
   line-height: normal !important;
   white-space: nowrap !important;
-  word-wrap: normal !important;
   text-align: start; 
   cursor: default;
   -moz-box-sizing: border-box;
@@ -214,8 +177,6 @@ select[size],
 select[multiple],
 select[size][multiple] {
   /* Different alignment and padding for listbox vs combobox */
-  background-color: -moz-Field;
-  color: -moz-FieldText;
   vertical-align: text-bottom;
   padding: 1px 0 1px 0;
   -moz-appearance: listbox;
@@ -224,8 +185,6 @@ select[size][multiple] {
 select[size="0"],
 select[size="1"] {
   /* Except this is not a listbox */
-  background-color: -moz-Combobox;
-  color: -moz-ComboboxText;
   vertical-align: baseline;
   padding: 0;
   -moz-appearance: menulist;
@@ -269,6 +228,7 @@ select:empty {
   padding-bottom: 1px;
   -moz-padding-start: 4px;
   -moz-padding-end: 0;
+  background-color: inherit;
   color: inherit;
   white-space: nowrap;
   text-align: inherit;
@@ -276,6 +236,10 @@ select:empty {
   /* Make sure to size correctly if the combobox has a non-auto height. */
   height: 100% ! important;
   -moz-box-sizing: border-box ! important;
+}
+
+select::-moz-scrolled-content {
+  display: block !important;
 }
 
 option {
@@ -287,7 +251,6 @@ option {
   -moz-user-select: none;
   text-indent: 0;
   white-space: nowrap !important;
-  word-wrap: normal !important;
 }
 
 select > option {
@@ -320,7 +283,6 @@ optgroup {
   -moz-user-select: none;
   text-indent: 0;
   white-space: nowrap !important;
-  word-wrap: normal !important;
 }
 
 optgroup > option {
@@ -372,7 +334,7 @@ optgroup[disabled] {
 /* hidden inputs */
 input[type="hidden"] {
   -moz-appearance: none;
-  display: none !important;
+  display: none;
   padding: 0;
   border: 0;
   cursor: auto;
@@ -396,7 +358,7 @@ input[type="image"][disabled] {
   cursor: inherit;
 }
 
-input[type="image"]:-moz-focusring {
+input[type="image"]:focus {
   /* Don't specify the outline-color, we should always use initial value. */
   outline: 1px dotted;
 }
@@ -425,39 +387,40 @@ input[type="file"] > input[type="button"] {
   height: inherit;
   font-size: inherit;
   letter-spacing: inherit;
-  cursor: inherit;
 }
 
 /* radio buttons */
 input[type="radio"] {
-  -moz-appearance: radio;
+  -moz-appearance: radio-small;
+  width: 13px;
+  height: 13px;
   margin: 3px 3px 0px 5px;
+  padding: 0 !important;
+  cursor: default;
+  -moz-binding: none;
+
   -moz-border-radius: 100% !important;
 }
 
 /* check boxes */
 input[type="checkbox"] {
-  -moz-appearance: checkbox;
+  -moz-appearance: checkbox-small;
+  width: 13px;
+  height: 13px;
   margin: 3px 3px 3px 4px;
+  padding: 0 !important;
+  cursor: default;
+  -moz-binding: none;
+
   -moz-border-radius: 0 !important;
 }
 
 /* common features of radio buttons and check boxes */
 
-/* NOTE: The width, height, border-width, and padding here must all
-   add up the way nsFormControlFrame::GetIntrinsic(Width|Height)
-   expects them to, or they will not come out with total width equal
-   to total height on sites that set their 'width' or 'height' to 'auto'.
-   (Should we maybe set !important on width and height, then?)  */
 input[type="radio"],
 input[type="checkbox"] {
-  -moz-box-sizing: border-box;
-  width: 13px;
-  height: 13px;
-  cursor: default;
-  padding: 0 !important;
-  -moz-binding: none;
   /* same colors as |input| rule, but |!important| this time. */
+  -moz-box-sizing: border-box;
   background-color: -moz-Field ! important;
   color: -moz-FieldText ! important;
   border: 2px inset ThreeDFace ! important;
@@ -479,8 +442,8 @@ input[type="checkbox"][disabled]:hover:active {
   cursor: inherit; 
 }
 
-input[type="checkbox"]:-moz-focusring,
-input[type="radio"]:-moz-focusring {
+input[type="checkbox"]:focus,
+input[type="radio"]:focus {
   border-style: groove !important;
 }
 
@@ -488,6 +451,13 @@ input[type="checkbox"]:hover:active,
 input[type="radio"]:hover:active {
   background-color: ThreeDFace ! important;
   border-style: inset !important;
+}
+
+*|*::-moz-radio {
+  width: 4px;
+  height: 4px;
+  background-color: -moz-FieldText ! important;
+  -moz-border-radius: 3px;
 }
 
 /* buttons */
@@ -555,11 +525,11 @@ input[type="file"] > input[type="button"]::-moz-focus-inner {
   border: 1px dotted transparent;
 }
 
-button:-moz-focusring::-moz-focus-inner,
-input[type="reset"]:-moz-focusring::-moz-focus-inner,
-input[type="button"]:-moz-focusring::-moz-focus-inner,
-input[type="submit"]:-moz-focusring::-moz-focus-inner,
-input[type="file"] > input[type="button"]:-moz-focusring::-moz-focus-inner {
+button:focus::-moz-focus-inner,
+input[type="reset"]:focus::-moz-focus-inner,
+input[type="button"]:focus::-moz-focus-inner,
+input[type="submit"]:focus::-moz-focus-inner,
+input[type="file"] > input[type="button"]:focus::-moz-focus-inner {
   border-color: ButtonText;
 }
 

@@ -156,19 +156,11 @@ __asm__ (
 	"leal  0(,%eax,8),%edx\n\t"
 	"movl  %esp, %ecx\n\t"
 	"subl  %edx, %ecx\n\t"
-/* Align to maximum x86 data size: 128 bits == 16 bytes == XMM register size.
- * This is to avoid protection faults where SSE+ alignment of stack pointer
- * is assumed and required, e.g. by GCC4's -ftree-vectorize option.
+/* Since there may be 64-bit data, it occurs to me that aligning this
+   space might be a performance gain. However, I don't think the rest
+   of mozilla worries about such things. In any event, do it here.
+	"andl  $0xfffffff8, %ecx\n\t"
  */
-	"andl  $0xfffffff0, %ecx\n\t"   /* drop(?) stack ptr to 128-bit align */
-/* $esp should be aligned to a 16-byte boundary here (note we include an 
- * additional 4 bytes in a later push instruction). This will ensure $ebp 
- * in the function called below is aligned to a 0x8 boundary. SSE instructions 
- * like movapd/movdqa expect memory operand to be aligned on a 16-byte
- * boundary. The GCC compiler will generate the memory operand using $ebp
- * with an 8-byte offset.
- */
-	"subl  $0xc, %ecx\n\t"          /* lower again; push/call below will re-align */
 	"movl  %ecx, %esp\n\t"          /* make stack space */
 	"movl  0x14(%ebp), %edx\n\t"
 	"call  " SYMBOL_UNDERSCORE "invoke_copy_to_stack\n\t"

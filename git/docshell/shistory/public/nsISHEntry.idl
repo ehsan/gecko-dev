@@ -51,14 +51,14 @@ interface nsIInputStream;
 interface nsIDocShellTreeItem;
 interface nsISupportsArray;
 %{C++
-struct nsIntRect;
+struct nsRect;
 class nsDocShellEditorData;
 %}
-[ref] native nsIntRect(nsIntRect);
+[ref] native nsRect(nsRect);
 [ptr] native nsDocShellEditorDataPtr(nsDocShellEditorData);
 
 
-[scriptable, uuid(62b0603f-57ca-439e-a0fb-6f6978500755)]
+[scriptable, uuid(c16fde76-3108-450e-8c8c-ae8286f286ed)]
 interface nsISHEntry : nsIHistoryEntry
 {
     /** URI for the document */
@@ -81,8 +81,8 @@ interface nsISHEntry : nsIHistoryEntry
      * root view's widget accordingly if this has changed when the presentation
      * is restored.
      */
-    [noscript] void getViewerBounds(in nsIntRect bounds);
-    [noscript] void setViewerBounds([const] in nsIntRect bounds);
+    [noscript] void getViewerBounds(in nsRect bounds);
+    [noscript] void setViewerBounds([const] in nsRect bounds);
 
     /**
      * Saved child docshells corresponding to contentViewer.  The child shells
@@ -149,21 +149,6 @@ interface nsISHEntry : nsIHistoryEntry
      */
     attribute unsigned long pageIdentifier;
 
-    /**
-     * docIdentifier is an integer that should be the same for two entries
-     * attached to the same docshell if and only if the two entries are entries
-     * for the same document.  In practice, two entries A and B will have the
-     * same docIdentifier if they have the same pageIdentifier or if B was
-     * created by A calling history.pushState().
-     */
-    attribute unsigned long long docIdentifier;
-
-    /**
-     * Changes this entry's doc identifier to a new value which is unique
-     * among those of all other entries.
-     */
-    void setUniqueDocIdentifier();
-
     /** attribute to set and get the cache key for the entry */
     attribute nsISupports cacheKey;
 
@@ -206,12 +191,6 @@ interface nsISHEntry : nsIHistoryEntry
      * came from.
      */
     attribute nsISupports owner;
-
-    /**
-     * Get/set data associated with this history state via a pushState() call,
-     * encoded as JSON.
-     **/
-    attribute AString stateData;
 
     /**
      * Gets the owning pointer to the editor data assosicated with

@@ -44,10 +44,9 @@
 #include "nsISupports.h"
 
 #include "AccessibleTable.h"
-#include "AccessibleTable2.h"
 
-class CAccessibleTable: public IAccessibleTable,
-                        public IAccessibleTable2
+class CAccessibleTable: public nsISupports,
+                        public IAccessibleTable
 {
 public:
 
@@ -171,32 +170,6 @@ public:
   virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_modelChange(
       /* [retval][out] */ IA2TableModelChange *modelChange);
 
-
-  // IAccessibleTable2
-
-  virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_cellAt(
-      /* [in] */ long row,
-      /* [in] */ long column,
-      /* [out, retval] */ IUnknown **cell);
-
-  virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_nSelectedCells(
-      /* [out, retval] */ long *cellCount);
-
-  virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_selectedCells(
-      /* [out, size_is(,*nSelectedCells,)] */ IUnknown ***cells,
-      /* [out, retval] */ long *nSelectedCells);
-
-  virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_selectedColumns(
-      /* [out, size_is(,*nColumns)] */ long **selectedColumns,
-      /* [out, retval] */ long *nColumns);
-
-  virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_selectedRows(
-      /* [out, size_is(,*nRows)] */ long **selectedRows, 
-      /* [out, retval] */ long *nRows);
-
-  // nsISupports
-  NS_IMETHOD QueryInterface(const nsIID& uuid, void** result) = 0;
-
 private:
   enum eItemsType {
     ITEMSTYPE_CELLS,
@@ -204,7 +177,9 @@ private:
     ITEMSTYPE_ROWS
   };
 
-  HRESULT GetSelectedItems(long **aItems, long *aItemsCount, eItemsType aType);
+  HRESULT GetSelectedItems(long aMaxItems, long **aItems, long *aItemsCount,
+                           eItemsType aType);
 };
 
 #endif
+

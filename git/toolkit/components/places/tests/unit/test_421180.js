@@ -48,9 +48,13 @@ catch(ex) {
 
 // Get database connection
 try {
-  var histsvc = Cc["@mozilla.org/browser/nav-history-service;1"].
-                getService(Ci.nsINavHistoryService);
-  var mDBConn = histsvc.QueryInterface(Ci.nsPIPlacesDatabase).DBConnection;
+  var dirSvc = Cc["@mozilla.org/file/directory_service;1"].
+               getService(Ci.nsIProperties);
+  var storage = Cc["@mozilla.org/storage/service;1"].
+                getService(Ci.mozIStorageService);
+  var database = dirSvc.get('ProfD', Ci.nsIFile);
+  database.append("places.sqlite");
+  var mDBConn = storage.openDatabase(database);
 }
 catch(ex) {
   do_throw("Could not get database connection\n");
@@ -79,7 +83,7 @@ function run_test() {
   var stmt = mDBConn.createStatement(sql);
   stmt.bindUTF8StringParameter(0, keyword);
   do_check_false(stmt.executeStep());
-  stmt.finalize();
+
 
   // TEST 2
   // 1. add 2 bookmarks
@@ -106,5 +110,5 @@ function run_test() {
   var stmt = mDBConn.createStatement(sql);
   stmt.bindUTF8StringParameter(0, keyword);
   do_check_true(stmt.executeStep());
-  stmt.finalize();
+
 }

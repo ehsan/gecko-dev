@@ -45,6 +45,14 @@
 #include "nsRepeatService.h"
 #include "nsIServiceManager.h"
 
+#ifdef XP_MACOSX
+#define INITAL_REPEAT_DELAY 250
+#define REPEAT_DELAY        25
+#else
+#define INITAL_REPEAT_DELAY 250
+#define REPEAT_DELAY        50
+#endif
+
 nsRepeatService* nsRepeatService::gInstance = nsnull;
 
 nsRepeatService::nsRepeatService()
@@ -73,8 +81,7 @@ nsRepeatService::Shutdown()
   NS_IF_RELEASE(gInstance);
 }
 
-void nsRepeatService::Start(Callback aCallback, void* aCallbackData,
-                            PRUint32 aInitialDelay)
+void nsRepeatService::Start(Callback aCallback, void* aCallbackData)
 {
   NS_PRECONDITION(aCallback != nsnull, "null ptr");
 
@@ -84,7 +91,7 @@ void nsRepeatService::Start(Callback aCallback, void* aCallbackData,
   mRepeatTimer = do_CreateInstance("@mozilla.org/timer;1", &rv);
 
   if (NS_SUCCEEDED(rv))  {
-    mRepeatTimer->InitWithCallback(this, aInitialDelay, nsITimer::TYPE_ONE_SHOT);
+    mRepeatTimer->InitWithCallback(this, INITAL_REPEAT_DELAY, nsITimer::TYPE_ONE_SHOT);
   }
 }
 

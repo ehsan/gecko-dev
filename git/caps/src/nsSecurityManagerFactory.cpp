@@ -37,6 +37,8 @@
 /*Factory for internal browser security resource managers*/
 
 #include "nsCOMPtr.h"
+#include "nsIModule.h"
+#include "nsIGenericFactory.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsScriptSecurityManager.h"
 #include "nsIPrincipal.h"
@@ -44,18 +46,36 @@
 #include "nsSystemPrincipal.h"
 #include "nsNullPrincipal.h"
 #include "nsIScriptNameSpaceManager.h"
+#include "nsIScriptExternalNameSet.h"
 #include "nsIScriptContext.h"
 #include "nsICategoryManager.h"
 #include "nsXPIDLString.h"
 #include "nsCOMPtr.h"
 #include "nsIServiceManager.h"
 #include "nsString.h"
+#include "nsPrefsCID.h"
 #include "nsNetCID.h"
 #include "nsIClassInfoImpl.h"
 
 ///////////////////////
 // nsSecurityNameSet //
 ///////////////////////
+
+#define NS_SECURITYNAMESET_CID \
+ { 0x7c02eadc, 0x76, 0x4d03, \
+ { 0x99, 0x8d, 0x80, 0xd7, 0x79, 0xc4, 0x85, 0x89 } }
+#define NS_SECURITYNAMESET_CONTRACTID "@mozilla.org/security/script/nameset;1"
+
+class nsSecurityNameSet : public nsIScriptExternalNameSet 
+{
+public:
+    nsSecurityNameSet();
+    virtual ~nsSecurityNameSet();
+    
+    NS_DECL_ISUPPORTS
+
+    NS_IMETHOD InitializeNameSet(nsIScriptContext* aScriptContext);
+};
 
 nsSecurityNameSet::nsSecurityNameSet()
 {
@@ -110,7 +130,7 @@ getUTF8StringArgument(JSContext *cx, JSObject *obj, PRUint16 argNum,
     CopyUTF16toUTF8(data, aRetval);
 }
 
-static JSBool
+PR_STATIC_CALLBACK(JSBool)
 netscape_security_isPrivilegeEnabled(JSContext *cx, JSObject *obj, uintN argc,
                                      jsval *argv, jsval *rval)
 {
@@ -133,7 +153,7 @@ netscape_security_isPrivilegeEnabled(JSContext *cx, JSObject *obj, uintN argc,
 }
 
 
-static JSBool
+PR_STATIC_CALLBACK(JSBool)
 netscape_security_enablePrivilege(JSContext *cx, JSObject *obj, uintN argc,
                                   jsval *argv, jsval *rval)
 {
@@ -155,7 +175,7 @@ netscape_security_enablePrivilege(JSContext *cx, JSObject *obj, uintN argc,
     return JS_TRUE;
 }
 
-static JSBool
+PR_STATIC_CALLBACK(JSBool)
 netscape_security_disablePrivilege(JSContext *cx, JSObject *obj, uintN argc,
                                    jsval *argv, jsval *rval)
 {
@@ -177,7 +197,7 @@ netscape_security_disablePrivilege(JSContext *cx, JSObject *obj, uintN argc,
     return JS_TRUE;
 }
 
-static JSBool
+PR_STATIC_CALLBACK(JSBool)
 netscape_security_revertPrivilege(JSContext *cx, JSObject *obj, uintN argc,
                                   jsval *argv, jsval *rval)
 {
@@ -199,7 +219,7 @@ netscape_security_revertPrivilege(JSContext *cx, JSObject *obj, uintN argc,
     return JS_TRUE;
 }
 
-static JSBool
+PR_STATIC_CALLBACK(JSBool)
 netscape_security_setCanEnablePrivilege(JSContext *cx, JSObject *obj, uintN argc,
                                         jsval *argv, jsval *rval)
 {
@@ -225,7 +245,7 @@ netscape_security_setCanEnablePrivilege(JSContext *cx, JSObject *obj, uintN argc
     return JS_TRUE;
 }
 
-static JSBool
+PR_STATIC_CALLBACK(JSBool)
 netscape_security_invalidate(JSContext *cx, JSObject *obj, uintN argc,
                              jsval *argv, jsval *rval)
 {
@@ -289,8 +309,8 @@ nsSecurityNameSet::InitializeNameSet(nsIScriptContext* aScriptContext)
     JSObject *securityObj;
     if (JSVAL_IS_OBJECT(v)) {
         /*
-         * "netscape" property of window object exists; get the
-         * "security" property.
+         * "netscape" property of window object exists; must be LiveConnect
+         * package. Get the "security" property.
          */
         obj = JSVAL_TO_OBJECT(v);
         if (!JS_GetProperty(cx, obj, "security", &v) || !JSVAL_IS_OBJECT(v))
@@ -317,3 +337,171 @@ nsSecurityNameSet::InitializeNameSet(nsIScriptContext* aScriptContext)
            ? NS_OK
            : NS_ERROR_FAILURE;
 }
+
+
+
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsPrincipal)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsSecurityNameSet)
+NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsSystemPrincipal,
+    nsScriptSecurityManager::SystemPrincipalSingletonConstructor)
+NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsNullPrincipal, Init)
+
+NS_DECL_CLASSINFO(nsPrincipal)
+NS_DECL_CLASSINFO(nsSystemPrincipal)
+NS_DECL_CLASSINFO(nsNullPrincipal)
+
+static NS_IMETHODIMP
+Construct_nsIScriptSecurityManager(nsISupports *aOuter, REFNSIID aIID, 
+                                   void **aResult)
+{
+    if (!aResult)
+        return NS_ERROR_NULL_POINTER;
+    *aResult = nsnull;
+    if (aOuter)
+        return NS_ERROR_NO_AGGREGATION;
+    nsScriptSecurityManager *obj = nsScriptSecurityManager::GetScriptSecurityManager();
+    if (!obj) 
+        return NS_ERROR_OUT_OF_MEMORY;
+    if (NS_FAILED(obj->QueryInterface(aIID, aResult)))
+        return NS_ERROR_FAILURE;
+    return NS_OK;
+}
+
+static NS_METHOD 
+RegisterSecurityNameSet(nsIComponentManager *aCompMgr,
+                        nsIFile *aPath,
+                        const char *registryLocation,
+                        const char *componentType,
+                        const nsModuleComponentInfo *info)
+{
+    nsresult rv = NS_OK;
+
+    nsCOMPtr<nsICategoryManager> catman =
+        do_GetService(NS_CATEGORYMANAGER_CONTRACTID, &rv);
+
+    if (NS_FAILED(rv))
+        return rv;
+
+    nsXPIDLCString previous;
+    rv = catman->AddCategoryEntry(JAVASCRIPT_GLOBAL_STATIC_NAMESET_CATEGORY,
+                                  "PrivilegeManager",
+                                  NS_SECURITYNAMESET_CONTRACTID,
+                                  PR_TRUE, PR_TRUE, getter_Copies(previous));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = catman->AddCategoryEntry("app-startup", "Script Security Manager",
+                                  "service," NS_SCRIPTSECURITYMANAGER_CONTRACTID,
+                                  PR_TRUE, PR_TRUE,
+                                  getter_Copies(previous));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    return rv;
+}
+
+
+static const nsModuleComponentInfo capsComponentInfo[] =
+{
+    { NS_SCRIPTSECURITYMANAGER_CLASSNAME, 
+      NS_SCRIPTSECURITYMANAGER_CID, 
+      NS_SCRIPTSECURITYMANAGER_CONTRACTID,
+      Construct_nsIScriptSecurityManager,
+      RegisterSecurityNameSet,
+      nsnull,
+      nsnull,
+      nsnull,
+      nsnull,
+      nsnull,
+      nsIClassInfo::MAIN_THREAD_ONLY
+    },
+
+    { NS_SCRIPTSECURITYMANAGER_CLASSNAME, 
+      NS_SCRIPTSECURITYMANAGER_CID, 
+      NS_GLOBAL_PREF_SECURITY_CHECK,
+      Construct_nsIScriptSecurityManager,
+      RegisterSecurityNameSet,
+      nsnull,
+      nsnull,
+      nsnull,
+      nsnull,
+      nsnull,
+      nsIClassInfo::MAIN_THREAD_ONLY
+    },
+
+    { NS_SCRIPTSECURITYMANAGER_CLASSNAME,
+      NS_SCRIPTSECURITYMANAGER_CID,
+      NS_GLOBAL_CHANNELEVENTSINK_CONTRACTID,
+      Construct_nsIScriptSecurityManager,
+      RegisterSecurityNameSet,
+      nsnull,
+      nsnull,
+      nsnull,
+      nsnull,
+      nsnull,
+      nsIClassInfo::MAIN_THREAD_ONLY
+    },
+
+
+
+    { NS_PRINCIPAL_CLASSNAME, 
+      NS_PRINCIPAL_CID, 
+      NS_PRINCIPAL_CONTRACTID,
+      nsPrincipalConstructor,
+      nsnull,
+      nsnull,
+      nsnull,
+      NS_CI_INTERFACE_GETTER_NAME(nsPrincipal),
+      nsnull,
+      &NS_CLASSINFO_NAME(nsPrincipal),
+      nsIClassInfo::MAIN_THREAD_ONLY | nsIClassInfo::EAGER_CLASSINFO
+    },
+
+    { NS_SYSTEMPRINCIPAL_CLASSNAME, 
+      NS_SYSTEMPRINCIPAL_CID, 
+      NS_SYSTEMPRINCIPAL_CONTRACTID,
+      nsSystemPrincipalConstructor,
+      nsnull,
+      nsnull,
+      nsnull,
+      NS_CI_INTERFACE_GETTER_NAME(nsSystemPrincipal),
+      nsnull,
+      &NS_CLASSINFO_NAME(nsSystemPrincipal),
+      nsIClassInfo::SINGLETON | nsIClassInfo::MAIN_THREAD_ONLY |
+      nsIClassInfo::EAGER_CLASSINFO
+    },
+
+    { NS_NULLPRINCIPAL_CLASSNAME, 
+      NS_NULLPRINCIPAL_CID, 
+      NS_NULLPRINCIPAL_CONTRACTID,
+      nsNullPrincipalConstructor,
+      nsnull,
+      nsnull,
+      nsnull,
+      NS_CI_INTERFACE_GETTER_NAME(nsNullPrincipal),
+      nsnull,
+      &NS_CLASSINFO_NAME(nsNullPrincipal),
+      nsIClassInfo::MAIN_THREAD_ONLY | nsIClassInfo::EAGER_CLASSINFO
+    },
+
+    { "Security Script Name Set",
+      NS_SECURITYNAMESET_CID,
+      NS_SECURITYNAMESET_CONTRACTID,
+      nsSecurityNameSetConstructor,
+      nsnull,
+      nsnull,
+      nsnull,
+      nsnull,
+      nsnull,
+      nsnull,
+      nsIClassInfo::MAIN_THREAD_ONLY
+    }
+};
+
+
+void PR_CALLBACK
+CapsModuleDtor(nsIModule* thisModules)
+{
+    nsScriptSecurityManager::Shutdown();
+}
+
+NS_IMPL_NSGETMODULE_WITH_DTOR(nsSecurityManagerModule, capsComponentInfo,
+                              CapsModuleDtor)

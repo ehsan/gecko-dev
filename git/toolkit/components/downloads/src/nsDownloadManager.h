@@ -25,9 +25,6 @@
  *   Shawn Wilsher <me@shawnwilsher.com>
  *   Srirang G Doddihal <brahmana@doddihal.com>
  *   Edward Lee <edward.lee@engineering.uiuc.edu>
- *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
- *   Michal Sciubidlo <michal.sciubidlo@gmail.com>
- *   Andrey Ivanov <andrey.v.ivanov@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -46,33 +43,39 @@
 #ifndef downloadmanager___h___
 #define downloadmanager___h___
 
-#if defined(XP_WIN) && (MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN)
-#define DOWNLOAD_SCANNER
-#endif
-
-#include "nsIDownload.h"
 #include "nsIDownloadManager.h"
 #include "nsIDownloadProgressListener.h"
+#include "nsIDownload.h"
+#include "nsIDOMDocument.h"
+#include "nsIDOMEventListener.h"
+#include "nsIWebProgressListener.h"
+#include "nsIWebProgressListener2.h"
+#include "nsIURI.h"
+#include "nsIWebBrowserPersist.h"
 #include "nsILocalFile.h"
-#include "nsIMIMEInfo.h"
-#include "nsINavHistoryService.h"
+#include "nsIRequest.h"
 #include "nsIObserver.h"
-#include "nsIObserverService.h"
+#include "nsString.h"
 #include "nsIStringBundle.h"
 #include "nsISupportsPrimitives.h"
-#include "nsITimer.h"
-
+#include "nsIMIMEInfo.h"
+#include "mozIStorageConnection.h"
+#include "mozIStorageStatement.h"
 #include "mozStorageHelper.h"
-#include "nsAutoPtr.h"
 #include "nsCOMArray.h"
+#include "nsArrayEnumerator.h"
+#include "nsAutoPtr.h"
+#include "nsINavHistoryService.h"
+#include "nsIObserverService.h"
+#include "nsITimer.h"
 
 typedef PRInt16 DownloadState;
 typedef PRInt16 DownloadType;
 
 class nsDownload;
 
-#ifdef DOWNLOAD_SCANNER
-#include "nsDownloadScanner.h"
+#if defined(XP_WIN) && !defined(__MINGW32__)
+class nsDownloadScanner;
 #endif
 
 class nsDownloadManager : public nsIDownloadManager,
@@ -90,29 +93,16 @@ public:
   static nsDownloadManager *GetSingleton();
 
   virtual ~nsDownloadManager();
-  nsDownloadManager() :
-      mDBType(DATABASE_DISK)
-    , mInPrivateBrowsing(PR_FALSE)
-#ifdef DOWNLOAD_SCANNER
-    , mScanner(nsnull)
+#if defined(XP_WIN) && !defined(__MINGW32__)
+  nsDownloadManager() : mScanner(nsnull) { };
+private:
+  nsDownloadScanner *mScanner;
 #endif
-  {
-  }
 
 protected:
-  enum DatabaseType
-  {
-    DATABASE_DISK = 0, // default
-    DATABASE_MEMORY
-  };
-
-  nsresult InitDB();
-  nsresult InitFileDB();
-  nsresult InitMemoryDB();
-  already_AddRefed<mozIStorageConnection> GetFileDBConnection(nsIFile *dbFile) const;
-  already_AddRefed<mozIStorageConnection> GetMemoryDBConnection() const;
-  nsresult SwitchDatabaseTypeTo(enum DatabaseType aType);
+  nsresult InitDB(PRBool *aDoImport);
   nsresult CreateTable();
+  nsresult ImportDownloadHistory();
 
   /**
    * Fix up the database after a crash such as dealing with previously-active
@@ -148,6 +138,7 @@ protected:
                           const nsAString &aTempPath,
                           PRInt64 aStartTime,
                           PRInt64 aEndTime,
+                          PRInt32 aState,
                           const nsACString &aMimeType,
                           const nsACString &aPreferredApp,
                           nsHandlerInfoAction aPreferredAction);
@@ -251,15 +242,6 @@ protected:
    */
   enum QuitBehavior GetQuitBehavior();
 
-  void OnEnterPrivateBrowsingMode();
-  void OnLeavePrivateBrowsingMode();
-
-  // Virus scanner for windows
-#ifdef DOWNLOAD_SCANNER
-private:
-  nsDownloadScanner* mScanner;
-#endif
-
 private:
   nsCOMArray<nsIDownloadProgressListener> mListeners;
   nsCOMPtr<nsIStringBundle> mBundle;
@@ -269,9 +251,6 @@ private:
   nsCOMPtr<mozIStorageStatement> mUpdateDownloadStatement;
   nsCOMPtr<mozIStorageStatement> mGetIdsForURIStatement;
   nsAutoPtr<mozStorageTransaction> mHistoryTransaction;
-
-  enum DatabaseType mDBType;
-  PRBool mInPrivateBrowsing;
 
   static nsDownloadManager *gDownloadManagerService;
 
@@ -402,19 +381,6 @@ protected:
    * (uriloader/exthandler/nsExternalHelperAppService.cpp).
    */
   nsresult OpenWithApplication();
-
-  /**
-   * Funciton extracts last modification time from passed request. If request 
-   * does not support last modification time then current time is returned.
-   * If request does not have information about last modification time then
-   * current time is returned as well.
-   *
-   * @param aRequest 
-   *        The request to extract last modification time.
-   * @return Last modification time for file. The value is milliseconds since 
-   *         midnight (00:00:00), January 1, 1970 Greenwich Mean Time (GMT).
-   */
-  NS_IMETHOD_(PRInt64) GetLastModifiedTime(nsIRequest *aRequest);
 
   nsDownloadManager *mDownloadManager;
   nsCOMPtr<nsIURI> mTarget;

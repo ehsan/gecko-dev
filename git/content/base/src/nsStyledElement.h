@@ -58,17 +58,16 @@ class nsStyledElement : public nsStyledElementBase
 
 protected:
 
-  inline nsStyledElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+  inline nsStyledElement(nsINodeInfo *aNodeInfo)
     : nsStyledElementBase(aNodeInfo)
   {}
 
 public:
 
-  // nsIContent interface methods
+  // nsIContent interface methods for styling
   virtual nsIAtom* GetClassAttributeName() const;
   virtual nsIAtom* GetIDAttributeName() const;
-  virtual nsIAtom* DoGetID() const;
-  virtual const nsAttrValue* DoGetClasses() const;
+  virtual const nsAttrValue* GetClasses() const;
 
   virtual nsICSSStyleRule* GetInlineStyleRule();
   NS_IMETHOD SetInlineStyleRule(nsICSSStyleRule* aStyleRule, PRBool aNotify);
@@ -76,28 +75,28 @@ public:
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
                               PRBool aCompileEventHandlers);
-  virtual void UnbindFromTree(PRBool aDeep, PRBool aNullParent);
-
-  virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
-                             PRBool aNotify);
-
-  nsIDOMCSSStyleDeclaration* GetStyle(nsresult* retval);
-
-protected:
 
   /**
    * Parse a style attr value into a CSS rulestruct (or, if there is no
    * document, leave it as a string) and return as nsAttrValue.
+   * Note: this function is used by other classes than nsStyledElement
    *
    * @param aValue the value to parse
    * @param aResult the resulting HTMLValue [OUT]
    */
-  void ParseStyleAttribute(const nsAString& aValue,
-                           nsAttrValue& aResult,
-                           PRBool aForceInDataDoc);
+  static void ParseStyleAttribute(nsIContent* aContent,
+                                  const nsAString& aValue,
+                                  nsAttrValue& aResult,
+                                  PRBool aForceInDataDoc);
+
+  static void Shutdown();
+  
+protected:
 
   virtual PRBool ParseAttribute(PRInt32 aNamespaceID, nsIAtom* aAttribute,
                                 const nsAString& aValue, nsAttrValue& aResult);
+
+  nsresult GetStyle(nsIDOMCSSStyleDeclaration** aStyle);
 
   /**
    * Create the style struct from the style attr.  Used when an element is

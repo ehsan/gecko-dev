@@ -1,35 +1,19 @@
 /* ..... page navigation ..... */
 
 .home-arrow {
-  list-style-image: url("moz-icon://stock/gtk-goto-first-ltr?size=menu");
-}
-
-.home-arrow:-moz-locale-dir(rtl) {
-  list-style-image: url("moz-icon://stock/gtk-goto-first-rtl?size=menu");
+  list-style-image: url("moz-icon://stock/gtk-goto-first?size=menu");
 }
 
 .end-arrow {
-  list-style-image: url("moz-icon://stock/gtk-goto-last-ltr?size=menu");
+  list-style-image: url("moz-icon://stock/gtk-goto-last?size=menu");
 }
 
-.end-arrow:-moz-locale-dir(rtl) {
-  list-style-image: url("moz-icon://stock/gtk-goto-last-rtl?size=menu");
+.left-arrow {
+  list-style-image: url("moz-icon://stock/gtk-go-back?size=menu");
 }
 
-.previous-arrow {
-  list-style-image: url("moz-icon://stock/gtk-go-back-ltr?size=menu");
-}
-
-.previous-arrow:-moz-locale-dir(rtl) {
-  list-style-image: url("moz-icon://stock/gtk-go-back-rtl?size=menu");
-}
-
-.next-arrow {
-  list-style-image: url("moz-icon://stock/gtk-go-forward-ltr?size=menu");
-}
-
-.next-arrow:-moz-locale-dir(rtl) {
-  list-style-image: url("moz-icon://stock/gtk-go-forward-rtl?size=menu");
+.right-arrow {
+  list-style-image: url("moz-icon://stock/gtk-go-forward?size=menu");
 }
 
 /* ..... orientation ..... */

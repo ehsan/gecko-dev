@@ -59,6 +59,7 @@
 #include "nsIEventStateManager.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
+#include "nsIFocusController.h"
 #include "nsISelectionController.h"
 #include "nsISelection.h"
 #include "nsIFrame.h"
@@ -74,17 +75,15 @@
 #include "nsITimelineService.h"
 #include "nsFind.h"
 #include "nsDOMError.h"
-#include "nsFocusManager.h"
-#include "mozilla/Services.h"
 
 #if DEBUG
 #include "nsIWebNavigation.h"
 #include "nsXPIDLString.h"
 #endif
 
-#if defined(XP_MACOSX) && !defined(__LP64__)
+#ifdef XP_MACOSX
 #include "nsAutoPtr.h"
-#include <Carbon/Carbon.h>
+#include <Scrap.h>
 #endif
 
 
@@ -131,7 +130,7 @@ NS_IMETHODIMP nsWebBrowserFind::FindNext(PRBool *outDidFind)
     // this is used by nsTypeAheadFind, which controls find again when it was
     // the last executed find in the current window.
     nsCOMPtr<nsIObserverService> observerSvc =
-      mozilla::services::GetObserverService();
+      do_GetService("@mozilla.org/observer-service;1");
     if (observerSvc) {
         nsCOMPtr<nsISupportsInterfacePointer> windowSupportsData = 
           do_CreateInstance(NS_SUPPORTS_INTERFACE_POINTER_CONTRACTID, &rv);
@@ -281,7 +280,7 @@ NS_IMETHODIMP nsWebBrowserFind::FindNext(PRBool *outDidFind)
 NS_IMETHODIMP nsWebBrowserFind::GetSearchString(PRUnichar * *aSearchString)
 {
     NS_ENSURE_ARG_POINTER(aSearchString);
-#if defined(XP_MACOSX) && !defined(__LP64__)
+#ifdef XP_MACOSX
     OSStatus err;
     ScrapRef scrap;
     err = ::GetScrapByName(kScrapFindScrap, kScrapGetNamedScrap, &scrap);
@@ -307,7 +306,7 @@ NS_IMETHODIMP nsWebBrowserFind::GetSearchString(PRUnichar * *aSearchString)
 NS_IMETHODIMP nsWebBrowserFind::SetSearchString(const PRUnichar * aSearchString)
 {
     mSearchString.Assign(aSearchString);
-#if defined(XP_MACOSX) && !defined(__LP64__)
+#ifdef XP_MACOSX
     OSStatus err;
     ScrapRef scrap;
     err = ::GetScrapByName(kScrapFindScrap, kScrapClearNamedScrap, &scrap);
@@ -372,6 +371,46 @@ NS_IMETHODIMP nsWebBrowserFind::SetMatchCase(PRBool aMatchCase)
     return NS_OK;
 }
 
+// Same as the tail-end of nsEventStateManager::FocusElementButNotDocument.
+// Used here because nsEventStateManager::MoveFocusToCaret() doesn't
+// support text input controls.
+static void
+FocusElementButNotDocument(nsIDocument* aDocument, nsIContent* aContent)
+{
+  nsIFocusController *focusController = nsnull;
+  nsPIDOMWindow *ourWindow = aDocument->GetWindow();
+  if (ourWindow)
+    focusController = ourWindow->GetRootFocusController();
+  if (!focusController)
+    return;
+
+  // Get previous focus
+  nsCOMPtr<nsIDOMElement> oldFocusedElement;
+  focusController->GetFocusedElement(getter_AddRefs(oldFocusedElement));
+  nsCOMPtr<nsIContent> oldFocusedContent =
+    do_QueryInterface(oldFocusedElement);
+
+  // Notify focus controller of new focus for this document
+  nsCOMPtr<nsIDOMElement> newFocusedElement(do_QueryInterface(aContent));
+  focusController->SetFocusedElement(newFocusedElement);
+
+  nsIPresShell* presShell = aDocument->GetPrimaryShell();
+  nsIEventStateManager* esm = presShell->GetPresContext()->EventStateManager();
+
+  // Temporarily set esm::mCurrentFocus so that esm::GetContentState() tells 
+  // layout system to show focus on this element. 
+  esm->SetFocusedContent(aContent);  // Reset back to null at the end.
+  aDocument->BeginUpdate(UPDATE_CONTENT_STATE);
+  aDocument->ContentStatesChanged(oldFocusedContent, aContent, 
+                                  NS_EVENT_STATE_FOCUS);
+  aDocument->EndUpdate(UPDATE_CONTENT_STATE);
+
+  // Reset esm::mCurrentFocus = nsnull for this doc, so when this document
+  // does get focus next time via preHandleEvent() NS_GOTFOCUS,
+  // the old document gets blurred
+  esm->SetFocusedContent(nsnull);
+}
+
 static PRBool
 IsInNativeAnonymousSubtree(nsIContent* aContent)
 {
@@ -395,13 +434,13 @@ void nsWebBrowserFind::SetSelectionAndScroll(nsIDOMWindow* aWindow,
   if (!domDoc) return;
 
   nsCOMPtr<nsIDocument> doc(do_QueryInterface(domDoc));
-  nsIPresShell* presShell = doc->GetShell();
+  nsIPresShell* presShell = doc->GetPrimaryShell();
   if (!presShell) return;
 
   nsCOMPtr<nsIDOMNode> node;
   aRange->GetStartContainer(getter_AddRefs(node));
   nsCOMPtr<nsIContent> content(do_QueryInterface(node));
-  nsIFrame* frame = content->GetPrimaryFrame();
+  nsIFrame* frame = presShell->GetPrimaryFrameFor(content);
   if (!frame)
       return;
   nsCOMPtr<nsISelectionController> selCon;
@@ -413,10 +452,10 @@ void nsWebBrowserFind::SetSelectionAndScroll(nsIDOMWindow* aWindow,
   nsITextControlFrame *tcFrame = nsnull;
   for ( ; content; content = content->GetParent()) {
     if (!IsInNativeAnonymousSubtree(content)) {
-      nsIFrame* f = content->GetPrimaryFrame();
+      nsIFrame* f = presShell->GetPrimaryFrameFor(content);
       if (!f)
         return;
-      tcFrame = do_QueryFrame(f);
+      CallQueryInterface(f, &tcFrame);
       break;
     }
   }
@@ -430,18 +469,14 @@ void nsWebBrowserFind::SetSelectionAndScroll(nsIDOMWindow* aWindow,
     selection->RemoveAllRanges();
     selection->AddRange(aRange);
 
-    nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
-    if (fm) {
-      if (tcFrame) {
-        nsCOMPtr<nsIDOMElement> newFocusedElement(do_QueryInterface(content));
-        fm->SetFocus(newFocusedElement, nsIFocusManager::FLAG_NOSCROLL);
-      }
-      else  {
-        nsCOMPtr<nsIDOMElement> result;
-        fm->MoveFocus(aWindow, nsnull, nsIFocusManager::MOVEFOCUS_CARET,
-                      nsIFocusManager::FLAG_NOSCROLL,
-                      getter_AddRefs(result));
-      }
+    if (tcFrame) {
+      FocusElementButNotDocument(doc, content);
+    }
+    else {
+      nsCOMPtr<nsPresContext> presContext = presShell->GetPresContext();
+      PRBool isSelectionWithFocus;
+      presContext->EventStateManager()->
+        MoveFocusToCaret(PR_TRUE, &isSelectionWithFocus);
     }
 
     // Scroll if necessary to make the selection visible:
@@ -834,7 +869,7 @@ nsWebBrowserFind::GetFrameSelection(nsIDOMWindow* aWindow,
     if (!domDoc) return;
 
     nsCOMPtr<nsIDocument> doc(do_QueryInterface(domDoc));
-    nsIPresShell* presShell = doc->GetShell();
+    nsIPresShell* presShell = doc->GetPrimaryShell();
     if (!presShell) return;
 
     // text input controls have their independent selection controllers
@@ -842,16 +877,21 @@ nsWebBrowserFind::GetFrameSelection(nsIDOMWindow* aWindow,
     nsPresContext *presContext = presShell->GetPresContext();
 
     nsIFrame *frame = nsnull;
-    nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
-    if (fm) {
-      nsCOMPtr<nsIDOMElement> focusedElement;
-      fm->GetFocusedElement(getter_AddRefs(focusedElement));
-      nsCOMPtr<nsIContent> focusedContent(do_QueryInterface(focusedElement));
-      if (focusedContent) {
-        frame = focusedContent->GetPrimaryFrame();
-        if (frame && frame->PresContext() != presContext)
-          frame = nsnull;
-      }
+    presContext->EventStateManager()->GetFocusedFrame(&frame);
+    if (!frame) {
+        nsPIDOMWindow *ourWindow = doc->GetWindow();
+        if (ourWindow) {
+            nsIFocusController *focusController =
+                ourWindow->GetRootFocusController();
+            if (focusController) {
+                nsCOMPtr<nsIDOMElement> focusedElement;
+                focusController->GetFocusedElement(getter_AddRefs(focusedElement));
+                if (focusedElement) {
+                    nsCOMPtr<nsIContent> content(do_QueryInterface(focusedElement));
+                    frame = presShell->GetPrimaryFrameFor(content);
+                }
+            }
+        }
     }
 
     nsCOMPtr<nsISelectionController> selCon;
@@ -892,18 +932,16 @@ nsresult nsWebBrowserFind::OnFind(nsIDOMWindow *aFoundWindow)
     if (lastFocusedWindow && lastFocusedWindow != aFoundWindow)
         ClearFrameSelection(lastFocusedWindow);
 
-    nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
-    if (fm) {
-      // get the containing frame and focus it. For top-level windows,
-      // the right window should already be focused.
-      nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(aFoundWindow));
-      NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);
-
-      nsCOMPtr<nsIDOMElement> frameElement = window->GetFrameElementInternal();
-      if (frameElement)
-        fm->SetFocus(frameElement, 0);
-
-      mLastFocusedWindow = do_GetWeakReference(aFoundWindow);
+    // focus the frame we found in
+    nsCOMPtr<nsPIDOMWindow> ourWindow = do_QueryInterface(aFoundWindow);
+    nsIFocusController *focusController = nsnull;
+    if (ourWindow)
+        focusController = ourWindow->GetRootFocusController();
+    if (focusController)
+    {
+        nsCOMPtr<nsIDOMWindowInternal> windowInt = do_QueryInterface(aFoundWindow);
+        focusController->SetFocusedWindow(windowInt);
+        mLastFocusedWindow = do_GetWeakReference(aFoundWindow);
     }
 
     return NS_OK;

@@ -92,12 +92,8 @@ nsStyleChangeList::AppendChange(nsIFrame* aFrame, nsIContent* aContent, nsChange
                "must have frame");
   NS_ASSERTION(aContent || !(aHint & nsChangeHint_ReconstructFrame),
                "must have content");
-  // XXXbz we should make this take Element instead of nsIContent
-  NS_ASSERTION(!aContent || aContent->IsElement(),
+  NS_ASSERTION(!aContent || aContent->IsNodeOfType(nsINode::eELEMENT),
                "Shouldn't be trying to restyle non-elements directly");
-  NS_ASSERTION(!(aHint & nsChangeHint_ReflowFrame) ||
-               (aHint & nsChangeHint_NeedReflow),
-               "Reflow hint bits set without actually asking for a reflow");
 
   if ((0 < mCount) && (aHint & nsChangeHint_ReconstructFrame)) { // filter out all other changes for same content
     if (aContent) {

@@ -101,7 +101,7 @@ PrepareAndDispatch(nsXPTCStubBase* self, PRUint32 methodIndex,
 			case nsXPTType::T_CHAR   : dp->val.c   = *((char*)    ap);       break;
 			case nsXPTType::T_WCHAR  : dp->val.wc  = *((wchar_t*) ap);       break;
 			default:
-				NS_ERROR("bad type");
+				NS_ASSERTION(0, "bad type");
 				break;
 		}
 	}
@@ -118,17 +118,36 @@ PrepareAndDispatch(nsXPTCStubBase* self, PRUint32 methodIndex,
 } // extern "C"
 
 
-/* We don't need STUB_ENTRY, since the stubs are defined explicitly in xptc_arm_ceppc.asm */
 
-#define STUB_ENTRY(n) /* */
+// these macros get defined inside xptc_asm_ceppc.asm
+// asm prototypes
+#define STUB_ENTRY(n)                               \
+nsresult __stdcall asmXPTCStubBase_Stub##n( void );
+
+#define SENTINEL_ENTRY(n)
+
+#include "xptcstubsdef.inc"
+
+#undef STUB_ENTRY
+#undef SENTINEL_ENTRY
+
+#define STUB_ENTRY(n)                               \
+nsresult 					                          \
+__stdcall nsXPTCStubBase::Stub##n()                 \
+{                                                   \
+	return asmXPTCStubBase_Stub##n();               \
+}                                                   \
+
 
 #define SENTINEL_ENTRY(n)                              \
 nsresult __stdcall nsXPTCStubBase::Sentinel##n()       \
 {                                                      \
-    NS_ERROR("nsXPTCStubBase::Sentinel called"); \
+    NS_ASSERTION(0,"nsXPTCStubBase::Sentinel called"); \
     return NS_ERROR_NOT_IMPLEMENTED;                   \
 }                                                      
 #include "xptcstubsdef.inc"
+
+
 
 void xptc_dummy()
 {

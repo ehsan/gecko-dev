@@ -57,7 +57,7 @@ class nsXTFElementWrapper : public nsXTFElementWrapperBase,
                             public nsIClassInfo
 {
 public:
-  nsXTFElementWrapper(already_AddRefed<nsINodeInfo> aNodeInfo, nsIXTFElement* aXTFElement);
+  nsXTFElementWrapper(nsINodeInfo* aNodeInfo, nsIXTFElement* aXTFElement);
   virtual ~nsXTFElementWrapper();
   nsresult Init();
 
@@ -79,7 +79,7 @@ public:
                               PRBool aNullParent = PR_TRUE);
   nsresult InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
                          PRBool aNotify);
-  nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent = PR_TRUE);
+  nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify);
   nsIAtom *GetIDAttributeName() const;
   nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                    nsIAtom* aPrefix, const nsAString& aValue,
@@ -109,7 +109,7 @@ public:
   virtual nsresult DoneAddingChildren(PRBool aHaveNotified);
 
   virtual nsIAtom *GetClassAttributeName() const;
-  virtual const nsAttrValue* DoGetClasses() const;
+  virtual const nsAttrValue* GetClasses() const;
 
   virtual void PerformAccesskey(PRBool aKeyCausesActivation,
                                 PRBool aIsTrustedEvent);
@@ -131,9 +131,6 @@ public:
   }
   nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  // XTF elements have special classinfo,
-  // so this optimization needs to be disabled.
-  virtual nsXPCClassInfo* GetClassInfo() { return nsnull; }
 protected:
   virtual nsIXTFElement* GetXTFElement() const
   {
@@ -167,7 +164,7 @@ protected:
 NS_DEFINE_STATIC_IID_ACCESSOR(nsXTFElementWrapper, NS_XTFELEMENTWRAPPER_IID)
 
 nsresult
-NS_NewXTFElementWrapper(nsIXTFElement* aXTFElement, already_AddRefed<nsINodeInfo> aNodeInfo,
+NS_NewXTFElementWrapper(nsIXTFElement* aXTFElement, nsINodeInfo* aNodeInfo,
                         nsIContent** aResult);
 
 #endif // __NS_XTFELEMENTWRAPPER_H__

@@ -69,6 +69,7 @@
 #include "secasn1.h"
 #include "secerr.h"
 
+#include "ssl3prot.h" 	/* for SSL3_RANDOM_LENGTH */
 #include "prprf.h"
 
 #define __PASTE(x,y)    x##y
@@ -86,11 +87,6 @@
 #define CK_NEED_ARG_LIST	1
  
 #include "pkcs11f.h"
-
-typedef struct {
-    uint8 client_version[2];
-    uint8 random[46];
-} SSL3RSAPreMasterSecret;
 
 static void sftk_Null(void *data, PRBool freeit)
 {
@@ -127,71 +123,6 @@ sftk_Space(void *data, PRBool freeit)
     PORT_Free(data);
 } 
 
-/*
- * map all the SEC_ERROR_xxx error codes that may be returned by freebl
- * functions to CKR_xxx.  return CKR_DEVICE_ERROR by default for backward
- * compatibility.
- */
-static CK_RV
-sftk_MapCryptError(int error)
-{
-    switch (error) {
-	case SEC_ERROR_INVALID_ARGS:
-	case SEC_ERROR_BAD_DATA:  /* MP_RANGE gets mapped to this */
-	    return CKR_ARGUMENTS_BAD;
-	case SEC_ERROR_INPUT_LEN:
-	    return CKR_DATA_LEN_RANGE;
-	case SEC_ERROR_OUTPUT_LEN:
-	    return CKR_BUFFER_TOO_SMALL;
-	case SEC_ERROR_LIBRARY_FAILURE:
-	    return CKR_GENERAL_ERROR;
-	case SEC_ERROR_NO_MEMORY:
-	    return CKR_HOST_MEMORY;
-	case SEC_ERROR_BAD_SIGNATURE:
-	    return CKR_SIGNATURE_INVALID;
-	case SEC_ERROR_INVALID_KEY:
-	    return CKR_KEY_SIZE_RANGE;
-	case SEC_ERROR_BAD_KEY:  /* an EC public key that fails validation */
-	    return CKR_KEY_SIZE_RANGE;  /* the closest error code */
-	case SEC_ERROR_UNSUPPORTED_EC_POINT_FORM:
-	    return CKR_TEMPLATE_INCONSISTENT;
-	/* EC functions set this error if NSS_ENABLE_ECC is not defined */
-	case SEC_ERROR_UNSUPPORTED_KEYALG:
-	    return CKR_MECHANISM_INVALID;
-	case SEC_ERROR_UNSUPPORTED_ELLIPTIC_CURVE:
-	    return CKR_DOMAIN_PARAMS_INVALID;
-	/* key pair generation failed after max number of attempts */
-	case SEC_ERROR_NEED_RANDOM:
-	    return CKR_FUNCTION_FAILED;
-    }
-    return CKR_DEVICE_ERROR;
-}
-
-/* used by Decrypt and UnwrapKey (indirectly) */
-static CK_RV
-sftk_MapDecryptError(int error)
-{
-    switch (error) {
-	case SEC_ERROR_BAD_DATA:
-	    return CKR_ENCRYPTED_DATA_INVALID;
-	default:
-	    return sftk_MapCryptError(error);
-    }
-}
-
-/*
- * return CKR_SIGNATURE_INVALID instead of CKR_DEVICE_ERROR by default for
- * backward compatibilty.
- */
-static CK_RV
-sftk_MapVerifyError(int error)
-{
-    CK_RV crv = sftk_MapCryptError(error);
-    if (crv == CKR_DEVICE_ERROR)
-	crv = CKR_SIGNATURE_INVALID;
-    return crv;
-}
-
 
 /*
  * turn a CDMF key into a des key. CDMF is an old IBM scheme to export DES by
@@ -219,9 +150,9 @@ sftk_cdmf2des(unsigned char *cdmfkey, unsigned char *deskey)
     if (descx == NULL) return CKR_HOST_MEMORY;
     rv = DES_Encrypt(descx, enc_dest, &leng, 8, enc_src, 8);
     DES_DestroyContext(descx,PR_TRUE);
-    if (rv != SECSuccess) return sftk_MapCryptError(PORT_GetError());
+    if (rv != SECSuccess) return CKR_DEVICE_ERROR;
 
-    /* xor source with des, zero the parity bits and deprecate the key*/
+    /* xor source with des, zero the parity bits and depricate the key*/
     for (i=0; i < 8; i++) {
 	if (i & 1) {
 	    enc_src[i] = (enc_src[i] ^ enc_dest[i]) & 0xfe;
@@ -235,7 +166,7 @@ sftk_cdmf2des(unsigned char *cdmfkey, unsigned char *deskey)
     if (descx == NULL) return CKR_HOST_MEMORY;
     rv = DES_Encrypt(descx, deskey, &leng, 8, enc_src, 8);
     DES_DestroyContext(descx,PR_TRUE);
-    if (rv != SECSuccess) return sftk_MapCryptError(PORT_GetError());
+    if (rv != SECSuccess) return CKR_DEVICE_ERROR;
 
     /* set the corret parity on our new des key */	
     sftk_FormatDESKey(deskey, 8);
@@ -695,40 +626,6 @@ finish_des:
 	context->update = (SFTKCipher) (isEncrypt ? DES_Encrypt : DES_Decrypt);
 	context->destroy = (SFTKDestroy) DES_DestroyContext;
 	break;
-    case CKM_SEED_CBC_PAD:
-	context->doPad = PR_TRUE;
-	/* fall thru */
-    case CKM_SEED_CBC:
-        if (!pMechanism->pParameter ||
-	     pMechanism->ulParameterLen != 16) {
-            crv = CKR_MECHANISM_PARAM_INVALID;
-            break;
-        }
-        /* fall thru */
-    case CKM_SEED_ECB:
-	context->blockSize = 16;
-	if (key_type != CKK_SEED) {
-	    crv = CKR_KEY_TYPE_INCONSISTENT;
-	    break;
-	}
-	att = sftk_FindAttribute(key,CKA_VALUE);
-	if (att == NULL) {
-	    crv = CKR_KEY_HANDLE_INVALID;
-	    break;
-	}
-	context->cipherInfo = SEED_CreateContext(
-	    (unsigned char*)att->attrib.pValue,
-	    (unsigned char*)pMechanism->pParameter,
-	    pMechanism->mechanism == CKM_SEED_ECB ? NSS_SEED : NSS_SEED_CBC,
-	    isEncrypt);
-	sftk_FreeAttribute(att);
-	if (context->cipherInfo == NULL) {
-	    crv = CKR_HOST_MEMORY;
-	    break;
-	}
-	context->update = (SFTKCipher)(isEncrypt ? SEED_Encrypt : SEED_Decrypt);
-	context->destroy = (SFTKDestroy) SEED_DestroyContext;
-	break;
 
     case CKM_CAMELLIA_CBC_PAD:
 	context->doPad = PR_TRUE;
@@ -900,9 +797,7 @@ CK_RV NSC_EncryptUpdate(CK_SESSION_HANDLE hSession,
     	    rv = (*context->update)(context->cipherInfo, pEncryptedPart, 
 		&padoutlen, context->blockSize, context->padBuf,
 							context->blockSize);
-	    if (rv != SECSuccess) {
-		return sftk_MapCryptError(PORT_GetError());
-	    }
+    	    if (rv != SECSuccess) return CKR_DEVICE_ERROR;
 	    pEncryptedPart += padoutlen;
 	    maxout -= padoutlen;
 	}
@@ -926,7 +821,7 @@ CK_RV NSC_EncryptUpdate(CK_SESSION_HANDLE hSession,
     rv = (*context->update)(context->cipherInfo,pEncryptedPart, 
 					&outlen, maxout, pPart, ulPartLen);
     *pulEncryptedPartLen = (CK_ULONG) (outlen + padoutlen);
-    return (rv == SECSuccess) ? CKR_OK : sftk_MapCryptError(PORT_GetError());
+    return (rv == SECSuccess) ? CKR_OK : CKR_DEVICE_ERROR;
 }
 
 
@@ -977,7 +872,7 @@ finish:
 	sftk_FreeContext(context);
     }
     sftk_FreeSession(session);
-    return (rv == SECSuccess) ? CKR_OK : sftk_MapCryptError(PORT_GetError());
+    return (rv == SECSuccess) ? CKR_OK : CKR_DEVICE_ERROR;
 }
 
 /* NSC_Encrypt encrypts single-part data. */
@@ -1050,7 +945,7 @@ CK_RV NSC_Encrypt (CK_SESSION_HANDLE hSession, CK_BYTE_PTR pData,
     /* do it: NOTE: this assumes buf size is big enough. */
     rv = (*context->update)(context->cipherInfo, pEncryptedData, 
 			    &outlen, maxoutlen, pText.data, pText.len);
-    crv = (rv == SECSuccess) ? CKR_OK : sftk_MapCryptError(PORT_GetError());
+    crv = (rv == SECSuccess) ? CKR_OK : CKR_DEVICE_ERROR;
     *pulEncryptedDataLen = (CK_ULONG) outlen;
     if (pText.data != pData)
     	PORT_ZFree(pText.data, pText.len);
@@ -1130,7 +1025,7 @@ CK_RV NSC_DecryptUpdate(CK_SESSION_HANDLE hSession,
 	if (context->padDataLength != 0) {
     	    rv = (*context->update)(context->cipherInfo, pPart, &padoutlen,
 		 maxout, context->padBuf, context->blockSize);
-    	    if (rv != SECSuccess) return sftk_MapDecryptError(PORT_GetError());
+    	    if (rv != SECSuccess)  return CKR_DEVICE_ERROR;
 	    pPart += padoutlen;
 	    maxout -= padoutlen;
 	}
@@ -1145,7 +1040,7 @@ CK_RV NSC_DecryptUpdate(CK_SESSION_HANDLE hSession,
     rv = (*context->update)(context->cipherInfo,pPart, &outlen,
 		 maxout, pEncryptedPart, ulEncryptedPartLen);
     *pulPartLen = (CK_ULONG) (outlen + padoutlen);
-    return (rv == SECSuccess)  ? CKR_OK : sftk_MapDecryptError(PORT_GetError());
+    return (rv == SECSuccess)  ? CKR_OK : CKR_DEVICE_ERROR;
 }
 
 
@@ -1199,7 +1094,7 @@ CK_RV NSC_DecryptFinal(CK_SESSION_HANDLE hSession,
     sftk_FreeContext(context);
 finish:
     sftk_FreeSession(session);
-    return (rv == SECSuccess) ? CKR_OK : sftk_MapDecryptError(PORT_GetError());
+    return (rv == SECSuccess) ? CKR_OK : CKR_DEVICE_ERROR;
 }
 
 /* NSC_Decrypt decrypts encrypted data in a single part. */
@@ -1247,7 +1142,7 @@ CK_RV NSC_Decrypt(CK_SESSION_HANDLE hSession,
     rv = (*context->update)(context->cipherInfo, pData, &outlen, maxoutlen, 
 					pEncryptedData, ulEncryptedDataLen);
     /* XXX need to do MUCH better error mapping than this. */
-    crv = (rv == SECSuccess) ? CKR_OK : sftk_MapDecryptError(PORT_GetError());
+    crv = (rv == SECSuccess)  ? CKR_OK : CKR_DEVICE_ERROR;
     if (rv == SECSuccess && context->doPad) {
     	CK_ULONG padding = pData[outlen - 1];
 	if (padding > context->blockSize || !padding) {
@@ -1724,16 +1619,6 @@ sftk_InitCBCMac(CK_SESSION_HANDLE hSession, CK_MECHANISM_PTR pMechanism,
 	cbc_mechanism.pParameter = &ivBlock;
 	cbc_mechanism.ulParameterLen = blockSize;
 	break;
-    case CKM_SEED_MAC_GENERAL:
-	mac_bytes = *(CK_ULONG *)pMechanism->pParameter;
-	/* fall through */
-    case CKM_SEED_MAC:
-	blockSize = 16;
-	PORT_Memset(ivBlock,0,blockSize);
-	cbc_mechanism.mechanism = CKM_SEED_CBC;
-	cbc_mechanism.pParameter = &ivBlock;
-	cbc_mechanism.ulParameterLen = blockSize;
-	break;
     case CKM_CAMELLIA_MAC_GENERAL:
 	mac_bytes = *(CK_ULONG *)pMechanism->pParameter;
 	/* fall through */
@@ -2157,7 +2042,7 @@ sftk_MACUpdate(CK_SESSION_HANDLE hSession,CK_BYTE_PTR pPart,
 	/* encrypt the current padded data */
     	rv = (*context->update)(context->cipherInfo,context->macBuf,&outlen,
 			SFTK_MAX_BLOCK_SIZE,context->padBuf,context->blockSize);
-    	if (rv != SECSuccess) return sftk_MapCryptError(PORT_GetError());
+    	if (rv != SECSuccess) return CKR_DEVICE_ERROR;
     }
 
     /* save the residual */
@@ -2176,7 +2061,7 @@ sftk_MACUpdate(CK_SESSION_HANDLE hSession,CK_BYTE_PTR pPart,
     while (ulPartLen) {
     	rv = (*context->update)(context->cipherInfo, context->padBuf, &outlen, 
 			SFTK_MAX_BLOCK_SIZE, pPart, context->blockSize);
-	if (rv != SECSuccess) return sftk_MapCryptError(PORT_GetError());
+	if (rv != SECSuccess) return CKR_DEVICE_ERROR;
 	/* paranoia.. make sure we exit the loop */
 	PORT_Assert(ulPartLen >= context->blockSize);
 	if (ulPartLen < context->blockSize) break;
@@ -2251,7 +2136,7 @@ CK_RV NSC_SignFinal(CK_SESSION_HANDLE hSession,CK_BYTE_PTR pSignature,
 finish:
     sftk_FreeSession(session);
 
-    return (rv == SECSuccess) ? CKR_OK : sftk_MapCryptError(PORT_GetError());
+    return (rv == SECSuccess) ? CKR_OK : CKR_DEVICE_ERROR;
 }
 
 /* NSC_Sign signs (encrypts with private key) data in a single part,
@@ -2298,7 +2183,7 @@ CK_RV NSC_Sign(CK_SESSION_HANDLE hSession,
 finish:
     sftk_FreeSession(session);
 
-    return (rv == SECSuccess) ? CKR_OK : sftk_MapCryptError(PORT_GetError());
+    return (rv == SECSuccess) ? CKR_OK : CKR_DEVICE_ERROR;
 }
 
 
@@ -2587,7 +2472,7 @@ CK_RV NSC_Verify(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pData,
     sftk_SetContextByType(session, SFTK_VERIFY, NULL);
     sftk_FreeSession(session);
 
-    return (rv == SECSuccess) ? CKR_OK : sftk_MapVerifyError(PORT_GetError());
+    return (rv == SECSuccess) ? CKR_OK : CKR_SIGNATURE_INVALID;
 
 }
 
@@ -2646,7 +2531,7 @@ CK_RV NSC_VerifyFinal(CK_SESSION_HANDLE hSession,
     sftk_FreeContext(context);
     sftk_SetContextByType(session, SFTK_VERIFY, NULL);
     sftk_FreeSession(session);
-    return (rv == SECSuccess) ? CKR_OK : sftk_MapVerifyError(PORT_GetError());
+    return (rv == SECSuccess) ? CKR_OK : CKR_SIGNATURE_INVALID;
 
 }
 
@@ -2749,7 +2634,7 @@ CK_RV NSC_VerifyRecover(CK_SESSION_HANDLE hSession,
     sftk_SetContextByType(session, SFTK_VERIFY_RECOVER, NULL);
 finish:
     sftk_FreeSession(session);
-    return (rv == SECSuccess)  ? CKR_OK : sftk_MapVerifyError(PORT_GetError());
+    return (rv == SECSuccess)  ? CKR_OK : CKR_SIGNATURE_INVALID;
 }
 
 /*
@@ -2766,7 +2651,7 @@ CK_RV NSC_SeedRandom(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pSeed,
     CHECK_FORK();
 
     rv = RNG_RandomUpdate(pSeed, ulSeedLen);
-    return (rv == SECSuccess) ? CKR_OK : sftk_MapCryptError(PORT_GetError());
+    return (rv == SECSuccess) ? CKR_OK : CKR_DEVICE_ERROR;
 }
 
 /* NSC_GenerateRandom generates random data. */
@@ -2778,11 +2663,7 @@ CK_RV NSC_GenerateRandom(CK_SESSION_HANDLE hSession,
     CHECK_FORK();
 
     rv = RNG_GenerateGlobalRandomBytes(pRandomData, ulRandomLen);
-    /*
-     * This may fail with SEC_ERROR_NEED_RANDOM, which means the RNG isn't
-     * seeded with enough entropy.
-     */
-    return (rv == SECSuccess) ? CKR_OK : sftk_MapCryptError(PORT_GetError());
+    return (rv == SECSuccess) ? CKR_OK : CKR_DEVICE_ERROR;
 }
 
 /*
@@ -2796,7 +2677,7 @@ CK_RV NSC_GenerateRandom(CK_SESSION_HANDLE hSession,
  */
 static CK_RV
 nsc_pbe_key_gen(NSSPKCS5PBEParameter *pkcs5_pbe, CK_MECHANISM_PTR pMechanism,
-			void *buf, CK_ULONG *key_length, PRBool faulty3DES)
+			char *buf, CK_ULONG *key_length, PRBool faulty3DES)
 {
     SECItem *pbe_key = NULL, iv, pwitem;
     CK_PBE_PARAMS *pbe_params = NULL;
@@ -2877,7 +2758,7 @@ nsc_parameter_gen(CK_KEY_TYPE key_type, SFTKObject *key)
 	if (PORT_GetError() == SEC_ERROR_LIBRARY_FAILURE) {
 	    sftk_fatalError = PR_TRUE;
 	}
-	return sftk_MapCryptError(PORT_GetError());
+	return CKR_DEVICE_ERROR;
     }
     crv = sftk_AddAttributeType(key,CKA_PRIME,
 				 params->prime.data, params->prime.len);
@@ -2949,10 +2830,6 @@ nsc_SetupBulkKeyGen(CK_MECHANISM_TYPE mechanism, CK_KEY_TYPE *key_type,
     case CKM_DES3_KEY_GEN:
 	*key_type = CKK_DES3;
 	*key_length = 24;
-	break;
-    case CKM_SEED_KEY_GEN:
-	*key_type = CKK_SEED;
-	*key_length = 16;
 	break;
     case CKM_CAMELLIA_KEY_GEN:
 	*key_type = CKK_CAMELLIA;
@@ -3140,7 +3017,7 @@ CK_RV NSC_GenerateKey(CK_SESSION_HANDLE hSession,
     CK_BBOOL cktrue = CK_TRUE;
     int i;
     SFTKSlot *slot = sftk_SlotFromSessionHandle(hSession);
-    unsigned char buf[MAX_KEY_LEN];
+    char buf[MAX_KEY_LEN];
     enum {nsc_pbe, nsc_ssl, nsc_bulk, nsc_param} key_gen_type;
     NSSPKCS5PBEParameter *pbe_param;
     SSL3RSAPreMasterSecret *rsa_pms;
@@ -3202,7 +3079,6 @@ CK_RV NSC_GenerateKey(CK_SESSION_HANDLE hSession,
     case CKM_RC2_KEY_GEN:
     case CKM_RC4_KEY_GEN:
     case CKM_GENERIC_SECRET_KEY_GEN:
-    case CKM_SEED_KEY_GEN:
     case CKM_CAMELLIA_KEY_GEN:
     case CKM_AES_KEY_GEN:
 #if NSS_SOFTOKEN_DOES_RC5
@@ -3287,8 +3163,9 @@ CK_RV NSC_GenerateKey(CK_SESSION_HANDLE hSession,
     case nsc_bulk:
 	/* get the key, check for weak keys and repeat if found */
 	do {
-            crv = NSC_GenerateRandom(0, buf, key_length);
-	} while (crv == CKR_OK && checkWeak && sftk_IsWeakKey(buf,key_type));
+            crv = NSC_GenerateRandom(0, (unsigned char *)buf, key_length);
+	} while (crv == CKR_OK && checkWeak && 
+			sftk_IsWeakKey((unsigned char *)buf,key_type));
 	break;
     case nsc_param:
 	/* generate parameters */
@@ -3768,7 +3645,7 @@ CK_RV NSC_GenerateKeyPair (CK_SESSION_HANDLE hSession,
 	    if (PORT_GetError() == SEC_ERROR_LIBRARY_FAILURE) {
 		sftk_fatalError = PR_TRUE;
 	    }
-	    crv = sftk_MapCryptError(PORT_GetError());
+	    crv = CKR_DEVICE_ERROR;
 	    break;
 	}
         /* now fill in the RSA dependent paramenters in the public key */
@@ -3888,7 +3765,7 @@ kpg_done:
 	    if (PORT_GetError() == SEC_ERROR_LIBRARY_FAILURE) {
 		sftk_fatalError = PR_TRUE;
 	    }
-	    crv = sftk_MapCryptError(PORT_GetError());
+	    crv = CKR_DEVICE_ERROR;
 	    break;
 	}
 
@@ -3961,7 +3838,7 @@ dsagn_done:
 	    if (PORT_GetError() == SEC_ERROR_LIBRARY_FAILURE) {
 		sftk_fatalError = PR_TRUE;
 	    }
-	    crv = sftk_MapCryptError(PORT_GetError());
+	    crv = CKR_DEVICE_ERROR;
 	    break;
 	}
 
@@ -4004,7 +3881,7 @@ dhgn_done:
 	rv = EC_DecodeParams(&ecEncodedParams, &ecParams);
 	PORT_Free(ecEncodedParams.data);
 	if (rv != SECSuccess) {
-	    crv = sftk_MapCryptError(PORT_GetError());
+	    crv = CKR_DEVICE_ERROR;
 	    break;
 	}
 	rv = EC_NewKey(ecParams, &ecPriv);
@@ -4013,25 +3890,12 @@ dhgn_done:
 	    if (PORT_GetError() == SEC_ERROR_LIBRARY_FAILURE) {
 		sftk_fatalError = PR_TRUE;
 	    }
-	    crv = sftk_MapCryptError(PORT_GetError());
+	    crv = CKR_DEVICE_ERROR;
 	    break;
 	}
 
-	if (getenv("NSS_USE_DECODED_CKA_EC_POINT")) {
-	    crv = sftk_AddAttributeType(publicKey, CKA_EC_POINT, 
+	crv = sftk_AddAttributeType(publicKey, CKA_EC_POINT, 
 				sftk_item_expand(&ecPriv->publicValue));
-	} else {
-	    SECItem *pubValue = SEC_ASN1EncodeItem(NULL, NULL, 
-					&ecPriv->publicValue, 
-					SEC_ASN1_GET(SEC_OctetStringTemplate));
-	    if (!pubValue) {
-		crv = CKR_ARGUMENTS_BAD;
-		goto ecgn_done;
-	    }
-	    crv = sftk_AddAttributeType(publicKey, CKA_EC_POINT, 
-				sftk_item_expand(pubValue));
-	    SECITEM_FreeItem(pubValue, PR_TRUE);
-	}
 	if (crv != CKR_OK) goto ecgn_done;
 
 	crv = sftk_AddAttributeType(privateKey, CKA_VALUE, 
@@ -4141,7 +4005,7 @@ ecgn_done:
 			"self-test: pair-wise consistency test failed",
 			(PRUint32)hSession,(PRUint32)pMechanism->mechanism,
 			(PRUint32)crv);
-	    sftk_LogAuditMessage(NSS_AUDIT_ERROR, NSS_AUDIT_SELF_TEST, msg);
+	    sftk_LogAuditMessage(NSS_AUDIT_ERROR, msg);
 	}
 	return crv;
     }
@@ -4987,7 +4851,6 @@ static const char * const mixers[NUM_MIXERS] = {
     "IIIIIIIII" };
 #define SSL3_PMS_LENGTH 48
 #define SSL3_MASTER_SECRET_LENGTH 48
-#define SSL3_RANDOM_LENGTH 32
 
 
 /* NSC_DeriveKey derives a key from a base key, creating a new key object. */
@@ -5856,10 +5719,9 @@ key_and_mac_derive_fail:
 	unsigned char secret_hash[20];
 	unsigned char *secret;
 	unsigned char *keyData = NULL;
-	int secretlen, curveLen, pubKeyLen;
+	int secretlen;
 	CK_ECDH1_DERIVE_PARAMS *mechParams;
 	NSSLOWKEYPrivateKey *privKey;
-	PLArenaPool *arena = NULL;
 
 	/* Check mechanism parameters */
 	mechParams = (CK_ECDH1_DERIVE_PARAMS *) pMechanism->pParameter;
@@ -5882,32 +5744,6 @@ key_and_mac_derive_fail:
 	ecPoint.data = mechParams->pPublicData;
 	ecPoint.len  = mechParams->ulPublicDataLen;
 
-	curveLen = (privKey->u.ec.ecParams.fieldID.size +7)/8;
-	pubKeyLen = (2*curveLen) + 1;
-
-	/* if the len is too small, can't be a valid point */
-	if (ecPoint.len < pubKeyLen) {
-	    goto ec_loser;
-	}
-	/* if the len is too large, must be an encoded point (length is
-	 * equal case just falls through */
-	if (ecPoint.len > pubKeyLen) {
-	    SECItem newPoint;
-
-	    arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
-	    if (arena == NULL) {
-		goto ec_loser;
-	    }
-
-	    rv = SEC_QuickDERDecodeItem(arena, &newPoint, 
-					SEC_ASN1_GET(SEC_OctetStringTemplate), 
-					&ecPoint);
-	    if (rv != SECSuccess) {
-		goto ec_loser;
-	    }
-	    ecPoint = newPoint;
-	}
-
 	if (pMechanism->mechanism == CKM_ECDH1_COFACTOR_DERIVE) {
 	    withCofactor = PR_TRUE;
 	} else {
@@ -5917,25 +5753,22 @@ key_and_mac_derive_fail:
 	     */
 	    if (EC_ValidatePublicKey(&privKey->u.ec.ecParams, &ecPoint) 
 		!= SECSuccess) {
-		goto ec_loser;
+		crv = CKR_ARGUMENTS_BAD;
+		PORT_Free(ecScalar.data);
+		if (privKey != sourceKey->objectInfo)
+		    nsslowkey_DestroyPrivateKey(privKey);
+		break;
 	    }
 	}
 
 	rv = ECDH_Derive(&ecPoint, &privKey->u.ec.ecParams, &ecScalar,
 	                 withCofactor, &tmp); 
 	PORT_Free(ecScalar.data);
-	ecScalar.data = NULL;
-	if (privKey != sourceKey->objectInfo) {
+	if (privKey != sourceKey->objectInfo)
 	   nsslowkey_DestroyPrivateKey(privKey);
-	   privKey=NULL;
-	}
-	if (arena) {
-	    PORT_FreeArena(arena,PR_FALSE);
-	    arena=NULL;
-	}
 
 	if (rv != SECSuccess) {
-	    crv = sftk_MapCryptError(PORT_GetError());
+	    crv = CKR_DEVICE_ERROR;
 	    break;
 	}
 
@@ -5994,17 +5827,6 @@ key_and_mac_derive_fail:
 	PORT_Memset(secret_hash, 0, 20);
 	    
 	break;
-
-ec_loser:
-	crv = CKR_ARGUMENTS_BAD;
-	PORT_Free(ecScalar.data);
-	if (privKey != sourceKey->objectInfo)
-	    nsslowkey_DestroyPrivateKey(privKey);
-	if (arena) {
-	    PORT_FreeArena(arena, PR_FALSE);
-	}
-	break;
-
       }
 #endif /* NSS_ENABLE_ECC */
 

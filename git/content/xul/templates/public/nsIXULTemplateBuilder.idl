@@ -51,7 +51,6 @@ interface nsIXULTemplateRuleFilter;
 interface nsIXULTemplateQueryProcessor;
 interface nsIRDFResource;
 interface nsIRDFCompositeDataSource;
-interface nsIDOMDataTransfer;
 
 /**
  * A template builder, given an input source of data, a template, and a
@@ -355,7 +354,7 @@ interface nsIXULTemplateBuilder : nsISupports
  *  specific handling of specific nsITreeView methods that 
  *  XULTreeBuilder does not implement.
  */
-[scriptable, uuid(57CED9A7-EC0B-4A0E-8AEB-5DA32EBE951C)]
+[scriptable, uuid(a5480e0d-ac7c-42e5-aca5-d7f0bbffa207)]
 interface nsIXULTreeBuilderObserver : nsISupports
 {
     const long DROP_BEFORE = -1;
@@ -367,13 +366,13 @@ interface nsIXULTreeBuilderObserver : nsISupports
      * items, such as the mailNews folder pane, always return false whe
      * the orientation is not DROP_ON.
      */
-    boolean canDrop(in long index, in long orientation, in nsIDOMDataTransfer dataTransfer);
+    boolean canDrop(in long index, in long orientation);
 
     /**
      * Called when the user drops something on this view. The |orientation| param
      * specifies before/on/after the given |row|.
      */
-    void onDrop(in long row, in long orientation, in nsIDOMDataTransfer dataTransfer);
+    void onDrop(in long row, in long orientation);
  
     /** 
      * Called when an item is opened or closed. 

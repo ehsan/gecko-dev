@@ -37,72 +37,103 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsOuterDocAccessible.h"
+#include "nsIAccessibilityService.h"
+#include "nsIAccessibleDocument.h"
+#include "nsIDocument.h"
+#include "nsIPresShell.h"
+#include "nsIServiceManager.h"
+#include "nsIContent.h"
 
-#include "nsAccUtils.h"
-#include "nsDocAccessible.h"
+NS_IMPL_ISUPPORTS_INHERITED0(nsOuterDocAccessible, nsAccessible)
 
-////////////////////////////////////////////////////////////////////////////////
-// nsOuterDocAccessible
-////////////////////////////////////////////////////////////////////////////////
-
-nsOuterDocAccessible::
-  nsOuterDocAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsAccessibleWrap(aContent, aShell)
+nsOuterDocAccessible::nsOuterDocAccessible(nsIDOMNode* aNode, 
+                                           nsIWeakReference* aShell):
+  nsAccessibleWrap(aNode, aShell)
 {
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// nsISupports
-
-NS_IMPL_ISUPPORTS_INHERITED0(nsOuterDocAccessible,
-                             nsAccessible)
-
-////////////////////////////////////////////////////////////////////////////////
-// nsAccessible public (DON'T add methods here)
-
-nsresult
-nsOuterDocAccessible::GetRoleInternal(PRUint32 *aRole)
+/* unsigned long getRole (); */
+NS_IMETHODIMP nsOuterDocAccessible::GetRole(PRUint32 *aRole)
 {
   *aRole = nsIAccessibleRole::ROLE_INTERNAL_FRAME;
   return NS_OK;
 }
 
-nsresult
-nsOuterDocAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
+NS_IMETHODIMP
+nsOuterDocAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
-
+  nsAccessible::GetState(aState, aExtraState);
   *aState &= ~nsIAccessibleStates::STATE_FOCUSABLE;
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsOuterDocAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY,
-                                      PRBool aDeepestChild,
-                                      nsIAccessible **aChild)
+                                      nsIAccessible **aAccessible)
 {
-  PRInt32 docX = 0, docY = 0, docWidth = 0, docHeight = 0;
-  nsresult rv = GetBounds(&docX, &docY, &docWidth, &docHeight);
-  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_ARG_POINTER(aAccessible);
+  *aAccessible = nsnull;
+  if (!mDOMNode) {
+    return NS_ERROR_FAILURE;
+  }
+  PRInt32 docX, docY, docWidth, docHeight;
+  GetBounds(&docX, &docY, &docWidth, &docHeight);
+  if (aX < docX || aX >= docX + docWidth || aY < docY || aY >= docY + docHeight) {
+    return NS_ERROR_FAILURE;
+  }
 
-  if (aX < docX || aX >= docX + docWidth || aY < docY || aY >= docY + docHeight)
-    return NS_OK;
+  return GetFirstChild(aAccessible);  // Always return the inner doc unless bounds outside of it
+}
 
-  // Always return the inner doc as direct child accessible unless bounds
-  // outside of it.
-  nsCOMPtr<nsIAccessible> childAcc;
-  rv = GetFirstChild(getter_AddRefs(childAcc));
-  NS_ENSURE_SUCCESS(rv, rv);
+void nsOuterDocAccessible::CacheChildren()
+{  
+  // An outer doc accessible usually has 1 nsDocAccessible child,
+  // but could have none if we can't get to the inner documnet
+  if (!mWeakShell) {
+    mAccChildCount = eChildCountUninitialized;
+    return;   // This outer doc node has been shut down
+  }
+  if (mAccChildCount != eChildCountUninitialized) {
+    return;
+  }
 
-  if (!childAcc)
-    return NS_OK;
+  InvalidateChildren();
+  mAccChildCount = 0;
 
-  if (aDeepestChild)
-    return childAcc->GetDeepestChildAtPoint(aX, aY, aChild);
+  // In these variable names, "outer" relates to the nsOuterDocAccessible
+  // as opposed to the nsDocAccessibleWrap which is "inner".
+  // The outer node is a something like a <browser>, <frame>, <iframe>, <page> or
+  // <editor> tag, whereas the inner node corresponds to the inner document root.
 
-  NS_ADDREF(*aChild = childAcc);
-  return NS_OK;
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+  NS_ASSERTION(content, "No nsIContent for <browser>/<iframe>/<editor> dom node");
+
+  nsCOMPtr<nsIDocument> outerDoc = content->GetDocument();
+  if (!outerDoc) {
+    return;
+  }
+
+  nsIDocument *innerDoc = outerDoc->GetSubDocumentFor(content);
+  nsCOMPtr<nsIDOMNode> innerNode(do_QueryInterface(innerDoc));
+  if (!innerNode) {
+    return;
+  }
+
+  nsCOMPtr<nsIAccessible> innerAccessible;
+  nsCOMPtr<nsIAccessibilityService> accService = 
+    do_GetService("@mozilla.org/accessibilityService;1");
+  accService->GetAccessibleFor(innerNode, getter_AddRefs(innerAccessible));
+  nsCOMPtr<nsPIAccessible> privateInnerAccessible = 
+    do_QueryInterface(innerAccessible);
+  if (!privateInnerAccessible) {
+    return;
+  }
+
+  // Success getting inner document as first child -- now we cache it.
+  mAccChildCount = 1;
+  SetFirstChild(innerAccessible); // weak ref
+  privateInnerAccessible->SetParent(this);
+  privateInnerAccessible->SetNextSibling(nsnull);
 }
 
 nsresult
@@ -116,139 +147,4 @@ nsOuterDocAccessible::GetAttributesInternal(nsIPersistentProperties *aAttributes
     return NS_OK;
   }
   return nsAccessible::GetAttributesInternal(aAttributes);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// nsIAccessible
-
-NS_IMETHODIMP
-nsOuterDocAccessible::GetNumActions(PRUint8 *aNumActions)
-{
-  NS_ENSURE_ARG_POINTER(aNumActions);
-  *aNumActions = 0;
-
-  // Internal frame, which is the doc's parent, should not have a click action.
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsOuterDocAccessible::GetActionName(PRUint8 aIndex, nsAString& aName)
-{
-  aName.Truncate();
-
-  return NS_ERROR_INVALID_ARG;
-}
-
-NS_IMETHODIMP
-nsOuterDocAccessible::GetActionDescription(PRUint8 aIndex, nsAString& aDescription)
-{
-  aDescription.Truncate();
-
-  return NS_ERROR_INVALID_ARG;
-}
-
-NS_IMETHODIMP
-nsOuterDocAccessible::DoAction(PRUint8 aIndex)
-{
-  return NS_ERROR_INVALID_ARG;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// nsAccessNode public
-
-void
-nsOuterDocAccessible::Shutdown()
-{
-  // XXX: sometimes outerdoc accessible is shutdown because of layout style
-  // change however the presshell of underlying document isn't destroyed and
-  // the document doesn't get pagehide events. Shutdown underlying document if
-  // any to avoid hanging document accessible.
-  NS_LOG_ACCDOCDESTROY_MSG("A11y outerdoc shutdown")
-  NS_LOG_ACCDOCDESTROY_ACCADDRESS("outerdoc", this)
-
-  nsAccessible *childAcc = mChildren.SafeElementAt(0, nsnull);
-  if (childAcc) {
-    NS_LOG_ACCDOCDESTROY("outerdoc's child document shutdown",
-                         childAcc->GetDocumentNode())
-    GetAccService()->ShutdownDocAccessiblesInTree(childAcc->GetDocumentNode());
-  }
-
-  nsAccessibleWrap::Shutdown();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// nsAccessible public
-
-void
-nsOuterDocAccessible::InvalidateChildren()
-{
-  // Do not invalidate children because nsAccDocManager is responsible for
-  // document accessible lifetime when DOM document is created or destroyed. If
-  // DOM document isn't destroyed but its presshell is destroyed (for example,
-  // when DOM node of outerdoc accessible is hidden), then outerdoc accessible
-  // notifies nsAccDocManager about this. If presshell is created for existing
-  // DOM document (for example when DOM node of outerdoc accessible is shown)
-  // then allow nsAccDocManager to handle this case since the document
-  // accessible is created and appended as a child when it's requested.
-
-  mChildrenFlags = eChildrenUninitialized;
-}
-
-PRBool
-nsOuterDocAccessible::AppendChild(nsAccessible *aAccessible)
-{
-  NS_ASSERTION(!mChildren.Length(),
-               "Previous child document of outerdoc accessible wasn't removed!");
-
-  if (!nsAccessible::AppendChild(aAccessible))
-    return PR_FALSE;
-
-  NS_LOG_ACCDOCCREATE("append document to outerdoc",
-                      aAccessible->GetDocumentNode())
-  NS_LOG_ACCDOCCREATE_ACCADDRESS("outerdoc", this)
-
-  return PR_TRUE;
-}
-
-PRBool
-nsOuterDocAccessible::RemoveChild(nsAccessible *aAccessible)
-{
-  nsAccessible *child = mChildren.SafeElementAt(0, nsnull);
-  if (child != aAccessible) {
-    NS_ERROR("Wrong child to remove!");
-    return PR_FALSE;
-  }
-
-  NS_LOG_ACCDOCDESTROY("remove document from outerdoc",
-                       child->GetDocumentNode())
-  NS_LOG_ACCDOCDESTROY_ACCADDRESS("outerdoc", this)
-
-  PRBool wasRemoved = nsAccessible::RemoveChild(child);
-
-  NS_ASSERTION(!mChildren.Length(),
-               "This child document of outerdoc accessible wasn't removed!");
-
-  return wasRemoved;
-}
-
-
-////////////////////////////////////////////////////////////////////////////////
-// nsAccessible protected
-
-void
-nsOuterDocAccessible::CacheChildren()
-{
-  // Request document accessible for the content document to make sure it's
-  // created because once it's created it appends itself as a child.
-  nsIDocument *outerDoc = mContent->GetCurrentDoc();
-  if (!outerDoc)
-    return;
-
-  nsIDocument *innerDoc = outerDoc->GetSubDocumentFor(mContent);
-  if (!innerDoc)
-    return;
-
-  nsDocAccessible *docAcc = GetAccService()->GetDocAccessible(innerDoc);
-  NS_ASSERTION(docAcc && docAcc->GetParent() == this,
-               "Document accessible isn't a child of outerdoc accessible!");
 }

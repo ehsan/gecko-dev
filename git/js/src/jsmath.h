@@ -1,6 +1,4 @@
-/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- *
- * ***** BEGIN LICENSE BLOCK *****
+/* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -37,33 +35,23 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+/* -*- Mode: C; tab-width: 8 -*-
+ * Copyright (C) 1998-1999 Netscape Communications Corporation, All Rights Reserved.
+ */
+
 #ifndef jsmath_h___
 #define jsmath_h___
 /*
  * JS math functions.
  */
 
-extern js::Class js_MathClass;
+JS_BEGIN_EXTERN_C
+
+extern JSClass js_MathClass;
 
 extern JSObject *
 js_InitMathClass(JSContext *cx, JSObject *obj);
 
-extern void
-js_InitRandom(JSContext *cx);
-
-extern JSBool
-js_math_ceil(JSContext *cx, uintN argc, js::Value *vp);
-
-extern JSBool
-js_math_floor(JSContext *cx, uintN argc, js::Value *vp);
-
-extern JSBool
-js_math_max(JSContext *cx, uintN argc, js::Value *vp);
-
-extern JSBool
-js_math_min(JSContext *cx, uintN argc, js::Value *vp);
-
-extern JSBool
-js_math_round(JSContext *cx, uintN argc, js::Value *vp);
+JS_END_EXTERN_C
 
 #endif /* jsmath_h___ */

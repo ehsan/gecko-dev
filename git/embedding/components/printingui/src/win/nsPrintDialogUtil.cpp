@@ -71,9 +71,12 @@ WIN_LIBS=                                       \
 #include "nsString.h"
 #include "nsIServiceManager.h"
 #include "nsReadableUtils.h"
+#include "nsIWidget.h"
 #include "nsIPrintSettings.h"
 #include "nsIPrintSettingsWin.h"
 #include "nsIPrintOptions.h"
+#include "nsWidgetsCID.h"
+static NS_DEFINE_IID(kPrinterEnumeratorCID, NS_PRINTER_ENUMERATOR_CID);
 
 #include "nsRect.h"
 
@@ -191,7 +194,7 @@ CheckForExtendedDialog()
 //----------------------------------------------------------------------------------
 // Map an incoming size to a Windows Native enum in the DevMode
 static void 
-MapPaperSizeToNativeEnum(LPDEVMODEW aDevMode,
+MapPaperSizeToNativeEnum(LPDEVMODE aDevMode,
                          PRInt16   aType, 
                          double    aW, 
                          double    aH)
@@ -205,6 +208,7 @@ MapPaperSizeToNativeEnum(LPDEVMODEW aDevMode,
 #endif
 
   const double kThreshold = 0.05;
+  PRBool foundEnum = PR_FALSE;
   for (PRInt32 i=0;i<kNumPaperSizes;i++) {
     double width  = kPaperSizes[i].mWidth;
     double height = kPaperSizes[i].mHeight;
@@ -245,7 +249,7 @@ MapPaperSizeToNativeEnum(LPDEVMODEW aDevMode,
 // Setup Paper Size & Orientation options into the DevMode
 // 
 static void 
-SetupDevModeFromSettings(LPDEVMODEW aDevMode, nsIPrintSettings* aPrintSettings)
+SetupDevModeFromSettings(LPDEVMODE aDevMode, nsIPrintSettings* aPrintSettings)
 {
   // Setup paper size
   if (aPrintSettings) {
@@ -287,7 +291,7 @@ SetupDevModeFromSettings(LPDEVMODEW aDevMode, nsIPrintSettings* aPrintSettings)
 // Helper Function - Free and reallocate the string
 static nsresult 
 SetPrintSettingsFromDevMode(nsIPrintSettings* aPrintSettings, 
-                            LPDEVMODEW         aDevMode)
+                            LPDEVMODE         aDevMode)
 {
   if (aPrintSettings == nsnull) {
     return NS_ERROR_FAILURE;
@@ -455,17 +459,17 @@ static void SetRadioOfGroup(HWND aDlg, int aRadId)
 
 //--------------------------------------------------------
 typedef struct {
-  const char * mKeyStr;
+  char * mKeyStr;
   long   mKeyId;
 } PropKeyInfo;
 
 // These are the control ids used in the dialog and 
 // defined by MS-Windows in commdlg.h
 static PropKeyInfo gAllPropKeys[] = {
-    {"printFramesTitleWindows", grp3},
-    {"asLaidOutWindows", rad4},
-    {"selectedFrameWindows", rad5},
-    {"separateFramesWindows", rad6},
+    {"PrintFrames", grp3},
+    {"Aslaid", rad4},
+    {"selectedframe", rad5},
+    {"Eachframe", rad6},
     {NULL, NULL}};
 
 //--------------------------------------------------------
@@ -509,7 +513,7 @@ static HWND CreateControl(LPCTSTR          aType,
                           HWND             aHdlg, 
                           int              aId, 
                           const nsAString& aStr, 
-                          const nsIntRect& aRect)
+                          const nsRect&    aRect)
 {
   nsCAutoString str;
   if (NS_FAILED(NS_CopyUnicodeToNative(aStr, str)))
@@ -537,7 +541,7 @@ static HWND CreateRadioBtn(HINSTANCE        aHInst,
                            HWND             aHdlg, 
                            int              aId, 
                            const char*      aStr, 
-                           const nsIntRect& aRect)
+                           const nsRect&    aRect)
 {
   nsString cStr;
   cStr.AssignWithConversion(aStr);
@@ -550,7 +554,7 @@ static HWND CreateGroupBox(HINSTANCE        aHInst,
                            HWND             aHdlg, 
                            int              aId, 
                            const nsAString& aStr, 
-                           const nsIntRect& aRect)
+                           const nsRect&    aRect)
 {
   return CreateControl("BUTTON", BS_GROUPBOX, aHInst, aHdlg, aId, aStr, aRect);
 }
@@ -615,7 +619,7 @@ static UINT CALLBACK PrintHookProc(HWND hdlg, UINT uiMsg, WPARAM wParam, LPARAM 
 
     PRInt16 howToEnableFrameUI = (PRInt16)printDlg->lCustData;
 
-    HINSTANCE hInst = (HINSTANCE)::GetWindowLongPtr(hdlg, GWLP_HINSTANCE);
+    HINSTANCE hInst = (HINSTANCE)::GetWindowLong(hdlg, GWL_HINSTANCE);
     if (hInst == NULL) return 0L;
 
     // Start by getting the local rects of several of the controls
@@ -661,7 +665,7 @@ static UINT CALLBACK PrintHookProc(HWND hdlg, UINT uiMsg, WPARAM wParam, LPARAM 
     int y         = top+(rad1Rect.top-dlgRect.top);     // starting pos of first radio
     int rbWidth   = dlgRect.right - rad1Rect.left - 5;  // measure from rb left to the edge of the groupbox
                                                         // (5 is arbitrary)
-    nsIntRect rect;
+    nsRect rect;
 
     // Create and position the radio buttons
     //
@@ -701,7 +705,7 @@ static UINT CALLBACK PrintHookProc(HWND hdlg, UINT uiMsg, WPARAM wParam, LPARAM 
     }
 
     // Here we figure out the old height of the dlg
-    // then figure its gap from the old grpbx to the bottom
+    // then figure it's gap from the old grpbx to the bottom
     // then size the dlg
     RECT pr, cr; 
     ::GetWindowRect(hdlg, &pr);
@@ -749,27 +753,28 @@ static UINT CALLBACK PrintHookProc(HWND hdlg, UINT uiMsg, WPARAM wParam, LPARAM 
 //   This function assumes that aPrintName has already been converted from 
 //   unicode
 //
-static HGLOBAL CreateGlobalDevModeAndInit(LPCWSTR aPrintName, nsIPrintSettings* aPS)
+static HGLOBAL CreateGlobalDevModeAndInit(LPCTSTR aPrintName, nsIPrintSettings* aPS)
 {
   HGLOBAL hGlobalDevMode = NULL;
 
+  nsresult rv = NS_ERROR_FAILURE;
   HANDLE hPrinter = NULL;
   // const cast kludge for silly Win32 api's
-  LPWSTR printName = const_cast<wchar_t*>(aPrintName);
-  BOOL status = ::OpenPrinterW(printName, &hPrinter, NULL);
+  LPTSTR printName = const_cast<char*>(aPrintName);
+  BOOL status = ::OpenPrinter(printName, &hPrinter, NULL);
   if (status) {
 
-    LPDEVMODEW  pNewDevMode;
+    LPDEVMODE   pNewDevMode;
     DWORD       dwNeeded, dwRet;
 
     // Get the buffer size
-    dwNeeded = ::DocumentPropertiesW(gParentWnd, hPrinter, printName, NULL, NULL, 0);
+    dwNeeded = ::DocumentProperties(gParentWnd, hPrinter, printName, NULL, NULL, 0);
     if (dwNeeded == 0) {
       return NULL;
     }
 
     // Allocate a buffer of the correct size.
-    pNewDevMode = (LPDEVMODEW)::HeapAlloc (::GetProcessHeap(), HEAP_ZERO_MEMORY, dwNeeded);
+    pNewDevMode = (LPDEVMODE)::HeapAlloc (::GetProcessHeap(), HEAP_ZERO_MEMORY, dwNeeded);
     if (!pNewDevMode) return NULL;
 
     hGlobalDevMode = (HGLOBAL)::GlobalAlloc(GHND, dwNeeded);
@@ -778,7 +783,7 @@ static HGLOBAL CreateGlobalDevModeAndInit(LPCWSTR aPrintName, nsIPrintSettings* 
       return NULL;
     }
 
-    dwRet = ::DocumentPropertiesW(gParentWnd, hPrinter, printName, pNewDevMode, NULL, DM_OUT_BUFFER);
+    dwRet = ::DocumentProperties(gParentWnd, hPrinter, printName, pNewDevMode, NULL, DM_OUT_BUFFER);
 
     if (dwRet != IDOK) {
       ::HeapFree(::GetProcessHeap(), 0, pNewDevMode);
@@ -789,14 +794,14 @@ static HGLOBAL CreateGlobalDevModeAndInit(LPCWSTR aPrintName, nsIPrintSettings* 
 
     // Lock memory and copy contents from DEVMODE (current printer)
     // to Global Memory DEVMODE
-    LPDEVMODEW devMode = (DEVMODEW *)::GlobalLock(hGlobalDevMode);
+    LPDEVMODE devMode = (DEVMODE *)::GlobalLock(hGlobalDevMode);
     if (devMode) {
       memcpy(devMode, pNewDevMode, dwNeeded);
       // Initialize values from the PrintSettings
       SetupDevModeFromSettings(devMode, aPS);
 
       // Sets back the changes we made to the DevMode into the Printer Driver
-      dwRet = ::DocumentPropertiesW(gParentWnd, hPrinter, printName, devMode, devMode, DM_IN_BUFFER | DM_OUT_BUFFER);
+      dwRet = ::DocumentProperties(gParentWnd, hPrinter, printName, devMode, devMode, DM_IN_BUFFER | DM_OUT_BUFFER);
       if (dwRet != IDOK) {
         ::GlobalUnlock(hGlobalDevMode);
         ::GlobalFree(hGlobalDevMode);
@@ -826,8 +831,9 @@ static HGLOBAL CreateGlobalDevModeAndInit(LPCWSTR aPrintName, nsIPrintSettings* 
 // helper
 static PRUnichar * GetDefaultPrinterNameFromGlobalPrinters()
 {
+  nsresult rv;
   PRUnichar * printerName = nsnull;
-  nsCOMPtr<nsIPrinterEnumerator> prtEnum = do_GetService("@mozilla.org/gfx/printerenumerator;1");
+  nsCOMPtr<nsIPrinterEnumerator> prtEnum = do_GetService(kPrinterEnumeratorCID, &rv);
   if (prtEnum) {
     prtEnum->GetDefaultPrinterName(&printerName);
   }
@@ -861,6 +867,7 @@ ShowNativePrintDialog(HWND              aHWnd,
   //NS_ENSURE_ARG_POINTER(aHWnd);
   NS_ENSURE_ARG_POINTER(aPrintSettings);
 
+  nsresult  rv = NS_ERROR_FAILURE;
   gDialogWasExtended  = PR_FALSE;
 
   HGLOBAL hGlobalDevMode = NULL;
@@ -875,7 +882,10 @@ ShowNativePrintDialog(HWND              aHWnd,
     printerName = GetDefaultPrinterNameFromGlobalPrinters();
   } else {
     HANDLE hPrinter = NULL;
-    if(!::OpenPrinterW(const_cast<wchar_t*>(printerName), &hPrinter, NULL)) {
+    nsCAutoString printerNameNative;
+    NS_CopyUnicodeToNative(nsDependentString(printerName), printerNameNative);
+    LPTSTR tempPrinterName = const_cast<char*>(printerNameNative.get());
+    if(!::OpenPrinter(tempPrinterName, &hPrinter, NULL)) {
       // If the last used printer is not found, we should use default printer.
       printerName = GetDefaultPrinterNameFromGlobalPrinters();
     } else {
@@ -887,17 +897,20 @@ ShowNativePrintDialog(HWND              aHWnd,
   if (!printerName) return NS_ERROR_FAILURE;
 
   // Now create a DEVNAMES struct so the the dialog is initialized correctly.
+  nsCAutoString tempPrinterName;
+  rv = NS_CopyUnicodeToNative(nsDependentString(printerName), tempPrinterName);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  PRUint32 len = wcslen(printerName);
-  hDevNames = (HGLOBAL)::GlobalAlloc(GHND, sizeof(wchar_t) * (len + 1) + 
-                                     sizeof(DEVNAMES));
+  PRUint32 len = tempPrinterName.Length();
+  hDevNames = (HGLOBAL)::GlobalAlloc(GHND, len+sizeof(DEVNAMES)+1);
   DEVNAMES* pDevNames = (DEVNAMES*)::GlobalLock(hDevNames);
-  pDevNames->wDriverOffset = sizeof(DEVNAMES)/sizeof(wchar_t);
-  pDevNames->wDeviceOffset = sizeof(DEVNAMES)/sizeof(wchar_t);
-  pDevNames->wOutputOffset = sizeof(DEVNAMES)/sizeof(wchar_t)+len;
+  pDevNames->wDriverOffset = sizeof(DEVNAMES);
+  pDevNames->wDeviceOffset = sizeof(DEVNAMES);
+  pDevNames->wOutputOffset = sizeof(DEVNAMES)+len+1;
   pDevNames->wDefault      = 0;
 
-  memcpy(pDevNames+1, printerName, (len + 1) * sizeof(wchar_t));
+  char* device = &(((char*)pDevNames)[pDevNames->wDeviceOffset]);
+  strcpy(device, tempPrinterName.get());
   ::GlobalUnlock(hDevNames);
 
   // Create a Moveable Memory Object that holds a new DevMode
@@ -906,11 +919,11 @@ ShowNativePrintDialog(HWND              aHWnd,
   // NOTE: We only need to free hGlobalDevMode when the dialog is cancelled
   // When the user prints, it comes back in the printdlg struct and 
   // is used and cleaned up later
-  hGlobalDevMode = CreateGlobalDevModeAndInit(printerName, aPrintSettings);
+  hGlobalDevMode = CreateGlobalDevModeAndInit(tempPrinterName.get(), aPrintSettings);
 
   // Prepare to Display the Print Dialog
-  PRINTDLGW  prntdlg;
-  memset(&prntdlg, 0, sizeof(PRINTDLGW));
+  PRINTDLG  prntdlg;
+  memset(&prntdlg, 0, sizeof(PRINTDLG));
 
   prntdlg.lStructSize = sizeof(prntdlg);
   prntdlg.hwndOwner   = aHWnd;
@@ -956,7 +969,7 @@ ShowNativePrintDialog(HWND              aHWnd,
     prntdlg.Flags            |= PD_ENABLEPRINTHOOK;
   }
 
-  BOOL result = ::PrintDlgW(&prntdlg);
+  BOOL result = ::PrintDlg(&prntdlg);
 
   if (TRUE == result) {
     // check to make sure we don't have any NULL pointers
@@ -973,8 +986,8 @@ ShowNativePrintDialog(HWND              aHWnd,
       return NS_ERROR_FAILURE;
     }
 
-    wchar_t* device = &(((wchar_t *)devnames)[devnames->wDeviceOffset]);
-    wchar_t* driver = &(((wchar_t *)devnames)[devnames->wDriverOffset]);
+    char* device = &(((char *)devnames)[devnames->wDeviceOffset]);
+    char* driver = &(((char *)devnames)[devnames->wDriverOffset]);
 
     // Check to see if the "Print To File" control is checked
     // then take the name from devNames and set it in the PrintSettings
@@ -985,9 +998,9 @@ ShowNativePrintDialog(HWND              aHWnd,
     // if the "Print To File" checkbox is checked it MUST be "FILE:"
     // We assert as an extra safety check.
     if (prntdlg.Flags & PD_PRINTTOFILE) {
-      wchar_t* fileName = &(((wchar_t *)devnames)[devnames->wOutputOffset]);
-      NS_ASSERTION(wcscmp(fileName, L"FILE:") == 0, "FileName must be `FILE:`");
-      aPrintSettings->SetToFileName(fileName);
+      char* fileName = &(((char *)devnames)[devnames->wOutputOffset]);
+      NS_ASSERTION(strcmp(fileName, "FILE:") == 0, "FileName must be `FILE:`");
+      aPrintSettings->SetToFileName(NS_ConvertASCIItoUTF16(fileName).get());
       aPrintSettings->SetPrintToFile(PR_TRUE);
     } else {
       // clear "print to file" info
@@ -1006,11 +1019,14 @@ ShowNativePrintDialog(HWND              aHWnd,
     psWin->SetDriverName(driver);
 
 #if defined(DEBUG_rods) || defined(DEBUG_dcone)
-    wprintf(L"printer: driver %s, device %s  flags: %d\n", driver, device, prntdlg.Flags);
+    printf("printer: driver %s, device %s  flags: %d\n", driver, device, prntdlg.Flags);
 #endif
     // fill the print options with the info from the dialog
+    nsDependentCString printerNameNative(device);
+    nsAutoString printerName;
+    NS_CopyNativeToUnicode(printerNameNative, printerName);
 
-    aPrintSettings->SetPrinterName(device);
+    aPrintSettings->SetPrinterName(printerName.get());
 
     if (prntdlg.Flags & PD_SELECTION) {
       aPrintSettings->SetPrintRange(nsIPrintSettings::kRangeSelection);
@@ -1051,7 +1067,7 @@ ShowNativePrintDialog(HWND              aHWnd,
     ::GlobalUnlock(prntdlg.hDevNames);
 
     // Transfer the settings from the native data to the PrintSettings
-    LPDEVMODEW devMode = (LPDEVMODEW)::GlobalLock(prntdlg.hDevMode);
+    LPDEVMODE devMode = (LPDEVMODE)::GlobalLock(prntdlg.hDevMode);
     if (devMode == NULL) {
       ::GlobalFree(hGlobalDevMode);
       return NS_ERROR_FAILURE;
@@ -1112,7 +1128,7 @@ static BOOL APIENTRY PropSheetCallBack(HWND hdlg, UINT uiMsg, UINT wParam, LONG 
     PRInt16 howToEnableFrameUI = gFrameSelectedRadioBtn;
     gFrameSelectedRadioBtn     = 0;
 
-    HINSTANCE hInst = (HINSTANCE)::GetWindowLongPtr(hdlg, GWLP_HINSTANCE);
+    HINSTANCE hInst = (HINSTANCE)::GetWindowLong(hdlg, GWL_HINSTANCE);
     if (hInst == NULL) return 0L;
 
     // Get default font for the dialog & then its font metrics
@@ -1194,7 +1210,7 @@ static BOOL APIENTRY PropSheetCallBack(HWND hdlg, UINT uiMsg, UINT wParam, LONG 
 static HPROPSHEETPAGE ExtendPrintDialog(HWND aHWnd, char* aTitle)
 {
   // The resource "OPTPROPSHEET" comes out of the widget/build/widget.rc file
-  HINSTANCE hInst = (HINSTANCE)::GetWindowLongPtr(aHWnd, GWLP_HINSTANCE);
+  HINSTANCE hInst = (HINSTANCE)::GetWindowLong(aHWnd, GWL_HINSTANCE);
   PROPSHEETPAGE psp;
   memset(&psp, 0, sizeof(PROPSHEETPAGE));
   psp.dwSize      = sizeof(PROPSHEETPAGE);
@@ -1231,8 +1247,10 @@ ShowNativePrintDialogEx(HWND              aHWnd,
   aPrintSettings->GetPrinterName(&printerName);
   HGLOBAL hGlobalDevMode = NULL;
   if (printerName) {
+    nsCAutoString tempPrinterName;
+    rv = NS_CopyUnicodeToNative(nsDependentString(printerName), tempPrinterName));
     NS_ENSURE_SUCCESS(rv, rv);
-    hGlobalDevMode = CreateGlobalDevModeAndInit(printerName, aPrintSettings);
+    hGlobalDevMode = CreateGlobalDevModeAndInit(tempPrinterName.get(), aPrintSettings);
   }
 
   // Prepare to Display the Print Dialog
@@ -1276,7 +1294,7 @@ ShowNativePrintDialogEx(HWND              aHWnd,
     // lLcalize the Property Sheet (Tab) title
     nsCAutoString title;
     nsString optionsStr;
-    if (NS_SUCCEEDED(GetLocalizedString(strBundle, "optionsTitleWindows", optionsStr))) {
+    if (NS_SUCCEEDED(GetLocalizedString(strBundle, "options", optionsStr))) {
       // Failure here just means a blank string
       NS_CopyUnicodeToNative(optionsStr, title);
     }
@@ -1389,7 +1407,7 @@ ShowNativePrintDialogEx(HWND              aHWnd,
     ::GlobalUnlock(prntdlg.hDevNames);
 
     // Transfer the settings from the native data to the PrintSettings
-    LPDEVMODEW devMode = (LPDEVMODEW)::GlobalLock(prntdlg.hDevMode);
+    LPDEVMODE devMode = (LPDEVMODE)::GlobalLock(prntdlg.hDevMode);
     if (devMode == NULL) {
       ::GlobalFree(hGlobalDevMode);
       return NS_ERROR_FAILURE;

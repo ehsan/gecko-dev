@@ -74,7 +74,6 @@ protected:
   nsresult ClearXPConnectSafeContext();
 
   nsRefPtr<nsWebShellWindow>  mHiddenWindow;
-  PRPackedBool                mXPCOMWillShutDown;
   PRPackedBool                mXPCOMShuttingDown;
   PRUint16                    mModalWindowCount;
   PRPackedBool                mApplicationProvidedHiddenWindow;

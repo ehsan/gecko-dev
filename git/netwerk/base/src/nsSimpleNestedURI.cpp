@@ -44,7 +44,8 @@
 NS_IMPL_ISUPPORTS_INHERITED1(nsSimpleNestedURI, nsSimpleURI, nsINestedURI)
 
 nsSimpleNestedURI::nsSimpleNestedURI(nsIURI* innerURI)
-    : mInnerURI(innerURI)
+    : nsSimpleURI(nsnull),
+      mInnerURI(innerURI)
 {
     NS_ASSERTION(innerURI, "Must have inner URI");
     NS_TryToSetImmutable(innerURI);

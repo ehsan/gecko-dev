@@ -46,77 +46,48 @@ MODULE		= content
 LIBRARY_NAME	= gkconcvs_s
 LIBXUL_LIBRARY  = 1
 
-EXPORTS = \
-	CustomQS_Canvas2D.h \
-	CustomQS_WebGL.h \
-	$(NULL)
+REQUIRES	= \
+		xpcom \
+		string \
+		gfx \
+		layout \
+		widget \
+		dom \
+		js \
+		locale \
+		unicharutil \
+		webshell \
+		necko \
+		pref \
+		docshell \
+		xpconnect \
+		caps \
+		imglib2 \
+		cairo \
+		thebes \
+		$(NULL)
 
-CPPSRCS	= \
-	CanvasUtils.cpp \
-	nsCanvasRenderingContext2D.cpp \
-	$(NULL)
+# XXX some platforms can't handle building
+# an empty .a/lib.  Remove this dummy.cpp
+# whenever w have a rendering context
+# that doesn't depend on any non-default
+# libraries.
+CPPSRCS		= dummy.cpp \
+		$(NULL)
 
-ifdef MOZ_IPC
-CPPSRCS += \
-	DocumentRendererParent.cpp \
-	DocumentRendererChild.cpp \
-	DocumentRendererNativeIDParent.cpp \
-	DocumentRendererNativeIDChild.cpp \
-	DocumentRendererShmemParent.cpp \
-	DocumentRendererShmemChild.cpp \
-	$(NULL)
-endif
-
-# Canvas 3D Pieces
-
-ifdef MOZ_WEBGL
-
-CPPSRCS += \
-	WebGLContext.cpp \
-	WebGLContextGL.cpp \
-	WebGLContextUtils.cpp \
-	WebGLContextValidate.cpp \
-	NativeJSContext.cpp \
-	$(NULL)
-
-# We can't build ANGLE on linux-64 until build bug 560894 and related
-# are fixed.
-ifneq ($(OS_ARCH)_$(OS_TEST),Linux_x86_64)
-DEFINES += -DUSE_ANGLE
-endif
-
-ifndef MOZ_ENABLE_LIBXUL
-
-ifdef USE_ANGLE
-
-SHARED_LIBRARY_LIBS += \
-	$(DEPTH)/gfx/angle/$(LIB_PREFIX)angle.$(LIB_SUFFIX) \
-	$(NULL)
-
-endif
-
-endif
-
-else
-
-CPPSRCS += WebGLContextNotSupported.cpp
-
+ifdef MOZ_ENABLE_CANVAS
+CPPSRCS		+= nsCanvasRenderingContext2D.cpp
 endif
 
 # we don't want the shared lib, but we want to force the creation of a static lib.
 FORCE_STATIC_LIB = 1
 
 include $(topsrcdir)/config/rules.mk
-include $(topsrcdir)/ipc/chromium/chromium-config.mk
 
 CXXFLAGS	+= $(MOZ_CAIRO_CFLAGS) $(TK_CFLAGS)
 
 INCLUDES	+= \
-		-I$(srcdir)/../../../layout/xul/base/src \
 		-I$(srcdir)/../../../layout/style \
-		-I$(srcdir)/../../../layout/generic \
-		-I$(srcdir)/../../base/src \
-		-I$(srcdir)/../../html/content/src \
 		$(NULL)
 
 DEFINES += -D_IMPL_NS_LAYOUT

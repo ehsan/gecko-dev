@@ -162,6 +162,8 @@ private:
                                                           nsAString& aHandler,
                                                           nsAString& aDescription,
                                                           nsAString& aMozillaFlags);
+
+  nsresult GetHandlerAppFromPrefs(const char* aScheme, nsIFile** aApp);
 };
 
 #endif // nsOSHelperAppService_h__

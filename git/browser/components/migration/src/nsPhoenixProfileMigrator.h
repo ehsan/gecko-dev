@@ -48,6 +48,7 @@
 class nsIFile;
 class nsIPrefBranch;
 class nsIPrefService;
+class nsVoidArray;
 
 class nsPhoenixProfileMigrator : public nsNetscapeProfileMigratorBase, 
                                  public nsIBrowserProfileMigrator

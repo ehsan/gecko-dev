@@ -51,20 +51,19 @@
 #include "nsBoxFrame.h"
 #include "nsMenuFrame.h"
 #include "nsMenuBarListener.h"
-#include "nsMenuParent.h"
+#include "nsIMenuParent.h"
+#include "nsIWidget.h"
 
 class nsIContent;
 
 nsIFrame* NS_NewMenuBarFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
-class nsMenuBarFrame : public nsBoxFrame, public nsMenuParent
+class nsMenuBarFrame : public nsBoxFrame, public nsIMenuParent
 {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   nsMenuBarFrame(nsIPresShell* aShell, nsStyleContext* aContext);
 
-  // nsMenuParent interface
+  // nsIMenuParentInterface
   virtual nsMenuFrame* GetCurrentMenuItem();
   NS_IMETHOD SetCurrentMenuItem(nsMenuFrame* aMenuItem);
   virtual void CurrentMenuIsBeingDestroyed();
@@ -87,12 +86,9 @@ public:
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
 
   virtual nsIAtom* GetType() const { return nsGkAtoms::menuBarFrame; }
-
-  virtual void LockMenuUntilClosed(PRBool aLock) {}
-  virtual PRBool IsMenuLocked() { return PR_FALSE; }
 
 // Non-interface helpers
 

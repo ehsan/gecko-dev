@@ -39,8 +39,7 @@
 #include "nsIURI.h"
 #include "nsNetUtil.h"
 #include "nsUrlClassifierUtils.h"
-#include "nsTArray.h"
-#include "nsReadableUtils.h"
+#include "nsVoidArray.h"
 #include "plbase64.h"
 #include "prmem.h"
 #include "prprf.h"
@@ -264,9 +263,9 @@ nsUrlClassifierUtils::ParseIPAddress(const nsACString & host,
   }
 
   host.BeginReading(iter);
-  nsTArray<nsCString> parts;
-  ParseString(PromiseFlatCString(Substring(iter, end)), '.', parts);
-  if (parts.Length() > 4) {
+  nsCStringArray parts;
+  parts.ParseString(PromiseFlatCString(Substring(iter, end)).get(), ".");
+  if (parts.Count() > 4) {
     return;
   }
 
@@ -275,10 +274,8 @@ nsUrlClassifierUtils::ParseIPAddress(const nsACString & host,
   // XXX: this came from the old javascript implementation, is it really
   // supposed to be like this?
   PRBool allowOctal = PR_TRUE;
-  PRUint32 i;
-
-  for (i = 0; i < parts.Length(); i++) {
-    const nsCString& part = parts[i];
+  for (PRInt32 i = 0; i < parts.Count(); i++) {
+    const nsCString& part = *parts[i];
     if (part[0] == '0') {
       for (PRUint32 j = 1; j < part.Length(); j++) {
         if (part[j] == 'x') {
@@ -292,13 +289,13 @@ nsUrlClassifierUtils::ParseIPAddress(const nsACString & host,
     }
   }
 
-  for (i = 0; i < parts.Length(); i++) {
+  for (PRInt32 i = 0; i < parts.Count(); i++) {
     nsCAutoString canonical;
 
-    if (i == parts.Length() - 1) {
-      CanonicalNum(parts[i], 5 - parts.Length(), allowOctal, canonical);
+    if (i == parts.Count() - 1) {
+      CanonicalNum(*parts[i], 5 - parts.Count(), allowOctal, canonical);
     } else {
-      CanonicalNum(parts[i], 1, allowOctal, canonical);
+      CanonicalNum(*parts[i], 1, allowOctal, canonical);
     }
 
     if (canonical.IsEmpty()) {
@@ -374,6 +371,11 @@ nsUrlClassifierUtils::SpecialEncode(const nsACString & url,
   while (curChar != end) {
     unsigned char c = static_cast<unsigned char>(*curChar);
     if (ShouldURLEscape(c)) {
+      // We don't want to deal with 0, as it can break certain strings, just
+      // encode as one.
+      if (c == 0)
+        c = 1;
+
       _retval.Append('%');
       _retval.Append(int_to_hex_digit(c / 16));
       _retval.Append(int_to_hex_digit(c % 16));

@@ -14,7 +14,7 @@
  *
  * The Original Code is mozilla.org code.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2008
  * the Initial Developer. All Rights Reserved.
  *
@@ -491,12 +491,7 @@ nsPrintSettingsGTK::SetPrinterName(const PRUnichar * aPrinter)
     gtkPrinter.Cut(0, strlen("CUPS/"));
   }
 
-  // Give mPrintSettings the passed-in printer name if either...
-  // - it has no printer name stored yet
-  // - it has an existing printer name that's different from
-  //   the name passed to this function.
-  const char* oldPrinterName = gtk_print_settings_get_printer(mPrintSettings);
-  if (!oldPrinterName || !gtkPrinter.Equals(oldPrinterName)) {
+  if (!gtkPrinter.Equals(gtk_print_settings_get_printer(mPrintSettings))) {
     mIsInitedFromPrinter = PR_FALSE;
     mIsInitedFromPrefs = PR_FALSE;
     gtk_print_settings_set_printer(mPrintSettings, gtkPrinter.get());
@@ -611,7 +606,7 @@ nsPrintSettingsGTK::InitUnwriteableMargin()
  * are ignored by the nsPrintSettings::SetUnwriteableMargin functions.)
  */
 NS_IMETHODIMP 
-nsPrintSettingsGTK::SetUnwriteableMarginInTwips(nsIntMargin& aUnwriteableMargin)
+nsPrintSettingsGTK::SetUnwriteableMarginInTwips(nsMargin& aUnwriteableMargin)
 {
   nsPrintSettings::SetUnwriteableMarginInTwips(aUnwriteableMargin);
   gtk_page_setup_set_top_margin(mPageSetup,

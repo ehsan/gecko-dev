@@ -51,10 +51,10 @@
 class nsDeckFrame : public nsBoxFrame
 {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
 
   friend nsIFrame* NS_NewDeckFrame(nsIPresShell* aPresShell,
-                                   nsStyleContext* aContext);
+                                   nsStyleContext* aContext,
+                                   nsIBoxLayout* aLayoutManager);
 
   NS_IMETHOD AttributeChanged(PRInt32         aNameSpaceID,
                               nsIAtom*        aAttribute,
@@ -74,17 +74,9 @@ public:
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
 
-  // Override SetInitialChildList/AppendFrames/InsertFrames to
-  // create views for our child frames if necessary
-  NS_IMETHOD  SetInitialChildList(nsIAtom*        aListName,
-                                  nsFrameList&    aChildList);
-  NS_IMETHOD AppendFrames(nsIAtom*        aListName,
-                          nsFrameList&    aFrameList);
-  NS_IMETHOD InsertFrames(nsIAtom*        aListName,
-                          nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList);
-
   virtual nsIAtom* GetType() const;
+
+  virtual PRBool ChildrenMustHaveWidgets() const { return PR_TRUE; }
 
 #ifdef NS_DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const
@@ -93,7 +85,9 @@ public:
   }
 #endif
 
-  nsDeckFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+  nsDeckFrame(nsIPresShell* aPresShell,
+              nsStyleContext* aContext,
+              nsIBoxLayout* aLayout = nsnull);
 
 protected:
 

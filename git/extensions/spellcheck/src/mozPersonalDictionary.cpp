@@ -68,18 +68,7 @@ const int kMaxWordLen=256;
  */
 
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(mozPersonalDictionary)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(mozPersonalDictionary)
-
-NS_INTERFACE_MAP_BEGIN(mozPersonalDictionary)
-  NS_INTERFACE_MAP_ENTRY(mozIPersonalDictionary)
-  NS_INTERFACE_MAP_ENTRY(nsIObserver)
-  NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, mozIPersonalDictionary)
-  NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(mozPersonalDictionary)
-NS_INTERFACE_MAP_END
-
-NS_IMPL_CYCLE_COLLECTION_1(mozPersonalDictionary, mEncoder)
+NS_IMPL_ISUPPORTS3(mozPersonalDictionary, mozIPersonalDictionary, nsIObserver, nsISupportsWeakReference)
 
 mozPersonalDictionary::mozPersonalDictionary()
  : mDirty(PR_FALSE)
@@ -166,10 +155,10 @@ NS_IMETHODIMP mozPersonalDictionary::Load()
 // A little helper function to add the key to the list.
 // This is not threadsafe, and only safe if the consumer does not 
 // modify the list.
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 AddHostToStringArray(nsUniCharEntry *aEntry, void *aArg)
 {
-  static_cast<nsTArray<nsString>*>(aArg)->AppendElement(nsDependentString(aEntry->GetKey()));
+  static_cast<nsStringArray*>(aArg)->AppendString(nsDependentString(aEntry->GetKey()));
   return PL_DHASH_NEXT;
 }
 
@@ -196,13 +185,14 @@ NS_IMETHODIMP mozPersonalDictionary::Save()
   res = NS_NewBufferedOutputStream(getter_AddRefs(bufferedOutputStream), outStream, 4096);
   if (NS_FAILED(res)) return res;
 
-  nsTArray<nsString> array(mDictionaryTable.Count());
+  nsStringArray array(mDictionaryTable.Count());
   mDictionaryTable.EnumerateEntries(AddHostToStringArray, &array);
 
   PRUint32 bytesWritten;
   nsCAutoString utf8Key;
-  for (PRUint32 i = 0; i < array.Length(); ++i ) {
-    CopyUTF16toUTF8(array[i], utf8Key);
+  for (PRInt32 i = 0; i < array.Count(); ++i ) {
+    const nsString *key = array[i];
+    CopyUTF16toUTF8(*key, utf8Key);
 
     bufferedOutputStream->Write(utf8Key.get(), utf8Key.Length(), &bytesWritten);
     bufferedOutputStream->Write("\n", 1, &bytesWritten);
@@ -216,7 +206,7 @@ NS_IMETHODIMP mozPersonalDictionary::GetWordList(nsIStringEnumerator **aWords)
   NS_ENSURE_ARG_POINTER(aWords);
   *aWords = nsnull;
 
-  nsTArray<nsString> *array = new nsTArray<nsString>(mDictionaryTable.Count());
+  nsStringArray *array = new nsStringArray(mDictionaryTable.Count());
   if (!array)
     return NS_ERROR_OUT_OF_MEMORY;
 

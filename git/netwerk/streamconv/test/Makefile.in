@@ -45,6 +45,10 @@ include $(DEPTH)/config/autoconf.mk
 MODULE		= TestStreamConv
 PROGRAM		= TestStreamConv$(BIN_SUFFIX)
 
+REQUIRES	= necko \
+		  xpcom \
+		  string \
+		  $(NULL)
 
 CPPSRCS		= \
 		Converters.cpp \
@@ -69,3 +73,4 @@ DEFINES		+= -DNGPREFS
 endif
 endif # WINNT
 
+DEFINES += -DIMPL_NS_NET

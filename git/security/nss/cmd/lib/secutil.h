@@ -62,6 +62,11 @@
 #define NS_CRL_HEADER  "-----BEGIN CRL-----"
 #define NS_CRL_TRAILER "-----END CRL-----"
 
+/* From libsec/pcertdb.c --- it's not declared in sec.h */
+extern SECStatus SEC_AddPermCertificate(CERTCertDBHandle *handle,
+		SECItem *derCert, char *nickname, CERTCertTrust *trust);
+
+
 #ifdef SECUTIL_NEW
 typedef int (*SECU_PPFunc)(PRFileDesc *out, SECItem *item, 
                            char *msg, int level);
@@ -286,8 +291,8 @@ extern int SECU_PrintPKCS7ContentInfo(FILE *out, SECItem *der, char *m,
 extern SECStatus SECU_PKCS11Init(PRBool readOnly);
 
 /* Dump contents of signed data */
-extern int SECU_PrintSignedData(FILE *out, SECItem *der, const char *m, 
-                                int level, SECU_PPFunc inner);
+extern int SECU_PrintSignedData(FILE *out, SECItem *der, char *m, int level,
+				SECU_PPFunc inner);
 
 /* Print cert data and its trust flags */
 extern SECStatus SEC_PrintCertificateAndTrust(CERTCertificate *cert,
@@ -310,7 +315,6 @@ extern void SECU_PrintExtensions(FILE *out, CERTCertExtension **extensions,
 				 char *msg, int level);
 
 extern void SECU_PrintName(FILE *out, CERTName *name, char *msg, int level);
-extern void SECU_PrintRDN(FILE *out, CERTRDN *rdn, char *msg, int level);
 
 #ifdef SECU_GetPassword
 /* Convert a High public Key to a Low public Key */
@@ -320,6 +324,7 @@ extern SECKEYLowPublicKey *SECU_ConvHighToLow(SECKEYPublicKey *pubHighKey);
 extern char *SECU_GetModulePassword(PK11SlotInfo *slot, PRBool retry, void *arg);
 
 extern SECStatus DER_PrettyPrint(FILE *out, SECItem *it, PRBool raw);
+extern void SEC_Init(void);
 
 extern char *SECU_SECModDBName(void);
 
@@ -449,7 +454,7 @@ char *SECU_ErrorStringRaw(int16 err);
 
 void printflags(char *trusts, unsigned int flags);
 
-#if !defined(XP_UNIX) && !defined(XP_OS2)
+#ifndef XP_UNIX
 extern int ffs(unsigned int i);
 #endif
 

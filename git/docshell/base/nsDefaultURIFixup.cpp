@@ -48,7 +48,6 @@
 #include "nsIPrefLocalizedString.h"
 #include "nsIPlatformCharset.h"
 #include "nsILocalFile.h"
-#include "nsIBrowserSearchService.h"
 
 #include "nsIURIFixup.h"
 #include "nsDefaultURIFixup.h"
@@ -389,56 +388,16 @@ NS_IMETHODIMP nsDefaultURIFixup::KeywordToURI(const nsACString& aKeyword,
         mPrefBranch->GetCharPref("keyword.URL", getter_Copies(url));
     }
 
-    // If the pref is set and non-empty, use it.
-    if (!url.IsEmpty()) {
-        nsCAutoString spec;
-        nsresult rv = MangleKeywordIntoURI(PromiseFlatCString(aKeyword).get(),
-                                           url.get(), spec);
-        if (NS_FAILED(rv)) return rv;
+    // if we can't find a keyword.URL keywords won't work.
+    if (url.IsEmpty())
+        return NS_ERROR_NOT_AVAILABLE;
 
-        return NS_NewURI(aURI, spec);
-    }
+    nsCAutoString spec;
+    nsresult rv = MangleKeywordIntoURI(PromiseFlatCString(aKeyword).get(),
+                                       url.get(), spec);
+    if (NS_FAILED(rv)) return rv;
 
-    // Try falling back to the search service's default search engine
-    nsCOMPtr<nsIBrowserSearchService> searchSvc = do_GetService("@mozilla.org/browser/search-service;1");
-    if (searchSvc) {
-        nsCOMPtr<nsISearchEngine> defaultEngine;
-        searchSvc->GetDefaultEngine(getter_AddRefs(defaultEngine));
-        if (defaultEngine) {
-            nsCOMPtr<nsISearchSubmission> submission;
-            // We want to allow default search plugins to specify alternate
-            // parameters that are specific to keyword searches. For the moment,
-            // do this by first looking for a magic
-            // "application/x-moz-keywordsearch" submission type. In the future,
-            // we should instead use a solution that relies on bug 587780.
-            defaultEngine->GetSubmission(NS_ConvertUTF8toUTF16(aKeyword),
-                                         NS_LITERAL_STRING("application/x-moz-keywordsearch"),
-                                         getter_AddRefs(submission));
-            // If getting the special x-moz-keywordsearch submission type failed,
-            // fall back to the default response type.
-            if (!submission) {
-                defaultEngine->GetSubmission(NS_ConvertUTF8toUTF16(aKeyword),
-                                             EmptyString(),
-                                             getter_AddRefs(submission));
-            }
-
-            if (submission) {
-                // The submission depends on POST data (i.e. the search engine's
-                // "method" is POST), we can't use this engine for keyword
-                // searches
-                nsCOMPtr<nsIInputStream> postData;
-                submission->GetPostData(getter_AddRefs(postData));
-                if (postData) {
-                    return NS_ERROR_NOT_AVAILABLE;
-                }
-
-                return submission->GetUri(aURI);
-            }
-        }
-    }
-
-    // out of options
-    return NS_ERROR_NOT_AVAILABLE;
+    return NS_NewURI(aURI, spec);
 }
 
 PRBool nsDefaultURIFixup::MakeAlternateURI(nsIURI *aURI)
@@ -841,7 +800,6 @@ nsresult nsDefaultURIFixup::KeywordURIFixup(const nsACString & aURIString,
     // "docshell site:mozilla.org" - has no dot/colon in the first space-separated substring
     // "?mozilla" - anything that begins with a question mark
     // "?site:mozilla.org docshell"
-    // Things that have a quote before the first dot/colon
 
     // These are not keyword formatted strings
     // "www.blah.com" - first space-separated substring contains a dot, doesn't start with "?"
@@ -852,24 +810,14 @@ nsresult nsDefaultURIFixup::KeywordURIFixup(const nsACString & aURIString,
     // "nonQualifiedHost?args"
     // "nonQualifiedHost?some args"
 
-    // Note: PRUint32(kNotFound) is greater than any actual location
-    // in practice.  So if we cast all locations to PRUint32, then a <
-    // b guarantees that either b is kNotFound and a is found, or both
-    // are found and a found before b.
-    PRUint32 dotLoc   = PRUint32(aURIString.FindChar('.'));
-    PRUint32 colonLoc = PRUint32(aURIString.FindChar(':'));
-    PRUint32 spaceLoc = PRUint32(aURIString.FindChar(' '));
-    if (spaceLoc == 0) {
-        // Treat this as not found
-        spaceLoc = PRUint32(kNotFound);
-    }
-    PRUint32 qMarkLoc = PRUint32(aURIString.FindChar('?'));
-    PRUint32 quoteLoc = NS_MIN(PRUint32(aURIString.FindChar('"')),
-                               PRUint32(aURIString.FindChar('\'')));
+    PRInt32 dotLoc   = aURIString.FindChar('.');
+    PRInt32 colonLoc = aURIString.FindChar(':');
+    PRInt32 spaceLoc = aURIString.FindChar(' ');
+    PRInt32 qMarkLoc = aURIString.FindChar('?');
 
-    if (((spaceLoc < dotLoc || quoteLoc < dotLoc) &&
-         (spaceLoc < colonLoc || quoteLoc < colonLoc) &&
-         (spaceLoc < qMarkLoc || quoteLoc < qMarkLoc)) ||
+    if ((dotLoc == kNotFound || (spaceLoc > 0 && spaceLoc < dotLoc)) &&
+        (colonLoc == kNotFound || (spaceLoc > 0 && spaceLoc < colonLoc)) &&
+        (spaceLoc > 0 && (qMarkLoc == kNotFound || spaceLoc < qMarkLoc)) ||
         qMarkLoc == 0)
     {
         KeywordToURI(aURIString, aURI);

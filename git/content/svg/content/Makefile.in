@@ -43,9 +43,9 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-PARALLEL_DIRS		= src
+DIRS		= src
 
-ifdef ENABLE_TESTS
+ifdef MOZ_MOCHITEST
 DIRS += test
 endif
 

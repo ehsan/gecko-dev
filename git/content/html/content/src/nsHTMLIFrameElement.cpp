@@ -36,12 +36,12 @@
  * ***** END LICENSE BLOCK ***** */
 #include "nsIDOMHTMLIFrameElement.h"
 #include "nsGenericHTMLElement.h"
-#include "nsIDOMDocument.h"
-#ifdef MOZ_SVG
 #include "nsIDOMGetSVGDocument.h"
+#include "nsIDOMDocument.h"
 #include "nsIDOMSVGDocument.h"
-#endif
 #include "nsGkAtoms.h"
+#include "nsPresContext.h"
+#include "nsIPresShell.h"
 #include "nsIDocument.h"
 #include "nsMappedAttributes.h"
 #include "nsDOMError.h"
@@ -55,7 +55,7 @@ class nsHTMLIFrameElement : public nsGenericHTMLFrameElement,
 #endif
 {
 public:
-  nsHTMLIFrameElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLIFrameElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLIFrameElement();
 
   // nsISupports
@@ -87,14 +87,13 @@ public:
   virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-  virtual nsXPCClassInfo* GetClassInfo();
 };
 
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(IFrame)
 
 
-nsHTMLIFrameElement::nsHTMLIFrameElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLIFrameElement::nsHTMLIFrameElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLFrameElement(aNodeInfo)
 {
 }
@@ -107,18 +106,15 @@ nsHTMLIFrameElement::~nsHTMLIFrameElement()
 NS_IMPL_ADDREF_INHERITED(nsHTMLIFrameElement,nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLIFrameElement,nsGenericElement)
 
-DOMCI_NODE_DATA(HTMLIFrameElement, nsHTMLIFrameElement)
-
 // QueryInterface implementation for nsHTMLIFrameElement
-NS_INTERFACE_TABLE_HEAD(nsHTMLIFrameElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_BEGIN(nsHTMLIFrameElement)
+NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLIFrameElement,
+                                     nsGenericHTMLFrameElement)
+  NS_INTERFACE_TABLE_BEGIN
     NS_INTERFACE_TABLE_ENTRY(nsHTMLIFrameElement, nsIDOMHTMLIFrameElement)
 #ifdef MOZ_SVG
     NS_INTERFACE_TABLE_ENTRY(nsHTMLIFrameElement, nsIDOMGetSVGDocument)
 #endif
-  NS_OFFSET_AND_INTERFACE_TABLE_END
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLIFrameElement,
-                                               nsGenericHTMLFrameElement)
+  NS_INTERFACE_TABLE_END
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLIFrameElement)
 
 

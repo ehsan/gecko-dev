@@ -49,21 +49,18 @@
 #include "nsStackLayout.h"
 #include "nsGrid.h"
 
-nsGridRowLayout::nsGridRowLayout():nsSprocketLayout()
+nsGridRowLayout::nsGridRowLayout(nsIPresShell* aPresShell):nsSprocketLayout()
 {
 }
 
 void
-nsGridRowLayout::ChildrenInserted(nsIBox* aBox, nsBoxLayoutState& aState,
-                                  nsIBox* aPrevBox,
-                                  const nsFrameList::Slice& aNewChildren)
+nsGridRowLayout::ChildrenInserted(nsIBox* aBox, nsBoxLayoutState& aState, nsIBox* aPrevBox, nsIBox* aChildList)
 {
   ChildAddedOrRemoved(aBox, aState);
 }
 
 void
-nsGridRowLayout::ChildrenAppended(nsIBox* aBox, nsBoxLayoutState& aState,
-                                  const nsFrameList::Slice& aNewChildren)
+nsGridRowLayout::ChildrenAppended(nsIBox* aBox, nsBoxLayoutState& aState, nsIBox* aChildList)
 {
   ChildAddedOrRemoved(aBox, aState);
 }

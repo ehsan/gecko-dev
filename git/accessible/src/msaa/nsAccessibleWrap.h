@@ -70,13 +70,6 @@ Class::QueryInterface(REFIID iid, void** ppv)                                 \
   if (SUCCEEDED(hr))                                                          \
     return hr;                                                                \
 
-#define IMPL_IUNKNOWN_QUERY_ENTRY_COND(Class, Cond)                           \
-  if (Cond) {                                                                 \
-    hr = Class::QueryInterface(iid, ppv);                                     \
-    if (SUCCEEDED(hr))                                                        \
-      return hr;                                                              \
-  }                                                                           \
-
 #define IMPL_IUNKNOWN_INHERITED0(Class, Super)                                \
   IMPL_IUNKNOWN_QUERY_HEAD(Class)                                             \
   IMPL_IUNKNOWN_QUERY_ENTRY(Super)                                            \
@@ -103,9 +96,9 @@ class nsAccessibleWrap : public nsAccessible,
                          public IAccessible2,
                          public IEnumVARIANT
 {
-public: // construction, destruction
-  nsAccessibleWrap(nsIContent *aContent, nsIWeakReference *aShell);
-  virtual ~nsAccessibleWrap();
+  public: // construction, destruction
+    nsAccessibleWrap(nsIDOMNode*, nsIWeakReference *aShell);
+    virtual ~nsAccessibleWrap();
 
     // nsISupports
     NS_DECL_ISUPPORTS_INHERITED
@@ -268,11 +261,7 @@ public: // construction, destruction
     virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_attributes(
         /* [retval][out] */ BSTR *attributes);
 
-  public: // IEnumVariant
-    // If there are two clients using this at the same time, and they are
-    // each using a different mEnumVariant position it would be bad, because
-    // we have only 1 object and can only keep of mEnumVARIANT position once.
-
+  public:   // IEnumVariantMethods
     virtual /* [local] */ HRESULT STDMETHODCALLTYPE Next( 
         /* [in] */ ULONG celt,
         /* [length_is][size_is][out] */ VARIANT __RPC_FAR *rgVar,
@@ -287,33 +276,22 @@ public: // construction, destruction
         /* [out] */ IEnumVARIANT __RPC_FAR *__RPC_FAR *ppEnum);
 
         
-  // IDispatch (support of scripting languages like VB)
-  virtual HRESULT STDMETHODCALLTYPE GetTypeInfoCount(UINT *pctinfo);
+  //   ======  Methods for IDispatch - for VisualBasic bindings (not implemented) ======
 
-  virtual HRESULT STDMETHODCALLTYPE GetTypeInfo(UINT iTInfo, LCID lcid,
-                                                ITypeInfo **ppTInfo);
+  STDMETHODIMP GetTypeInfoCount(UINT *p);
+  STDMETHODIMP GetTypeInfo(UINT i, LCID lcid, ITypeInfo **ppti);
+  STDMETHODIMP GetIDsOfNames(REFIID riid, LPOLESTR *rgszNames,
+                               UINT cNames, LCID lcid, DISPID *rgDispId);
+  STDMETHODIMP Invoke(DISPID dispIdMember, REFIID riid,
+        LCID lcid, WORD wFlags, DISPPARAMS *pDispParams,
+        VARIANT *pVarResult, EXCEPINFO *pExcepInfo, UINT *puArgErr);
 
-  virtual HRESULT STDMETHODCALLTYPE GetIDsOfNames(REFIID riid,
-                                                  LPOLESTR *rgszNames,
-                                                  UINT cNames,
-                                                  LCID lcid,
-                                                  DISPID *rgDispId);
-
-  virtual HRESULT STDMETHODCALLTYPE Invoke(DISPID dispIdMember, REFIID riid,
-                                           LCID lcid, WORD wFlags,
-                                           DISPPARAMS *pDispParams,
-                                           VARIANT *pVarResult,
-                                           EXCEPINFO *pExcepInfo,
-                                           UINT *puArgErr);
-
-  // nsAccessible
-  virtual nsresult HandleAccEvent(nsAccEvent *aEvent);
+  // nsPIAccessible
+  NS_IMETHOD FireAccessibleEvent(nsIAccessibleEvent *aEvent);
 
   // Helper methods
   static PRInt32 GetChildIDFor(nsIAccessible* aAccessible);
-  static HWND GetHWNDFor(nsAccessible *aAccessible);
-  static HRESULT ConvertToIA2Attributes(nsIPersistentProperties *aAttributes,
-                                        BSTR *aIA2Attributes);
+  static HWND GetHWNDFor(nsIAccessible *aAccessible);
 
   /**
    * System caret support: update the Windows caret position. 
@@ -324,11 +302,7 @@ public: // construction, destruction
    */
   void UpdateSystemCaret();
 
-  /**
-   * Find an accessible by the given child ID in cached documents.
-   */
-  virtual nsAccessible *GetXPAccessibleFor(const VARIANT& aVarChild);
-
+  virtual void GetXPAccessibleFor(const VARIANT& aVarChild, nsIAccessible **aXPAccessible);
   NS_IMETHOD GetNativeInterface(void **aOutAccessible);
 
   // NT4 does not have the oleacc that defines these methods. So we define copies here that automatically
@@ -338,28 +312,13 @@ public: // construction, destruction
 
   static IDispatch *NativeAccessible(nsIAccessible *aXPAccessible);
 
-  /**
-   * Drops the IEnumVariant current position so that navigation methods
-   * Next() and Skip() doesn't work until Reset() method is called. The method
-   * is used when children of the accessible are changed.
-   */
-  void UnattachIEnumVariant();
-
 protected:
-  virtual nsresult FirePlatformEvent(nsAccEvent *aEvent);
+  virtual nsresult FirePlatformEvent(nsIAccessibleEvent *aEvent);
 
   // mEnumVARIANTPosition not the current accessible's position, but a "cursor" of 
   // where we are in the current list of children, with respect to
   // nsIEnumVariant::Reset(), Skip() and Next().
-  PRInt32 mEnumVARIANTPosition;
-
-  /**
-   * Creates ITypeInfo for LIBID_Accessibility if it's needed and returns it.
-   */
-  ITypeInfo *GetTI(LCID lcid);
-
-  ITypeInfo *mTypeInfo;
-
+  PRUint16 mEnumVARIANTPosition;
 
   enum navRelations {
     NAVRELATION_CONTROLLED_BY = 0x1000,

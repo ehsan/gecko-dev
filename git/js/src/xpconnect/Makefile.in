@@ -44,7 +44,7 @@ VPATH		= @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 MODULE		= xpconnect
-DIRS		= public idl wrappers
+DIRS		= public idl
 
 ifdef MOZ_JSLOADER
 DIRS         +=  loader
@@ -52,9 +52,7 @@ endif
 
 DIRS         += src
 
-ifndef BUILD_STATIC_LIBS
 TOOL_DIRS    += shell
-endif
 
 ifdef ENABLE_TESTS
 TOOL_DIRS    += tests

@@ -61,6 +61,7 @@
 #include "nsRDFQuery.h"
 #include "nsRDFBinding.h"
 #include "nsXULTemplateResultSetRDF.h"
+#include "nsVoidArray.h"
 #include "nsCOMArray.h"
 #include "nsIArray.h"
 #include "nsString.h"

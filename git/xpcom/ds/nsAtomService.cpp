@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -46,7 +46,7 @@ nsAtomService::nsAtomService()
 }
 
 nsresult
-nsAtomService::GetAtom(const nsAString& aString, nsIAtom ** aResult)
+nsAtomService::GetAtom(const PRUnichar *aString, nsIAtom ** aResult)
 {
   *aResult = NS_NewAtom(aString);
 
@@ -57,7 +57,7 @@ nsAtomService::GetAtom(const nsAString& aString, nsIAtom ** aResult)
 }
 
 nsresult
-nsAtomService::GetPermanentAtom(const nsAString& aString, nsIAtom ** aResult)
+nsAtomService::GetPermanentAtom(const PRUnichar *aString, nsIAtom ** aResult)
 {
   *aResult = NS_NewPermanentAtom(aString);
 
@@ -81,7 +81,7 @@ nsAtomService::GetAtomUTF8(const char *aValue, nsIAtom* *aResult)
 NS_IMETHODIMP
 nsAtomService::GetPermanentAtomUTF8(const char *aValue, nsIAtom* *aResult)
 {
-    *aResult = NS_NewPermanentAtom(NS_ConvertUTF8toUTF16(aValue));
+    *aResult = NS_NewPermanentAtom(aValue);
 
     if (!*aResult)
         return NS_ERROR_OUT_OF_MEMORY;

@@ -56,7 +56,7 @@ struct nsHTMLReflowMetrics;
 class nsString;
 class nsHTMLReflowCommand;
 
-class NS_STACK_CLASS nsBoxLayoutState
+class nsBoxLayoutState
 {
 public:
   nsBoxLayoutState(nsPresContext* aPresContext, nsIRenderingContext* aRenderingContext = nsnull,
@@ -87,7 +87,7 @@ public:
   PRUint16 GetReflowDepth() { return mReflowDepth; }
   
 private:
-  nsRefPtr<nsPresContext> mPresContext;
+  nsCOMPtr<nsPresContext> mPresContext;
   nsIRenderingContext *mRenderingContext;
   PRUint32 mLayoutFlags;
   PRUint16 mReflowDepth; 

@@ -78,7 +78,7 @@ void ConvertJSValToStr(nsString&  aString,
   }
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 FinalizeInstallTriggerGlobal(JSContext *cx, JSObject *obj);
 
 /***********************************************************************/
@@ -102,7 +102,7 @@ JSClass InstallTriggerGlobalClass = {
 //
 // InstallTriggerGlobal finalizer
 //
-static void
+JS_STATIC_DLL_CALLBACK(void)
 FinalizeInstallTriggerGlobal(JSContext *cx, JSObject *obj)
 {
   nsISupports *nativeThis = (nsISupports*)JS_GetPrivate(cx, obj);
@@ -204,7 +204,7 @@ static nsIDOMInstallTriggerGlobal* getTriggerNative(JSContext *cx, JSObject *obj
 //
 // Native method UpdateEnabled
 //
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 InstallTriggerGlobalUpdateEnabled(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
   nsIDOMInstallTriggerGlobal *nativeThis = getTriggerNative(cx, obj);
@@ -230,7 +230,7 @@ InstallTriggerGlobalUpdateEnabled(JSContext *cx, JSObject *obj, uintN argc, jsva
 //
 // Native method Install
 //
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 InstallTriggerGlobalInstall(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
   nsIDOMInstallTriggerGlobal *nativeThis = getTriggerNative(cx, obj);
@@ -314,41 +314,18 @@ InstallTriggerGlobalInstall(JSContext *cx, JSObject *obj, uintN argc, jsval *arg
         if ( JSVAL_IS_OBJECT(v) && JSVAL_TO_OBJECT(v) )
         {
           jsval v2;
-          if (JS_GetProperty( cx, JSVAL_TO_OBJECT(v), "URL", &v2 ) && !JSVAL_IS_VOID(v2)) {
-            JSString *str = JS_ValueToString(cx, v2);
-            if (!str) {
-              abortLoad = PR_TRUE;
-              break;
-            }
-            URL = reinterpret_cast<const PRUnichar*>(JS_GetStringChars(str));
-          }
+          if (JS_GetProperty( cx, JSVAL_TO_OBJECT(v), "URL", &v2 ) && !JSVAL_IS_VOID(v2))
+            URL = reinterpret_cast<const PRUnichar*>(JS_GetStringChars( JS_ValueToString( cx, v2 ) ));
 
-          if (JS_GetProperty( cx, JSVAL_TO_OBJECT(v), "IconURL", &v2 ) && !JSVAL_IS_VOID(v2)) {
-            JSString *str = JS_ValueToString(cx, v2);
-            if (!str) {
-              abortLoad = PR_TRUE;
-              break;
-            }
-            iconURL = reinterpret_cast<const PRUnichar*>(JS_GetStringChars(str));
-          }
+          if (JS_GetProperty( cx, JSVAL_TO_OBJECT(v), "IconURL", &v2 ) && !JSVAL_IS_VOID(v2))
+            iconURL = reinterpret_cast<const PRUnichar*>(JS_GetStringChars( JS_ValueToString( cx, v2 ) ));
 
-          if (JS_GetProperty( cx, JSVAL_TO_OBJECT(v), "Hash", &v2) && !JSVAL_IS_VOID(v2)) {
-            JSString *str = JS_ValueToString(cx, v2);
-            if (!str) {
-              abortLoad = PR_TRUE;
-              break;
-            }
-            hash = reinterpret_cast<const char*>(JS_GetStringBytes(str));
-          }
+          if (JS_GetProperty( cx, JSVAL_TO_OBJECT(v), "Hash", &v2) && !JSVAL_IS_VOID(v2))
+            hash = reinterpret_cast<const char*>(JS_GetStringBytes( JS_ValueToString( cx, v2 ) ));
         }
         else
         {
-          JSString *str = JS_ValueToString(cx, v);
-          if (!str) {
-            abortLoad = PR_TRUE;
-            break;
-          }
-          URL = reinterpret_cast<const PRUnichar*>(JS_GetStringChars(str));
+          URL = reinterpret_cast<const PRUnichar*>(JS_GetStringChars( JS_ValueToString( cx, v ) ));
         }
 
         if ( URL )
@@ -420,8 +397,7 @@ InstallTriggerGlobalInstall(JSContext *cx, JSObject *obj, uintN argc, jsval *arg
                 nativeThis->UpdateEnabled(checkuri, XPI_WHITELIST, &enabled);
                 if (!enabled)
                 {
-                    nsCOMPtr<nsIObserverService> os =
-                      mozilla::services::GetObserverService();
+                    nsCOMPtr<nsIObserverService> os(do_GetService("@mozilla.org/observer-service;1"));
                     if (os)
                         os->NotifyObservers(installInfo,
                                             "xpinstall-install-blocked",
@@ -455,7 +431,7 @@ InstallTriggerGlobalInstall(JSContext *cx, JSObject *obj, uintN argc, jsval *arg
 //
 // Native method InstallChrome
 //
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 InstallTriggerGlobalInstallChrome(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
   nsIDOMInstallTriggerGlobal *nativeThis = getTriggerNative(cx, obj);
@@ -470,10 +446,7 @@ InstallTriggerGlobalInstallChrome(JSContext *cx, JSObject *obj, uintN argc, jsva
 
   // get chromeType first, the update enabled check for skins skips whitelisting
   if (argc >=1)
-  {
-      if (!JS_ValueToECMAUint32(cx, argv[0], &chromeType))
-          return JS_FALSE;
-  }
+      JS_ValueToECMAUint32(cx, argv[0], &chromeType);
 
   // make sure XPInstall is enabled, return if not
   nsIScriptGlobalObject *globalObject = nsnull;
@@ -544,8 +517,7 @@ InstallTriggerGlobalInstallChrome(JSContext *cx, JSObject *obj, uintN argc, jsva
                                               &enabled);
                     if (!enabled)
                     {
-                        nsCOMPtr<nsIObserverService> os =
-                          mozilla::services::GetObserverService();
+                        nsCOMPtr<nsIObserverService> os(do_GetService("@mozilla.org/observer-service;1"));
                         if (os)
                             os->NotifyObservers(installInfo,
                                                 "xpinstall-install-blocked",
@@ -569,7 +541,7 @@ InstallTriggerGlobalInstallChrome(JSContext *cx, JSObject *obj, uintN argc, jsva
 //
 // Native method StartSoftwareUpdate
 //
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 InstallTriggerGlobalStartSoftwareUpdate(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
   nsIDOMInstallTriggerGlobal *nativeThis = getTriggerNative(cx, obj);
@@ -649,8 +621,7 @@ InstallTriggerGlobalStartSoftwareUpdate(JSContext *cx, JSObject *obj, uintN argc
                 nativeThis->UpdateEnabled(checkuri, XPI_WHITELIST, &enabled);
                 if (!enabled)
                 {
-                    nsCOMPtr<nsIObserverService> os =
-                      mozilla::services::GetObserverService();
+                    nsCOMPtr<nsIObserverService> os(do_GetService("@mozilla.org/observer-service;1"));
                     if (os)
                         os->NotifyObservers(installInfo,
                                             "xpinstall-install-blocked",

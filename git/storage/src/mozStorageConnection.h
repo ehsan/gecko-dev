@@ -1,6 +1,5 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * vim: sw=2 ts=2 et lcs=trail\:.,tab\:>~ :
- * ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -38,180 +37,72 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef MOZSTORAGECONNECTION_H
-#define MOZSTORAGECONNECTION_H
+#ifndef _MOZSTORAGECONNECTION_H_
+#define _MOZSTORAGECONNECTION_H_
 
-#include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
-#include "mozilla/Mutex.h"
 
 #include "nsString.h"
-#include "nsInterfaceHashtable.h"
+#include "nsDataHashtable.h"
 #include "mozIStorageProgressHandler.h"
-#include "SQLiteMutex.h"
 #include "mozIStorageConnection.h"
-#include "mozStorageService.h"
 
 #include "nsIMutableArray.h"
 
-#include "sqlite3.h"
+#include <sqlite3.h>
 
-struct PRLock;
 class nsIFile;
-class nsIEventTarget;
-class nsIThread;
+class mozIStorageService;
 
-namespace mozilla {
-namespace storage {
-
-class Connection : public mozIStorageConnection
+class mozStorageConnection : public mozIStorageConnection
 {
 public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_MOZISTORAGECONNECTION
 
-  Connection(Service *aService);
+    mozStorageConnection(mozIStorageService* aService);
 
-  /**
-   * Creates the connection to the database.
-   *
-   * @param aDatabaseFile
-   *        The nsIFile of the location of the database to open, or create if it
-   *        does not exist.  Passing in nsnull here creates an in-memory
-   *        database.
-   */
-  nsresult initialize(nsIFile *aDatabaseFile);
+    NS_IMETHOD Initialize(nsIFile *aDatabaseFile);
 
-  // fetch the native handle
-  sqlite3 *GetNativeConnection() { return mDBConn; }
+    // interfaces
+    NS_DECL_ISUPPORTS
+    NS_DECL_MOZISTORAGECONNECTION
 
-  /**
-   * Lazily creates and returns a background execution thread.  In the future,
-   * the thread may be re-claimed if left idle, so you should call this
-   * method just before you dispatch and not save the reference.
-   *
-   * @returns an event target suitable for asynchronous statement execution.
-   */
-  nsIEventTarget *getAsyncExecutionTarget();
-
-  /**
-   * Mutex used by asynchronous statements to protect state.  The mutex is
-   * declared on the connection object because there is no contention between
-   * asynchronous statements (they are serialized on mAsyncExecutionThread).  It
-   * also protects mPendingStatements.
-   */
-  Mutex sharedAsyncExecutionMutex;
-
-  /**
-   * Wraps the mutex that SQLite gives us from sqlite3_db_mutex.  This is public
-   * because we already expose the sqlite3* native connection and proper
-   * operation of the deadlock detector requires everyone to use the same single
-   * SQLiteMutex instance for correctness.
-   */
-  SQLiteMutex sharedDBMutex;
-
-  /**
-   * References the thread this database was opened on.  This MUST be thread it is
-   * closed on.
-   */
-  const nsCOMPtr<nsIThread> threadOpenedOn;
-
-  /**
-   * Closes the SQLite database, and warns about any non-finalized statements.
-   */
-  nsresult internalClose();
-
-  /**
-   * Obtains the filename of the connection.  Useful for logging.
-   */
-  nsCString getFilename();
+    // fetch the native handle
+    sqlite3 *GetNativeConnection() { return mDBConn; }
 
 private:
-  ~Connection();
+    ~mozStorageConnection();
 
-  /**
-   * Sets the database into a closed state so no further actions can be
-   * performed.
-   *
-   * @note mDBConn is set to NULL in this method.
-   */
-  nsresult setClosedState();
+protected:
+    struct FindFuncEnumArgs {
+        nsISupports *mTarget;
+        PRBool       mFound;
+    };
 
-  /**
-   * Describes a certain primitive type in the database.
-   *
-   * Possible Values Are:
-   *  INDEX - To check for the existence of an index
-   *  TABLE - To check for the existence of a table
-   */
-  enum DatabaseElementType {
-    INDEX,
-    TABLE
-  };
+    void HandleSqliteError(const char *aSqlStatement);
+    static PLDHashOperator s_FindFuncEnum(const nsACString &aKey,
+                                          nsISupports* aData, void* userArg);
+    static PLDHashOperator s_ReleaseFuncEnum(const nsACString &aKey,
+                                             nsISupports* aData, void* userArg);
+    PRBool FindFunctionByInstance(nsISupports *aInstance);
 
-  /**
-   * Determines if the specified primitive exists.
-   *
-   * @param aElementType
-   *        The type of element to check the existence of
-   * @param aElementName
-   *        The name of the element to check for
-   * @returns true if element exists, false otherwise
-   */
-  nsresult databaseElementExists(enum DatabaseElementType aElementType,
-                                 const nsACString& aElementName,
-                                 PRBool *_exists);
+    static int s_ProgressHelper(void *arg);
+    // Generic progress handler
+    // Dispatch call to registered progress handler,
+    // if there is one. Do nothing in other cases.
+    int ProgressHandler();
 
-  bool findFunctionByInstance(nsISupports *aInstance);
+    sqlite3 *mDBConn;
+    nsCOMPtr<nsIFile> mDatabaseFile;
+    PRBool mTransactionInProgress;
 
-  static int sProgressHelper(void *aArg);
-  // Generic progress handler
-  // Dispatch call to registered progress handler,
-  // if there is one. Do nothing in other cases.
-  int progressHandler();
+    nsDataHashtable<nsCStringHashKey, nsISupports*> mFunctions;
 
-  sqlite3 *mDBConn;
-  nsCOMPtr<nsIFile> mDatabaseFile;
+    nsCOMPtr<mozIStorageProgressHandler> mProgressHandler;
 
-  /**
-   * Lazily created thread for asynchronous statement execution.  Consumers
-   * should use getAsyncExecutionTarget rather than directly accessing this
-   * field.
-   */
-  nsCOMPtr<nsIThread> mAsyncExecutionThread;
-  /**
-   * Set to true by Close() prior to actually shutting down the thread.  This
-   * lets getAsyncExecutionTarget() know not to hand out any more thread
-   * references (or to create the thread in the first place).  This variable
-   * should be accessed while holding the mAsyncExecutionMutex.
-   */
-  bool mAsyncExecutionThreadShuttingDown;
-
-  /**
-   * Tracks if we have a transaction in progress or not.  Access protected by
-   * mDBMutex.
-   */
-  PRBool mTransactionInProgress;
-
-  /**
-   * Stores the mapping of a given function by name to its instance.  Access is
-   * protected by mDBMutex.
-   */
-  nsInterfaceHashtable<nsCStringHashKey, nsISupports> mFunctions;
-
-  /**
-   * Stores the registered progress handler for the database connection.  Access
-   * is protected by mDBMutex.
-   */
-  nsCOMPtr<mozIStorageProgressHandler> mProgressHandler;
-
-  // This is here for two reasons: 1) It's used to make sure that the
-  // connections do not outlive the service.  2) Our custom collating functions
-  // call its localeCompareStrings() method.
-  nsRefPtr<Service> mStorageService;
+    // This isn't accessed but is used to make sure that the connections do
+    // not outlive the service. The service, for example, owns certain locks
+    // in mozStorageAsyncIO file that the connections depend on.
+    nsCOMPtr<mozIStorageService> mStorageService;
 };
 
-} // namespace storage
-} // namespace mozilla
-
-#endif /* MOZSTORAGECONNECTION_H */
+#endif /* _MOZSTORAGECONNECTION_H_ */

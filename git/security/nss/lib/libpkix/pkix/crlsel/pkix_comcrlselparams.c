@@ -70,7 +70,6 @@ pkix_ComCRLSelParams_Destroy(
         PKIX_DECREF(params->date);
         PKIX_DECREF(params->maxCRLNumber);
         PKIX_DECREF(params->minCRLNumber);
-        PKIX_DECREF(params->crldpList);
 
 cleanup:
 
@@ -386,7 +385,7 @@ pkix_ComCRLSelParams_Duplicate(
         void *plContext)
 {
         PKIX_ComCRLSelParams *old;
-        PKIX_ComCRLSelParams *new = NULL;
+        PKIX_ComCRLSelParams *new;
 
         PKIX_ENTER(COMCRLSELPARAMS, "pkix_ComCRLSelParams_Duplicate");
         PKIX_NULLCHECK_TWO(object, pNewObject);
@@ -404,9 +403,6 @@ pkix_ComCRLSelParams_Duplicate(
                     PKIX_OBJECTALLOCFAILED);
 
         PKIX_DUPLICATE(old->cert, &new->cert, plContext,
-                    PKIX_OBJECTDUPLICATECERTFAILED);
-
-        PKIX_DUPLICATE(old->crldpList, &new->crldpList, plContext,
                     PKIX_OBJECTDUPLICATECERTFAILED);
 
         PKIX_DUPLICATE(old->issuerNames, &new->issuerNames, plContext,
@@ -492,7 +488,6 @@ PKIX_ComCRLSelParams_Create(
         /* initialize fields */
         params->issuerNames = NULL;
         params->cert = NULL;
-        params->crldpList = NULL;
         params->date = NULL;
         params->nistPolicyEnabled = PKIX_TRUE;
         params->maxCRLNumber = NULL;
@@ -832,27 +827,6 @@ PKIX_ComCRLSelParams_SetMinCRLNumber(
                     ((PKIX_PL_Object *)params, plContext),
                     PKIX_OBJECTINVALIDATECACHEFAILED);
 
-cleanup:
-
-        PKIX_RETURN(COMCRLSELPARAMS);
-}
-
-
-PKIX_Error*
-PKIX_ComCRLSelParams_SetCrlDp(
-         PKIX_ComCRLSelParams *params,
-         PKIX_List *crldpList,
-         void *plContext)
-{
-    PKIX_ENTER(COMCRLSELPARAMS, "PKIX_ComCRLSelParams_SetCrlDp");
-    PKIX_NULLCHECK_ONE(params); /* minCRLNumber can be NULL - from spec */
-
-    PKIX_INCREF(crldpList);
-    params->crldpList = crldpList;
-
-    PKIX_CHECK(PKIX_PL_Object_InvalidateCache
-               ((PKIX_PL_Object *)params, plContext),
-               PKIX_OBJECTINVALIDATECACHEFAILED);
 cleanup:
 
         PKIX_RETURN(COMCRLSELPARAMS);

@@ -51,9 +51,14 @@ fetch: function(callback)
   var url = this.urls.shift();
   var self = this;
 
-  var cacheSession = OfflineTest.getActiveSession();
+  var cacheService = Cc["@mozilla.org/network/cache-service;1"]
+                     .getService(Ci.nsICacheService);
+  var cacheSession = cacheService.createSession("HTTP-offline",
+                                                Ci.nsICache.STORE_OFFLINE,
+                                                true);
   cacheSession.asyncOpenCacheEntry(url, Ci.nsICache.ACCESS_READ, this);
 }
+
 };
 
 var OfflineTest = {
@@ -62,12 +67,6 @@ _slaveWindow: null,
 
 // The window where test results should be sent.
 _masterWindow: null,
-
-// Array of all PUT overrides on the server
-_pathOverrides: [],
-
-// SJSs whom state was changed to be reverted on teardown
-_SJSsStated: [],
 
 setupChild: function()
 {
@@ -100,9 +99,6 @@ setup: function()
     var uri = Cc["@mozilla.org/network/io-service;1"]
       .getService(Ci.nsIIOService)
       .newURI(window.location.href, null, null);
-    if (pm.testPermission(uri, "offline-app") != 0) {
-      dump("Previous test failed to clear offline-app permission!  Expect failures.\n");
-    }
     pm.add(uri, "offline-app", Ci.nsIPermissionManager.ALLOW_ACTION);
 
     // Tests must run as toplevel windows.  Open a slave window to run
@@ -132,12 +128,6 @@ teardown: function()
             .getService(Ci.nsIIOService)
             .newURI(window.location.href, null, null);
   pm.remove(uri.host, "offline-app");
-
-  // Clear all overrides on the server
-  for (override in this._pathOverrides)
-    this.deleteData(this._pathOverrides[override]);
-  for (statedSJS in this._SJSsStated)
-    this.setSJSState(this._SJSsStated[statedSJS], "");
 
   this.clear();
 },
@@ -175,18 +165,31 @@ isnot: function(a, b, name)
   return this._masterWindow.SimpleTest.isnot(a, b, name);
 },
 
-todo: function(a, name)
-{
-  return this._masterWindow.SimpleTest.todo(a, name);
-},
-
 clear: function()
 {
-  // XXX: maybe we should just wipe out the entire disk cache.
-  var applicationCache = this.getActiveCache();
-  if (applicationCache) {
-    applicationCache.discard();
-  }
+  // Clear the ownership list
+  var cacheService = Cc["@mozilla.org/network/cache-service;1"]
+                     .getService(Ci.nsICacheService);
+  var cacheSession = cacheService.createSession("HTTP-offline",
+                                                Ci.nsICache.STORE_OFFLINE,
+                                                true)
+                     .QueryInterface(Ci.nsIOfflineCacheSession);
+
+  // Get the asciiHost from the page URL
+  var locationURI = Cc["@mozilla.org/network/standard-url;1"]
+                     .createInstance(Ci.nsIURI);
+  locationURI.spec = window.location.href;
+  var asciiHost = locationURI.asciiHost;
+
+  // Clear manifest-owned urls
+  cacheSession.setOwnedKeys(asciiHost,
+                            this.getManifestUrl() + "#manifest", 0, []);
+
+  // Clear dynamically-owned urls
+  cacheSession.setOwnedKeys(asciiHost,
+                            this.getManifestUrl() + "#dynamic", 0, []);
+
+  cacheSession.evictUnownedEntries();
 },
 
 failEvent: function(e)
@@ -195,15 +198,19 @@ failEvent: function(e)
 },
 
 // The offline API as specified has no way to watch the load of a resource
-// added with applicationCache.mozAdd().
+// added with applicationCache.add().
 waitForAdd: function(url, onFinished) {
   // Check every half second for ten seconds.
   var numChecks = 20;
   var waitFunc = function() {
-    var cacheSession = OfflineTest.getActiveSession();
+    var cacheService = Cc["@mozilla.org/network/cache-service;1"]
+    .getService(Ci.nsICacheService);
+    var cacheSession = cacheService.createSession("HTTP-offline",
+                                                  Ci.nsICache.STORE_OFFLINE,
+                                                  true);
     var entry;
     try {
-      var entry = cacheSession.openCacheEntry(url, Ci.nsICache.ACCESS_READ, false);
+      var entry = cacheSession.openCacheEntry(url, Ci.nsICache.ACCESS_READ, true);
     } catch (e) {
     }
 
@@ -229,27 +236,6 @@ getManifestUrl: function()
   return window.top.document.documentElement.getAttribute("manifest");
 },
 
-getActiveCache: function()
-{
-  // Note that this is the current active cache in the cache stack, not the
-  // one associated with this window.
-  var serv = Cc["@mozilla.org/network/application-cache-service;1"]
-             .getService(Ci.nsIApplicationCacheService);
-  return serv.getActiveCache(this.getManifestUrl());
-},
-
-getActiveSession: function()
-{
-  var cache = this.getActiveCache();
-  if (!cache) return null;
-
-  var cacheService = Cc["@mozilla.org/network/cache-service;1"]
-                     .getService(Ci.nsICacheService);
-  return cacheService.createSession(cache.clientID,
-                                    Ci.nsICache.STORE_OFFLINE,
-                                    true);
-},
-
 priv: function(func)
 {
   var self = this;
@@ -259,40 +245,13 @@ priv: function(func)
   }
 },
 
-checkCustomCache: function(group, url, expectEntry)
-{
-  var serv = Cc["@mozilla.org/network/application-cache-service;1"]
-             .getService(Ci.nsIApplicationCacheService);
-  var cache = serv.getActiveCache(group);
-  var cacheSession = null;
-  if (cache) {
-    var cacheService = Cc["@mozilla.org/network/cache-service;1"]
-                       .getService(Ci.nsICacheService);
-    cacheSession = cacheService.createSession(cache.clientID,
-                                      Ci.nsICache.STORE_OFFLINE,
-                                      true);
-  }
-
-  this._checkCache(cacheSession, url, expectEntry);
-},
-
 checkCache: function(url, expectEntry)
 {
-  var cacheSession = this.getActiveSession();
-  this._checkCache(cacheSession, url, expectEntry);
-},
-
-_checkCache: function(cacheSession, url, expectEntry)
-{
-  if (!cacheSession) {
-    if (expectEntry) {
-      this.ok(false, url + " should exist in the offline cache");
-    } else {
-      this.ok(true, url + " should not exist in the offline cache");
-    }
-    return;
-  }
-
+  var cacheService = Cc["@mozilla.org/network/cache-service;1"]
+  .getService(Ci.nsICacheService);
+  var cacheSession = cacheService.createSession("HTTP-offline",
+                                                Ci.nsICache.STORE_OFFLINE,
+                                                true);
   try {
     var entry = cacheSession.openCacheEntry(url, Ci.nsICache.ACCESS_READ, false);
     if (expectEntry) {
@@ -308,36 +267,17 @@ _checkCache: function(cacheSession, url, expectEntry)
       } else {
         this.ok(true, url + " should not exist in the offline cache");
       }
-    } else if (e.result == NS_ERROR_CACHE_KEY_WAIT_FOR_VALIDATION) {
+    } else if (e.result == NS_ERROR_CACHE_WAIT_FOR_VALIDATION) {
       // There was a cache key that we couldn't access yet, that's good enough.
       if (expectEntry) {
-        this.ok(!mustBeValid, url + " should exist in the offline cache");
+        this.ok(true, url + " should exist in the offline cache");
       } else {
-        this.ok(mustBeValid, url + " should not exist in the offline cache");
+        this.ok(false, url + " should not exist in the offline cache");
       }
     } else {
       throw e;
     }
   }
-},
-
-setSJSState: function(sjsPath, stateQuery)
-{
-  var client = new XMLHttpRequest();
-  client.open("GET", sjsPath + "?state=" + stateQuery, false);
-
-  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-  var appcachechannel = client.channel.QueryInterface(Ci.nsIApplicationCacheChannel);
-  appcachechannel.chooseApplicationCache = false;
-  appcachechannel.inheritApplicationCache = false;
-  appcachechannel.applicationCache = null;
-
-  client.send();
-
-  if (stateQuery == "")
-    delete this._SJSsStated[sjsPath];
-  else
-    this._SJSsStated.push(sjsPath);
 }
 
 };

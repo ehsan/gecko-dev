@@ -46,11 +46,17 @@
 #define DIRECTORY_SEPARATOR_STR     "\\"
 #define PATH_SEPARATOR              ';'
 
+#ifdef WIN16
+#define GCPTR __far
+#else
+#define GCPTR
+#endif
+
 /*
 ** Routines for processing command line arguments
 */
 PR_BEGIN_EXTERN_C
-#ifndef XP_OS2
+#ifndef XP_OS2_EMX
 extern char *optarg;
 extern int optind;
 extern int getopt(int argc, char **argv, char *spec);
@@ -63,7 +69,7 @@ PR_END_EXTERN_C
 ** These definitions are from:
 **      <dirent.h>
 */
-#ifdef XP_OS2
+#ifdef XP_OS2_EMX
 #include <sys/types.h>
 #endif
 #include <sys/stat.h>

@@ -131,7 +131,6 @@ interface nsITreeSelection : nsISupports
    * one of our methods.  A view can use this to temporarily suppress
    * the selection while manipulating all of the indices, e.g., on 
    * a sort.
-   * Note: setting this attribute to false will fire a select event.
    */
   attribute boolean selectEventsSuppressed;
 
@@ -151,15 +150,4 @@ interface nsITreeSelection : nsISupports
    * part of a ranged select.
    */
   readonly attribute long shiftSelectPivot;
-};
-
-/**
- * The following interface is not scriptable and MUST NEVER BE MADE scriptable.
- * Native treeselections implement it, and we use this to check whether a
- * treeselection is native (and therefore suitable for use by untrusted content).
- */
-[uuid(1bd59678-5cb3-4316-b246-31a91b19aabe)]
-interface nsINativeTreeSelection : nsITreeSelection
-{
-  [noscript] void ensureNative();
 };

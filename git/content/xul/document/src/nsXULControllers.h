@@ -46,7 +46,7 @@
 #define nsXULControllers_h__
 
 #include "nsCOMPtr.h"
-#include "nsTPtrArray.h"
+#include "nsVoidArray.h"
 #include "nsWeakPtr.h"
 #include "nsIControllers.h"
 #include "nsISecurityCheckedComponent.h"
@@ -77,13 +77,13 @@ public:
 };
 
 
-nsresult NS_NewXULControllers(nsISupports* aOuter, REFNSIID aIID, void** aResult);
+NS_IMETHODIMP NS_NewXULControllers(nsISupports* aOuter, REFNSIID aIID, void** aResult);
 
 class nsXULControllers : public nsIControllers,
                          public nsISecurityCheckedComponent
 {
 public:
-    friend nsresult
+    friend NS_IMETHODIMP
     NS_NewXULControllers(nsISupports* aOuter, REFNSIID aIID, void** aResult);
 
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -97,8 +97,8 @@ protected:
 
     void        DeleteControllers();
 
-    nsTPtrArray<nsXULControllerData> mControllers;
-    PRUint32                         mCurControllerID;
+    nsVoidArray mControllers;
+    PRUint32    mCurControllerID;
 };
 
 

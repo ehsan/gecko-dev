@@ -46,7 +46,6 @@
 #include "nsAutoPtr.h"
 #include "nsNSSCertificate.h"
 #include "nsString.h"
-#include "nsWeakReference.h"
 #include "prmon.h"
 
 class nsClientAuthRemember
@@ -56,7 +55,7 @@ public:
   nsClientAuthRemember()
   {
   }
-  
+
   nsClientAuthRemember(const nsClientAuthRemember &other)
   {
     this->operator=(other);
@@ -66,13 +65,13 @@ public:
   {
     mAsciiHost = other.mAsciiHost;
     mFingerprint = other.mFingerprint;
-    mDBKey = other.mDBKey;
+    mClientNickname = other.mClientNickname;
     return *this;
   }
 
   nsCString mAsciiHost;
   nsCString mFingerprint;
-  nsCString mDBKey;
+  nsCString mClientNickname;
 };
 
 
@@ -139,8 +138,7 @@ class nsClientAuthRememberEntry : public PLDHashEntryHdr
     nsCString mHostWithCert;
 };
 
-class nsClientAuthRememberService : public nsIObserver,
-                                    public nsSupportsWeakReference
+class nsClientAuthRememberService : public nsIObserver
 {
 public:
   NS_DECL_ISUPPORTS
@@ -157,8 +155,7 @@ public:
   nsresult RememberDecision(const nsACString & aHostName, 
                             CERTCertificate *aServerCert, CERTCertificate *aClientCert);
   nsresult HasRememberedDecision(const nsACString & aHostName, 
-                                 CERTCertificate *aServerCert, 
-                                 nsACString & aCertDBKey, PRBool *_retval);
+                                 CERTCertificate *aCert, nsACString & aClientNickname, PRBool *_retval);
 
   void ClearRememberedDecisions();
 
@@ -169,7 +166,7 @@ protected:
     void RemoveAllFromMemory();
     nsresult AddEntryToList(const nsACString &host, 
                             const nsACString &server_fingerprint,
-                            const nsACString &db_key);
+                            const nsACString &client_nickname);
 };
 
 #endif

@@ -37,7 +37,7 @@
 
 var gSelectedPage = 0;
 
-function init(aEvent)
+function init(aEvent) 
 {
   if (aEvent.target != document)
     return;
@@ -73,12 +73,7 @@ function init(aEvent)
   button.setAttribute("accesskey", document.documentElement.getAttribute("creditsaccesskey"));
   button.addEventListener("command", switchPage, false);
 
-  var acceptButton = document.documentElement.getButton("accept");
-#ifdef XP_UNIX
-  acceptButton.setAttribute("icon", "close");
-#endif
-  acceptButton.focus();
-
+  document.documentElement.getButton("accept").focus();
 #ifdef XP_MACOSX
   // it may not be sized at this point, and we need its width to calculate its position
   window.sizeToContent();
@@ -101,7 +96,7 @@ function switchPage(aEvent)
     return;
 
   var iframe = document.getElementById("creditsIframe");
-  if (gSelectedPage == 0) {
+  if (gSelectedPage == 0) { 
     iframe.setAttribute("src", "chrome://browser/content/credits.xhtml");
     button.setAttribute("label", document.documentElement.getAttribute("aboutlabel"));
     button.setAttribute("accesskey", document.documentElement.getAttribute("aboutaccesskey"));

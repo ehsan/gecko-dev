@@ -38,8 +38,6 @@
 
 #include "nsSVGPointList.h"
 #include "nsSVGPoint.h"
-#include "nsSVGUtils.h"
-#include "nsCharSeparatedTokenizer.h"
 #include "nsDOMError.h"
 #include "prdtoa.h"
 #include "nsReadableUtils.h"
@@ -84,8 +82,8 @@ void
 nsSVGPointList::ReleasePoints()
 {
   WillModify();
-  PRUint32 count = mPoints.Length();
-  for (PRUint32 i = 0; i < count; ++i) {
+  PRInt32 count = mPoints.Count();
+  for (PRInt32 i = 0; i < count; ++i) {
     nsIDOMSVGPoint* point = ElementAt(i);
     nsCOMPtr<nsISVGValue> val = do_QueryInterface(point);
     if (val)
@@ -99,7 +97,7 @@ nsSVGPointList::ReleasePoints()
 nsIDOMSVGPoint*
 nsSVGPointList::ElementAt(PRInt32 index)
 {
-  return mPoints.ElementAt(index);
+  return (nsIDOMSVGPoint*)mPoints.ElementAt(index);
 }
 
 void
@@ -107,7 +105,7 @@ nsSVGPointList::AppendElement(nsIDOMSVGPoint* aElement)
 {
   WillModify();
   NS_ADDREF(aElement);
-  mPoints.AppendElement(aElement);
+  mPoints.AppendElement((void*)aElement);
   nsCOMPtr<nsISVGValue> val = do_QueryInterface(aElement);
   if (val)
     val->AddObserver(this);
@@ -133,7 +131,7 @@ nsSVGPointList::InsertElementAt(nsIDOMSVGPoint* aElement, PRInt32 index)
 {
   WillModify();
   NS_ADDREF(aElement);
-  mPoints.InsertElementAt(index, aElement);
+  mPoints.InsertElementAt((void*)aElement, index);
   nsCOMPtr<nsISVGValue> val = do_QueryInterface(aElement);
   if (val)
     val->AddObserver(this);
@@ -146,14 +144,12 @@ nsSVGPointList::InsertElementAt(nsIDOMSVGPoint* aElement, PRInt32 index)
 NS_IMPL_ADDREF(nsSVGPointList)
 NS_IMPL_RELEASE(nsSVGPointList)
 
-DOMCI_DATA(SVGPointList, nsSVGPointList)
-
 NS_INTERFACE_MAP_BEGIN(nsSVGPointList)
   NS_INTERFACE_MAP_ENTRY(nsISVGValue)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGPointList)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_INTERFACE_MAP_ENTRY(nsISVGValueObserver)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGPointList)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGPointList)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsISVGValue)
 NS_INTERFACE_MAP_END
 
@@ -164,65 +160,58 @@ NS_INTERFACE_MAP_END
 NS_IMETHODIMP
 nsSVGPointList::SetValueString(const nsAString& aValue)
 {
-  nsCharSeparatedTokenizer
-    tokenizer(aValue, ',',
-              nsCharSeparatedTokenizer::SEPARATOR_OPTIONAL);
+  nsresult rv = NS_OK;
+
+  char* str = ToNewCString(aValue);
+  
+  char* rest = str;
+  char* token1;
+  char* token2;
+  const char* delimiters = ",\x20\x9\xD\xA";
   nsCOMArray<nsIDOMSVGPoint> points;
+  
+  while ( (token1 = nsCRT::strtok(rest, delimiters, &rest)) &&
+          (token2 = nsCRT::strtok(rest, delimiters, &rest)) ) {
 
-  PRBool parseError = PR_FALSE;
-
-  while (tokenizer.hasMoreTokens()) {
-    // Parse 2 tokens
-    NS_ConvertUTF16toUTF8 utf8String1(tokenizer.nextToken());
-    const char *token1 = utf8String1.get();
-    if (!tokenizer.hasMoreTokens() ||  // No 2nd token.
-        *token1 == '\0') {             // 1st token is empty string.
-      parseError = PR_TRUE;
-      break;
-    }
-    NS_ConvertUTF16toUTF8 utf8String2(tokenizer.nextToken());
-    const char *token2 = utf8String2.get();
-    if (*token2 == '\0') {             // 2nd token is empty string.
-      parseError = PR_TRUE;
-      break;
-    }
-
-    // Convert parsed tokens to float values.
     char *end;
-    float x = float(PR_strtod(token1, &end));
-    if (*end != '\0' || !NS_FloatIsFinite(x)) {
-      parseError = PR_TRUE;
-      break;
+    
+    double x = PR_strtod(token1, &end);
+    if (*end != '\0') {
+      rv = NS_ERROR_FAILURE;
+      break; // parse error
     }
-    float y = float(PR_strtod(token2, &end));
-    if (*end != '\0' || !NS_FloatIsFinite(y)) {
-      parseError = PR_TRUE;
-      break;
+    double y = PR_strtod(token2, &end);
+    if (*end != '\0') {
+      rv = NS_ERROR_FAILURE;
+      break; // parse error
     }
-
-    // Build a point from our parsed float values.
+    
     nsCOMPtr<nsIDOMSVGPoint> point;
-    NS_NewSVGPoint(getter_AddRefs(point), x, y); // uses infallible 'new'.
+    NS_NewSVGPoint(getter_AddRefs(point), (float)x, (float)y);
+    if (!point) {
+      rv = NS_ERROR_OUT_OF_MEMORY;
+      break;
+    }
     points.AppendObject(point);
   }
 
-  if (tokenizer.lastTokenEndedWithSeparator()) { // Reject trailing comma
-    parseError = PR_TRUE;
+  if (token1 || NS_FAILED(rv)) {
+    // there was a parse error or we ran out of memory
+    rv = NS_ERROR_FAILURE;
+  }
+  else {
+    WillModify();
+    ReleasePoints();
+    PRInt32 count = points.Count();
+    for (PRInt32 i=0; i<count; ++i) {
+      AppendElement(points.ObjectAt(i));
+    }
+    DidModify();
   }
 
-  if (parseError) {
-    // XXX nsSVGUtils::ReportToConsole()
-  }
-
-  WillModify();
-  ReleasePoints();
-  PRInt32 count = points.Count();
-  for (PRInt32 i = 0; i < count; ++i) {
-    AppendElement(points.ObjectAt(i));
-  }
-  DidModify();
-
-  return NS_OK;
+  nsMemory::Free(str);
+  
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -230,11 +219,11 @@ nsSVGPointList::GetValueString(nsAString& aValue)
 {
   aValue.Truncate();
 
-  PRUint32 count = mPoints.Length();
+  PRInt32 count = mPoints.Count();
 
-  if (count == 0) return NS_OK;
+  if (count<=0) return NS_OK;
 
-  PRUint32 i = 0;
+  PRInt32 i = 0;
   PRUnichar buf[48];
   
   while (1) {
@@ -260,7 +249,7 @@ nsSVGPointList::GetValueString(nsAString& aValue)
 /* readonly attribute unsigned long numberOfItems; */
 NS_IMETHODIMP nsSVGPointList::GetNumberOfItems(PRUint32 *aNumberOfItems)
 {
-  *aNumberOfItems = mPoints.Length();
+  *aNumberOfItems = mPoints.Count();
   return NS_OK;
 }
 
@@ -288,7 +277,7 @@ NS_IMETHODIMP nsSVGPointList::Initialize(nsIDOMSVGPoint *newItem,
 /* nsIDOMSVGPoint getItem (in unsigned long index); */
 NS_IMETHODIMP nsSVGPointList::GetItem(PRUint32 index, nsIDOMSVGPoint **_retval)
 {
-  if (index >= mPoints.Length()) {
+  if (index >= static_cast<PRUint32>(mPoints.Count())) {
     *_retval = nsnull;
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
@@ -327,7 +316,7 @@ NS_IMETHODIMP nsSVGPointList::ReplaceItem(nsIDOMSVGPoint *newItem,
 /* nsIDOMSVGPoint removeItem (in unsigned long index); */
 NS_IMETHODIMP nsSVGPointList::RemoveItem(PRUint32 index, nsIDOMSVGPoint **_retval)
 {
-  if (index >= mPoints.Length()) {
+  if (index >= static_cast<PRUint32>(mPoints.Count())) {
     *_retval = nsnull;
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }

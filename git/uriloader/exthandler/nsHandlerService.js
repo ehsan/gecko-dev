@@ -96,17 +96,6 @@ const NC_PATH               = NC_NS + "path";
 // nsIWebHandlerApp::uriTemplate
 const NC_URI_TEMPLATE       = NC_NS + "uriTemplate";
 
-// nsIDBusHandlerApp::service
-const NC_SERVICE            = NC_NS + "service";
-
-// nsIDBusHandlerApp::method
-const NC_METHOD             = NC_NS + "method";
-
-// nsIDBusHandlerApp::objectPath
-const NC_OBJPATH            = NC_NS + "objectPath";
-
-// nsIDBusHandlerApp::dbusInterface
-const NC_INTERFACE            = NC_NS + "dBusInterface";
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
@@ -119,8 +108,11 @@ HandlerService.prototype = {
   //**************************************************************************//
   // XPCOM Plumbing
 
+  classDescription: "Handler Service",
   classID:          Components.ID("{32314cc8-22f7-4f7f-a645-1a45453ba6a6}"),
+  contractID:       "@mozilla.org/uriloader/handler-service;1",
   QueryInterface:   XPCOMUtils.generateQI([Ci.nsIHandlerService]),
+
 
   //**************************************************************************//
   // Initialization & Destruction
@@ -232,7 +224,7 @@ HandlerService.prototype = {
                   getService(Ci.nsIPrefService);
 
     let schemesPrefBranch = prefSvc.getBranch("gecko.handlerService.schemes.");
-    let schemePrefList = schemesPrefBranch.getChildList("");
+    let schemePrefList = schemesPrefBranch.getChildList("", {}); 
 
     var schemes = {};
 
@@ -416,7 +408,7 @@ HandlerService.prototype = {
       var typeID = this._getTypeID(this._getClass(aHandlerInfo), aHandlerInfo.type);
       found = this._hasLiteralAssertion(typeID, NC_VALUE, aHandlerInfo.type);
     } catch (e) {
-      // If the RDF threw (eg, corrupt file), treat as nonexistent.
+      // If the RDF threw (eg, corrupt file), treat as non-existent.
       found = false;
     }
 
@@ -573,31 +565,6 @@ HandlerService.prototype = {
       handlerApp = Cc["@mozilla.org/uriloader/web-handler-app;1"].
                    createInstance(Ci.nsIWebHandlerApp);
       handlerApp.uriTemplate = uriTemplate;
-    }
-    else if (this._hasValue(aHandlerAppID, NC_SERVICE)) {
-      let service = this._getValue(aHandlerAppID, NC_SERVICE);
-      if (!service)
-        return null;
-      
-      let method = this._getValue(aHandlerAppID, NC_METHOD);
-      if (!method)
-        return null;
-      
-      let objpath = this._getValue(aHandlerAppID, NC_OBJPATH);
-      if (!objpath)
-        return null;
-      
-      let interface = this._getValue(aHandlerAppID, NC_INTERFACE);
-      if (!interface)
-        return null;
-      
-      handlerApp = Cc["@mozilla.org/uriloader/dbus-handler-app;1"].
-                   createInstance(Ci.nsIDBusHandlerApp);
-      handlerApp.service   = service;
-      handlerApp.method    = method;
-      handlerApp.objectPath   = objpath;
-      handlerApp.dBusInterface = interface;
-      
     }
     else
       return null;
@@ -804,33 +771,12 @@ HandlerService.prototype = {
     if (aHandlerApp instanceof Ci.nsILocalHandlerApp) {
       this._setLiteral(aHandlerAppID, NC_PATH, aHandlerApp.executable.path);
       this._removeTarget(aHandlerAppID, NC_URI_TEMPLATE);
-      this._removeTarget(aHandlerAppID, NC_METHOD);
-      this._removeTarget(aHandlerAppID, NC_SERVICE);
-      this._removeTarget(aHandlerAppID, NC_OBJPATH);
-      this._removeTarget(aHandlerAppID, NC_INTERFACE);
     }
-    else if(aHandlerApp instanceof Ci.nsIWebHandlerApp){
+    else {
       aHandlerApp.QueryInterface(Ci.nsIWebHandlerApp);
       this._setLiteral(aHandlerAppID, NC_URI_TEMPLATE, aHandlerApp.uriTemplate);
       this._removeTarget(aHandlerAppID, NC_PATH);
-      this._removeTarget(aHandlerAppID, NC_METHOD);
-      this._removeTarget(aHandlerAppID, NC_SERVICE);
-      this._removeTarget(aHandlerAppID, NC_OBJPATH);
-      this._removeTarget(aHandlerAppID, NC_INTERFACE);
     }
-    else if(aHandlerApp instanceof Ci.nsIDBusHandlerApp){
-      aHandlerApp.QueryInterface(Ci.nsIDBusHandlerApp);
-      this._setLiteral(aHandlerAppID, NC_SERVICE, aHandlerApp.service);
-      this._setLiteral(aHandlerAppID, NC_METHOD, aHandlerApp.method);
-      this._setLiteral(aHandlerAppID, NC_OBJPATH, aHandlerApp.objectPath);
-      this._setLiteral(aHandlerAppID, NC_INTERFACE, aHandlerApp.dBusInterface);
-      this._removeTarget(aHandlerAppID, NC_PATH);
-      this._removeTarget(aHandlerAppID, NC_URI_TEMPLATE);
-    }
-    else {
-	throw "unknown handler type";
-    }
-	
   },
 
   _storeAlwaysAsk: function HS__storeAlwaysAsk(aHandlerInfo) {
@@ -1016,17 +962,11 @@ HandlerService.prototype = {
 
     if (aHandlerApp instanceof Ci.nsILocalHandlerApp)
       handlerAppID += "local:" + aHandlerApp.executable.path;
-    else if(aHandlerApp instanceof Ci.nsIWebHandlerApp){
+    else {
       aHandlerApp.QueryInterface(Ci.nsIWebHandlerApp);
       handlerAppID += "web:" + aHandlerApp.uriTemplate;
     }
-    else if(aHandlerApp instanceof Ci.nsIDBusHandlerApp){
-      aHandlerApp.QueryInterface(Ci.nsIDBusHandlerApp);
-      handlerAppID += "dbus:" + aHandlerApp.service + " " + aHandlerApp.method + " " + aHandlerApp.uriTemplate;
-    }else{
-	throw "unknown handler type";
-    }
-    
+
     return handlerAppID;
   },
 
@@ -1419,7 +1359,10 @@ HandlerService.prototype = {
 
 };
 
+
 //****************************************************************************//
 // More XPCOM Plumbing
 
-NSGetFactory = XPCOMUtils.generateNSGetFactory([HandlerService]);
+function NSGetModule(compMgr, fileSpec) {
+  return XPCOMUtils.generateModule([HandlerService]);
+}

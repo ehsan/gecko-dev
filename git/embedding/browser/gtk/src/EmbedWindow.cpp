@@ -40,7 +40,6 @@
 
 #include "nsCWebBrowser.h"
 #include "nsIComponentManager.h"
-#include "nsComponentManagerUtils.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIWidget.h"
 
@@ -416,7 +415,7 @@ EmbedWindow::OnShowTooltip(PRInt32 aXCoords, PRInt32 aYCoords,
   GtkWidget *toplevel_window;
   toplevel_window = gtk_widget_get_toplevel(GTK_WIDGET(mOwner->mOwningWidget));
   if (!GTK_WINDOW(toplevel_window)) {
-    NS_ERROR("no gtk window in hierarchy!");
+    NS_ERROR("no gtk window in hierarchy!\n");
     return NS_ERROR_FAILURE;
   }
   gtk_window_set_transient_for(GTK_WINDOW(sTipWindow),
@@ -441,7 +440,7 @@ EmbedWindow::OnShowTooltip(PRInt32 aXCoords, PRInt32 aYCoords,
   // and show it.
   gtk_widget_show_all(sTipWindow);
 
-  NS_Free( (void*)tipString );
+  nsMemory::Free( (void*)tipString );
 
   return NS_OK;
 }

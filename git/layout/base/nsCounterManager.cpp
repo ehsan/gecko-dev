@@ -41,34 +41,6 @@
 #include "nsCounterManager.h"
 #include "nsBulletFrame.h" // legacy location for list style type to text code
 #include "nsContentUtils.h"
-#include "nsTArray.h"
-
-PRBool
-nsCounterUseNode::InitTextFrame(nsGenConList* aList,
-        nsIFrame* aPseudoFrame, nsIFrame* aTextFrame)
-{
-  nsCounterNode::InitTextFrame(aList, aPseudoFrame, aTextFrame);
-
-  nsCounterList *counterList = static_cast<nsCounterList*>(aList);
-  counterList->Insert(this);
-  PRBool dirty = counterList->IsDirty();
-  if (!dirty) {
-    if (counterList->IsLast(this)) {
-      Calc(counterList);
-      nsAutoString contentString;
-      GetText(contentString);
-      aTextFrame->GetContent()->SetText(contentString, PR_FALSE);
-    } else {
-      // In all other cases (list already dirty or node not at the end),
-      // just start with an empty string for now and when we recalculate
-      // the list we'll change the value to the right one.
-      counterList->SetDirty();
-      return PR_TRUE;
-    }
-  }
-  
-  return PR_FALSE;
-}
 
 // assign the correct |mValueAfter| value to a node that has been inserted
 // Should be called immediately after calling |Insert|.
@@ -99,21 +71,20 @@ nsCounterUseNode::GetText(nsString& aResult)
 {
     aResult.Truncate();
 
-    nsAutoTArray<nsCounterNode*, 8> stack;
+    nsAutoVoidArray stack;
     stack.AppendElement(static_cast<nsCounterNode*>(this));
 
     if (mAllCounters && mScopeStart)
         for (nsCounterNode *n = mScopeStart; n->mScopePrev; n = n->mScopeStart)
             stack.AppendElement(n->mScopePrev);
 
-    const nsCSSValue& styleItem = mCounterStyle->Item(mAllCounters ? 2 : 1);
-    PRInt32 style = styleItem.GetIntValue();
+    PRInt32 style = mCounterStyle->Item(mAllCounters ? 2 : 1).GetIntValue();
     const PRUnichar* separator;
     if (mAllCounters)
         separator = mCounterStyle->Item(1).GetStringBufferValue();
 
-    for (PRUint32 i = stack.Length() - 1;; --i) {
-        nsCounterNode *n = stack[i];
+    for (PRInt32 i = stack.Count() - 1;; --i) {
+        nsCounterNode *n = static_cast<nsCounterNode*>(stack[i]);
         nsBulletFrame::AppendCounterText(style, n->mValueAfter, aResult);
         if (i == 0)
             break;
@@ -143,8 +114,14 @@ nsCounterList::SetScope(nsCounterNode *aNode)
 
     // Get the content node for aNode's rendering object's *parent*,
     // since scope includes siblings, so we want a descendant check on
-    // parents.
-    nsIContent *nodeContent = aNode->mPseudoFrame->GetContent()->GetParent();
+    // parents.  If aNode is for a pseudo-element, then the parent
+    // rendering object is the frame's content; if aNode is for an
+    // element, then the parent rendering object is the frame's
+    // content's parent.
+    nsIContent *nodeContent = aNode->mPseudoFrame->GetContent();
+    if (!aNode->mPseudoFrame->GetStyleContext()->GetPseudoType()) {
+        nodeContent = nodeContent->GetParent();
+    }
 
     for (nsCounterNode *prev = Prev(aNode), *start;
          prev; prev = start->mScopePrev) {
@@ -157,7 +134,10 @@ nsCounterList::SetScope(nsCounterNode *aNode)
                   ? prev : prev->mScopeStart;
 
         // |startContent| is analogous to |nodeContent| (see above).
-        nsIContent *startContent = start->mPseudoFrame->GetContent()->GetParent();
+        nsIContent *startContent = start->mPseudoFrame->GetContent();
+        if (!start->mPseudoFrame->GetStyleContext()->GetPseudoType()) {
+            startContent = startContent->GetParent();
+        }
         NS_ASSERTION(nodeContent || !startContent,
                      "null check on startContent should be sufficient to "
                      "null check nodeContent as well, since if nodeContent "
@@ -287,7 +267,7 @@ nsCounterManager::CounterListFor(const nsSubstring& aCounterName)
     return counterList;
 }
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 RecalcDirtyLists(const nsAString& aKey, nsCounterList* aList, void* aClosure)
 {
     if (aList->IsDirty())
@@ -312,7 +292,7 @@ struct DestroyNodesData {
     PRBool mDestroyedAny;
 };
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 DestroyNodesInList(const nsAString& aKey, nsCounterList* aList, void* aClosure)
 {
     DestroyNodesData *data = static_cast<DestroyNodesData*>(aClosure);
@@ -332,7 +312,7 @@ nsCounterManager::DestroyNodesFor(nsIFrame *aFrame)
 }
 
 #ifdef DEBUG
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 DumpList(const nsAString& aKey, nsCounterList* aList, void* aClosure)
 {
     printf("Counter named \"%s\":\n", NS_ConvertUTF16toUTF8(aKey).get());

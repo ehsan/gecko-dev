@@ -42,6 +42,7 @@
 #include <stdio.h>
 #include "nsScanner.h"
 #include "nsToken.h"
+#include "nsIAtom.h"
 #include "nsHTMLTokens.h"
 #include "prtypes.h"
 #include "nsDebug.h"
@@ -775,7 +776,6 @@ CTextToken::ConsumeParsedCharacterData(PRBool aDiscardFirstNewline,
 
   nsScannerIterator currPos, endPos, altEndPos;
   PRUint32 truncPos = 0;
-  PRInt32 truncNewlineCount = 0;
   aScanner.CurrentPosition(currPos);
   aScanner.EndReading(endPos);
 
@@ -840,7 +840,6 @@ CTextToken::ConsumeParsedCharacterData(PRBool aDiscardFirstNewline,
           // We ran out of room looking for a </title>. Go back to the first
           // place that looked like a tag and use that as our stopping point.
           theContent.writable().Truncate(truncPos);
-          mNewlineCount = truncNewlineCount;
           aScanner.SetPosition(altEndPos, PR_FALSE, PR_TRUE);
         }
         // else we take everything we consumed.
@@ -859,7 +858,6 @@ CTextToken::ConsumeParsedCharacterData(PRBool aDiscardFirstNewline,
       // Keep this position in case we need it for later.
       altEndPos = currPos;
       truncPos = theContent.str().Length();
-      truncNewlineCount = mNewlineCount;
     }
 
     if (Distance(currPos, endPos) >= termStrLen) {

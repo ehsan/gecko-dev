@@ -38,17 +38,14 @@
 #define nsStyleUtil_h___
 
 #include "nsCoord.h"
-#include "nsCSSProperty.h"
+#include "nsPresContext.h"
+#include "nsILinkHandler.h" // for nsLinkState
 
-class nsPresContext;
 struct nsStyleBackground;
-class nsString;
-class nsStringComparator;
-class nsIContent;
 
 enum nsFontSizeType {
-  eFontSize_HTML = 1,
-  eFontSize_CSS = 2
+  eFontSize_HTML  	= 1,
+  eFontSize_CSS			= 2
 };
 
 
@@ -72,25 +69,14 @@ public:
 
   static PRInt32 ConstrainFontWeight(PRInt32 aWeight);
 
+  static PRBool IsHTMLLink(nsIContent *aContent, nsIAtom *aTag, nsPresContext *aPresContext, nsLinkState *aState);
+  static PRBool IsLink(nsIContent *aContent, nsPresContext *aPresContext, nsLinkState *aState);
+
  static PRBool DashMatchCompare(const nsAString& aAttributeValue,
                                 const nsAString& aSelectorValue,
                                 const nsStringComparator& aComparator);
                                 
-  // Append a quoted (with "") and escaped version of aString to aResult.
-  static void AppendEscapedCSSString(const nsString& aString,
-                                     nsAString& aResult);
-  // Append the identifier given by |aIdent| to |aResult|, with
-  // appropriate escaping so that it can be reparsed to the same
-  // identifier.
-  static void AppendEscapedCSSIdent(const nsString& aIdent,
-                                    nsAString& aResult);
-
-  // Append a bitmask-valued property's value(s) (space-separated) to aResult.
-  static void AppendBitmaskCSSValue(nsCSSProperty aProperty,
-                                    PRInt32 aMaskedValue,
-                                    PRInt32 aFirstMask,
-                                    PRInt32 aLastMask,
-                                    nsAString& aResult);
+  static void EscapeCSSString(const nsString& aString, nsAString& aReturn);
 
   /*
    * Convert an author-provided floating point number to an integer (0

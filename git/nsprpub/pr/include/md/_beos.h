@@ -56,7 +56,6 @@
 
 #ifdef BONE_VERSION
 #define _PR_HAVE_SOCKADDR_LEN
-#define HAVE_NETINET_TCP_H
 #endif
 
 #define PR_LINKER_ARCH	"beos"
@@ -229,7 +228,6 @@ struct protoent* getprotobynumber(int number);
 
 #define _MD_EARLY_INIT _MD_early_init
 #define _MD_FINAL_INIT _MD_final_init
-#define _MD_EARLY_CLEANUP()
 
 /* CPU Stuff */
 

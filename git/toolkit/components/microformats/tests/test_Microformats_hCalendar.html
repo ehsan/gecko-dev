@@ -2,7 +2,7 @@
 <head>
   <meta http-equiv="Content-type" content="text/html; charset=utf-8" />
   <title>Testing Microformats.js (hCalendar)</title>
-  <script type="text/javascript" src="/MochiKit/packed.js"></script>
+  <script type="text/javascript" src="/MochiKit/MochiKit.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"></link>
@@ -174,11 +174,6 @@
     </div>
   </div>
 
-  <div class="vevent" id="empty-description">
-    <span class="description"></span>
-  </div>
-
-
 </div>
 
 <pre id="test">
@@ -230,7 +225,7 @@ function test_hCard() {
   is(hcalendar.location, "Argent Hotel, San Francisco, CA", "05-calendar-simple - location");
 
   hcalendar = new hCalendar(document.getElementById("06-component-vevent-uri-relative"));
-  is(hcalendar.url, "http://mochi.test:8888/squidlist/calendar/12279/2006/1/15", "06-component-vevent-uri-relative - url");
+  is(hcalendar.url, "http://localhost:8888/squidlist/calendar/12279/2006/1/15", "06-component-vevent-uri-relative - url");
   is(hcalendar.summary, "Bad Movie Night - Gigli (blame mike spiegelman)", "06-component-vevent-uri-relative - summary");
   is(hcalendar.dtstart, "2006-01-15T00:00:00", "06-component-vevent-uri-relative - dtstart");
 
@@ -300,9 +295,6 @@ function test_hCard() {
   hcalendar = new hCalendar(document.getElementById("18-component-vevent-uid.5"));
 
   hcalendar = new hCalendar(document.getElementById("19-calendar-attachments"));
-
-  hcalendar = new hCalendar(document.getElementById("empty-description"));
-  is (hcalendar.description, "", "Empty description");
 }
 
 </script>

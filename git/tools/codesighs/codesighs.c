@@ -227,6 +227,7 @@ void trimWhite(char* inString)
     }
 }
 
+
 int codesighs(Options* inOptions)
 /*
 **  Output a simplistic report based on our options.
@@ -236,16 +237,11 @@ int codesighs(Options* inOptions)
     char lineBuffer[0x1000];
     int scanRes = 0;
     unsigned long size;
-    #define SEGCLASS_CHARS 15
-    char segClass[SEGCLASS_CHARS + 1];
-    #define SCOPE_CHARS 15
-    char scope[SCOPE_CHARS + 1];
-    #define MODULE_CHARS 255
-    char module[MODULE_CHARS + 1];
-    #define SEGMENT_CHARS 63
-    char segment[SEGMENT_CHARS + 1];
-    #define OBJECT_CHARS 255
-    char object[OBJECT_CHARS + 1];
+    char segClass[0x10];
+    char scope[0x10];
+    char module[0x100];
+    char segment[0x40];
+    char object[0x100];
     char* symbol;
     SizeStats overall;
     ModuleStats* modules = NULL;
@@ -262,14 +258,8 @@ int codesighs(Options* inOptions)
     {
         trimWhite(lineBuffer);
 
-#define STRINGIFY(s_) STRINGIFY2(s_)
-#define STRINGIFY2(s_) #s_
-
         scanRes = sscanf(lineBuffer,
-            "%x\t%" STRINGIFY(SEGCLASS_CHARS) "s\t%"
-            STRINGIFY(SCOPE_CHARS) "s\t%" STRINGIFY(MODULE_CHARS)
-            "s\t%" STRINGIFY(SEGMENT_CHARS) "s\t%"
-            STRINGIFY(OBJECT_CHARS) "s\t",
+            "%x\t%s\t%s\t%s\t%s\t%s\t",
             (unsigned*)&size,
             segClass,
             scope,

@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -56,12 +56,8 @@ void ToUpperCase(nsAString&);
 void ToLowerCase(const nsAString& aSource, nsAString& aDest);
 void ToUpperCase(const nsAString& aSource, nsAString& aDest);
 
-PRUnichar ToLowerCase(PRUnichar);
 PRUnichar ToUpperCase(PRUnichar);
-PRUnichar ToTitleCase(PRUnichar);
-
-void ToLowerCase(const PRUnichar*, PRUnichar*, PRUint32);
-void ToUpperCase(const PRUnichar*, PRUnichar*, PRUint32);
+PRUnichar ToLowerCase(PRUnichar);
 
 inline PRBool IsUpperCase(PRUnichar c) {
   return ToLowerCase(c) != c;
@@ -74,25 +70,6 @@ inline PRBool IsLowerCase(PRUnichar c) {
 #ifdef MOZILLA_INTERNAL_API
 
 class nsCaseInsensitiveStringComparator : public nsStringComparator
-{
-public:
-  virtual PRInt32 operator() (const PRUnichar*,
-                              const PRUnichar*,
-                              PRUint32 aLength) const;
-  virtual PRInt32 operator() (PRUnichar,
-                              PRUnichar) const;
-};
-
-class nsCaseInsensitiveStringArrayComparator
-{
-public:
-  template<class A, class B>
-  PRBool Equals(const A& a, const B& b) const {
-    return a.Equals(b, nsCaseInsensitiveStringComparator());
-  }
-};
-
-class nsASCIICaseInsensitiveStringComparator : public nsStringComparator
 {
 public:
   virtual int operator() (const PRUnichar*,
@@ -121,9 +98,11 @@ CaseInsensitiveFindInReadable(const nsAString& aPattern,
                         nsCaseInsensitiveStringComparator());
 }
 
-#endif // MOZILLA_INTERNAL_API
+#else // MOZILLA_INTERNAL_API
 
-PRInt32
+NS_HIDDEN_(PRInt32)
 CaseInsensitiveCompare(const PRUnichar *a, const PRUnichar *b, PRUint32 len);
+
+#endif // MOZILLA_INTERNAL_API
 
 #endif  /* nsUnicharUtils_h__ */

@@ -36,13 +36,84 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsSVGImageElement.h"
+#include "nsGkAtoms.h"
+#include "nsSVGLength.h"
+#include "nsSVGString.h"
 #include "nsCOMPtr.h"
 #include "nsIURI.h"
 #include "nsNetUtil.h"
+#include "nsSVGAnimatedPreserveAspectRatio.h"
+#include "nsSVGPreserveAspectRatio.h"
 #include "imgIContainer.h"
 #include "imgIDecoderObserver.h"
+#include "nsSVGPathGeometryElement.h"
+#include "nsIDOMSVGImageElement.h"
+#include "nsIDOMSVGURIReference.h"
+#include "nsImageLoadingContent.h"
+#include "nsSVGLength2.h"
 #include "gfxContext.h"
+
+class nsIDOMSVGAnimatedPreserveAspectRatio;
+
+typedef nsSVGPathGeometryElement nsSVGImageElementBase;
+
+class nsSVGImageElement : public nsSVGImageElementBase,
+                          public nsIDOMSVGImageElement,
+                          public nsIDOMSVGURIReference,
+                          public nsImageLoadingContent
+{
+protected:
+  friend nsresult NS_NewSVGImageElement(nsIContent **aResult,
+                                        nsINodeInfo *aNodeInfo);
+  nsSVGImageElement(nsINodeInfo *aNodeInfo);
+  virtual ~nsSVGImageElement();
+  nsresult Init();
+
+public:
+  // interfaces:
+  
+  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_NSIDOMSVGIMAGEELEMENT
+  NS_DECL_NSIDOMSVGURIREFERENCE
+
+  // xxx I wish we could use virtual inheritance
+  NS_FORWARD_NSIDOMNODE(nsSVGImageElementBase::)
+  NS_FORWARD_NSIDOMELEMENT(nsSVGImageElementBase::)
+  NS_FORWARD_NSIDOMSVGELEMENT(nsSVGImageElementBase::)
+
+  // nsSVGElement specializations:
+  virtual void DidChangeString(PRUint8 aAttrEnum, PRBool aDoSetAttr);
+
+  // nsIContent interface
+  virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
+                              nsIContent* aBindingParent,
+                              PRBool aCompileEventHandlers);
+
+  virtual PRInt32 IntrinsicState() const;
+
+  NS_IMETHODIMP_(PRBool) IsAttributeMapped(const nsIAtom* name) const;
+
+  // nsSVGPathGeometryElement methods:
+  virtual void ConstructPath(gfxContext *aCtx);
+
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
+
+protected:
+  void GetSrc(nsAString& src);
+
+  virtual LengthAttributesInfo GetLengthInfo();
+  virtual StringAttributesInfo GetStringInfo();
+
+  enum { X, Y, WIDTH, HEIGHT };
+  nsSVGLength2 mLengthAttributes[4];
+  static LengthInfo sLengthInfo[4];
+
+  enum { HREF };
+  nsSVGString mStringAttributes[1];
+  static StringInfo sStringInfo[1];
+
+  nsCOMPtr<nsIDOMSVGAnimatedPreserveAspectRatio> mPreserveAspectRatio;
+};
 
 nsSVGElement::LengthInfo nsSVGImageElement::sLengthInfo[4] =
 {
@@ -65,20 +136,21 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(Image)
 NS_IMPL_ADDREF_INHERITED(nsSVGImageElement,nsSVGImageElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGImageElement,nsSVGImageElementBase)
 
-DOMCI_NODE_DATA(SVGImageElement, nsSVGImageElement)
-
-NS_INTERFACE_TABLE_HEAD(nsSVGImageElement)
-  NS_NODE_INTERFACE_TABLE7(nsSVGImageElement, nsIDOMNode, nsIDOMElement,
-                           nsIDOMSVGElement, nsIDOMSVGImageElement,
-                           nsIDOMSVGURIReference, imgIDecoderObserver,
-                           nsIImageLoadingContent)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGImageElement)
+NS_INTERFACE_MAP_BEGIN(nsSVGImageElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMNode)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGImageElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGURIReference)
+  NS_INTERFACE_MAP_ENTRY(imgIDecoderObserver)
+  NS_INTERFACE_MAP_ENTRY(nsIImageLoadingContent)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGImageElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGImageElementBase)
 
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGImageElement::nsSVGImageElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsSVGImageElement::nsSVGImageElement(nsINodeInfo *aNodeInfo)
   : nsSVGImageElementBase(aNodeInfo)
 {
 }
@@ -86,6 +158,31 @@ nsSVGImageElement::nsSVGImageElement(already_AddRefed<nsINodeInfo> aNodeInfo)
 nsSVGImageElement::~nsSVGImageElement()
 {
   DestroyImageLoadingContent();
+}
+
+nsresult
+nsSVGImageElement::Init()
+{
+  nsresult rv = nsSVGImageElementBase::Init();
+  NS_ENSURE_SUCCESS(rv,rv);
+
+  // Create mapped properties:
+
+  // DOM property: preserveAspectRatio , #IMPLIED attrib: preserveAspectRatio
+  {
+    nsCOMPtr<nsIDOMSVGPreserveAspectRatio> preserveAspectRatio;
+    rv = NS_NewSVGPreserveAspectRatio(getter_AddRefs(preserveAspectRatio));
+    NS_ENSURE_SUCCESS(rv,rv);
+    rv = NS_NewSVGAnimatedPreserveAspectRatio(
+                                          getter_AddRefs(mPreserveAspectRatio),
+                                          preserveAspectRatio);
+    NS_ENSURE_SUCCESS(rv,rv);
+    rv = AddMappedSVGValue(nsGkAtoms::preserveAspectRatio,
+                           mPreserveAspectRatio);
+    NS_ENSURE_SUCCESS(rv,rv);
+  }
+
+  return rv;
 }
 
 //----------------------------------------------------------------------
@@ -127,7 +224,9 @@ NS_IMETHODIMP
 nsSVGImageElement::GetPreserveAspectRatio(nsIDOMSVGAnimatedPreserveAspectRatio
                                           **aPreserveAspectRatio)
 {
-  return mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(aPreserveAspectRatio, this);
+  *aPreserveAspectRatio = mPreserveAspectRatio;
+  NS_IF_ADDREF(*aPreserveAspectRatio);
+  return NS_OK;
 }
 
 //----------------------------------------------------------------------
@@ -141,57 +240,58 @@ nsSVGImageElement::GetHref(nsIDOMSVGAnimatedString * *aHref)
 }
 
 //----------------------------------------------------------------------
+// nsSVGElement methods
 
-nsresult
-nsSVGImageElement::LoadSVGImage(PRBool aForce, PRBool aNotify)
+nsSVGElement::LengthAttributesInfo
+nsSVGImageElement::GetLengthInfo()
 {
-  // resolve href attribute
-  nsCOMPtr<nsIURI> baseURI = GetBaseURI();
-
-  nsAutoString href;
-  mStringAttributes[HREF].GetAnimValue(href, this);
-  href.Trim(" \t\n\r");
-
-  if (baseURI && !href.IsEmpty())
-    NS_MakeAbsoluteURI(href, href, baseURI);
-
-  return LoadImage(href, aForce, aNotify);
+  return LengthAttributesInfo(mLengthAttributes, sLengthInfo,
+                              NS_ARRAY_LENGTH(sLengthInfo));
 }
 
-//----------------------------------------------------------------------
-// nsIContent methods:
-
-nsresult
-nsSVGImageElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                                const nsAString* aValue, PRBool aNotify)
+void
+nsSVGImageElement::DidChangeString(PRUint8 aAttrEnum, PRBool aDoSetAttr)
 {
-  if (aNamespaceID == kNameSpaceID_XLink && aName == nsGkAtoms::href) {
+  nsSVGImageElementBase::DidChangeString(aAttrEnum, aDoSetAttr);
+
+  if (aAttrEnum == HREF) {
+    nsAutoString href;
+    GetSrc(href);
+
+#ifdef DEBUG_tor
+    fprintf(stderr, "nsSVGImageElement - URI <%s>\n", ToNewCString(href));
+#endif
+
     // If caller is not chrome and dom.disable_image_src_set is true,
     // prevent setting image.src by exiting early
     if (nsContentUtils::GetBoolPref("dom.disable_image_src_set") &&
         !nsContentUtils::IsCallerChrome()) {
-      return NS_OK;
+      return;
     }
 
-    if (aValue) {
-      LoadSVGImage(PR_TRUE, aNotify);
-    } else {
-      CancelImageRequests(aNotify);
-    }
+    LoadImage(href, PR_TRUE, PR_TRUE);
   }
-  return nsSVGImageElementBase::AfterSetAttr(aNamespaceID, aName,
-                                             aValue, aNotify);
 }
 
-void
-nsSVGImageElement::MaybeLoadSVGImage()
+//----------------------------------------------------------------------
+
+void nsSVGImageElement::GetSrc(nsAString& src)
 {
-  if (HasAttr(kNameSpaceID_XLink, nsGkAtoms::href) &&
-      (NS_FAILED(LoadSVGImage(PR_FALSE, PR_TRUE)) ||
-       !LoadingEnabled())) {
-    CancelImageRequests(PR_TRUE);
-  }
+  // resolve href attribute
+
+  nsCOMPtr<nsIURI> baseURI = GetBaseURI();
+
+  nsAutoString relURIStr(mStringAttributes[HREF].GetAnimValue());
+  relURIStr.Trim(" \t\n\r");
+
+  if (baseURI && !relURIStr.IsEmpty()) 
+    NS_MakeAbsoluteURI(src, relURIStr, baseURI);
+  else
+    src = relURIStr;
 }
+
+//----------------------------------------------------------------------
+// nsIContent methods:
 
 nsresult
 nsSVGImageElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
@@ -203,10 +303,13 @@ nsSVGImageElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                                   aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (HasAttr(kNameSpaceID_XLink, nsGkAtoms::href)) {
-    ClearBrokenState();
-    nsContentUtils::AddScriptRunner(
-      NS_NewRunnableMethod(this, &nsSVGImageElement::MaybeLoadSVGImage));
+  // Our base URI may have changed; claim that our URI changed, and the
+  // nsImageLoadingContent will decide whether a new image load is warranted.
+  nsAutoString href;
+  if (GetAttr(kNameSpaceID_XLink, nsGkAtoms::href, href)) {
+    // Note: no need to notify here; since we're just now being bound
+    // we don't have any frames or anything yet.
+    LoadImage(href, PR_FALSE, PR_FALSE);
   }
 
   return rv;
@@ -251,31 +354,9 @@ nsSVGImageElement::ConstructPath(gfxContext *aCtx)
 //----------------------------------------------------------------------
 // nsSVGElement methods
 
-nsSVGElement::LengthAttributesInfo
-nsSVGImageElement::GetLengthInfo()
-{
-  return LengthAttributesInfo(mLengthAttributes, sLengthInfo,
-                              NS_ARRAY_LENGTH(sLengthInfo));
-}
-
-nsSVGPreserveAspectRatio *
-nsSVGImageElement::GetPreserveAspectRatio()
-{
-  return &mPreserveAspectRatio;
-}
-
 nsSVGElement::StringAttributesInfo
 nsSVGImageElement::GetStringInfo()
 {
   return StringAttributesInfo(mStringAttributes, sStringInfo,
                               NS_ARRAY_LENGTH(sStringInfo));
-}
-
-nsresult
-nsSVGImageElement::CopyInnerTo(nsGenericElement* aDest) const
-{
-  if (aDest->GetOwnerDoc()->IsStaticDocument()) {
-    CreateStaticImageClone(static_cast<nsSVGImageElement*>(aDest));
-  }
-  return nsSVGImageElementBase::CopyInnerTo(aDest);
 }

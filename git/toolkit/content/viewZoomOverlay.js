@@ -42,57 +42,47 @@
 
 /** Document Zoom Management Code
  *
- * To use this, you'll need to have a getBrowser() function or use the methods
- * that accept a browser to be modified.
+ * To use this, you'll need to have a getBrowser() function.
  **/
 
 var ZoomManager = {
-  get _prefBranch() {
+  get _prefBranch ZoomManager_get__prefBranch() {
     delete this._prefBranch;
     return this._prefBranch = Components.classes["@mozilla.org/preferences-service;1"]
                                         .getService(Components.interfaces.nsIPrefBranch);
   },
 
-  get MIN() {
+  get MIN ZoomManager_get_MIN() {
     delete this.MIN;
     return this.MIN = this._prefBranch.getIntPref("zoom.minPercent") / 100;
   },
 
-  get MAX() {
+  get MAX ZoomManager_get_MAX() {
     delete this.MAX;
     return this.MAX = this._prefBranch.getIntPref("zoom.maxPercent") / 100;
   },
 
-  get useFullZoom() {
+  get useFullZoom ZoomManager_get_useFullZoom() {
     return this._prefBranch.getBoolPref("browser.zoom.full");
   },
 
-  set useFullZoom(aVal) {
+  set useFullZoom ZoomManager_set_useFullZoom(aVal) {
     this._prefBranch.setBoolPref("browser.zoom.full", aVal);
     return aVal;
   },
 
-  get zoom() {
-    return this.getZoomForBrowser(getBrowser());
-  },
-
-  getZoomForBrowser: function ZoomManager_getZoomForBrowser(aBrowser) {
-    var markupDocumentViewer = aBrowser.markupDocumentViewer;
+  get zoom ZoomManager_get_zoom() {
+    var markupDocumentViewer = getBrowser().markupDocumentViewer;
 
     return this.useFullZoom ? markupDocumentViewer.fullZoom
                             : markupDocumentViewer.textZoom;
   },
 
-  set zoom(aVal) {
-    this.setZoomForBrowser(getBrowser(), aVal);
-    return aVal;
-  },
-
-  setZoomForBrowser: function ZoomManager_setZoomForBrowser(aBrowser, aVal) {
+  set zoom ZoomManager_set_zoom(aVal) {
     if (aVal < this.MIN || aVal > this.MAX)
       throw Components.results.NS_ERROR_INVALID_ARG;
 
-    var markupDocumentViewer = aBrowser.markupDocumentViewer;
+    var markupDocumentViewer = getBrowser().markupDocumentViewer;
 
     if (this.useFullZoom) {
       markupDocumentViewer.textZoom = 1;
@@ -101,12 +91,14 @@ var ZoomManager = {
       markupDocumentViewer.textZoom = aVal;
       markupDocumentViewer.fullZoom = 1;
     }
+
+    return aVal;
   },
 
-  get zoomValues() {
+  get zoomValues ZoomManager_get_zoomValues() {
     var zoomValues = this._prefBranch.getCharPref("toolkit.zoomManager.zoomValues")
                                      .split(",").map(parseFloat);
-    zoomValues.sort(function (a, b) a - b);
+    zoomValues.sort();
 
     while (zoomValues[0] < this.MIN)
       zoomValues.shift();
@@ -152,4 +144,4 @@ var ZoomManager = {
     }
     return values[i - 1];
   }
-};
+}

@@ -39,68 +39,39 @@
 
 #include "nsISupports.h"
 class nsIDOMHTMLFormElement;
+class nsPresContext;
 class nsPresState;
 class nsIContent;
 class nsString;
 class nsIFormProcessor;
-class nsFormSubmission;
+class nsIFormSubmission;
 
-namespace mozilla {
-namespace dom {
-class Element;
-} // namespace dom
-} // namespace mozilla
-
-enum FormControlsTypes {
-  NS_FORM_FIELDSET = 1,
-  NS_FORM_LABEL,
-  NS_FORM_OUTPUT,
-  NS_FORM_SELECT,
-  NS_FORM_TEXTAREA,
-  NS_FORM_OBJECT,
-  eFormControlsWithoutSubTypesMax,
-  // After this, all types will have sub-types which introduce new enum lists.
-  // eFormControlsWithoutSubTypesMax let us know if the previous types values
-  // are not overlapping with sub-types/masks.
-
-  // Elements with different types, the value is used as a mask.
-  // Adding '_ELEMENT' because NS_FORM_INPUT is used for 'oninput' event.
-  // When changing the order, adding or removing elements, be sure to update
-  // the PR_STATIC_ASSERT checks accordingly.
-  NS_FORM_BUTTON_ELEMENT = 0x40, // 0b01000000
-  NS_FORM_INPUT_ELEMENT  = 0x80  // 0b10000000
-};
-
-enum ButtonElementTypes {
-  NS_FORM_BUTTON_BUTTON = NS_FORM_BUTTON_ELEMENT + 1,
-  NS_FORM_BUTTON_RESET,
-  NS_FORM_BUTTON_SUBMIT,
-  eButtonElementTypesMax
-};
-
-enum InputElementTypes {
-  NS_FORM_INPUT_BUTTON = NS_FORM_INPUT_ELEMENT + 1,
-  NS_FORM_INPUT_CHECKBOX,
-  NS_FORM_INPUT_FILE,
-  NS_FORM_INPUT_HIDDEN,
-  NS_FORM_INPUT_RESET,
-  NS_FORM_INPUT_IMAGE,
-  NS_FORM_INPUT_PASSWORD,
-  NS_FORM_INPUT_RADIO,
-  NS_FORM_INPUT_SEARCH,
-  NS_FORM_INPUT_SUBMIT,
-  NS_FORM_INPUT_TEL,
-  NS_FORM_INPUT_TEXT,
-  eInputElementTypesMax
-};
-
-PR_STATIC_ASSERT((PRUint32)eFormControlsWithoutSubTypesMax < (PRUint32)NS_FORM_BUTTON_ELEMENT);
-PR_STATIC_ASSERT((PRUint32)eButtonElementTypesMax < (PRUint32)NS_FORM_INPUT_ELEMENT);
-PR_STATIC_ASSERT((PRUint32)eInputElementTypesMax  < 1<<8);
+#define NS_FORM_BUTTON_BUTTON   1
+#define NS_FORM_BUTTON_RESET    2
+#define NS_FORM_BUTTON_SUBMIT   3
+#define NS_FORM_FIELDSET        4
+#define NS_FORM_INPUT_BUTTON    5
+#define NS_FORM_INPUT_CHECKBOX  6
+#define NS_FORM_INPUT_FILE      7
+#define NS_FORM_INPUT_HIDDEN    8
+#define NS_FORM_INPUT_RESET     9
+#define NS_FORM_INPUT_IMAGE    10
+#define NS_FORM_INPUT_PASSWORD 11
+#define NS_FORM_INPUT_RADIO    12
+#define NS_FORM_INPUT_SUBMIT   13
+#define NS_FORM_INPUT_TEXT     14
+#define NS_FORM_LABEL          15
+#define NS_FORM_OPTION         16
+#define NS_FORM_OPTGROUP       17
+#define NS_FORM_LEGEND         18
+#define NS_FORM_SELECT         19
+#define NS_FORM_TEXTAREA       20
+#define NS_FORM_OBJECT         21
 
 #define NS_IFORMCONTROL_IID   \
-{ 0x0dc5083b, 0xb0a8, 0x48c4, \
- { 0xb2, 0xeb, 0xc2, 0x4f, 0xfb, 0x7e, 0xc2, 0x8e } }
+{ 0x119c5ce8, 0xf4b0, 0x456c, \
+  {0x83, 0x4d, 0xb1, 0x90, 0x3d, 0x99, 0x9f, 0xb3} }
+
 
 /**
  * Interface which all form controls (e.g. buttons, checkboxes, text,
@@ -115,35 +86,31 @@ public:
 
   /**
    * Get the form for this form control.
-   * @return the form
+   * @param aForm the form [OUT]
    */
-  virtual mozilla::dom::Element *GetFormElement() = 0;
+  NS_IMETHOD GetForm(nsIDOMHTMLFormElement** aForm) = 0;
 
   /**
    * Set the form for this form control.
-   * @param aForm the form.  This must not be null.
-   *
-   * @note that when setting the form the control is not added to the
-   * form.  It adds itself when it gets bound to the tree thereafter,
-   * so that it can be properly sorted with the other controls in the
-   * form.
-   */
-  virtual void SetForm(nsIDOMHTMLFormElement* aForm) = 0;
-
-  /**
-   * Tell the control to forget about its form.
-   *
+   * @param aForm the form
    * @param aRemoveFromForm set false if you do not want this element removed
    *        from the form.  (Used by nsFormControlList::Clear())
-   * @param aNotify If true, send nsIDocumentObserver notifications as needed.
+   * @param aNofify If true, send nsIDocumentObserver notifications as needed.
+   *
+   * @param note that when setting a new form aNotify is ignored and the
+   * control is not added to the form itself.  It adds itself when it gets
+   * bound to the tree thereafter, so that it can be properly sorted with the
+   * other controls in the form.
    */
-  virtual void ClearForm(PRBool aRemoveFromForm, PRBool aNotify) = 0;
+  NS_IMETHOD SetForm(nsIDOMHTMLFormElement* aForm,
+                     PRBool aRemoveFromForm,
+                     PRBool aNotify) = 0;
 
   /**
    * Get the type of this control as an int (see NS_FORM_* above)
    * @return the type of this control
    */
-  NS_IMETHOD_(PRUint32) GetType() const = 0 ;
+  NS_IMETHOD_(PRInt32) GetType() const = 0 ;
 
   /**
    * Reset this form control (as it should be when the user clicks the Reset
@@ -159,7 +126,7 @@ public:
    * @param aSubmitElement the element that was pressed to submit (possibly
    *                       null)
    */
-  NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission,
+  NS_IMETHOD SubmitNamesValues(nsIFormSubmission* aFormSubmission,
                                nsIContent* aSubmitElement) = 0;
 
   /**
@@ -188,26 +155,6 @@ public:
    * @return Whether this is a submit control.
    */
   virtual PRBool IsSubmitControl() const = 0;
-
-  /**
-   * Returns true if this is a control which has a text field.
-   * @param  aExcludePassword  to have NS_FORM_INPUT_PASSWORD returning false.
-   * @return Whether this is a text control.
-   */
-  virtual PRBool IsTextControl(PRBool aExcludePassword) const = 0;
-
-  /**
-   * Returns true if this is a control which has a single line text field.
-   * @param  aExcludePassword  to have NS_FORM_INPUT_PASSWORD returning false.
-   * @return Whether this is a single line text control.
-   */
-  virtual PRBool IsSingleLineTextControl(PRBool aExcludePassword) const = 0;
-
-  /**
-   * Returns true if this is a labelable form control.
-   * @return Whether this is a labelable form control.
-   */
-  virtual PRBool IsLabelableControl() const = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIFormControl, NS_IFORMCONTROL_IID)

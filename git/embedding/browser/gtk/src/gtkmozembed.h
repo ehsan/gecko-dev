@@ -39,6 +39,10 @@
 #ifndef gtkmozembed_h
 #define gtkmozembed_h
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 #include <stddef.h>
 #include <gtk/gtk.h>
 
@@ -77,15 +81,11 @@
 
 #endif /* XPCOM_GLUE */
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 #define GTK_TYPE_MOZ_EMBED             (gtk_moz_embed_get_type())
-#define GTK_MOZ_EMBED(obj)             G_TYPE_CHECK_INSTANCE_CAST((obj), GTK_TYPE_MOZ_EMBED, GtkMozEmbed)
-#define GTK_MOZ_EMBED_CLASS(klass)     G_TYPE_CHECK_CLASS_CAST((klass), GTK_TYPE_MOZ_EMBED, GtkMozEmbedClass)
-#define GTK_IS_MOZ_EMBED(obj)          G_TYPE_CHECK_INSTANCE_TYPE((obj), GTK_TYPE_MOZ_EMBED)
-#define GTK_IS_MOZ_EMBED_CLASS(klass)  G_TYPE_CHECK_CLASS_TYPE((klass), GTK_TYPE_MOZ_EMBED)
+#define GTK_MOZ_EMBED(obj)             GTK_CHECK_CAST((obj), GTK_TYPE_MOZ_EMBED, GtkMozEmbed)
+#define GTK_MOZ_EMBED_CLASS(klass)     GTK_CHECK_CLASS_CAST((klass), GTK_TYPE_MOZ_EMBED, GtkMozEmbedClass)
+#define GTK_IS_MOZ_EMBED(obj)          GTK_CHECK_TYPE((obj), GTK_TYPE_MOZ_EMBED)
+#define GTK_IS_MOZ_EMBED_CLASS(klass)  GTK_CHECK_CLASS_TYPE((klass), GTK_TYPE_MOZ_EMBED)
 
 typedef struct _GtkMozEmbed      GtkMozEmbed;
 typedef struct _GtkMozEmbedClass GtkMozEmbedClass;

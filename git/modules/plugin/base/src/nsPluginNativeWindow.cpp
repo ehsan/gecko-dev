@@ -65,7 +65,7 @@ nsPluginNativeWindowPLATFORM::nsPluginNativeWindowPLATFORM() : nsPluginNativeWin
 #if defined(XP_UNIX) && !defined(XP_MACOSX)
   ws_info = nsnull;
 #endif
-  type = NPWindowTypeWindow;
+  type = nsPluginWindowType_Window;
 }
 
 nsPluginNativeWindowPLATFORM::~nsPluginNativeWindowPLATFORM() 

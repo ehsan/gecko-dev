@@ -20,7 +20,6 @@
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
-#   Robert Strong <robert.bugzilla@gmail.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -36,8 +35,6 @@
 #
 # ***** END LICENSE BLOCK *****
 
-Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-
 const nsISupports            = Components.interfaces.nsISupports;
 
 const nsIBrowserDOMWindow    = Components.interfaces.nsIBrowserDOMWindow;
@@ -50,6 +47,7 @@ const nsIContentHandler      = Components.interfaces.nsIContentHandler;
 const nsIDocShellTreeItem    = Components.interfaces.nsIDocShellTreeItem;
 const nsIDOMChromeWindow     = Components.interfaces.nsIDOMChromeWindow;
 const nsIDOMWindow           = Components.interfaces.nsIDOMWindow;
+const nsIFactory             = Components.interfaces.nsIFactory;
 const nsIFileURL             = Components.interfaces.nsIFileURL;
 const nsIHttpProtocolHandler = Components.interfaces.nsIHttpProtocolHandler;
 const nsIInterfaceRequestor  = Components.interfaces.nsIInterfaceRequestor;
@@ -66,7 +64,7 @@ const nsIWebNavigationInfo   = Components.interfaces.nsIWebNavigationInfo;
 const nsIBrowserSearchService = Components.interfaces.nsIBrowserSearchService;
 const nsICommandLineValidator = Components.interfaces.nsICommandLineValidator;
 
-const NS_BINDING_ABORTED = Components.results.NS_BINDING_ABORTED;
+const NS_BINDING_ABORTED = 0x804b0002;
 const NS_ERROR_WONT_HANDLE_CONTENT = 0x805d0001;
 const NS_ERROR_ABORT = Components.results.NS_ERROR_ABORT;
 
@@ -137,13 +135,6 @@ function needHomepageOverride(prefb) {
                          .getService(nsIHttpProtocolHandler).misc;
 
   if (mstone != savedmstone) {
-    // Bug 462254. Previous releases had a default pref to suppress the EULA
-    // agreement if the platform's installer had already shown one. Now with
-    // about:rights we've removed the EULA stuff and default pref, but we need
-    // a way to make existing profiles retain the default that we removed.
-    if (savedmstone)
-      prefb.setBoolPref("browser.rights.3.shown", true);
-    
     prefb.setCharPref("browser.startup.homepage_override.mstone", mstone);
     return (savedmstone ? OVERRIDE_NEW_MSTONE : OVERRIDE_NEW_PROFILE);
   }
@@ -151,42 +142,8 @@ function needHomepageOverride(prefb) {
   return OVERRIDE_NONE;
 }
 
-/**
- * Gets the override page for the first run after the application has been
- * updated.
- * @param  defaultOverridePage
- *         The default override page.
- * @return The override page.
- */
-function getPostUpdateOverridePage(defaultOverridePage) {
-  var um = Components.classes["@mozilla.org/updates/update-manager;1"]
-                     .getService(Components.interfaces.nsIUpdateManager);
-  try {
-    // If the updates.xml file is deleted then getUpdateAt will throw.
-    var update = um.getUpdateAt(0)
-                   .QueryInterface(Components.interfaces.nsIPropertyBag);
-  } catch (e) {
-    // This should never happen.
-    Components.utils.reportError("Unable to find update: " + e);
-    return defaultOverridePage;
-  }
-
-  let actions = update.getProperty("actions");
-  // When the update doesn't specify actions fallback to the original behavior
-  // of displaying the default override page.
-  if (!actions)
-    return defaultOverridePage;
-
-  // The existence of silent or the non-existence of showURL in the actions both
-  // mean that an override page should not be displayed.
-  if (actions.indexOf("silent") != -1 || actions.indexOf("showURL") == -1)
-    return "";
-
-  return update.getProperty("openURL") || defaultOverridePage;
-}
-
 // Copies a pref override file into the user's profile pref-override folder,
-// and then tells the pref service to reload its default prefs.
+// and then tells the pref service to reload it's default prefs.
 function copyPrefOverride() {
   try {
     var fileLocator = Components.classes["@mozilla.org/file/directory_service;1"]
@@ -219,60 +176,17 @@ function copyPrefOverride() {
   }
 }
 
-// Flag used to indicate that the arguments to openWindow can be passed directly.
-const NO_EXTERNAL_URIS = 1;
-
-function openWindow(parent, url, target, features, args, noExternalArgs) {
+function openWindow(parent, url, target, features, args) {
   var wwatch = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
                          .getService(nsIWindowWatcher);
 
-  if (noExternalArgs == NO_EXTERNAL_URIS) {
-    // Just pass in the defaultArgs directly
-    var argstring;
-    if (args) {
-      argstring = Components.classes["@mozilla.org/supports-string;1"]
+  var argstring;
+  if (args) {
+    argstring = Components.classes["@mozilla.org/supports-string;1"]
                             .createInstance(nsISupportsString);
-      argstring.data = args;
-    }
-
-    return wwatch.openWindow(parent, url, target, features, argstring);
+    argstring.data = args;
   }
-  
-  // Pass an array to avoid the browser "|"-splitting behavior.
-  var argArray = Components.classes["@mozilla.org/supports-array;1"]
-                    .createInstance(Components.interfaces.nsISupportsArray);
-
-  // add args to the arguments array
-  var stringArgs = null;
-  if (args instanceof Array) // array
-    stringArgs = args;
-  else if (args) // string
-    stringArgs = [args];
-
-  if (stringArgs) {
-    // put the URIs into argArray
-    var uriArray = Components.classes["@mozilla.org/supports-array;1"]
-                       .createInstance(Components.interfaces.nsISupportsArray);
-    stringArgs.forEach(function (uri) {
-      var sstring = Components.classes["@mozilla.org/supports-string;1"]
-                              .createInstance(nsISupportsString);
-      sstring.data = uri;
-      uriArray.AppendElement(sstring);
-    });
-    argArray.AppendElement(uriArray);
-  } else {
-    argArray.AppendElement(null);
-  }
-
-  // Pass these as null to ensure that we always trigger the "single URL"
-  // behavior in browser.js's BrowserStartup (which handles the window
-  // arguments)
-  argArray.AppendElement(null); // charset
-  argArray.AppendElement(null); // referer
-  argArray.AppendElement(null); // postData
-  argArray.AppendElement(null); // allowThirdPartyFixup
-
-  return wwatch.openWindow(parent, url, target, features, argArray);
+  return wwatch.openWindow(parent, url, target, features, argstring);
 }
 
 function openPreferences() {
@@ -293,18 +207,55 @@ function getMostRecentWindow(aType) {
   return wm.getMostRecentWindow(aType);
 }
 
+#ifdef XP_UNIX
+#ifndef XP_MACOSX
+#define BROKEN_WM_Z_ORDER
+#endif
+#endif
+#ifdef XP_OS2
+#define BROKEN_WM_Z_ORDER
+#endif
+
 // this returns the most recent non-popup browser window
 function getMostRecentBrowserWindow() {
-  var browserGlue = Components.classes["@mozilla.org/browser/browserglue;1"]
-                              .getService(Components.interfaces.nsIBrowserGlue);
-  return browserGlue.getMostRecentBrowserWindow();
+  var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
+                     .getService(Components.interfaces.nsIWindowMediator);
+
+#ifdef BROKEN_WM_Z_ORDER
+  var win = wm.getMostRecentWindow("navigator:browser", true);
+
+  // if we're lucky, this isn't a popup, and we can just return this
+  if (win && win.document.documentElement.getAttribute("chromehidden")) {
+    var windowList = wm.getEnumerator("navigator:browser", true);
+    // this is oldest to newest, so this gets a bit ugly
+    while (windowList.hasMoreElements()) {
+      var nextWin = windowList.getNext();
+      if (!nextWin.document.documentElement.getAttribute("chromehidden"))
+        win = nextWin;
+    }
+  }
+#else
+  var windowList = wm.getZOrderDOMWindowEnumerator("navigator:browser", true);
+  if (!windowList.hasMoreElements())
+    return null;
+
+  var win = windowList.getNext();
+  while (win.document.documentElement.getAttribute("chromehidden")) {
+    if (!windowList.hasMoreElements()) 
+      return null;
+
+    win = windowList.getNext();
+  }
+#endif
+
+  return win;
 }
 
 function doSearch(searchTerm, cmdLine) {
   var ss = Components.classes["@mozilla.org/browser/search-service;1"]
                      .getService(nsIBrowserSearchService);
 
-  var submission = ss.defaultEngine.getSubmission(searchTerm);
+  var submission = ss.defaultEngine.getSubmission(searchTerm, null);
 
   // fill our nsISupportsArray with uri-as-wstring, null, null, postData
   var sa = Components.classes["@mozilla.org/supports-array;1"]
@@ -325,26 +276,14 @@ function doSearch(searchTerm, cmdLine) {
   var wwatch = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
                          .getService(nsIWindowWatcher);
 
-  return wwatch.openWindow(null, gBrowserContentHandler.chromeURL,
+  return wwatch.openWindow(null, nsBrowserContentHandler.chromeURL,
                            "_blank",
                            "chrome,dialog=no,all" +
-                           gBrowserContentHandler.getFeatures(cmdLine),
+                             nsBrowserContentHandler.getFeatures(cmdLine),
                            sa);
 }
 
-function nsBrowserContentHandler() {
-}
-nsBrowserContentHandler.prototype = {
-  classID: Components.ID("{5d0ce354-df01-421a-83fb-7ead0990c24e}"),
-
-  _xpcom_factory: {
-    createInstance: function bch_factory_ci(outer, iid) {
-      if (outer)
-        throw Components.results.NS_ERROR_NO_AGGREGATION;
-      return gBrowserContentHandler.QueryInterface(iid);
-    }
-  },
-
+var nsBrowserContentHandler = {
   /* helper functions */
 
   mChromeURL : null,
@@ -362,18 +301,24 @@ nsBrowserContentHandler.prototype = {
   },
 
   /* nsISupports */
-  QueryInterface : XPCOMUtils.generateQI([nsICommandLineHandler,
-                                          nsIBrowserHandler,
-                                          nsIContentHandler,
-                                          nsICommandLineValidator]),
+  QueryInterface : function bch_QI(iid) {
+    if (!iid.equals(nsISupports) &&
+        !iid.equals(nsICommandLineHandler) &&
+        !iid.equals(nsIBrowserHandler) &&
+        !iid.equals(nsIContentHandler) &&
+        !iid.equals(nsICommandLineValidator) &&
+        !iid.equals(nsIFactory))
+      throw Components.results.NS_ERROR_NO_INTERFACE;
+
+    return this;
+  },
 
   /* nsICommandLineHandler */
   handle : function bch_handle(cmdLine) {
     if (cmdLine.handleFlag("browser", false)) {
-      // Passing defaultArgs, so use NO_EXTERNAL_URIS
       openWindow(null, this.chromeURL, "_blank",
                  "chrome,dialog=no,all" + this.getFeatures(cmdLine),
-                 this.defaultArgs, NO_EXTERNAL_URIS);
+                 this.defaultArgs);
       cmdLine.preventDefault = true;
     }
 
@@ -434,10 +379,9 @@ nsBrowserContentHandler.prototype = {
           if (remoteParams[0].toLowerCase() != "openbrowser")
             throw NS_ERROR_ABORT;
 
-          // Passing defaultArgs, so use NO_EXTERNAL_URIS
           openWindow(null, this.chromeURL, "_blank",
                      "chrome,dialog=no,all" + this.getFeatures(cmdLine),
-                     this.defaultArgs, NO_EXTERNAL_URIS);
+                     this.defaultArgs);
           break;
 
         default:
@@ -498,7 +442,7 @@ nsBrowserContentHandler.prototype = {
         var netutil = Components.classes["@mozilla.org/network/util;1"]
                                 .getService(nsINetUtil);
         if (!netutil.URIChainHasFlags(uri, URI_INHERITS_SECURITY_CONTEXT)) {
-          openWindow(null, uri.spec, "_blank", features);
+          openWindow(null, uri.spec, "_blank", features, "");
           cmdLine.preventDefault = true;
         }
       }
@@ -512,25 +456,10 @@ nsBrowserContentHandler.prototype = {
     }
     if (cmdLine.handleFlag("silent", false))
       cmdLine.preventDefault = true;
-    if (cmdLine.findFlag("private-toggle", false) >= 0 &&
-        cmdLine.state != cmdLine.STATE_INITIAL_LAUNCH)
-      cmdLine.preventDefault = true;
 
     var searchParam = cmdLine.handleFlagWithParam("search", false);
     if (searchParam) {
       doSearch(searchParam, cmdLine);
-      cmdLine.preventDefault = true;
-    }
-
-    var fileParam = cmdLine.handleFlagWithParam("file", false);
-    if (fileParam) {
-      var file = cmdLine.resolveFile(fileParam);
-      var ios = Components.classes["@mozilla.org/network/io-service;1"]
-                          .getService(Components.interfaces.nsIIOService);
-      var uri = ios.newFileURI(file);
-      openWindow(null, this.chromeURL, "_blank", 
-                 "chrome,dialog=no,all" + this.getFeatures(cmdLine),
-                 uri.spec);
       cmdLine.preventDefault = true;
     }
 
@@ -549,7 +478,7 @@ nsBrowserContentHandler.prototype = {
 #endif
   },
 
-  helpInfo : "  -browser           Open a browser window.\n",
+  helpInfo : "  -browser            Open a browser window.\n",
 
   /* nsIBrowserHandler */
 
@@ -577,10 +506,8 @@ nsBrowserContentHandler.prototype = {
                              .getService(Components.interfaces.nsISessionStartup);
           haveUpdateSession = ss.doRestore();
           overridePage = formatter.formatURLPref("startup.homepage_override_url");
-          if (prefb.prefHasUserValue("app.update.postupdate"))
-            overridePage = getPostUpdateOverridePage(overridePage);
           break;
-      }
+    }
     } catch (ex) {}
 
     // formatURLPref might return "about:blank" if getting the pref fails
@@ -699,9 +626,22 @@ nsBrowserContentHandler.prototype = {
       cmdLine.handleFlag("osint", false)
     }
   },
-};
-var gBrowserContentHandler = new nsBrowserContentHandler();
 
+  /* nsIFactory */
+  createInstance: function bch_CI(outer, iid) {
+    if (outer != null)
+      throw Components.results.NS_ERROR_NO_AGGREGATION;
+
+    return this.QueryInterface(iid);
+  },
+    
+  lockFactory : function bch_lock(lock) {
+    /* no-op */
+  }
+};
+
+const bch_contractID = "@mozilla.org/browser/clh;1";
+const bch_CID = Components.ID("{5d0ce354-df01-421a-83fb-7ead0990c24e}");
 const CONTRACTID_PREFIX = "@mozilla.org/uriloader/content-handler;1?type=";
 
 function handURIToExistingBrowser(uri, location, cmdLine)
@@ -712,8 +652,8 @@ function handURIToExistingBrowser(uri, location, cmdLine)
   var navWin = getMostRecentBrowserWindow();
   if (!navWin) {
     // if we couldn't load it in an existing window, open a new one
-    openWindow(null, gBrowserContentHandler.chromeURL, "_blank",
-               "chrome,dialog=no,all" + gBrowserContentHandler.getFeatures(cmdLine),
+    openWindow(null, nsBrowserContentHandler.chromeURL, "_blank",
+               "chrome,dialog=no,all" + nsBrowserContentHandler.getFeatures(cmdLine),
                uri.spec);
     return;
   }
@@ -728,16 +668,13 @@ function handURIToExistingBrowser(uri, location, cmdLine)
                nsIBrowserDOMWindow.OPEN_EXTERNAL);
 }
 
-function nsDefaultCommandLineHandler() {
-}
 
-nsDefaultCommandLineHandler.prototype = {
-  classID: Components.ID("{47cd0651-b1be-4a0f-b5c4-10e5a573ef71}"),
-
+var nsDefaultCommandLineHandler = {
   /* nsISupports */
   QueryInterface : function dch_QI(iid) {
     if (!iid.equals(nsISupports) &&
-        !iid.equals(nsICommandLineHandler))
+        !iid.equals(nsICommandLineHandler) &&
+        !iid.equals(nsIFactory))
       throw Components.results.NS_ERROR_NO_INTERFACE;
 
     return this;
@@ -837,25 +774,157 @@ nsDefaultCommandLineHandler.prototype = {
         }
       }
 
-      var URLlist = urilist.filter(shouldLoadURI).map(function (u) u.spec);
-      if (URLlist.length) {
-        openWindow(null, gBrowserContentHandler.chromeURL, "_blank",
-                   "chrome,dialog=no,all" + gBrowserContentHandler.getFeatures(cmdLine),
-                   URLlist);
+      var speclist = [];
+      for (uri in urilist) {
+        if (shouldLoadURI(urilist[uri]))
+          speclist.push(urilist[uri].spec);
+      }
+
+      if (speclist.length) {
+        openWindow(null, nsBrowserContentHandler.chromeURL, "_blank",
+                   "chrome,dialog=no,all" + nsBrowserContentHandler.getFeatures(cmdLine),
+                   speclist.join("|"));
       }
 
     }
     else if (!cmdLine.preventDefault) {
-      // Passing defaultArgs, so use NO_EXTERNAL_URIS
-      openWindow(null, gBrowserContentHandler.chromeURL, "_blank",
-                 "chrome,dialog=no,all" + gBrowserContentHandler.getFeatures(cmdLine),
-                 gBrowserContentHandler.defaultArgs, NO_EXTERNAL_URIS);
+      openWindow(null, nsBrowserContentHandler.chromeURL, "_blank",
+                 "chrome,dialog=no,all" + nsBrowserContentHandler.getFeatures(cmdLine),
+                 nsBrowserContentHandler.defaultArgs);
     }
   },
 
   // XXX localize me... how?
   helpInfo : "Usage: firefox [-flags] [<url>]\n",
+
+  /* nsIFactory */
+  createInstance: function dch_CI(outer, iid) {
+    if (outer != null)
+      throw Components.results.NS_ERROR_NO_AGGREGATION;
+
+    return this.QueryInterface(iid);
+  },
+    
+  lockFactory : function dch_lock(lock) {
+    /* no-op */
+  }
 };
 
-var components = [nsBrowserContentHandler, nsDefaultCommandLineHandler];
-var NSGetFactory = XPCOMUtils.generateNSGetFactory(components);
+const dch_contractID = "@mozilla.org/browser/final-clh;1";
+const dch_CID = Components.ID("{47cd0651-b1be-4a0f-b5c4-10e5a573ef71}");
+
+var Module = {
+  /* nsISupports */
+  QueryInterface: function mod_QI(iid) {
+    if (iid.equals(Components.interfaces.nsIModule) ||
+        iid.equals(Components.interfaces.nsISupports))
+      return this;
+
+    throw Components.results.NS_ERROR_NO_INTERFACE;
+  },
+
+  /* nsIModule */
+  getClassObject: function mod_getco(compMgr, cid, iid) {
+    if (cid.equals(bch_CID))
+      return nsBrowserContentHandler.QueryInterface(iid);
+
+    if (cid.equals(dch_CID))
+      return nsDefaultCommandLineHandler.QueryInterface(iid);
+
+    throw Components.results.NS_ERROR_NO_INTERFACE;
+  },
+    
+  registerSelf: function mod_regself(compMgr, fileSpec, location, type) {
+    if (Components.classes["@mozilla.org/xre/app-info;1"]) {
+      // Don't register these if Firefox is launching a XULRunner application
+      const FIREFOX_UID = "{ec8030f7-c20a-464f-9b0e-13a3a9e97384}";
+      var appInfo = Components.classes["@mozilla.org/xre/app-info;1"]
+                              .getService(Components.interfaces.nsIXULAppInfo);
+      if (appInfo.ID != FIREFOX_UID)
+        return;
+    }
+
+    var compReg =
+      compMgr.QueryInterface( Components.interfaces.nsIComponentRegistrar );
+
+    compReg.registerFactoryLocation( bch_CID,
+                                     "nsBrowserContentHandler",
+                                     bch_contractID,
+                                     fileSpec,
+                                     location,
+                                     type );
+    compReg.registerFactoryLocation( dch_CID,
+                                     "nsDefaultCommandLineHandler",
+                                     dch_contractID,
+                                     fileSpec,
+                                     location,
+                                     type );
+
+    function registerType(contentType) {
+      compReg.registerFactoryLocation( bch_CID,
+                                       "Browser Cmdline Handler",
+                                       CONTRACTID_PREFIX + contentType,
+                                       fileSpec,
+                                       location,
+                                       type );
+    }
+
+    registerType("text/html");
+    registerType("application/vnd.mozilla.xul+xml");
+#ifdef MOZ_SVG
+    registerType("image/svg+xml");
+#endif
+    registerType("text/rdf");
+    registerType("text/xml");
+    registerType("application/xhtml+xml");
+    registerType("text/css");
+    registerType("text/plain");
+    registerType("image/gif");
+    registerType("image/jpeg");
+    registerType("image/jpg");
+    registerType("image/png");
+    registerType("image/bmp");
+    registerType("image/x-icon");
+    registerType("image/vnd.microsoft.icon");
+    registerType("image/x-xbitmap");
+    registerType("application/http-index-format");
+
+    var catMan = Components.classes["@mozilla.org/categorymanager;1"]
+                           .getService(nsICategoryManager);
+
+    catMan.addCategoryEntry("command-line-handler",
+                            "m-browser",
+                            bch_contractID, true, true);
+    catMan.addCategoryEntry("command-line-handler",
+                            "x-default",
+                            dch_contractID, true, true);
+    catMan.addCategoryEntry("command-line-validator",
+                            "b-browser",
+                            bch_contractID, true, true);
+  },
+    
+  unregisterSelf : function mod_unregself(compMgr, location, type) {
+    var compReg = compMgr.QueryInterface(nsIComponentRegistrar);
+    compReg.unregisterFactoryLocation(bch_CID, location);
+    compReg.unregisterFactoryLocation(dch_CID, location);
+
+    var catMan = Components.classes["@mozilla.org/categorymanager;1"]
+                           .getService(nsICategoryManager);
+
+    catMan.deleteCategoryEntry("command-line-handler",
+                               "m-browser", true);
+    catMan.deleteCategoryEntry("command-line-handler",
+                               "x-default", true);
+    catMan.deleteCategoryEntry("command-line-validator",
+                               "b-browser", true);
+  },
+
+  canUnload: function(compMgr) {
+    return true;
+  }
+};
+
+// NSGetModule: Return the nsIModule object.
+function NSGetModule(compMgr, fileSpec) {
+  return Module;
+}

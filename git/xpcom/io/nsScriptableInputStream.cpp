@@ -88,7 +88,7 @@ nsScriptableInputStream::Read(PRUint32 aCount, char **_retval) {
     return NS_OK;
 }
 
-nsresult
+NS_METHOD
 nsScriptableInputStream::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult) {
     if (aOuter) return NS_ERROR_NO_AGGREGATION;
 

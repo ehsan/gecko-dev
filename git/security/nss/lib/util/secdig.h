@@ -36,7 +36,7 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/* $Id: secdig.h,v 1.9 2010/04/25 23:37:37 nelson%bolyard.com Exp $ */
+/* $Id: secdig.h,v 1.7 2007/11/07 02:37:22 julien.pierre.boogz%sun.com Exp $ */
 
 #ifndef _SECDIG_H_
 #define _SECDIG_H_
@@ -94,7 +94,7 @@ extern void SGN_DestroyDigestInfo(SGNDigestInfo *info);
 ** XXX It might be nice to combine the create and encode functions.
 ** I think that is all anybody ever wants to do anyway.
 */
-extern SECItem *SGN_EncodeDigestInfo(PLArenaPool *poolp, SECItem *dest,
+extern SECItem *SGN_EncodeDigestInfo(PRArenaPool *poolp, SECItem *dest,
 				     SGNDigestInfo *diginfo);
 
 /*
@@ -118,9 +118,9 @@ extern SGNDigestInfo *SGN_DecodeDigestInfo(SECItem *didata);
 ** the same pool as other data, you do not want to delete
 ** the digest by calling SGN_DestroyDigestInfo.  
 ** A return value of SECFailure indicates an error.  A return
-** of SECSuccess indicates no error occurred.
+** of SECSuccess indicates no error occured.
 */
-extern SECStatus  SGN_CopyDigestInfo(PLArenaPool *poolp,
+extern SECStatus  SGN_CopyDigestInfo(PRArenaPool *poolp,
 					SGNDigestInfo *a, 
 					SGNDigestInfo *b);
 

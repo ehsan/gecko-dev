@@ -43,24 +43,22 @@
 #include "nsIDocShellTreeNode.h"
 #include "nsIFrame.h"
 #include "nsIInterfaceRequestorUtils.h"
+#include "nsIPresShell.h"
 #include "nsISelectionController.h"
 #include "nsIServiceManager.h"
 #include "nsIURI.h"
 #include "nsIViewManager.h"
 #include "nsIWebNavigation.h"
+#include "nsIWidget.h"
 
 /* For documentation of the accessibility architecture, 
  * see http://lxr.mozilla.org/seamonkey/source/accessible/accessible-docs.html
  */
 
-////////////////////////////////////////////////////////////////////////////////
-// nsDocAccessibleWrap
-////////////////////////////////////////////////////////////////////////////////
+//----- nsDocAccessibleWrap -----
 
-nsDocAccessibleWrap::
-  nsDocAccessibleWrap(nsIDocument *aDocument, nsIContent *aRootContent,
-                      nsIWeakReference *aShell) :
-  nsDocAccessible(aDocument, aRootContent, aShell)
+nsDocAccessibleWrap::nsDocAccessibleWrap(nsIDOMNode *aDOMNode, nsIWeakReference *aShell): 
+  nsDocAccessible(aDOMNode, aShell)
 {
 }
 
@@ -96,46 +94,108 @@ STDMETHODIMP nsDocAccessibleWrap::QueryInterface(REFIID iid, void** ppv)
   return S_OK;
 }
 
-nsAccessible*
-nsDocAccessibleWrap::GetXPAccessibleFor(const VARIANT& aVarChild)
+void nsDocAccessibleWrap::GetXPAccessibleFor(const VARIANT& aVarChild, nsIAccessible **aXPAccessible)
 {
-  // If lVal negative then it is treated as child ID and we should look for
-  // accessible through whole accessible subtree including subdocuments.
-  // Otherwise we treat lVal as index in parent.
+  *aXPAccessible = nsnull;
+  if (!mWeakShell)
+    return; // This document has been shut down
 
-  if (aVarChild.lVal < 0)
-    return IsDefunct() ? nsnull : GetXPAccessibleForChildID(aVarChild);
+  if (aVarChild.lVal < 0) {
+    // Get from hash table
+    void *uniqueID = (void*)(-aVarChild.lVal);  // Convert child ID back to unique ID
+    nsCOMPtr<nsIAccessNode> accessNode;
+    GetCachedAccessNode(uniqueID, getter_AddRefs(accessNode));
+    nsCOMPtr<nsIAccessible> accessible(do_QueryInterface(accessNode));
+    NS_IF_ADDREF(*aXPAccessible = accessible);
+    return;
+  }
 
-  return nsAccessibleWrap::GetXPAccessibleFor(aVarChild);
+  nsDocAccessible::GetXPAccessibleFor(aVarChild, aXPAccessible);
 }
 
-STDMETHODIMP
-nsDocAccessibleWrap::get_accChild(VARIANT varChild,
-                                  IDispatch __RPC_FAR *__RPC_FAR *ppdispChild)
+STDMETHODIMP nsDocAccessibleWrap::get_accChild( 
+      /* [in] */ VARIANT varChild,
+      /* [retval][out] */ IDispatch __RPC_FAR *__RPC_FAR *ppdispChild)
 {
 __try {
   *ppdispChild = NULL;
 
   if (varChild.vt == VT_I4 && varChild.lVal < 0) {
-    // IAccessible::accChild can be used to get an accessible by child ID.
-    // It is used by AccessibleObjectFromEvent() called by AT when AT handles
-    // our MSAA event.
-
-    nsAccessible *xpAccessible = GetXPAccessibleForChildID(varChild);
-    if (!xpAccessible)
-      return E_FAIL;
-
-    IAccessible *msaaAccessible = NULL;
-    xpAccessible->GetNativeInterface((void**)&msaaAccessible);
-    *ppdispChild = static_cast<IDispatch*>(msaaAccessible);
-
-    return S_OK;
+    // AccessibleObjectFromEvent() being called
+    // that's why the lVal < 0
+    nsCOMPtr<nsIAccessible> xpAccessible;
+    GetXPAccessibleFor(varChild, getter_AddRefs(xpAccessible));
+    if (xpAccessible) {
+      IAccessible *msaaAccessible;
+      xpAccessible->GetNativeInterface((void**)&msaaAccessible);
+      *ppdispChild = static_cast<IDispatch*>(msaaAccessible);
+      return S_OK;
+    }
+    else if (mDocument) {
+      // If child ID from event can't be found in this window, ask parent.
+      // This is especially relevant for times when a xul menu item
+      // has focus, but the system thinks the content window has focus.
+      nsIDocument* parentDoc = mDocument->GetParentDocument();
+      if (parentDoc) {
+        nsIPresShell *parentShell = parentDoc->GetPrimaryShell();
+        nsCOMPtr<nsIWeakReference> weakParentShell(do_GetWeakReference(parentShell));
+        if (weakParentShell) {
+          nsCOMPtr<nsIAccessibleDocument> parentDocAccessible = 
+            nsAccessNode::GetDocAccessibleFor(weakParentShell);
+          nsCOMPtr<nsIAccessible> accessible(do_QueryInterface(parentDocAccessible));
+          IAccessible *msaaParentDoc;
+          if (accessible) {
+            accessible->GetNativeInterface((void**)&msaaParentDoc);
+            HRESULT rv = msaaParentDoc->get_accChild(varChild, ppdispChild);
+            msaaParentDoc->Release();
+            return rv;
+          }
+        }
+      }
+    }
+    return E_FAIL;
   }
 
   // Otherwise, the normal get_accChild() will do
   return nsAccessibleWrap::get_accChild(varChild, ppdispChild);
 } __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return E_FAIL;
+}
+
+NS_IMETHODIMP nsDocAccessibleWrap::FireAnchorJumpEvent()
+{
+  // Staying on the same page, jumping to a named anchor
+  // Fire EVENT_SCROLLING_START on first leaf accessible -- because some
+  // assistive technologies only cache the child numbers for leaf accessibles
+  // the can only relate events back to their internal model if it's a leaf.
+  // There is usually an accessible for the focus node, but if it's an empty text node
+  // we have to move forward in the document to get one
+  nsDocAccessible::FireAnchorJumpEvent();
+  if (!mIsAnchorJumped)
+    return NS_OK;
+
+  nsCOMPtr<nsIDOMNode> focusNode;
+  if (mIsAnchor) {
+    nsCOMPtr<nsISelectionController> selCon(do_QueryReferent(mWeakShell));
+    if (!selCon) {
+      return NS_OK;
+    }
+    nsCOMPtr<nsISelection> domSel;
+    selCon->GetSelection(nsISelectionController::SELECTION_NORMAL, getter_AddRefs(domSel));
+    if (!domSel) {
+      return NS_OK;
+    }
+    domSel->GetFocusNode(getter_AddRefs(focusNode));
+  }
+  else {
+    focusNode = mDOMNode; // Moved to top, so event is for 1st leaf after root
+  }
+
+  nsCOMPtr<nsIAccessible> accessible = GetFirstAvailableAccessible(focusNode, PR_TRUE);
+  nsAccUtils::FireAccEvent(nsIAccessibleEvent::EVENT_SCROLLING_START,
+                           accessible);
+
+  return NS_OK;
 }
 
 STDMETHODIMP nsDocAccessibleWrap::get_URL(/* [out] */ BSTR __RPC_FAR *aURL)
@@ -262,7 +322,7 @@ STDMETHODIMP nsDocAccessibleWrap::get_accValue(
   if (FAILED(hr) || *pszValue || varChild.lVal != CHILDID_SELF)
     return hr;
   // If document is being used to create a widget, don't use the URL hack
-  PRUint32 role = nsAccUtils::Role(this);
+  PRUint32 role = Role(this);
   if (role != nsIAccessibleRole::ROLE_DOCUMENT &&
       role != nsIAccessibleRole::ROLE_APPLICATION &&
       role != nsIAccessibleRole::ROLE_DIALOG &&
@@ -270,15 +330,4 @@ STDMETHODIMP nsDocAccessibleWrap::get_accValue(
     return hr;
 
   return get_URL(pszValue);
-}
-
-nsAccessible*
-nsDocAccessibleWrap::GetXPAccessibleForChildID(const VARIANT& aVarChild)
-{
-  NS_PRECONDITION(aVarChild.vt == VT_I4 && aVarChild.lVal < 0,
-                  "Variant doesn't point to child ID!");
-
-  // Convert child ID to unique ID.
-  void *uniqueID = reinterpret_cast<void*>(-aVarChild.lVal);
-  return GetAccService()->FindAccessibleInCache(uniqueID);
 }

@@ -84,7 +84,7 @@ interface nsIScriptableUnicodeConverter : nsISupports
    * called.
    */
   void convertToByteArray(in AString aString,
-                          [optional] out unsigned long aLen,
+                          out unsigned long aLen,
                           [array, size_is(aLen),retval] out octet aData);
 
   /**

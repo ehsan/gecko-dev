@@ -60,19 +60,19 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(Path)
 NS_IMPL_ADDREF_INHERITED(nsSVGPathElement,nsSVGPathElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGPathElement,nsSVGPathElementBase)
 
-DOMCI_NODE_DATA(SVGPathElement, nsSVGPathElement)
-
-NS_INTERFACE_TABLE_HEAD(nsSVGPathElement)
-  NS_NODE_INTERFACE_TABLE5(nsSVGPathElement, nsIDOMNode, nsIDOMElement,
-                           nsIDOMSVGElement, nsIDOMSVGPathElement,
-                           nsIDOMSVGAnimatedPathData)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGPathElement)
+NS_INTERFACE_MAP_BEGIN(nsSVGPathElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMNode)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGPathElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedPathData)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGPathElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGPathElementBase)
 
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGPathElement::nsSVGPathElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsSVGPathElement::nsSVGPathElement(nsINodeInfo* aNodeInfo)
   : nsSVGPathElementBase(aNodeInfo)
 {
 }
@@ -104,7 +104,7 @@ nsSVGPathElement::GetTotalLength(float *_retval)
 {
   *_retval = 0;
 
-  nsRefPtr<gfxFlattenedPath> flat = GetFlattenedPath(gfxMatrix());
+  nsRefPtr<gfxFlattenedPath> flat = GetFlattenedPath(nsnull);
 
   if (!flat)
     return NS_ERROR_FAILURE;
@@ -120,7 +120,7 @@ nsSVGPathElement::GetPointAtLength(float distance, nsIDOMSVGPoint **_retval)
 {
   NS_ENSURE_FINITE(distance, NS_ERROR_ILLEGAL_VALUE);
 
-  nsRefPtr<gfxFlattenedPath> flat = GetFlattenedPath(gfxMatrix());
+  nsRefPtr<gfxFlattenedPath> flat = GetFlattenedPath(nsnull);
   if (!flat)
     return NS_ERROR_FAILURE;
 
@@ -129,8 +129,8 @@ nsSVGPathElement::GetPointAtLength(float distance, nsIDOMSVGPoint **_retval)
     float pathLength = mPathLength.GetAnimValue();
     distance *= totalLength / pathLength;
   }
-  distance = NS_MAX(0.f,         distance);
-  distance = NS_MIN(totalLength, distance);
+  distance = PR_MAX(0,           distance);
+  distance = PR_MIN(totalLength, distance);
 
   return NS_NewSVGPoint(_retval, flat->FindPoint(gfxPoint(distance, 0)));
 }
@@ -458,10 +458,7 @@ nsSVGPathElement::BeforeSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
 
     if (aValue) {
       nsSVGPathDataParserToInternal parser(&mPathData);
-      nsresult rv = parser.Parse(*aValue);
-      if (NS_FAILED(rv)) {
-        ReportAttributeParseFailure(GetOwnerDoc(), aName, *aValue);
-      }
+      parser.Parse(*aValue);
     } else {
       mPathData.Clear();
     }
@@ -469,19 +466,6 @@ nsSVGPathElement::BeforeSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
 
   return nsSVGPathElementBase::BeforeSetAttr(aNamespaceID, aName,
                                              aValue, aNotify);
-}
-
-NS_IMETHODIMP
-nsSVGPathElement::WillModifySVGObservable(nsISVGValue* observable,
-                                          nsISVGValue::modificationType aModType)
-{
-  nsCOMPtr<nsIDOMSVGPathSegList> list = do_QueryInterface(observable);
-
-  if (list && mSegments == list) {
-    return NS_OK;
-  }
-
-  return nsSVGPathElementBase::WillModifySVGObservable(observable, aModType);
 }
 
 NS_IMETHODIMP
@@ -512,19 +496,28 @@ nsSVGPathElement::DidModifySVGObservable(nsISVGValue* observable,
 }
 
 already_AddRefed<gfxFlattenedPath>
-nsSVGPathElement::GetFlattenedPath(const gfxMatrix &aMatrix)
+nsSVGPathElement::GetFlattenedPath(nsIDOMSVGMatrix *aMatrix)
 {
-  return mPathData.GetFlattenedPath(aMatrix);
+  gfxContext ctx(nsSVGUtils::GetThebesComputationalSurface());
+
+  if (aMatrix) {
+    ctx.SetMatrix(nsSVGUtils::ConvertSVGMatrixToThebes(aMatrix));
+  }
+
+  mPathData.Playback(&ctx);
+
+  ctx.IdentityMatrix();
+
+  return ctx.GetFlattenedPath();
 }
 
 //----------------------------------------------------------------------
 // nsSVGPathGeometryElement methods
 
 PRBool
-nsSVGPathElement::AttributeDefinesGeometry(const nsIAtom *aName)
+nsSVGPathElement::IsDependentAttribute(nsIAtom *aName)
 {
-  if (aName == nsGkAtoms::d ||
-      aName == nsGkAtoms::pathLength)
+  if (aName == nsGkAtoms::d)
     return PR_TRUE;
 
   return PR_FALSE;
@@ -986,11 +979,7 @@ nsSVGPathElement::GetMarkPoints(nsTArray<nsSVGMark> *aMarks)
     aMarks->ElementAt(aMarks->Length() - 1).angle = prevAngle;
 }
 
-void
-nsSVGPathElement::ConstructPath(gfxContext *aCtx)
-{
-  mPathData.Playback(aCtx);
-}
+
 
 //==================================================================
 // nsSVGPathList
@@ -1038,14 +1027,8 @@ nsSVGPathList::Playback(gfxContext *aCtx)
   }
 }
 
-already_AddRefed<gfxFlattenedPath>
-nsSVGPathList::GetFlattenedPath(const gfxMatrix& aMatrix)
+void
+nsSVGPathElement::ConstructPath(gfxContext *aCtx)
 {
-  gfxContext ctx(nsSVGUtils::GetThebesComputationalSurface());
-
-  ctx.SetMatrix(aMatrix);
-  Playback(&ctx);
-  ctx.IdentityMatrix();
-
-  return ctx.GetFlattenedPath();
+  mPathData.Playback(aCtx);
 }

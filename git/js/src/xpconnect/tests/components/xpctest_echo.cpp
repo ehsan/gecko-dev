@@ -483,7 +483,7 @@ xpctestEcho::PrintArgTypes(void)
         else if (JSVAL_IS_VOID(argv[i]))
             type = "void";
 
-        fputs(type, stdout);
+        printf(type);
 
         if(i < argc-1)
             printf(", ");
@@ -517,6 +517,8 @@ xpctestEcho::ThrowArg(void)
         return NS_ERROR_FAILURE;
 
     JS_SetPendingException(cx, argv[0]);
+    cc->SetExceptionWasThrown(JS_TRUE);
+        
     return NS_OK;
 }
 
@@ -593,7 +595,7 @@ NS_IMETHODIMP xpctestEcho::SetSomeValue(PRInt32 aSomeValue)
 /***************************************************************************/
 
 // static
-nsresult
+NS_IMETHODIMP
 xpctest::ConstructEcho(nsISupports *aOuter, REFNSIID aIID, void **aResult)
 {
     nsresult rv;

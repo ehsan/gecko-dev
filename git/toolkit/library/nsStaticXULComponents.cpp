@@ -40,10 +40,12 @@
 
 #define XPCOM_TRANSLATE_NSGM_ENTRY_POINT 1
 
-#include "mozilla/Module.h"
+#include "nsIGenericFactory.h"
 #include "nsXPCOM.h"
 #include "nsStaticComponents.h"
 #include "nsMemory.h"
+
+#define NSGETMODULE(_name) _name##_NSGetModule
 
 #ifdef MOZ_AUTH_EXTENSION
 #define AUTH_MODULE    MODULE(nsAuthModule)
@@ -65,6 +67,18 @@
 #define UNIVERSALCHARDET_MODULE
 #endif
 
+#ifdef MOZ_MATHML
+#define MATHML_MODULES MODULE(nsUCvMathModule)
+#else
+#define MATHML_MODULES
+#endif
+
+#ifdef MOZ_IPCD
+#define IPC_MODULE MODULE(ipcdclient)
+#else
+#define IPC_MODULE
+#endif
+
 #define GFX_MODULES MODULE(nsGfxModule)
 
 #ifdef XP_WIN
@@ -77,10 +91,8 @@
 #  define WIDGET_MODULES MODULE(nsWidgetOS2Module)
 #elif defined(MOZ_WIDGET_GTK2)
 #  define WIDGET_MODULES MODULE(nsWidgetGtk2Module)
-#elif defined(MOZ_WIDGET_QT)
-#  define WIDGET_MODULES MODULE(nsWidgetQtModule)
-#elif defined(MOZ_WIDGET_ANDROID)
-#  define WIDGET_MODULES MODULE(nsWidgetAndroidModule)
+#elif defined(MOZ_WIDGET_PHOTON)
+#  define WIDGET_MODULES MODULE(nsWidgetPhModule)
 #else
 #  error Unknown widget module.
 #endif
@@ -92,11 +104,15 @@
 #endif
 
 #ifdef MOZ_RDF
-#define RDF_MODULES \
-    MODULE(nsRDFModule) \
-    MODULE(nsWindowDataSourceModule)
+#define RDF_MODULE MODULE(nsRDFModule)
 #else
-#define RDF_MODULES
+#define RDF_MODULE
+#endif
+
+#ifdef OJI
+#define OJI_MODULES MODULE(nsCJVMManagerModule)
+#else
+#define OJI_MODULES
 #endif
 
 #ifdef MOZ_PLAINTEXT_EDITOR_ONLY
@@ -117,29 +133,20 @@
 #define XREMOTE_MODULES
 #endif
 
-#ifdef MOZ_PREF_EXTENSIONS
 #ifdef MOZ_ENABLE_GTK2
-#define SYSTEMPREF_MODULES \
-    MODULE(nsSystemPrefModule) \
-    MODULE(nsAutoConfigModule)
+#ifdef MOZ_PREF_EXTENSIONS
+#define SYSTEMPREF_MODULES MODULE(nsSystemPrefModule)
 #else
-#define SYSTEMPREF_MODULES MODULE(nsAutoConfigModule)
+#define SYSTEMPREF_MODULES
 #endif
 #else
 #define SYSTEMPREF_MODULES
 #endif
 
-#if defined(MOZ_DEBUG) && defined(ENABLE_TESTS)
+#ifdef MOZ_ENABLE_EXTENSION_LAYOUT_DEBUG
 #define LAYOUT_DEBUG_MODULE MODULE(nsLayoutDebugModule)
 #else
 #define LAYOUT_DEBUG_MODULE
-#endif
-
-#ifdef MOZ_IPC
-#define JETPACK_MODULES \
-    MODULE(jetpack)
-#else
-#define JETPACK_MODULES
 #endif
 
 #ifdef MOZ_PLUGINS
@@ -149,6 +156,36 @@
 #define PLUGINS_MODULES
 #endif
 
+#ifdef MOZ_WEBSERVICES
+#define WEBSERVICES_MODULES \
+    MODULE(nsWebServicesModule)
+#else
+#define WEBSERVICES_MODULES
+#endif
+
+#ifdef MOZ_XPFE_COMPONENTS
+#ifdef MOZ_RDF
+#define RDFAPP_MODULES \
+    MODULE(nsXPIntlModule) \
+    MODULE(nsWindowDataSourceModule)
+#else
+#define RDFAPP_MODULES
+#endif
+#define APPLICATION_MODULES \
+    MODULE(application) \
+    MODULE(nsFindComponent)
+#else
+#define APPLICATION_MODULES
+#define RDFAPP_MODULES
+#endif
+
+#ifdef MOZ_XPINSTALL
+#define XPINSTALL_MODULES \
+    MODULE(nsSoftwareUpdate)
+#else
+#define XPINSTALL_MODULES
+#endif
+
 #ifdef MOZ_JSDEBUGGER
 #define JSDEBUGGER_MODULES \
     MODULE(JavaScript_Debugger)
@@ -156,7 +193,7 @@
 #define JSDEBUGGER_MODULES
 #endif
 
-#if defined(MOZ_FILEVIEW) && defined(MOZ_XUL)
+#if defined(MOZ_FILEVIEW) && defined(MOZ_XPFE_COMPONENTS) && defined(MOZ_XUL)
 #define FILEVIEW_MODULE MODULE(nsFileViewModule)
 #else
 #define FILEVIEW_MODULE
@@ -180,7 +217,8 @@
 #else
 #if (defined(MOZ_MORK) && defined(MOZ_XUL))
 #define PLACES_MODULES \
-    MODULE(nsMorkModule)
+    MODULE(nsMorkModule)                     \
+    MODULE(nsToolkitHistory)
 #else
 #define PLACES_MODULES
 #endif
@@ -201,11 +239,14 @@
 #define SPELLCHECK_MODULE
 #endif
 
+#ifdef MOZ_XMLEXTRAS
+#define XMLEXTRAS_MODULE MODULE(nsXMLExtrasModule)
+#else
+#define XMLEXTRAS_MODULE
+#endif
+
 #ifdef MOZ_XUL
 #ifdef MOZ_ENABLE_GTK2
-#define UNIXPROXY_MODULE MODULE(nsUnixProxyModule)
-#endif
-#if defined(MOZ_WIDGET_QT)
 #define UNIXPROXY_MODULE MODULE(nsUnixProxyModule)
 #endif
 #endif
@@ -213,25 +254,9 @@
 #define UNIXPROXY_MODULE
 #endif
 
-#if defined(XP_MACOSX)
-#define OSXPROXY_MODULE MODULE(nsOSXProxyModule)
-#else
-#define OSXPROXY_MODULE
-#endif
-
-#if defined(XP_WIN)
-#define WINDOWSPROXY_MODULE MODULE(nsWindowsProxyModule)
-#else
-#define WINDOWSPROXY_MODULE
-#endif
-
-#if defined(BUILD_CTYPES)
-#define JSCTYPES_MODULE MODULE(jsctypes)
-#else
-#define JSCTYPES_MODULE
-#endif
-
 #define XUL_MODULES                          \
+    MODULE(xpconnect)                        \
+    MATHML_MODULES                           \
     MODULE(nsUConvModule)                    \
     MODULE(nsI18nModule)                     \
     MODULE(nsChardetModule)                  \
@@ -239,26 +264,31 @@
     MODULE(necko)                            \
     PERMISSIONS_MODULES                      \
     AUTH_MODULE                              \
+    IPC_MODULE                               \
     MODULE(nsJarModule)                      \
     ZIPWRITER_MODULE                         \
     MODULE(nsPrefModule)                     \
-    RDF_MODULES                              \
+    MODULE(nsSecurityManagerModule)          \
+    RDF_MODULE                               \
+    RDFAPP_MODULES                           \
     MODULE(nsParserModule)                   \
     GFX_MODULES                              \
     WIDGET_MODULES                           \
     MODULE(nsImageLib2Module)                \
     ICON_MODULE                              \
-    JETPACK_MODULES                          \
     PLUGINS_MODULES                          \
     MODULE(nsLayoutModule)                   \
+    WEBSERVICES_MODULES                      \
     MODULE(docshell_provider)                \
     MODULE(embedcomponents)                  \
     MODULE(Browser_Embedding_Module)         \
+    OJI_MODULES                              \
     ACCESS_MODULES                           \
     MODULE(appshell)                         \
     MODULE(nsTransactionManagerModule)       \
     COMPOSER_MODULE                          \
-    MODULE(application)                      \
+    MODULE(nsChromeModule)                   \
+    APPLICATION_MODULES                      \
     MODULE(Apprunner)                        \
     MODULE(CommandLineModule)                \
     FILEVIEW_MODULE                          \
@@ -267,34 +297,33 @@
     XULENABLED_MODULES                       \
     MODULE(nsToolkitCompsModule)             \
     XREMOTE_MODULES                          \
+    XPINSTALL_MODULES                        \
     JSDEBUGGER_MODULES                       \
     MODULE(BOOT)                             \
     MODULE(NSS)                              \
+    MODULE(nsAutoConfigModule)               \
     SYSTEMPREF_MODULES                       \
     SPELLCHECK_MODULE                        \
+    XMLEXTRAS_MODULE                         \
     LAYOUT_DEBUG_MODULE                      \
     UNIXPROXY_MODULE                         \
-    OSXPROXY_MODULE                          \
-    WINDOWSPROXY_MODULE                      \
-    JSCTYPES_MODULE                          \
-    MODULE(jsperf)                           \
     /* end of list */
 
 #define MODULE(_name) \
-  NSMODULE_DECL(_name);
+NSGETMODULE_ENTRY_POINT(_name) (nsIComponentManager*, nsIFile*, nsIModule**);
 
 XUL_MODULES
 
 #undef MODULE
 
-#define MODULE(_name) \
-    NSMODULE_NAME(_name),
+#define MODULE(_name) { #_name, NSGETMODULE(_name) },
 
-static const mozilla::Module *const kStaticModules[] = {
-  XUL_MODULES
-  NULL
+/**
+ * The nsStaticModuleInfo
+ */
+static nsStaticModuleInfo const gStaticModuleInfo[] = {
+    XUL_MODULES
 };
 
-#undef MODULE
-
-mozilla::Module const *const *const kPStaticModules = kStaticModules;
+nsStaticModuleInfo const *const kPStaticModules = gStaticModuleInfo;
+PRUint32 const kStaticModuleCount = NS_ARRAY_LENGTH(gStaticModuleInfo);

@@ -43,7 +43,6 @@
 #include "nsIDocument.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsString.h"
-#include "mozilla/FunctionTimer.h"
 #include "nsUnicharUtils.h"
 #include "nsReadableUtils.h"
 #include "nsXBLProtoImplMethod.h"
@@ -133,7 +132,9 @@ nsXBLProtoImplMethod::InstallMember(nsIScriptContext* aContext,
   nsIDocument *ownerDoc = aBoundElement->GetOwnerDoc();
   nsIScriptGlobalObject *sgo;
 
-  if (!ownerDoc || !(sgo = ownerDoc->GetScopeObject())) {
+  if (!ownerDoc || !(sgo = ownerDoc->GetScriptGlobalObject())) {
+    NS_ERROR("Can't find global object for bound content!");
+ 
     return NS_ERROR_UNEXPECTED;
   }
 
@@ -172,7 +173,6 @@ nsresult
 nsXBLProtoImplMethod::CompileMember(nsIScriptContext* aContext, const nsCString& aClassStr,
                                     void* aClassObject)
 {
-  NS_TIME_FUNCTION_MIN(5);
   NS_PRECONDITION(!IsCompiled(),
                   "Trying to compile an already-compiled method");
   NS_PRECONDITION(aClassObject,
@@ -206,15 +206,15 @@ nsXBLProtoImplMethod::CompileMember(nsIScriptContext* aContext, const nsCString&
     args = new char*[paramCount];
     if (!args)
       return NS_ERROR_OUT_OF_MEMORY;
+  }
 
-    // Add our parameters to our args array.
-    PRInt32 argPos = 0; 
-    for (nsXBLParameter* curr = uncompiledMethod->mParameters; 
-         curr; 
-         curr = curr->mNext) {
-      args[argPos] = curr->mName;
-      argPos++;
-    }
+  // Add our parameters to our args array.
+  PRInt32 argPos = 0; 
+  for (nsXBLParameter* curr = uncompiledMethod->mParameters; 
+       curr; 
+       curr = curr->mNext) {
+    args[argPos] = curr->mName;
+    argPos++;
   }
 
   // Get the body
@@ -297,13 +297,16 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
   JSObject* globalObject = global->GetGlobalJSObject();
 
   nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
-  jsval v;
   nsresult rv =
-    nsContentUtils::WrapNative(cx, globalObject, aBoundElement, &v,
-                               getter_AddRefs(wrapper));
+    nsContentUtils::XPConnect()->WrapNative(cx, globalObject,
+                                            aBoundElement,
+                                            NS_GET_IID(nsISupports),
+                                            getter_AddRefs(wrapper));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  JSObject* thisObject = JSVAL_TO_OBJECT(v);
+  JSObject* thisObject;
+  rv = wrapper->GetJSObject(&thisObject);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   JSAutoRequest ar(cx);
 
@@ -332,13 +335,9 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
   }
 
   if (!ok) {
-    // If a constructor or destructor threw an exception, it doesn't stop
-    // anything else.  We just report it.  Note that we need to set aside the
-    // frame chain here, since the constructor invocation is not related to
-    // whatever is on the stack right now, really.
-    JSStackFrame* frame = JS_SaveFrameChain(cx);
+    // If a constructor or destructor threw an exception, it doesn't
+    // stop anything else.  We just report it.
     ::JS_ReportPendingException(cx);
-    JS_RestoreFrameChain(cx, frame);
     return NS_ERROR_FAILURE;
   }
 

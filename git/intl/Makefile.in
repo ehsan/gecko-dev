@@ -35,23 +35,19 @@
 #
 # ***** END LICENSE BLOCK *****
 
-DEPTH     = ..
-topsrcdir = @top_srcdir@
-srcdir    = @srcdir@
-VPATH     = @srcdir@
+DEPTH		= ..
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-PARALLEL_DIRS = \
-  locale \
-  lwbrk \
-  strres \
-  unicharutil \
-  $(NULL)
+DIRS		= unicharutil uconv locale strres lwbrk build
 
-DIRS = \
-  uconv \
-  build \
-  $(NULL)
+# Sun's Complex Text Layout support
+ifdef SUNCTL
+DIRS		+= ctl
+endif
 
 include $(topsrcdir)/config/rules.mk
+

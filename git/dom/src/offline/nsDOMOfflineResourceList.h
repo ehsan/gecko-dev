@@ -41,9 +41,7 @@
 
 #include "nscore.h"
 #include "nsIDOMOfflineResourceList.h"
-#include "nsIApplicationCache.h"
-#include "nsIApplicationCacheContainer.h"
-#include "nsIApplicationCacheService.h"
+#include "nsIOfflineCacheSession.h"
 #include "nsIOfflineCacheUpdate.h"
 #include "nsTArray.h"
 #include "nsString.h"
@@ -52,49 +50,52 @@
 #include "nsWeakReference.h"
 #include "nsCOMArray.h"
 #include "nsIDOMEventListener.h"
+#include "nsIDOMEventTarget.h"
 #include "nsDOMEvent.h"
 #include "nsIObserver.h"
 #include "nsIScriptContext.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsPIDOMWindow.h"
-#include "nsDOMEventTargetHelper.h"
 
 class nsIDOMWindow;
 
-class nsDOMOfflineResourceList : public nsDOMEventTargetHelper,
-                                 public nsIDOMOfflineResourceList,
+class nsDOMOfflineResourceList : public nsIDOMOfflineResourceList,
                                  public nsIObserver,
                                  public nsIOfflineCacheUpdateObserver,
+                                 public nsIDOMEventTarget,
                                  public nsSupportsWeakReference
 {
 public:
-  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_NSIDOMOFFLINERESOURCELIST
   NS_DECL_NSIOBSERVER
   NS_DECL_NSIOFFLINECACHEUPDATEOBSERVER
+  NS_DECL_NSIDOMEVENTTARGET
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsDOMOfflineResourceList,
-                                           nsDOMEventTargetHelper)
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsDOMOfflineResourceList,
+                                           nsIDOMOfflineResourceList)
 
-  nsDOMOfflineResourceList(nsIURI* aManifestURI,
+  nsDOMOfflineResourceList(PRBool aToplevel,
+                           nsIURI* aManifestURI,
                            nsIURI* aDocumentURI,
-                           nsPIDOMWindow* aWindow,
-                           nsIScriptContext* aScriptContext);
+                           nsIDOMWindow* aWindow);
   virtual ~nsDOMOfflineResourceList();
 
   void FirePendingEvents();
   void Disconnect();
 
+private:
   nsresult Init();
 
-private:
-  nsresult SendEvent(const nsAString &aEventName);
+  void NotifyEventListeners(nsIDOMEventListener *aListener,
+                            const nsCOMArray<nsIDOMEventListener>& aListeners,
+                            nsIDOMEvent* aEvent);
+
+  nsresult SendEvent(const nsAString &aEventName,
+                     nsIDOMEventListener *aListener,
+                     const nsCOMArray<nsIDOMEventListener> &aListeners);
 
   nsresult UpdateAdded(nsIOfflineCacheUpdate *aUpdate);
   nsresult UpdateCompleted(nsIOfflineCacheUpdate *aUpdate);
-
-  already_AddRefed<nsIApplicationCacheContainer> GetDocumentAppCacheContainer();
-  already_AddRefed<nsIApplicationCache> GetDocumentAppCache();
 
   nsresult GetCacheKey(const nsAString &aURI, nsCString &aKey);
   nsresult GetCacheKey(nsIURI *aURI, nsCString &aKey);
@@ -103,29 +104,38 @@ private:
   void ClearCachedKeys();
 
   PRBool mInitialized;
-
+  PRBool mToplevel;
   nsCOMPtr<nsIURI> mManifestURI;
-  // AsciiSpec of mManifestURI
-  nsCString mManifestSpec;
-
   nsCOMPtr<nsIURI> mDocumentURI;
-  nsCOMPtr<nsIApplicationCacheService> mApplicationCacheService;
+  nsCOMPtr<nsIWeakReference> mWindow;
+  nsCOMPtr<nsIOfflineCacheSession> mCacheSession;
   nsCOMPtr<nsIOfflineCacheUpdate> mCacheUpdate;
+  nsCAutoString mAsciiHost;
+  nsCAutoString mDynamicOwnerSpec;
 
-  // The set of dynamic keys for this application cache object.
-  char **mCachedKeys;
-  PRUint32 mCachedKeysCount;
+  nsCOMArray<nsIDOMEventListener> mCheckingListeners;
+  nsCOMArray<nsIDOMEventListener> mErrorListeners;
+  nsCOMArray<nsIDOMEventListener> mNoUpdateListeners;
+  nsCOMArray<nsIDOMEventListener> mDownloadingListeners;
+  nsCOMArray<nsIDOMEventListener> mProgressListeners;
+  nsCOMArray<nsIDOMEventListener> mCachedListeners;
+  nsCOMArray<nsIDOMEventListener> mUpdateReadyListeners;
 
-  nsRefPtr<nsDOMEventListenerWrapper> mOnCheckingListener;
-  nsRefPtr<nsDOMEventListenerWrapper> mOnErrorListener;
-  nsRefPtr<nsDOMEventListenerWrapper> mOnNoUpdateListener;
-  nsRefPtr<nsDOMEventListenerWrapper> mOnDownloadingListener;
-  nsRefPtr<nsDOMEventListenerWrapper> mOnProgressListener;
-  nsRefPtr<nsDOMEventListenerWrapper> mOnCachedListener;
-  nsRefPtr<nsDOMEventListenerWrapper> mOnUpdateReadyListener;
-  nsRefPtr<nsDOMEventListenerWrapper> mOnObsoleteListener;
+  nsCOMPtr<nsIDOMEventListener> mOnCheckingListener;
+  nsCOMPtr<nsIDOMEventListener> mOnErrorListener;
+  nsCOMPtr<nsIDOMEventListener> mOnNoUpdateListener;
+  nsCOMPtr<nsIDOMEventListener> mOnDownloadingListener;
+  nsCOMPtr<nsIDOMEventListener> mOnProgressListener;
+  nsCOMPtr<nsIDOMEventListener> mOnCachedListener;
+  nsCOMPtr<nsIDOMEventListener> mOnUpdateReadyListener;
 
-  nsCOMArray<nsIDOMEvent> mPendingEvents;
+  struct PendingEvent {
+    nsCOMPtr<nsIDOMEvent> event;
+    nsCOMPtr<nsIDOMEventListener> listener;
+    nsCOMArray<nsIDOMEventListener> listeners;
+  };
+
+  nsTArray<PendingEvent> mPendingEvents;
 };
 
 #endif

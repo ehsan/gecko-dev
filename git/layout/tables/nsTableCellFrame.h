@@ -45,16 +45,15 @@
 #include "nsIPercentHeightObserver.h"
 #include "nsGkAtoms.h"
 #include "nsLayoutUtils.h"
-#include "nsTArray.h"
 
 class nsTableFrame;
 
 /**
  * Additional frame-state bits
  */
-#define NS_TABLE_CELL_CONTENT_EMPTY       NS_FRAME_STATE_BIT(31)
-#define NS_TABLE_CELL_HAD_SPECIAL_REFLOW  NS_FRAME_STATE_BIT(29)
-#define NS_TABLE_CELL_HAS_PCT_OVER_HEIGHT NS_FRAME_STATE_BIT(28)
+#define NS_TABLE_CELL_CONTENT_EMPTY       0x80000000
+#define NS_TABLE_CELL_HAD_SPECIAL_REFLOW  0x20000000
+#define NS_TABLE_CELL_HAS_PCT_OVER_HEIGHT 0x10000000
 
 /**
  * nsTableCellFrame
@@ -67,14 +66,14 @@ class nsTableFrame;
  *
  * @author  sclark
  */
-class nsTableCellFrame : public nsHTMLContainerFrame,
-                         public nsITableCellLayout,
+class nsTableCellFrame : public nsHTMLContainerFrame, 
+                         public nsITableCellLayout, 
                          public nsIPercentHeightObserver
 {
 public:
-  NS_DECL_QUERYFRAME_TARGET(nsTableCellFrame)
-  NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
+
+  // nsISupports
+  NS_DECL_ISUPPORTS_INHERITED
 
   // default constructor supplied by the compiler
 
@@ -86,24 +85,21 @@ public:
                   nsIFrame*        aPrevInFlow);
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
 
   NS_IMETHOD  AttributeChanged(PRInt32         aNameSpaceID,
                                nsIAtom*        aAttribute,
                                PRInt32         aModType);
 
-  /** @see nsIFrame::DidSetStyleContext */
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
-
-  // table cells contain a block frame which does most of the work, and
+  // table cells contain an area frame which does most of the work, and
   // so these functions should never be called. They assert and return
   // NS_ERROR_NOT_IMPLEMENTED
   NS_IMETHOD AppendFrames(nsIAtom*        aListName,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
   NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
   NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
 
@@ -127,10 +123,14 @@ public:
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists);
-
+                              
   void PaintCellBackground(nsIRenderingContext& aRenderingContext,
-                           const nsRect& aDirtyRect, nsPoint aPt,
-                           PRUint32 aFlags);
+                           const nsRect& aDirtyRect, nsPoint aPt);
+
+  NS_IMETHOD SetSelected(nsPresContext* aPresContext,
+                         nsIDOMRange *aRange,
+                         PRBool aSelected,
+                         nsSpread aSpread);
 
   virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
   virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
@@ -158,10 +158,6 @@ public:
   void VerticallyAlignChild(nscoord aMaxAscent);
 
   PRBool HasVerticalAlignBaseline();
-
-  PRBool CellHasVisibleContent(nscoord       height,
-                               nsTableFrame* tableFrame,
-                               nsIFrame*     kidFrame);
 
   /**
    * Get the first-line baseline of the cell relative to its top border
@@ -198,14 +194,14 @@ public:
    * @see nsTableFrame::GetEffectiveColSpan()
    */
   virtual PRInt32 GetColSpan();
-
+  
   /** return the cell's column index (starting at 0 for the first column) */
   virtual nsresult GetColIndex(PRInt32 &aColIndex) const;
   void SetColIndex(PRInt32 aColIndex);
 
   /** return the available width given to this frame during its last reflow */
   inline nscoord GetPriorAvailWidth();
-
+  
   /** set the available width given to this frame during its last reflow */
   inline void SetPriorAvailWidth(nscoord aPriorAvailWidth);
 
@@ -227,15 +223,16 @@ public:
 
   virtual void PaintBackground(nsIRenderingContext& aRenderingContext,
                                const nsRect&        aDirtyRect,
-                               nsPoint              aPt,
-                               PRUint32             aFlags);
+                               nsPoint              aPt);
 
   void DecorateForSelection(nsIRenderingContext& aRenderingContext,
                             nsPoint              aPt);
-
+                                 
 protected:
   /** implement abstract method on nsHTMLContainerFrame */
   virtual PRIntn GetSkipSides() const;
+
+  virtual PRBool ParentDisablesSelection() const; //override default behavior
 
   /**
    * GetSelfOverflow says what effect the cell should have on its own
@@ -247,9 +244,16 @@ protected:
    */
   virtual void GetSelfOverflow(nsRect& aOverflowArea);
 
+private:  
+
+  // All these methods are support methods for RecalcLayoutData
+  nsIFrame* GetFrameAt(nsVoidArray* aList,  PRInt32 aIndex);
+
+protected:
+
   friend class nsTableRowFrame;
 
-  PRUint32     mColIndex;             // the starting column for this cell
+  PRUint32     mColIndex;             // the starting column for this cell 
 
   nscoord      mPriorAvailWidth;      // the avail width during the last reflow
   nsSize       mDesiredSize;          // the last desired width & height
@@ -265,7 +269,7 @@ inline nsSize nsTableCellFrame::GetDesiredSize()
 { return mDesiredSize; }
 
 inline void nsTableCellFrame::SetDesiredSize(const nsHTMLReflowMetrics & aDesiredSize)
-{
+{ 
   mDesiredSize.width = aDesiredSize.width;
   mDesiredSize.height = aDesiredSize.height;
 }
@@ -304,7 +308,6 @@ inline void nsTableCellFrame::SetHasPctOverHeight(PRBool aValue)
 class nsBCTableCellFrame : public nsTableCellFrame
 {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
 
   nsBCTableCellFrame(nsStyleContext* aContext);
 
@@ -318,10 +321,10 @@ public:
   virtual nsMargin* GetBorderWidth(nsMargin& aBorder) const;
 
   // Get the *inner half of the border only*, in pixels.
-  BCPixelSize GetBorderWidth(mozilla::css::Side aSide) const;
+  BCPixelSize GetBorderWidth(PRUint8 aSide) const;
 
   // Set the full (both halves) width of the border
-  void SetBorderWidth(mozilla::css::Side aSide, BCPixelSize aPixelValue);
+  void SetBorderWidth(PRUint8 aSide, BCPixelSize aPixelValue);
 
   virtual void GetSelfOverflow(nsRect& aOverflowArea);
 
@@ -331,11 +334,10 @@ public:
 
   virtual void PaintBackground(nsIRenderingContext& aRenderingContext,
                                const nsRect&        aDirtyRect,
-                               nsPoint              aPt,
-                               PRUint32             aFlags);
+                               nsPoint              aPt);
 
 private:
-
+  
   // These are the entire width of the border (the cell edge contains only
   // the inner half, per the macros in nsTablePainter.h).
   BCPixelSize mTopBorder;

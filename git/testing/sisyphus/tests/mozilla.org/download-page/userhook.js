@@ -1,5 +1,6 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 
+
 function userOnStart()
 {
   dlog('userOnStart()');
@@ -8,7 +9,7 @@ function userOnStart()
 
   loadBundle('chrome://browser-region/locale/region.properties');
   loadBundle('chrome://branding/content/searchconfig.properties');
-  loadBundle('chrome://branding/locale/browserconfig.properties');
+  loadBundle('resource:/browserconfig.properties');
 
 }
 

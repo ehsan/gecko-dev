@@ -58,9 +58,8 @@
 #include "nsNSSCleaner.h"
 NSSCleanupAutoPtrClass(CERTCertificate, CERT_DestroyCertificate)
 
-NS_IMPL_THREADSAFE_ISUPPORTS2(nsClientAuthRememberService, 
-                              nsIObserver,
-                              nsISupportsWeakReference)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsClientAuthRememberService, 
+                              nsIObserver)
 
 nsClientAuthRememberService::nsClientAuthRememberService()
 {
@@ -167,16 +166,8 @@ nsClientAuthRememberService::RememberDecision(const nsACString & aHostName,
   {
     nsAutoMonitor lock(monitor);
     if (aClientCert) {
-      nsNSSCertificate pipCert(aClientCert);
-      char *dbkey = NULL;
-      rv = pipCert.GetDbKey(&dbkey);
-      if (NS_SUCCEEDED(rv) && dbkey) {
-        AddEntryToList(aHostName, fpStr, 
-                       nsDependentCString(dbkey));
-      }
-      if (dbkey) {
-        PORT_Free(dbkey);
-      }
+      AddEntryToList(aHostName, fpStr, 
+                     nsDependentCString(aClientCert->nickname));
     }
     else {
       nsCString empty;
@@ -190,7 +181,7 @@ nsClientAuthRememberService::RememberDecision(const nsACString & aHostName,
 nsresult
 nsClientAuthRememberService::HasRememberedDecision(const nsACString & aHostName, 
                                                    CERTCertificate *aCert, 
-                                                   nsACString & aCertDBKey,
+                                                   nsACString & aClientNickname,
                                                    PRBool *_retval)
 {
   if (aHostName.IsEmpty())
@@ -218,7 +209,7 @@ nsClientAuthRememberService::HasRememberedDecision(const nsACString & aHostName,
     settings = entry->mSettings; // copy
   }
 
-  aCertDBKey = settings.mDBKey;
+  aClientNickname = settings.mClientNickname;
   *_retval = PR_TRUE;
   return NS_OK;
 }
@@ -226,7 +217,7 @@ nsClientAuthRememberService::HasRememberedDecision(const nsACString & aHostName,
 nsresult
 nsClientAuthRememberService::AddEntryToList(const nsACString &aHostName, 
                                       const nsACString &fingerprint,
-                                      const nsACString &db_key)
+                                      const nsACString &client_nickname)
 
 {
   nsCAutoString hostCert;
@@ -246,7 +237,7 @@ nsClientAuthRememberService::AddEntryToList(const nsACString &aHostName,
     nsClientAuthRemember &settings = entry->mSettings;
     settings.mAsciiHost = aHostName;
     settings.mFingerprint = fingerprint;
-    settings.mDBKey = db_key;
+    settings.mClientNickname = client_nickname;
   }
 
   return NS_OK;

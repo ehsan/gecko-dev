@@ -73,7 +73,11 @@
 
 static char consoleName[] =  {
 #ifdef XP_UNIX
+#ifdef VMS
+    "TT"
+#else
     "/dev/tty"
+#endif
 #else
 #ifdef XP_OS2
     "\\DEV\\CON"
@@ -209,81 +213,37 @@ SECU_GetPasswordString(void *arg, char *prompt)
 char *
 SECU_FilePasswd(PK11SlotInfo *slot, PRBool retry, void *arg)
 {
-    char* phrases, *phrase;
+    unsigned char phrase[200];
     PRFileDesc *fd;
     PRInt32 nb;
     char *pwFile = arg;
     int i;
-    const long maxPwdFileSize = 4096;
-    char* tokenName = NULL;
-    int tokenLen = 0;
 
     if (!pwFile)
 	return 0;
 
     if (retry) {
 	return 0;  /* no good retrying - the files contents will be the same */
-    }
-
-    phrases = PORT_ZAlloc(maxPwdFileSize);
-
-    if (!phrases) {
-        return 0; /* out of memory */
-    }
+    } 
  
     fd = PR_Open(pwFile, PR_RDONLY, 0);
     if (!fd) {
 	fprintf(stderr, "No password file \"%s\" exists.\n", pwFile);
-        PORT_Free(phrases);
 	return NULL;
     }
 
-    nb = PR_Read(fd, phrases, maxPwdFileSize);
+    nb = PR_Read(fd, phrase, sizeof(phrase));
   
     PR_Close(fd);
-
-    if (nb == 0) {
-        fprintf(stderr,"password file contains no data\n");
-        PORT_Free(phrases);
-        return NULL;
-    }
-
-    if (slot) {
-        tokenName = PK11_GetTokenName(slot);
-        if (tokenName) {
-            tokenLen = PORT_Strlen(tokenName);
-        }
-    }
+    /* handle the Windows EOL case */
     i = 0;
-    do
-    {
-        int startphrase = i;
-        int phraseLen;
-
-        /* handle the Windows EOL case */
-        while (phrases[i] != '\r' && phrases[i] != '\n' && i < nb) i++;
-        /* terminate passphrase */
-        phrases[i++] = '\0';
-        /* clean up any EOL before the start of the next passphrase */
-        while ( (i<nb) && (phrases[i] == '\r' || phrases[i] == '\n')) {
-            phrases[i++] = '\0';
-        }
-        /* now analyze the current passphrase */
-        phrase = &phrases[startphrase];
-        if (!tokenName)
-            break;
-        if (PORT_Strncmp(phrase, tokenName, tokenLen)) continue;
-        phraseLen = PORT_Strlen(phrase);
-        if (phraseLen < (tokenLen+1)) continue;
-        if (phrase[tokenLen] != ':') continue;
-        phrase = &phrase[tokenLen+1];
-        break;
-
-    } while (i<nb);
-
-    phrase = PORT_Strdup((char*)phrase);
-    PORT_Free(phrases);
-    return phrase;
+    while (phrase[i] != '\r' && phrase[i] != '\n' && i < nb) i++;
+    phrase[i] = '\0';
+    if (nb == 0) {
+	fprintf(stderr,"password file contains no data\n");
+	return NULL;
+    }
+    return (char*) PORT_Strdup((char*)phrase);
 }
 
 char *
@@ -1053,7 +1013,7 @@ secu_PrintTime(FILE *out, int64 time, char *m, int level)
     /* Convert to local time */
     PR_ExplodeTime(time, PR_GMTParameters, &printableTime);
 
-    timeString = PORT_Alloc(256);
+    timeString = PORT_Alloc(100);
     if (timeString == NULL)
 	return;
 
@@ -1062,9 +1022,8 @@ secu_PrintTime(FILE *out, int64 time, char *m, int level)
 	fprintf(out, "%s: ", m);
     }
 
-    if (PR_FormatTime(timeString, 256, "%a %b %d %H:%M:%S %Y", &printableTime)) {
-        fputs(timeString, out);
-    }
+    PR_FormatTime(timeString, 100, "%a %b %d %H:%M:%S %Y", &printableTime);
+    fprintf(out, timeString);
 
     if (m != NULL)
 	fprintf(out, "\n");
@@ -2039,6 +1998,14 @@ secu_PrintAuthKeyIDExtension(FILE *out, SECItem *value, char *msg, int level)
 	int snPresent = (kid->authCertSerialNumber.data &&
 	                 kid->authCertSerialNumber.len);
 
+        if ((keyIDPresent && !issuerPresent && !snPresent) ||
+	    (!keyIDPresent && issuerPresent && snPresent)) {
+	    /* all is well */
+	} else {
+	    SECU_Indent(out, level);
+	    fprintf(out, 
+	    "Error: KeyID OR (Issuer AND Serial) must be present, not both.\n");
+	}
 	if (keyIDPresent)
 	    SECU_PrintAsHex(out, &kid->keyID, "Key ID", level);
 	if (issuerPresent)
@@ -2098,10 +2065,10 @@ secu_PrintCRLDistPtsExtension(FILE *out, SECItem *value, char *msg, int level)
 	        pPoint->distPoint.fullName != NULL) {
 		secu_PrintGeneralNames(out, pPoint->distPoint.fullName, NULL,
 		                       level);
-	    } else if (pPoint->distPointType == relativeDistinguishedName &&
-	               pPoint->distPoint.relativeName.avas) {
-		SECU_PrintRDN(out, &pPoint->distPoint.relativeName, "RDN", 
-		              level);
+#if defined(LATER)
+	    } else if (pPoint->distPointType == relativeDistinguishedName) {
+	    	/* print the relative name */
+#endif
 	    } else if (pPoint->derDistPoint.data) {
 		SECU_PrintAny(out, &pPoint->derDistPoint, "Point", level);
 	    }
@@ -2328,26 +2295,11 @@ SECU_PrintExtensions(FILE *out, CERTCertExtension **extensions,
     }
 }
 
-/* An RDN is a subset of a DirectoryName, and we already know how to
- * print those, so make a directory name out of the RDN, and print it.
- */
-void
-SECU_PrintRDN(FILE *out, CERTRDN *rdn, char *msg, int level)
-{
-    CERTName name;
-    CERTRDN *rdns[2];
-
-    name.arena = NULL;
-    name.rdns  = rdns;
-    rdns[0] = rdn;
-    rdns[1] = NULL;
-    SECU_PrintName(out, &name, msg, level);
-}
 
 void
 SECU_PrintName(FILE *out, CERTName *name, char *msg, int level)
 {
-    char *nameStr = NULL;
+    char *nameStr;
     char *str;
     SECItem my;
 
@@ -2844,7 +2796,7 @@ SECU_PrintCRLInfo(FILE *out, CERTCrl *crl, char *m, int level)
 	iv = 0;
 	while ((entry = crl->entries[iv++]) != NULL) {
 	    sprintf(om, "Entry (%x):\n", iv); 
-	    SECU_Indent(out, level + 1); fputs(om, out);
+	    SECU_Indent(out, level + 1); fprintf(out, om);
 	    SECU_PrintInteger(out, &(entry->serialNumber), "Serial Number",
 			      level + 2);
 	    SECU_PrintTimeChoice(out, &(entry->revocationDate), 
@@ -3248,7 +3200,7 @@ SECU_PrintTrustFlags(FILE *out, CERTCertTrust *trust, char *m, int level)
     printFlags(out, trust->objectSigningFlags, level+2);
 }
 
-int SECU_PrintSignedData(FILE *out, SECItem *der, const char *m,
+int SECU_PrintSignedData(FILE *out, SECItem *der, char *m,
 			   int level, SECU_PPFunc inner)
 {
     PRArenaPool *arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
@@ -3311,56 +3263,6 @@ SEC_PrintCertificateAndTrust(CERTCertificate *cert,
     return(SECSuccess);
 }
 
-#if defined(DEBUG) || defined(FORCE_PR_ASSERT)
-/* Returns true iff a[i].flag has a duplicate in a[i+1 : count-1]  */
-static PRBool HasShortDuplicate(int i, secuCommandFlag *a, int count)
-{
-	char target = a[i].flag;
-	int j;
-
-	/* duplicate '\0' flags are okay, they are used with long forms */
-	for (j = i+1; j < count; j++) {
-		if (a[j].flag && a[j].flag == target) {
-			return PR_TRUE;
-		}
-	}
-	return PR_FALSE;
-}
-
-/* Returns true iff a[i].longform has a duplicate in a[i+1 : count-1] */
-static PRBool HasLongDuplicate(int i, secuCommandFlag *a, int count)
-{
-	int j;	
-	char *target = a[i].longform;
-
-	if (!target)
-		return PR_FALSE;
-
-	for (j = i+1; j < count; j++) {
-		if (a[j].longform && strcmp(a[j].longform, target) == 0) {
-			return PR_TRUE;
-		}
-	}
-	return PR_FALSE;
-}
-
-/* Returns true iff a has no short or long form duplicates
- */
-PRBool HasNoDuplicates(secuCommandFlag *a, int count)
-{
-    int i;
-
-	for (i = 0; i < count; i++) {
-		if (a[i].flag && HasShortDuplicate(i, a, count)) {
-			return PR_FALSE;
-		}
-		if (a[i].longform && HasLongDuplicate(i, a, count)) {
-			return PR_FALSE;
-		}
-	}
-	return PR_TRUE;
-}
-#endif
 
 SECStatus
 SECU_ParseCommandLine(int argc, char **argv, char *progName,
@@ -3374,10 +3276,7 @@ SECU_ParseCommandLine(int argc, char **argv, char *progName,
     int i, j;
     int lcmd = 0, lopt = 0;
 
-    PR_ASSERT(HasNoDuplicates(cmd->commands, cmd->numCommands));
-    PR_ASSERT(HasNoDuplicates(cmd->options, cmd->numOptions));
-
-    optstring = (char *)PORT_Alloc(cmd->numCommands + 2*cmd->numOptions+1);
+    optstring = (char *)PORT_Alloc(cmd->numCommands + 2*cmd->numOptions);
     if (optstring == NULL)
         return SECFailure;
     

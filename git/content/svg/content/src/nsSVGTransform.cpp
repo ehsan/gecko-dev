@@ -39,14 +39,53 @@
 #include "nsSVGTransform.h"
 #include "prdtoa.h"
 #include "nsSVGMatrix.h"
+#include "nsSVGValue.h"
 #include "nsISVGValueUtils.h"
+#include "nsISVGValueObserver.h"
 #include "nsWeakReference.h"
 #include "nsSVGMatrix.h"
 #include "nsTextFormatter.h"
 #include "nsContentUtils.h"
 #include "nsDOMError.h"
 
-const double radPerDegree = 2.0*3.1415926535 / 360.0;
+
+////////////////////////////////////////////////////////////////////////
+// nsSVGTransform
+
+class nsSVGTransform : public nsIDOMSVGTransform,
+                       public nsSVGValue,
+                       public nsISVGValueObserver
+{
+public:
+  static nsresult Create(nsIDOMSVGTransform** aResult);
+  
+protected:
+  nsSVGTransform();
+  ~nsSVGTransform();
+  nsresult Init();
+public:
+  // nsISupports interface:
+  NS_DECL_ISUPPORTS
+
+  // nsIDOMSVGTransform interface:
+  NS_DECL_NSIDOMSVGTRANSFORM
+
+  // nsISVGValue interface:
+  NS_IMETHOD SetValueString(const nsAString& aValue);
+  NS_IMETHOD GetValueString(nsAString& aValue);
+
+  // nsISVGValueObserver
+  NS_IMETHOD WillModifySVGObservable(nsISVGValue* observable,
+                                     modificationType aModType);
+  NS_IMETHOD DidModifySVGObservable (nsISVGValue* observable,
+                                     modificationType aModType);
+
+protected:
+  nsCOMPtr<nsIDOMSVGMatrix> mMatrix;
+  float mAngle, mOriginX, mOriginY;
+  PRUint16 mType;
+};
+
 
 //----------------------------------------------------------------------
 // Implementation
@@ -93,14 +132,12 @@ nsresult nsSVGTransform::Init()
 NS_IMPL_ADDREF(nsSVGTransform)
 NS_IMPL_RELEASE(nsSVGTransform)
 
-DOMCI_DATA(SVGTransform, nsSVGTransform)
-
 NS_INTERFACE_MAP_BEGIN(nsSVGTransform)
   NS_INTERFACE_MAP_ENTRY(nsISVGValue)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGTransform)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_INTERFACE_MAP_ENTRY(nsISVGValueObserver)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGTransform)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGTransform)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsISVGValue)
 NS_INTERFACE_MAP_END
 
@@ -148,7 +185,7 @@ nsSVGTransform::GetValueString(nsAString& aValue)
         float sx, sy;
         mMatrix->GetA(&sx);
         mMatrix->GetD(&sy);
-        if (sy != sx)
+        if (sy != 0.0f)
           nsTextFormatter::snprintf(buf, sizeof(buf)/sizeof(PRUnichar),
                                     NS_LITERAL_STRING("scale(%g, %g)").get(), sx, sy);
         else
@@ -207,9 +244,6 @@ NS_IMETHODIMP nsSVGTransform::WillModifySVGObservable(nsISVGValue* observable,
 NS_IMETHODIMP nsSVGTransform::DidModifySVGObservable (nsISVGValue* observable,
                                                       modificationType aModType)
 {
-  // we become a general matrix transform if mMatrix changes
-  mType = SVG_TRANSFORM_MATRIX;
-  mAngle = 0.0f;
   DidModify();
   return NS_OK;
 }
@@ -228,6 +262,8 @@ NS_IMETHODIMP nsSVGTransform::GetType(PRUint16 *aType)
 /* readonly attribute nsIDOMSVGMatrix matrix; */
 NS_IMETHODIMP nsSVGTransform::GetMatrix(nsIDOMSVGMatrix * *aMatrix)
 {
+  // XXX should we make a copy here? is the matrix supposed to be live
+  // or not?
   *aMatrix = mMatrix;
   NS_IF_ADDREF(*aMatrix);
   return NS_OK;
@@ -243,8 +279,6 @@ NS_IMETHODIMP nsSVGTransform::GetAngle(float *aAngle)
 /* void setMatrix (in nsIDOMSVGMatrix matrix); */
 NS_IMETHODIMP nsSVGTransform::SetMatrix(nsIDOMSVGMatrix *matrix)
 {
-  float a, b, c, d, e, f;
-
   if (!matrix)
     return NS_ERROR_DOM_SVG_WRONG_TYPE_ERR;
 
@@ -252,21 +286,12 @@ NS_IMETHODIMP nsSVGTransform::SetMatrix(nsIDOMSVGMatrix *matrix)
 
   mType = SVG_TRANSFORM_MATRIX;
   mAngle = 0.0f;
+  mOriginX = 0.0f;
+  mOriginY = 0.0f;
   
-  matrix->GetA(&a);
-  matrix->GetB(&b);
-  matrix->GetC(&c);
-  matrix->GetD(&d);
-  matrix->GetE(&e);
-  matrix->GetF(&f);
-
+  // XXX should we copy the matrix instead of replacing?
   NS_REMOVE_SVGVALUE_OBSERVER(mMatrix);
-  mMatrix->SetA(a);
-  mMatrix->SetB(b);
-  mMatrix->SetC(c);
-  mMatrix->SetD(d);
-  mMatrix->SetE(e);
-  mMatrix->SetF(f);
+  mMatrix = matrix;
   NS_ADD_SVGVALUE_OBSERVER(mMatrix);
 
   DidModify();
@@ -282,14 +307,14 @@ NS_IMETHODIMP nsSVGTransform::SetTranslate(float tx, float ty)
   
   mType = SVG_TRANSFORM_TRANSLATE;
   mAngle = 0.0f;
-  NS_REMOVE_SVGVALUE_OBSERVER(mMatrix);
+  mOriginX = 0.0f;
+  mOriginY = 0.0f;
   mMatrix->SetA(1.0f);
   mMatrix->SetB(0.0f);
   mMatrix->SetC(0.0f);
   mMatrix->SetD(1.0f);
   mMatrix->SetE(tx);
   mMatrix->SetF(ty);
-  NS_ADD_SVGVALUE_OBSERVER(mMatrix);
 
   DidModify();
   return NS_OK;
@@ -304,14 +329,14 @@ NS_IMETHODIMP nsSVGTransform::SetScale(float sx, float sy)
   
   mType = SVG_TRANSFORM_SCALE;
   mAngle = 0.0f;
-  NS_REMOVE_SVGVALUE_OBSERVER(mMatrix);
+  mOriginX = 0.0f;
+  mOriginY = 0.0f;
   mMatrix->SetA(sx);
   mMatrix->SetB(0.0f);
   mMatrix->SetC(0.0f);
   mMatrix->SetD(sy);
   mMatrix->SetE(0.0f);
   mMatrix->SetF(0.0f);
-  NS_ADD_SVGVALUE_OBSERVER(mMatrix);
 
   DidModify();
   return NS_OK;
@@ -329,17 +354,15 @@ NS_IMETHODIMP nsSVGTransform::SetRotate(float angle, float cx, float cy)
   mOriginX = cx;
   mOriginY = cy;
 
-  gfxMatrix matrix(1, 0, 0, 1, cx, cy);
-  matrix.Rotate(angle * radPerDegree);
-  matrix.Translate(gfxPoint(-cx, -cy));
-
   NS_REMOVE_SVGVALUE_OBSERVER(mMatrix);
-  mMatrix->SetA(static_cast<float>(matrix.xx));
-  mMatrix->SetB(static_cast<float>(matrix.yx));
-  mMatrix->SetC(static_cast<float>(matrix.xy));
-  mMatrix->SetD(static_cast<float>(matrix.yy));
-  mMatrix->SetE(static_cast<float>(matrix.x0));
-  mMatrix->SetF(static_cast<float>(matrix.y0));
+  NS_NewSVGMatrix(getter_AddRefs(mMatrix));
+  nsCOMPtr<nsIDOMSVGMatrix> temp;
+  mMatrix->Translate(cx, cy, getter_AddRefs(temp));
+  mMatrix = temp;
+  mMatrix->Rotate(angle, getter_AddRefs(temp));
+  mMatrix = temp;
+  mMatrix->Translate(-cx,-cy, getter_AddRefs(temp));
+  mMatrix = temp;
   NS_ADD_SVGVALUE_OBSERVER(mMatrix);
 
   DidModify();
@@ -351,22 +374,16 @@ NS_IMETHODIMP nsSVGTransform::SetSkewX(float angle)
 {
   NS_ENSURE_FINITE(angle, NS_ERROR_ILLEGAL_VALUE);
 
-  float ta = static_cast<float>(tan(angle * radPerDegree));
-
-  NS_ENSURE_FINITE(ta, NS_ERROR_DOM_SVG_INVALID_VALUE_ERR);
-
   WillModify();
   
   mType = SVG_TRANSFORM_SKEWX;
   mAngle = angle;
 
   NS_REMOVE_SVGVALUE_OBSERVER(mMatrix);
-  mMatrix->SetA(1.0f);
-  mMatrix->SetB(0.0f);
-  mMatrix->SetC(ta);
-  mMatrix->SetD(1.0f);
-  mMatrix->SetE(0.0f);
-  mMatrix->SetF(0.0f);
+  NS_NewSVGMatrix(getter_AddRefs(mMatrix));
+  nsCOMPtr<nsIDOMSVGMatrix> temp;
+  mMatrix->SkewX(angle, getter_AddRefs(temp));
+  mMatrix = temp;
   NS_ADD_SVGVALUE_OBSERVER(mMatrix);
 
   DidModify();
@@ -378,22 +395,16 @@ NS_IMETHODIMP nsSVGTransform::SetSkewY(float angle)
 {
   NS_ENSURE_FINITE(angle, NS_ERROR_ILLEGAL_VALUE);
 
-  float ta = static_cast<float>(tan(angle * radPerDegree));
-
-  NS_ENSURE_FINITE(ta, NS_ERROR_DOM_SVG_INVALID_VALUE_ERR);
-
   WillModify();
   
   mType = SVG_TRANSFORM_SKEWY;
   mAngle = angle;
 
   NS_REMOVE_SVGVALUE_OBSERVER(mMatrix);
-  mMatrix->SetA(1.0f);
-  mMatrix->SetB(ta);
-  mMatrix->SetC(0.0f);
-  mMatrix->SetD(1.0f);
-  mMatrix->SetE(0.0f);
-  mMatrix->SetF(0.0f);
+  NS_NewSVGMatrix(getter_AddRefs(mMatrix));
+  nsCOMPtr<nsIDOMSVGMatrix> temp;
+  mMatrix->SkewY(angle, getter_AddRefs(temp));
+  mMatrix = temp;
   NS_ADD_SVGVALUE_OBSERVER(mMatrix);
 
   DidModify();

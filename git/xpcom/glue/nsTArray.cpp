@@ -65,7 +65,7 @@ nsTArray_base::EnsureCapacity(size_type capacity, size_type elemSize) {
   // doubling algorithm may not be able to allocate it.  Additionally we
   // couldn't fit in the Header::mCapacity member. Just bail out in cases
   // like that.  We don't want to be allocating 2 GB+ arrays anyway.
-  if ((PRUint64)capacity * elemSize > size_type(-1)/2) {
+  if (capacity * elemSize > size_type(-1)/2) {
     NS_ERROR("Attempting to allocate excessively large array");
     return PR_FALSE;
   }
@@ -85,9 +85,7 @@ nsTArray_base::EnsureCapacity(size_type capacity, size_type elemSize) {
   }
 
   // Use doubling algorithm when forced to increase available capacity.
-  // (Note that mCapacity is only 31 bits wide, so multiplication promotes its
-  // type. We use |2u| instead of |2| to make sure it's promoted to unsigned.)
-  capacity = PR_MAX(capacity, mHdr->mCapacity * 2u);
+  capacity = PR_MAX(capacity, mHdr->mCapacity << 1);
 
   Header *header;
   if (UsesAutoArrayBuffer()) {

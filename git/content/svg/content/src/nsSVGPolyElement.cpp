@@ -50,7 +50,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGPolyElementBase)
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGPolyElement::nsSVGPolyElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsSVGPolyElement::nsSVGPolyElement(nsINodeInfo* aNodeInfo)
   : nsSVGPolyElementBase(aNodeInfo)
 {
 
@@ -112,7 +112,7 @@ nsSVGPolyElement::IsAttributeMapped(const nsIAtom* name) const
 // nsSVGPathGeometryElement methods
 
 PRBool
-nsSVGPolyElement::AttributeDefinesGeometry(const nsIAtom *aName)
+nsSVGPolyElement::IsDependentAttribute(nsIAtom *aName)
 {
   if (aName == nsGkAtoms::points)
     return PR_TRUE;

@@ -49,7 +49,27 @@ LIBXUL_LIBRARY	= 1
 FORCE_STATIC_LIB = 1
 DEFINES += -DIMPL_XREAPI
 
+REQUIRES	= xpcom \
+		  content \
+		  string \
+		  docshell \
+		  necko \
+		  widget \
+		  dom \
+		  gfx \
+		  layout \
+		  uriloader \
+		  webbrwsr \
+		  shistory \
+		  embed_base \
+		  windowwatcher \
+		  profdirserviceprovider \
+		  xulapp \
+		  $(NULL)
 
+ifdef ACCESSIBILITY
+REQUIRES        += accessibility
+endif
 
 CPPSRCS		= \
 		gtkmozembed2.cpp \
@@ -105,8 +125,6 @@ $(MARSHAL_FILE).h: $(MARSHAL_FILE).list
 
 $(MARSHAL_FILE).c: $(MARSHAL_FILE).list $(MARSHAL_FILE).h
 	glib-genmarshal --prefix=$(MARSHAL_PREFIX) $(srcdir)/$(MARSHAL_FILE).list --skip-source --body > $@
-
-gtkmozembed2.$(OBJ_SUFFIX): $(MARSHAL_FILE).h
 
 GARBAGE += $(MARSHAL_FILE).h $(MARSHAL_FILE).c
 

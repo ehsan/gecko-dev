@@ -45,7 +45,6 @@
 #include "pcert.h"
 #include "blapi.h"
 #include "secerr.h"
-#include "secasn1.h"
 
 /*
  * Cache the object we are working on during Set's and Get's
@@ -611,24 +610,9 @@ lg_FindECPublicKeyAttribute(NSSLOWKEYPublicKey *key, CK_ATTRIBUTE_TYPE type,
 					key->u.ec.ecParams.DEREncoding.data,
 					key->u.ec.ecParams.DEREncoding.len);
     case CKA_EC_POINT:
-	if (getenv("NSS_USE_DECODED_CKA_EC_POINT")) {
-	    return lg_CopyAttributeSigned(attribute, type,
+	return lg_CopyAttributeSigned(attribute, type,
 					key->u.ec.publicValue.data,
 					key->u.ec.publicValue.len);
-	} else {
-	    SECItem *pubValue = SEC_ASN1EncodeItem(NULL, NULL, 
-					&(key->u.ec.publicValue), 
-					SEC_ASN1_GET(SEC_OctetStringTemplate));
-	    CK_RV crv;
-	    if (!pubValue) {
-		return CKR_HOST_MEMORY;
-	    }
-	    crv = lg_CopyAttributeSigned(attribute, type,
-					pubValue->data,
-					pubValue->len);
-	    SECITEM_FreeItem(pubValue, PR_TRUE);
-	    return crv;
-	}
     default:
 	break;
     }
@@ -655,9 +639,6 @@ lg_FindPublicKeyAttribute(LGObjectCache *obj, CK_ATTRIBUTE_TYPE type,
     case CKA_EXTRACTABLE:
 	return LG_CLONE_ATTR(attribute,type,lg_StaticTrueAttr);
     case CKA_SUBJECT:
-	   return LG_CLONE_ATTR(attribute,type,lg_StaticNullAttr);
-    case CKA_START_DATE:
-    case CKA_END_DATE:
 	   return LG_CLONE_ATTR(attribute,type,lg_StaticNullAttr);
     case CKA_LABEL:
         label = lg_FindKeyNicknameByPublicKey(obj->sdb, &obj->dbKey);
@@ -723,13 +704,9 @@ lg_FindSecretKeyAttribute(LGObjectCache *obj, CK_ATTRIBUTE_TYPE type,
     case CKA_WRAP:
     case CKA_UNWRAP:
     case CKA_MODIFIABLE:
-    case CKA_LOCAL:
 	return LG_CLONE_ATTR(attribute,type,lg_StaticTrueAttr);
     case CKA_NEVER_EXTRACTABLE:
 	return LG_CLONE_ATTR(attribute,type,lg_StaticFalseAttr);
-    case CKA_START_DATE:
-    case CKA_END_DATE:
-	   return LG_CLONE_ATTR(attribute,type,lg_StaticNullAttr);
     case CKA_LABEL:
         label = lg_FindKeyNicknameByPublicKey(obj->sdb, &obj->dbKey);
 	if (label == NULL) {
@@ -1032,14 +1009,10 @@ lg_FindPrivateKeyAttribute(LGObjectCache *obj, CK_ATTRIBUTE_TYPE type,
     case CKA_ALWAYS_SENSITIVE:
     case CKA_EXTRACTABLE:
     case CKA_MODIFIABLE:
-    case CKA_LOCAL:
 	return LG_CLONE_ATTR(attribute,type,lg_StaticTrueAttr);
     case CKA_NEVER_EXTRACTABLE:
 	return LG_CLONE_ATTR(attribute,type,lg_StaticFalseAttr);
     case CKA_SUBJECT:
-	   return LG_CLONE_ATTR(attribute,type,lg_StaticNullAttr);
-    case CKA_START_DATE:
-    case CKA_END_DATE:
 	   return LG_CLONE_ATTR(attribute,type,lg_StaticNullAttr);
     case CKA_LABEL:
         label = lg_FindKeyNicknameByPublicKey(obj->sdb, &obj->dbKey);
@@ -1579,9 +1552,7 @@ lg_SetPrivateKeyAttribute(LGObjectCache *obj, CK_ATTRIBUTE_TYPE type,
 
     /* we can't change the ID and we don't store the subject, but let the
      * upper layers feel better about the fact we tried to set these */
-    if ((type == CKA_ID) || (type == CKA_SUBJECT) ||
-	(type == CKA_LOCAL) || (type == CKA_NEVER_EXTRACTABLE) ||
-	(type == CKA_ALWAYS_SENSITIVE)) {
+    if ((type == CKA_ID) || (type == CKA_SUBJECT)) {
 	return CKR_OK;
     }
 
@@ -1613,20 +1584,6 @@ lg_SetPrivateKeyAttribute(LGObjectCache *obj, CK_ATTRIBUTE_TYPE type,
 					nickname, obj->sdb);
 	crv = (rv == SECSuccess) ? CKR_OK :  CKR_DEVICE_ERROR;
 	break;
-    case CKA_UNWRAP:
-    case CKA_SIGN:
-    case CKA_DERIVE:
-    case CKA_SIGN_RECOVER:
-    case CKA_DECRYPT:
-	/* ignore attempts to change restrict these.
-	 * legacyDB ignore these flags and always presents all of them 
-	 * that are valid as true. 
-	 * NOTE: We only get here if the current value and the new value do
-	 * not match. */
-	if (*(char *)value == 0) {
-	    crv = CKR_OK;
-	}
-	break;
     case CKA_VALUE:
     case CKA_PRIVATE_EXPONENT:
     case CKA_PRIME_1:
@@ -1636,7 +1593,7 @@ lg_SetPrivateKeyAttribute(LGObjectCache *obj, CK_ATTRIBUTE_TYPE type,
     case CKA_COEFFICIENT:
 	/* We aren't really changing these values, we are just triggering
 	 * the database to update it's entry */
-	*writePrivate = PR_TRUE;
+	*writePrivate = 1;
 	crv = CKR_OK;
 	break;
     default:
@@ -1732,11 +1689,6 @@ lg_SetSingleAttribute(LGObjectCache *obj, const CK_ATTRIBUTE *attr,
 {
     CK_ATTRIBUTE attribLocal;
     CK_RV crv;
-
-    if ((attr->type == CKA_NETSCAPE_DB) && (obj->objclass == CKO_PRIVATE_KEY)) {
-	*writePrivate = PR_TRUE;
-	return CKR_OK;
-    }
 
     /* Make sure the attribute exists first */
     attribLocal.type = attr->type;

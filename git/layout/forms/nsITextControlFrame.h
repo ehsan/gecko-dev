@@ -45,13 +45,36 @@ class nsIDocShell;
 class nsISelectionController;
 class nsFrameSelection;
 
+#define NS_IGFXTEXTCONTROLFRAME2_IID \
+{/* 0c3b64da-4431-11da-94fd-00e08161165f*/ \
+0xc3b64da, 0x4431, 0x11da, \
+{ 0x94, 0xfd, 0x0, 0xe0, 0x81, 0x61, 0x16, 0x5f } }
+
 class nsITextControlFrame : public nsIFormControlFrame
 {
 public:
-  NS_DECL_QUERYFRAME_TARGET(nsITextControlFrame)
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_IGFXTEXTCONTROLFRAME2_IID)
 
   NS_IMETHOD    GetEditor(nsIEditor **aEditor) = 0;
 
+  /**
+   * Tell whether the frame currently owns the value or the content does (for
+   * edge cases where the frame has just been created or is just going away).
+   *
+   * @param aOwnsValue whether the frame owns the value [out]
+   */
+  NS_IMETHOD    OwnsValue(PRBool* aOwnsValue) = 0;
+
+  /**
+   * Get the current value, either from the editor or from the textarea.
+   *
+   * @param aValue the value [out]
+   * @param aIgnoreWrap whether to ignore the wrap attribute when getting the
+   *        value.  If this is true, linebreaks will not be inserted even if
+   *        wrap=hard.
+   */
+  NS_IMETHOD    GetValue(nsAString& aValue, PRBool aIgnoreWrap) const = 0;
+  
   NS_IMETHOD    GetTextLength(PRInt32* aTextLength) = 0;
   
   /**
@@ -65,17 +88,11 @@ public:
   NS_IMETHOD    SetSelectionRange(PRInt32 aSelectionStart, PRInt32 aSelectionEnd) = 0;
   NS_IMETHOD    GetSelectionRange(PRInt32* aSelectionStart, PRInt32* aSelectionEnd) = 0;
 
-  NS_IMETHOD    GetOwnedSelectionController(nsISelectionController** aSelCon) = 0;
+  virtual nsISelectionController* GetOwnedSelectionController() = 0;
   virtual nsFrameSelection* GetOwnedFrameSelection() = 0;
-
-  virtual nsresult GetPhonetic(nsAString& aPhonetic) = 0;
-
-  /**
-   * Ensure editor is initialized with the proper flags and the default value.
-   * @throws NS_ERROR_NOT_INITIALIZED if mEditor has not been created
-   * @throws various and sundry other things
-   */
-  virtual nsresult EnsureEditorInitialized() = 0;
 };
+
+NS_DEFINE_STATIC_IID_ACCESSOR(nsITextControlFrame,
+                              NS_IGFXTEXTCONTROLFRAME2_IID)
 
 #endif

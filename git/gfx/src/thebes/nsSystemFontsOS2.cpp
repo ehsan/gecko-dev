@@ -86,7 +86,7 @@ void QueryFontFromINI(char* fontType, char* fontName, ULONG ulLength)
 
     /* We had to switch to using PrfQueryProfileData because */
     /* some users have binary font data in their INI files */
-    BOOL rc = PrfQueryProfileData(HINI_USER, (PCSZ)"PM_SystemFonts", (PCSZ)fontType,
+    BOOL rc = PrfQueryProfileData(HINI_USER, "PM_SystemFonts", fontType,
                                   fontName, &ulMaxNameL);
     /* If there was no entry in the INI, default to something */
     if (rc == FALSE) {
@@ -220,9 +220,6 @@ nsresult nsSystemFontsOS2::GetSystemFont(nsSystemFontID aID, nsString* aFontName
     } else {
         aFontStyle->weight = FONT_WEIGHT_NORMAL;
     }
-
-    // FIXME: Set aFontStyle->stretch correctly!
-    aFontStyle->stretch = NS_FONT_STRETCH_NORMAL;
 
     // similar hopes for italic and oblique fonts...
     NS_NAMED_LITERAL_CSTRING(spcItalic, " Italic");

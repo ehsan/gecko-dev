@@ -37,7 +37,7 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/* $Id: sslcon.c,v 1.40 2010/04/25 23:37:38 nelson%bolyard.com Exp $ */
+/* $Id: sslcon.c,v 1.35 2007/01/03 05:30:33 nelson%bolyard.com Exp $ */
 
 #include "nssrenam.h"
 #include "cert.h"
@@ -877,7 +877,7 @@ ssl2_CalcMAC(PRUint8             * result,
 ** Send some data in the clear. 
 ** Package up data with the length header and send it.
 **
-** Return count of bytes successfully written, or negative number (failure).
+** Return count of bytes succesfully written, or negative number (failure).
 */
 static PRInt32 
 ssl2_SendClear(sslSocket *ss, const PRUint8 *in, PRInt32 len, PRInt32 flags)
@@ -1808,7 +1808,7 @@ ssl2_QualifyCypherSpecs(sslSocket *ss,
 /*
 ** Pick the best cipher we can find, given the array of server cipher
 ** specs.  Returns cipher number (e.g. SSL_CK_*), or -1 for no overlap.
-** If successful, stores the master key size (bytes) in *pKeyLen.
+** If succesful, stores the master key size (bytes) in *pKeyLen.
 **
 ** This is correct only for the client side, but presently
 ** this function is only called from 
@@ -1861,7 +1861,7 @@ ssl2_ChooseSessionCypher(sslSocket *ss,
     }
     preferred = ss->preferredCipher ? ss->preferredCipher : noneSuch;
     /*
-    ** Scan list of ciphers received from peer and look for a match in
+    ** Scan list of ciphers recieved from peer and look for a match in
     ** our list.  
     *  Note: Our list may contain SSL v3 ciphers.  
     *  We MUST NOT match on any of those.  
@@ -2731,8 +2731,7 @@ ssl2_HandleVerifyMessage(sslSocket *ss)
     DUMP_MSG(29, (ss, data, ss->gs.recordLen));
     if ((ss->gs.recordLen != 1 + SSL_CHALLENGE_BYTES) ||
 	(data[0] != SSL_MT_SERVER_VERIFY) ||
-	NSS_SecureMemcmp(data+1, ss->sec.ci.clientChallenge,
-	                 SSL_CHALLENGE_BYTES)) {
+	PORT_Memcmp(data+1, ss->sec.ci.clientChallenge, SSL_CHALLENGE_BYTES)) {
 	/* Bad server */
 	PORT_SetError(SSL_ERROR_BAD_SERVER);
 	goto loser;
@@ -3007,7 +3006,6 @@ ssl2_BeginClientHandshake(sslSocket *ss)
     unsigned int      i;
     int               sendLen, sidLen = 0;
     SECStatus         rv;
-    TLSExtensionData  *xtnData;
 
     PORT_Assert( ss->opt.noLocks || ssl_Have1stHandshakeLock(ss) );
 
@@ -3152,8 +3150,7 @@ ssl2_BeginClientHandshake(sslSocket *ss)
     localCipherSpecs = ss->cipherSpecs;
     localCipherSize  = ss->sizeCipherSpecs;
 
-    /* Add 3 for SCSV */
-    sendLen = SSL_HL_CLIENT_HELLO_HBYTES + localCipherSize + 3 + sidLen +
+    sendLen = SSL_HL_CLIENT_HELLO_HBYTES + localCipherSize + sidLen +
 	SSL_CHALLENGE_BYTES;
 
     /* Generate challenge bytes for server */
@@ -3178,9 +3175,8 @@ ssl2_BeginClientHandshake(sslSocket *ss)
     
     msg[1] = MSB(ss->clientHelloVersion);
     msg[2] = LSB(ss->clientHelloVersion);
-    /* Add 3 for SCSV */
-    msg[3] = MSB(localCipherSize + 3);
-    msg[4] = LSB(localCipherSize + 3);
+    msg[3] = MSB(localCipherSize);
+    msg[4] = LSB(localCipherSize);
     msg[5] = MSB(sidLen);
     msg[6] = LSB(sidLen);
     msg[7] = MSB(SSL_CHALLENGE_BYTES);
@@ -3188,16 +3184,6 @@ ssl2_BeginClientHandshake(sslSocket *ss)
     cp += SSL_HL_CLIENT_HELLO_HBYTES;
     PORT_Memcpy(cp, localCipherSpecs, localCipherSize);
     cp += localCipherSize;
-    /*
-     * Add SCSV.  SSL 2.0 cipher suites are listed before SSL 3.0 cipher
-     * suites in localCipherSpecs for compatibility with SSL 2.0 servers.
-     * Since SCSV looks like an SSL 3.0 cipher suite, we can't add it at
-     * the beginning.
-     */
-    cp[0] = 0x00;
-    cp[1] = 0x00;
-    cp[2] = 0xff;
-    cp += 3;
     if (sidLen) {
 	PORT_Memcpy(cp, sid->u.ssl2.sessionID, sidLen);
 	cp += sidLen;
@@ -3219,14 +3205,6 @@ ssl2_BeginClientHandshake(sslSocket *ss)
     if (rv < 0) {
 	goto loser;
     }
-
-    /*
-     * Since we sent the SCSV, pretend we sent empty RI extension.  We need
-     * to record the extension has been advertised after ssl3_InitState has
-     * been called, which ssl3_StartHandshakeHash took care for us above.
-     */
-    xtnData = &ss->xtnData;
-    xtnData->advertised[xtnData->numAdvertised++] = ssl_renegotiation_info_xtn;
 
     /* Setup to receive servers hello message */
     ssl_GetRecvBufLock(ss);

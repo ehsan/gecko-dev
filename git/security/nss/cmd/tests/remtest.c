@@ -36,7 +36,7 @@
 
 /*
 **
-** Sample client side test program that uses SSL and NSS
+** Sample client side test program that uses SSL and libsec
 **
 */
 

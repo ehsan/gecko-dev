@@ -45,23 +45,18 @@
 #include "nsITreeSelection.h"
 #include "nsITreeColumns.h"
 #include "nsITimer.h"
-#include "nsCycleCollectionParticipant.h"
 
 class nsITreeBoxObject;
 struct nsTreeRange;
 
-class nsTreeSelection : public nsINativeTreeSelection
+class nsTreeSelection : public nsITreeSelection
 {
 public:
   nsTreeSelection(nsITreeBoxObject* aTree);
   ~nsTreeSelection();
    
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS(nsTreeSelection)
+  NS_DECL_ISUPPORTS
   NS_DECL_NSITREESELECTION
-
-  // nsINativeTreeSelection: Untrusted code can use us
-  NS_IMETHOD EnsureNative() { return NS_OK; }
 
   friend struct nsTreeRange;
 
@@ -71,7 +66,7 @@ protected:
 
 protected:
   // Members
-  nsCOMPtr<nsITreeBoxObject> mTree; // The tree will hold on to us through the view and let go when it dies.
+  nsITreeBoxObject* mTree; // [Weak]. The tree will hold on to us through the view and let go when it dies.
 
   PRBool mSuppressed; // Whether or not we should be firing onselect events.
   PRInt32 mCurrentIndex; // The item to draw the rect around. The last one clicked, etc.

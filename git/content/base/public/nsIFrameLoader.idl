@@ -41,23 +41,14 @@
 
 interface nsIDocShell;
 interface nsIURI;
-interface nsIWebProgress;
-interface nsIFrame;
-interface nsIChromeFrameMessageManager;
-interface nsIVariant;
 
-[scriptable, uuid(65d2c9e2-852c-48cf-a95d-9b82f1273c15)]
+[scriptable, uuid(d675c531-6bdc-417c-b176-635060105f07)]
 interface nsIFrameLoader : nsISupports
 {
   /**
    * Get the docshell from the frame loader.
    */
   readonly attribute nsIDocShell docShell;
-
-  /**
-   * Get the nsIWebProgress from the frame loader, allowing listener registration.
-   */
-  readonly attribute nsIWebProgress webProgress;
 
   /**
    * Start loading the frame. This method figures out what to load
@@ -83,72 +74,10 @@ interface nsIFrameLoader : nsISupports
    * or may not be allowed on the loader's docshell.
    */
   readonly attribute boolean depthTooGreat;
-
-  /**
-   * Updates the position and size of the subdocument loaded by this frameloader.
-   *
-   *  @param aIFrame The nsIFrame for the content node that owns this frameloader
-   */
-  [noscript] void updatePositionAndSize(in nsIFrame aIFrame);
-
-  /**
-   * Activate remote frame.
-   * Throws an exception with non-remote frames.
-   */
-  void activateRemoteFrame();
-
-  /**
-   * @see nsIDOMWindowUtils sendMouseEvent.
-   */
-  void sendCrossProcessMouseEvent(in AString aType,
-                                  in float aX,
-                                  in float aY,
-                                  in long aButton,
-                                  in long aClickCount,
-                                  in long aModifiers,
-                                  [optional] in boolean aIgnoreRootScrollFrame);
-
-  /**
-   * Activate event forwarding from client (remote frame) to parent.
-   */
-  void activateFrameEvent(in AString aType, in boolean capture);
-
-  // Note, when frameloaders are swapped, also messageManagers are swapped.
-  readonly attribute nsIChromeFrameMessageManager messageManager;
-
-  /**
-   * @see nsIDOMWindowUtils sendKeyEvent.
-   */
-  void sendCrossProcessKeyEvent(in AString aType,
-                                in long aKeyCode,
-                                in long aCharCode,
-                                in long aModifiers,
-                                [optional] in boolean aPreventDefault);
-
-  attribute boolean delayRemoteDialogs;
-
 };
 
-native alreadyAddRefed_nsFrameLoader(already_AddRefed<nsFrameLoader>);
-
-[scriptable, uuid(5879040e-83e9-40e3-b2bb-5ddf43b76e47)]
+[scriptable, uuid(feaf9285-05ac-4898-a69f-c3bd350767e4)]
 interface nsIFrameLoaderOwner : nsISupports
 {
-  /**
-   * The frame loader owned by this nsIFrameLoaderOwner
-   */
   readonly attribute nsIFrameLoader frameLoader;
-  [noscript, notxpcom] alreadyAddRefed_nsFrameLoader GetFrameLoader();
-
-  /**
-   * Swap frame loaders with the given nsIFrameLoaderOwner.  This may
-   * only be posible in a very limited range of circumstances, or
-   * never, depending on the object implementing this interface.
-   *
-   * @throws NS_ERROR_NOT_IMPLEMENTED if the swapping logic is not
-   *   implemented for the two given frame loader owners.
-   * @throws NS_ERROR_DOM_SECURITY_ERR if the swap is not allowed on
-   *   security grounds.
-   */
-  void swapFrameLoaders(in nsIFrameLoaderOwner aOtherOwner);
 };

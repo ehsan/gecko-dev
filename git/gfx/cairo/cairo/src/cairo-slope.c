@@ -36,7 +36,12 @@
 
 #include "cairoint.h"
 
-#include "cairo-slope-private.h"
+void
+_cairo_slope_init (cairo_slope_t *slope, cairo_point_t *a, cairo_point_t *b)
+{
+    slope->dx = b->x - a->x;
+    slope->dy = b->y - a->y;
+}
 
 /* Compare two slopes. Slope angles begin at 0 in the direction of the
    positive X axis and increase in the direction of the positive Y
@@ -57,15 +62,17 @@
    >  0 => a more positive than b
 */
 int
-_cairo_slope_compare (const cairo_slope_t *a, const cairo_slope_t *b)
+_cairo_slope_compare (cairo_slope_t *a, cairo_slope_t *b)
 {
-    cairo_int64_t ady_bdx = _cairo_int32x32_64_mul (a->dy, b->dx);
-    cairo_int64_t bdy_adx = _cairo_int32x32_64_mul (b->dy, a->dx);
-    int cmp;
+    cairo_fixed_48_16_t diff;
 
-    cmp = _cairo_int64_cmp (ady_bdx, bdy_adx);
-    if (cmp)
-	return cmp;
+    diff = ((cairo_fixed_48_16_t) a->dy * (cairo_fixed_48_16_t) b->dx
+	    - (cairo_fixed_48_16_t) b->dy * (cairo_fixed_48_16_t) a->dx);
+
+    if (diff > 0)
+	return 1;
+    if (diff < 0)
+	return -1;
 
     /* special-case zero vectors.  the intended logic here is:
      * zero vectors all compare equal, and more positive than any
@@ -87,7 +94,9 @@ _cairo_slope_compare (const cairo_slope_t *a, const cairo_slope_t *b)
      * of b by an infinitesimally small amount, (that is, 'a' will
      * always be considered less than 'b').
      */
-    if ((a->dx ^ b->dx) < 0 || (a->dy ^ b->dy) < 0) {
+    if (((a->dx > 0) != (b->dx > 0)) ||
+	((a->dy > 0) != (b->dy > 0)))
+    {
 	if (a->dx > 0 || (a->dx == 0 && a->dy > 0))
 	    return +1;
 	else

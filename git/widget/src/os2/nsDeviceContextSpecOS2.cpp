@@ -42,7 +42,7 @@
 #include "nsDeviceContextSpecOS2.h"
 
 #include "nsReadableUtils.h"
-#include "nsTArray.h"
+#include "nsISupportsArray.h"
 
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
@@ -62,7 +62,6 @@
 #include "nsIFileStreams.h"
 #include "gfxPDFSurface.h"
 #include "gfxOS2Surface.h"
-#include "nsIPrintSettingsService.h"
 
 PRINTDLG nsDeviceContextSpecOS2::PrnDlg;
 
@@ -82,21 +81,21 @@ public:
 
   PRBool    PrintersAreAllocated()       { return mGlobalPrinterList != nsnull; }
   PRInt32   GetNumPrinters()             { return mGlobalNumPrinters; }
-  nsString* GetStringAt(PRInt32 aInx)    { return &mGlobalPrinterList->ElementAt(aInx); }
+  nsString* GetStringAt(PRInt32 aInx)    { return mGlobalPrinterList->StringAt(aInx); }
   void      GetDefaultPrinterName(PRUnichar*& aDefaultPrinterName);
 
 protected:
   GlobalPrinters() {}
 
   static GlobalPrinters mGlobalPrinters;
-  static nsTArray<nsString>* mGlobalPrinterList;
+  static nsStringArray* mGlobalPrinterList;
   static ULONG          mGlobalNumPrinters;
 
 };
 //---------------
 // static members
 GlobalPrinters GlobalPrinters::mGlobalPrinters;
-nsTArray<nsString>* GlobalPrinters::mGlobalPrinterList = nsnull;
+nsStringArray* GlobalPrinters::mGlobalPrinterList = nsnull;
 ULONG          GlobalPrinters::mGlobalNumPrinters = 0;
 //---------------
 
@@ -346,13 +345,11 @@ NS_IMETHODIMP nsDeviceContextSpecOS2::GetSurfaceForPrinter(gfxASurface **surface
 
   PRInt16 outputFormat;
   mPrintSettings->GetOutputFormat(&outputFormat);
-  int printerDest;
-  GetDestination(printerDest);
-  if (printerDest != printPreview) {
-    // for now always set the output format to PDF, see bug 415522
-    outputFormat = nsIPrintSettings::kOutputFormatPDF;
-    mPrintSettings->SetOutputFormat(outputFormat); // save PDF format in settings
-  }
+  // for now always set the output format to PDF, see bug 415522:
+  printf("print output format is %d but we are setting it to %d (PDF)\n",
+         outputFormat, nsIPrintSettings::kOutputFormatPDF);
+  outputFormat = nsIPrintSettings::kOutputFormatPDF;
+  mPrintSettings->SetOutputFormat(outputFormat); // save PDF format in settings
 
   if (outputFormat == nsIPrintSettings::kOutputFormatPDF) {
     nsXPIDLString filename;
@@ -404,9 +401,12 @@ NS_IMETHODIMP nsDeviceContextSpecOS2::GetSurfaceForPrinter(gfxASurface **surface
     newSurface = new(std::nothrow) gfxPDFSurface(stream, gfxSize(width, height));
   } else {
     int numCopies = 0;
-    GetCopies(numCopies);
+    int printerDest = 0;
     char *filename = nsnull;
-    if (printerDest == printToFile) {
+
+    GetCopies(numCopies);
+    GetDestination(printerDest);
+    if (!printerDest) {
       GetPath(&filename);
     }
     mPrintingStarted = PR_TRUE;
@@ -497,10 +497,10 @@ NS_IMETHODIMP nsDeviceContextSpecOS2::BeginDocument(PRUnichar* aTitle,
   }
 
   char *title = GetACPString(aTitle);
-  PCSZ pszGenericDocName = "Mozilla Document";
-  PCSZ pszDocName = title ? title : pszGenericDocName;
+  const PSZ pszGenericDocName = "Mozilla Document";
+  PSZ pszDocName = title ? title : pszGenericDocName;
   LONG lResult = DevEscape(mPrintDC, DEVESC_STARTDOC,
-                           strlen(pszDocName) + 1, const_cast<BYTE*>(pszDocName),
+                           strlen(pszDocName) + 1, pszDocName,
                            (PLONG)NULL, (PBYTE)NULL);
   mPrintingStarted = PR_TRUE;
   if (title) {
@@ -512,15 +512,9 @@ NS_IMETHODIMP nsDeviceContextSpecOS2::BeginDocument(PRUnichar* aTitle,
 
 NS_IMETHODIMP nsDeviceContextSpecOS2::EndDocument()
 {
-  // don't try to send device escapes for non-native output (like PDF)
-  // but clear the filename to make sure that we don't overwrite it next time
   PRInt16 outputFormat;
   mPrintSettings->GetOutputFormat(&outputFormat);
   if (outputFormat != nsIPrintSettings::kOutputFormatNative) {
-    mPrintSettings->SetToFileName(NULL);
-    nsCOMPtr<nsIPrintSettingsService> pss = do_GetService("@mozilla.org/gfx/printsettings-service;1");
-    if (pss)
-      pss->SavePrintSettingsToPrefs(mPrintSettings, PR_TRUE, nsIPrintSettings::kInitSaveToFileName);
     return NS_OK;
   }
 
@@ -574,7 +568,7 @@ NS_IMETHODIMP nsPrinterEnumeratorOS2::GetPrinterNameList(nsIStringEnumerator **a
   }
 
   ULONG numPrinters = GlobalPrinters::GetInstance()->GetNumPrinters();
-  nsTArray<nsString> *printers = new nsTArray<nsString>(numPrinters);
+  nsStringArray *printers = new nsStringArray(numPrinters);
   if (!printers) {
     GlobalPrinters::GetInstance()->FreeGlobalPrinters();
     return NS_ERROR_OUT_OF_MEMORY;
@@ -583,7 +577,7 @@ NS_IMETHODIMP nsPrinterEnumeratorOS2::GetPrinterNameList(nsIStringEnumerator **a
   ULONG count = 0;
   while( count < numPrinters )
   {
-    printers->AppendElement(*GlobalPrinters::GetInstance()->GetStringAt(count++));
+    printers->AppendString(*GlobalPrinters::GetInstance()->GetStringAt(count++));
   }
   GlobalPrinters::GetInstance()->FreeGlobalPrinters();
 
@@ -653,7 +647,7 @@ nsresult GlobalPrinters::InitializeGlobalPrinters ()
   if (!mGlobalNumPrinters) 
     return NS_ERROR_GFX_PRINTER_NO_PRINTER_AVAILABLE; 
 
-  mGlobalPrinterList = new nsTArray<nsString>();
+  mGlobalPrinterList = new nsStringArray();
   if (!mGlobalPrinterList) 
      return NS_ERROR_OUT_OF_MEMORY;
 
@@ -669,7 +663,7 @@ nsresult GlobalPrinters::InitializeGlobalPrinters ()
     PRInt32 printerNameLength;
     rv = MultiByteToWideChar(0, printer, strlen(printer),
                              printerName, printerNameLength);
-    mGlobalPrinterList->AppendElement(nsDependentString(printerName.Elements()));
+    mGlobalPrinterList->AppendString(nsDependentString(printerName.Elements()));
 
     // store printer description in prefs for the print dialog
     if (!prefFailed) {

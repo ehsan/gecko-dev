@@ -51,15 +51,13 @@
 #include "nsDependentString.h"
 #include "nsMemory.h"
 #include "pratom.h"
-#include "prprf.h"
-#include "nsStaticAtom.h"
 
 // ---------------------------------------------------------------------------
 
-static PRUnichar gNullChar = 0;
+static const PRUnichar gNullChar = 0;
 
-char*      nsCharTraits<char>     ::sEmptyBuffer = (char*) &gNullChar;
-PRUnichar* nsCharTraits<PRUnichar>::sEmptyBuffer =         &gNullChar;
+const char*      nsCharTraits<char>     ::sEmptyBuffer = (const char*) &gNullChar;
+const PRUnichar* nsCharTraits<PRUnichar>::sEmptyBuffer =               &gNullChar;
 
 // ---------------------------------------------------------------------------
 
@@ -140,6 +138,9 @@ class nsAStringAccessor : public nsAString
       nsAStringAccessor(); // NOT IMPLEMENTED
 
     public:
+#ifdef MOZ_V1_STRING_ABI
+      const void *vtable() const { return mVTable; }
+#endif
       char_type  *data() const   { return mData; }
       size_type   length() const { return mLength; }
       PRUint32    flags() const  { return mFlags; }
@@ -159,6 +160,9 @@ class nsACStringAccessor : public nsACString
       nsACStringAccessor(); // NOT IMPLEMENTED
 
     public:
+#ifdef MOZ_V1_STRING_ABI
+      const void *vtable() const { return mVTable; }
+#endif
       char_type  *data() const   { return mData; }
       size_type   length() const { return mLength; }
       PRUint32    flags() const  { return mFlags; }
@@ -245,6 +249,10 @@ nsStringBuffer::FromString(const nsAString& str)
     const nsAStringAccessor* accessor =
         static_cast<const nsAStringAccessor*>(&str);
 
+#ifdef MOZ_V1_STRING_ABI
+    if (accessor->vtable() != nsObsoleteAString::sCanonicalVTable)
+      return nsnull;
+#endif
     if (!(accessor->flags() & nsSubstring::F_SHARED))
       return nsnull;
 
@@ -257,6 +265,10 @@ nsStringBuffer::FromString(const nsACString& str)
     const nsACStringAccessor* accessor =
         static_cast<const nsACStringAccessor*>(&str);
 
+#ifdef MOZ_V1_STRING_ABI
+    if (accessor->vtable() != nsObsoleteACString::sCanonicalVTable)
+      return nsnull;
+#endif
     if (!(accessor->flags() & nsCSubstring::F_SHARED))
       return nsnull;
 
@@ -264,40 +276,48 @@ nsStringBuffer::FromString(const nsACString& str)
   }
 
 void
-nsStringBuffer::ToString(PRUint32 len, nsAString &str,
-                         PRBool aMoveOwnership)
+nsStringBuffer::ToString(PRUint32 len, nsAString &str)
   {
     PRUnichar* data = static_cast<PRUnichar*>(Data());
 
     nsAStringAccessor* accessor = static_cast<nsAStringAccessor*>(&str);
+#ifdef MOZ_V1_STRING_ABI
+    if (accessor->vtable() != nsObsoleteAString::sCanonicalVTable)
+      {
+        str.Assign(data, len);
+        return;
+      }
+#endif
     NS_ASSERTION(data[len] == PRUnichar(0), "data should be null terminated");
 
     // preserve class flags
     PRUint32 flags = accessor->flags();
     flags = (flags & 0xFFFF0000) | nsSubstring::F_SHARED | nsSubstring::F_TERMINATED;
 
-    if (!aMoveOwnership) {
-      AddRef();
-    }
+    AddRef();
     accessor->set(data, len, flags);
   }
 
 void
-nsStringBuffer::ToString(PRUint32 len, nsACString &str,
-                         PRBool aMoveOwnership)
+nsStringBuffer::ToString(PRUint32 len, nsACString &str)
   {
     char* data = static_cast<char*>(Data());
 
     nsACStringAccessor* accessor = static_cast<nsACStringAccessor*>(&str);
+#ifdef MOZ_V1_STRING_ABI
+    if (accessor->vtable() != nsObsoleteACString::sCanonicalVTable)
+      {
+        str.Assign(data, len);
+        return;
+      }
+#endif
     NS_ASSERTION(data[len] == char(0), "data should be null terminated");
 
     // preserve class flags
     PRUint32 flags = accessor->flags();
     flags = (flags & 0xFFFF0000) | nsCSubstring::F_SHARED | nsCSubstring::F_TERMINATED;
 
-    if (!aMoveOwnership) {
-      AddRef();
-    }
+    AddRef();
     accessor->set(data, len, flags);
   }
 
@@ -313,11 +333,3 @@ nsStringBuffer::ToString(PRUint32 len, nsACString &str,
 #include "string-template-def-char.h"
 #include "nsTSubstring.cpp"
 #include "string-template-undef.h"
-
-// Check that internal and external strings have the same size.
-// See https://bugzilla.mozilla.org/show_bug.cgi?id=430581
-
-#include "prlog.h"
-#include "nsXPCOMStrings.h"
-
-PR_STATIC_ASSERT(sizeof(nsStringContainer_base) == sizeof(nsSubstring));

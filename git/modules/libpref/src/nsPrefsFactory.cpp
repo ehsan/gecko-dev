@@ -36,50 +36,65 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/ModuleUtils.h"
+#include "nsIGenericFactory.h"
 #include "nsPrefService.h"
 #include "nsPrefBranch.h"
+#include "nsIPref.h"
 #include "prefapi.h"
+
+#ifdef MOZ_PROFILESHARING
+#include "nsSharedPrefHandler.h"
+#endif
+
+// remove this when nsPref goes away
+extern NS_IMETHODIMP nsPrefConstructor(nsISupports *aOuter, REFNSIID aIID, void **aResult);
 
 
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsPrefService, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsPrefLocalizedString, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsRelativeFilePref)
-
-static NS_DEFINE_CID(kPrefServiceCID, NS_PREFSERVICE_CID);
-static NS_DEFINE_CID(kPrefLocalizedStringCID, NS_PREFLOCALIZEDSTRING_CID);
-static NS_DEFINE_CID(kRelativeFilePrefCID, NS_RELATIVEFILEPREF_CID);
  
-static mozilla::Module::CIDEntry kPrefCIDs[] = {
-  { &kPrefServiceCID, true, NULL, nsPrefServiceConstructor },
-  { &kPrefLocalizedStringCID, false, NULL, nsPrefLocalizedStringConstructor },
-  { &kRelativeFilePrefCID, false, NULL, nsRelativeFilePrefConstructor },
-  { NULL }
-};
+// The list of components we register
+static const nsModuleComponentInfo components[] = 
+{
+  {
+    NS_PREFSERVICE_CLASSNAME, 
+    NS_PREFSERVICE_CID,
+    NS_PREFSERVICE_CONTRACTID, 
+    nsPrefServiceConstructor
+  },
 
-static mozilla::Module::ContractIDEntry kPrefContracts[] = {
-  { NS_PREFSERVICE_CONTRACTID, &kPrefServiceCID },
-  { NS_PREFLOCALIZEDSTRING_CONTRACTID, &kPrefLocalizedStringCID },
-  { NS_RELATIVEFILEPREF_CONTRACTID, &kRelativeFilePrefCID },
-  // compatibility for extension that uses old service
-  { "@mozilla.org/preferences;1", &kPrefServiceCID },
-  { NULL }
+  {
+    NS_PREFLOCALIZEDSTRING_CLASSNAME, 
+    NS_PREFLOCALIZEDSTRING_CID,
+    NS_PREFLOCALIZEDSTRING_CONTRACTID, 
+    nsPrefLocalizedStringConstructor
+  },
+
+  {
+    NS_RELATIVEFILEPREF_CLASSNAME, 
+    NS_RELATIVEFILEPREF_CID,
+    NS_RELATIVEFILEPREF_CONTRACTID, 
+    nsRelativeFilePrefConstructor
+  },
+
+  { // remove this when nsPref goes away
+    NS_PREF_CLASSNAME, 
+    NS_PREF_CID,
+    NS_PREF_CONTRACTID, 
+    nsPrefConstructor
+  },
 };
 
 static void
-UnloadPrefsModule()
+UnloadPrefsModule(nsIModule* unused)
 {
   PREF_Cleanup();
+
+#ifdef MOZ_PROFILESHARING
+  NS_ASSERTION(!gSharedPrefHandler, "Leaking the shared pref handler (and the prefservice, presumably).");
+  gSharedPrefHandler = nsnull;
+#endif
 }
 
-static const mozilla::Module kPrefModule = {
-  mozilla::Module::kVersion,
-  kPrefCIDs,
-  kPrefContracts,
-  NULL,
-  NULL,
-  NULL,
-  UnloadPrefsModule
-};
-
-NSMODULE_DEFN(nsPrefModule) = &kPrefModule;
+NS_IMPL_NSGETMODULE_WITH_DTOR(nsPrefModule, components, UnloadPrefsModule)

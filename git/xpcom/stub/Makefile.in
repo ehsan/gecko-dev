@@ -54,10 +54,20 @@ NSDISTMODE = copy
 GRE_MODULE	= 1
 MOZILLA_INTERNAL_API = 1
 
+REQUIRES	= string \
+		  $(NULL)
 
 LOCAL_INCLUDES	= -I$(srcdir)/../build
 
 CPPSRCS		= nsXPComStub.cpp
+
+ifndef MOZ_ENABLE_LIBXUL
+ifeq ($(OS_TARGET),OS2)
+ifndef MOZ_OS2_HIGH_MEMORY
+CPPSRCS         += nsOS2VACLegacy.cpp
+endif
+endif
+endif
 
 # If we have an import library, then copy that to the SDK.  Otherwise,
 # copy the shared library.
@@ -78,12 +88,12 @@ DEPENDENT_LIBS_LIST += \
 	$(LIB_PREFIX)nspr4$(DLL_SUFFIX) \
 	$(LIB_PREFIX)plc4$(DLL_SUFFIX) \
 	$(LIB_PREFIX)plds4$(DLL_SUFFIX) \
-	$(LIB_PREFIX)mozalloc$(DLL_SUFFIX) \
 	$(NULL)
 
 ifdef MOZ_ENABLE_LIBXUL
 
 DEPENDENT_LIBS_LIST += \
+	$(LIB_PREFIX)sqlite3$(DLL_SUFFIX) \
 	$(LIB_PREFIX)nssutil3$(DLL_SUFFIX) \
 	$(LIB_PREFIX)softokn3$(DLL_SUFFIX) \
 	$(LIB_PREFIX)nss3$(DLL_SUFFIX) \
@@ -91,19 +101,13 @@ DEPENDENT_LIBS_LIST += \
 	$(LIB_PREFIX)smime3$(DLL_SUFFIX) \
 	$(NULL)
 
-ifdef JS_SHARED_LIBRARY
+ifeq (,$(filter-out WINNT WINCE,$(OS_ARCH)))
+DEPENDENT_LIBS_LIST += js$(MOZ_BITS)$(VERSION_NUMBER)$(DLL_SUFFIX)
+else
 DEPENDENT_LIBS_LIST += $(LIB_PREFIX)mozjs$(DLL_SUFFIX)
 endif
 
-ifndef MOZ_NATIVE_SQLITE
-ifeq ($(OS_TARGET),OS2)
-DEPENDENT_LIBS_LIST += mozsqlt3.dll
-else
-DEPENDENT_LIBS_LIST += $(LIB_PREFIX)mozsqlite3$(DLL_SUFFIX)
-endif
-endif
-
-ifeq (bundle,$(MOZ_FS_LAYOUT))
+ifeq (Darwin,$(OS_ARCH))
 EXTRA_DSO_LDOPTS += $(DIST)/bin/XUL
 DEPENDENT_LIBS_LIST += XUL
 else
@@ -113,20 +117,17 @@ endif
 
 else #!MOZ_ENABLE_LIBXUL
 
-EXTRA_DSO_LIBS = xpcom_core
 ifeq ($(OS_TARGET),OS2)
+EXTRA_DSO_LIBS = xpcomcor
 DEPENDENT_LIBS_LIST += xpcomcor.dll
 else
+EXTRA_DSO_LIBS = xpcom_core
 DEPENDENT_LIBS_LIST += $(LIB_PREFIX)xpcom_core$(DLL_SUFFIX)
 endif
 
-endif #ifdef MOZ_ENABLE_LIBXUL
+endif
 
-EXTRA_DSO_LDOPTS +=				\
-	$(EXTRA_DSO_LIBS)			\
-	$(NSPR_LIBS)				\
-	$(MOZALLOC_LIB)				\
-	$(NULL)
+EXTRA_DSO_LDOPTS += $(EXTRA_DSO_LIBS) $(NSPR_LIBS)
 
 include $(topsrcdir)/config/rules.mk
 

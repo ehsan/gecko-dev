@@ -56,9 +56,8 @@ public:
 
     NS_DECL_ISUPPORTS
 
-    NS_IMETHOD  Init(const nsFont& aFont, nsIAtom* aLanguage,
-                     nsIDeviceContext *aContext, 
-                     gfxUserFontSet *aUserFontSet = nsnull);
+    NS_IMETHOD  Init(const nsFont& aFont, nsIAtom* aLangGroup,
+                     nsIDeviceContext *aContext);
     NS_IMETHOD  Destroy();
     NS_IMETHOD  GetXHeight(nscoord& aResult);
     NS_IMETHOD  GetSuperscriptOffset(nscoord& aResult);
@@ -75,7 +74,7 @@ public:
     NS_IMETHOD  GetMaxAscent(nscoord &aAscent);
     NS_IMETHOD  GetMaxDescent(nscoord &aDescent);
     NS_IMETHOD  GetMaxAdvance(nscoord &aAdvance);
-    NS_IMETHOD  GetLanguage(nsIAtom** aLanguage);
+    NS_IMETHOD  GetLangGroup(nsIAtom** aLangGroup);
     NS_IMETHOD  GetFontHandle(nsFontHandle &aHandle);
     NS_IMETHOD  GetAveCharWidth(nscoord& aAveCharWidth);
     NS_IMETHOD  GetSpaceWidth(nscoord& aSpaceCharWidth);
@@ -141,8 +140,6 @@ public:
     virtual void SetTextRunRTL(PRBool aIsRTL) { mTextRunRTL = aIsRTL; }
 
     virtual gfxFontGroup* GetThebesFontGroup() { return mFontGroup; }
-
-    virtual gfxUserFontSet* GetUserFontSet();
     
     PRBool GetRightToLeftTextRunMode() {
         return mTextRunRTL;
@@ -191,7 +188,7 @@ protected:
 
 private:
     nsThebesDeviceContext *mDeviceContext;
-    nsCOMPtr<nsIAtom> mLanguage;
+    nsCOMPtr<nsIAtom> mLangGroup;
     PRInt32 mP2A;
     PRPackedBool mIsRightToLeft;
     PRPackedBool mTextRunRTL;

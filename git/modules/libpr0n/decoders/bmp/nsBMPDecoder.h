@@ -20,7 +20,6 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Bobby Holley <bobbyholley@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -40,9 +39,11 @@
 #ifndef _nsBMPDecoder_h
 #define _nsBMPDecoder_h
 
-#include "nsAutoPtr.h"
+#include "nsCOMPtr.h"
 #include "imgIDecoder.h"
+#include "imgIContainer.h"
 #include "imgIDecoderObserver.h"
+#include "gfxIImageFrame.h"
 #include "gfxColor.h"
 
 #define NS_BMPDECODER_CID \
@@ -117,6 +118,9 @@ struct bitFields {
 #endif
 
 #define USE_RGB
+#define BMP_GFXFORMAT gfxIFormats::RGB
+#define RLE_GFXFORMAT_ALPHA gfxIFormats::RGB_A1
+#define GFXBYTESPERPIXEL 4
 
 // BMPINFOHEADER.compression defines
 #define BI_RLE8 1
@@ -139,12 +143,6 @@ enum ERLEState {
     eRLEStateAbsoluteModePadded ///< As above, but another byte of data has to be read as padding
 };
 
-namespace mozilla {
-namespace imagelib {
-class RasterImage;
-} // namespace imagelib
-} // namespace mozilla
-
 /**
  * Decoder for BMP-Files, as used by Windows and OS/2
  */
@@ -158,6 +156,15 @@ public:
     ~nsBMPDecoder();
 
 private:
+    /** Callback for ReadSegments to avoid copying the data */
+    static NS_METHOD ReadSegCb(nsIInputStream* aIn, void* aClosure,
+                               const char* aFromRawSegment, PRUint32 aToOffset,
+                               PRUint32 aCount, PRUint32 *aWriteCount);
+
+    /** Processes the data.
+     * @param aBuffer Data to process.
+     * @oaram count Number of bytes in mBuffer */
+    NS_METHOD ProcessData(const char* aBuffer, PRUint32 aCount);
 
     /** Calculates the red-, green- and blueshift in mBitFields using
      * the bitmasks from mBitFields */
@@ -165,8 +172,8 @@ private:
 
     nsCOMPtr<imgIDecoderObserver> mObserver;
 
-    nsRefPtr<mozilla::imagelib::RasterImage> mImage;
-    PRUint32 mFlags;
+    nsCOMPtr<imgIContainer> mImage;
+    nsCOMPtr<gfxIImageFrame> mFrame;
 
     PRUint32 mPos;
 
@@ -190,7 +197,6 @@ private:
 
     ERLEState mState;   ///< Maintains the current state of the RLE decoding
     PRUint32 mStateData;///< Decoding information that is needed depending on mState
-    PRBool mError;      ///< Did we hit an error?
 
     /** Set mBFH from the raw data in mRawBuf, converting from little-endian
      * data to native data as necessary */

@@ -170,6 +170,40 @@ nsBidi::nsBidi()
   mMayAllocateRuns=PR_TRUE;
 }
 
+nsBidi::nsBidi(PRUint32 aMaxLength, PRUint32 aMaxRunCount)
+{
+  Init();
+  nsresult rv = NS_OK;
+
+  /* allocate memory for arrays as requested */
+  if(aMaxLength>0) {
+    if( !GETINITIALDIRPROPSMEMORY(aMaxLength) ||
+        !GETINITIALLEVELSMEMORY(aMaxLength)
+      ) {
+      mMayAllocateText=PR_FALSE;
+      rv = NS_ERROR_OUT_OF_MEMORY;
+    }
+  } else {
+    mMayAllocateText=PR_TRUE;
+  }
+
+  if(aMaxRunCount>0) {
+    if(aMaxRunCount==1) {
+      /* use simpleRuns[] */
+      mRunsSize=sizeof(Run);
+    } else if(!GETINITIALRUNSMEMORY(aMaxRunCount)) {
+      mMayAllocateRuns=PR_FALSE;
+      rv = NS_ERROR_OUT_OF_MEMORY;
+    }
+  } else {
+    mMayAllocateRuns=PR_TRUE;
+  }
+
+  if(NS_FAILED(rv)) {
+    Free();
+  }
+}
+
 nsBidi::~nsBidi()
 {
   Free();
@@ -272,7 +306,7 @@ nsresult nsBidi::SetPara(const PRUnichar *aText, PRInt32 aLength,
 
   /* check the argument values */
   if(aText==NULL ||
-     ((NSBIDI_MAX_EXPLICIT_LEVEL<aParaLevel) && !IS_DEFAULT_LEVEL(aParaLevel)) ||
+     (NSBIDI_MAX_EXPLICIT_LEVEL<aParaLevel) && !IS_DEFAULT_LEVEL(aParaLevel) ||
      aLength<-1
     ) {
     return NS_ERROR_INVALID_ARG;
@@ -754,7 +788,7 @@ nsresult nsBidi::CheckExplicitLevels(nsBidiDirection *aDirection)
 nsBidiDirection nsBidi::DirectionFromFlags(Flags aFlags)
 {
   /* if the text contains AN and neutrals, then some neutrals may become RTL */
-  if(!(aFlags&MASK_RTL || (aFlags&DIRPROP_FLAG(AN) && aFlags&MASK_POSSIBLE_N))) {
+  if(!(aFlags&MASK_RTL || aFlags&DIRPROP_FLAG(AN) && aFlags&MASK_POSSIBLE_N)) {
     return NSBIDI_LTR;
   } else if(!(aFlags&MASK_LTR)) {
     return NSBIDI_RTL;
@@ -901,7 +935,7 @@ void nsBidi::ResolveImplicitLevels(PRInt32 aStart, PRInt32 aLimit,
           historyOfEN|=EN_AFTER_W4;
         } else if(prevDirProp==AN &&                    /* previous was AN */
               (nextDirProp==AN ||                   /* next is AN */
-               (nextDirProp==EN && lastStrong==AL))   /* or (W2) will make it one */
+               nextDirProp==EN && lastStrong==AL)   /* or (W2) will make it one */
              ) {
           /* (W4) */
           dirProp=AN;
@@ -922,7 +956,7 @@ void nsBidi::ResolveImplicitLevels(PRInt32 aStart, PRInt32 aLimit,
         }
 
         if( historyOfEN&PREV_EN_AFTER_W4 ||     /* previous was EN before (W5) */
-            (nextDirProp==EN && lastStrong!=AL)   /* next is EN and (W2) won't make it AN */
+            nextDirProp==EN && lastStrong!=AL   /* next is EN and (W2) won't make it AN */
           ) {
           /* (W5) */
           if(lastStrong!=L) {
@@ -1443,7 +1477,7 @@ nsresult nsBidi::CountRuns(PRInt32* aRunCount)
 nsresult nsBidi::GetVisualRun(PRInt32 aRunIndex, PRInt32 *aLogicalStart, PRInt32 *aLength, nsBidiDirection *aDirection)
 {
   if( aRunIndex<0 ||
-      (mRunCount==-1 && !GetRuns()) ||
+      mRunCount==-1 && !GetRuns() ||
       aRunIndex>=mRunCount
     ) {
     *aDirection = NSBIDI_LTR;
@@ -2083,6 +2117,7 @@ nsresult nsBidi::InvertMap(const PRInt32 *aSrcMap, PRInt32 *aDestMap, PRInt32 aL
   return NS_OK;
 }
 
+#endif // FULL_BIDI_ENGINE
 PRInt32 nsBidi::doWriteReverse(const PRUnichar *src, PRInt32 srcLength,
                                PRUnichar *dest, PRUint16 options) {
   /*
@@ -2244,5 +2279,4 @@ nsresult nsBidi::WriteReverse(const PRUnichar *aSrc, PRInt32 aSrcLength, PRUnich
   }
   return NS_OK;
 }
-#endif // FULL_BIDI_ENGINE
 #endif // IBMBIDI

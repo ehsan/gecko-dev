@@ -44,6 +44,7 @@
 
 #include "nsIUnicodeDecoder.h"
 #include "nsIUnicodeEncoder.h"
+#include "nsICharRepresentable.h"
 
 #include "nsNativeUConvService.h"
 #include "nsAutoPtr.h"
@@ -55,7 +56,8 @@
 
 
 class IConvAdaptor : public nsIUnicodeDecoder, 
-                     public nsIUnicodeEncoder 
+                     public nsIUnicodeEncoder, 
+                     public nsICharRepresentable
 {
 public:
     IConvAdaptor();
@@ -76,10 +78,6 @@ public:
                             PRInt32 aSrcLength, 
                             PRInt32 * aDestLength);
     NS_IMETHOD Reset();
-
-    virtual void SetInputErrorBehavior(PRInt32 aBehavior);
-
-    virtual PRUnichar GetCharacterForUnMapped();
     
     // Encoder methods:
     
@@ -101,6 +99,8 @@ public:
                                       nsIUnicharEncoder * aEncoder, 
                                       PRUnichar aChar);
     
+    NS_IMETHOD FillInfo(PRUint32* aInfo);
+    
     
 private:
     nsresult ConvertInternal(void * aSrc, 
@@ -120,9 +120,10 @@ private:
 #endif
 };
 
-NS_IMPL_ISUPPORTS2(IConvAdaptor, 
+NS_IMPL_ISUPPORTS3(IConvAdaptor, 
                    nsIUnicodeEncoder, 
-                   nsIUnicodeDecoder)
+                   nsIUnicodeDecoder,
+                   nsICharRepresentable)
 
 IConvAdaptor::IConvAdaptor()
 {
@@ -208,18 +209,6 @@ IConvAdaptor::Reset()
 }
 
 
-void
-IConvAdaptor::SetInputErrorBehavior(PRInt32 aBehavior)
-{
-}
-
-
-PRUnichar
-IConvAdaptor::GetCharacterForUnMapped()
-{
-    return PRUnichar(0xfffd); // Unicode REPLACEMENT CHARACTER
-}
-
 // convert unicode data into some charset.
 nsresult 
 IConvAdaptor::Convert(const PRUnichar * aSrc, 
@@ -274,6 +263,16 @@ IConvAdaptor::SetOutputErrorBehavior(PRInt32 aBehavior,
 
     NS_WARNING("Uconv Error Behavior not support");
     return NS_ERROR_FAILURE;
+}
+
+nsresult 
+IConvAdaptor::FillInfo(PRUint32* aInfo)
+{
+#ifdef DEBUG
+    printf(" * IConvAdaptor - FillInfo called\n");
+#endif
+    *aInfo = 0;
+    return NS_OK;
 }
 
 

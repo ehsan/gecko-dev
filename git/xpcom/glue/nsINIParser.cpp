@@ -45,34 +45,15 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#ifdef XP_WIN
-#include <windows.h>
-#endif
 
-#if defined(XP_WIN)
-#define READ_BINARYMODE L"rb"
-#elif defined(XP_OS2)
-#define READ_BINARYMODE "rb"
+#if defined(XP_WIN) || defined(XP_OS2)
+#define BINARY_MODE "b"
 #else
-#define READ_BINARYMODE "r"
-#endif
-
-#ifdef XP_WIN
-inline FILE *TS_tfopen (const char *path, const wchar_t *mode)
-{
-    wchar_t wPath[MAX_PATH];
-    MultiByteToWideChar(CP_UTF8, 0, path, -1, wPath, MAX_PATH);
-    return _wfopen(wPath, mode);
-}
-#else
-inline FILE *TS_tfopen (const char *path, const char *mode)
-{
-    return fopen(path, mode);
-}
+#define BINARY_MODE
 #endif
 
 // Stack based FILE wrapper to ensure that fclose is called, copied from
-// toolkit/mozapps/update/updater/readstrings.cpp
+// toolkit/mozapps/update/src/updater/readstrings.cpp
 
 class AutoFILE {
 public:
@@ -101,14 +82,14 @@ nsINIParser::Init(nsILocalFile* aFile)
     rv = aFile->GetPath(path);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    fd = _wfopen(path.get(), READ_BINARYMODE);
+    fd = _wfopen(path.get(), L"rb");
 #else
     nsCAutoString path;
     rv = aFile->GetNativePath(path);
+    NS_ENSURE_SUCCESS(rv, rv);
 
-    fd = fopen(path.get(), READ_BINARYMODE);
+    fd = fopen(path.get(), "r" BINARY_MODE);
 #endif
-
     if (!fd)
       return NS_ERROR_FAILURE;
 
@@ -119,8 +100,7 @@ nsresult
 nsINIParser::Init(const char *aPath)
 {
     /* open the file */
-    AutoFILE fd = TS_tfopen(aPath, READ_BINARYMODE);
-
+    AutoFILE fd = fopen(aPath, "r" BINARY_MODE);
     if (!fd)
         return NS_ERROR_FAILURE;
 
@@ -163,6 +143,7 @@ nsINIParser::InitFromFILE(FILE *fd)
 
     char *buffer = mFileContents;
     char *currSection = nsnull;
+    INIValue *last = nsnull;
 
     // outer loop tokenizes into lines
     while (char *token = NS_strtok(kNL, &buffer)) {
@@ -176,6 +157,7 @@ nsINIParser::InitFromFILE(FILE *fd)
         if (token[0] == '[') { // section header!
             ++token;
             currSection = token;
+            last = nsnull;
 
             char *rb = NS_strtok(kRBracket, &token);
             if (!rb || NS_strtok(kWhitespace, &token)) {
@@ -197,35 +179,31 @@ nsINIParser::InitFromFILE(FILE *fd)
 
         char *key = token;
         char *e = NS_strtok(kEquals, &token);
-        if (!e || !token)
+        if (!e)
             continue;
 
-        INIValue *v;
-        if (!mSections.Get(currSection, &v)) {
-            v = new INIValue(key, token);
-            if (!v)
-                return NS_ERROR_OUT_OF_MEMORY;
+        INIValue *val = new INIValue(key, token);
+        if (!val)
+            return NS_ERROR_OUT_OF_MEMORY;
 
-            mSections.Put(currSection, v);
+        // If we haven't already added something to this section, "last" will
+        // be null.
+        if (!last) {
+            mSections.Get(currSection, &last);
+            while (last && last->next)
+                last = last->next;
+        }
+
+        if (last) {
+            // Add this element on to the tail of the existing list
+
+            last->next = val;
+            last = val;
             continue;
         }
 
-        // Check whether this key has already been specified; overwrite
-        // if so, or append if not.
-        while (v) {
-            if (!strcmp(key, v->key)) {
-                v->value = token;
-                break;
-            }
-            if (!v->next) {
-                v->next = new INIValue(key, token);
-                if (!v->next)
-                    return NS_ERROR_OUT_OF_MEMORY;
-                break;
-            }
-            v = v->next;
-        }
-        NS_ASSERTION(v, "v should never be null coming out of this loop");
+        // We've never encountered this section before, add it to the head
+        mSections.Put(currSection, val);
     }
 
     return NS_OK;

@@ -38,6 +38,7 @@
 #define nsCharsetAlias_h__
 
 #include "nsICharsetAlias.h"
+#include "nsGREResProperties.h"
 
 //==============================================================
 class nsCharsetAlias2 : public nsICharsetAlias
@@ -53,6 +54,8 @@ public:
 
   NS_IMETHOD Equals(const nsACString& aCharset1, const nsACString& aCharset2, PRBool* oResult) ;
   
+private:
+  nsGREResProperties* mDelegate;
 };
 
 #endif // nsCharsetAlias_h__

@@ -65,7 +65,6 @@ nsCategoryObserver::nsCategoryObserver(const char* aCategory,
   if (NS_FAILED(rv))
     return;
 
-  nsTArray<nsCString> entries;
   nsCOMPtr<nsISupports> entry;
   while (NS_SUCCEEDED(enumerator->GetNext(getter_AddRefs(entry)))) {
     nsCOMPtr<nsISupportsCString> entryName = do_QueryInterface(entry, &rv);
@@ -81,7 +80,7 @@ nsCategoryObserver::nsCategoryObserver(const char* aCategory,
 
       if (NS_SUCCEEDED(rv)) {
         mHash.Put(categoryEntry, entryValue);
-        entries.AppendElement(entryValue);
+        mListener->EntryAdded(entryValue);
       }
     }
   }
@@ -89,15 +88,14 @@ nsCategoryObserver::nsCategoryObserver(const char* aCategory,
   // Now, listen for changes
   nsCOMPtr<nsIObserverService> serv =
     do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
-  if (serv) {
-    serv->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_FALSE);
-    serv->AddObserver(this, NS_XPCOM_CATEGORY_ENTRY_ADDED_OBSERVER_ID, PR_FALSE);
-    serv->AddObserver(this, NS_XPCOM_CATEGORY_ENTRY_REMOVED_OBSERVER_ID, PR_FALSE);
-    serv->AddObserver(this, NS_XPCOM_CATEGORY_CLEARED_OBSERVER_ID, PR_FALSE);
-  }
+  if (!serv)
+    return;
 
-  for (PRInt32 i = entries.Length() - 1; i >= 0; --i)
-    mListener->EntryAdded(entries[i]);
+  serv->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_FALSE);
+
+  serv->AddObserver(this, NS_XPCOM_CATEGORY_ENTRY_ADDED_OBSERVER_ID, PR_FALSE);
+  serv->AddObserver(this, NS_XPCOM_CATEGORY_ENTRY_REMOVED_OBSERVER_ID, PR_FALSE);
+  serv->AddObserver(this, NS_XPCOM_CATEGORY_CLEARED_OBSERVER_ID, PR_FALSE);
 }
 
 nsCategoryObserver::~nsCategoryObserver() {
@@ -108,19 +106,17 @@ NS_IMPL_ISUPPORTS1(nsCategoryObserver, nsIObserver)
 void
 nsCategoryObserver::ListenerDied() {
   mListener = nsnull;
-  RemoveObservers();
-}
 
-NS_HIDDEN_(void)
-nsCategoryObserver::RemoveObservers() {
-  nsCOMPtr<nsIObserverService> obsSvc =
+  nsCOMPtr<nsIObserverService> serv =
     do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
-  if (obsSvc) {
-    obsSvc->RemoveObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID);
-    obsSvc->RemoveObserver(this, NS_XPCOM_CATEGORY_ENTRY_ADDED_OBSERVER_ID);
-    obsSvc->RemoveObserver(this, NS_XPCOM_CATEGORY_ENTRY_REMOVED_OBSERVER_ID);
-    obsSvc->RemoveObserver(this, NS_XPCOM_CATEGORY_CLEARED_OBSERVER_ID);
-  }
+  if (!serv)
+    return;
+
+  serv->RemoveObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID);
+
+  serv->RemoveObserver(this, NS_XPCOM_CATEGORY_ENTRY_ADDED_OBSERVER_ID);
+  serv->RemoveObserver(this, NS_XPCOM_CATEGORY_ENTRY_REMOVED_OBSERVER_ID);
+  serv->RemoveObserver(this, NS_XPCOM_CATEGORY_CLEARED_OBSERVER_ID);
 }
 
 NS_IMETHODIMP
@@ -132,8 +128,6 @@ nsCategoryObserver::Observe(nsISupports* aSubject, const char* aTopic,
   if (strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID) == 0) {
     mHash.Clear();
     mListener->CategoryCleared();
-    RemoveObservers();
-
     return NS_OK;
   }
 
@@ -147,14 +141,6 @@ nsCategoryObserver::Observe(nsISupports* aSubject, const char* aTopic,
     strWrapper->GetData(str);
 
   if (strcmp(aTopic, NS_XPCOM_CATEGORY_ENTRY_ADDED_OBSERVER_ID) == 0) {
-    // We may get an add notification even when we already have an entry. This
-    // is due to the notification happening asynchronously, so if the entry gets
-    // added and an nsCategoryObserver gets instantiated before events get
-    // processed, we'd get the notification for an existing entry.
-    // Do nothing in that case.
-    if (mHash.Get(str, nsnull))
-      return NS_OK;
-
     nsCOMPtr<nsICategoryManager> catMan =
       do_GetService(NS_CATEGORYMANAGER_CONTRACTID);
     if (!catMan)

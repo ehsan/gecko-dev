@@ -4,14 +4,10 @@
 -->
 <head>
   <title>Test for computation of values in property database</title>
-  <script type="text/javascript" src="/MochiKit/packed.js"></script>
+  <script type="text/javascript" src="/MochiKit/MochiKit.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="text/javascript" src="property_database.js"></script>
   <style type="text/css" id="stylesheet"></style>
-  <style type="text/css">
-  /* For 'width', 'height', etc., need a constant size container. */
-  #display { width: 500px; height: 200px }
-  </style>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
   <script type="text/javascript">
   SimpleTest.waitForExplicitFinish();
@@ -39,7 +35,29 @@
 
 /** Test for computation of values in property database **/
 
+var gNotAccepted = {
+  "-moz-column-width": [ "50%" ],
+  "list-style": [ "none disc outside" ],
+};
+
 var gBadComputed = {
+  // NS_STYLE_COLUMN_COUNT_AUTO is 0
+  "-moz-column-count": [ "0" ],
+
+  "clip": [ "rect(auto,auto,auto,auto)" ],
+
+  // No idea what's happening for these two either
+  "border-top": [ "thin" ],
+  "border-right": [ "thin" ],
+  "border-bottom": [ "thin" ],
+  "border-left": [ "thin" ],
+  "-moz-border-start": [ "thin" ],
+  "-moz-border-end": [ "thin" ],
+  "outline-width": [ "3px" ],
+
+  // 'normal' should compute to 0
+  "word-spacing": [ "0", "0px", "-0em" ],
+
   // These values are treated as auto.
   "page-break-after": [ "avoid" ],
   "page-break-before": [ "avoid" ],
@@ -72,6 +90,10 @@ var gBadComputedNoFrame = {
 };
 
 function xfail_value(property, value, is_initial, has_frame) {
+  if ((property in gNotAccepted) &&
+      gNotAccepted[property].indexOf(value) != -1)
+    return true;
+
   if ((property in gBadComputed) &&
       gBadComputed[property].indexOf(value) != -1)
     return true;
@@ -81,17 +103,6 @@ function xfail_value(property, value, is_initial, has_frame) {
     return true;
 
   return false;
-}
-
-var gSwapInitialWhenHaveFrame = {
-  // When there's a frame, '-moz-available' works out to the same as
-  // 'auto' given the prerequisites of only 'display: block'.
-  "width": [ "-moz-available" ],
-};
-
-function swap_when_frame(property, value) {
-  return (property in gSwapInitialWhenHaveFrame) &&
-         gSwapInitialWhenHaveFrame[property].indexOf(value) != -1;
 }
 
 var gElementN = document.getElementById("elementn");
@@ -110,9 +121,6 @@ function setup_initial_values(id, ivalprop, prereqprop) {
   window[ivalprop] = iframe.contentWindow.getComputedStyle(
                        iframe.contentDocument.documentElement.firstChild, "");
   var sheet = iframe.contentDocument.styleSheets[0];
-  // For 'width', 'height', etc., need a constant size container.
-  sheet.insertRule(":root { height: 200px; width: 500px }", sheet.cssRules.length);
-
   window[prereqprop] = sheet.cssRules[sheet.insertRule(":root > * {}", sheet.cssRules.length)];
 }
 
@@ -174,12 +182,10 @@ function test_value(property, val, is_initial)
   } else {
     (xfail_value(property, val, is_initial, false) ? todo_isnot : isnot)(
        val_computed_n, initial_computed_n,
-       "should not get initial value for '" + property + ":" + val + "' on elementn.");
-    var swap = swap_when_frame(property, val);
-    (xfail_value(property, val, is_initial, true) ? todo_isnot : (swap ? is : isnot))(
+       "should not get initial value for '" + property + ":" + val + "'");
+    (xfail_value(property, val, is_initial, true) ? todo_isnot : isnot)(
        val_computed_f, initial_computed_f,
-       "should " + (swap ? "" : "not ") +
-       "get initial value for '" + property + ":" + val + "' on elementf.");
+       "should not get initial value for '" + property + ":" + val + "'");
   }
   if (is_initial)
     gRule1.style.removeProperty(property);
@@ -214,15 +220,27 @@ function run_tests() {
   for (var prop in gCSSProperties)
     props.push(prop);
   props = props.reverse();
-  function do_one() {
-    if (props.length == 0) {
+  function do_one(l) {
+    if (l.length == 0) {
+      // SimpleTest.finish() is really slow, so we have to disable the
+      // slow script dialog for this part
+      netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+      var prefService = Components.classes["@mozilla.org/preferences-service;1"].
+                          getService(Components.interfaces.nsIPrefService);
+      var domBranch = prefService.getBranch("dom.");
+      var oldVal = domBranch.getIntPref("max_script_run_time");
+      domBranch.setIntPref("max_script_run_time", 0);
+
       SimpleTest.finish();
+
+      domBranch.setIntPref("max_script_run_time", oldVal);
+
       return;
     }
-    test_property(props.pop());
-    SimpleTest.executeSoon(do_one);
+    test_property(l.pop());
+    setTimeout(do_one, 0, l);
   }
-  SimpleTest.executeSoon(do_one);
+  setTimeout(do_one, 0, props);
 }
 
 load_done();

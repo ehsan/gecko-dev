@@ -38,6 +38,7 @@
 #include "nsISupportsUtils.h"
 #include "nsIMenuBoxObject.h"
 #include "nsBoxObject.h"
+#include "nsIPresShell.h"
 #include "nsIFrame.h"
 #include "nsGUIEvent.h"
 #include "nsIDOMNSUIEvent.h"
@@ -146,7 +147,7 @@ NS_IMETHODIMP nsMenuBoxObject::HandleKeyPress(nsIDOMKeyEvent* aKeyEvent, PRBool*
     case NS_VK_END:
     {
       nsNavigationDirection theDirection;
-      theDirection = NS_DIRECTION_FROM_KEY_CODE(popupFrame, keyCode);
+      NS_DIRECTION_FROM_KEY_CODE(popupFrame, theDirection, keyCode);
       *aHandledFlag =
         pm->HandleKeyboardNavigationInPopup(popupFrame, theDirection);
       return NS_OK;

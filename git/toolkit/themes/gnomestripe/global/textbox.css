@@ -45,7 +45,8 @@
 
 /* ::::: textbox ::::: */
 
-textbox {
+textbox 
+{
   -moz-appearance: textfield;
   cursor: text;
   margin: 2px 4px;
@@ -54,10 +55,13 @@ textbox {
   -moz-border-right-colors: ThreeDHighlight ThreeDLightShadow;
   -moz-border-bottom-colors: ThreeDHighlight ThreeDLightShadow;
   -moz-border-left-colors: ThreeDShadow ThreeDDarkShadow;
-  padding: 2px 2px 3px;
-  -moz-padding-start: 4px;
+  padding: 2px 2px 3px 4px;
   background-color: -moz-Field;
   color: -moz-FieldText;
+}
+
+textbox[empty="true"] {
+  color: GrayText;
 }
 
 html|*.textbox-input, 
@@ -70,7 +74,7 @@ html|*.textbox-textarea {
   font: inherit;
 }
 
-.textbox-contextmenu {
+.textbox-input-box menupopup {
   cursor: default;
 }
 
@@ -87,31 +91,15 @@ textbox[disabled="true"] {
   cursor: default;
   background-color: -moz-Dialog;
   color: GrayText;
-}
+} 
 
 /* ::::: plain textbox ::::: */
 
 textbox.plain {
   -moz-appearance: none !important;
-  background-color: transparent;
   padding: 0px !important;
   margin: 0px !important;
   border: none !important;
-}
-
-/* ::::: search textbox ::::: */
-
-.textbox-search-icon {
-  list-style-image: url(moz-icon://stock/gtk-find?size=menu);
-}
-
-.textbox-search-clear {
-  list-style-image: url(moz-icon://stock/gtk-clear?size=menu);
-}
-
-.textbox-search-icon[searchbutton]:not([disabled]) ,
-.textbox-search-clear:not([disabled]) {
-  cursor: pointer;
 }
 
 /* ::::: textboxes inside toolbarpaletteitems ::::: */

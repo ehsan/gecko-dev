@@ -1,9 +1,3 @@
-== default-size.html default-size-ref.html
-
-== image-rendering-test.html image-rendering-ref.html
-
-== size-change-1.html size-change-1-ref.html
-
 != text-ltr-left.html text-blank.html
 != text-ltr-right.html text-blank.html
 != text-rtl-left.html text-blank.html
@@ -16,7 +10,7 @@
 == text-rtl-end.html text-rtl-left.html
 != text-rtl-left.html text-rtl-right.html
 
-== text-ltr-left.html text-rtl-left.html
+!= text-ltr-left.html text-rtl-left.html
 
 == text-ltr-alignment-test.html text-ltr-alignment-ref.html
 == text-rtl-alignment-test.html text-rtl-alignment-ref.html
@@ -35,7 +29,3 @@
 == text-no-frame-2-test.html text-not-in-doc-ref.html
 == text-not-in-doc-test.html text-not-in-doc-ref.html
 
-== text-bidi-ltr-test.html text-bidi-ltr-ref.html
-== text-bidi-rtl-test.html text-bidi-rtl-ref.html
-
-!= text-font-lang.html text-font-lang-notref.html

@@ -49,7 +49,8 @@
 #include "nsGkAtoms.h"
 #include "nsContentUtils.h"
 
-nsListBoxLayout::nsListBoxLayout() : nsGridRowGroupLayout()
+nsListBoxLayout::nsListBoxLayout(nsIPresShell* aPresShell)
+  : nsGridRowGroupLayout(aPresShell)
 {
 }
 
@@ -130,7 +131,26 @@ nsListBoxLayout::GetMaxSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState)
 NS_IMETHODIMP
 nsListBoxLayout::Layout(nsIBox* aBox, nsBoxLayoutState& aState)
 {
-  return LayoutInternal(aBox, aState);
+  nsListBoxBodyFrame* frame = static_cast<nsListBoxBodyFrame*>(aBox);
+
+  // Always ensure an accurate scrollview position
+  // This is an edge case that was caused by the row height
+  // changing after a scroll had occurred.  (Bug #51084)
+  PRInt32 index;
+  frame->GetIndexOfFirstVisibleRow(&index);
+  if (index > 0) {
+    nscoord pos = frame->GetYPosition();
+    PRInt32 rowHeight = frame->GetRowHeightAppUnits();
+    if (pos != (rowHeight*index)) {
+      frame->VerticalScroll(rowHeight*index);
+      frame->Redraw(aState, nsnull, PR_FALSE);
+    }
+  }
+
+  nsresult rv = LayoutInternal(aBox, aState);
+  if (NS_FAILED(rv)) return rv;
+
+  return NS_OK;
 }
 
 
@@ -147,7 +167,7 @@ nsListBoxLayout::LayoutInternal(nsIBox* aBox, nsBoxLayoutState& aState)
   // Get the start y position.
   nsListBoxBodyFrame* body = static_cast<nsListBoxBodyFrame*>(aBox);
   if (!body) {
-    NS_ERROR("Frame encountered that isn't a listboxbody!");
+    NS_ERROR("Frame encountered that isn't a listboxbody!\n");
     return NS_ERROR_FAILURE;
   }
 
@@ -242,9 +262,10 @@ nsListBoxLayout::LayoutInternal(nsIBox* aBox, nsBoxLayoutState& aState)
 
 // Creation Routines ///////////////////////////////////////////////////////////////////////
 
-already_AddRefed<nsIBoxLayout> NS_NewListBoxLayout()
+nsresult
+NS_NewListBoxLayout( nsIPresShell* aPresShell, nsCOMPtr<nsIBoxLayout>& aNewLayout)
 {
-  nsIBoxLayout* layout = new nsListBoxLayout();
-  NS_IF_ADDREF(layout);
-  return layout;
+  aNewLayout = new nsListBoxLayout(aPresShell);
+
+  return NS_OK;
 } 

@@ -8,9 +8,36 @@ const Ci = Components.interfaces;
 const Cc = Components.classes;
 const Cr = Components.results;
 
-do_get_profile();
-
+// If there's no location registered for the profile direcotry, register one now.
 var dirSvc = Cc["@mozilla.org/file/directory_service;1"].getService(Ci.nsIProperties);
+var profileDir = null;
+try {
+  profileDir = dirSvc.get(NS_APP_USER_PROFILE_50_DIR, Ci.nsIFile);
+} catch (e) {}
+
+if (!profileDir) {
+  // Register our own provider for the profile directory.
+  // It will simply return the current directory.
+  var provider = {
+    getFile: function(prop, persistent) {
+      dump("getting file " + prop + "\n");
+      persistent.value = true;
+      if (prop == NS_APP_USER_PROFILE_50_DIR ||
+          prop == NS_APP_USER_PROFILE_LOCAL_50_DIR) {
+        return dirSvc.get("CurProcD", Ci.nsIFile);
+      }
+      throw Cr.NS_ERROR_FAILURE;
+    },
+    QueryInterface: function(iid) {
+      if (iid.equals(Ci.nsIDirectoryServiceProvider) ||
+          iid.equals(Ci.nsISupports)) {
+        return this;
+      }
+      throw Cr.NS_ERROR_NO_INTERFACE;
+    }
+  };
+  dirSvc.QueryInterface(Ci.nsIDirectoryService).registerProvider(provider);
+}
 
 var iosvc = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
 
@@ -18,10 +45,6 @@ var iosvc = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
 var prefBranch = Cc["@mozilla.org/preferences-service;1"].
                  getService(Ci.nsIPrefBranch);
 prefBranch.setIntPref("urlclassifier.gethashnoise", 0);
-
-// Enable malware/phishing checking for tests
-prefBranch.setBoolPref("browser.safebrowsing.malware.enabled", true);
-prefBranch.setBoolPref("browser.safebrowsing.enabled", true);
 
 function cleanUp() {
   try {
@@ -130,7 +153,7 @@ function doErrorUpdate(tables, success, failure) {
     },
 
     updateUrlRequested: function(url) { },
-    streamFinished: function(status) { },
+    streamCompleted: function() { },
     updateError: function(errorCode) { success(errorCode); },
     updateSuccess: function(requestedTimeout) { failure(requestedTimeout); }
   };
@@ -188,7 +211,7 @@ checkUrls: function(urls, expected, cb)
     } else {
       cb();
     }
-  };
+  }
   doLookup();
 },
 
@@ -245,7 +268,7 @@ function updateError(arg)
   do_throw(arg);
 }
 
-// Runs a set of updates, and then checks a set of assertions.
+// Runs a set of updates, and then checks a set of assertions.  
 function doUpdateTest(updates, assertions, successCallback, errorCallback, clientKey) {
   var errorUpdate = function() {
     checkAssertions(assertions, errorCallback);

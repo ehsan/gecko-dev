@@ -45,7 +45,6 @@
 #include "txIXPathContext.h"
 #include "nsAutoPtr.h"
 #include "txStylesheet.h"
-#include "nsTArray.h"
 
 extern PRBool
 TX_XSLTFunctionAvailable(nsIAtom* aName, PRInt32 aNameSpaceID);
@@ -58,7 +57,6 @@ class txNamespaceMap;
 class txToplevelItem;
 class txPushNewContext;
 class txStylesheetCompiler;
-class txInScopeVariable;
 
 class txElementContext : public TxObject
 {
@@ -70,15 +68,15 @@ public:
     PRBool mForwardsCompatibleParsing;
     nsString mBaseURI;
     nsRefPtr<txNamespaceMap> mMappings;
-    nsTArray<PRInt32> mInstructionNamespaces;
+    nsVoidArray mInstructionNamespaces;
     PRInt32 mDepth;
 };
 
 class txACompileObserver
 {
 public:
-    virtual void AddRef() = 0;
-    virtual void Release() = 0;
+    virtual nsrefcnt AddRef() = 0;
+    virtual nsrefcnt Release() = 0;
 
     virtual nsresult loadURI(const nsAString& aUri,
                              const nsAString& aReferrerUri,
@@ -90,11 +88,13 @@ public:
 };
 
 #define TX_DECL_ACOMPILEOBSERVER \
+  nsrefcnt AddRef(); \
+  nsrefcnt Release(); \
   nsresult loadURI(const nsAString& aUri, const nsAString& aReferrerUri, \
                    txStylesheetCompiler* aCompiler); \
   void onDoneCompiling(txStylesheetCompiler* aCompiler, nsresult aResult, \
                        const PRUnichar *aErrorText = nsnull, \
-                       const PRUnichar *aParam = nsnull);
+                       const PRUnichar *aParam = nsnull)
 
 class txStylesheetCompilerState : public txIParseContext
 {
@@ -169,8 +169,8 @@ public:
 
 protected:
     nsRefPtr<txACompileObserver> mObserver;
-    nsTArray<txInScopeVariable*> mInScopeVariables;
-    nsTArray<txStylesheetCompiler*> mChildCompilerList;
+    nsVoidArray mInScopeVariables;
+    nsVoidArray mChildCompilerList;
     // embed info, target information is the ID
     nsString mTarget;
     enum 
@@ -189,7 +189,7 @@ protected:
 private:
     txInstruction** mNextInstrPtr;
     txListIterator mToplevelIterator;
-    nsTArray<txInstruction**> mGotoTargetPointers;
+    nsVoidArray mGotoTargetPointers;
 };
 
 struct txStylesheetAttr
@@ -213,6 +213,8 @@ public:
                          txStylesheet* aStylesheet,
                          txListIterator* aInsertPosition,
                          txACompileObserver* aObserver);
+    virtual nsrefcnt AddRef();
+    virtual nsrefcnt Release();
 
     void setBaseURI(const nsString& aBaseURI);
 
@@ -231,8 +233,12 @@ public:
 
     txStylesheet* getStylesheet();
 
-    TX_DECL_ACOMPILEOBSERVER
-    NS_INLINE_DECL_REFCOUNTING(txStylesheetCompiler)
+    // txACompileObserver
+    nsresult loadURI(const nsAString& aUri, const nsAString& aReferrerUri,
+                     txStylesheetCompiler* aCompiler);
+    void onDoneCompiling(txStylesheetCompiler* aCompiler, nsresult aResult,
+                         const PRUnichar *aErrorText = nsnull,
+                         const PRUnichar *aParam = nsnull);
 
 private:
     nsresult startElementInternal(PRInt32 aNamespaceID, nsIAtom* aLocalName,
@@ -245,6 +251,7 @@ private:
     nsresult ensureNewElementContext();
     nsresult maybeDoneCompiling();
 
+    nsAutoRefCnt mRefCnt;
     nsString mCharacters;
     nsresult mStatus;
 };

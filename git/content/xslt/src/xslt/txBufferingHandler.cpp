@@ -343,17 +343,22 @@ txBufferingHandler::startElement(nsIAtom* aPrefix,
     return mBuffer->addTransaction(transaction);
 }
 
+PR_STATIC_CALLBACK(PRBool)
+deleteTransaction(void* aElement, void *aData)
+{
+    delete static_cast<txOutputTransaction*>(aElement);
+    return PR_TRUE;
+}
+
 txResultBuffer::~txResultBuffer()
 {
-    for (PRUint32 i = 0, len = mTransactions.Length(); i < len; ++i) {
-        delete mTransactions[i];
-    }
+    mTransactions.EnumerateForwards(deleteTransaction, nsnull);
 }
 
 nsresult
 txResultBuffer::addTransaction(txOutputTransaction* aTransaction)
 {
-    if (mTransactions.AppendElement(aTransaction) == nsnull) {
+    if (!mTransactions.AppendElement(aTransaction)) {
         return NS_ERROR_OUT_OF_MEMORY;
     }
     return NS_OK;
@@ -366,12 +371,13 @@ struct Holder
     nsAFlatString::const_char_iterator mIter;
 };
 
-static PRBool
-flushTransaction(txOutputTransaction* aElement, Holder* aData)
+PR_STATIC_CALLBACK(PRBool)
+flushTransaction(void* aElement, void *aData)
 {
-    Holder* holder = aData;
+    Holder* holder = static_cast<Holder*>(aData);
     txAXMLEventHandler* handler = *holder->mHandler;
-    txOutputTransaction* transaction = aElement;
+    txOutputTransaction* transaction =
+        static_cast<txOutputTransaction*>(aElement);
 
     nsresult rv;
     switch (transaction->mType) {
@@ -468,11 +474,7 @@ txResultBuffer::flushToHandler(txAXMLEventHandler** aHandler)
     Holder data = { aHandler, NS_OK };
     mStringValue.BeginReading(data.mIter);
 
-    for (PRUint32 i = 0, len = mTransactions.Length(); i < len; ++i) {
-        if (!flushTransaction(mTransactions[i], &data)) {
-            break;
-        }
-    }
+    mTransactions.EnumerateForwards(flushTransaction, &data);
 
     return data.mResult;
 }
@@ -480,9 +482,9 @@ txResultBuffer::flushToHandler(txAXMLEventHandler** aHandler)
 txOutputTransaction*
 txResultBuffer::getLastTransaction()
 {
-    PRInt32 last = mTransactions.Length() - 1;
+    PRInt32 last = mTransactions.Count() - 1;
     if (last < 0) {
         return nsnull;
     }
-    return mTransactions[last];
+    return static_cast<txOutputTransaction*>(mTransactions[last]);
 }

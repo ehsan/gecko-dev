@@ -46,9 +46,9 @@
 class nsIRenderingContext;
 class nsGUIEvent;
 
-#define NS_IVIEWOBSERVER_IID  \
-  { 0xc5dfb460, 0x50fb, 0x483e, \
-    { 0xb4, 0x22, 0x19, 0xb7, 0x20, 0x4f, 0xe2, 0xdc } }
+#define NS_IVIEWOBSERVER_IID   \
+{ 0x0f4bc34a, 0xc93b, 0x4699, \
+{ 0xb6, 0xc2, 0xb3, 0xca, 0x9e, 0xe4, 0x6c, 0x95 } }
 
 class nsIViewObserver : public nsISupports
 {
@@ -57,32 +57,27 @@ public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_IVIEWOBSERVER_IID)
 
   /* called when the observer needs to paint. This paints the entire
-   * frame subtree rooted at aViewToPaint, including frame subtrees from
+   * frame subtree rooted at the view, including frame subtrees from
    * subdocuments.
-   * @param aViewToPaint the view for the widget that is being painted
-   * @param aWidgetToPaint the widget that is being painted, the widget of
-   * aViewToPaint
-   * @param aDirtyRegion the region to be painted, in appunits of aDisplayRoot
-   * and relative to aDisplayRoot
-   * @param aIntDirtyRegion the region to be painted, in dev pixels, in the
-   * coordinates of aWidgetToPaint. This conveys the same information as
-   * aDirtyRegion but in a different format.
-   * @param aPaintDefaultBackground just paint the default background,
-   * don't try to paint any content. This is set when the observer
-   * needs to paint something, but the view tree is unstable, so it
-   * must *not* paint, or even examine, the frame subtree rooted at the
-   * view.  (It is, however, safe to inspect the state of the view itself,
-   * and any associated widget.) The name illustrates the expected behavior,
-   * which is to paint some default background color over the dirty region.
+   * @param aRenderingContext rendering context to paint to; the origin
+   * of the view is painted at (0,0) in the rendering context's current
+   * transform. For best results this should transform to pixel-aligned
+   * coordinates.
+   * @param aDirtyRegion the region to be painted, in the coordinates of aRootView
    * @return error status
    */
-  NS_IMETHOD Paint(nsIView*           aDisplayRoot,
-                   nsIView*           aViewToPaint,
-                   nsIWidget*         aWidgetToPaint,
-                   const nsRegion&    aDirtyRegion,
-                   const nsIntRegion& aIntDirtyRegion,
-                   PRBool             aPaintDefaultBackground,
-                   PRBool             aWillSendDidPaint) = 0;
+  NS_IMETHOD Paint(nsIView*             aRootView,
+                   nsIRenderingContext* aRenderingContext,
+                   const nsRegion&      aDirtyRegion) = 0;
+
+  /**
+   * @see nsLayoutUtils::ComputeRepaintRegionForCopy
+   */
+  NS_IMETHOD ComputeRepaintRegionForCopy(nsIView*      aRootView,
+                                         nsIView*      aMovingView,
+                                         nsPoint       aDelta,
+                                         const nsRect& aCopyRect,
+                                         nsRegion*     aRepaintRegion) = 0;
 
   /* called when the observer needs to handle an event
    * @param aView  - where to start processing the event; the root view,
@@ -118,29 +113,7 @@ public:
    * gives the observer a chance to make some last-minute invalidates
    * and geometry changes if it wants to.
    */
-  NS_IMETHOD_(void) WillPaint(PRBool aWillSendDidPaint) = 0;
-
-  /**
-   * Notify the observer that we finished painting.  This
-   * gives the observer a chance to make some last-minute invalidates
-   * and geometry changes if it wants to.
-   */
-  NS_IMETHOD_(void) DidPaint() = 0;
-
-  /**
-   * Dispatch the given synthesized mouse move event, and if
-   * aFlushOnHoverChange is true, flush layout if :hover changes cause
-   * any restyles.
-   */
-  NS_IMETHOD_(void) DispatchSynthMouseMove(nsGUIEvent *aEvent,
-                                           PRBool aFlushOnHoverChange) = 0;
-
-  /**
-   * If something within aView is capturing the mouse, clear the capture.
-   * if aView is null, clear the mouse capture no matter what is capturing it.
-   */
-  NS_IMETHOD_(void) ClearMouseCapture(nsIView* aView) = 0;
-
+  NS_IMETHOD_(void) WillPaint() = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIViewObserver, NS_IVIEWOBSERVER_IID)

@@ -44,7 +44,6 @@
 #include "txList.h"
 #include "txXSLTPatterns.h"
 #include "nsTPtrArray.h"
-#include "nsISupportsImpl.h"
 
 class txInstruction;
 class txToplevelItem;
@@ -68,8 +67,20 @@ public:
     txStylesheet();
     ~txStylesheet();
     nsresult init();
-    
-    NS_INLINE_DECL_REFCOUNTING(txStylesheet)
+
+    nsrefcnt AddRef()
+    {
+        return ++mRefCnt;
+    }
+    nsrefcnt Release()
+    {
+        if (--mRefCnt == 0) {
+            mRefCnt = 1; //stabilize
+            delete this;
+            return 0;
+        }
+        return mRefCnt;
+    }
 
     txInstruction* findTemplate(const txXPathNode& aNode,
                                 const txExpandedName& aMode,
@@ -148,6 +159,9 @@ private:
                            nsTPtrArray<txStripSpaceTest>& aFrameStripSpaceTests);
     nsresult addAttributeSet(txAttributeSetItem* aAttributeSetItem);
 
+    // Refcount
+    nsAutoRefCnt mRefCnt;
+
     // List of ImportFrames
     txList mImportFrames;
     
@@ -177,7 +191,7 @@ private:
     txOwningExpandedNameMap<txXSLKey> mKeys;
     
     // Array of all txStripSpaceTests, sorted in acending order
-    nsTArray<nsAutoPtr<txStripSpaceTest> > mStripSpaceTests;
+    nsTPtrArray<txStripSpaceTest> mStripSpaceTests;
     
     // Default templates
     nsAutoPtr<txInstruction> mContainerTemplate;

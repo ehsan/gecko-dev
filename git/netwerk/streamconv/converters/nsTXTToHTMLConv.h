@@ -40,8 +40,7 @@
 
 #include "nsITXTToHTMLConv.h"
 #include "nsCOMPtr.h"
-#include "nsTArray.h"
-#include "nsAutoPtr.h"
+#include "nsVoidArray.h"
 #include "nsIFactory.h"
 #include "nsString.h"
 
@@ -132,7 +131,7 @@ protected:
 
     nsCOMPtr<nsIStreamListener>     mListener; // final listener (consumer)
     nsString                        mBuffer;   // any carry over data
-    nsTArray<nsAutoPtr<convToken> > mTokens;   // list of tokens to search for
+    nsVoidArray                     mTokens;   // list of tokens to search for
     convToken                       *mToken;   // current token (if any)
     nsString                        mPageTitle; // Page title
     PRBool                          mPreFormatHTML; // Whether to use <pre> tags

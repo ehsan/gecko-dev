@@ -2,7 +2,9 @@ var Cc = Components.classes;
 var Ci = Components.interfaces;
 
 function run_test() {
-  var f = do_get_file('test_bug336501.js');
+  var f =
+      Cc["@mozilla.org/file/directory_service;1"].
+      getService(Ci.nsIProperties).get("ComRegF", Ci.nsIFile);
 
   var fis =
       Cc["@mozilla.org/network/file-input-stream;1"].

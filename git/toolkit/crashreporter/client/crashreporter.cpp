@@ -309,12 +309,6 @@ static bool AddSubmittedReport(const string& serverResponse)
     delete reportFile;
   }
 
-  if (responseItems.find("Discarded") != responseItems.end()) {
-    // server discarded this report... save it so the user can resubmit it
-    // manually
-    return false;
-  }
-
   if (responseItems.find("CrashID") == responseItems.end())
     return false;
 
@@ -363,21 +357,13 @@ void DeleteDump()
   }
 }
 
-void SendCompleted(bool success, const string& serverResponse)
+bool SendCompleted(bool success, const string& serverResponse)
 {
   if (success) {
-    if (AddSubmittedReport(serverResponse)) {
-      DeleteDump();
-    }
-    else {
-      string directory = gDumpFile;
-      int slashpos = directory.find_last_of("/\\");
-      if (slashpos < 2)
-        return;
-      directory.resize(slashpos);
-      UIPruneSavedDumps(directory);
-    }
+    DeleteDump();
+    return AddSubmittedReport(serverResponse);
   }
+  return true;
 }
 
 bool ShouldEnableSending()
@@ -514,19 +500,11 @@ int main(int argc, char** argv)
 
     // Hopefully the settings path exists in the environment. Try that before
     // asking the platform-specific code to guess.
-#ifdef XP_WIN32
-    static const wchar_t kDataDirKey[] = L"MOZ_CRASHREPORTER_DATA_DIRECTORY";
-    const wchar_t *settingsPath = _wgetenv(kDataDirKey);
-    if (settingsPath && *settingsPath) {
-      gSettingsPath = WideToUTF8(settingsPath);
-    }
-#else
     static const char kDataDirKey[] = "MOZ_CRASHREPORTER_DATA_DIRECTORY";
     const char *settingsPath = getenv(kDataDirKey);
     if (settingsPath && *settingsPath) {
       gSettingsPath = settingsPath;
     }
-#endif
     else {
       string product = queryParameters["ProductName"];
       string vendor = queryParameters["Vendor"];
@@ -555,8 +533,6 @@ int main(int argc, char** argv)
     string sendURL = queryParameters["ServerURL"];
     // we don't need to actually send this
     queryParameters.erase("ServerURL");
-
-    queryParameters["Throttleable"] = "1";
 
     // re-set XUL_APP_FILE for xulrunner wrapped apps
     const char *appfile = getenv("MOZ_CRASHREPORTER_RESTART_XUL_APP_FILE");

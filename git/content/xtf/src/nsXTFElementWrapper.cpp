@@ -63,9 +63,8 @@
 #include "nsIXPConnect.h"
 #include "nsXTFWeakTearoff.h"
 #include "mozAutoDocUpdate.h"
-#include "nsFocusManager.h"
 
-nsXTFElementWrapper::nsXTFElementWrapper(already_AddRefed<nsINodeInfo> aNodeInfo,
+nsXTFElementWrapper::nsXTFElementWrapper(nsINodeInfo* aNodeInfo,
                                          nsIXTFElement* aXTFElement)
     : nsXTFElementWrapperBase(aNodeInfo),
       mXTFElement(aXTFElement),
@@ -74,8 +73,6 @@ nsXTFElementWrapper::nsXTFElementWrapper(already_AddRefed<nsINodeInfo> aNodeInfo
       mTmpAttrName(nsGkAtoms::_asterix) // XXX this is a hack, but names
                                             // have to have a value
 {
-  // We never know when we might have a class
-  SetFlags(NODE_MAY_HAVE_CLASS);
 }
 
 nsXTFElementWrapper::~nsXTFElementWrapper()
@@ -123,7 +120,6 @@ nsXTFElementWrapper::QueryInterface(REFNSIID aIID, void** aInstancePtr)
 {
   NS_PRECONDITION(aInstancePtr, "null out param");
 
-  NS_IMPL_QUERY_CYCLE_COLLECTION(nsXTFElementWrapper)
   if (aIID.Equals(NS_GET_IID(nsIClassInfo))) {
     *aInstancePtr = static_cast<nsIClassInfo*>(this);
     NS_ADDREF_THIS();
@@ -265,13 +261,12 @@ nsXTFElementWrapper::InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
 }
 
 nsresult
-nsXTFElementWrapper::RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent)
+nsXTFElementWrapper::RemoveChildAt(PRUint32 aIndex, PRBool aNotify)
 {
-  NS_ASSERTION(aMutationEvent, "Someone tried to inhibit mutations on xtf child removal.");
   nsresult rv;
   if (mNotificationMask & nsIXTFElement::NOTIFY_WILL_REMOVE_CHILD)
     GetXTFElement()->WillRemoveChild(aIndex);
-  rv = nsXTFElementWrapperBase::RemoveChildAt(aIndex, aNotify, aMutationEvent);
+  rv = nsXTFElementWrapperBase::RemoveChildAt(aIndex, aNotify);
   if (mNotificationMask & nsIXTFElement::NOTIFY_CHILD_REMOVED)
     GetXTFElement()->ChildRemoved(aIndex);
   return rv;
@@ -531,7 +526,7 @@ nsXTFElementWrapper::GetExistingAttrNameFromQName(const nsAString& aStr) const
   if (!nodeInfo) {
     nsCOMPtr<nsIAtom> nameAtom = do_GetAtom(aStr);
     if (HandledByInner(nameAtom)) 
-      nodeInfo = mNodeInfo->NodeInfoManager()->GetNodeInfo(nameAtom, nsnull, kNameSpaceID_None).get();
+      mNodeInfo->NodeInfoManager()->GetNodeInfo(nameAtom, nsnull, kNameSpaceID_None, &nodeInfo);
   }
   
   return nodeInfo;
@@ -555,9 +550,22 @@ nsXTFElementWrapper::PerformAccesskey(PRBool aKeyCausesActivation,
                                       PRBool aIsTrustedEvent)
 {
   if (mNotificationMask & nsIXTFElement::NOTIFY_PERFORM_ACCESSKEY) {
-    nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-    if (fm)
-      fm->SetFocus(this, nsIFocusManager::FLAG_BYKEY);
+    nsIDocument* doc = GetCurrentDoc();
+    if (!doc)
+      return;
+
+    // Get presentation shell 0
+    nsIPresShell *presShell = doc->GetPrimaryShell();
+    if (!presShell)
+      return;
+
+    nsPresContext *presContext = presShell->GetPresContext();
+    if (!presContext)
+      return;
+
+    nsIEventStateManager *esm = presContext->EventStateManager();
+    if (esm)
+      esm->ChangeFocusWith(this, nsIEventStateManager::eEventFocusedByKey);
 
     if (aKeyCausesActivation)
       GetXTFElement()->PerformAccesskey();
@@ -923,7 +931,7 @@ nsXTFElementWrapper::GetClassAttributeName() const
 }
 
 const nsAttrValue*
-nsXTFElementWrapper::DoGetClasses() const
+nsXTFElementWrapper::GetClasses() const
 {
   const nsAttrValue* val = nsnull;
   nsIAtom* clazzAttr = GetClassAttributeName();
@@ -961,7 +969,7 @@ nsXTFElementWrapper::RegUnregAccessKey(PRBool aDoReg)
     return;
 
   // Get presentation shell 0
-  nsIPresShell *presShell = doc->GetShell();
+  nsIPresShell *presShell = doc->GetPrimaryShell();
   if (!presShell)
     return;
 
@@ -990,7 +998,7 @@ nsXTFElementWrapper::RegUnregAccessKey(PRBool aDoReg)
 
 nsresult
 NS_NewXTFElementWrapper(nsIXTFElement* aXTFElement,
-                        already_AddRefed<nsINodeInfo> aNodeInfo,
+                        nsINodeInfo* aNodeInfo,
                         nsIContent** aResult)
 {
   *aResult = nsnull;

@@ -48,7 +48,7 @@
 #include "nsIServiceManager.h"
 #include "nsString.h"
 #include "nsXPIDLString.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "rdf.h"
 #include "rdfutil.h"
 
@@ -75,7 +75,7 @@ static const char kRDFParseTypeInteger[] = " NC:parseType=\"Integer\">";
 static const char kRDFParseTypeDate[] = " NC:parseType=\"Date\">";
 static const char kRDFUnknown[] = "><!-- unknown node type -->";
 
-nsresult
+NS_IMETHODIMP
 nsRDFXMLSerializer::Create(nsISupports* aOuter, REFNSIID aIID, void** aResult)
 {
     if (aOuter)
@@ -221,7 +221,7 @@ rdf_BlockingWrite(nsIOutputStream* stream, const nsAString& s)
 already_AddRefed<nsIAtom>
 nsRDFXMLSerializer::EnsureNewPrefix()
 {
-    nsAutoString qname;
+    nsCAutoString qname;
     nsCOMPtr<nsIAtom> prefix;
     PRBool isNewPrefix;
     do {
@@ -642,7 +642,7 @@ nsRDFXMLSerializer::SerializeDescription(nsIOutputStream* aStream,
 
     // Any value that's a literal we can write out as an inline
     // attribute on the RDF:Description
-    nsAutoTArray<nsIRDFResource*, 8> visited;
+    nsAutoVoidArray visited;
     PRInt32 skipped = 0;
 
     nsCOMPtr<nsISimpleEnumerator> arcs;
@@ -673,7 +673,7 @@ nsRDFXMLSerializer::SerializeDescription(nsIOutputStream* aStream,
                 continue;
 
             // Only serialize values for the property once.
-            if (visited.Contains(property.get()))
+            if (visited.IndexOf(property.get()) >= 0)
                 continue;
 
             visited.AppendElement(property.get());
@@ -719,7 +719,7 @@ nsRDFXMLSerializer::SerializeDescription(nsIOutputStream* aStream,
 
                 // have we already seen this property?  If so, don't write it
                 // out again; serialize property will write each instance.
-                if (visited.Contains(property.get()))
+                if (visited.IndexOf(property.get()) >= 0)
                     continue;
 
                 visited.AppendElement(property.get());

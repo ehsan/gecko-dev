@@ -69,16 +69,16 @@ TypeInState::~TypeInState()
 
 nsresult TypeInState::UpdateSelState(nsISelection *aSelection)
 {
-  NS_ENSURE_TRUE(aSelection, NS_ERROR_NULL_POINTER);
+  if (!aSelection) return NS_ERROR_NULL_POINTER;
   
   PRBool isCollapsed = PR_FALSE;
   nsresult result = aSelection->GetIsCollapsed(&isCollapsed);
 
-  NS_ENSURE_SUCCESS(result, result);
+  if (NS_FAILED(result)) return result;
 
   if (isCollapsed)
   {
-    result = nsEditor::GetStartNodeAndOffset(aSelection, getter_AddRefs(mLastSelectionContainer), &mLastSelectionOffset);
+    result = nsEditor::GetStartNodeAndOffset(aSelection, address_of(mLastSelectionContainer), &mLastSelectionOffset);
   }
   return result;
 }
@@ -100,20 +100,17 @@ NS_IMETHODIMP TypeInState::NotifySelectionChanged(nsIDOMDocument *, nsISelection
   {
     PRBool isCollapsed = PR_FALSE;
     nsresult result = aSelection->GetIsCollapsed(&isCollapsed);
-    NS_ENSURE_SUCCESS(result, result);
 
-    PRInt32 rangeCount = 0;
-    result = aSelection->GetRangeCount(&rangeCount);
-    NS_ENSURE_SUCCESS(result, result);
+    if (NS_FAILED(result)) return result;
 
-    if (isCollapsed && rangeCount)
+    if (isCollapsed)
     {
       nsCOMPtr<nsIDOMNode> selNode;
       PRInt32 selOffset = 0;
 
-      result = nsEditor::GetStartNodeAndOffset(aSelection, getter_AddRefs(selNode), &selOffset);
+      result = nsEditor::GetStartNodeAndOffset(aSelection, address_of(selNode), &selOffset);
 
-      NS_ENSURE_SUCCESS(result, result);
+      if (NS_FAILED(result)) return result;
 
       if (selNode && selNode == mLastSelectionContainer && selOffset == mLastSelectionOffset)
       {
@@ -137,14 +134,25 @@ NS_IMETHODIMP TypeInState::NotifySelectionChanged(nsIDOMDocument *, nsISelection
 
 void TypeInState::Reset()
 {
-  for(PRUint32 i = 0, n = mClearedArray.Length(); i < n; i++) {
-    delete mClearedArray[i];
+  PRInt32 count;
+  PropItem *propItemPtr;
+  
+  while ((count = mClearedArray.Count()))
+  {
+    // go backwards to keep nsVoidArray from memmoving everything each time
+    count--; // nsVoidArray is zero based
+    propItemPtr = (PropItem*)mClearedArray.ElementAt(count);
+    mClearedArray.RemoveElementAt(count);
+    if (propItemPtr) delete propItemPtr;
   }
-  mClearedArray.Clear();
-  for(PRUint32 i = 0, n = mSetArray.Length(); i < n; i++) {
-    delete mSetArray[i];
+  while ((count = mSetArray.Count()))
+  {
+    // go backwards to keep nsVoidArray from memmoving everything each time
+    count--; // nsVoidArray is zero based
+    propItemPtr = (PropItem*)mSetArray.ElementAt(count);
+    mSetArray.RemoveElementAt(count);
+    if (propItemPtr) delete propItemPtr;
   }
-  mSetArray.Clear();
 }
 
 
@@ -178,17 +186,17 @@ nsresult TypeInState::SetProp(nsIAtom *aProp, const nsString &aAttr, const nsStr
   if (IsPropSet(aProp,aAttr,nsnull,index))
   {
     // if it's already set, update the value
-    item = mSetArray[index];
+    item = (PropItem*)mSetArray[index];
     item->value = aValue;
   }
   else 
   {
     // make a new propitem
     item = new PropItem(aProp,aAttr,aValue);
-    NS_ENSURE_TRUE(item, NS_ERROR_OUT_OF_MEMORY);
+    if (!item) return NS_ERROR_OUT_OF_MEMORY;
     
     // add it to the list of set properties
-    mSetArray.AppendElement(item);
+    mSetArray.AppendElement((void*)item);
     
     // remove it from the list of cleared properties, if we have a match
     RemovePropFromClearedList(aProp,aAttr);  
@@ -216,13 +224,13 @@ nsresult TypeInState::ClearProp(nsIAtom *aProp, const nsString &aAttr)
   
   // make a new propitem
   PropItem *item = new PropItem(aProp,aAttr,EmptyString());
-  NS_ENSURE_TRUE(item, NS_ERROR_OUT_OF_MEMORY);
+  if (!item) return NS_ERROR_OUT_OF_MEMORY;
   
   // remove it from the list of set properties, if we have a match
   RemovePropFromSetList(aProp,aAttr);
   
   // add it to the list of cleared properties
-  mClearedArray.AppendElement(item);
+  mClearedArray.AppendElement((void*)item);
   
   return NS_OK;
 }
@@ -234,13 +242,13 @@ nsresult TypeInState::ClearProp(nsIAtom *aProp, const nsString &aAttr)
  */  
 nsresult TypeInState::TakeClearProperty(PropItem **outPropItem)
 {
-  NS_ENSURE_TRUE(outPropItem, NS_ERROR_NULL_POINTER);
+  if (!outPropItem) return NS_ERROR_NULL_POINTER;
   *outPropItem = nsnull;
-  PRUint32 count = mClearedArray.Length();
-  if (count)
+  PRInt32 count = mClearedArray.Count();
+  if (count) // go backwards to keep nsVoidArray from memmoving everything each time
   {
-    count--; // indizes are zero based
-    *outPropItem = mClearedArray[count];
+    count--; // nsVoidArray is zero based
+    *outPropItem = (PropItem*)mClearedArray[count];
     mClearedArray.RemoveElementAt(count);
   }
   return NS_OK;
@@ -252,13 +260,13 @@ nsresult TypeInState::TakeClearProperty(PropItem **outPropItem)
  */  
 nsresult TypeInState::TakeSetProperty(PropItem **outPropItem)
 {
-  NS_ENSURE_TRUE(outPropItem, NS_ERROR_NULL_POINTER);
+  if (!outPropItem) return NS_ERROR_NULL_POINTER;
   *outPropItem = nsnull;
-  PRUint32 count = mSetArray.Length();
-  if (count)
+  PRInt32 count = mSetArray.Count();
+  if (count) // go backwards to keep nsVoidArray from memmoving everything each time
   {
-    count--; // indizes are zero based
-    *outPropItem = mSetArray[count];
+    count--; // nsVoidArray is zero based
+    *outPropItem = (PropItem*)mSetArray[count];
     mSetArray.RemoveElementAt(count);
   }
   return NS_OK;
@@ -269,7 +277,7 @@ nsresult TypeInState::TakeSetProperty(PropItem **outPropItem)
 //                          cleared out.
 nsresult TypeInState::TakeRelativeFontSize(PRInt32 *outRelSize)
 {
-  NS_ENSURE_TRUE(outRelSize, NS_ERROR_NULL_POINTER);
+  if (!outRelSize) return NS_ERROR_NULL_POINTER;
   *outRelSize = mRelativeFontSize;
   mRelativeFontSize = 0;
   return NS_OK;
@@ -322,19 +330,25 @@ nsresult TypeInState::RemovePropFromSetList(nsIAtom *aProp,
                                             const nsString &aAttr)
 {
   PRInt32 index;
+  PropItem *item;
   if (!aProp)
   {
     // clear _all_ props
-    for(PRUint32 i = 0, n = mSetArray.Length(); i < n; i++) {
-      delete mSetArray[i];
-    }
-    mSetArray.Clear();
     mRelativeFontSize=0;
+    while ((index = mSetArray.Count()))
+    {
+      // go backwards to keep nsVoidArray from memmoving everything each time
+      index--; // nsVoidArray is zero based
+      item = (PropItem*)mSetArray.ElementAt(index);
+      mSetArray.RemoveElementAt(index);
+      if (item) delete item;
+    }
   }
   else if (FindPropInList(aProp, aAttr, nsnull, mSetArray, index))
   {
-    delete mSetArray[index];
+    item = (PropItem*)mSetArray.ElementAt(index);
     mSetArray.RemoveElementAt(index);
+    if (item) delete item;
   }
   return NS_OK;
 }
@@ -346,8 +360,9 @@ nsresult TypeInState::RemovePropFromClearedList(nsIAtom *aProp,
   PRInt32 index;
   if (FindPropInList(aProp, aAttr, nsnull, mClearedArray, index))
   {
-    delete mClearedArray[index];
+    PropItem *item = (PropItem*)mClearedArray.ElementAt(index);
     mClearedArray.RemoveElementAt(index);
+    if (item) delete item;
   }
   return NS_OK;
 }
@@ -368,10 +383,10 @@ PRBool TypeInState::IsPropSet(nsIAtom *aProp,
                               PRInt32 &outIndex)
 {
   // linear search.  list should be short.
-  PRUint32 i, count = mSetArray.Length();
+  PRInt32 i, count = mSetArray.Count();
   for (i=0; i<count; i++)
   {
-    PropItem *item = mSetArray[i];
+    PropItem *item = (PropItem*)mSetArray[i];
     if ( (item->tag == aProp) &&
          (item->attr == aAttr) )
     {
@@ -410,14 +425,14 @@ PRBool TypeInState::IsPropCleared(nsIAtom *aProp,
 PRBool TypeInState::FindPropInList(nsIAtom *aProp, 
                                    const nsAString &aAttr,
                                    nsAString *outValue,
-                                   nsTArray<PropItem*> &aList,
+                                   nsVoidArray &aList,
                                    PRInt32 &outIndex)
 {
   // linear search.  list should be short.
-  PRUint32 i, count = aList.Length();
+  PRInt32 i, count = aList.Count();
   for (i=0; i<count; i++)
   {
-    PropItem *item = aList[i];
+    PropItem *item = (PropItem*)aList[i];
     if ( (item->tag == aProp) &&
          (item->attr == aAttr) ) 
     {

@@ -41,7 +41,6 @@
 
 #include "nsIAtom.h"
 #include "nsCOMArray.h"
-#include "nsTArray.h"
 
 class txNamespaceMap
 {
@@ -71,7 +70,7 @@ public:
 private:
     nsAutoRefCnt mRefCnt;
     nsCOMArray<nsIAtom> mPrefixes;
-    nsTArray<PRInt32> mNamespaces;
+    nsVoidArray mNamespaces;
 };
 
 #endif //TRANSFRMX_TXNAMESPACEMAP_H

@@ -48,7 +48,7 @@
 #include "nsISupportsPrimitives.h"
 #include "nsServiceManagerUtils.h"
 #include "nsIProperties.h"
-#include <Carbon/Carbon.h>
+#include <InternetConfig.h>
 
 #define MACIE_BOOKMARKS_FILE_NAME NS_LITERAL_STRING("Favorites.html")
 #define MACIE_PREFERENCES_FOLDER_NAME NS_LITERAL_STRING("Explorer")
@@ -231,20 +231,22 @@ nsMacIEProfileMigrator::CopyBookmarks(PRBool aReplace)
   nsCOMPtr<nsIStringBundleService> bundleService =
     do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
+
   nsCOMPtr<nsIStringBundle> bundle;
   rv = bundleService->CreateBundle(MIGRATION_BUNDLE, getter_AddRefs(bundle));
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsString toolbarFolderNameMacIE;
-  rv = bundle->GetStringFromName(NS_LITERAL_STRING("toolbarFolderNameMacIE").get(),
-                                 getter_Copies(toolbarFolderNameMacIE));
-  NS_ENSURE_SUCCESS(rv, rv);
+  bundle->GetStringFromName(NS_LITERAL_STRING("toolbarFolderNameMacIE").get(), 
+                            getter_Copies(toolbarFolderNameMacIE));
+  nsCAutoString ctoolbarFolderNameMacIE;
+  CopyUTF16toUTF8(toolbarFolderNameMacIE, ctoolbarFolderNameMacIE);
 
   // Now read the 4.x bookmarks file, correcting the Personal Toolbar Folder 
   // line and writing to the temporary file.
   rv = AnnotatePersonalToolbarFolder(sourceFile,
                                      tempFile,
-                                     NS_ConvertUTF16toUTF8(toolbarFolderNameMacIE).get());
+                                     ctoolbarFolderNameMacIE.get());
   NS_ENSURE_SUCCESS(rv, rv);
 
   // import the temp file

@@ -69,8 +69,6 @@ static PRLogModuleInfo *sLog = PR_NewLogModule("Test");
 #define LOG(args) printf args
 #endif
 
-namespace proxytests {
-
 static nsresult
 GetThreadFromPRThread(PRThread *prthread, nsIThread **result)
 {
@@ -488,9 +486,6 @@ RunApartmentTest()
     return NS_OK;
 }
 
-} // namespace
-
-using namespace proxytests;
 
 int
 main(int argc, char **argv)
@@ -504,6 +499,10 @@ main(int argc, char **argv)
 
     // Scope code so everything is destroyed before we run call NS_ShutdownXPCOM
     {
+        nsCOMPtr<nsIComponentRegistrar> registrar;
+        NS_GetComponentRegistrar(getter_AddRefs(registrar));
+        registrar->AutoRegister(nsnull);
+
         RunApartmentTest();
 
         nsCOMPtr<nsIThread> eventLoopThread;

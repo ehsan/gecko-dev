@@ -90,6 +90,9 @@ public:
   // nsIDOMCompositionListener
   NS_IMETHOD HandleStartComposition(nsIDOMEvent* aCompositionEvent);
   NS_IMETHOD HandleEndComposition(nsIDOMEvent* aCompositionEvent);
+  NS_IMETHOD HandleQueryComposition(nsIDOMEvent* aCompositionEvent);
+  NS_IMETHOD HandleQueryReconversion(nsIDOMEvent* aCompositionEvent);
+  NS_IMETHOD HandleQueryCaretRect(nsIDOMEvent* aCompositionEvent);
 
   // nsIDOMFormListener
   NS_IMETHOD Submit(nsIDOMEvent* aEvent);
@@ -128,10 +131,9 @@ protected:
   inline nsIDOMWindow *GetWindowForDocShell(nsIDocShell *aDocShell);
   inline PRInt32 GetIndexOfDocShell(nsIDocShell *aDocShell);
 
-  static PLDHashOperator RemoveForDOMDocumentEnumerator(nsISupports* aKey,
-                                                        PRInt32& aEntry,
-                                                        void* aUserData);
-  PRBool IsEventTrusted(nsIDOMEvent *aEvent);
+  static PLDHashOperator PR_CALLBACK RemoveForDOMDocumentEnumerator(nsISupports* aKey,
+                                                                    PRInt32& aEntry,
+                                                                    void* aUserData);
   // members //////////////////////////////////////////
 
   nsCOMPtr<nsIAutoCompleteController> mController;

@@ -109,7 +109,7 @@ VARTYPE XPCDispInterface::Member::ParamInfo::GetType() const
 inline
 XPCDispInterface::Member::Member() : 
     mType(UNINITIALIZED), mFuncDesc(nsnull), mGetterFuncDesc(nsnull),
-    mTypeInfo(reinterpret_cast<ITypeInfo *>(nsnull))
+    mTypeInfo(nsnull)
 {
 }
 
@@ -211,13 +211,13 @@ PRBool XPCDispInterface::Member::IsParameterizedProperty() const
 }
 
 inline
-jsid XPCDispInterface::Member::GetName() const
+jsval XPCDispInterface::Member::GetName() const
 {
     return mName;
 }
 
 inline
-void XPCDispInterface::Member::SetName(jsid name)
+void XPCDispInterface::Member::SetName(jsval name)
 {
     mName = name;
 }
@@ -310,7 +310,7 @@ void XPCDispInterface::SetJSObject(JSObject* jsobj)
 }
 
 inline
-const XPCDispInterface::Member* XPCDispInterface::FindMember(jsid name) const
+const XPCDispInterface::Member* XPCDispInterface::FindMember(jsval name) const
 {
     // Iterate backwards to save time
     const Member* member = mMembers + mMemberCount;
@@ -435,14 +435,15 @@ DISPID XPCDispNameArray::Find(const nsAString &target) const
 inline
 PRUint32 XPCDispIDArray::Length() const
 {
-    return mIDArray.Length();
+    return mIDArray.Count();
 }
 
 inline
 jsval XPCDispIDArray::Item(JSContext* cx, PRUint32 index) const
 {
     jsval val;
-    if(!JS_IdToValue(cx, mIDArray.ElementAt(index), &val))
+    if(!JS_IdToValue(cx, 
+                     reinterpret_cast<jsid>(mIDArray.ElementAt(index)), &val))
         return JSVAL_NULL;
     return val;
 }
@@ -465,7 +466,7 @@ JSBool XPCDispIDArray::IsMarked() const
 inline
 FUNCDESC* XPCDispTypeInfo::FuncDescArray::Get(PRUint32 index) 
 {
-    return &mArray[index];
+    return reinterpret_cast<FUNCDESC*>(mArray[index]);
 }
 
 inline
@@ -476,7 +477,7 @@ void XPCDispTypeInfo::FuncDescArray::Release(FUNCDESC *)
 inline
 PRUint32 XPCDispTypeInfo::FuncDescArray::Length() const 
 {
-    return mArray.Length();
+    return mArray.Count();
 }
 
 inline
@@ -610,6 +611,17 @@ void * XPCDispParams::GetOutputBuffer(PRUint32 index)
 }
 
 //=============================================================================
+// XPCDispParamPropJSClass inlines
+inline
+JSBool XPCDispParamPropJSClass::Invoke(XPCCallContext& ccx, 
+                                       XPCDispObject::CallMode mode,
+                                       jsval* retval)
+{
+    return XPCDispObject::Dispatch(ccx, mDispObj, mDispID, mode, mDispParams,
+                                   retval);
+}
+
+//=============================================================================
 // Other helper functions
 
 /**
@@ -635,16 +647,17 @@ jschar * xpc_JSString2String(JSContext * cx, jsval val, PRUint32 * len = 0)
 }
 
 /**
- * Converts a JSString * to a PRUnichar *
+ * Converts a jsval that is a string to a PRUnichar *
  * @param cx a JS context
- * @param str the JSString to be converted
+ * @param val the JS value to vbe converted
  * @param length optional pointer to a variable to hold the length
  * @return a PRUnichar buffer (Does not need to be freed)
  */
 inline
-PRUnichar* xpc_JSString2PRUnichar(XPCCallContext& ccx, JSString* str,
+PRUnichar* xpc_JSString2PRUnichar(XPCCallContext& ccx, jsval val,
                                   size_t* length = nsnull)
 {
+    JSString* str = JS_ValueToString(ccx, val);
     if(!str)
         return nsnull;
     if(length)

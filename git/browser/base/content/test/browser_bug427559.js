@@ -46,27 +46,28 @@ let testPage = 'data:text/html,<body><button onblur="this.parentNode.removeChild
 function test() {
   waitForExplicitFinish();
 
-  gBrowser.selectedTab = gBrowser.addTab();
+  // Prepare the test tab
+  let testTab = gBrowser.addTab();
+  gBrowser.selectedTab = testTab;
+  let testBrowser = gBrowser.getBrowserForTab(testTab);
 
-  gBrowser.selectedBrowser.addEventListener("load", function () {
-    gBrowser.selectedBrowser.removeEventListener("load", arguments.callee, true);
-    setTimeout(function () {
-      var testPageWin = content;
+  // Do stuff just after the page loads, so the page script can do its stuff
+  testBrowser.addEventListener("load", function() setTimeout(function() {
+    // The test page loaded, so open an empty tab, select it, then restore
+    // the test tab. This causes the test page's focused element to be removed
+    // from its document.
+    let emptyTab = gBrowser.addTab();
+    gBrowser.selectedTab = emptyTab;
+    gBrowser.removeCurrentTab();
+    gBrowser.selectedTab = testTab;
 
-      // The test page loaded, so open an empty tab, select it, then restore
-      // the test tab. This causes the test page's focused element to be removed
-      // from its document.
-      gBrowser.selectedTab = gBrowser.addTab();
-      gBrowser.removeCurrentTab();
+    // Make sure focus is given to the window because the element is now gone
+    is(document.commandDispatcher.focusedWindow, window.content,
+       "content window is focused");
+    gBrowser.removeCurrentTab();
+    finish();
+  }, 0), true);
 
-      // Make sure focus is given to the window because the element is now gone
-      is(document.commandDispatcher.focusedWindow, testPageWin,
-         "content window is focused");
-
-      gBrowser.removeCurrentTab();
-      finish();
-    }, 0);
-  }, true);
-
-  content.location = testPage;
+  // Start the test by loading the test page
+  testBrowser.contentWindow.location = testPage;
 }

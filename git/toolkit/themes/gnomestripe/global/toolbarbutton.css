@@ -55,12 +55,7 @@ toolbarbutton {
   color: -moz-DialogText;
 }
 
-toolbarbutton:-moz-lwtheme {
-  text-shadow: none;
-}
-
-.toolbarbutton-icon[label]:not([label=""]),
-.toolbarbutton-icon[type="menu"] {
+.toolbarbutton-icon {
   -moz-margin-end: 2px;
 }
 
@@ -73,7 +68,8 @@ toolbarbutton.tabbable {
   -moz-user-focus: normal !important;
 }
 
-toolbarbutton:hover {
+toolbarbutton:hover,
+toolbarbutton[buttonover="true"] {
   border-color: ThreeDHighlight ThreeDShadow ThreeDShadow ThreeDHighlight;
   color: -moz-buttonhovertext;
 }
@@ -110,14 +106,9 @@ toolbarbutton[checked="true"] {
 }
 
 toolbarbutton[checked="true"]:hover,
-toolbarbutton[checked="true"]:hover:active {
+toolbarbutton[checked="true"]:hover:active { 
   color: -moz-buttonhovertext !important;
   background-color: -moz-buttonhoverface !important;
-}
-
-toolbarbutton:-moz-lwtheme:not(:hover):not([checked="true"]):not([open="true"]):not([disabled="true"]) {
-  color: inherit;
-  text-shadow: inherit;
 }
 
 /* ::::: toolbarbutton menu ::::: */

@@ -37,15 +37,10 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/* $Id: ldvector.c,v 1.21.22.1 2010/07/31 00:11:52 wtc%google.com Exp $ */
-
-#ifdef FREEBL_NO_DEPEND
-extern int FREEBL_InitStubs(void);
-#endif
+/* $Id: ldvector.c,v 1.16 2007/11/09 18:49:32 wtc%google.com Exp $ */
 
 #include "loader.h"
 #include "alghmac.h"
-
 
 static const struct FREEBLVectorStr vector = 
 {
@@ -239,27 +234,10 @@ static const struct FREEBLVectorStr vector =
     Camellia_Encrypt,
     Camellia_Decrypt,
 
+    /* End of Version 3.010. */
     PQG_DestroyParams,
     PQG_DestroyVerify,
 
-    /* End of Version 3.010. */
-
-    SEED_InitContext,
-    SEED_AllocateContext,
-    SEED_CreateContext,
-    SEED_DestroyContext,
-    SEED_Encrypt,
-    SEED_Decrypt,
-
-    BL_Init,
-    BL_SetForkState,
-
-    PRNGTEST_Instantiate,
-    PRNGTEST_Reseed,
-    PRNGTEST_Generate,
-    PRNGTEST_Uninstantiate
-
-    /* End of Version 3.011. */
 };
 
 const FREEBLVector * 
@@ -269,12 +247,8 @@ FREEBL_GetVector(void)
     extern const char __nss_freebl_sccsid[];
 
     /* force a reference that won't get optimized away */
-    volatile char c;
+    volatile char c = __nss_freebl_rcsid[0] + __nss_freebl_sccsid[0]; 
 
-    c = __nss_freebl_rcsid[0] + __nss_freebl_sccsid[0]; 
-#ifdef FREEBL_NO_DEPEND
-    FREEBL_InitStubs();
-#endif
     return &vector;
 }
 

@@ -59,7 +59,6 @@
 #include "nsILivemarkService.h"
 #include "nsILocaleService.h"
 #include "nsToolkitCompsCID.h"
-#include "nsXPCOMCIDInternal.h"
 
 // We need to suppress inclusion of nsString.h
 #define nsString_h___
@@ -220,7 +219,7 @@ nsProfileCollector::LogMemory(nsIMetricsEventItem *profile)
   nsMetricsUtils::NewPropertyBag(getter_AddRefs(properties));
   NS_ENSURE_STATE(properties);
 
-  static PRUint64 size = PR_GetPhysicalMemorySize();
+  PRUint64 size = PR_GetPhysicalMemorySize();
   if (size == 0) {
     MS_LOG(("Failed to get physical memory size"));
     return NS_ERROR_FAILURE;

@@ -60,13 +60,6 @@ var autoupdateErrDetailString = "security.crl.autoupdate.errDetail.";
 var autoupdateDayCntString    = "security.crl.autoupdate.dayCnt.";
 var autoupdateFreqCntString   = "security.crl.autoupdate.freqCnt.";
 
-function doPrompt(msg)
-{
-  let prompts = Components.classes["@mozilla.org/embedcomp/prompt-service;1"].
-    getService(Components.interfaces.nsIPromptService);
-  prompts.alert(window, null, msg);
-}
-
 function onLoad()
 {
   crlManager = Components.classes[nsCRLManager].getService(nsICRLManager);
@@ -169,7 +162,7 @@ function initializeSelection()
   var timeBasedBox = document.getElementById("nextUpdateDay");
   try {
     var dayCnt = prefBranch.getCharPref(autoupdateDayCntString);
-    //doPrompt(dayCnt);
+    //alert(dayCnt);
     if(dayCnt != null){
       timeBasedBox.value = dayCnt;
     } else {
@@ -182,7 +175,7 @@ function initializeSelection()
   var freqBasedBox = document.getElementById("nextUpdateFreq");
   try {
     var freqCnt = prefBranch.getCharPref(autoupdateFreqCntString);
-    //doPrompt(freqCnt);
+    //alert(freqCnt);
     if(freqCnt != null){
       freqBasedBox.value = freqCnt;
     } else {
@@ -241,7 +234,7 @@ function onAccept()
      updateTime = crlManager.computeNextAutoUpdateTime(crl, crlManager.TYPE_AUTOUPDATE_FREQ_BASED, freqCnt);
    }
 
-   //doPrompt(updateTime);
+   //alert(updateTime);
    prefBranch.setCharPref(autoupdateTimeString, updateTime); 
    prefBranch.setCharPref(autoupdateDayCntString, dayCnt);
    prefBranch.setCharPref(autoupdateFreqCntString, freqCnt);
@@ -261,13 +254,13 @@ function validatePrefs()
 
    var tmp = parseFloat(dayCnt);
    if(!(tmp > 0.0)){
-     doPrompt(bundle.GetStringFromName("crlAutoUpdateDayCntError"));
+     alert(bundle.GetStringFromName("crlAutoUpdateDayCntError"));
      return false;
    }
    
    tmp = parseFloat(freqCnt);
    if(!(tmp > 0.0)){
-     doPrompt(bundle.GetStringFromName("crlAutoUpdtaeFreqCntError"));
+     alert(bundle.GetStringFromName("crlAutoUpdtaeFreqCntError"));
      return false;
    }
    

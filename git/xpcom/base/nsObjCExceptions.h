@@ -46,21 +46,9 @@
 #import <ExceptionHandling/NSExceptionHandler.h>
 #endif
 
-#if defined(MOZ_CRASHREPORTER) && defined(__cplusplus)
-#include "nsICrashReporter.h"
-#include "nsCOMPtr.h"
-#include "nsServiceManagerUtils.h"
-#endif
-
 #include <unistd.h>
 #include <signal.h>
 #include "nsError.h"
-
-/* NOTE: Macros that claim to abort no longer abort, see bug 486574.
- * If you actually want to log and abort, call "nsObjCExceptionLogAbort"
- * from an exception handler. At some point we will fix this by replacing
- * all macros in the tree with appropriately-named macros.
- */
 
 // See Mozilla bug 163260.
 // This file can only be included in an Objective-C context.
@@ -69,14 +57,6 @@ static void nsObjCExceptionLog(NSException* aException)
 {
   NSLog(@"Mozilla has caught an Obj-C exception [%@: %@]",
         [aException name], [aException reason]);
-
-#if defined(MOZ_CRASHREPORTER) && defined(__cplusplus)
-  // Attach exception info to the crash report.
-  nsCOMPtr<nsICrashReporter> crashReporter =
-    do_GetService("@mozilla.org/toolkit/crash-reporter;1");
-  if (crashReporter)
-    crashReporter->AppendObjCExceptionInfoToAppNotes(static_cast<void*>(aException));
-#endif
 
 #ifdef DEBUG
   @try {
@@ -194,7 +174,7 @@ NS_OBJC_TRY(_e, )
 #define NS_OBJC_TRY_ABORT(_e)                      \
 @try { _e; }                                       \
 @catch(NSException *_exn) {                        \
-  nsObjCExceptionLog(_exn);                        \
+  nsObjCExceptionLogAbort(_exn);                   \
 }
 
 #define NS_OBJC_TRY_EXPR_ABORT(_e)                 \
@@ -202,15 +182,15 @@ NS_OBJC_TRY(_e, )
    typeof(_e) _tmp;                                \
    @try { _tmp = (_e); }                           \
    @catch(NSException *_exn) {                     \
-     nsObjCExceptionLog(_exn);                     \
+     nsObjCExceptionLogAbort(_exn);                \
    }                                               \
    _tmp;                                           \
 })
 
-// For wrapping blocks of Obj-C calls. Does not actually terminate.
+// For wrapping blocks of Obj-C calls. Terminates app after logging.
 #define NS_OBJC_BEGIN_TRY_ABORT_BLOCK @try {
-#define NS_OBJC_END_TRY_ABORT_BLOCK   } @catch(NSException *_exn) {             \
-                                        nsObjCExceptionLog(_exn);               \
+#define NS_OBJC_END_TRY_ABORT_BLOCK   } @catch(NSException *_exn) {            \
+                                        nsObjCExceptionLogAbort(_exn);         \
                                       }
 
 // Same as above ABORT_BLOCK but returns a value after the try/catch block to
@@ -218,38 +198,27 @@ NS_OBJC_TRY(_e, )
 // to get scoping right when wrapping an entire method.
 
 #define NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL @try {
-#define NS_OBJC_END_TRY_ABORT_BLOCK_NIL   } @catch(NSException *_exn) {         \
-                                            nsObjCExceptionLog(_exn);           \
-                                          }                                     \
+#define NS_OBJC_END_TRY_ABORT_BLOCK_NIL   } @catch(NSException *_exn) {        \
+                                            nsObjCExceptionLogAbort(_exn);     \
+                                          }                                    \
                                           return nil;
 
 #define NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSNULL @try {
-#define NS_OBJC_END_TRY_ABORT_BLOCK_NSNULL   } @catch(NSException *_exn) {      \
-                                               nsObjCExceptionLog(_exn);        \
-                                             }                                  \
+#define NS_OBJC_END_TRY_ABORT_BLOCK_NSNULL   } @catch(NSException *_exn) {     \
+                                               nsObjCExceptionLogAbort(_exn);  \
+                                             }                                 \
                                              return nsnull;
 
 #define NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT @try {
-#define NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT   } @catch(NSException *_exn) {    \
-                                                 nsObjCExceptionLog(_exn);      \
-                                               }                                \
+#define NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT   } @catch(NSException *_exn) {   \
+                                                 nsObjCExceptionLogAbort(_exn);\
+                                               }                               \
                                                return NS_ERROR_FAILURE;
 
 #define NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN    @try {
 #define NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(_rv) } @catch(NSException *_exn) {   \
-                                                  nsObjCExceptionLog(_exn);\
+                                                  nsObjCExceptionLogAbort(_exn);\
                                                 }                               \
                                                 return _rv;
-
-#define NS_OBJC_BEGIN_TRY_LOGONLY_BLOCK @try {
-#define NS_OBJC_END_TRY_LOGONLY_BLOCK   } @catch(NSException *_exn) {           \
-                                          nsObjCExceptionLog(_exn);             \
-                                        }
-
-#define NS_OBJC_BEGIN_TRY_LOGONLY_BLOCK_RETURN    @try {
-#define NS_OBJC_END_TRY_LOGONLY_BLOCK_RETURN(_rv) } @catch(NSException *_exn) { \
-                                                    nsObjCExceptionLog(_exn);   \
-                                                  }                             \
-                                                  return _rv;
 
 #endif // nsObjCExceptions_h_

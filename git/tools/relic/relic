@@ -188,6 +188,7 @@ _g_skip_files = [
     "gfx/cairo/cairo/COPYING-MPL-1.1",
     
     # Files containing global licensing information
+    "xpfe/global/resources/content/license.html",
     "toolkit/content/license.html",
     
     # Ben Bucksch - files are tri-licensed with an extra clause.
@@ -338,6 +339,7 @@ _g_basename_to_comment_info = {
     "awk_pkginfo-sparc": (["#"], ),
     "pkgdepend_64bit": (["#"], ),
     "WIN32": (["#"], ),
+    "WIN16": (["#"], ),
     "Makefile.linux": (["#"], ),
 
     "README": ([""], ["#"]),
@@ -1470,7 +1472,7 @@ def _relicensing_error(err, path, cache=None, quiet=0):
     """Handle an error during relicensing.
     
         "err" may be an error string or an exception instance.
-        "path" is the path of the file on which this error occurred.
+        "path" is the path of the file on which this error occured.
         "cache" is a mapping of path to errors on which errors may be
             stored for later reporting.
         "quiet" optionally allows one to silence the stdout output when

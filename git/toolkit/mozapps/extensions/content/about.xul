@@ -45,10 +45,7 @@
 
 <dialog id="genericAbout"
         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
-        onload="init();"
-        buttons="accept"
-        buttoniconaccept="close"
-        onaccept="close();">
+        buttons="accept" onload="init();" onaccept="close();">
 
   <script type="application/javascript" src="chrome://mozapps/content/extensions/about.js"/>
   <script type="application/javascript" src="chrome://global/content/contentAreaUtils.js"/>
@@ -65,7 +62,7 @@
     <label id="extensionCreatorLabel" class="sectionTitle">&creator.label;</label>
     <hbox id="creatorBox" class="boxIndent">
       <label id="extensionCreator" flex="1" crop="right"/>
-      <label id="extensionHomepage" onclick="if (event.button == 0) { loadHomepage(event); }"
+      <label id="extensionHomepage" onclick="loadHomepage(event);"
              class="text-link" value="&homepage.label;"/>
     </hbox>
       

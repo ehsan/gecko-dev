@@ -53,6 +53,60 @@
 // no virtuals in the maps - all the common stuff inlined
 // templates could be used to good effect here.
 
+class JSContext2XPCContextMap
+{
+public:
+    struct Entry : public JSDHashEntryHdr
+    {
+        JSContext*  key;
+        XPCContext* value;
+    };
+
+    static JSContext2XPCContextMap* newMap(int size);
+
+    inline XPCContext* Find(JSContext* cx)
+    {
+        NS_PRECONDITION(cx,"bad param");
+        Entry* entry = (Entry*)
+            JS_DHashTableOperate(mTable, cx, JS_DHASH_LOOKUP);
+        if(JS_DHASH_ENTRY_IS_FREE(entry))
+            return nsnull;
+        return entry->value;
+    }
+
+    inline XPCContext* Add(XPCContext* xpcc)
+    {
+        NS_PRECONDITION(xpcc,"bad param");
+        JSContext* cx = xpcc->GetJSContext();
+        Entry* entry = (Entry*)
+            JS_DHashTableOperate(mTable, cx, JS_DHASH_ADD);
+        if(!entry)
+            return nsnull;
+        if(entry->key)
+            return entry->value;
+        entry->key = cx;
+        entry->value = xpcc;
+        return xpcc;
+    }
+
+    inline void Remove(XPCContext* xpcc)
+    {
+        NS_PRECONDITION(xpcc,"bad param");
+        JS_DHashTableOperate(mTable, xpcc->GetJSContext(), JS_DHASH_REMOVE);
+    }
+
+    inline uint32 Count() {return mTable->entryCount;}
+    inline uint32 Enumerate(JSDHashEnumerator f, void *arg)
+        {return JS_DHashTableEnumerate(mTable, f, arg);}
+
+    ~JSContext2XPCContextMap();
+private:
+    JSContext2XPCContextMap();    // no implementation
+    JSContext2XPCContextMap(int size);
+private:
+    JSDHashTable *mTable;
+};
+
 /*************************/
 
 class JSObject2WrappedJSMap
@@ -403,7 +457,7 @@ public:
     {
         XPCNativeSet* key_value;
 
-        static JSBool
+        static JSBool JS_DLL_CALLBACK
         Match(JSDHashTable *table,
               const JSDHashEntryHdr *entry,
               const void *key);
@@ -472,12 +526,12 @@ public:
         nsIID                         key;
         nsIXPCFunctionThisTranslator* value;
 
-        static JSBool
+        static JSBool JS_DLL_CALLBACK
         Match(JSDHashTable *table,
               const JSDHashEntryHdr *entry,
               const void *key);
 
-        static void
+        static void JS_DLL_CALLBACK
         Clear(JSDHashTable *table, JSDHashEntryHdr *entry);
 
         static struct JSDHashTableOps sOps;
@@ -535,10 +589,10 @@ public:
     {
         XPCNativeScriptableShared* key;
 
-        static JSDHashNumber
+        static JSDHashNumber JS_DLL_CALLBACK
         Hash(JSDHashTable *table, const void *key);
 
-        static JSBool
+        static JSBool JS_DLL_CALLBACK
         Match(JSDHashTable *table,
               const JSDHashEntryHdr *entry,
               const void *key);
@@ -549,7 +603,7 @@ public:
     static XPCNativeScriptableSharedMap* newMap(int size);
 
     JSBool GetNewOrUsed(JSUint32 flags, char* name, PRBool isGlobal,
-                        PRUint32 interfacesBitmap, XPCNativeScriptableInfo* si);
+                        XPCNativeScriptableInfo* si);
 
     inline uint32 Count() {return mTable->entryCount;}
     inline uint32 Enumerate(JSDHashEnumerator f, void *arg)

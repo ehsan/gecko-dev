@@ -59,9 +59,6 @@
 
 #include "jsapi.h"
 #include "jsdbgapi.h"
-#include "jsobj.h"
-
-#include "mozilla/FunctionTimer.h"
 
 /* load() error msgs, XXX localize? */
 #define LOAD_ERROR_NOSERVICE "Error creating IO Service."
@@ -76,7 +73,7 @@
 #define LOAD_ERROR_NOSPEC "Failed to get URI spec.  This is bad."
 
 // We just use the same reporter as the component loader
-extern void
+extern void JS_DLL_CALLBACK
 mozJSLoaderErrorReporter(JSContext *cx, const char *message, JSErrorReport *rep);
 
 mozJSSubScriptLoader::mozJSSubScriptLoader() : mSystemPrincipal(nsnull)
@@ -91,7 +88,7 @@ mozJSSubScriptLoader::~mozJSSubScriptLoader()
 NS_IMPL_THREADSAFE_ISUPPORTS1(mozJSSubScriptLoader, mozIJSSubScriptLoader)
 
 NS_IMETHODIMP /* args and return value are delt with using XPConnect and JSAPI */
-mozJSSubScriptLoader::LoadSubScript (const PRUnichar * aURL
+mozJSSubScriptLoader::LoadSubScript (const PRUnichar * /*url*/
                                      /* [, JSObject *target_obj] */)
 {
     /*
@@ -109,13 +106,6 @@ mozJSSubScriptLoader::LoadSubScript (const PRUnichar * aURL
      * defined the rest up here to be consistent */
     nsresult  rv;
     JSBool    ok;
-
-#ifdef NS_FUNCTION_TIMER
-    NS_TIME_FUNCTION_FMT("%s (line %d) (url: %s)", MOZ_FUNCTION_NAME,
-                         __LINE__, NS_LossyConvertUTF16toASCII(aURL).get());
-#else
-    (void)aURL; // prevent compiler warning
-#endif
 
     /* get JS things from the CallContext */
     nsCOMPtr<nsIXPConnect> xpc = do_GetService(nsIXPConnect::GetCID());
@@ -161,6 +151,7 @@ mozJSSubScriptLoader::LoadSubScript (const PRUnichar * aURL
     ok = JS_ConvertArguments (cx, argc, argv, "s / o", &url, &target_obj);
     if (!ok)
     {
+        cc->SetExceptionWasThrown (JS_TRUE);
         /* let the exception raised by JS_ConvertArguments show through */
         return NS_OK;
     }
@@ -205,13 +196,18 @@ mozJSSubScriptLoader::LoadSubScript (const PRUnichar * aURL
 
     // Innerize the target_obj so that we compile the loaded script in the
     // correct (inner) scope.
-    if (JSObjectOp op = target_obj->getClass()->ext.innerObject)
+    JSClass *target_class = JS_GET_CLASS(cx, target_obj);
+    if (target_class->flags & JSCLASS_IS_EXTENDED)
     {
-        target_obj = op(cx, target_obj);
-        if (!target_obj) return NS_ERROR_FAILURE;
+        JSExtendedClass *extended = (JSExtendedClass*)target_class;
+        if (extended->innerObject)
+        {
+            target_obj = extended->innerObject(cx, target_obj);
+            if (!target_obj) return NS_ERROR_FAILURE;
 #ifdef DEBUG_rginda
-        fprintf (stderr, "Final global: %p\n", target_obj);
+            fprintf (stderr, "Final global: %p\n", target_obj);
 #endif
+        }
     }
 
     /* load up the url.  From here on, failures are reflected as ``custom''
@@ -352,6 +348,7 @@ mozJSSubScriptLoader::LoadSubScript (const PRUnichar * aURL
     /* repent for our evil deeds */
     JS_SetErrorReporter (cx, er);
 
+    cc->SetExceptionWasThrown (!ok);
     cc->SetReturnValueWasSet (ok);
 
     JSPRINCIPALS_DROP(cx, jsPrincipals);
@@ -359,6 +356,7 @@ mozJSSubScriptLoader::LoadSubScript (const PRUnichar * aURL
 
  return_exception:
     JS_SetPendingException (cx, STRING_TO_JSVAL(errmsg));
+    cc->SetExceptionWasThrown (JS_TRUE);
     return NS_OK;
 }
 

@@ -38,36 +38,65 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+// NOTE: alphabetically ordered
 #include "nsTextAccessible.h"
 
-////////////////////////////////////////////////////////////////////////////////
-// nsTextAccessible
-////////////////////////////////////////////////////////////////////////////////
+// ------------
+// Text Accessibles
+// ------------
 
-nsTextAccessible::
-  nsTextAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsLinkableAccessible(aContent, aShell)
-{
+nsTextAccessible::nsTextAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aShell):
+nsLinkableAccessible(aDOMNode, aShell)
+{ 
 }
 
-nsresult
-nsTextAccessible::GetRoleInternal(PRUint32 *aRole)
+// Make sure we don't support text or other irrelevant interfaces.
+// We have nsLinkableAccessible in our inheritance chain as a convenience in order to
+// get link actions and states on the text accessibles. Windows screen readers expect that.
+NS_IMPL_ISUPPORTS_INHERITED2(nsTextAccessible, nsAccessNode, nsIAccessible, nsPIAccessible)
+
+/**
+  * We are text
+  */
+NS_IMETHODIMP nsTextAccessible::GetRole(PRUint32 *_retval)
 {
-  *aRole = nsIAccessibleRole::ROLE_TEXT_LEAF;
+  *_retval = nsIAccessibleRole::ROLE_TEXT_LEAF;
   return NS_OK;
 }
 
-nsresult
+/**
+  * No Children
+  */
+NS_IMETHODIMP nsTextAccessible::GetFirstChild(nsIAccessible **_retval)
+{
+  *_retval = nsnull;
+  return NS_OK;
+}
+
+/**
+  * No Children
+  */
+NS_IMETHODIMP nsTextAccessible::GetLastChild(nsIAccessible **_retval)
+{
+  *_retval = nsnull;
+  return NS_OK;
+}
+
+/**
+  * No Children
+  */
+NS_IMETHODIMP nsTextAccessible::GetChildCount(PRInt32 *_retval)
+{
+  *_retval = 0;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsTextAccessible::AppendTextTo(nsAString& aText, PRUint32 aStartOffset, PRUint32 aLength)
 {
   nsIFrame *frame = GetFrame();
-  if (!frame) return NS_ERROR_FAILURE;//NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
+  NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
 
   return frame->GetRenderedText(&aText, nsnull, nsnull, aStartOffset, aLength);
 }
 
-void
-nsTextAccessible::CacheChildren()
-{
-  // No children for text accessible.
-}

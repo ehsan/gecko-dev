@@ -68,11 +68,11 @@ static nsresult GetExtensionFromWindowsMimeDatabase(const nsACString& aMimeType,
 
 nsOSHelperAppService::nsOSHelperAppService() : 
   nsExternalHelperAppService()
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
+#if !defined(MOZ_DISABLE_VISTA_SDK_REQUIREMENTS)
   , mAppAssoc(nsnull)
 #endif
 {
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
+#if !defined(MOZ_DISABLE_VISTA_SDK_REQUIREMENTS)
   CoInitialize(NULL);
   CoCreateInstance(CLSID_ApplicationAssociationRegistration, NULL, CLSCTX_INPROC,
                    IID_IApplicationAssociationRegistration, (void**)&mAppAssoc);
@@ -81,7 +81,7 @@ nsOSHelperAppService::nsOSHelperAppService() :
 
 nsOSHelperAppService::~nsOSHelperAppService()
 {
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
+#if !defined(MOZ_DISABLE_VISTA_SDK_REQUIREMENTS)
   if (mAppAssoc)
     mAppAssoc->Release();
   mAppAssoc = nsnull;
@@ -159,7 +159,7 @@ nsresult nsOSHelperAppService::OSProtocolHandlerExists(const char * aProtocolSch
   *aHandlerExists = PR_FALSE;
   if (aProtocolScheme && *aProtocolScheme)
   {
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
+#if !defined(MOZ_DISABLE_VISTA_SDK_REQUIREMENTS)
     // Vista: use new application association interface
     if (mAppAssoc) {
       PRUnichar * pResult = nsnull;
@@ -177,14 +177,11 @@ nsresult nsOSHelperAppService::OSProtocolHandlerExists(const char * aProtocolSch
 #endif
 
     HKEY hKey;
-    LONG err = ::RegOpenKeyExW(HKEY_CLASSES_ROOT,
-                               NS_ConvertASCIItoUTF16(aProtocolScheme).get(),
-                               0,
-                               KEY_QUERY_VALUE,
-                               &hKey);
+    LONG err = ::RegOpenKeyEx(HKEY_CLASSES_ROOT, aProtocolScheme, 0,
+                             KEY_QUERY_VALUE, &hKey);
     if (err == ERROR_SUCCESS)
     {
-      err = ::RegQueryValueExW(hKey, L"URL Protocol", NULL, NULL, NULL, NULL);
+      err = ::RegQueryValueEx(hKey, "URL Protocol", NULL, NULL, NULL, NULL);
       *aHandlerExists = (err == ERROR_SUCCESS);
       // close the key
       ::RegCloseKey(hKey);
@@ -203,7 +200,7 @@ NS_IMETHODIMP nsOSHelperAppService::GetApplicationDescription(const nsACString& 
 
   NS_ConvertASCIItoUTF16 buf(aScheme);
 
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
+#if !defined(MOZ_DISABLE_VISTA_SDK_REQUIREMENTS)
   // Vista: use new application association interface
   if (mAppAssoc) {
     PRUnichar * pResult = nsnull;
@@ -311,7 +308,7 @@ nsOSHelperAppService::typeFromExtEquals(const PRUnichar* aExt, const char *aType
   return eq;
 }
 
-// Strip a handler command string of its quotes and parameters.
+// Strip a handler command string of it's quotes and paramters.
 static void CleanupHandlerPath(nsString& aPath)
 {
   // Example command strings passed into this routine:
@@ -535,7 +532,7 @@ already_AddRefed<nsMIMEInfoWin> nsOSHelperAppService::GetByExtension(const nsAFl
   else {
     nsAutoString temp;
     if (NS_FAILED(regKey->ReadStringValue(NS_LITERAL_STRING("Content Type"),
-                  temp)) || temp.IsEmpty()) {
+                  temp))) {
       return nsnull; 
     }
     // Content-Type is always in ASCII
@@ -555,7 +552,7 @@ already_AddRefed<nsMIMEInfoWin> nsOSHelperAppService::GetByExtension(const nsAFl
   nsAutoString appInfo;
   PRBool found;
 
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
+#if !defined(MOZ_DISABLE_VISTA_SDK_REQUIREMENTS)
   // Retrieve the default application for this extension
   if (mAppAssoc) {
     // Vista: use the new application association COM interfaces

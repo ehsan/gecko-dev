@@ -46,7 +46,6 @@
 class nsIAtom;
 class nsIDOMElement;
 class nsIDOMEventTarget;
-class nsIDOMKeyEvent;
 class nsPIDOMEventTarget;
 class nsIXBLDocumentInfo;
 class nsXBLSpecialDocInfo;
@@ -74,15 +73,15 @@ public:
   static NS_HIDDEN_(void) ShutDown();
 
 protected:
-  nsresult WalkHandlers(nsIDOMKeyEvent* aKeyEvent, nsIAtom* aEventType);
+  nsresult WalkHandlers(nsIDOMEvent* aKeyEvent, nsIAtom* aEventType);
 
   // walk the handlers, looking for one to handle the event
-  nsresult WalkHandlersInternal(nsIDOMKeyEvent* aKeyEvent,
+  nsresult WalkHandlersInternal(nsIDOMEvent* aKeyEvent,
                                 nsIAtom* aEventType, 
                                 nsXBLPrototypeHandler* aHandler);
 
   // walk the handlers for aEvent, aCharCode and aIgnoreShiftKey
-  PRBool WalkHandlersAndExecute(nsIDOMKeyEvent* aKeyEvent, nsIAtom* aEventType,
+  PRBool WalkHandlersAndExecute(nsIDOMEvent* aEvent, nsIAtom* aEventType,
                                 nsXBLPrototypeHandler* aHandler,
                                 PRUint32 aCharCode, PRBool aIgnoreShiftKey);
 
@@ -92,7 +91,7 @@ protected:
 
   // check if the given handler cares about the given key event
   PRBool EventMatched(nsXBLPrototypeHandler* inHandler, nsIAtom* inEventType,
-                      nsIDOMKeyEvent* inEvent, PRUint32 aCharCode,
+                      nsIDOMEvent* inEvent, PRUint32 aCharCode,
                       PRBool aIgnoreShiftKey);
 
   // are we working with editor or browser?

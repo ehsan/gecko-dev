@@ -59,6 +59,8 @@
 #include "nsHTMLContainerFrame.h"
 #include "nsDisplayList.h"
 
+static NS_DEFINE_IID(kWidgetCID, NS_CHILD_CID);
+
 //
 // NS_NewLeafBoxFrame
 //
@@ -68,9 +70,7 @@ nsIFrame*
 NS_NewLeafBoxFrame (nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsLeafBoxFrame(aPresShell, aContext);
-}
-
-NS_IMPL_FRAMEARENA_HELPERS(nsLeafBoxFrame)
+} // NS_NewLeafBoxFrame
 
 nsLeafBoxFrame::nsLeafBoxFrame(nsIPresShell* aShell, nsStyleContext* aContext)
     : nsLeafFrame(aContext), mMouseThrough(unset)
@@ -98,6 +98,18 @@ nsLeafBoxFrame::Init(
   nsresult  rv = nsLeafFrame::Init(aContent, aParent, aPrevInFlow);
   NS_ENSURE_SUCCESS(rv, rv);
 
+   // see if we need a widget
+  if (aParent && aParent->IsBoxFrame()) {
+    if (aParent->ChildrenMustHaveWidgets()) {
+        rv = nsHTMLContainerFrame::CreateViewForFrame(this, nsnull, PR_TRUE); 
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        nsIView* view = GetView();
+        if (!view->HasWidget())
+           view->CreateWidget(kWidgetCID);   
+    }
+  }
+  
   mMouseThrough = unset;
 
   UpdateMouseThrough();
@@ -339,7 +351,7 @@ nsLeafBoxFrame::Reflow(nsPresContext*   aPresContext,
   aDesiredSize.height = mRect.height;
   aDesiredSize.ascent = GetBoxAscent(state);
 
-  // the overflow rect is set in SetBounds() above
+  // NS_FRAME_OUTSIDE_CHILDREN is set in SetBounds() above
   aDesiredSize.mOverflowArea = GetOverflowRect();
 
 #ifdef DO_NOISY_REFLOW
@@ -372,11 +384,25 @@ nsLeafBoxFrame::GetType() const
   return nsGkAtoms::leafBoxFrame;
 }
 
+NS_IMETHODIMP_(nsrefcnt) 
+nsLeafBoxFrame::AddRef(void)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP_(nsrefcnt)
+nsLeafBoxFrame::Release(void)
+{
+    return NS_OK;
+}
+
 NS_IMETHODIMP
-nsLeafBoxFrame::CharacterDataChanged(CharacterDataChangeInfo* aInfo)
+nsLeafBoxFrame::CharacterDataChanged(nsPresContext* aPresContext,
+                                     nsIContent*     aChild,
+                                     PRBool          aAppend)
 {
   MarkIntrinsicWidthsDirty();
-  return nsLeafFrame::CharacterDataChanged(aInfo);
+  return nsLeafFrame::CharacterDataChanged(aPresContext, aChild, aAppend);
 }
 
 /* virtual */ nsSize
@@ -420,4 +446,16 @@ NS_IMETHODIMP
 nsLeafBoxFrame::DoLayout(nsBoxLayoutState& aState)
 {
     return nsBox::DoLayout(aState);
+}
+
+PRBool
+nsLeafBoxFrame::GetWasCollapsed(nsBoxLayoutState& aState)
+{
+    return nsBox::GetWasCollapsed(aState);
+}
+
+void
+nsLeafBoxFrame::SetWasCollapsed(nsBoxLayoutState& aState, PRBool aWas)
+{
+    nsBox::SetWasCollapsed(aState, aWas);
 }

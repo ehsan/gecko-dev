@@ -138,7 +138,6 @@ protected:
 
   DomainPolicy* mSecurityPolicy;
 
-  nsCOMPtr<nsIContentSecurityPolicy> mCSP;
   nsCOMPtr<nsIURI> mCodebase;
   nsCOMPtr<nsIURI> mDomain;
   PRPackedBool mTrusted;

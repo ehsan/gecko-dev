@@ -35,28 +35,26 @@
 # 
 # ***** END LICENSE BLOCK *****
 
-function macWindowMenuDidShow()
+function checkFocusedWindow()
 {
   var windowManagerDS =
     Components.classes['@mozilla.org/rdf/datasource;1?name=window-mediator']
               .getService(Components.interfaces.nsIWindowDataSource);
+
   var sep = document.getElementById("sep-window-list");
   // Using double parens to avoid warning
   while ((sep = sep.nextSibling)) {
     var url = sep.getAttribute('id');
     var win = windowManagerDS.getWindowForResource(url);
-    if (win.document.documentElement.getAttribute("inwindowmenu") == "false")
-      sep.hidden = true;
-    else if (win == window)
+    if (win == window) {
       sep.setAttribute("checked", "true");
+      break;
+    }
   }
 }
 
 function toOpenWindow( aWindow )
 {
-  // deminiaturize the window, if it's in the Dock
-  if (aWindow.windowState == STATE_MINIMIZED)
-    aWindow.restore();
   aWindow.document.commandDispatcher.focusedWindow.focus();
 }
 

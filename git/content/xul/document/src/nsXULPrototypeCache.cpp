@@ -45,10 +45,11 @@
 #include "nsContentUtils.h"
 #include "plstr.h"
 #include "nsXULPrototypeDocument.h"
-#include "nsCSSStyleSheet.h"
+#include "nsICSSStyleSheet.h"
 #include "nsIScriptRuntime.h"
 #include "nsIServiceManager.h"
 #include "nsIURI.h"
+#include "nsIXBLDocumentInfo.h"
 
 #include "nsIChromeRegistry.h"
 #include "nsIFastLoadService.h"
@@ -70,7 +71,7 @@ static const char kDisableXULCachePref[] = "nglayout.debug.disable_xul_cache";
 
 //----------------------------------------------------------------------
 
-static int
+PR_STATIC_CALLBACK(int)
 DisableXULCacheChangedCallback(const char* aPref, void* aClosure)
 {
     gDisableXULCache =
@@ -111,7 +112,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS2(nsXULPrototypeCache,
                               nsIObserver)
 
 
-nsresult
+NS_IMETHODIMP
 NS_NewXULPrototypeCache(nsISupports* aOuter, REFNSIID aIID, void** aResult)
 {
     NS_PRECONDITION(! aOuter, "no aggregation");
@@ -139,8 +140,7 @@ NS_NewXULPrototypeCache(nsISupports* aOuter, REFNSIID aIID, void** aResult)
 
     nsresult rv = result->QueryInterface(aIID, aResult);
 
-    nsCOMPtr<nsIObserverService> obsSvc =
-        mozilla::services::GetObserverService();
+    nsCOMPtr<nsIObserverService> obsSvc(do_GetService("@mozilla.org/observer-service;1"));
     if (obsSvc && NS_SUCCEEDED(rv)) {
         nsXULPrototypeCache *p = result;
         obsSvc->AddObserver(p, "chrome-flush-skin-caches", PR_FALSE);
@@ -242,12 +242,15 @@ nsXULPrototypeCache::PutPrototype(nsXULPrototypeDocument* aDocument)
 }
 
 nsresult
-nsXULPrototypeCache::PutStyleSheet(nsCSSStyleSheet* aStyleSheet)
+nsXULPrototypeCache::PutStyleSheet(nsICSSStyleSheet* aStyleSheet)
 {
-    nsIURI* uri = aStyleSheet->GetSheetURI();
+    nsCOMPtr<nsIURI> uri;
+    nsresult rv = aStyleSheet->GetSheetURI(getter_AddRefs(uri));
+    if (NS_FAILED(rv))
+        return rv;
 
-    NS_ENSURE_TRUE(mStyleSheetTable.Put(uri, aStyleSheet),
-                   NS_ERROR_OUT_OF_MEMORY);
+   NS_ENSURE_TRUE(mStyleSheetTable.Put(uri, aStyleSheet),
+                  NS_ERROR_OUT_OF_MEMORY);
 
     return NS_OK;
 }
@@ -267,7 +270,7 @@ nsXULPrototypeCache::GetScript(nsIURI* aURI, PRUint32 *aLangID)
 
 
 /* static */
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 ReleaseScriptObjectCallback(nsIURI* aKey, CacheScriptEntry &aData, void* aClosure)
 {
     nsCOMPtr<nsIScriptRuntime> rt;
@@ -312,11 +315,11 @@ nsXULPrototypeCache::FlushScripts()
 
 
 nsresult
-nsXULPrototypeCache::PutXBLDocumentInfo(nsXBLDocumentInfo* aDocumentInfo)
+nsXULPrototypeCache::PutXBLDocumentInfo(nsIXBLDocumentInfo* aDocumentInfo)
 {
     nsIURI* uri = aDocumentInfo->DocumentURI();
 
-    nsRefPtr<nsXBLDocumentInfo> info;
+    nsCOMPtr<nsIXBLDocumentInfo> info;
     mXBLDocTable.Get(uri, getter_AddRefs(info));
     if (!info) {
         NS_ENSURE_TRUE(mXBLDocTable.Put(uri, aDocumentInfo),
@@ -325,8 +328,8 @@ nsXULPrototypeCache::PutXBLDocumentInfo(nsXBLDocumentInfo* aDocumentInfo)
     return NS_OK;
 }
 
-static PLDHashOperator
-FlushSkinXBL(nsIURI* aKey, nsRefPtr<nsXBLDocumentInfo>& aDocInfo, void* aClosure)
+PR_STATIC_CALLBACK(PLDHashOperator)
+FlushSkinXBL(nsIURI* aKey, nsCOMPtr<nsIXBLDocumentInfo>& aDocInfo, void* aClosure)
 {
   nsCAutoString str;
   aKey->GetPath(str);
@@ -340,11 +343,13 @@ FlushSkinXBL(nsIURI* aKey, nsRefPtr<nsXBLDocumentInfo>& aDocInfo, void* aClosure
   return ret;
 }
 
-static PLDHashOperator
-FlushSkinSheets(nsIURI* aKey, nsRefPtr<nsCSSStyleSheet>& aSheet, void* aClosure)
+PR_STATIC_CALLBACK(PLDHashOperator)
+FlushSkinSheets(nsIURI* aKey, nsCOMPtr<nsICSSStyleSheet>& aSheet, void* aClosure)
 {
+  nsCOMPtr<nsIURI> uri;
+  aSheet->GetSheetURI(getter_AddRefs(uri));
   nsCAutoString str;
-  aSheet->GetSheetURI()->GetPath(str);
+  uri->GetPath(str);
 
   PLDHashOperator ret = PL_DHASH_NEXT;
 
@@ -355,8 +360,8 @@ FlushSkinSheets(nsIURI* aKey, nsRefPtr<nsCSSStyleSheet>& aSheet, void* aClosure)
   return ret;
 }
 
-static PLDHashOperator
-FlushScopedSkinStylesheets(nsIURI* aKey, nsRefPtr<nsXBLDocumentInfo> &aDocInfo, void* aClosure)
+PR_STATIC_CALLBACK(PLDHashOperator)
+FlushScopedSkinStylesheets(nsIURI* aKey, nsCOMPtr<nsIXBLDocumentInfo> &aDocInfo, void* aClosure)
 {
   aDocInfo->FlushSkinStylesheets();
   return PL_DHASH_NEXT;
@@ -576,7 +581,7 @@ nsXULPrototypeCache::StartFastLoadingURI(nsIURI* aURI, PRInt32 aDirectionFlags)
     return gFastLoadService->StartMuxedDocument(aURI, urlspec.get(), aDirectionFlags);
 }
 
-static int
+PR_STATIC_CALLBACK(int)
 FastLoadPrefChangedCallback(const char* aPref, void* aClosure)
 {
     PRBool wasEnabled = !gDisableXULFastLoad;
@@ -605,7 +610,7 @@ class nsXULFastLoadFileIO : public nsIFastLoadFileIO
 {
   public:
     nsXULFastLoadFileIO(nsIFile* aFile)
-      : mFile(aFile), mTruncateOutputFile(true) {
+      : mFile(aFile) {
     }
 
     virtual ~nsXULFastLoadFileIO() {
@@ -617,7 +622,6 @@ class nsXULFastLoadFileIO : public nsIFastLoadFileIO
     nsCOMPtr<nsIFile>         mFile;
     nsCOMPtr<nsIInputStream>  mInputStream;
     nsCOMPtr<nsIOutputStream> mOutputStream;
-    bool mTruncateOutputFile;
 };
 
 
@@ -649,7 +653,7 @@ nsXULFastLoadFileIO::GetOutputStream(nsIOutputStream** aResult)
 {
     if (! mOutputStream) {
         PRInt32 ioFlags = PR_WRONLY;
-        if (mTruncateOutputFile)
+        if (! mInputStream)
             ioFlags |= PR_CREATE_FILE | PR_TRUNCATE;
 
         nsresult rv;
@@ -665,13 +669,6 @@ nsXULFastLoadFileIO::GetOutputStream(nsIOutputStream** aResult)
     }
 
     NS_ADDREF(*aResult = mOutputStream);
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsXULFastLoadFileIO::DisableTruncate()
-{
-    mTruncateOutputFile = false;
     return NS_OK;
 }
 
@@ -750,10 +747,9 @@ nsXULPrototypeCache::StartFastLoad(nsIURI* aURI)
         return NS_ERROR_OUT_OF_MEMORY;
     fastLoadService->SetFileIO(io);
 
-    nsCOMPtr<nsIXULChromeRegistry> chromeReg =
-        mozilla::services::GetXULChromeRegistryService();
-    if (!chromeReg)
-        return NS_ERROR_FAILURE;
+    nsCOMPtr<nsIXULChromeRegistry> chromeReg(do_GetService(NS_CHROMEREGISTRY_CONTRACTID, &rv));
+    if (NS_FAILED(rv))
+        return rv;
 
     // XXXbe we assume the first package's locale is the same as the locale of
     // all subsequent packages of FastLoaded chrome URIs....
@@ -770,10 +766,38 @@ nsXULPrototypeCache::StartFastLoad(nsIURI* aURI)
     // Try to read an existent FastLoad file.
     PRBool exists = PR_FALSE;
     if (NS_SUCCEEDED(file->Exists(&exists)) && exists) {
+        nsCOMPtr<nsIInputStream> input;
+        rv = io->GetInputStream(getter_AddRefs(input));
+        if (NS_FAILED(rv))
+            return rv;
+
         nsCOMPtr<nsIObjectInputStream> objectInput;
-        rv = fastLoadService->NewInputStream(file, getter_AddRefs(objectInput));
+        rv = fastLoadService->NewInputStream(input, getter_AddRefs(objectInput));
 
         if (NS_SUCCEEDED(rv)) {
+            if (gChecksumXULFastLoadFile) {
+                nsCOMPtr<nsIFastLoadReadControl>
+                    readControl(do_QueryInterface(objectInput));
+                if (readControl) {
+                    // Verify checksum, using the fastLoadService's checksum
+                    // cache to avoid computing more than once per session.
+                    PRUint32 checksum;
+                    rv = readControl->GetChecksum(&checksum);
+                    if (NS_SUCCEEDED(rv)) {
+                        PRUint32 verified;
+                        rv = fastLoadService->ComputeChecksum(file,
+                                                               readControl,
+                                                               &verified);
+                        if (NS_SUCCEEDED(rv) && verified != checksum) {
+#ifdef DEBUG
+                            printf("bad FastLoad file checksum\n");
+#endif
+                            rv = NS_ERROR_FAILURE;
+                        }
+                    }
+                }
+            }
+
             if (NS_SUCCEEDED(rv)) {
                 // Get the XUL fastload file version number, which should be
                 // decremented whenever the XUL-specific file format changes
@@ -812,6 +836,8 @@ nsXULPrototypeCache::StartFastLoad(nsIURI* aURI)
             // that can't do open-unlink.
             if (objectInput)
                 objectInput->Close();
+            else
+                input->Close();
             xio->mInputStream = nsnull;
 
 #ifdef DEBUG

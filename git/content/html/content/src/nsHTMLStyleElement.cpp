@@ -41,6 +41,7 @@
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsIDOMStyleSheet.h"
 #include "nsIStyleSheet.h"
 #include "nsStyleLinkElement.h"
@@ -48,7 +49,6 @@
 #include "nsIDocument.h"
 #include "nsUnicharUtils.h"
 #include "nsParserUtils.h"
-#include "nsThreadUtils.h"
 
 
 class nsHTMLStyleElement : public nsGenericHTMLElement,
@@ -57,7 +57,7 @@ class nsHTMLStyleElement : public nsGenericHTMLElement,
                            public nsStubMutationObserver
 {
 public:
-  nsHTMLStyleElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLStyleElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLStyleElement();
 
   // nsISupports
@@ -102,9 +102,9 @@ public:
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
-  already_AddRefed<nsIURI> GetStyleSheetURL(PRBool* aIsInline);
+  void GetStyleSheetURL(PRBool* aIsInline,
+                        nsIURI** aURI);
   void GetStyleSheetInfo(nsAString& aTitle,
                          nsAString& aType,
                          nsAString& aMedia,
@@ -121,7 +121,7 @@ protected:
 NS_IMPL_NS_NEW_HTML_ELEMENT(Style)
 
 
-nsHTMLStyleElement::nsHTMLStyleElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLStyleElement::nsHTMLStyleElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
   AddMutationObserver(this);
@@ -136,17 +136,13 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLStyleElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLStyleElement, nsGenericElement) 
 
 
-DOMCI_NODE_DATA(HTMLStyleElement, nsHTMLStyleElement)
-
 // QueryInterface implementation for nsHTMLStyleElement
-NS_INTERFACE_TABLE_HEAD(nsHTMLStyleElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE4(nsHTMLStyleElement,
-                                   nsIDOMHTMLStyleElement,
-                                   nsIDOMLinkStyle,
-                                   nsIStyleSheetLinkingElement,
-                                   nsIMutationObserver)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLStyleElement,
-                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLStyleElement, nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED4(nsHTMLStyleElement,
+                                nsIDOMHTMLStyleElement,
+                                nsIDOMLinkStyle,
+                                nsIStyleSheetLinkingElement,
+                                nsIMutationObserver)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLStyleElement)
 
 
@@ -158,8 +154,8 @@ nsHTMLStyleElement::GetDisabled(PRBool* aDisabled)
 {
   nsresult result = NS_OK;
   
-  if (GetStyleSheet()) {
-    nsCOMPtr<nsIDOMStyleSheet> ss(do_QueryInterface(GetStyleSheet()));
+  if (mStyleSheet) {
+    nsCOMPtr<nsIDOMStyleSheet> ss(do_QueryInterface(mStyleSheet));
 
     if (ss) {
       result = ss->GetDisabled(aDisabled);
@@ -177,8 +173,8 @@ nsHTMLStyleElement::SetDisabled(PRBool aDisabled)
 {
   nsresult result = NS_OK;
   
-  if (GetStyleSheet()) {
-    nsCOMPtr<nsIDOMStyleSheet> ss(do_QueryInterface(GetStyleSheet()));
+  if (mStyleSheet) {
+    nsCOMPtr<nsIDOMStyleSheet> ss(do_QueryInterface(mStyleSheet));
 
     if (ss) {
       result = ss->SetDisabled(aDisabled);
@@ -202,7 +198,6 @@ nsHTMLStyleElement::CharacterDataChanged(nsIDocument* aDocument,
 void
 nsHTMLStyleElement::ContentAppended(nsIDocument* aDocument,
                                     nsIContent* aContainer,
-                                    nsIContent* aFirstNewContent,
                                     PRInt32 aNewIndexInContainer)
 {
   ContentChanged(aContainer);
@@ -221,8 +216,7 @@ void
 nsHTMLStyleElement::ContentRemoved(nsIDocument* aDocument,
                                    nsIContent* aContainer,
                                    nsIContent* aChild,
-                                   PRInt32 aIndexInContainer,
-                                   nsIContent* aPreviousSibling)
+                                   PRInt32 aIndexInContainer)
 {
   ContentChanged(aChild);
 }
@@ -245,8 +239,7 @@ nsHTMLStyleElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                                  aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  void (nsHTMLStyleElement::*update)() = &nsHTMLStyleElement::UpdateStyleSheetInternal;
-  nsContentUtils::AddScriptRunner(NS_NewRunnableMethod(this, update));
+  UpdateStyleSheetInternal(nsnull);
 
   return rv;  
 }
@@ -315,11 +308,24 @@ nsHTMLStyleElement::SetInnerHTML(const nsAString& aInnerHTML)
   return rv;
 }
 
-already_AddRefed<nsIURI>
-nsHTMLStyleElement::GetStyleSheetURL(PRBool* aIsInline)
+void
+nsHTMLStyleElement::GetStyleSheetURL(PRBool* aIsInline,
+                                     nsIURI** aURI)
 {
-  *aIsInline = PR_TRUE;
-  return nsnull;
+  *aURI = nsnull;
+  *aIsInline = !HasAttr(kNameSpaceID_None, nsGkAtoms::src);
+  if (*aIsInline) {
+    return;
+  }
+  if (mNodeInfo->NamespaceEquals(kNameSpaceID_XHTML)) {
+    // We stopped supporting <style src="..."> for XHTML as it is
+    // non-standard.
+    *aIsInline = PR_TRUE;
+    return;
+  }
+
+  GetHrefURIForAnchors(aURI);
+  return;
 }
 
 void

@@ -1,3 +1,6 @@
+const Ci = Components.interfaces;
+const Cc = Components.classes;
+
 /* The test text decoded correctly as Shift_JIS */
 const rightText="\u30E6\u30CB\u30B3\u30FC\u30C9\u306F\u3001\u3059\u3079\u3066\u306E\u6587\u5B57\u306B\u56FA\u6709\u306E\u756A\u53F7\u3092\u4ED8\u4E0E\u3057\u307E\u3059";
 
@@ -7,26 +10,23 @@ const enteredText2="\u03BE\u03B5\u03C3\u03BA\u03B5\u03C0\u03AC\u03B6\u03C9\u0020
 var testPage;
 
 function test() {
-  testPage = Application.activeWindow.open(url("about:blank"));
-  testPage.events.addListener("load", afterOpen);
-  testPage.load(url("chrome://mochikit/content/browser/docshell/test/browser/test-form_sjis.html"));
+  testPage = Application.activeWindow.open(url("chrome://mochikit/content/browser/docshell/test/browser/test-form_sjis.html"));
   testPage.focus();
 
   waitForExplicitFinish();
+  setTimeout(afterOpen, 1000);
 }
 
 function afterOpen() {
-    testPage.events.removeListener("load", afterOpen);
-    testPage.events.addListener("load", afterChangeCharset);
     testPage.document.getElementById("testtextarea").value=enteredText1;
     testPage.document.getElementById("testinput").value=enteredText2;
 
     /* Force the page encoding to Shift_JIS */
     SetForcedCharset("Shift_JIS");
+    setTimeout(afterChangeCharset, 3000);
 }
   
 function afterChangeCharset() {
-    testPage.events.removeListener("load", afterChangeCharset);
     is(testPage.document.getElementById("testpar").innerHTML, rightText,
        "encoding successfully changed");
     is(testPage.document.getElementById("testtextarea").value, enteredText1,
@@ -39,5 +39,6 @@ function afterChangeCharset() {
 }
 
 function url(spec) {
-  return Services.io.newURI(spec, null, null);
+  var ios = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
+  return ios.newURI(spec, null, null);
 }

@@ -46,7 +46,7 @@ void  nsGB18030Prober::Reset(void)
 {
   mCodingSM->Reset(); 
   mState = eDetecting;
-  mDistributionAnalyser.Reset(mIsPreferredLanguage);
+  mDistributionAnalyser.Reset();
   //mContextAnalyser.Reset();
 }
 

@@ -56,6 +56,8 @@ OS_COMPILE_CFLAGS += -GL-
 endif
 endif
 
+REQUIRES	= $(ZLIB_REQUIRES) \
+		  $(NULL)
 
 CSRCS		= \
 		png.c \
@@ -72,7 +74,6 @@ CSRCS		+= \
 		pngpread.c \
 		pngread.c \
 		pngrio.c \
-		pngrtran.c \
 		pngrutil.c \
 		$(NULL)
 
@@ -85,6 +86,7 @@ CSRCS		+= \
 		pngwio.c \
 		pngwrite.c \
 		pngwtran.c \
+		pngrtran.c \
 		pngwutil.c \
 		$(NULL)
 

@@ -102,7 +102,7 @@ class nsLoadCollector : public nsIMetricsCollector,
   ~nsLoadCollector();
 
   // Callback for removing a document observer and map entry
-  static PLDHashOperator
+  static PLDHashOperator PR_CALLBACK
   RemoveDocumentFromMap(const nsIDocument *document,
                         DocumentEntry &entry, void *userData);
 

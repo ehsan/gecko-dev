@@ -119,8 +119,6 @@ nsXPCException::GetNSResultCount()
 
 /***************************************************************************/
 
-NS_IMPL_CLASSINFO(nsXPCException, NULL, nsIClassInfo::DOM_OBJECT,
-                  NS_XPCEXCEPTION_CID)
 NS_INTERFACE_MAP_BEGIN(nsXPCException)
   NS_INTERFACE_MAP_ENTRY(nsIException)
   NS_INTERFACE_MAP_ENTRY(nsIXPCException)
@@ -151,30 +149,6 @@ nsXPCException::~nsXPCException()
 {
     MOZ_COUNT_DTOR(nsXPCException);
     Reset();
-}
-
-/* [noscript] xpcexJSVal stealJSVal (); */
-NS_IMETHODIMP
-nsXPCException::StealJSVal(jsval *vp NS_OUTPARAM)
-{
-    if(mThrownJSVal.IsHeld())
-    {
-        *vp = mThrownJSVal.Release();
-        return NS_OK;
-    }
-    return NS_ERROR_FAILURE;
-}
-
-/* [noscript] void stowJSVal (in xpcexJSContextPtr cx, in xpcexJSVal val); */
-NS_IMETHODIMP
-nsXPCException::StowJSVal(JSContext* cx, jsval v)
-{
-    if(mThrownJSVal.Hold(cx))
-    {
-        mThrownJSVal = v;
-        return NS_OK;
-    }
-    return NS_ERROR_FAILURE;
 }
 
 void

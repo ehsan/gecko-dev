@@ -39,9 +39,8 @@
 #include "nsIWebNavigation.h"
 #include "nsString.h"
 #include "nsServiceManagerUtils.h"
-#include "nsIContentUtils.h"
 #include "nsIDocumentLoaderFactory.h"
-#include "nsIPluginHost.h"
+#include "nsIPluginManager.h"
 
 NS_IMPL_ISUPPORTS1(nsWebNavigationInfo, nsIWebNavigationInfo)
 
@@ -85,12 +84,12 @@ nsWebNavigationInfo::IsTypeSupported(const nsACString& aType,
   }
   
   // Try reloading plugins in case they've changed.
-  nsCOMPtr<nsIPluginHost> pluginHost =
-    do_GetService(MOZ_PLUGIN_HOST_CONTRACTID);
-  if (pluginHost) {
+  nsCOMPtr<nsIPluginManager> pluginManager =
+    do_GetService("@mozilla.org/plugin/manager;1");
+  if (pluginManager) {
     // PR_FALSE will ensure that currently running plugins will not
     // be shut down
-    rv = pluginHost->ReloadPlugins(PR_FALSE);
+    rv = pluginManager->ReloadPlugins(PR_FALSE);
     if (NS_SUCCEEDED(rv)) {
       // OK, we reloaded plugins and there were new ones
       // (otherwise NS_ERROR_PLUGINS_PLUGINSNOTCHANGED would have
@@ -107,32 +106,33 @@ nsresult
 nsWebNavigationInfo::IsTypeSupportedInternal(const nsCString& aType,
                                              PRUint32* aIsSupported)
 {
+  NS_PRECONDITION(mCategoryManager, "Must have category manager");
   NS_PRECONDITION(aIsSupported, "Null out param?");
 
+  nsXPIDLCString value;
+  nsresult rv = mCategoryManager->GetCategoryEntry("Gecko-Content-Viewers",
+                                                   aType.get(),
+                                                   getter_Copies(value));
 
-  nsCOMPtr<nsIContentUtils> cutils = do_GetService("@mozilla.org/content/contentutils;1");
-  if (!cutils)
-      return NS_ERROR_FAILURE;
+  // If the category manager can't find what we're looking for
+  // it returns NS_ERROR_NOT_AVAILABLE, we don't want to propagate
+  // that to the caller since it's really not a failure
 
-  nsIContentUtils::ContentViewerType vtype = nsIContentUtils::TYPE_UNSUPPORTED;
+  if (NS_FAILED(rv) && rv != NS_ERROR_NOT_AVAILABLE)
+    return rv;
 
-  nsCOMPtr<nsIDocumentLoaderFactory> docLoaderFactory =
-    cutils->FindInternalContentViewer(aType.get(), &vtype);
-  
-  switch (vtype) {
-  case nsIContentUtils::TYPE_UNSUPPORTED:
+  // Now try to get an actual document loader factory for this contractid.  If
+  // there is no contractid, don't try and just return false for *aIsSupported.
+  nsCOMPtr<nsIDocumentLoaderFactory> docLoaderFactory;
+  if (!value.IsEmpty()) {
+    docLoaderFactory = do_GetService(value.get());
+  }
+
+  // If we got a factory, we should be able to handle this type
+  if (!docLoaderFactory) {
     *aIsSupported = nsIWebNavigationInfo::UNSUPPORTED;
-    break;
-
-  case nsIContentUtils::TYPE_PLUGIN:
-    *aIsSupported = nsIWebNavigationInfo::PLUGIN;
-    break;
-
-  case nsIContentUtils::TYPE_UNKNOWN:
-    *aIsSupported = nsIWebNavigationInfo::OTHER;
-    break;
-
-  case nsIContentUtils::TYPE_CONTENT:
+  }
+  else if (value.EqualsLiteral(CONTENT_DLF_CONTRACT)) {
     PRBool isImage = PR_FALSE;
     mImgLoader->SupportImageWithMimeType(aType.get(), &isImage);
     if (isImage) {
@@ -141,7 +141,12 @@ nsWebNavigationInfo::IsTypeSupportedInternal(const nsCString& aType,
     else {
       *aIsSupported = nsIWebNavigationInfo::OTHER;
     }
-    break;
+  }
+  else if (value.EqualsLiteral(PLUGIN_DLF_CONTRACT)) {
+    *aIsSupported = nsIWebNavigationInfo::PLUGIN;
+  }
+  else {
+    *aIsSupported = nsIWebNavigationInfo::OTHER;
   }
   
   return NS_OK;

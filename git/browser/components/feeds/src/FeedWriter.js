@@ -554,9 +554,9 @@ FeedWriter.prototype = {
     var url = makeURI(aURL);
     url.QueryInterface(Ci.nsIURL);
     if (url == null || url.fileName.length == 0)
-      return decodeURIComponent(aURL);
+      return aURL;
 
-    return decodeURIComponent(url.fileName);
+    return decodeURI(url.fileName);
   },
 
   /**
@@ -685,17 +685,25 @@ FeedWriter.prototype = {
     if (file instanceof Ci.nsILocalFileWin) {
       try {
         return file.getVersionInfoField("FileDescription");
-      } catch (e) {}
+      }
+      catch (e) {
+      }
     }
 #endif
 #ifdef XP_MACOSX
-    if (file instanceof Ci.nsILocalFileMac) {
-      try {
-        return file.bundleDisplayName;
-      } catch (e) {}
+    var lfm = file.QueryInterface(Ci.nsILocalFileMac);
+    try {
+      return lfm.bundleDisplayName;
+    }
+    catch (e) {
+      // fall through to the file name
     }
 #endif
-    return file.leafName;
+    var ios = 
+        Cc["@mozilla.org/network/io-service;1"].
+        getService(Ci.nsIIOService);
+    var url = ios.newFileURI(file).QueryInterface(Ci.nsIURL);
+    return url.fileName;
   },
 
   /**
@@ -837,6 +845,8 @@ FeedWriter.prototype = {
 
   // nsIDomEventListener
   handleEvent: function(event) {
+    // see comments in the write method
+    event = new XPCNativeWrapper(event);
     if (event.target.ownerDocument != this._document) {
       LOG("FeedWriter.handleEvent: Someone passed the feed writer as a listener to the events of another document!");
       return;
@@ -1013,7 +1023,6 @@ FeedWriter.prototype = {
     // "Choose Application..." menuitem
     menuItem = this._document.createElementNS(XUL_NS, "menuitem");
     menuItem.id = "chooseApplicationMenuItem";
-    menuItem.className = "menuitem-iconic";
     menuItem.setAttribute("label", this._getString("chooseApplicationMenuItem"));
 
     this._contentSandbox.chooseAppMenuItem = menuItem;
@@ -1033,7 +1042,7 @@ FeedWriter.prototype = {
     // List of web handlers
     var wccr = Cc["@mozilla.org/embeddor.implemented/web-content-handler-registrar;1"].
                getService(Ci.nsIWebContentConverterService);
-    var handlers = wccr.getContentHandlers(this._getMimeTypeForFeedType(feedType));
+    var handlers = wccr.getContentHandlers(this._getMimeTypeForFeedType(feedType), {});
     if (handlers.length != 0) {
       for (var i = 0; i < handlers.length; ++i) {
         menuItem = this._document.createElementNS(XUL_NS, "menuitem");
@@ -1105,8 +1114,8 @@ FeedWriter.prototype = {
         this._document.getElementById("feedSubscriptionInfo2");
       this._contentSandbox.feedinfo2Str = this._getString(textfeedinfo2);
       this._contentSandbox.header = header;
-      codeStr = "feedinfo1.textContent = feedinfo1Str; " +
-                "feedinfo2.textContent = feedinfo2Str; " +
+      codeStr = "feedinfo1.value = feedinfo1Str; " +
+                "feedinfo2.value = feedinfo2Str; " +
                 "header.setAttribute('firstrun', 'true');"
       Cu.evalInSandbox(codeStr, this._contentSandbox);
       prefs.setBoolPref(PREF_SHOW_FIRST_RUN_UI, false);
@@ -1142,7 +1151,10 @@ FeedWriter.prototype = {
 
   // nsIFeedWriter
   init: function FW_init(aWindow) {
-    var window = aWindow;
+    // Explicitly wrap |window| in an XPCNativeWrapper to make sure
+    // it's a real native object! This will throw an exception if we
+    // get a non-native object.
+    var window = new XPCNativeWrapper(aWindow);
     this._feedURI = this._getOriginalURI(window);
     if (!this._feedURI)
       return;
@@ -1253,7 +1265,7 @@ FeedWriter.prototype = {
     var selectedItem = this._getSelectedItemFromMenulist(handlersMenuList);
 
     // Show the file picker before subscribing if the
-    // choose application menuitem was chosen using the keyboard
+    // choose application menuitem was choosen using the keyboard
     if (selectedItem.id == "chooseApplicationMenuItem") {
       if (!this._chooseClientApp())
         return;
@@ -1284,14 +1296,14 @@ FeedWriter.prototype = {
     else {
       switch (selectedItem.id) {
         case "selectedAppMenuItem":
+          prefs.setCharPref(getPrefReaderForType(feedType), "client");
           prefs.setComplexValue(getPrefAppForType(feedType), Ci.nsILocalFile, 
                                 this._selectedApp);
-          prefs.setCharPref(getPrefReaderForType(feedType), "client");
           break;
         case "defaultHandlerMenuItem":
+          prefs.setCharPref(getPrefReaderForType(feedType), "client");
           prefs.setComplexValue(getPrefAppForType(feedType), Ci.nsILocalFile, 
                                 this._defaultSystemReader);
-          prefs.setCharPref(getPrefReaderForType(feedType), "client");
           break;
         case "liveBookmarksMenuItem":
           defaultHandler = "bookmarks";
@@ -1320,7 +1332,7 @@ FeedWriter.prototype = {
   // nsIObserver
   observe: function FW_observe(subject, topic, data) {
     if (!this._window) {
-      // this._window is null unless this.init was called with a trusted
+      // this._window is null unless this.write was called with a trusted
       // window object.
       return;
     }
@@ -1360,21 +1372,26 @@ FeedWriter.prototype = {
   _setFaviconForWebReader:
   function FW__setFaviconForWebReader(aURI, aMenuItem) {
     var faviconsSvc = this._faviconService;
-    var faviconURI = null;
+    var faviconURL = null;
     try {
-      faviconURI = faviconsSvc.getFaviconForPage(aURI);
+      faviconURL = faviconsSvc.getFaviconForPage(aURI);
     }
     catch(ex) { }
 
-    if (faviconURI) {
-      var dataURL = faviconsSvc.getFaviconDataAsDataURL(faviconURI);
-      if (dataURL) {
+    if (faviconURL) {
+      var mimeType = { };
+      var bytes = faviconsSvc.getFaviconData(faviconURL, mimeType,
+                                             { /* dataLen */ });
+      if (bytes) {
+        var dataURI = "data:" + mimeType.value + ";" + "base64," +
+                      btoa(String.fromCharCode.apply(null, bytes));
+
         this._contentSandbox.menuItem = aMenuItem;
-        this._contentSandbox.dataURL = dataURL;
-        var codeStr = "menuItem.setAttribute('image', dataURL);";
+        this._contentSandbox.dataURI = dataURI;
+        var codeStr = "menuItem.setAttribute('image', dataURI);";
         Cu.evalInSandbox(codeStr, this._contentSandbox);
         this._contentSandbox.menuItem = null;
-        this._contentSandbox.dataURL = null;
+        this._contentSandbox.dataURI = null;
 
         return true;
       }
@@ -1404,10 +1421,9 @@ FeedWriter.prototype = {
    onEndUpdateBatch: function() { },
    onVisit: function() { },
    onTitleChanged: function() { },
-   onBeforeDeleteURI: function() { },
    onDeleteURI: function() { },
    onClearHistory: function() { },
-   onDeleteVisits: function() { },
+   onPageExpired: function() { },
 
   // nsIClassInfo
   getInterfaces: function FW_getInterfaces(countRef) {
@@ -1416,12 +1432,17 @@ FeedWriter.prototype = {
     return interfaces;
   },
   getHelperForLanguage: function FW_getHelperForLanguage(language) null,
+  contractID: "@mozilla.org/browser/feeds/result-writer;1",
+  classDescription: "Feed Writer",
   classID: Components.ID("{49bb6593-3aff-4eb3-a068-2712c28bd58e}"),
   implementationLanguage: Ci.nsIProgrammingLanguage.JAVASCRIPT,
   flags: Ci.nsIClassInfo.DOM_OBJECT,
+  _xpcom_categories: [{ category: "JavaScript global constructor",
+                        entry: "BrowserFeedWriter"}],
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIFeedWriter, Ci.nsIClassInfo,
                                          Ci.nsIDOMEventListener, Ci.nsIObserver,
                                          Ci.nsINavHistoryObserver])
 };
 
-var NSGetFactory = XPCOMUtils.generateNSGetFactory([FeedWriter]);
+function NSGetModule(cm, file)
+  XPCOMUtils.generateModule([FeedWriter]);

@@ -45,56 +45,6 @@
 #include "nsIServiceManager.h"
 #include <math.h>
 #include "prprf.h"
-#include "nsStaticNameTable.h"
-
-// define an array of all color names
-#define GFX_COLOR(_name, _value) #_name,
-static const char* const kColorNames[] = {
-#include "nsColorNameList.h"
-};
-#undef GFX_COLOR
-
-// define an array of all color name values
-#define GFX_COLOR(_name, _value) _value,
-static const nscolor kColors[] = {
-#include "nsColorNameList.h"
-};
-#undef GFX_COLOR
-
-#define eColorName_COUNT (NS_ARRAY_LENGTH(kColorNames))
-#define eColorName_UNKNOWN (-1)
-
-static nsStaticCaseInsensitiveNameTable* gColorTable = nsnull;
-
-void nsColorNames::AddRefTable(void) 
-{
-  NS_ASSERTION(!gColorTable, "pre existing array!");
-  if (!gColorTable) {
-    gColorTable = new nsStaticCaseInsensitiveNameTable();
-    if (gColorTable) {
-#ifdef DEBUG
-    {
-      // let's verify the table...
-      for (PRUint32 index = 0; index < eColorName_COUNT; ++index) {
-        nsCAutoString temp1(kColorNames[index]);
-        nsCAutoString temp2(kColorNames[index]);
-        ToLowerCase(temp1);
-        NS_ASSERTION(temp1.Equals(temp2), "upper case char in table");
-      }
-    }
-#endif      
-      gColorTable->Init(kColorNames, eColorName_COUNT); 
-    }
-  }
-}
-
-void nsColorNames::ReleaseTable(void)
-{
-  if (gColorTable) {
-    delete gColorTable;
-    gColorTable = nsnull;
-  }
-}
 
 static int ComponentValue(const PRUnichar* aColorSpec, int aLen, int color, int dpc)
 {
@@ -155,7 +105,9 @@ NS_GFX_(PRBool) NS_HexToRGB(const nsString& aColorSpec,
     NS_ASSERTION((r >= 0) && (r <= 255), "bad r");
     NS_ASSERTION((g >= 0) && (g <= 255), "bad g");
     NS_ASSERTION((b >= 0) && (b <= 255), "bad b");
-    *aResult = NS_RGB(r, g, b);
+    if (nsnull != aResult) {
+      *aResult = NS_RGB(r, g, b);
+    }
     return PR_TRUE;
   }
 
@@ -163,119 +115,82 @@ NS_GFX_(PRBool) NS_HexToRGB(const nsString& aColorSpec,
   return PR_FALSE;
 }
 
-// This implements part of the algorithm for legacy behavior described in
-// http://www.whatwg.org/specs/web-apps/current-work/complete/common-microsyntaxes.html#rules-for-parsing-a-legacy-color-value
+// compatible with legacy Nav behavior
 NS_GFX_(PRBool) NS_LooseHexToRGB(const nsString& aColorSpec, nscolor* aResult)
 {
-  if (aColorSpec.EqualsLiteral("transparent")) {
-    return PR_FALSE;
-  }
-
   int nameLen = aColorSpec.Length();
   const PRUnichar* colorSpec = aColorSpec.get();
-  if (nameLen > 128) {
-    nameLen = 128;
-  }
-
   if ('#' == colorSpec[0]) {
     ++colorSpec;
     --nameLen;
   }
 
-  // digits per component
-  int dpc = (nameLen + 2) / 3;
-  int newdpc = dpc;
-
-  // Use only the rightmost 8 characters of each component.
-  if (newdpc > 8) {
-    nameLen -= newdpc - 8;
-    colorSpec += newdpc - 8;
-    newdpc = 8;
-  }
-
-  // And then keep trimming characters at the left until we'd trim one
-  // that would leave a nonzero value, but not past 2 characters per
-  // component.
-  while (newdpc > 2) {
-    PRBool haveNonzero = PR_FALSE;
-    for (int c = 0; c < 3; ++c) {
-      NS_ABORT_IF_FALSE(c * dpc < nameLen,
-                        "should not pass end of string while newdpc > 2");
-      PRUnichar ch = colorSpec[c * dpc];
-      if (('1' <= ch && ch <= '9') ||
-          ('A' <= ch && ch <= 'F') ||
-          ('a' <= ch && ch <= 'f')) {
-        haveNonzero = PR_TRUE;
-        break;
-      }
+  if (3 < nameLen) {
+    // Convert the ascii to binary
+    int dpc = (nameLen / 3) + (((nameLen % 3) != 0) ? 1 : 0);
+    if (4 < dpc) {
+      dpc = 4;
     }
-    if (haveNonzero) {
-      break;
+
+    // Translate components from hex to binary
+    int r = ComponentValue(colorSpec, nameLen, 0, dpc);
+    int g = ComponentValue(colorSpec, nameLen, 1, dpc);
+    int b = ComponentValue(colorSpec, nameLen, 2, dpc);
+    NS_ASSERTION((r >= 0) && (r <= 255), "bad r");
+    NS_ASSERTION((g >= 0) && (g <= 255), "bad g");
+    NS_ASSERTION((b >= 0) && (b <= 255), "bad b");
+    if (nsnull != aResult) {
+      *aResult = NS_RGB(r, g, b);
     }
-    --newdpc;
-    --nameLen;
-    ++colorSpec;
   }
-
-  // Translate components from hex to binary
-  int r = ComponentValue(colorSpec, nameLen, 0, dpc);
-  int g = ComponentValue(colorSpec, nameLen, 1, dpc);
-  int b = ComponentValue(colorSpec, nameLen, 2, dpc);
-  NS_ASSERTION((r >= 0) && (r <= 255), "bad r");
-  NS_ASSERTION((g >= 0) && (g <= 255), "bad g");
-  NS_ASSERTION((b >= 0) && (b <= 255), "bad b");
-
-  *aResult = NS_RGB(r, g, b);
+  else {
+    if (nsnull != aResult) {
+      *aResult = NS_RGB(0, 0, 0);
+    }
+  }
   return PR_TRUE;
+}
+
+NS_GFX_(void) NS_RGBToHex(nscolor aColor, nsAString& aResult)
+{
+  char buf[10];
+  PR_snprintf(buf, sizeof(buf), "#%02x%02x%02x",
+              NS_GET_R(aColor), NS_GET_G(aColor), NS_GET_B(aColor));
+  CopyASCIItoUTF16(buf, aResult);
 }
 
 NS_GFX_(PRBool) NS_ColorNameToRGB(const nsAString& aColorName, nscolor* aResult)
 {
-  if (!gColorTable) return PR_FALSE;
-
-  PRInt32 id = gColorTable->Lookup(aColorName);
+  nsColorName id = nsColorNames::LookupName(aColorName);
   if (eColorName_UNKNOWN < id) {
-    NS_ASSERTION(PRUint32(id) < eColorName_COUNT,
-                 "gColorTable->Lookup messed up");
-    if (aResult) {
-      *aResult = kColors[id];
+    NS_ASSERTION(id < eColorName_COUNT, "LookupName mess up");
+    if (nsnull != aResult) {
+      *aResult = nsColorNames::kColors[id];
     }
     return PR_TRUE;
   }
   return PR_FALSE;
 }
 
-// Macro to blend two colors
-//
-// equivalent to target = (bg*(255-fgalpha) + fg*fgalpha)/255
-#define MOZ_BLEND(target, bg, fg, fgalpha)       \
-  FAST_DIVIDE_BY_255(target, (bg)*(255-fgalpha) + (fg)*(fgalpha))
-
 NS_GFX_(nscolor)
 NS_ComposeColors(nscolor aBG, nscolor aFG)
 {
-  // This function uses colors that are non premultiplied alpha.
+  PRIntn bgAlpha = NS_GET_A(aBG);
   PRIntn r, g, b, a;
 
-  PRIntn bgAlpha = NS_GET_A(aBG);
+  // First compute what we get drawing aBG onto RGBA(0,0,0,0)
+  MOZ_BLEND(r, 0, NS_GET_R(aBG), bgAlpha);
+  MOZ_BLEND(g, 0, NS_GET_G(aBG), bgAlpha);
+  MOZ_BLEND(b, 0, NS_GET_B(aBG), bgAlpha);
+  a = bgAlpha;
+
+  // Now draw aFG on top of that
   PRIntn fgAlpha = NS_GET_A(aFG);
-
-  // Compute the final alpha of the blended color
-  // a = fgAlpha + bgAlpha*(255 - fgAlpha)/255;
-  FAST_DIVIDE_BY_255(a, bgAlpha*(255-fgAlpha));
-  a = fgAlpha + a;
-  PRIntn blendAlpha;
-  if (a == 0) {
-    // In this case the blended color is totally trasparent,
-    // we preserve the color information of the foreground color.
-    blendAlpha = 255;
-  } else {
-    blendAlpha = (fgAlpha*255)/a;
-  }
-  MOZ_BLEND(r, NS_GET_R(aBG), NS_GET_R(aFG), blendAlpha);
-  MOZ_BLEND(g, NS_GET_G(aBG), NS_GET_G(aFG), blendAlpha);
-  MOZ_BLEND(b, NS_GET_B(aBG), NS_GET_B(aFG), blendAlpha);
-
+  MOZ_BLEND(r, r, NS_GET_R(aFG), fgAlpha);
+  MOZ_BLEND(g, g, NS_GET_G(aFG), fgAlpha);
+  MOZ_BLEND(b, b, NS_GET_B(aFG), fgAlpha);
+  MOZ_BLEND(a, a, 255, fgAlpha);
+  
   return NS_RGBA(r, g, b, a);
 }
 

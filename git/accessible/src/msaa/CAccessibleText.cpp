@@ -48,14 +48,12 @@
 #include "nsIAccessibleTypes.h"
 #include "nsIWinAccessNode.h"
 #include "nsAccessNodeWrap.h"
-#include "nsAccessibleWrap.h"
 
 #include "nsCOMPtr.h"
-#include "nsIPersistentProperties2.h"
 #include "nsString.h"
 
 #define GET_NSIACCESSIBLETEXT \
-nsCOMPtr<nsIAccessibleText> textAcc(do_QueryObject(this));\
+nsCOMPtr<nsIAccessibleText> textAcc(do_QueryInterface(this));\
 NS_ASSERTION(textAcc,\
              "Subclass of CAccessibleText doesn't implement nsIAccessibleText");\
 if (!textAcc)\
@@ -69,7 +67,7 @@ CAccessibleText::QueryInterface(REFIID iid, void** ppv)
   *ppv = NULL;
 
   if (IID_IAccessibleText == iid) {
-    nsCOMPtr<nsIAccessibleText> textAcc(do_QueryObject(this));
+    nsCOMPtr<nsIAccessibleText> textAcc(do_QueryInterface(this));
     if (!textAcc) {
       return E_NOINTERFACE;
     }
@@ -110,26 +108,32 @@ __try {
 
   GET_NSIACCESSIBLETEXT
 
+  nsCOMPtr<nsIAccessible> accessible;
   PRInt32 startOffset = 0, endOffset = 0;
-  nsCOMPtr<nsIPersistentProperties> attributes;
-  nsresult rv = textAcc->GetTextAttributes(PR_TRUE, aOffset,
-                                           &startOffset, &endOffset,
-                                           getter_AddRefs(attributes));
-  if (NS_FAILED(rv))
-    return GetHRESULT(rv);
-  
-  HRESULT hr = nsAccessibleWrap::ConvertToIA2Attributes(attributes,
-                                                        aTextAttributes);
-  if (FAILED(hr))
-    return hr;
+  textAcc->GetAttributeRange(aOffset, &startOffset, &endOffset,
+                             getter_AddRefs(accessible));
+  if (!accessible)
+    return E_FAIL;
+
+  nsCOMPtr<nsIWinAccessNode> winAccessNode(do_QueryInterface(accessible));
+  if (!winAccessNode)
+    return E_FAIL;
+
+  void *instancePtr = 0;
+  winAccessNode->QueryNativeInterface(IID_IAccessible2, &instancePtr);
+  if (!instancePtr)
+    return E_FAIL;
+
+  IAccessible2 *pAccessible2 = static_cast<IAccessible2*>(instancePtr);
+  HRESULT hr = pAccessible2->get_attributes(aTextAttributes);
+  pAccessible2->Release();
 
   *aStartOffset = startOffset;
   *aEndOffset = endOffset;
-
-  return S_OK;
+  return hr;
 
 } __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
-  return E_FAIL;
+  return E_NOTIMPL;
 }
 
 STDMETHODIMP
@@ -146,7 +150,7 @@ __try {
     return GetHRESULT(rv);
 
   *aOffset = offset;
-  return offset != -1 ? S_OK : S_FALSE;
+  return S_OK;
 
 } __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return E_FAIL;

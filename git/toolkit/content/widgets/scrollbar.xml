@@ -5,7 +5,11 @@
    xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
    xmlns:xbl="http://www.mozilla.org/xbl">
   
-  <binding id="thumb" extends="xul:button" />
+  <binding id="thumb" extends="xul:button">
+    <content>
+      <xul:gripper/>
+    </content>
+  </binding>
 
   <binding id="scrollbar-base">
     <handlers>
@@ -17,7 +21,7 @@
   </binding>
 
   <binding id="scrollbar" extends="chrome://global/content/bindings/scrollbar.xml#scrollbar-base">
-    <content allowclickthrough="always">
+    <content>
       <xul:scrollbarbutton sbattr="scrollbar-up-top" type="decrement" xbl:inherits="curpos,maxpos,disabled,sborient=orient"/>
       <xul:scrollbarbutton sbattr="scrollbar-down-top" type="increment" xbl:inherits="curpos,maxpos,disabled,sborient=orient"/>
       <xul:slider flex="1" xbl:inherits="disabled,curpos,maxpos,pageincrement,increment,orient,sborient=orient">

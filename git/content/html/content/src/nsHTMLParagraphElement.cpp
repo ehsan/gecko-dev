@@ -39,6 +39,7 @@
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsMappedAttributes.h"
 #include "nsRuleData.h"
 
@@ -49,7 +50,7 @@ class nsHTMLParagraphElement : public nsGenericHTMLElement,
                                public nsIDOMHTMLParagraphElement
 {
 public:
-  nsHTMLParagraphElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLParagraphElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLParagraphElement();
 
   // nsISupports
@@ -75,15 +76,13 @@ public:
   virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-
-  virtual nsXPCClassInfo* GetClassInfo();
 };
 
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Paragraph)
 
 
-nsHTMLParagraphElement::nsHTMLParagraphElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLParagraphElement::nsHTMLParagraphElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -96,14 +95,12 @@ nsHTMLParagraphElement::~nsHTMLParagraphElement()
 NS_IMPL_ADDREF_INHERITED(nsHTMLParagraphElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLParagraphElement, nsGenericElement)
 
-DOMCI_NODE_DATA(HTMLParagraphElement, nsHTMLParagraphElement)
 
 // QueryInterface implementation for nsHTMLParagraphElement
-NS_INTERFACE_TABLE_HEAD(nsHTMLParagraphElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLParagraphElement,
-                                   nsIDOMHTMLParagraphElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLParagraphElement,
-                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLParagraphElement,
+                                     nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED1(nsHTMLParagraphElement,
+                                nsIDOMHTMLParagraphElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLParagraphElement)
 
 

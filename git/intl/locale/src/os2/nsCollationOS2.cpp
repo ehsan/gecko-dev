@@ -51,6 +51,7 @@
 #include "nsIServiceManager.h"
 #include "nsIComponentManager.h"
 #include "nsLocaleCID.h"
+#include "nsILocaleService.h"
 #include "nsIPlatformCharset.h"
 #include "nsIOS2Locale.h"
 #include "nsCOMPtr.h"
@@ -83,7 +84,7 @@ nsresult nsCollationOS2::Initialize(nsILocale *locale)
 
   mCollation = new nsCollation;
   if (mCollation == NULL) {
-    NS_ERROR("mCollation creation failed");
+    NS_ASSERTION(0, "mCollation creation failed");
     return NS_ERROR_OUT_OF_MEMORY;
   }
 

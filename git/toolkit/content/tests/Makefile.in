@@ -47,10 +47,8 @@ MODULE		= test_toolkit_general
 
 XPCSHELL_TESTS = unit
 
+ifdef MOZ_MOCHITEST
 DIRS = chrome widgets
-
-ifneq (mobile,$(MOZ_BUILD_APP))
-DIRS += browser
 endif
 
 include $(topsrcdir)/config/rules.mk

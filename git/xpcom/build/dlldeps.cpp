@@ -38,14 +38,9 @@
 // Force references to all of the symbols that we want exported from
 // the dll that are located in the .lib files we link with
 
-#ifdef XP_WIN
+#ifndef XP_OS2
 #include <windows.h>
-#include "nsWindowsRegKey.h"
-#ifdef DEBUG
-#include "pure.h"
 #endif
-#endif
-#include "nsXULAppAPI.h"
 #include "nsXPCOMGlue.h"
 #include "nsVoidArray.h"
 #include "nsTArray.h"
@@ -67,6 +62,7 @@
 #include "xpt_xdr.h"
 #include "xptcall.h"
 #include "nsILocalFile.h"
+#include "nsIGenericFactory.h"
 #include "nsIPipe.h"
 #include "nsStreamUtils.h"
 #include "nsWeakReference.h"
@@ -83,6 +79,9 @@
 #include "nsStringEnumerator.h"
 #include "nsIInputStreamTee.h"
 #include "nsCheapSets.h"
+#if defined(DEBUG) && !defined(XP_OS2)
+#include "pure.h"
+#endif
 #include "nsHashKeys.h"
 #include "nsTHashtable.h"
 #include "pldhash.h"
@@ -99,13 +98,10 @@
 #include "nsCycleCollector.h"
 #include "nsThreadUtils.h"
 #include "nsTObserverArray.h"
-#include "nsWildCard.h"
-#include "mozilla/Mutex.h"
-#include "mozilla/Monitor.h"
-#include "mozilla/CondVar.h"
-#include "mozilla/TimeStamp.h"
 
-using namespace mozilla;
+#if !defined(WINCE) && !defined(XP_OS2)
+#include "nsWindowsRegKey.h"
+#endif
 
 class nsCStringContainer : private nsStringContainer_base { };
 class nsStringContainer : private nsStringContainer_base { };
@@ -177,7 +173,12 @@ void XXXNeverCalled()
     NS_ProxyRelease(nsnull, nsnull, PR_FALSE);
     XPT_DoString(nsnull, nsnull, nsnull);
     XPT_DoHeader(nsnull, nsnull, nsnull);
+#if defined (DEBUG) && !defined (WINCE) && !defined(XP_OS2)
+    PurePrintf(0);
+#endif
     NS_InvokeByIndex(nsnull, 0, 0, nsnull);
+    NS_NewGenericFactory(nsnull, nsnull);
+    NS_NewGenericModule2(nsnull, nsnull);
     NS_GetWeakReference(nsnull);
     nsCOMPtr<nsISupports> dummyFoo(do_GetInterface(nsnull));
     NS_NewStorageStream(0,0, nsnull);
@@ -203,10 +204,10 @@ void XXXNeverCalled()
     new nsVariant();
     nsUnescape(nsnull);
     nsEscape(nsnull, url_XAlphas);
-    nsTArray<nsString> array;
+    nsStringArray array;
     NS_NewStringEnumerator(nsnull, &array);
     NS_NewAdoptingStringEnumerator(nsnull, &array);
-    nsTArray<nsCString> carray;
+    nsCStringArray carray;
     NS_NewUTF8StringEnumerator(nsnull, &carray);
     NS_NewAdoptingUTF8StringEnumerator(nsnull, &carray);
     nsVoidableString str3;
@@ -226,6 +227,8 @@ void XXXNeverCalled()
       CallCreateInstance("", nsnull, id, nsnull);
       CallGetClassObject(id, id, nsnull);
       CallGetClassObject("", id, nsnull);
+
+      nsServiceManager::GetGlobalServiceManager(nsnull);
     }
     NS_NewInterfaceRequestorAggregation(nsnull, nsnull, nsnull);
     NS_NewHashPropertyBag(nsnull);
@@ -277,13 +280,9 @@ void XXXNeverCalled()
 
     nsXPCOMCycleCollectionParticipant();
     nsCycleCollector_collect();
-#ifdef XP_WIN
-    sXPCOMHasLoadedNewDLLs = !sXPCOMHasLoadedNewDLLs;
-    NS_SetHasLoadedNewDLLs();
+
+#if !defined(WINCE) && !defined(XP_OS2)
     NS_NewWindowsRegKey(nsnull);
-#if defined (DEBUG) && !defined (WINCE)
-    PurePrintf(0);
-#endif
 #endif
 
     NS_NewThread(nsnull, nsnull);
@@ -295,16 +294,4 @@ void XXXNeverCalled()
     NS_ProcessPendingEvents(nsnull, 0);
     NS_HasPendingEvents(nsnull);
     NS_ProcessNextEvent(nsnull, PR_FALSE);
-    Mutex theMutex("dummy");
-    Monitor theMonitor("dummy2");
-    CondVar theCondVar(theMutex, "dummy3");
-    TimeStamp theTimeStamp = TimeStamp::Now();
-    TimeDuration theTimeDuration = TimeDuration::FromMilliseconds(0);
-
-    NS_WildCardValid((const char *)nsnull);
-    NS_WildCardValid((const PRUnichar *)nsnull);
-    NS_WildCardMatch((const char *)nsnull, (const char *)nsnull, PR_FALSE);
-    NS_WildCardMatch((const PRUnichar *)nsnull, (const PRUnichar *)nsnull, PR_FALSE);
-    XRE_AddStaticComponent(NULL);
-    XRE_AddManifestLocation(NS_COMPONENT_LOCATION, NULL);
 }

@@ -17,7 +17,6 @@
  * 
  * Contributor(s): Björn Jacke (bjoern.jacke@gmx.de)
  *                 László Németh (nemethl@gyorsposta.hu)
- *                 Caolan McNamara (caolanm@redhat.com)
  * 
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -47,23 +46,21 @@
 #ifndef __PHONETHXX__
 #define __PHONETHXX__
 
-#define HASHSIZE          256
 #define MAXPHONETLEN      256
 #define MAXPHONETUTF8LEN  (MAXPHONETLEN * 4)
-
-#include "hunvisapi.h"
 
 struct phonetable {
   char utf8;
   cs_info * lang;
   int num;
   char * * rules;
-  int hash[HASHSIZE];
+  static const int hash_size = 256;
+  int hash[hash_size];
 };
 
-LIBHUNSPELL_DLL_EXPORTED void init_phonet_hash(phonetable & parms);
+void init_phonet_hash(phonetable & parms);
 
-LIBHUNSPELL_DLL_EXPORTED int phonet (const char * inword, char * target,
+int phonet (const char * inword, char * target,
               int len, phonetable & phone);
 
 #endif

@@ -43,7 +43,6 @@
  */
 
 #include "nsNullPrincipal.h"
-#include "nsNullPrincipalURI.h"
 #include "nsMemory.h"
 #include "nsIUUIDGenerator.h"
 #include "nsID.h"
@@ -53,8 +52,8 @@
 #include "nsDOMError.h"
 #include "nsScriptSecurityManager.h"
 
-NS_IMPL_CLASSINFO(nsNullPrincipal, NULL, nsIClassInfo::MAIN_THREAD_ONLY,
-                  NS_NULLPRINCIPAL_CID)
+static NS_DEFINE_CID(kSimpleURICID, NS_SIMPLEURI_CID);
+
 NS_IMPL_QUERY_INTERFACE2_CI(nsNullPrincipal,
                             nsIPrincipal,
                             nsISerializable)
@@ -78,7 +77,7 @@ nsNullPrincipal::Release()
   nsrefcnt count = PR_AtomicDecrement((PRInt32 *)&mJSPrincipals.refcount);
   NS_LOG_RELEASE(this, count, "nsNullPrincipal");
   if (count == 0) {
-    delete this;
+    NS_DELETEXPCOM(this);
   }
 
   return count;
@@ -120,14 +119,22 @@ nsNullPrincipal::Init()
 
   str.Append(NS_NULLPRINCIPAL_PREFIX);
   str.Append(chars);
-
+  
   if (str.Length() != prefixLen + suffixLen) {
     NS_WARNING("Out of memory allocating null-principal URI");
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  mURI = new nsNullPrincipalURI(str);
-  NS_ENSURE_TRUE(mURI, NS_ERROR_OUT_OF_MEMORY);
+  // Use CID so we're sure we get the impl we want.  Note that creating the URI
+  // directly is ok because we have our own private URI scheme.  In effect,
+  // we're being a protocol handler.
+  mURI = do_CreateInstance(kSimpleURICID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = mURI->SetSpec(str);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  NS_TryToSetImmutable(mURI);
 
   return mJSPrincipals.Init(this, str);
 }
@@ -251,21 +258,6 @@ NS_IMETHODIMP
 nsNullPrincipal::GetURI(nsIURI** aURI)
 {
   return NS_EnsureSafeToReturn(mURI, aURI);
-}
-
-NS_IMETHODIMP
-nsNullPrincipal::GetCsp(nsIContentSecurityPolicy** aCsp)
-{
-  // CSP on a null principal makes no sense
-  *aCsp = nsnull;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsNullPrincipal::SetCsp(nsIContentSecurityPolicy* aCsp)
-{
-  // CSP on a null principal makes no sense
-  return NS_ERROR_NOT_AVAILABLE;
 }
 
 NS_IMETHODIMP

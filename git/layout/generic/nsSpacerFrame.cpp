@@ -50,11 +50,8 @@
 #define TYPE_LINE  1            // line-break + vertical space
 #define TYPE_IMAGE 2            // acts like a sized image with nothing to see
 
-class SpacerFrame : public nsFrame
-{
+class SpacerFrame : public nsFrame {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   friend nsIFrame* NS_NewSpacerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   // nsIHTMLReflow
@@ -65,7 +62,7 @@ public:
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus);
 
-  PRUint8 GetSpacerType();
+  PRUint8 GetType();
 
 protected:
   SpacerFrame(nsStyleContext* aContext) : nsFrame(aContext) {}
@@ -76,16 +73,8 @@ protected:
 nsIFrame*
 NS_NewSpacerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
-#ifdef DEBUG
-  const nsStyleDisplay* disp = aContext->GetStyleDisplay();
-  NS_ASSERTION(!disp->IsAbsolutelyPositioned() && !disp->IsFloating(),
-               "Spacers should not be positioned and should not float");
-#endif
-
   return new (aPresShell) SpacerFrame(aContext);
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(SpacerFrame)
 
 SpacerFrame::~SpacerFrame()
 {
@@ -126,7 +115,7 @@ SpacerFrame::Reflow(nsPresContext*          aPresContext,
   if (percentBase.height == NS_UNCONSTRAINEDSIZE)
     percentBase.height = 0;
 
-  if (GetSpacerType() == TYPE_LINE)
+  if (GetType() == TYPE_LINE)
     aStatus = NS_INLINE_LINE_BREAK_AFTER(NS_FRAME_COMPLETE);
 
   GetDesiredSize(aMetrics, percentBase);
@@ -150,7 +139,7 @@ SpacerFrame::GetDesiredSize(nsHTMLReflowMetrics& aMetrics, nsSize aPercentBase)
 
   const nsStylePosition* position = GetStylePosition();
 
-  PRUint8 type = GetSpacerType();
+  PRUint8 type = GetType();
   switch (type) {
   case TYPE_WORD:
     break;
@@ -172,7 +161,6 @@ SpacerFrame::GetDesiredSize(nsHTMLReflowMetrics& aMetrics, nsSize aPercentBase)
       float factor = position->mWidth.GetPercentValue();
       aMetrics.width = NSToCoordRound(factor * aPercentBase.width);
     }
-    // else treat enumerated values and calc() like 'auto'
 
     // height
     unit = position->mHeight.GetUnit();
@@ -195,7 +183,7 @@ SpacerFrame::GetDesiredSize(nsHTMLReflowMetrics& aMetrics, nsSize aPercentBase)
 }
 
 PRUint8
-SpacerFrame::GetSpacerType()
+SpacerFrame::GetType()
 {
   PRUint8 type = TYPE_WORD;
   static nsIContent::AttrValuesArray strings[] =

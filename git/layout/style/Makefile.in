@@ -41,24 +41,44 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-DIRS		= xbl-marquee
+DIRS = xbl-marquee
 
-ifdef ENABLE_TESTS
-TOOL_DIRS	= test
+ifdef MOZ_MOCHITEST
+DIRS		+= test
 endif
 
 MODULE		= layout
 LIBRARY_NAME	= gkstyle_s
 LIBXUL_LIBRARY	= 1
 
-EXPORTS_NAMESPACES = mozilla/css
+REQUIRES	= xpcom \
+		  string \
+		  dom \
+		  content \
+		  gfx \
+		  thebes \
+		  widget \
+		  caps \
+		  locale \
+		  unicharutil \
+		  js \
+		  necko \
+		  mimetype \
+		  webshell \
+		  uconv \
+		  xuldoc \
+		  xpconnect \
+		  view \
+		  intl \
+		  pref \
+		  imglib2 \
+		  $(NULL)
 
 EXPORTS		= \
 		nsCSSAnonBoxList.h \
 		nsCSSAnonBoxes.h \
 		nsCSSKeywordList.h \
 		nsCSSKeywords.h \
-		nsCSSParser.h \
 		nsCSSPropList.h \
 		nsCSSProperty.h \
 		nsCSSProps.h \
@@ -66,52 +86,48 @@ EXPORTS		= \
 		nsCSSPseudoClasses.h \
 		nsCSSPseudoElementList.h \
 		nsCSSPseudoElements.h \
-		nsCSSRuleProcessor.h \
-		nsCSSStyleSheet.h \
 		nsCSSStruct.h \
 		nsCSSValue.h \
-		nsDOMCSSAttrDeclaration.h \
 		nsDOMCSSDeclaration.h \
 		nsICSSDeclaration.h \
 		nsICSSGroupRule.h \
 		nsICSSImportRule.h \
+		nsICSSLoader.h \
 		nsICSSLoaderObserver.h \
 		nsICSSNameSpaceRule.h \
+		nsICSSOMFactory.h \
+		nsICSSParser.h \
 		nsICSSPseudoComparator.h \
 		nsICSSRule.h \
-		nsICSSRuleList.h \
 		nsICSSStyleRule.h \
 		nsICSSStyleRuleDOMWrapper.h \
+		nsICSSStyleSheet.h \
+		nsIComputedDOMStyle.h \
+		nsIHTMLCSSStyleSheet.h \
+		nsIInspectorCSSUtils.h \
 		nsIStyleRule.h \
 		nsIStyleRuleProcessor.h \
 		nsIStyleSheet.h \
 		nsLayoutStylesheetCache.h \
 		nsRuleData.h \
 		nsRuleNode.h \
-		nsRuleProcessorData.h \
 		nsRuleWalker.h \
 		nsStyleContext.h \
 		nsStyleCoord.h \
 		nsStyleSet.h \
 		nsStyleStruct.h \
 		nsStyleStructFwd.h \
-		nsStyleStructInlines.h \
 		nsStyleStructList.h \
-		nsStyleTransformMatrix.h \
 		nsStyleUtil.h \
-		$(NULL)
-
-EXPORTS_mozilla/css = \
-		Declaration.h \
-		Loader.h \
 		$(NULL)
 
 CPPSRCS		= \
 		nsCSSAnonBoxes.cpp \
 		nsCSSDataBlock.cpp \
-		Declaration.cpp \
+		nsCSSDeclaration.cpp \
 		nsCSSKeywords.cpp \
-		Loader.cpp \
+		nsCSSLoader.cpp \
+		nsCSSOMFactory.cpp \
 		nsCSSParser.cpp \
 		nsCSSProps.cpp \
 		nsCSSPseudoClasses.cpp \
@@ -130,22 +146,17 @@ CPPSRCS		= \
 		nsDOMCSSRGBColor.cpp \
 		nsDOMCSSRect.cpp \
 		nsDOMCSSValueList.cpp \
-		nsFontFaceLoader.cpp \
 		nsHTMLCSSStyleSheet.cpp \
 		nsHTMLStyleSheet.cpp \
+		nsInspectorCSSUtils.cpp \
 		nsLayoutStylesheetCache.cpp \
-		nsMediaFeatures.cpp \
 		nsROCSSPrimitiveValue.cpp \
-		nsRuleData.cpp \
 		nsRuleNode.cpp \
-		nsStyleAnimation.cpp \
 		nsStyleContext.cpp \
 		nsStyleCoord.cpp \
 		nsStyleSet.cpp \
 		nsStyleStruct.cpp \
-		nsStyleTransformMatrix.cpp \
 		nsStyleUtil.cpp \
-		nsTransitionManager.cpp \
 		$(NULL)
 
 FORCE_STATIC_LIB = 1
@@ -153,9 +164,6 @@ FORCE_STATIC_LIB = 1
 include $(topsrcdir)/config/rules.mk
 
 LOCAL_INCLUDES	= \
-		-I$(srcdir)/../base \
-		-I$(srcdir)/../generic \
-		-I$(srcdir)/../xul/base/src \
 		-I$(srcdir)/../../content/base/src \
 		-I$(srcdir)/../../content/html/content/src \
 		-I$(srcdir)/../../content/xbl/src \
@@ -163,11 +171,29 @@ LOCAL_INCLUDES	= \
 		$(NULL)
 
 _FILES	= \
+	ua.css \
+	html.css \
+	quirk.css \
+	viewsource.css \
+	arrow.gif \
+	arrowd.gif \
 	contenteditable.css \
 	designmode.css \
 	$(NULL)
 
 GARBAGE		+= $(addprefix $(DIST)/bin/res/,$(_FILES))
+
+FORMS_CSS_SRC = $(srcdir)/forms.css
+PREPROCESS_FORMS_CSS = $(PYTHON) $(MOZILLA_DIR)/config/Preprocessor.py --marker=% $(DEFINES) $(ACDEFINES) $(FORMS_CSS_SRC)
+
+$(DIST)/bin/res/forms.css $(DESTDIR)$(mozappdir)/res/forms.css: $(FORMS_CSS_SRC) Makefile
+	if test ! -d $(@D); then rm -rf $(@D); $(NSINSTALL) -D $(@D); else true; fi
+	rm -f $@
+	$(PREPROCESS_FORMS_CSS) > $@
+
+libs:: $(DIST)/bin/res/forms.css
+
+install:: $(DESTDIR)$(mozappdir)/res/forms.css
 
 libs:: $(_FILES)
 	$(INSTALL) $^ $(DIST)/bin/res

@@ -56,7 +56,6 @@ public:
   nsSVGPathList() : mArguments(nsnull), mNumCommands(0), mNumArguments(0) {}
   ~nsSVGPathList() { Clear(); }
   void Playback(gfxContext *aCtx);
-  already_AddRefed<gfxFlattenedPath> GetFlattenedPath(const gfxMatrix &aMatrix);
   void Clear();
 
 protected:
@@ -76,8 +75,8 @@ friend class nsSVGTextPathFrame;
 
 protected:
   friend nsresult NS_NewSVGPathElement(nsIContent **aResult,
-                                       already_AddRefed<nsINodeInfo> aNodeInfo);
-  nsSVGPathElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+                                       nsINodeInfo *aNodeInfo);
+  nsSVGPathElement(nsINodeInfo *aNodeInfo);
   virtual ~nsSVGPathElement();
 
 public:
@@ -93,28 +92,25 @@ public:
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGPathElementBase::)
 
   // nsIContent interface
-  NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* name) const;
+  NS_IMETHODIMP_(PRBool) IsAttributeMapped(const nsIAtom* name) const;
 
   // nsISVGValueObserver
-  NS_IMETHOD WillModifySVGObservable(nsISVGValue* observable,
+  NS_IMETHOD DidModifySVGObservable (nsISVGValue* observable,
                                      nsISVGValue::modificationType aModType);
-  NS_IMETHOD DidModifySVGObservable(nsISVGValue* observable,
-                                    nsISVGValue::modificationType aModType);
 
   // nsSVGPathGeometryElement methods:
-  virtual PRBool AttributeDefinesGeometry(const nsIAtom *aName);
+  virtual PRBool IsDependentAttribute(nsIAtom *aName);
   virtual PRBool IsMarkable();
   virtual void GetMarkPoints(nsTArray<nsSVGMark> *aMarks);
   virtual void ConstructPath(gfxContext *aCtx);
 
-  virtual already_AddRefed<gfxFlattenedPath> GetFlattenedPath(const gfxMatrix &aMatrix);
+  virtual already_AddRefed<gfxFlattenedPath> GetFlattenedPath(nsIDOMSVGMatrix *aMatrix);
 
   // nsIContent interface
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
   virtual nsresult BeforeSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
                                  const nsAString* aValue, PRBool aNotify);
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
 
   // nsSVGElement method

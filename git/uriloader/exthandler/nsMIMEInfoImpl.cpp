@@ -40,6 +40,7 @@
 #include "nsXPIDLString.h"
 #include "nsReadableUtils.h"
 #include "nsStringEnumerator.h"
+#include "nsIProcess.h"
 #include "nsILocalFile.h"
 #include "nsIFileURL.h"
 #include "nsEscape.h"
@@ -62,7 +63,9 @@ NS_INTERFACE_MAP_END_THREADSAFE
 
 // Constructors for a MIME handler.
 nsMIMEInfoBase::nsMIMEInfoBase(const char *aMIMEType) :
-    mSchemeOrType(aMIMEType),
+    mMacType(0),
+    mMacCreator(0),
+    mType(aMIMEType),
     mClass(eMIMEInfo),
     mPreferredAction(nsIMIMEInfo::saveToDisk),
     mAlwaysAskBeforeHandling(PR_TRUE)
@@ -70,7 +73,9 @@ nsMIMEInfoBase::nsMIMEInfoBase(const char *aMIMEType) :
 }
 
 nsMIMEInfoBase::nsMIMEInfoBase(const nsACString& aMIMEType) :
-    mSchemeOrType(aMIMEType),
+    mMacType(0),
+    mMacCreator(0),
+    mType(aMIMEType),
     mClass(eMIMEInfo),
     mPreferredAction(nsIMIMEInfo::saveToDisk),
     mAlwaysAskBeforeHandling(PR_TRUE)
@@ -83,7 +88,9 @@ nsMIMEInfoBase::nsMIMEInfoBase(const nsACString& aMIMEType) :
 // for both and distinguish between the two kinds of handlers via the aClass
 // argument to this method, which can be either eMIMEInfo or eProtocolInfo.
 nsMIMEInfoBase::nsMIMEInfoBase(const nsACString& aType, HandlerClass aClass) :
-    mSchemeOrType(aType),
+    mMacType(0),
+    mMacCreator(0),
+    mType(aType),
     mClass(aClass),
     mPreferredAction(nsIMIMEInfo::saveToDisk),
     mAlwaysAskBeforeHandling(PR_TRUE)
@@ -105,12 +112,12 @@ nsMIMEInfoBase::ExtensionExists(const nsACString& aExtension, PRBool *_retval)
 {
     NS_ASSERTION(!aExtension.IsEmpty(), "no extension");
     PRBool found = PR_FALSE;
-    PRUint32 extCount = mExtensions.Length();
+    PRUint32 extCount = mExtensions.Count();
     if (extCount < 1) return NS_OK;
 
     for (PRUint8 i=0; i < extCount; i++) {
-        const nsCString& ext = mExtensions[i];
-        if (ext.Equals(aExtension, nsCaseInsensitiveCStringComparator())) {
+        nsCString* ext = (nsCString*)mExtensions.CStringAt(i);
+        if (ext->Equals(aExtension, nsCaseInsensitiveCStringComparator())) {
             found = PR_TRUE;
             break;
         }
@@ -123,10 +130,10 @@ nsMIMEInfoBase::ExtensionExists(const nsACString& aExtension, PRBool *_retval)
 NS_IMETHODIMP
 nsMIMEInfoBase::GetPrimaryExtension(nsACString& _retval)
 {
-    if (!mExtensions.Length())
-      return NS_ERROR_NOT_INITIALIZED;
+    PRUint32 extCount = mExtensions.Count();
+    if (extCount < 1) return NS_ERROR_NOT_INITIALIZED;
 
-    _retval = mExtensions[0];
+    _retval = *(mExtensions.CStringAt(0));
     return NS_OK;    
 }
 
@@ -134,21 +141,21 @@ NS_IMETHODIMP
 nsMIMEInfoBase::SetPrimaryExtension(const nsACString& aExtension)
 {
   NS_ASSERTION(!aExtension.IsEmpty(), "no extension");
-  PRUint32 extCount = mExtensions.Length();
+  PRUint32 extCount = mExtensions.Count();
   PRUint8 i;
   PRBool found = PR_FALSE;
   for (i=0; i < extCount; i++) {
-    const nsCString& ext = mExtensions[i];
-    if (ext.Equals(aExtension, nsCaseInsensitiveCStringComparator())) {
+    nsCString* ext = (nsCString*)mExtensions.CStringAt(i);
+    if (ext->Equals(aExtension, nsCaseInsensitiveCStringComparator())) {
       found = PR_TRUE;
       break;
     }
   }
   if (found) {
-    mExtensions.RemoveElementAt(i);
+    mExtensions.RemoveCStringAt(i);
   }
 
-  mExtensions.InsertElementAt(0, aExtension);
+  mExtensions.InsertCStringAt(aExtension, 0);
   
   return NS_OK;
 }
@@ -156,27 +163,27 @@ nsMIMEInfoBase::SetPrimaryExtension(const nsACString& aExtension)
 NS_IMETHODIMP
 nsMIMEInfoBase::AppendExtension(const nsACString& aExtension)
 {
-  mExtensions.AppendElement(aExtension);
+  mExtensions.AppendCString(aExtension);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsMIMEInfoBase::GetType(nsACString& aType)
 {
-    if (mSchemeOrType.IsEmpty())
+    if (mType.IsEmpty())
         return NS_ERROR_NOT_INITIALIZED;
 
-    aType = mSchemeOrType;
+    aType = mType;
     return NS_OK;
 }
 
 NS_IMETHODIMP
 nsMIMEInfoBase::GetMIMEType(nsACString& aMIMEType)
 {
-    if (mSchemeOrType.IsEmpty())
+    if (mType.IsEmpty())
         return NS_ERROR_NOT_INITIALIZED;
 
-    aMIMEType = mSchemeOrType;
+    aMIMEType = mType;
     return NS_OK;
 }
 
@@ -203,8 +210,44 @@ nsMIMEInfoBase::Equals(nsIMIMEInfo *aMIMEInfo, PRBool *_retval)
     nsresult rv = aMIMEInfo->GetMIMEType(type);
     if (NS_FAILED(rv)) return rv;
 
-    *_retval = mSchemeOrType.Equals(type);
+    *_retval = mType.Equals(type);
 
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsMIMEInfoBase::GetMacType(PRUint32 *aMacType)
+{
+    *aMacType = mMacType;
+
+    if (!mMacType)
+        return NS_ERROR_NOT_INITIALIZED;
+
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsMIMEInfoBase::SetMacType(PRUint32 aMacType)
+{
+    mMacType = aMacType;
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsMIMEInfoBase::GetMacCreator(PRUint32 *aMacCreator)
+{
+    *aMacCreator = mMacCreator;
+
+    if (!mMacCreator)
+        return NS_ERROR_NOT_INITIALIZED;
+
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsMIMEInfoBase::SetMacCreator(PRUint32 aMacCreator)
+{
+    mMacCreator = aMacCreator;
     return NS_OK;
 }
 
@@ -217,11 +260,11 @@ nsMIMEInfoBase::SetFileExtensions(const nsACString& aExtensions)
     PRInt32 breakLocation = -1;
     while ( (breakLocation= extList.FindChar(',') )!= -1)
     {
-        mExtensions.AppendElement(Substring(extList.get(), extList.get() + breakLocation));
+        mExtensions.AppendCString(Substring(extList.get(), extList.get() + breakLocation));
         extList.Cut(0, breakLocation+1 );
     }
     if ( !extList.IsEmpty() )
-        mExtensions.AppendElement( extList );
+        mExtensions.AppendCString( extList );
     return NS_OK;
 }
 
@@ -367,55 +410,32 @@ nsMIMEInfoBase::LaunchWithURI(nsIURI* aURI,
 void
 nsMIMEInfoBase::CopyBasicDataTo(nsMIMEInfoBase* aOther)
 {
-  aOther->mSchemeOrType = mSchemeOrType;
+  aOther->mType = mType;
   aOther->mDefaultAppDescription = mDefaultAppDescription;
   aOther->mExtensions = mExtensions;
-}
 
-/* static */
-already_AddRefed<nsIProcess>
-nsMIMEInfoBase::InitProcess(nsIFile* aApp, nsresult* aResult)
-{
-  NS_ASSERTION(aApp, "Unexpected null pointer, fix caller");
-
-  nsCOMPtr<nsIProcess> process = do_CreateInstance(NS_PROCESS_CONTRACTID,
-                                                   aResult);
-  if (NS_FAILED(*aResult))
-    return nsnull;
-
-  *aResult = process->Init(aApp);
-  if (NS_FAILED(*aResult))
-    return nsnull;
-
-  return process.forget();
+  aOther->mMacType = mMacType;
+  aOther->mMacCreator = mMacCreator;
 }
 
 /* static */
 nsresult
 nsMIMEInfoBase::LaunchWithIProcess(nsIFile* aApp, const nsCString& aArg)
 {
+  NS_ASSERTION(aApp, "Unexpected null pointer, fix caller");
+
   nsresult rv;
-  nsCOMPtr<nsIProcess> process = InitProcess(aApp, &rv);
+  nsCOMPtr<nsIProcess> process = do_CreateInstance(NS_PROCESS_CONTRACTID, &rv);
   if (NS_FAILED(rv))
+    return rv;
+
+  if (NS_FAILED(rv = process->Init(aApp)))
     return rv;
 
   const char *string = aArg.get();
 
-  return process->Run(PR_FALSE, &string, 1);
-}
-
-/* static */
-nsresult
-nsMIMEInfoBase::LaunchWithIProcess(nsIFile* aApp, const nsString& aArg)
-{
-  nsresult rv;
-  nsCOMPtr<nsIProcess> process = InitProcess(aApp, &rv);
-  if (NS_FAILED(rv))
-    return rv;
-
-  const PRUnichar *string = aArg.get();
-
-  return process->Runw(PR_FALSE, &string, 1);
+  PRUint32 pid;
+  return process->Run(PR_FALSE, &string, 1, &pid);
 }
 
 // nsMIMEInfoImpl implementation

@@ -89,20 +89,20 @@ function test()
             testInstantiate(compInfo.name, compInfo.cid, compInfo.scriptable);
             testInstantiate(compInfo.name, compInfo.progid, compInfo.scriptable);
         }
-        // Test a nonexistent COM object
+        // Test a non-existant COM object
         var obj;
         try
         {
-            obj = COMObject("dwbnonexistentobject");
-            printFailure("var obj = COMObject('dwbnonexistentobject'); did not throw an exception");
+            obj = COMObject("dwbnonexistantobject");
+            printFailure("var obj = COMObject('dwbnonexistantobject'); did not throw an exception");
         }
         catch (e)
         {
         }
         try
         {
-            obj = COMObject("dwbnonexistentobject");
-            printFailure("obj = COMObject('dwbnonexistentobject'); did not throw an exception");
+            obj = COMObject("dwbnonexistantobject");
+            printFailure("obj = COMObject('dwbnonexistantobject'); did not throw an exception");
         }
         catch (e)
         {
@@ -117,6 +117,6 @@ function test()
     } 
     catch (e)
     {
-        reportFailure("Unhandled exception occurred:" + e.toString());
+        reportFailure("Unhandled exception occured:" + e.toString());
     }
 }

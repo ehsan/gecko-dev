@@ -7,38 +7,6 @@
 <!ENTITY mainWindow.titlemodifier "&brandFullName;">
 <!-- LOCALIZATION NOTE (mainWindow.titlemodifiermenuseparator): DONT_TRANSLATE -->
 <!ENTITY mainWindow.titlemodifiermenuseparator " - ">
-<!-- LOCALIZATION NOTE (mainWindow.titlePrivateBrowsingSuffix): This will be appended to the window's title
-                                                                inside the private browsing mode -->
-<!ENTITY mainWindow.titlePrivateBrowsingSuffix "(Private Browsing)">
-
-<!-- Tab context menu -->
-<!ENTITY  moveTabTo.label                    "Move This Tab To…">
-<!ENTITY  moveTabTo.accesskey                "M">
-<!ENTITY  createNewGroup.label               "Create New Group">
-<!ENTITY  createNewGroup.accesskey           "C">
-<!ENTITY  namedGroups.label                  "Named Groups">
-<!ENTITY  reloadTab.label                    "Reload Tab">
-<!ENTITY  reloadTab.accesskey                "R">
-<!ENTITY  reloadAllTabs.label                "Reload All Tabs">
-<!ENTITY  reloadAllTabs.accesskey            "A">
-<!ENTITY  closeOtherTabs.label               "Close Other Tabs">
-<!ENTITY  closeOtherTabs.accesskey           "o">
-<!ENTITY  openTabInNewWindow.label           "Open in a New Window">
-<!ENTITY  openTabInNewWindow.accesskey       "W">
-<!ENTITY  pinTab.label                       "Make into App Tab">
-<!ENTITY  pinTab.accesskey                   "p">
-<!ENTITY  unpinTab.label                     "Make into Normal Tab">
-<!ENTITY  unpinTab.accesskey                 "k">
-<!ENTITY  bookmarkThisTab.label              "Bookmark This Tab">
-<!ENTITY  bookmarkThisTab.accesskey          "B">
-<!ENTITY  bookmarkAllTabs.label              "Bookmark All Tabs…">
-<!ENTITY  bookmarkAllTabs.accesskey          "T">
-<!ENTITY  undoCloseTab.label                 "Undo Close Tab">
-<!ENTITY  undoCloseTab.accesskey             "U">
-<!ENTITY  closeTab.label                     "Close Tab">
-<!ENTITY  closeTab.accesskey                 "c">
-
-<!ENTITY  listAllTabs.label      "List all tabs">
 
 <!ENTITY tabCmd.label "New Tab">
 <!ENTITY tabCmd.accesskey "T">
@@ -61,8 +29,6 @@
 <!ENTITY goOfflineCmd.label "Work Offline">
 <!ENTITY goOfflineCmd.accesskey "w">
 
-<!ENTITY menubarCmd.label "Menu Bar">
-<!ENTITY menubarCmd.accesskey "M">
 <!ENTITY navbarCmd.label "Navigation Toolbar">
 <!ENTITY navbarCmd.accesskey "N">
 <!ENTITY personalbarCmd.label "Bookmarks Toolbar">
@@ -79,9 +45,6 @@
 <!ENTITY pageInfoCmd.commandkey "i">
 <!ENTITY fullScreenCmd.label "Full Screen">
 <!ENTITY fullScreenCmd.accesskey "F">
-<!ENTITY fullScreenCmd.macCommandKey "f">
-<!ENTITY showAllTabsCmd.label "Show All Tabs">
-<!ENTITY showAllTabsCmd.accesskey "A">
 
 <!ENTITY fullScreenMinimize.tooltip "Minimize">
 <!ENTITY fullScreenRestore.tooltip "Restore">
@@ -103,7 +66,6 @@
 <!ENTITY addCurPagesCmd.label "Bookmark All Tabs…">
 <!ENTITY organizeBookmarks.label "Organize Bookmarks…">
 <!ENTITY bookmarkAllCmd.label "Bookmark All Tabs…">
-<!ENTITY bookmarksToolbarChevron.tooltip "Show more bookmarks">
 
 <!ENTITY backCmd.label                "Back">
 <!ENTITY backCmd.accesskey            "B">
@@ -120,11 +82,9 @@
 <!ENTITY stopCmd.macCommandKey        ".">
 <!ENTITY stopButton.tooltip           "Stop loading this page">
 <!ENTITY goEndCap.tooltip             "Go to the address in the Location Bar">
-<!ENTITY feedButton.tooltip           "Subscribe to this page…">
 <!ENTITY printButton.label            "Print">
 <!ENTITY printButton.tooltip          "Print this page">
 
-<!ENTITY backForwardItem.title        "Back/Forward">
 <!ENTITY locationItem.title           "Location">
 <!ENTITY searchItem.title             "Search">
 <!ENTITY throbberItem.title           "Activity Indicator">
@@ -132,24 +92,12 @@
 
 <!-- Toolbar items --> 
 <!ENTITY  homeButton.label            "Home">
-<!ENTITY tabViewButton2.label         "Tab Groups">
-<!ENTITY tabViewButton2.tooltip       "Group Your Tabs">
 
 <!ENTITY bookmarksButton.label          "Bookmarks">
 <!ENTITY bookmarksButton.tooltip        "Display your bookmarks">
-<!ENTITY bookmarksButton.accesskey  "B">
-<!ENTITY bookmarksCmd.commandkey "b">
-
-<!ENTITY bookmarksMenuButton.label          "Bookmarks">
-<!ENTITY bookmarksMenuButton.tooltip        "Display your bookmarks">
-<!ENTITY viewBookmarksSidebar.label         "Show in Sidebar">
-<!ENTITY viewBookmarksToolbar.label         "View Bookmarks Toolbar">
-
-<!-- LOCALIZATION NOTE (bookmarksSidebarGtkCmd.commandkey): This command
-  -  key should not contain the letters A-F, since these are reserved
-  -  shortcut keys on Linux. -->
-<!ENTITY bookmarksGtkCmd.commandkey "o">
-<!ENTITY bookmarksWinCmd.commandkey "i">
+<!ENTITY bookmarksSidebarCmd.accesskey  "B">
+<!ENTITY bookmarksSidebarCmd.commandkey "b">
+<!ENTITY bookmarksSidebarWinCmd.commandkey "i">
 
 <!ENTITY historyButton.label            "History">
 <!ENTITY historyButton.tooltip          "Display pages you've viewed recently">
@@ -169,30 +117,12 @@
 <!ENTITY downloads.commandkey         "j">
 <!ENTITY downloadsUnix.commandkey     "y">
 <!ENTITY addons.label                 "Add-ons">
+<!ENTITY addons.tooltip               "Show and Manage installed Add-ons">
 <!ENTITY addons.accesskey             "A">
 
 <!ENTITY errorConsoleCmd.label        "Error Console">
 <!ENTITY errorConsoleCmd.accesskey    "C">
 <!ENTITY errorConsoleCmd.commandkey   "j">
-
-<!ENTITY webConsoleCmd.label          "Web Console">
-<!ENTITY webConsoleCmd.accesskey      "W">
-<!ENTITY webConsoleCmd.commandkey     "k">
-
-<!ENTITY inspectMenu.label            "Inspect">
-<!ENTITY inspectMenu.accesskey        "T">
-<!ENTITY inspectMenu.commandkey       "I">
-
-<!ENTITY inspectPanelTitle.label      "HTML">
-<!ENTITY inspectButton.label          "Inspect">
-<!ENTITY inspectButton.accesskey      "I">
-<!ENTITY inspectNextButton.label      "Next">
-<!ENTITY inspectNextButton.accesskey  "N">
-<!ENTITY inspectPreviousButton.label  "Previous">
-<!ENTITY inspectPreviousButton.accesskey "P">
-<!ENTITY inspectStyleButton.label     "Style">
-<!ENTITY inspectStyleButton.accesskey "S">
-<!ENTITY inspectStylePanelTitle.label  "Style">
 
 <!ENTITY fileMenu.label         "File"> 
 <!ENTITY fileMenu.accesskey       "F">
@@ -228,57 +158,35 @@
 <!ENTITY preferencesCmdUnix.label       "Preferences">
 <!ENTITY preferencesCmdUnix.accesskey     "n"> 
 
-<!ENTITY clearRecentHistory.label               "Clear Recent History…">
-<!ENTITY clearRecentHistory.accesskey           "H">
-
-<!-- LOCALIZATION NOTE : These two strings can share an access key beause they never appear together on the menu -->
-<!ENTITY privateBrowsingCmd.start.label         "Start Private Browsing">
-<!ENTITY privateBrowsingCmd.start.accesskey     "P">
-<!ENTITY privateBrowsingCmd.stop.label          "Stop Private Browsing">
-<!ENTITY privateBrowsingCmd.stop.accesskey      "P">
-<!ENTITY privateBrowsingCmd.commandkey          "P">
+<!ENTITY clearPrivateDataCmd.label            "Clear Private Data">
+<!ENTITY clearPrivateDataCmd.accesskey        "P">
 
 <!ENTITY viewMenu.label         "View"> 
 <!ENTITY viewMenu.accesskey       "V"> 
-<!ENTITY showTabView2.label     "Group Your Tabs…">
-<!ENTITY showTabView2.accesskey     "G">
 <!ENTITY viewToolbarsMenu.label       "Toolbars"> 
 <!ENTITY viewToolbarsMenu.accesskey     "T"> 
 <!ENTITY viewSidebarMenu.label "Sidebar">
 <!ENTITY viewSidebarMenu.accesskey "e">
 <!ENTITY viewCustomizeToolbar.label       "Customize…"> 
 <!ENTITY viewCustomizeToolbar.accesskey     "C">
-<!ENTITY viewTabsOnTop.label            "Tabs on Top">
-<!ENTITY viewTabsOnTop.accesskey        "T">
 
 <!ENTITY historyMenu.label "History">
 <!ENTITY historyMenu.accesskey "s">
 <!ENTITY historyUndoMenu.label "Recently Closed Tabs">
-<!-- LOCALIZATION NOTE (historyUndoWindowMenu): see bug 394759 -->
-<!ENTITY historyUndoWindowMenu.label "Recently Closed Windows">
 
 <!ENTITY historyHomeCmd.label "Home">
 <!ENTITY showAllHistoryCmd2.label "Show All History">
 <!ENTITY showAllHistoryCmd.commandkey "H">
 
-<!ENTITY appMenuPrintCmd.label "Print">
-<!ENTITY appMenuCustomize.label "Customize">
-<!ENTITY appMenuToolbarLayout.label "Toolbar Layout…">
-<!ENTITY appMenuSidebars.label "Sidebars">
-<!ENTITY appMenuHelp.label "Help">
-
-<!ENTITY developerMenu.label "Developer">
-
 <!ENTITY openCmd.commandkey           "l">
-<!ENTITY urlbar.placeholder           "Go to a Web Site">
+<!ENTITY urlbar.emptyText             "Search Bookmarks and History">
 <!ENTITY urlbar.accesskey             "d">
-<!ENTITY urlbar.switchToTab.label     "Switch to tab:">
 
 <!-- 
   Comment duplicated from browser-sets.inc:
 
   Search Command Key Logic works like this:
-
+  
   Unix: Ctrl+J (0.8, 0.9 support)
         Ctrl+K (cross platform binding)
   Mac:  Ctrl+K (cross platform binding)
@@ -293,22 +201,20 @@
   for people to switch to Linux.
 
   Do *not* tamper with these values without talking to ben@mozilla.org
-
+  
  -->
 <!ENTITY searchFocus.commandkey       "k">
 <!ENTITY searchFocus.commandkey2      "e">
 <!ENTITY searchFocusUnix.commandkey   "j">
 
-<!ENTITY openLinkCmdInTab.label       "Open Link in New Tab">
-<!ENTITY openLinkCmdInTab.accesskey   "T">
 <!ENTITY openLinkCmd.label            "Open Link in New Window">
 <!ENTITY openLinkCmd.accesskey        "W">
-<!ENTITY openLinkCmdInCurrent.label     "Open Link">
-<!ENTITY openLinkCmdInCurrent.accesskey "O">
-<!ENTITY openFrameCmdInTab.label      "Open Frame in New Tab">
-<!ENTITY openFrameCmdInTab.accesskey  "T">
+<!ENTITY openLinkCmdInTab.label       "Open Link in New Tab">
+<!ENTITY openLinkCmdInTab.accesskey   "T">
 <!ENTITY openFrameCmd.label           "Open Frame in New Window">
 <!ENTITY openFrameCmd.accesskey       "W">
+<!ENTITY openFrameCmdInTab.label      "Open Frame in New Tab">
+<!ENTITY openFrameCmdInTab.accesskey  "T">
 <!ENTITY showOnlyThisFrameCmd.label     "Show Only This Frame">
 <!ENTITY showOnlyThisFrameCmd.accesskey "S">
 <!ENTITY reloadCmd.commandkey         "r">
@@ -316,8 +222,6 @@
 <!ENTITY reloadFrameCmd.accesskey     "R">
 <!ENTITY viewPartialSourceForSelectionCmd.label "View Selection Source">
 <!ENTITY viewPartialSourceForMathMLCmd.label    "View MathML Source">
-<!-- LOCALIZATION NOTE (viewPartialSourceCmd.accesskey): This accesskey is used for both 
-         viewPartialSourceForSelectionCmd.label and viewPartialSourceForMathMLCmd.label -->
 <!ENTITY viewPartialSourceCmd.accesskey "e">
 <!ENTITY viewPageSourceCmd.label      "View Page Source">
 <!ENTITY viewPageSourceCmd.accesskey  "V">
@@ -327,14 +231,10 @@
 <!ENTITY viewPageInfoCmd.accesskey    "I">
 <!ENTITY viewFrameInfoCmd.label       "View Frame Info">
 <!ENTITY viewFrameInfoCmd.accesskey   "I">
-<!ENTITY reloadImageCmd.label         "Reload Image">
-<!ENTITY reloadImageCmd.accesskey     "R">
+<!ENTITY showImageCmd.label           "Show Image">
+<!ENTITY showImageCmd.accesskey       "S">
 <!ENTITY viewImageCmd.label           "View Image">
 <!ENTITY viewImageCmd.accesskey       "I">
-<!ENTITY viewImageInfoCmd.label       "View Image Info">
-<!ENTITY viewImageInfoCmd.accesskey   "f">
-<!ENTITY viewVideoCmd.label           "View Video">
-<!ENTITY viewVideoCmd.accesskey       "I">
 <!ENTITY viewBGImageCmd.label         "View Background Image">
 <!ENTITY viewBGImageCmd.accesskey     "w">
 <!ENTITY setDesktopBackgroundCmd.label      "Set As Desktop Background…">
@@ -362,47 +262,23 @@
 <!ENTITY sendLinkCmd.accesskey        "d">
 <!ENTITY saveImageCmd.label           "Save Image As…">
 <!ENTITY saveImageCmd.accesskey       "v">
-<!ENTITY saveVideoCmd.label           "Save Video As…">
-<!ENTITY saveVideoCmd.accesskey       "v">
-<!ENTITY saveAudioCmd.label           "Save Audio As…">
-<!ENTITY saveAudioCmd.accesskey       "v">
 <!ENTITY sendImageCmd.label           "Send Image…">
 <!ENTITY sendImageCmd.accesskey       "n">
-<!ENTITY sendVideoCmd.label           "Send Video…">
-<!ENTITY sendVideoCmd.accesskey       "n">
-<!ENTITY sendAudioCmd.label           "Send Audio…">
-<!ENTITY sendAudioCmd.accesskey       "n">
 <!ENTITY copyLinkCmd.label            "Copy Link Location">
 <!ENTITY copyLinkCmd.accesskey        "a">
+<!ENTITY copyLinkTextCmd.label        "Copy Link Text">
+<!ENTITY copyLinkTextCmd.accesskey    "x">
 <!ENTITY copyImageCmd.label           "Copy Image Location">
 <!ENTITY copyImageCmd.accesskey       "o">
 <!ENTITY copyImageContentsCmd.label   "Copy Image">
 <!ENTITY copyImageContentsCmd.accesskey  "y"> 
-<!ENTITY copyVideoURLCmd.label        "Copy Video Location">
-<!ENTITY copyVideoURLCmd.accesskey    "o">
-<!ENTITY copyAudioURLCmd.label        "Copy Audio Location">
-<!ENTITY copyAudioURLCmd.accesskey    "o">
+<!ENTITY blockImageCmd.accesskey       "B">
+<!ENTITY metadataCmd.label            "Properties">
+<!ENTITY metadataCmd.accesskey        "P">
 <!ENTITY copyEmailCmd.label           "Copy Email Address">
 <!ENTITY copyEmailCmd.accesskey       "E">
 <!ENTITY thisFrameMenu.label              "This Frame">
 <!ENTITY thisFrameMenu.accesskey          "h">
-
-<!-- Media (video/audio) controls -->
-<!ENTITY mediaPlay.label             "Play">
-<!ENTITY mediaPlay.accesskey         "P">
-<!ENTITY mediaPause.label            "Pause">
-<!ENTITY mediaPause.accesskey        "P">
-<!ENTITY mediaMute.label             "Mute">
-<!ENTITY mediaMute.accesskey         "M">
-<!ENTITY mediaUnmute.label           "Unmute">
-<!ENTITY mediaUnmute.accesskey       "m">
-<!ENTITY mediaShowControls.label     "Show Controls">
-<!ENTITY mediaShowControls.accesskey "C">
-<!ENTITY mediaHideControls.label     "Hide Controls">
-<!ENTITY mediaHideControls.accesskey "C">
-<!ENTITY videoFullScreen.label       "Full Screen">
-<!ENTITY videoFullScreen.accesskey   "F">
-
 
 <!-- LOCALIZATION NOTE :
 fullZoomEnlargeCmd.commandkey3, fullZoomReduceCmd.commandkey2 and
@@ -438,7 +314,6 @@ you can use these alternative items. Otherwise, their values should be empty.  -
 <!ENTITY cutButton.tooltip              "Cut">
 <!ENTITY copyButton.tooltip             "Copy">
 <!ENTITY pasteButton.tooltip            "Paste">
-<!ENTITY fullScreenButton.tooltip       "Display the window in full screen">
 
 <!ENTITY quitApplicationCmdWin.label       "Exit"> 
 <!ENTITY quitApplicationCmdWin.accesskey   "x">
@@ -490,6 +365,7 @@ you can use these alternative items. Otherwise, their values should be empty.  -
 
 <!ENTITY editBookmark.done.label                     "Done">
 <!ENTITY editBookmark.cancel.label                   "Cancel">
+<!ENTITY editBookmark.removeBookmark.label           "Remove Bookmark">
 <!ENTITY editBookmark.removeBookmark.accessKey       "R">
 <!ENTITY editBookmark.undo.label                     "Undo">
 <!ENTITY editBookmark.undo.accessKey                 "U">
@@ -514,26 +390,3 @@ just addresses the organization to follow, e.g. "This site is run by " -->
 <!ENTITY identity.moreInfoLinkText "More Information…">
 
 <!ENTITY downloadMonitor2.tooltip "Click to open downloads window">
-
-<!ENTITY allTabs.filter.emptyText "Search Tabs">
-<!-- Name for the tabs toolbar as spoken by screen readers.
-     The word "toolbar" is appended automatically and should not be contained below! -->
-<!ENTITY tabsToolbar.label "Browser tabs">
-
-<!-- LOCALIZATION NOTE (syncTabsMenu.label): This appears in the history menu -->
-<!ENTITY syncTabsMenu.label     "Tabs From Other Computers">
-
-<!ENTITY syncBrand.shortName.label  "Sync">
-
-<!ENTITY syncMenu.label               "&syncBrand.shortName.label;">
-<!-- LOCALIZATION NOTE (sync.menu.accesskey): This is part of the tools menu, so
-                                              don't use a conflicting access key -->
-<!ENTITY syncMenu.accesskey           "Y">
-<!ENTITY syncSetup.label              "Set Up &syncBrand.shortName.label;…">
-<!ENTITY syncSetup.accesskey          "Y">
-<!ENTITY syncLogInItem.label          "Connect">
-<!ENTITY syncLogInItem.accesskey      "C">
-<!ENTITY syncLogOutItem.label         "Disconnect">
-<!ENTITY syncLogOutItem.accesskey     "D">
-<!ENTITY syncSyncNowItem.label        "Sync Now">
-<!ENTITY syncSyncNowItem.accesskey    "S">

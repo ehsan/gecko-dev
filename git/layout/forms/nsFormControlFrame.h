@@ -49,6 +49,7 @@
 class nsFormControlFrame : public nsLeafFrame,
                            public nsIFormControlFrame
 {
+
 public:
   /**
     * Main constructor
@@ -63,8 +64,7 @@ public:
       ~(nsIFrame::eReplaced | nsIFrame::eReplacedContainsBlock));
   }
 
-  NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
+  NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
 
   /** 
     * Respond to a gui event
@@ -85,7 +85,7 @@ public:
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&      aStatus);
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
 
   // new behavior
 
@@ -100,10 +100,10 @@ public:
   static nsresult RegUnRegAccessKey(nsIFrame * aFrame, PRBool aDoReg);
 
   /**
-   * Returns the usable screen rect in app units, eg the rect where we can
-   * draw dropdowns.
+   * Helper routine to that returns the height of the screen
+   *
    */
-  static nsRect GetUsableScreenRect(nsPresContext* aPresContext);
+  static nsresult GetScreenHeight(nsPresContext* aPresContext, nscoord& aHeight);
 
 protected:
 
@@ -124,6 +124,11 @@ protected:
     */
 
   void GetCurrentCheckState(PRBool* aState);
+
+private:
+  NS_IMETHOD_(nsrefcnt) AddRef() { return NS_OK; }
+  NS_IMETHOD_(nsrefcnt) Release() { return NS_OK; }
+
 };
 
 #endif

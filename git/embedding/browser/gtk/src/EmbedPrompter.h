@@ -38,7 +38,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsStringGlue.h"
+#include "nsString.h"
 #include <gtk/gtk.h>
 
 #define EMBED_MAX_BUTTONS 3
@@ -108,6 +108,6 @@ private:
     GtkWidget   *mUserField;
     GtkWidget   *mPassField;
     GtkWidget   *mTextField;
-    GtkWidget   *mComboBox;
+    GtkWidget   *mOptionMenu;
     GtkWidget   *mCheckBox;
 };

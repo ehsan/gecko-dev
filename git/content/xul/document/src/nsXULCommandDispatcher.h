@@ -55,7 +55,7 @@
 #include "nsCycleCollectionParticipant.h"
 
 class nsIDOMElement;
-class nsPIWindowRoot;
+class nsIFocusController;
 
 class nsXULCommandDispatcher : public nsIDOMXULCommandDispatcher,
                                public nsSupportsWeakReference
@@ -74,9 +74,7 @@ public:
 
     void Disconnect();
 protected:
-    already_AddRefed<nsPIWindowRoot> GetWindowRoot();
-
-    nsIContent* GetRootFocusedContentAndWindow(nsPIDOMWindow** aWindow);
+    nsIFocusController* GetFocusController();
 
     nsCOMPtr<nsIDocument> mDocument;
 

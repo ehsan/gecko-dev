@@ -77,7 +77,7 @@ nsXMLPrettyPrinter::PrettyPrint(nsIDocument* aDocument,
     *aDidPrettyPrint = PR_FALSE;
     
     // Check for iframe with display:none. Such iframes don't have presshells
-    if (!aDocument->GetShell()) {
+    if (!aDocument->GetPrimaryShell()) {
         return NS_OK;
     }
 
@@ -238,7 +238,8 @@ nsXMLPrettyPrinter::AttributeChanged(nsIDocument* aDocument,
                                      nsIContent* aContent,
                                      PRInt32 aNameSpaceID,
                                      nsIAtom* aAttribute,
-                                     PRInt32 aModType)
+                                     PRInt32 aModType,
+                                     PRUint32 aStateMask)
 {
     MaybeUnhook(aContent);
 }
@@ -246,7 +247,6 @@ nsXMLPrettyPrinter::AttributeChanged(nsIDocument* aDocument,
 void
 nsXMLPrettyPrinter::ContentAppended(nsIDocument* aDocument,
                                     nsIContent* aContainer,
-                                    nsIContent* aFirstNewContent,
                                     PRInt32 aNewIndexInContainer)
 {
     MaybeUnhook(aContainer);
@@ -265,8 +265,7 @@ void
 nsXMLPrettyPrinter::ContentRemoved(nsIDocument* aDocument,
                                    nsIContent* aContainer,
                                    nsIContent* aChild,
-                                   PRInt32 aIndexInContainer,
-                                   nsIContent* aPreviousSibling)
+                                   PRInt32 aIndexInContainer)
 {
     MaybeUnhook(aContainer);
 }

@@ -38,7 +38,8 @@
 
 #include "nsEditor.h"
 
-#include "nsCSSStyleSheet.h"
+#include "nsIPresShell.h"
+#include "nsICSSStyleSheet.h"
 #include "nsIDocument.h"
 #include "nsIDocumentObserver.h"
 #include "nsISelectionController.h"
@@ -78,26 +79,17 @@ AddStyleSheetTxn::AddStyleSheetTxn()
 {
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(AddStyleSheetTxn)
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(AddStyleSheetTxn, EditTxn)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mSheet)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(AddStyleSheetTxn, EditTxn)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mSheet, nsIStyleSheet)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(AddStyleSheetTxn)
-NS_INTERFACE_MAP_END_INHERITING(EditTxn)
-
 NS_IMETHODIMP
-AddStyleSheetTxn::Init(nsIEditor *aEditor, nsCSSStyleSheet *aSheet)
+AddStyleSheetTxn::Init(nsIEditor *aEditor, nsICSSStyleSheet *aSheet)
 {
-  NS_ENSURE_TRUE(aEditor && aSheet, NS_ERROR_INVALID_ARG);
+  if (!aEditor)
+    return NS_ERROR_INVALID_ARG;
+
+  if (!aSheet)
+    return NS_ERROR_INVALID_ARG;
 
   mEditor = aEditor;
-  mSheet = aSheet;
+  mSheet = do_QueryInterface(aSheet);
   
   return NS_OK;
 }
@@ -106,7 +98,8 @@ AddStyleSheetTxn::Init(nsIEditor *aEditor, nsCSSStyleSheet *aSheet)
 NS_IMETHODIMP
 AddStyleSheetTxn::DoTransaction()
 {
-  NS_ENSURE_TRUE(mEditor && mSheet, NS_ERROR_NOT_INITIALIZED);
+  if (!mEditor || !mSheet)
+    return NS_ERROR_NOT_INITIALIZED;
   
   AddStyleSheet(mEditor, mSheet);
   return NS_OK;
@@ -115,7 +108,8 @@ AddStyleSheetTxn::DoTransaction()
 NS_IMETHODIMP
 AddStyleSheetTxn::UndoTransaction()
 {
-  NS_ENSURE_TRUE(mEditor && mSheet, NS_ERROR_NOT_INITIALIZED);
+  if (!mEditor || !mSheet)
+    return NS_ERROR_NOT_INITIALIZED;
   
   RemoveStyleSheet(mEditor, mSheet);
   return NS_OK;
@@ -139,27 +133,18 @@ RemoveStyleSheetTxn::RemoveStyleSheetTxn()
 {
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(RemoveStyleSheetTxn)
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(RemoveStyleSheetTxn, EditTxn)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mSheet)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(RemoveStyleSheetTxn, EditTxn)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mSheet, nsIStyleSheet)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(RemoveStyleSheetTxn)
-NS_INTERFACE_MAP_END_INHERITING(EditTxn)
-
 NS_IMETHODIMP
-RemoveStyleSheetTxn::Init(nsIEditor *aEditor, nsCSSStyleSheet *aSheet)
+RemoveStyleSheetTxn::Init(nsIEditor *aEditor, nsICSSStyleSheet *aSheet)
 {
-  NS_ENSURE_TRUE(aEditor && aSheet, NS_ERROR_INVALID_ARG);
+  if (!aEditor)
+    return NS_ERROR_INVALID_ARG;
+
+  if (!aSheet)
+    return NS_ERROR_INVALID_ARG;
 
   mEditor = aEditor;
-  mSheet = aSheet;
-
+  mSheet = do_QueryInterface(aSheet);
+  
   return NS_OK;
 }
 
@@ -167,7 +152,8 @@ RemoveStyleSheetTxn::Init(nsIEditor *aEditor, nsCSSStyleSheet *aSheet)
 NS_IMETHODIMP
 RemoveStyleSheetTxn::DoTransaction()
 {
-  NS_ENSURE_TRUE(mEditor && mSheet, NS_ERROR_NOT_INITIALIZED);
+  if (!mEditor || !mSheet)
+    return NS_ERROR_NOT_INITIALIZED;
 
   RemoveStyleSheet(mEditor, mSheet);
   return NS_OK;
@@ -176,7 +162,8 @@ RemoveStyleSheetTxn::DoTransaction()
 NS_IMETHODIMP
 RemoveStyleSheetTxn::UndoTransaction()
 {
-  NS_ENSURE_TRUE(mEditor && mSheet, NS_ERROR_NOT_INITIALIZED);
+  if (!mEditor || !mSheet)
+    return NS_ERROR_NOT_INITIALIZED;
 
   AddStyleSheet(mEditor, mSheet);
   return NS_OK;

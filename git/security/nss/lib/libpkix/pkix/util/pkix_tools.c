@@ -75,8 +75,6 @@ PKIX_UInt32 stackPosition;
 PKIX_UInt32 *fnStackInvCountArr;
 char **fnStackNameArr;
 PLHashTable *fnInvTable;
-PKIX_UInt32 testStartFnStackPosition;
-char *errorFnStackString;
 #endif /* PKIX_OBJECT_LEAK_TEST */
 
 /* --Private-Functions-------------------------------------------- */
@@ -221,14 +219,10 @@ pkix_Throw(
 #ifdef PKIX_OBJECT_LEAK_TEST        
         noErrorState = PKIX_TRUE;
         if (pkixLog) {
-#ifdef PKIX_ERROR_DESCRIPTION            
             PR_LOG(pkixLog, 4, ("Error in function \"%s\":\"%s\" with cause \"%s\"\n",
                                 funcName, PKIX_ErrorText[errorCode],
                                 (cause ? PKIX_ErrorText[cause->errCode] : "null")));
-#else
-            PR_LOG(pkixLog, 4, ("Error in function \"%s\": error code \"%d\"\n",
-                                funcName, errorCode));
-#endif /* PKIX_ERROR_DESCRIPTION */
+
             PORT_Assert(strcmp(funcName, "PKIX_PL_Object_DecRef"));
         }
 #endif /* PKIX_OBJECT_LEAK_TEST */
@@ -395,10 +389,7 @@ pkix_hash(
         PKIX_UInt32 hash;
 
         PKIX_ENTER(OBJECT, "pkix_hash");
-        if (length != 0) {
-                PKIX_NULLCHECK_ONE(bytes);
-        }
-        PKIX_NULLCHECK_ONE(pHash);
+        PKIX_NULLCHECK_TWO(bytes, pHash);
 
         hash = 0;
         for (i = 0; i < length; i++) {
@@ -971,10 +962,10 @@ pkix_CacheCert_Lookup(
         PKIX_PL_Date *cacheValidUntilDate = NULL;
         PKIX_CertSelector *certSel = NULL;
         PKIX_Error *cachedCertError = NULL;
-        PKIX_Error *selectorError = NULL;
         PKIX_CertSelector_MatchCallback selectorMatch = NULL;
         PKIX_Int32 cmpValidTimeResult = PKIX_FALSE;
         PKIX_Int32 cmpCacheTimeResult = 0;
+        PKIX_Boolean certMatch = PKIX_FALSE;
         PKIX_UInt32 numItems = 0;
         PKIX_UInt32 i;
 
@@ -1098,16 +1089,22 @@ pkix_CacheCert_Lookup(
                             goto cleanup;
                         }
 
-                        selectorError = selectorMatch(certSel, cert, plContext);
-                        if (!selectorError){
+                        PKIX_CHECK(selectorMatch
+                                    (certSel,
+                                    cert,
+                                    &certMatch,
+                                    plContext),
+                                    PKIX_SELECTORMATCHFAILED);
+
+                        if (certMatch){
                             /* put on the return list */
                             PKIX_CHECK(PKIX_List_AppendItem
                                    (selCertList,
                                    (PKIX_PL_Object *)cert,
                                    plContext),
                                   PKIX_LISTAPPENDITEMFAILED);
-                        } else {
-                            PKIX_DECREF(selectorError);
+
+                            *pFound = PKIX_TRUE;
                         }
 
                         PKIX_DECREF(cert);
@@ -1146,7 +1143,6 @@ cleanup:
         PKIX_DECREF(selCertList);
         PKIX_DECREF(invalidAfterDate);
         PKIX_DECREF(cachedCertError);
-        PKIX_DECREF(selectorError);
 
         PKIX_RETURN(BUILD);
 }
@@ -1476,15 +1472,16 @@ cleanup:
 
 #ifdef PKIX_OBJECT_LEAK_TEST
 
-/* TEST_START_FN and testStartFnStackPosition define at what state
+/* TEST_START_FN and TEST_START_FN_STACK_POS define at what state
  * of the stack the object leak testing should begin. The condition
  * in pkix_CheckForGeneratedError works the following way: do leak
- * testing if at position testStartFnStackPosition in stack array
+ * testing if at position TEST_START_FN_STACK_POS in stack array
  * (fnStackNameArr) we have called function TEST_START_FN.
  * Note, that stack array get filled only when executing libpkix
  * functions.
  * */
 #define TEST_START_FN "PKIX_BuildChain"
+#define TEST_START_FN_STACK_POS 2
 
 PKIX_Error*
 pkix_CheckForGeneratedError(PKIX_StdVars * stdVars, 
@@ -1494,12 +1491,10 @@ pkix_CheckForGeneratedError(PKIX_StdVars * stdVars,
                             void * plContext)
 {
     PKIX_Error *genErr = NULL;
-    PKIX_UInt32 pos = 0;
-    PKIX_UInt32 strLen = 0;
 
     if (fnName) { 
-        if (fnStackNameArr[testStartFnStackPosition] == NULL ||
-            strcmp(fnStackNameArr[testStartFnStackPosition], TEST_START_FN)
+        if (fnStackNameArr[TEST_START_FN_STACK_POS] == NULL ||
+          strcmp(fnStackNameArr[TEST_START_FN_STACK_POS], TEST_START_FN)
             ) {
             /* return with out error if not with in boundary */
             return NULL;
@@ -1535,16 +1530,6 @@ pkix_CheckForGeneratedError(PKIX_StdVars * stdVars,
     noErrorState = PKIX_TRUE;
     genErr = PKIX_DoThrow(stdVars, errClass, PKIX_MEMLEAKGENERATEDERROR,
                           errClass, plContext);
-    while(fnStackNameArr[pos]) {
-        strLen += PORT_Strlen(fnStackNameArr[pos++]) + 1;
-    }
-    strLen += 1; /* end of line. */
-    pos = 0;
-    errorFnStackString = PORT_ZAlloc(strLen);
-    while(fnStackNameArr[pos]) {
-        strcat(errorFnStackString, "/");
-        strcat(errorFnStackString, fnStackNameArr[pos++]);
-    }
     noErrorState = PKIX_FALSE;
     
     return genErr;

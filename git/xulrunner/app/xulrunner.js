@@ -37,7 +37,7 @@
 #filter substitution
 
 // We need to override the default values of these preferences since all.js
-// assumes these are in the navigator package, which for us is nonexistent.
+// assumes these are in the navigator package, which for us is non-existant.
 // XXX(darin): perhaps all.js should not be seamonkey specific
 pref("general.useragent.locale", "@AB_CD@");
 pref("font.language.group", "chrome://global/locale/intl.properties");
@@ -48,7 +48,7 @@ pref("intl.charsetmenu.browser.more2",  "chrome://global/locale/intl.properties"
 pref("intl.charsetmenu.browser.more3",  "chrome://global/locale/intl.properties");
 pref("intl.charsetmenu.browser.more4",  "chrome://global/locale/intl.properties");
 pref("intl.charsetmenu.browser.more5",  "chrome://global/locale/intl.properties");
-pref("intl.charsetmenu.browser.unicode",  "UTF-8, UTF-16LE, UTF-16BE, UTF-32, UTF-32LE, UTF-32BE");
+pref("intl.charsetmenu.browser.unicode",  "chrome://global/locale/intl.properties");
 pref("intl.charset.detector", "chrome://global/locale/intl.properties");
 pref("intl.charset.default",  "chrome://global-platform/locale/intl.properties");
 pref("intl.menuitems.alwaysappendaccesskeys","chrome://global/locale/intl.properties");

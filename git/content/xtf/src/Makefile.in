@@ -45,6 +45,21 @@ include $(DEPTH)/config/autoconf.mk
 MODULE		= content
 LIBRARY_NAME	= gkcontentxtf_s
 LIBXUL_LIBRARY  = 1
+REQUIRES	= xpcom \
+		  string \
+		  layout \
+		  widget \
+		  gfx \
+		  thebes \
+		  dom \
+		  js \
+		  locale \
+		  pref \
+		  necko \
+		  xpconnect \
+		  webshell \
+		  unicharutil \
+		  $(NULL)
 
 CPPSRCS		= \
 		nsXMLContentBuilder.cpp \
@@ -74,5 +89,3 @@ INCLUDES += 	\
 		-I$(srcdir)/../../base/src \
 		-I$(srcdir)/../../../layout/html/base/src \
 		$(NULL)
-
-DEFINES += -D_IMPL_NS_LAYOUT

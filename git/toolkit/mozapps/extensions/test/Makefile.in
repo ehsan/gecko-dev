@@ -39,35 +39,30 @@ DEPTH = ../../../..
 topsrcdir = @top_srcdir@
 srcdir = @srcdir@
 VPATH = @srcdir@
-ADDONSRC = $(srcdir)/addons
-TESTROOT = $(CURDIR)/$(DEPTH)/_tests/xpcshell/$(MODULE)
-TESTXPI = $(TESTROOT)/xpcshell/addons
-relativesrcdir  = toolkit/mozapps/extensions/test
+ADDONSRC = $(srcdir)/unit/addons
+TESTROOT = $(shell cd $(DEPTH) && pwd)/_tests/xpcshell-simple/$(MODULE)
+TESTPROFILE = $(TESTROOT)/profile
+TESTXPI = $(TESTROOT)/unit/addons
 
 include $(DEPTH)/config/autoconf.mk
 
 MODULE = test_extensionmanager
 
-ifneq (mobile,$(MOZ_BUILD_APP))
- DIRS +=  \
-    xpinstall \
-    browser \
-    $(NULL)
-endif
-
 XPCSHELL_TESTS = \
-  xpcshell \
+  unit \
   $(NULL)
 
 include $(topsrcdir)/config/rules.mk
 
 libs::
 	rm -rf $(TESTXPI)
-	$(NSINSTALL) -D $(TESTXPI)
+	mkdir -p $(TESTXPI)
 	if [ -d $(ADDONSRC) ]; then \
 		$(EXIT_ON_ERROR) \
 		for dir in $(ADDONSRC)/*; do \
-			base=`basename $$dir` ; \
-			(cd $$dir && zip -r $(TESTXPI)/$$base.xpi *) \
+			if [ "$$dir" != "$(ADDONSRC)/CVS" ]; then \
+				base=`basename $$dir` ; \
+				(cd $$dir && zip $(TESTXPI)/$$base.xpi *) \
+			fi \
 		done \
 	fi

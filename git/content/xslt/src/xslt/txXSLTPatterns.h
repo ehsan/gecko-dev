@@ -41,6 +41,7 @@
 
 #include "txExpr.h"
 #include "txXMLUtils.h"
+#include "nsVoidArray.h"
 
 class ProcessorState;
 

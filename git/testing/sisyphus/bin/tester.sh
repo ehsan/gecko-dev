@@ -101,12 +101,6 @@ for data in $datalist; do
     TEST_DATE=`date -u +%Y-%m-%d-%H-%M-%S``date +%z`
     TEST_LOG="${TEST_DIR}/results/${TEST_DATE},$data,$OSID,${TEST_MACHINE},$TEST_SUITE.log"
 
-    if [[ "$OSID" == "nt" ]]; then
-        # If on Windows, set up the Windbg/CDB debug log file
-        # name to point to our log. 
-        export _NT_DEBUG_LOG_FILE="`cygpath -w $TEST_LOG`"
-    fi
-
     # tell caller what the log files are
     echo "log: $TEST_LOG "
 
@@ -116,29 +110,6 @@ for data in $datalist; do
     else
         test-setup.sh -d $TEST_DIR/data/$data.data >> $TEST_LOG 2>&1
         $testscript $testargs -d $TEST_DIR/data/$data.data >> $TEST_LOG 2>&1
-    fi
-
-    if [[ "$XPCOM_DEBUG_BREAK" == "stack" ]]; then
-        case $OSID in
-            nt)
-                ;;
-            linux)
-                if findprogram fix-linux-stack.pl; then
-                    fix-linux-stack.pl < $TEST_LOG > $TEST_LOG.tmp
-                    mv $TEST_LOG.tmp $TEST_LOG
-                else
-                    error "XPCOM_DEBUG_BREAK=stack specified but fix-linux-stack.pl is not available"
-                fi
-                ;;
-            darwin)
-                if findprogram fix-macosx-stack.pl; then
-                    fix-macosx-stack.pl < $TEST_LOG > $TEST_LOG.tmp
-                    mv $TEST_LOG.tmp $TEST_LOG
-                else
-                    error "XPCOM_DEBUG_BREAK=stack specified but fix-macosx-stack.pl is not available"
-                fi
-                ;;
-        esac
     fi
 
 done

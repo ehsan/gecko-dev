@@ -46,41 +46,55 @@ MODULE = accessibility
 LIBRARY_NAME = accessibility_base_s
 LIBXUL_LIBRARY = 1
 
+REQUIRES	= appshell \
+		  commandhandler \
+		  composer \
+		  content \
+		  docshell \
+		  dom \
+		  editor \
+		  gfx \
+		  thebes \
+		  intl \
+		  layout \
+		  locale \
+		  necko \
+		  plugin \
+		  pref \
+		  string \
+		  unicharutil \
+		  uriloader \
+		  view \
+		  webshell \
+		  widget \
+		  xpcom \
+		  xuldoc \
+		  imglib2 \
+		  $(NULL)
 
 CPPSRCS = \
-  AccCollector.cpp \
-  AccGroupInfo.cpp \
-  AccIterator.cpp \
-  filters.cpp \
-  nsAccDocManager.cpp \
   nsAccessNode.cpp \
-  nsAccEvent.cpp \
-  nsARIAGridAccessible.cpp \
+  nsAccessibleEventData.cpp \
   nsARIAMap.cpp \
   nsDocAccessible.cpp \
   nsOuterDocAccessible.cpp \
   nsAccessibilityAtoms.cpp \
-  nsCoreUtils.cpp \
-  nsAccUtils.cpp \
-  nsRelUtils.cpp \
+  nsAccessibilityUtils.cpp \
   nsAccessibilityService.cpp \
   nsAccessible.cpp \
   nsAccessibleRelation.cpp \
-  nsAccTreeWalker.cpp \
+  nsAccessibleTreeWalker.cpp \
   nsBaseWidgetAccessible.cpp \
-  nsEventShell.cpp \
   nsFormControlAccessible.cpp \
   nsRootAccessible.cpp \
   nsApplicationAccessible.cpp \
   nsCaretAccessible.cpp \
   nsTextAccessible.cpp \
-  nsTextEquivUtils.cpp \
-  nsTextAttrs.cpp \
   $(NULL)
 
 EXPORTS = \
-  a11yGeneric.h \
-  nsAccessible.h \
+  nsRootAccessible.h \
+  nsAccessibleEventData.h \
   nsAccessNode.h \
   $(NULL)
 

@@ -44,8 +44,9 @@
 #define nsXULPrototypeCache_h__
 
 #include "nsCOMPtr.h"
+#include "nsICSSStyleSheet.h"
 #include "nsIObserver.h"
-#include "nsXBLDocumentInfo.h"
+#include "nsIXBLDocumentInfo.h"
 #include "nsIXULPrototypeCache.h"
 #include "nsDataHashtable.h"
 #include "nsInterfaceHashtable.h"
@@ -54,7 +55,6 @@
 #include "nsXULPrototypeDocument.h"
 
 class nsIFastLoadService;
-class nsCSSStyleSheet;
 
 struct CacheScriptEntry
 {
@@ -116,16 +116,16 @@ public:
     void* GetScript(nsIURI* aURI, PRUint32* langID);
     nsresult PutScript(nsIURI* aURI, PRUint32 langID, void* aScriptObject);
 
-    nsXBLDocumentInfo* GetXBLDocumentInfo(nsIURI* aURL) {
+    nsIXBLDocumentInfo* GetXBLDocumentInfo(nsIURI* aURL) {
         return mXBLDocTable.GetWeak(aURL);
     }
-    nsresult PutXBLDocumentInfo(nsXBLDocumentInfo* aDocumentInfo);
+    nsresult PutXBLDocumentInfo(nsIXBLDocumentInfo* aDocumentInfo);
 
     /**
      * Get a style sheet by URI. If the style sheet is not in the cache,
      * returns nsnull.
      */
-    nsCSSStyleSheet* GetStyleSheet(nsIURI* aURI) {
+    nsICSSStyleSheet* GetStyleSheet(nsIURI* aURI) {
         return mStyleSheetTable.GetWeak(aURI);
     }
 
@@ -133,7 +133,7 @@ public:
      * Store a style sheet in the cache. The key, style sheet's URI is obtained
      * from the style sheet itself.
      */
-    nsresult PutStyleSheet(nsCSSStyleSheet* aStyleSheet);
+    nsresult PutStyleSheet(nsICSSStyleSheet* aStyleSheet);
 
 
     static nsXULPrototypeCache* GetInstance();
@@ -145,7 +145,7 @@ public:
     }
 
 protected:
-    friend nsresult
+    friend NS_IMETHODIMP
     NS_NewXULPrototypeCache(nsISupports* aOuter, REFNSIID aIID, void** aResult);
 
     nsXULPrototypeCache();
@@ -157,9 +157,9 @@ protected:
     void FlushSkinFiles();
 
     nsRefPtrHashtable<nsURIHashKey,nsXULPrototypeDocument>  mPrototypeTable; // owns the prototypes
-    nsRefPtrHashtable<nsURIHashKey,nsCSSStyleSheet>        mStyleSheetTable;
+    nsInterfaceHashtable<nsURIHashKey,nsICSSStyleSheet>    mStyleSheetTable;
     nsDataHashtable<nsURIHashKey,CacheScriptEntry>         mScriptTable;
-    nsRefPtrHashtable<nsURIHashKey,nsXBLDocumentInfo>  mXBLDocTable;
+    nsInterfaceHashtable<nsURIHashKey,nsIXBLDocumentInfo>  mXBLDocTable;
 
     ///////////////////////////////////////////////////////////////////////////
     // FastLoad

@@ -95,6 +95,7 @@ cairo_font_options_create (void)
 
     return options;
 }
+slim_hidden_def (cairo_font_options_create);
 
 /**
  * cairo_font_options_copy:
@@ -132,7 +133,7 @@ cairo_font_options_copy (const cairo_font_options_t *original)
  * cairo_font_options_destroy:
  * @options: a #cairo_font_options_t
  *
- * Destroys a #cairo_font_options_t object created with
+ * Destroys a #cairo_font_options_t object created with with
  * cairo_font_options_create() or cairo_font_options_copy().
  **/
 void
@@ -143,6 +144,7 @@ cairo_font_options_destroy (cairo_font_options_t *options)
 
     free (options);
 }
+slim_hidden_def (cairo_font_options_destroy);
 
 /**
  * cairo_font_options_status:

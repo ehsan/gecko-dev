@@ -38,7 +38,6 @@
 #include "mozTXTToHTMLConv.h"
 #include "nsIServiceManager.h"
 #include "nsNetCID.h"
-#include "nsNetUtil.h"
 #include "nsReadableUtils.h"
 #include "nsUnicharUtils.h"
 #include "nsCRT.h"
@@ -187,8 +186,8 @@ void
 mozTXTToHTMLConv::CompleteAbbreviatedURL(const PRUnichar * aInString, PRInt32 aInLength, 
                                          const PRUint32 pos, nsString& aOutString)
 {
-  NS_ASSERTION(PRInt32(pos) < aInLength, "bad args to CompleteAbbreviatedURL, see bug #190851");
-  if (PRInt32(pos) >= aInLength)
+  NS_ASSERTION(pos < aInLength, "bad args to CompleteAbbreviatedURL, see bug #190851");
+  if (pos >= aInLength)
     return;
 
   if (aInString[pos] == '@')
@@ -259,7 +258,7 @@ mozTXTToHTMLConv::FindURLStart(const PRUnichar * aInString, PRInt32 aInLength,
          aInString[PRUint32(i)] == '.'
          ); i--)
       ;
-    if (++i >= 0 && PRUint32(i) < pos && nsCRT::IsAsciiAlpha(aInString[PRUint32(i)]))
+    if (++i >= 0 && i < pos && nsCRT::IsAsciiAlpha(aInString[PRUint32(i)]))
     {
       start = PRUint32(i);
       return PR_TRUE;
@@ -287,7 +286,7 @@ mozTXTToHTMLConv::FindURLStart(const PRUnichar * aInString, PRInt32 aInLength,
       ;
     if
       (
-        ++i >= 0 && PRUint32(i) < pos
+        ++i >= 0 && i < pos
           &&
           (
             nsCRT::IsAsciiAlpha(aInString[PRUint32(i)]) ||
@@ -435,7 +434,7 @@ PRBool mozTXTToHTMLConv::ShouldLinkify(const nsCString& aURL)
     return PR_FALSE;
 
   // Is it an external protocol handler? If not, linkify it.
-  nsCOMPtr<nsIExternalProtocolHandler> externalHandler = do_QueryInterface(handler);
+  nsCOMPtr<nsIExternalProtocolHandler> externalHandler = do_QueryInterface(handler, &rv);
   if (!externalHandler)
    return PR_TRUE; // handler is built-in, linkify it!
 
@@ -452,15 +451,12 @@ mozTXTToHTMLConv::CheckURLAndCreateHTML(
 {
   // Create *uri from txtURL
   nsCOMPtr<nsIURI> uri;
-  nsresult rv;
-  // Lazily initialize mIOService
+  nsresult rv = NS_OK;
   if (!mIOService)
-  {
-    mIOService = do_GetIOService();
-
-    if (!mIOService)
-      return PR_FALSE;
-  }
+    mIOService = do_GetService(kIOServiceCID, &rv);
+  
+  if (NS_FAILED(rv) || !mIOService)
+    return PR_FALSE;
 
   // See if the url should be linkified.
   NS_ConvertUTF16toUTF8 utf8URL(txtURL);
@@ -686,7 +682,7 @@ mozTXTToHTMLConv::StructPhraseHit(const PRUnichar * aInString, PRInt32 aInString
   /* We're searching for the following pattern:
      LT_DELIMITER - "*" - ALPHA -
      [ some text (maybe more "*"-pairs) - ALPHA ] "*" - LT_DELIMITER.
-     <strong> is only inserted, if existence of a pair could be verified
+     <strong> is only inserted, if existance of a pair could be verified
      We use the first opening/closing tag, if we can choose */
 
   const PRUnichar * newOffset = aInString;
@@ -1253,7 +1249,7 @@ mozTXTToHTMLConv::ScanHTML(nsString& aInString, PRUint32 whattodo, nsString &aOu
   /* Skip all tags ("<[...]>") and content in an a tag ("<a[...]</a>")
      or in a tag ("<!--[...]-->").
      Unescape the rest (text between tags) and pass it to ScanTXT. */
-  for (PRInt32 i = 0; i < lengthOfInString;)
+  for (PRInt32 i = 0; PRUint32(i) < lengthOfInString;)
   {
     if (aInString[i] == '<')  // html tag
     {

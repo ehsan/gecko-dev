@@ -2,13 +2,13 @@
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
-const path = "data/test_bug379841.zip";
+const path = "modules/libjar/test/unit/data/test_bug379841.zip";
 // Retrieved time should be within 2 seconds of original file's time.
 const MAX_TIME_DIFF = 2000000;
 
 var ENTRY_NAME = "test";
-// Actual time of file was 07 May 2007 13:35:49 UTC
-var ENTRY_TIME = new Date(Date.UTC(2007, 4, 7, 13, 35, 49, 0));
+// Actual time of file was 07 May 2007 14:35:49
+var ENTRY_TIME = new Date(2007, 4, 7, 14, 35, 49, 0);
 
 function run_test() {
   var file = do_get_file(path);

@@ -36,112 +36,100 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+// NOTE: alphabetically ordered
 #include "nsXULColorPickerAccessible.h"
-
-#include "nsAccUtils.h"
-#include "nsAccTreeWalker.h"
-#include "nsCoreUtils.h"
-
 #include "nsIDOMElement.h"
 
 
-////////////////////////////////////////////////////////////////////////////////
-// nsXULColorPickerTileAccessible
-////////////////////////////////////////////////////////////////////////////////
+/**
+  * XUL Color Picker Tile
+  */
 
-nsXULColorPickerTileAccessible::
-  nsXULColorPickerTileAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsAccessibleWrap(aContent, aShell)
-{
+/**
+  * Default Constructor
+  */
+nsXULColorPickerTileAccessible::nsXULColorPickerTileAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell):
+nsFormControlAccessible(aNode, aShell)
+{ 
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// nsXULColorPickerTileAccessible: nsIAccessible
+/**
+  * We are a pushbutton
+  */
+NS_IMETHODIMP nsXULColorPickerTileAccessible::GetRole(PRUint32 *_retval)
+{
+  *_retval = nsIAccessibleRole::ROLE_PUSHBUTTON;
+  return NS_OK;
+}
 
+/**
+  * Possible states: focused, focusable, selected
+  */
 NS_IMETHODIMP
-nsXULColorPickerTileAccessible::GetValue(nsAString& aValue)
+nsXULColorPickerTileAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  aValue.Truncate();
-
-  if (IsDefunct())
-    return NS_ERROR_FAILURE;
-
-  mContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::color, aValue);
-  return NS_OK;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// nsXULColorPickerTileAccessible: nsAccessible
-
-nsresult
-nsXULColorPickerTileAccessible::GetRoleInternal(PRUint32 *aRole)
-{
-  *aRole = nsIAccessibleRole::ROLE_PUSHBUTTON;
-  return NS_OK;
-}
-
-nsresult
-nsXULColorPickerTileAccessible::GetStateInternal(PRUint32 *aState,
-                                                 PRUint32 *aExtraState)
-{
-  // Possible states: focused, focusable, selected.
-
   // get focus and disable status from base class
-  nsresult rv = nsAccessibleWrap::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  nsresult rv = nsFormControlAccessible::GetState(aState, aExtraState);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!mDOMNode)
+    return NS_OK;
 
   *aState |= nsIAccessibleStates::STATE_FOCUSABLE;
 
   // Focused?
-  PRBool isFocused = mContent->HasAttr(kNameSpaceID_None,
-                                       nsAccessibilityAtoms::hover);
+  nsCOMPtr<nsIDOMElement> element(do_QueryInterface(mDOMNode));
+  NS_ASSERTION(element, "No XUL Element for colorpicker");
+  PRBool isFocused = PR_FALSE;
+  element->HasAttribute(NS_LITERAL_STRING("hover"), &isFocused);
   if (isFocused)
     *aState |= nsIAccessibleStates::STATE_FOCUSED;
 
-  PRBool isSelected = mContent->HasAttr(kNameSpaceID_None,
-                                        nsAccessibilityAtoms::selected);
-  if (isSelected)
+  PRBool isSelected = PR_FALSE;
+  element->HasAttribute(NS_LITERAL_STRING("selected"), &isSelected);
+  if (isFocused)
     *aState |= nsIAccessibleStates::STATE_SELECTED;
 
   return NS_OK;
 }
 
-
-////////////////////////////////////////////////////////////////////////////////
-// nsXULColorPickerAccessible
-////////////////////////////////////////////////////////////////////////////////
-
-nsXULColorPickerAccessible::
-  nsXULColorPickerAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsXULColorPickerTileAccessible(aContent, aShell)
+NS_IMETHODIMP nsXULColorPickerTileAccessible::GetName(nsAString& _retval)
 {
+  return GetXULName(_retval);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// nsXULColorPickerAccessible: nsAccessNode
-
-PRBool
-nsXULColorPickerAccessible::Init()
+NS_IMETHODIMP nsXULColorPickerTileAccessible::GetValue(nsAString& _retval)
 {
-  if (!nsXULColorPickerTileAccessible::Init())
-    return PR_FALSE;
+  if (!mDOMNode)
+    return NS_ERROR_FAILURE;
 
-  nsCoreUtils::GeneratePopupTree(mContent, PR_TRUE);
-  return PR_TRUE;
+  nsCOMPtr<nsIDOMElement> element(do_QueryInterface(mDOMNode));
+  NS_ASSERTION(element, "No XUL Element for colorpicker");
+  return element->GetAttribute(NS_LITERAL_STRING("color"), _retval);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// nsXULColorPickerAccessible: nsAccessible
+/**
+  * XUL Color Picker
+  */
 
-nsresult
-nsXULColorPickerAccessible::GetStateInternal(PRUint32 *aState,
-                                             PRUint32 *aExtraState)
+/**
+  * Default Constructor
+  */
+nsXULColorPickerAccessible::nsXULColorPickerAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell):
+nsXULColorPickerTileAccessible(aNode, aShell)
+{ 
+}
+
+/**
+  * Possible states: focused, focusable, unavailable(disabled)
+  */
+NS_IMETHODIMP
+nsXULColorPickerAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  // Possible states: focused, focusable, unavailable(disabled).
-
   // get focus and disable status from base class
-  nsresult rv = nsAccessibleWrap::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  nsresult rv = nsFormControlAccessible::GetState(aState, aExtraState);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!mDOMNode)
+    return NS_OK;
 
   *aState |= nsIAccessibleStates::STATE_FOCUSABLE |
              nsIAccessibleStates::STATE_HASPOPUP;
@@ -149,31 +137,9 @@ nsXULColorPickerAccessible::GetStateInternal(PRUint32 *aState,
   return NS_OK;
 }
 
-nsresult
-nsXULColorPickerAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsXULColorPickerAccessible::GetRole(PRUint32 *_retval)
 {
-  *aRole = nsIAccessibleRole::ROLE_BUTTONDROPDOWNGRID;
+  *_retval = nsIAccessibleRole::ROLE_BUTTONDROPDOWNGRID;
   return NS_OK;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// nsXULColorPickerAccessible: protected nsAccessible
-
-void
-nsXULColorPickerAccessible::CacheChildren()
-{
-  nsAccTreeWalker walker(mWeakShell, mContent, PR_TRUE);
-
-  nsRefPtr<nsAccessible> child;
-  while ((child = walker.GetNextChild())) {
-    // XXX: do not call nsAccessible::GetRole() while accessible not in tree
-    // (bug 574588).
-    PRUint32 role = nsAccUtils::Role(child);
-
-    // Get an accessbile for menupopup or panel elements.
-    if (role == nsIAccessibleRole::ROLE_ALERT) {
-      AppendChild(child);
-      return;
-    }
-  }
-}

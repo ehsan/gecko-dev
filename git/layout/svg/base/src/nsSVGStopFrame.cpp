@@ -40,7 +40,7 @@
 #include "nsStyleContext.h"
 #include "nsFrame.h"
 #include "nsGkAtoms.h"
-#include "nsSVGEffects.h"
+#include "nsISVGValue.h"
 
 // This is a very simple frame whose only purpose is to capture style change
 // events and propagate them to the parent.  Most of the heavy lifting is done
@@ -51,21 +51,14 @@ typedef nsFrame  nsSVGStopFrameBase;
 class nsSVGStopFrame : public nsSVGStopFrameBase
 {
   friend nsIFrame*
-  NS_NewSVGStopFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+  NS_NewSVGStopFrame(nsIPresShell*   aPresShell, nsIContent*     aContent,
+                     nsIFrame*       aParentFrame, nsStyleContext* aContext);
 protected:
   nsSVGStopFrame(nsStyleContext* aContext) : nsSVGStopFrameBase(aContext) {}
 
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   // nsIFrame interface:
-#ifdef DEBUG
-  NS_IMETHOD Init(nsIContent*      aContent,
-                  nsIFrame*        aParent,
-                  nsIFrame*        aPrevInFlow);
-#endif
-
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
+  NS_IMETHOD DidSetStyleContext();
 
   NS_IMETHOD AttributeChanged(PRInt32         aNameSpaceID,
                               nsIAtom*        aAttribute,
@@ -84,6 +77,7 @@ public:
   }
 
 #ifdef DEBUG
+  // nsIFrameDebug interface:
   NS_IMETHOD GetFrameName(nsAString& aResult) const
   {
     return MakeFrameName(NS_LITERAL_STRING("SVGStop"), aResult);
@@ -94,29 +88,16 @@ public:
 //----------------------------------------------------------------------
 // Implementation
 
-NS_IMPL_FRAMEARENA_HELPERS(nsSVGStopFrame)
-
 //----------------------------------------------------------------------
 // nsIFrame methods:
 
-#ifdef DEBUG
 NS_IMETHODIMP
-nsSVGStopFrame::Init(nsIContent* aContent,
-                     nsIFrame* aParent,
-                     nsIFrame* aPrevInFlow)
+nsSVGStopFrame::DidSetStyleContext()
 {
-  nsCOMPtr<nsIDOMSVGStopElement> grad = do_QueryInterface(aContent);
-  NS_ASSERTION(grad, "Content doesn't support nsIDOMSVGStopElement");
-
-  return nsSVGStopFrameBase::Init(aContent, aParent, aPrevInFlow);
-}
-#endif /* DEBUG */
-
-/* virtual */ void
-nsSVGStopFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
-{
-  nsSVGStopFrameBase::DidSetStyleContext(aOldStyleContext);
-  nsSVGEffects::InvalidateRenderingObservers(this);
+  // Tell our parent
+  if (mParent)
+    mParent->DidSetStyleContext();
+  return NS_OK;
 }
 
 nsIAtom *
@@ -132,8 +113,21 @@ nsSVGStopFrame::AttributeChanged(PRInt32         aNameSpaceID,
 {
   if (aNameSpaceID == kNameSpaceID_None &&
       aAttribute == nsGkAtoms::offset) {
-    nsSVGEffects::InvalidateRenderingObservers(this);
-  }
+
+    // Need to tell our parent gradients that something happened.
+    // Calling {Begin,End}Update on an nsISVGValue, which
+    // nsSVGGradientFrame implements, causes its observers (the
+    // referencing graphics frames) to be notified.
+    if (mParent) {
+      nsISVGValue *svgParent;
+      CallQueryInterface(mParent, &svgParent);
+      if (svgParent) {
+        svgParent->BeginBatchUpdate();
+        svgParent->EndBatchUpdate();
+      }
+    }
+    return NS_OK;
+  } 
 
   return nsSVGStopFrameBase::AttributeChanged(aNameSpaceID,
                                               aAttribute, aModType);
@@ -144,7 +138,14 @@ nsSVGStopFrame::AttributeChanged(PRInt32         aNameSpaceID,
 // -------------------------------------------------------------------------
 
 nsIFrame* NS_NewSVGStopFrame(nsIPresShell*   aPresShell,
+                             nsIContent*     aContent,
+                             nsIFrame*       aParentFrame,
                              nsStyleContext* aContext)
 {
+  nsCOMPtr<nsIDOMSVGStopElement> grad = do_QueryInterface(aContent);
+  NS_ASSERTION(grad, "NS_NewSVGStopFrame -- Content doesn't support nsIDOMSVGStopElement");
+  if (!grad)
+    return nsnull;
+
   return new (aPresShell) nsSVGStopFrame(aContext);
 }

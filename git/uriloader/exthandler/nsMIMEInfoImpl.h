@@ -42,12 +42,11 @@
 #include "nsIMIMEInfo.h"
 #include "nsIAtom.h"
 #include "nsString.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsIMutableArray.h"
 #include "nsIFile.h"
 #include "nsCOMPtr.h"
 #include "nsIURI.h"
-#include "nsIProcess.h"
 
 /** 
  * UTF8 moz-icon URI string for the default handler application's icon, if 
@@ -80,6 +79,10 @@ class nsMIMEInfoBase : public nsIMIMEInfo {
     NS_IMETHOD GetMIMEType(nsACString & aMIMEType);
     NS_IMETHOD GetDescription(nsAString & aDescription);
     NS_IMETHOD SetDescription(const nsAString & aDescription);
+    NS_IMETHOD GetMacType(PRUint32 *aMacType);
+    NS_IMETHOD SetMacType(PRUint32 aMacType);
+    NS_IMETHOD GetMacCreator(PRUint32 *aMacCreator);
+    NS_IMETHOD SetMacCreator(PRUint32 aMacCreator);
     NS_IMETHOD Equals(nsIMIMEInfo *aMIMEInfo, PRBool *_retval);
     NS_IMETHOD GetPreferredApplicationHandler(nsIHandlerApp * *aPreferredAppHandler);
     NS_IMETHOD SetPreferredApplicationHandler(nsIHandlerApp * aPreferredAppHandler);
@@ -105,7 +108,7 @@ class nsMIMEInfoBase : public nsIMIMEInfo {
     nsMIMEInfoBase(const nsACString& aType, HandlerClass aClass) NS_HIDDEN;
     virtual ~nsMIMEInfoBase();        // must be virtual, as the the base class's Release should call the subclass's destructor
 
-    void SetMIMEType(const nsACString & aMIMEType) { mSchemeOrType = aMIMEType; }
+    void SetMIMEType(const nsACString & aMIMEType) { mType = aMIMEType; }
 
     void SetDefaultDescription(const nsString& aDesc) { mDefaultAppDescription = aDesc; }
 
@@ -122,7 +125,7 @@ class nsMIMEInfoBase : public nsIMIMEInfo {
     /**
      * Return whether this MIMEInfo has any extensions
      */
-    PRBool HasExtensions() const { return mExtensions.Length() != 0; }
+    PRBool HasExtensions() const { return mExtensions.Count() != 0; }
 
   protected:
     /**
@@ -141,9 +144,6 @@ class nsMIMEInfoBase : public nsIMIMEInfo {
      */
     virtual NS_HIDDEN_(nsresult) LoadUriInternal(nsIURI *aURI) = 0;
 
-    static already_AddRefed<nsIProcess> InitProcess(nsIFile* aApp,
-                                                    nsresult* aResult);
-
     /**
      * This method can be used to launch the file or URI with a single 
      * argument (typically either a file path or a URI spec).  This is 
@@ -155,8 +155,6 @@ class nsMIMEInfoBase : public nsIMIMEInfo {
      */
     static NS_HIDDEN_(nsresult) LaunchWithIProcess(nsIFile* aApp,
                                                    const nsCString &aArg);
-    static NS_HIDDEN_(nsresult) LaunchWithIProcess(nsIFile* aApp,
-                                                   const nsString &aArg);
 
     /**
      * Given a file: nsIURI, return the associated nsILocalFile
@@ -168,9 +166,10 @@ class nsMIMEInfoBase : public nsIMIMEInfo {
                                                     nsILocalFile **aFile);
 
     // member variables
-    nsTArray<nsCString>    mExtensions; ///< array of file extensions associated w/ this MIME obj
+    nsCStringArray         mExtensions; ///< array of file extensions associated w/ this MIME obj
     nsString               mDescription; ///< human readable description
-    nsCString              mSchemeOrType;
+    PRUint32               mMacType, mMacCreator; ///< Mac file type and creator
+    nsCString              mType;
     HandlerClass           mClass;
     nsCOMPtr<nsIHandlerApp> mPreferredApplication;
     nsCOMPtr<nsIMutableArray> mPossibleApplications;

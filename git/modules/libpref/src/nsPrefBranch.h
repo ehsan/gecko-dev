@@ -43,16 +43,17 @@
 #include "nsIPrefBranch.h"
 #include "nsIPrefBranchInternal.h"
 #include "nsIPrefLocalizedString.h"
+#include "nsISecurityPref.h"
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
 #include "nsIRelativeFilePref.h"
 #include "nsILocalFile.h"
 #include "nsString.h"
 #include "nsVoidArray.h"
-#include "nsTArray.h"
 #include "nsWeakReference.h"
 
 class nsPrefBranch : public nsIPrefBranchInternal,
+                     public nsISecurityPref,
                      public nsIObserver,
                      public nsSupportsWeakReference
 {
@@ -60,6 +61,7 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIPREFBRANCH
   NS_DECL_NSIPREFBRANCH2
+  NS_DECL_NSISECURITYPREF
   NS_DECL_NSIOBSERVER
 
   nsPrefBranch(const char *aPrefRoot, PRBool aDefaultBranch);
@@ -67,21 +69,21 @@ public:
 
   PRInt32 GetRootLength() { return mPrefRootLength; }
 
-  nsresult RemoveObserverFromList(const char *aDomain, nsISupports *aObserver);
-
 protected:
-  nsPrefBranch()    /* disallow use of this constructer */
+  nsPrefBranch()	/* disallow use of this constructer */
     { }
 
   nsresult   GetDefaultFromPropertiesFile(const char *aPrefName, PRUnichar **return_buf);
   const char *getPrefName(const char *aPrefName);
+  nsresult   getValidatedPrefName(const char *aPrefName, const char **_retval);
   void       freeObserverList(void);
 
 private:
-  PRInt32               mPrefRootLength;
-  nsAutoVoidArray       *mObservers;
-  nsCString             mPrefRoot;
-  PRBool                mIsDefault;
+  PRInt32         mPrefRootLength;
+  nsAutoVoidArray *mObservers;
+  nsCString       mPrefRoot;
+  nsCStringArray  mObserverDomains;
+  PRBool          mIsDefault;
 
 };
 
@@ -119,5 +121,6 @@ public:
   
 private:
   nsCOMPtr<nsILocalFile> mFile;
-  nsCString mRelativeToKey;
+  nsCAutoString mRelativeToKey; // An nsCAutoString because length is always very short.
+                                // While this makes the object larger, avoids allocation.
 };

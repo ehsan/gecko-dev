@@ -66,7 +66,7 @@ function test() {
   testRootNode.containerOpen = true;
   is(testRootNode.childCount, 0, "confirm test root node is a container, and is empty");
 
-  // create folder A, fill it, validate its contents
+  // create folder A, fill it, validate it's contents
   var folderAId = PlacesUtils.bookmarks.createFolder(testRootId, "A", -1);
   populate(folderAId);
   var folderANode = PlacesUtils.getFolderContents(folderAId).root;
@@ -102,10 +102,6 @@ function test() {
   folderBNode = testRootNode.getChild(1);
   validate(folderBNode);
 
-  // Close containers, cleaning up their observers.
-  testRootNode.containerOpen = false;
-  toolbarNode.containerOpen = false;
-
   // clean up
   PlacesUIUtils.ptm.undoTransaction();
   PlacesUtils.bookmarks.removeItem(folderAId);
@@ -118,12 +114,12 @@ function populate(aFolderId) {
 }
 
 function validate(aNode) {
-  PlacesUtils.asContainer(aNode);
+  asContainer(aNode);
   aNode.containerOpen = true;
   is(aNode.childCount, 1, "confirm child count match");
   var folderNode = aNode.getChild(0);
   is(folderNode.title, "test folder", "confirm folder title");
-  PlacesUtils.asContainer(folderNode);
+  asContainer(folderNode);
   folderNode.containerOpen = true;
   is(folderNode.childCount, 2, "confirm child count match");
   var bookmarkNode = folderNode.getChild(0);

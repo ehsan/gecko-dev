@@ -44,8 +44,7 @@
         xmlns:xhtml="http://www.w3.org/1999/xhtml"
         xhtml:role="alert"
         pack="start"
-        onload="onAlertLoad()"
-        onclick="onAlertClick();">
+        onload="onAlertLoad()">
   
   <script type="application/javascript" src="chrome://global/content/alerts/alert.js"/>
 
@@ -57,7 +56,7 @@
 
     <vbox id="alertTextBox" class="alertTextBox">
       <label id="alertTitleLabel" class="alertTitle plain"/>
-      <label id="alertTextLabel" class="alertText plain"/>
+      <label id="alertTextLabel" class="alertText plain" onclick="onAlertClick();"/>
     </vbox>
 
   </box>

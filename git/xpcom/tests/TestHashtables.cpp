@@ -47,8 +47,6 @@
 
 #include <stdio.h>
 
-namespace TestHashtables {
-
 class TestUniChar // for nsClassHashtable
 {
 public:
@@ -93,7 +91,7 @@ EntityNode gEntities[] = {
   {"macr",175}
 };
 
-#define ENTITY_COUNT (unsigned(sizeof(gEntities)/sizeof(EntityNode)))
+#define ENTITY_COUNT (sizeof(gEntities)/sizeof(EntityNode))
 
 class EntityToUnicodeEntry : public PLDHashEntryHdr
 {
@@ -169,7 +167,7 @@ testTHashtable(nsTHashtable<EntityToUnicodeEntry>& hash, PRUint32 numEntries) {
     printf("Found %u\n", entry->mNode->mUnicode);
   }
 
-  printf("Testing nonexistent entries...");
+  printf("Testing non-existent entries...");
 
   EntityToUnicodeEntry* entry =
     hash.GetEntry("xxxy");
@@ -216,7 +214,7 @@ nsCEnum(const nsACString& aKey, nsAutoPtr<TestUniChar>& aData, void* userArg) {
 }
 
 //
-// all this nsIFoo stuff was copied wholesale from TestCOMPtr.cpp
+// all this nsIFoo stuff was copied wholesale from TestCOMPTr.cpp
 //
 
 #define NS_IFOO_IID \
@@ -228,6 +226,7 @@ class IFoo : public nsISupports
     public:
       NS_DECLARE_STATIC_IID_ACCESSOR(NS_IFOO_IID)
 
+    public:
       IFoo();
 
       NS_IMETHOD_(nsrefcnt) AddRef();
@@ -397,10 +396,6 @@ nsIEnum2(nsISupports* aKey, PRUint32& aData, void* userArg) {
   return PL_DHASH_NEXT;
 }
 
-}
-
-using namespace TestHashtables;
-
 int
 main(void) {
   // check an nsTHashtable
@@ -460,7 +455,7 @@ main(void) {
   }
   printf("OK\n");
 
-  printf("Filling hash with %u entries.\n", ENTITY_COUNT);
+  printf("Filling hash with %d entries.\n", ENTITY_COUNT);
 
   PRUint32 i;
   for (i = 0; i < ENTITY_COUNT; ++i) {
@@ -485,7 +480,7 @@ main(void) {
     printf("Found %s\n", str);
   }
 
-  printf("Testing nonexistent entries...");
+  printf("Testing non-existent entries...");
   if (UniToEntity.Get(99446, &str)) {
     printf("FOUND! BAD!\n");
     exit (13);
@@ -527,7 +522,7 @@ main(void) {
   }
   printf("OK\n");
 
-  printf("Filling hash with %u entries.\n", ENTITY_COUNT);
+  printf("Filling hash with %d entries.\n", ENTITY_COUNT);
 
   for (i = 0; i < ENTITY_COUNT; ++i) {
     printf("  Putting entry %u...", gEntities[i].mUnicode);
@@ -550,7 +545,7 @@ main(void) {
     printf("Found %s\n", str);
   }
 
-  printf("Testing nonexistent entries...");
+  printf("Testing non-existent entries...");
   if (UniToEntityL.Get(99446, &str)) {
     printf("FOUND! BAD!\n");
     exit (13);
@@ -592,7 +587,7 @@ main(void) {
   }
   printf("OK\n");
 
-  printf("Filling hash with %u entries.\n", ENTITY_COUNT);
+  printf("Filling hash with %d entries.\n", ENTITY_COUNT);
 
   for (i = 0; i < ENTITY_COUNT; ++i) {
     printf("  Putting entry %u...", gEntities[i].mUnicode);
@@ -619,7 +614,7 @@ main(void) {
     printf("Found %c\n", myChar->GetChar());
   }
 
-  printf("Testing nonexistent entries...");
+  printf("Testing non-existent entries...");
   if (EntToUniClass.Get(NS_LITERAL_CSTRING("xxxx"), &myChar)) {
     printf("FOUND! BAD!\n");
     exit (19);
@@ -661,7 +656,7 @@ main(void) {
   }
   printf("OK\n");
 
-  printf("Filling hash with %u entries.\n", ENTITY_COUNT);
+  printf("Filling hash with %d entries.\n", ENTITY_COUNT);
 
   for (i = 0; i < ENTITY_COUNT; ++i) {
     printf("  Putting entry %u...", gEntities[i].mUnicode);
@@ -687,7 +682,7 @@ main(void) {
     printf("Found %c\n", myChar->GetChar());
   }
 
-  printf("Testing nonexistent entries...");
+  printf("Testing non-existent entries...");
   if (EntToUniClassL.Get(NS_LITERAL_CSTRING("xxxx"), &myChar)) {
     printf("FOUND! BAD!\n");
     exit (19);
@@ -729,7 +724,7 @@ main(void) {
   }
   printf("OK\n");
 
-  printf("Filling hash with %u entries.\n", ENTITY_COUNT);
+  printf("Filling hash with %d entries.\n", ENTITY_COUNT);
 
   nsCOMArray<IFoo> fooArray;
 
@@ -763,7 +758,7 @@ main(void) {
     printf("Found %c\n", myChar2);
   }
 
-  printf("Testing nonexistent entries...");
+  printf("Testing non-existent entries...");
   if (EntToUniClass2.Get((nsISupports*) 0x55443316, &myChar2)) {
     printf("FOUND! BAD!\n");
     exit (25);
@@ -805,7 +800,7 @@ main(void) {
   }
   printf("OK\n");
 
-  printf("Filling hash with %u entries.\n", ENTITY_COUNT);
+  printf("Filling hash with %d entries.\n", ENTITY_COUNT);
 
   for (i = 0; i < ENTITY_COUNT; ++i) {
     printf("  Putting entry %u...", gEntities[i].mUnicode);
@@ -836,7 +831,7 @@ main(void) {
     printf("Found %s\n", str.get());
   }
 
-  printf("Testing nonexistent entries...");
+  printf("Testing non-existent entries...");
   nsCOMPtr<IFoo> myEnt;
   if (UniToEntClass2.Get(9462, getter_AddRefs(myEnt))) {
     printf("FOUND! BAD!\n");
@@ -879,7 +874,7 @@ main(void) {
   }
   printf("OK\n");
 
-  printf("Filling hash with %u entries.\n", ENTITY_COUNT);
+  printf("Filling hash with %d entries.\n", ENTITY_COUNT);
 
   for (i = 0; i < ENTITY_COUNT; ++i) {
     printf("  Putting entry %u...", gEntities[i].mUnicode);
@@ -910,7 +905,7 @@ main(void) {
     printf("Found %s\n", str.get());
   }
 
-  printf("Testing nonexistent entries...");
+  printf("Testing non-existent entries...");
   if (UniToEntClass2L.Get(9462, getter_AddRefs(myEnt))) {
     printf("FOUND! BAD!\n");
     exit (31);

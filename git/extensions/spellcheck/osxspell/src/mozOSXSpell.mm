@@ -52,16 +52,7 @@
 @end
 
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(mozOSXSpell)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(mozOSXSpell)
-
-NS_INTERFACE_MAP_BEGIN(mozOSXSpell)
-  NS_INTERFACE_MAP_ENTRY(mozISpellCheckingEngine)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, mozISpellCheckingEngine)
-  NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(mozOSXSpell)
-NS_INTERFACE_MAP_END
-
-NS_IMPL_CYCLE_COLLECTION_1(mozOSXSpell, mPersonalDictionary);
+NS_IMPL_ISUPPORTS1(mozOSXSpell, mozISpellCheckingEngine)
 
 mozOSXSpell::mozOSXSpell()
 {
@@ -112,21 +103,12 @@ NS_IMETHODIMP mozOSXSpell::GetLanguage(PRUnichar **aLanguage)
   NS_ENSURE_ARG_POINTER(aLanguage);
 
   if (!mLanguage.Length()) {
-    @try {
-      NSString* lang = [[NSSpellChecker sharedSpellChecker] language];
-      *aLanguage = [lang createNewUnicodeBuffer];
-    }
-    @catch (id exception) {
-      // If we get here, the spelling system on the user's machine is almost
-      // certainly damaged; do what the rest of the OS does, and silently
-      // ignore it.
-      *aLanguage = NULL;
-    }
+    NSString* lang = [[NSSpellChecker sharedSpellChecker] language];
+    *aLanguage = [lang createNewUnicodeBuffer];
     mLanguage.Assign(*aLanguage);
   }
-  else {
+  else
     *aLanguage = ToNewUnicode(mLanguage);
-  }
 
   return *aLanguage ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 
@@ -236,17 +218,7 @@ NS_IMETHODIMP mozOSXSpell::Check(const PRUnichar *aWord, PRBool *aResult)
   *aResult = PR_FALSE;
 
   NSString* wordStr = [NSString stringWithPRUnichars:aWord];
-  NSRange misspelledRange;
-  @try {
-    misspelledRange = [[NSSpellChecker sharedSpellChecker] checkSpellingOfString:wordStr startingAt:0];
-  }
-  @catch (id exception) {
-    // Silently return true; if something is seriously wrong with the
-    // spelling system on a user's machine, the best thing to do is
-    // to just treat everything as correct.
-    *aResult = PR_TRUE;
-    return NS_OK;
-  }
+  NSRange misspelledRange = [[NSSpellChecker sharedSpellChecker] checkSpellingOfString:wordStr startingAt:0];
   if (misspelledRange.location != NSNotFound && mPersonalDictionary)
     mPersonalDictionary->Check(aWord, mLanguage.get(), aResult);
   else
@@ -309,8 +281,6 @@ NS_IMETHODIMP mozOSXSpell::Suggest(const PRUnichar *aWord, PRUnichar ***aSuggest
 
   PRUint32 length = [self length];
   PRUnichar* retStr = (PRUnichar*)nsMemory::Alloc((length + 1) * sizeof(PRUnichar));
-  if (!retStr)
-    return NULL;
   [self getCharacters:retStr];
   retStr[length] = PRUnichar(0);
   return retStr;

@@ -35,32 +35,18 @@
 #
 # ***** END LICENSE BLOCK *****
 
-DEPTH     = ../../..
+DEPTH   = ../../..
 topsrcdir = @top_srcdir@
 srcdir    = @srcdir@
-VPATH     = @srcdir@
+VPATH   = @srcdir@
 
-include $(topsrcdir)/config/config.mk
+include $(DEPTH)/config/autoconf.mk
 
-MODULE = helperAppDlg
-
-EXTRA_COMPONENTS = nsHelperAppDlg.manifest
-EXTRA_PP_COMPONENTS = nsHelperAppDlg.js
-
-EXTRA_JS_MODULES = \
-  DownloadLastDir.jsm \
-  DownloadPaths.jsm \
-  DownloadUtils.jsm \
-  $(NULL)
-
-ifeq ($(OS_ARCH),WINNT)
-EXTRA_JS_MODULES += \
-  DownloadTaskbarProgress.jsm \
-  $(NULL)
-endif
-
-ifdef ENABLE_TESTS
-DIRS += tests
+ifndef MOZ_SUITE
+# XXX Suite doesn't want these just yet
+DIRS = src tests
 endif
 
 include $(topsrcdir)/config/rules.mk
+
+

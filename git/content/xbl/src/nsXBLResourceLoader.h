@@ -39,7 +39,6 @@
 #include "nsCOMPtr.h"
 #include "nsICSSLoaderObserver.h"
 #include "nsCOMArray.h"
-#include "nsContentUtils.h"
 #include "nsCycleCollectionParticipant.h"
 
 class nsIContent;
@@ -67,7 +66,7 @@ struct nsXBLResource {
 
   ~nsXBLResource() { 
     MOZ_COUNT_DTOR(nsXBLResource);  
-    NS_CONTENT_DELETE_LIST_MEMBER(nsXBLResource, this, mNext);
+    delete mNext; 
   }
 };
 
@@ -78,7 +77,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS(nsXBLResourceLoader)
 
   // nsICSSLoaderObserver
-  NS_IMETHOD StyleSheetLoaded(nsCSSStyleSheet* aSheet, PRBool aWasAlternate,
+  NS_IMETHOD StyleSheetLoaded(nsICSSStyleSheet* aSheet, PRBool aWasAlternate,
                               nsresult aStatus);
 
   void LoadResources(PRBool* aResult);

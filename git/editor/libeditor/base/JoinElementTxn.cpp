@@ -49,23 +49,6 @@ JoinElementTxn::JoinElementTxn()
 {
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(JoinElementTxn)
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(JoinElementTxn, EditTxn)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mLeftNode)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mRightNode)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mParent)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(JoinElementTxn, EditTxn)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mLeftNode)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mRightNode)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mParent)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(JoinElementTxn)
-NS_INTERFACE_MAP_END_INHERITING(EditTxn)
-
 NS_IMETHODIMP JoinElementTxn::Init(nsEditor   *aEditor,
                                    nsIDOMNode *aLeftNode,
                                    nsIDOMNode *aRightNode)
@@ -76,7 +59,7 @@ NS_IMETHODIMP JoinElementTxn::Init(nsEditor   *aEditor,
   mLeftNode = do_QueryInterface(aLeftNode);
   nsCOMPtr<nsIDOMNode>leftParent;
   nsresult result = mLeftNode->GetParentNode(getter_AddRefs(leftParent));
-  NS_ENSURE_SUCCESS(result, result);
+  if (NS_FAILED(result)) return result;
   if (!mEditor->IsModifiableNode(leftParent)) {
     return NS_ERROR_FAILURE;
   }
@@ -89,13 +72,7 @@ NS_IMETHODIMP JoinElementTxn::Init(nsEditor   *aEditor,
 NS_IMETHODIMP JoinElementTxn::DoTransaction(void)
 {
 #ifdef NS_DEBUG
-  if (gNoisy)
-  {
-    printf("%p Do Join of %p and %p\n",
-           static_cast<void*>(this),
-           static_cast<void*>(mLeftNode.get()),
-           static_cast<void*>(mRightNode.get()));
-  }
+  if (gNoisy) { printf("%p Do Join of %p and %p\n", this, mLeftNode.get(), mRightNode.get()); }
 #endif
 
   NS_PRECONDITION((mEditor && mLeftNode && mRightNode), "null arg");
@@ -104,14 +81,14 @@ NS_IMETHODIMP JoinElementTxn::DoTransaction(void)
   // get the parent node
   nsCOMPtr<nsIDOMNode>leftParent;
   nsresult result = mLeftNode->GetParentNode(getter_AddRefs(leftParent));
-  NS_ENSURE_SUCCESS(result, result);
-  NS_ENSURE_TRUE(leftParent, NS_ERROR_NULL_POINTER);
+  if (NS_FAILED(result)) return result;
+  if (!leftParent) return NS_ERROR_NULL_POINTER;
 
   // verify that mLeftNode and mRightNode have the same parent
   nsCOMPtr<nsIDOMNode>rightParent;
   result = mRightNode->GetParentNode(getter_AddRefs(rightParent));
-  NS_ENSURE_SUCCESS(result, result);
-  NS_ENSURE_TRUE(rightParent, NS_ERROR_NULL_POINTER);
+  if (NS_FAILED(result)) return result;
+  if (!rightParent) return NS_ERROR_NULL_POINTER;
 
   if (leftParent==rightParent)
   {
@@ -126,7 +103,7 @@ NS_IMETHODIMP JoinElementTxn::DoTransaction(void)
     {
       nsCOMPtr<nsIDOMNodeList> childNodes;
       result = mLeftNode->GetChildNodes(getter_AddRefs(childNodes));
-      NS_ENSURE_SUCCESS(result, result);
+      if (NS_FAILED(result)) return result;
       if (childNodes) 
       {
         childNodes->GetLength(&mOffset);
@@ -136,11 +113,7 @@ NS_IMETHODIMP JoinElementTxn::DoTransaction(void)
 #ifdef NS_DEBUG
     if (NS_SUCCEEDED(result))
     {
-      if (gNoisy)
-      {
-        printf("  left node = %p removed\n",
-               static_cast<void*>(mLeftNode.get()));
-      }
+      if (gNoisy) { printf("  left node = %p removed\n", mLeftNode.get()); }
     }
 #endif
   }
@@ -157,12 +130,7 @@ NS_IMETHODIMP JoinElementTxn::DoTransaction(void)
 NS_IMETHODIMP JoinElementTxn::UndoTransaction(void)
 {
 #ifdef NS_DEBUG
-  if (gNoisy)
-  {
-    printf("%p Undo Join, right node = %p\n",
-           static_cast<void*>(this),
-           static_cast<void*>(mRightNode.get()));
-  }
+  if (gNoisy) { printf("%p Undo Join, right node = %p\n", this, mRightNode.get()); }
 #endif
 
   NS_ASSERTION(mRightNode && mLeftNode && mParent, "bad state");

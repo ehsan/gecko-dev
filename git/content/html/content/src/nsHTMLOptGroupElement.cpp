@@ -39,6 +39,7 @@
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsIFrame.h"
 #include "nsIFormControlFrame.h"
 #include "nsIEventStateManager.h"
@@ -56,7 +57,7 @@ class nsHTMLOptGroupElement : public nsGenericHTMLElement,
                               public nsIDOMHTMLOptGroupElement
 {
 public:
-  nsHTMLOptGroupElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLOptGroupElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLOptGroupElement();
 
   // nsISupports
@@ -77,7 +78,7 @@ public:
   // nsGenericElement
   virtual nsresult InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
                                  PRBool aNotify);
-  virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent = PR_TRUE);
+  virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify);
 
   // nsIContent
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
@@ -86,7 +87,6 @@ public:
  
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
 
   /**
@@ -100,7 +100,7 @@ protected:
 NS_IMPL_NS_NEW_HTML_ELEMENT(OptGroup)
 
 
-nsHTMLOptGroupElement::nsHTMLOptGroupElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLOptGroupElement::nsHTMLOptGroupElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -114,14 +114,11 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLOptGroupElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLOptGroupElement, nsGenericElement)
 
 
-DOMCI_NODE_DATA(HTMLOptGroupElement, nsHTMLOptGroupElement)
-
 // QueryInterface implementation for nsHTMLOptGroupElement
-NS_INTERFACE_TABLE_HEAD(nsHTMLOptGroupElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLOptGroupElement,
-                                   nsIDOMHTMLOptGroupElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLOptGroupElement,
-                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLOptGroupElement,
+                                     nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED1(nsHTMLOptGroupElement,
+                                nsIDOMHTMLOptGroupElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLOptGroupElement)
 
 
@@ -160,7 +157,8 @@ nsIContent*
 nsHTMLOptGroupElement::GetSelect()
 {
   nsIContent* parent = this;
-  while ((parent = parent->GetParent()) && parent->IsHTML()) {
+  while ((parent = parent->GetParent()) &&
+         parent->IsNodeOfType(eHTML)) {
     if (parent->Tag() == nsGkAtoms::select) {
       return parent;
     }
@@ -186,10 +184,10 @@ nsHTMLOptGroupElement::InsertChildAt(nsIContent* aKid,
 }
 
 nsresult
-nsHTMLOptGroupElement::RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent)
+nsHTMLOptGroupElement::RemoveChildAt(PRUint32 aIndex, PRBool aNotify)
 {
   nsSafeOptionListMutation safeMutation(GetSelect(), this, nsnull, aIndex);
-  nsresult rv = nsGenericHTMLElement::RemoveChildAt(aIndex, aNotify, aMutationEvent);
+  nsresult rv = nsGenericHTMLElement::RemoveChildAt(aIndex, aNotify);
   if (NS_FAILED(rv)) {
     safeMutation.MutationFailed();
   }

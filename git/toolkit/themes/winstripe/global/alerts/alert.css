@@ -44,7 +44,10 @@
 @namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
 
 .alertBox {
-  border: 2px solid #7B969C;
+  border-right: 2px solid #7B969C;
+  border-bottom: 2px solid #7B969C;
+  border-top: 2px solid #7B969C;
+  border-left: 2px solid #7B969C;
   background-color: -moz-Dialog;
   min-height: 50px;
 }
@@ -69,16 +72,9 @@
   -moz-margin-end: 6px;
 }
 
-#alertNotification[clickable="true"] {
-  cursor: pointer;
-}
-
-label {
-  cursor: inherit;
-}
-
 .alertText[clickable="true"] {
-  color: -moz-nativehyperlinktext;
+  cursor: pointer;
+  color: #1455D6;
   text-decoration: underline;
 }
 

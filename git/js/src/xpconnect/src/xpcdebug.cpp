@@ -39,6 +39,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "xpcprivate.h"
+#if defined(DEBUG_xpc_hacker) || defined(DEBUG)
 
 #ifdef TAB
 #undef TAB
@@ -291,11 +292,6 @@ JSBool
 xpc_DumpJSStack(JSContext* cx, JSBool showArgs, JSBool showLocals, JSBool showThisProps)
 {
     char* buf;
-    JSExceptionState *state = JS_SaveExceptionState(cx);
-    if(!state)
-        puts("Call to a debug function modifying state!");
-
-    JS_ClearPendingException(cx);
 
     buf = FormatJSStackDump(cx, nsnull, showArgs, showLocals, showThisProps);
     if(buf)
@@ -305,14 +301,12 @@ xpc_DumpJSStack(JSContext* cx, JSBool showArgs, JSBool showLocals, JSBool showTh
     }
     else
         puts("Failed to format JavaScript stack for dump");
-
-    JS_RestoreExceptionState(cx, state);
     return JS_TRUE;
 }
 
 /***************************************************************************/
 
-static void
+JS_STATIC_DLL_CALLBACK(void)
 xpcDumpEvalErrorReporter(JSContext *cx, const char *message,
                          JSErrorReport *report)
 {
@@ -370,7 +364,7 @@ xpc_DumpEvalInJSStackFrame(JSContext* cx, JSUint32 frameno, const char* text)
 
 /***************************************************************************/
 
-JSTrapStatus
+JSTrapStatus JS_DLL_CALLBACK
 xpc_DebuggerKeywordHandler(JSContext *cx, JSScript *script, jsbytecode *pc,
                            jsval *rval, void *closure)
 {
@@ -426,9 +420,9 @@ static const int tab_width = 2;
 
 static void PrintObjectBasics(JSObject* obj)
 {
-    if (obj->isNative())
+    if(OBJ_IS_NATIVE(obj))
         printf("%p 'native' <%s>",
-               (void *)obj, obj->getClass()->name);
+               (void *)obj, STOBJ_GET_CLASS(obj)->name);
     else
         printf("%p 'host'", (void *)obj);
 }
@@ -450,11 +444,11 @@ static void PrintObject(JSObject* obj, int depth, ObjectPile* pile)
         return;
     }
 
-    if(!obj->isNative())
+    if(!OBJ_IS_NATIVE(obj))
         return;
 
-    JSObject* parent = obj->getParent();
-    JSObject* proto  = obj->getProto();
+    JSObject* parent = STOBJ_GET_PARENT(obj);
+    JSObject* proto  = STOBJ_GET_PROTO(obj);
 
     printf("%*sparent: ", INDENT(depth+1));
     if(parent)
@@ -486,3 +480,4 @@ xpc_DumpJSObject(JSObject* obj)
 
     return JS_TRUE;
 }
+#endif

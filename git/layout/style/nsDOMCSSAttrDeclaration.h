@@ -40,60 +40,44 @@
 #ifndef nsDOMCSSAttributeDeclaration_h___
 #define nsDOMCSSAttributeDeclaration_h___
 
+#include "nsIDOMCSSStyleDeclaration.h"
 #include "nsDOMCSSDeclaration.h"
 
 #include "nsString.h"
-#include "nsWrapperCache.h"
-#include "nsIContent.h"
 
-namespace mozilla {
-namespace css {
-class Loader;
-}
-}
+class nsIContent;
+class nsICSSLoader;
+class nsICSSParser;
 
-class nsDOMCSSAttributeDeclaration : public nsDOMCSSDeclaration,
-                                     public nsWrapperCache
+class nsDOMCSSAttributeDeclaration : public nsDOMCSSDeclaration
 {
 public:
-  nsDOMCSSAttributeDeclaration(nsIContent *aContent
-#ifdef MOZ_SMIL
-                               , PRBool aIsSMILOverride
-#endif // MOZ_SMIL
-                               );
+  nsDOMCSSAttributeDeclaration(nsIContent *aContent);
   ~nsDOMCSSAttributeDeclaration();
 
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsDOMCSSAttributeDeclaration,
-                                           nsICSSDeclaration)
+  // impl AddRef/Release; QI is implemented by our parent class
+  NS_IMETHOD_(nsrefcnt) AddRef(void);
+  NS_IMETHOD_(nsrefcnt) Release(void);
 
+  virtual void DropReference();
   // If GetCSSDeclaration returns non-null, then the decl it returns
   // is owned by our current style rule.
-  virtual mozilla::css::Declaration* GetCSSDeclaration(PRBool aAllocate);
+  virtual nsresult GetCSSDeclaration(nsCSSDeclaration **aDecl,
+                                     PRBool aAllocate);
   virtual nsresult GetCSSParsingEnvironment(nsIURI** aSheetURI,
                                             nsIURI** aBaseURI,
                                             nsIPrincipal** aSheetPrincipal,
-                                            mozilla::css::Loader** aCSSLoader);
+                                            nsICSSLoader** aCSSLoader,
+                                            nsICSSParser** aCSSParser);
   NS_IMETHOD GetParentRule(nsIDOMCSSRule **aParent);
 
-  virtual nsINode *GetParentObject()
-  {
-    return mContent;
-  }
-
 protected:
-  virtual nsresult SetCSSDeclaration(mozilla::css::Declaration* aDecl);
-  virtual nsIDocument* DocToUpdate();
+  virtual nsresult DeclarationChanged();
+  
+  nsAutoRefCnt mRefCnt;
+  NS_DECL_OWNINGTHREAD
 
-  nsCOMPtr<nsIContent> mContent;
-
-#ifdef MOZ_SMIL
-  /* If true, this indicates that this nsDOMCSSAttributeDeclaration
-   * should interact with mContent's SMIL override style rule (rather
-   * than the inline style rule).
-   */
-  const PRBool mIsSMILOverride;
-#endif // MOZ_SMIL
+  nsIContent *mContent;
 };
 
 #endif /* nsDOMCSSAttributeDeclaration_h___ */

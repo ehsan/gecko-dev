@@ -69,7 +69,10 @@ nsIRootBox::GetRootBox(nsIPresShell* aShell)
     rootFrame = rootFrame->GetFirstChild(nsnull);
   }
 
-  nsIRootBox* rootBox = do_QueryFrame(rootFrame);
+  nsIRootBox* rootBox = nsnull;
+  if (rootFrame) {
+    CallQueryInterface(rootFrame, &rootBox);
+  }
   return rootBox;
 }
 
@@ -80,8 +83,7 @@ public:
 
   nsRootBoxFrame(nsIPresShell* aShell, nsStyleContext *aContext);
 
-  NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
+  NS_DECL_ISUPPORTS_INHERITED
 
   virtual nsPopupSetFrame* GetPopupSetFrame();
   virtual void SetPopupSetFrame(nsPopupSetFrame* aPopupSet);
@@ -91,10 +93,10 @@ public:
   virtual nsresult RemoveTooltipSupport(nsIContent* aNode);
 
   NS_IMETHOD AppendFrames(nsIAtom*        aListName,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
   NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
   NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
 
@@ -143,8 +145,6 @@ NS_NewRootBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsRootBoxFrame (aPresShell, aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsRootBoxFrame)
-
 nsRootBoxFrame::nsRootBoxFrame(nsIPresShell* aShell, nsStyleContext* aContext):
   nsBoxFrame(aShell, aContext, PR_TRUE)
 {
@@ -157,7 +157,7 @@ nsRootBoxFrame::nsRootBoxFrame(nsIPresShell* aShell, nsStyleContext* aContext):
 
 NS_IMETHODIMP
 nsRootBoxFrame::AppendFrames(nsIAtom*        aListName,
-                             nsFrameList&    aFrameList)
+                             nsIFrame*       aFrameList)
 {
   nsresult  rv;
 
@@ -181,7 +181,7 @@ nsRootBoxFrame::AppendFrames(nsIAtom*        aListName,
 NS_IMETHODIMP
 nsRootBoxFrame::InsertFrames(nsIAtom*        aListName,
                              nsIFrame*       aPrevFrame,
-                             nsFrameList&    aFrameList)
+                             nsIFrame*       aFrameList)
 {
   nsresult  rv;
 
@@ -333,9 +333,21 @@ nsRootBoxFrame::RemoveTooltipSupport(nsIContent* aNode)
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-NS_QUERYFRAME_HEAD(nsRootBoxFrame)
-  NS_QUERYFRAME_ENTRY(nsIRootBox)
-NS_QUERYFRAME_TAIL_INHERITING(nsBoxFrame)
+NS_IMETHODIMP_(nsrefcnt) 
+nsRootBoxFrame::AddRef(void)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP_(nsrefcnt)
+nsRootBoxFrame::Release(void)
+{
+  return NS_OK;
+}
+
+NS_INTERFACE_MAP_BEGIN(nsRootBoxFrame)
+  NS_INTERFACE_MAP_ENTRY(nsIRootBox)
+NS_INTERFACE_MAP_END_INHERITING(nsBoxFrame)
 
 #ifdef DEBUG
 NS_IMETHODIMP

@@ -67,13 +67,15 @@ nsTransactionList::~nsTransactionList()
 /* readonly attribute long numItems; */
 NS_IMETHODIMP nsTransactionList::GetNumItems(PRInt32 *aNumItems)
 {
-  NS_ENSURE_TRUE(aNumItems, NS_ERROR_NULL_POINTER);
+  if (!aNumItems)
+    return NS_ERROR_NULL_POINTER;
 
   *aNumItems = 0;
 
   nsCOMPtr<nsITransactionManager> txMgr = do_QueryReferent(mTxnMgr);
 
-  NS_ENSURE_TRUE(txMgr, NS_ERROR_FAILURE);
+  if (!txMgr)
+    return NS_ERROR_FAILURE;
 
   nsresult result = NS_ERROR_FAILURE;
 
@@ -88,26 +90,30 @@ NS_IMETHODIMP nsTransactionList::GetNumItems(PRInt32 *aNumItems)
 /* boolean itemIsBatch (in long aIndex); */
 NS_IMETHODIMP nsTransactionList::ItemIsBatch(PRInt32 aIndex, PRBool *aIsBatch)
 {
-  NS_ENSURE_TRUE(aIsBatch, NS_ERROR_NULL_POINTER);
+  if (!aIsBatch)
+    return NS_ERROR_NULL_POINTER;
 
   *aIsBatch = PR_FALSE;
 
   nsCOMPtr<nsITransactionManager> txMgr = do_QueryReferent(mTxnMgr);
 
-  NS_ENSURE_TRUE(txMgr, NS_ERROR_FAILURE);
+  if (!txMgr)
+    return NS_ERROR_FAILURE;
 
-  nsRefPtr<nsTransactionItem> item;
+  nsTransactionItem *item = 0;
 
   nsresult result = NS_ERROR_FAILURE;
 
   if (mTxnStack)
-    result = mTxnStack->GetItem(aIndex, getter_AddRefs(item));
+    result = mTxnStack->GetItem(aIndex, &item);
   else if (mTxnItem)
-    result = mTxnItem->GetChild(aIndex, getter_AddRefs(item));
+    result = mTxnItem->GetChild(aIndex, &item);
 
-  NS_ENSURE_SUCCESS(result, result);
+  if (NS_FAILED(result))
+    return result;
 
-  NS_ENSURE_TRUE(item, NS_ERROR_FAILURE);
+  if (!item)
+    return NS_ERROR_FAILURE;
 
   return item->GetIsBatch(aIsBatch);
 }
@@ -115,53 +121,68 @@ NS_IMETHODIMP nsTransactionList::ItemIsBatch(PRInt32 aIndex, PRBool *aIsBatch)
 /* nsITransaction getItem (in long aIndex); */
 NS_IMETHODIMP nsTransactionList::GetItem(PRInt32 aIndex, nsITransaction **aItem)
 {
-  NS_ENSURE_TRUE(aItem, NS_ERROR_NULL_POINTER);
+  if (!aItem)
+    return NS_ERROR_NULL_POINTER;
 
   *aItem = 0;
 
   nsCOMPtr<nsITransactionManager> txMgr = do_QueryReferent(mTxnMgr);
 
-  NS_ENSURE_TRUE(txMgr, NS_ERROR_FAILURE);
+  if (!txMgr)
+    return NS_ERROR_FAILURE;
 
-  nsRefPtr<nsTransactionItem> item;
+  nsTransactionItem *item = 0;
 
   nsresult result = NS_ERROR_FAILURE;
 
   if (mTxnStack)
-    result = mTxnStack->GetItem(aIndex, getter_AddRefs(item));
+    result = mTxnStack->GetItem(aIndex, &item);
   else if (mTxnItem)
-    result = mTxnItem->GetChild(aIndex, getter_AddRefs(item));
+    result = mTxnItem->GetChild(aIndex, &item);
 
-  NS_ENSURE_SUCCESS(result, result);
+  if (NS_FAILED(result))
+    return result;
 
-  NS_ENSURE_TRUE(item, NS_ERROR_FAILURE);
+  if (!item)
+    return NS_ERROR_FAILURE;
 
-  return item->GetTransaction(aItem);
+  result = item->GetTransaction(aItem);
+
+  if (NS_FAILED(result))
+    return result;
+
+  NS_IF_ADDREF(*aItem);
+
+  return NS_OK;
 }
 
 /* long getNumChildrenForItem (in long aIndex); */
 NS_IMETHODIMP nsTransactionList::GetNumChildrenForItem(PRInt32 aIndex, PRInt32 *aNumChildren)
 {
-  NS_ENSURE_TRUE(aNumChildren, NS_ERROR_NULL_POINTER);
+  if (!aNumChildren)
+    return NS_ERROR_NULL_POINTER;
 
   *aNumChildren = 0;
 
   nsCOMPtr<nsITransactionManager> txMgr = do_QueryReferent(mTxnMgr);
 
-  NS_ENSURE_TRUE(txMgr, NS_ERROR_FAILURE);
+  if (!txMgr)
+    return NS_ERROR_FAILURE;
 
-  nsRefPtr<nsTransactionItem> item;
+  nsTransactionItem *item = 0;
 
   nsresult result = NS_ERROR_FAILURE;
 
   if (mTxnStack)
-    result = mTxnStack->GetItem(aIndex, getter_AddRefs(item));
+    result = mTxnStack->GetItem(aIndex, &item);
   else if (mTxnItem)
-    result = mTxnItem->GetChild(aIndex, getter_AddRefs(item));
+    result = mTxnItem->GetChild(aIndex, &item);
 
-  NS_ENSURE_SUCCESS(result, result);
+  if (NS_FAILED(result))
+    return result;
 
-  NS_ENSURE_TRUE(item, NS_ERROR_FAILURE);
+  if (!item)
+    return NS_ERROR_FAILURE;
 
   return item->GetNumberOfChildren(aNumChildren);
 }
@@ -169,30 +190,35 @@ NS_IMETHODIMP nsTransactionList::GetNumChildrenForItem(PRInt32 aIndex, PRInt32 *
 /* nsITransactionList getChildListForItem (in long aIndex); */
 NS_IMETHODIMP nsTransactionList::GetChildListForItem(PRInt32 aIndex, nsITransactionList **aTxnList)
 {
-  NS_ENSURE_TRUE(aTxnList, NS_ERROR_NULL_POINTER);
+  if (!aTxnList)
+    return NS_ERROR_NULL_POINTER;
 
   *aTxnList = 0;
 
   nsCOMPtr<nsITransactionManager> txMgr = do_QueryReferent(mTxnMgr);
 
-  NS_ENSURE_TRUE(txMgr, NS_ERROR_FAILURE);
+  if (!txMgr)
+    return NS_ERROR_FAILURE;
 
-  nsRefPtr<nsTransactionItem> item;
+  nsTransactionItem *item = 0;
 
   nsresult result = NS_ERROR_FAILURE;
 
   if (mTxnStack)
-    result = mTxnStack->GetItem(aIndex, getter_AddRefs(item));
+    result = mTxnStack->GetItem(aIndex, &item);
   else if (mTxnItem)
-    result = mTxnItem->GetChild(aIndex, getter_AddRefs(item));
+    result = mTxnItem->GetChild(aIndex, &item);
 
-  NS_ENSURE_SUCCESS(result, result);
+  if (NS_FAILED(result))
+    return result;
 
-  NS_ENSURE_TRUE(item, NS_ERROR_FAILURE);
+  if (!item)
+    return NS_ERROR_FAILURE;
 
   *aTxnList = (nsITransactionList *)new nsTransactionList(txMgr, item);
 
-  NS_ENSURE_TRUE(*aTxnList, NS_ERROR_OUT_OF_MEMORY);
+  if (!*aTxnList)
+    return NS_ERROR_OUT_OF_MEMORY;
 
   NS_ADDREF(*aTxnList);
 

@@ -56,10 +56,7 @@ else
 endif
 CC         = cc
 CCC        = CC
-ifndef NS_USE_GCC
-OS_CFLAGS  += -Ae
-endif
-OS_CFLAGS  += $(DSO_CFLAGS) -DHPUX -D$(CPU_ARCH) -D_HPUX_SOURCE -D_USE_BIG_FDS
+OS_CFLAGS  += -Ae $(DSO_CFLAGS) -DHPUX -D$(CPU_ARCH) -D_HPUX_SOURCE -D_USE_BIG_FDS
 
 ifeq ($(DEFAULT_IMPL_STRATEGY),_PTH)
 	USE_PTHREADS = 1
@@ -79,38 +76,18 @@ endif
 
 LDFLAGS			= -z -Wl,+s
 
-ifdef NS_USE_GCC
-LD = $(CC)
-endif
-MKSHLIB			= $(LD) $(DSO_LDOPTS) $(RPATH)
+MKSHLIB			= $(LD) $(DSO_LDOPTS)
 ifdef MAPFILE
-ifndef NS_USE_GCC
 MKSHLIB += -c $(MAPFILE)
-else
-MKSHLIB += -Wl,-c,$(MAPFILE)
-endif
 endif
 PROCESS_MAP_FILE = grep -v ';+' $< | grep -v ';-' | \
          sed -e 's; DATA ;;' -e 's,;;,,' -e 's,;.*,,' -e 's,^,+e ,' > $@
 
-ifndef NS_USE_GCC
 DSO_LDOPTS		= -b +h $(notdir $@)
-RPATH			= +b '$$ORIGIN'
-else
-DSO_LDOPTS		= -shared -Wl,+h,$(notdir $@)
-RPATH			= -Wl,+b,'$$ORIGIN'
+ifeq ($(OS_TEST),ia64)
+	DSO_LDOPTS	+= +b '$$ORIGIN'
 endif
-ifneq ($(OS_TEST),ia64)
-# pa-risc
-ifndef USE_64
-RPATH			=
-endif
-endif
+DSO_LDFLAGS		=
 
 # +Z generates position independent code for use in shared libraries.
-ifndef NS_USE_GCC
 DSO_CFLAGS = +Z
-else
-DSO_CFLAGS = -fPIC
-ASFLAGS   += -x assembler-with-cpp
-endif

@@ -41,7 +41,7 @@
 #include "nsIComponentManager.h"
 #include "nsCollation.h"
 #include "nsCollationCID.h"
-#include "nsUnicharUtils.h"
+#include "nsUnicharUtilCIID.h"
 #include "prmem.h"
 #include "nsReadableUtils.h"
 
@@ -74,6 +74,9 @@ nsresult nsCollationFactory::CreateCollation(nsILocale* locale, nsICollation** i
 nsCollation::nsCollation()
 {
   MOZ_COUNT_CTOR(nsCollation);
+  nsresult res;
+  mCaseConversion = do_GetService(NS_UNICHARUTIL_CONTRACTID, &res);
+  NS_ASSERTION(NS_SUCCEEDED(res), "CreateInstance failed for kCaseConversionIID");
 }
 
 nsCollation::~nsCollation()
@@ -83,22 +86,27 @@ nsCollation::~nsCollation()
 
 nsresult nsCollation::NormalizeString(const nsAString& stringIn, nsAString& stringOut)
 {
-  PRInt32 aLength = stringIn.Length();
-
-  if (aLength <= 64) {
-    PRUnichar conversionBuffer[64];
-    ToLowerCase(PromiseFlatString(stringIn).get(), conversionBuffer, aLength);
-    stringOut.Assign(conversionBuffer, aLength);
+  if (!mCaseConversion) {
+    stringOut = stringIn;
   }
   else {
-    PRUnichar* conversionBuffer;
-    conversionBuffer = new PRUnichar[aLength];
-    if (!conversionBuffer) {
-      return NS_ERROR_OUT_OF_MEMORY;
+    PRInt32 aLength = stringIn.Length();
+
+    if (aLength <= 64) {
+      PRUnichar conversionBuffer[64];
+      mCaseConversion->ToLower(PromiseFlatString(stringIn).get(), conversionBuffer, aLength);
+      stringOut.Assign(conversionBuffer, aLength);
     }
-    ToLowerCase(PromiseFlatString(stringIn).get(), conversionBuffer, aLength);
-    stringOut.Assign(conversionBuffer, aLength);
-    delete [] conversionBuffer;
+    else {
+      PRUnichar* conversionBuffer;
+      conversionBuffer = new PRUnichar[aLength];
+      if (!conversionBuffer) {
+        return NS_ERROR_OUT_OF_MEMORY;
+      }
+      mCaseConversion->ToLower(PromiseFlatString(stringIn).get(), conversionBuffer, aLength);
+      stringOut.Assign(conversionBuffer, aLength);
+      delete [] conversionBuffer;
+    }
   }
   return NS_OK;
 }

@@ -55,6 +55,8 @@ interface nsISimpleEnumerator;
  * A string containing characters encoded in the native charset cannot
  * be safely passed to javascript via xpconnect.  Therefore, the "native
  * methods" are not scriptable. 
+ *
+ * @status FROZEN
  */
 [scriptable, uuid(c8c0a080-0868-11d3-915f-d9d889d48e3c)]
 interface nsIFile : nsISupports
@@ -168,7 +170,6 @@ interface nsIFile : nsISupports
      *  (NS_ERROR_FILE_TARGET_DOES_NOT_EXIST).
      *  If 'this' is a file, and the destination file already exists, moveTo
      *  will replace the old file.
-     *  This object is updated to refer to the new file.
      *
      *  moveTo will NOT resolve aliases/shortcuts during the copy.
      *  moveTo will do the right thing and allow copies across volumes.

@@ -18,7 +18,6 @@
  * Contributor(s): Kevin Hendricks (kevin.hendricks@sympatico.ca)
  *                 David Einstein (deinst@world.std.com)
  *                 László Németh (nemethl@gyorsposta.hu)
- *                 Caolan McNamara (caolanm@redhat.com)
  *                 Davide Prina
  *                 Giuseppe Modugno
  *                 Gianluca Turconi
@@ -59,7 +58,6 @@
 #define _ATYPES_HXX_
 
 #ifndef HUNSPELL_WARNING
-#include <stdio.h>
 #ifdef HUNSPELL_WARNING_ON
 #define HUNSPELL_WARNING fprintf
 #else
@@ -71,8 +69,8 @@ static inline void HUNSPELL_WARNING(FILE *, const char *, ...) {}
 // HUNSTEM def.
 #define HUNSTEM
 
+#include "csutil.hxx"
 #include "hashmgr.hxx"
-#include "w_char.hxx"
 
 #define SETSIZE         256
 #define CONTSIZE        65536
@@ -84,7 +82,7 @@ static inline void HUNSPELL_WARNING(FILE *, const char *, ...) {}
 #define aeUTF8          (1 << 1)
 #define aeALIASF        (1 << 2)
 #define aeALIASM        (1 << 3)
-#define aeLONGCOND      (1 << 4)
+#define aeINFIX         (1 << 4)
 
 // compound options
 #define IN_CPD_NOT   0
@@ -96,8 +94,6 @@ static inline void HUNSPELL_WARNING(FILE *, const char *, ...) {}
 
 #define MINCPDLEN       3
 #define MAXCOMPOUND     10
-#define MAXCONDLEN      20
-#define MAXCONDLEN_1    (MAXCONDLEN - sizeof(char *))
 
 #define MAXACC          1000
 
@@ -116,26 +112,26 @@ struct affentry
    char  numconds;
    char  opts;
    unsigned short aflag;
+   union {
+        char   base[SETSIZE];
+        struct {
+                char ascii[SETSIZE/2];
+                char neg[8];
+                char all[8];
+                w_char * wchars[8];
+                int wlen[8];
+        } utf8;
+   } conds;
+#ifdef HUNSPELL_EXPERIMENTAL
+   char *       morphcode;
+#endif
    unsigned short * contclass;
    short        contclasslen;
-   union {
-     char conds[MAXCONDLEN];
-     struct {
-       char conds1[MAXCONDLEN_1];
-       char * conds2;
-     } l;
-   } c;
-   char *       morphcode;
-};
-
-struct guessword {
-  char * word;
-  bool allow;
-  char * orig;
 };
 
 struct mapentry {
-  char ** set;
+  char * set;
+  w_char * set_utf16;
   int len;
 };
 
@@ -144,12 +140,15 @@ struct flagentry {
   int len;
 };
 
-struct patentry {
-  char * pattern;
-  char * pattern2;
-  char * pattern3;
-  FLAG cond;
-  FLAG cond2;
+struct guessword {
+  char * word;
+  bool allow;
+  char * orig;
 };
 
 #endif
+
+
+
+
+

@@ -122,7 +122,7 @@ AddChild(STCategoryNode * parent, STCategoryNode * child)
 }
 
 int
-Reparent(STCategoryNode * parent, STCategoryNode * child)
+ReParent(STCategoryNode * parent, STCategoryNode * child)
 {
     PRUint32 i;
 
@@ -312,7 +312,7 @@ ProcessCategoryParentRule(STCategoryRule * parentRule, STCategoryNode * root,
              ** we would have created it as the child of root. Now we need to
              ** remove it from root's child list and add it into this node
              */
-            Reparent(node, child);
+            ReParent(node, child);
         }
     }
 
@@ -757,7 +757,7 @@ walkTree(STCategoryNode * root, STCategoryNodeProcessor func,
     while (begin != end) {
         node = nodes[begin];
         ret = (*func) (inRequest, inOptions, inContext, clientData, node);
-        if (!ret) {
+        if (ret == PR_FALSE) {
             /* Abort */
             break;
         }

@@ -53,22 +53,7 @@
  */
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-
-// Get services
-let histsvc = Cc["@mozilla.org/browser/nav-history-service;1"].
-              getService(Ci.nsINavHistoryService);
-let bhist = histsvc.QueryInterface(Ci.nsIBrowserHistory);
-let bsvc = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
-           getService(Ci.nsINavBookmarksService);
-let tsvc = Cc["@mozilla.org/browser/tagging-service;1"].
-           getService(Ci.nsITaggingService);
-let obs = Cc["@mozilla.org/observer-service;1"].
-          getService(Ci.nsIObserverService);
-let prefs = Cc["@mozilla.org/preferences-service;1"].
-            getService(Ci.nsIPrefBranch);
-
-
-const PLACES_AUTOCOMPLETE_FEEDBACK_UPDATED_TOPIC = "places-autocomplete-feedback-updated";
+let current_test = 0;
 
 function AutoCompleteInput(aSearches) {
   this.searches = aSearches;
@@ -111,8 +96,6 @@ AutoCompleteInput.prototype = {
     }
   },
 
-  onSearchBegin: function() {},
-
   // nsISupports implementation
   QueryInterface: function(iid) {
     if (iid.equals(Ci.nsISupports) ||
@@ -123,10 +106,7 @@ AutoCompleteInput.prototype = {
   }
 }
 
-/**
- * Checks that autocomplete results are ordered correctly
- */
-function ensure_results(expected, searchTerm)
+function ensure_results(uris, searchTerm)
 {
   let controller = Components.classes["@mozilla.org/autocomplete/controller;1"].
                    getService(Components.interfaces.nsIAutoCompleteController);
@@ -137,26 +117,40 @@ function ensure_results(expected, searchTerm)
 
   controller.input = input;
 
+  // Search is asynchronous, so don't let the test finish immediately
+  do_test_pending();
+
   input.onSearchComplete = function() {
     do_check_eq(controller.searchStatus,
                 Ci.nsIAutoCompleteController.STATUS_COMPLETE_MATCH);
-    do_check_eq(controller.matchCount, expected.length);
+    do_check_eq(controller.matchCount, uris.length);
     for (let i = 0; i < controller.matchCount; i++) {
-      print("Testing for '" + expected[i].uri.spec + "' got '" + controller.getValueAt(i) + "'");
-      do_check_eq(controller.getValueAt(i), expected[i].uri.spec);
-      do_check_eq(controller.getStyleAt(i), expected[i].style);
+      do_check_eq(controller.getValueAt(i), uris[i].spec);
     }
 
-    next_test();
+    if (current_test < (tests.length - 1)) {
+      current_test++;
+      tests[current_test]();
+    }
+
+    do_test_finished();
   };
 
   controller.startSearch(searchTerm);
 }
 
-/**
- * Bump up the rank for an uri
- */
-function setCountRank(aURI, aCount, aRank, aSearch, aBookmark)
+// Get history service
+try {
+  var histsvc = Cc["@mozilla.org/browser/nav-history-service;1"].
+                getService(Ci.nsINavHistoryService);
+  var bhist = histsvc.QueryInterface(Ci.nsIBrowserHistory);
+  var obs = Cc["@mozilla.org/observer-service;1"].
+            getService(Ci.nsIObserverService);
+} catch(ex) {
+  do_throw("Could not get history service\n");
+} 
+
+function setCountRank(aURI, aCount, aRank, aSearch)
 {
   // Bump up the visit count for the uri
   for (let i = 0; i < aCount; i++)
@@ -176,28 +170,8 @@ function setCountRank(aURI, aCount, aRank, aSearch, aBookmark)
   };
 
   // Bump up the instrumentation feedback
-  for (let i = 0; i < aRank; i++) {
+  for (let i = 0; i < aRank; i++)
     obs.notifyObservers(thing, "autocomplete-will-enter-text", null);
-  }
-
-  // If this is supposed to be a bookmark, add it.
-  if (aBookmark) {
-    bsvc.insertBookmark(bsvc.unfiledBookmarksFolder, aURI, bsvc.DEFAULT_INDEX,
-                        "test_book");
-
-    // And add the tag if we need to.
-    if (aBookmark == "tag")
-      tsvc.tagURI(aURI, "test_tag");
-  }
-}
-
-/**
- * Decay the adaptive entries by sending the daily idle topic
- */
-function doAdaptiveDecay()
-{
-  for (let i = 0; i < 10; i++)
-    obs.notifyObservers(null, "idle-daily", null);
 }
 
 let uri1 = uri("http://site.tld/1");
@@ -213,221 +187,84 @@ let s0 = "";
 let s1 = "si";
 let s2 = "site";
 
-let observer = {
-  results: null,
-  search: null,
-  runCount: -1,
-  observe: function(aSubject, aTopic, aData)
-  {
-    if (PLACES_AUTOCOMPLETE_FEEDBACK_UPDATED_TOPIC == aTopic &&
-        !(--this.runCount)) {
-      ensure_results(this.results, this.search);
-    }
-  }
-};
-obs.addObserver(observer, PLACES_AUTOCOMPLETE_FEEDBACK_UPDATED_TOPIC, false);
-
-/**
- * Make the result object for a given URI that will be passed to ensure_results.
- */
-function makeResult(aURI) {
-  return {
-    uri: aURI,
-    style: "favicon",
-  };
+function prepTest(name) {
+  print("Test " + name);
+  bhist.removeAllPages();
 }
 
 let tests = [
-  // Test things without a search term
-  function() {
-    print("Test 0 same count, diff rank, same term; no search");
-    observer.results = [
-      makeResult(uri1),
-      makeResult(uri2),
-    ];
-    observer.search = s0;
-    observer.runCount = c1 + c2;
-    setCountRank(uri1, c1, c1, s2);
-    setCountRank(uri2, c1, c2, s2);
-  },
-  function() {
-    print("Test 1 same count, diff rank, same term; no search");
-    observer.results = [
-      makeResult(uri2),
-      makeResult(uri1),
-    ];
-    observer.search = s0;
-    observer.runCount = c1 + c2;
-    setCountRank(uri1, c1, c2, s2);
-    setCountRank(uri2, c1, c1, s2);
-  },
-  function() {
-    print("Test 2 diff count, same rank, same term; no search");
-    observer.results = [
-      makeResult(uri1),
-      makeResult(uri2),
-    ];
-    observer.search = s0;
-    observer.runCount = c1 + c1;
-    setCountRank(uri1, c1, c1, s2);
-    setCountRank(uri2, c2, c1, s2);
-  },
-  function() {
-    print("Test 3 diff count, same rank, same term; no search");
-    observer.results = [
-      makeResult(uri2),
-      makeResult(uri1),
-    ];
-    observer.search = s0;
-    observer.runCount = c1 + c1;
-    setCountRank(uri1, c2, c1, s2);
-    setCountRank(uri2, c1, c1, s2);
-  },
+// Test things without a search term
+function() {
+  prepTest("0 same count, diff rank, same term; no search");
+  setCountRank(uri1, c1, c1, s2);
+  setCountRank(uri2, c1, c2, s2);
+  ensure_results([uri1, uri2], s0);
+},
+function() {
+  prepTest("1 same count, diff rank, same term; no search");
+  setCountRank(uri1, c1, c2, s2);
+  setCountRank(uri2, c1, c1, s2);
+  ensure_results([uri2, uri1], s0);
+},
+function() {
+  prepTest("2 diff count, same rank, same term; no search");
+  setCountRank(uri1, c1, c1, s2);
+  setCountRank(uri2, c2, c1, s2);
+  ensure_results([uri1, uri2], s0);
+},
+function() {
+  prepTest("3 diff count, same rank, same term; no search");
+  setCountRank(uri1, c2, c1, s2);
+  setCountRank(uri2, c1, c1, s2);
+  ensure_results([uri2, uri1], s0);
+},
 
-  // Test things with a search term (exact match one, partial other)
-  function() {
-    print("Test 4 same count, same rank, diff term; one exact/one partial search");
-    observer.results = [
-      makeResult(uri1),
-      makeResult(uri2),
-    ];
-    observer.search = s1;
-    observer.runCount = c1 + c1;
-    setCountRank(uri1, c1, c1, s1);
-    setCountRank(uri2, c1, c1, s2);
-  },
-  function() {
-    print("Test 5 same count, same rank, diff term; one exact/one partial search");
-    observer.results = [
-      makeResult(uri2),
-      makeResult(uri1),
-    ];
-    observer.search = s1;
-    observer.runCount = c1 + c1;
-    setCountRank(uri1, c1, c1, s2);
-    setCountRank(uri2, c1, c1, s1);
-  },
+// Test things with a search term (exact match one, partial other)
+function() {
+  prepTest("4 same count, same rank, diff term; one exact/one partial search");
+  setCountRank(uri1, c1, c1, s1);
+  setCountRank(uri2, c1, c1, s2);
+  ensure_results([uri1, uri2], s1);
+},
+function() {
+  prepTest("5 same count, same rank, diff term; one exact/one partial search");
+  setCountRank(uri1, c1, c1, s2);
+  setCountRank(uri2, c1, c1, s1);
+  ensure_results([uri2, uri1], s1);
+},
 
-  // Test things with a search term (exact match both)
-  function() {
-    print("Test 6 same count, diff rank, same term; both exact search");
-    observer.results = [
-      makeResult(uri1),
-      makeResult(uri2),
-    ];
-    observer.search = s1;
-    observer.runCount = c1 + c2;
-    setCountRank(uri1, c1, c1, s1);
-    setCountRank(uri2, c1, c2, s1);
-  },
-  function() {
-    print("Test 7 same count, diff rank, same term; both exact search");
-    observer.results = [
-      makeResult(uri2),
-      makeResult(uri1),
-    ];
-    observer.search = s1;
-    observer.runCount = c1 + c2;
-    setCountRank(uri1, c1, c2, s1);
-    setCountRank(uri2, c1, c1, s1);
-  },
+// Test things with a search term (exact match both)
+function() {
+  prepTest("6 same count, diff rank, same term; both exact search");
+  setCountRank(uri1, c1, c1, s1);
+  setCountRank(uri2, c1, c2, s1);
+  ensure_results([uri1, uri2], s1);
+},
+function() {
+  prepTest("7 same count, diff rank, same term; both exact search");
+  setCountRank(uri1, c1, c2, s1);
+  setCountRank(uri2, c1, c1, s1);
+  ensure_results([uri2, uri1], s1);
+},
 
-  // Test things with a search term (partial match both)
-  function() {
-    print("Test 8 same count, diff rank, same term; both partial search");
-    observer.results = [
-      makeResult(uri1),
-      makeResult(uri2),
-    ];
-    observer.search = s1;
-    observer.runCount = c1 + c2;
-    setCountRank(uri1, c1, c1, s2);
-    setCountRank(uri2, c1, c2, s2);
-  },
-  function() {
-    print("Test 9 same count, diff rank, same term; both partial search");
-    observer.results = [
-      makeResult(uri2),
-      makeResult(uri1),
-    ];
-    observer.search = s1;
-    observer.runCount = c1 + c2;
-    setCountRank(uri1, c1, c2, s2);
-    setCountRank(uri2, c1, c1, s2);
-  },
-  function() {
-    print("Test 10 same count, same rank, same term, decay first; exact match");
-    observer.results = [
-      makeResult(uri2),
-      makeResult(uri1),
-    ];
-    observer.search = s1;
-    observer.runCount = c1 + c1;
-    setCountRank(uri1, c1, c1, s1);
-    doAdaptiveDecay();
-    setCountRank(uri2, c1, c1, s1);
-  },
-  function() {
-    print("Test 11 same count, same rank, same term, decay second; exact match");
-    observer.results = [
-      makeResult(uri1),
-      makeResult(uri2),
-    ];
-    observer.search = s1;
-    observer.runCount = c1 + c1;
-    setCountRank(uri2, c1, c1, s1);
-    doAdaptiveDecay();
-    setCountRank(uri1, c1, c1, s1);
-  },
-  // Test that bookmarks or tags are hidden if the preferences are set right.
-  function() {
-    print("Test 12 same count, diff rank, same term; no search; history only");
-    prefs.setIntPref("browser.urlbar.matchBehavior",
-                     Ci.mozIPlacesAutoComplete.BEHAVIOR_HISTORY);
-    observer.results = [
-      makeResult(uri1),
-      makeResult(uri2),
-    ];
-    observer.search = s0;
-    observer.runCount = c1 + c2;
-    setCountRank(uri1, c1, c1, s2, "bookmark");
-    setCountRank(uri2, c1, c2, s2);
-  },
-  function() {
-    print("Test 13 same count, diff rank, same term; no search; history only with tag");
-    prefs.setIntPref("browser.urlbar.matchBehavior",
-                     Ci.mozIPlacesAutoComplete.BEHAVIOR_HISTORY);
-    observer.results = [
-      makeResult(uri1),
-      makeResult(uri2),
-    ];
-    observer.search = s0;
-    observer.runCount = c1 + c2;
-    setCountRank(uri1, c1, c1, s2, "tag");
-    setCountRank(uri2, c1, c2, s2);
-  },
+// Test things with a search term (partial match both)
+function() {
+  prepTest("8 same count, diff rank, same term; both partial search");
+  setCountRank(uri1, c1, c1, s2);
+  setCountRank(uri2, c1, c2, s2);
+  ensure_results([uri1, uri2], s1);
+},
+function() {
+  prepTest("9 same count, diff rank, same term; both partial search");
+  setCountRank(uri1, c1, c2, s2);
+  setCountRank(uri2, c1, c1, s2);
+  ensure_results([uri2, uri1], s1);
+},
 ];
 
 /**
- * Test adaptive autocomplete
+ * Test history autocomplete
  */
 function run_test() {
-  do_test_pending();
-  next_test();
-}
-
-function next_test() {
-  if (tests.length) {
-    // Cleanup.
-    bsvc.removeFolderChildren(bsvc.unfiledBookmarksFolder);
-    bsvc.removeFolderChildren(bsvc.tagsFolder);
-    observer.runCount = -1;
-
-    let test = tests.shift();
-    waitForClearHistory(test);
-  }
-  else {
-    obs.removeObserver(observer, PLACES_AUTOCOMPLETE_FEEDBACK_UPDATED_TOPIC);
-    do_test_finished();
-  }
+  tests[0]();
 }

@@ -37,34 +37,49 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-const Ci = Components.interfaces;
-const Cc = Components.classes;
-const Cr = Components.results;
-const Cu = Components.utils;
+version(170);
 
-Cu.import("resource://gre/modules/Services.jsm");
+const NS_APP_USER_PROFILE_50_DIR = "ProfD";
+var Ci = Components.interfaces;
+var Cc = Components.classes;
+var Cr = Components.results;
 
-// Import common head.
-let (commonFile = do_get_file("../../test_places/head_common.js", false)) {
-  let uri = Services.io.newFileURI(commonFile);
-  Services.scriptloader.loadSubScript(uri.spec, this);
+function LOG(aMsg) {
+  aMsg = ("*** PLACES TESTS: " + aMsg);
+  Cc["@mozilla.org/consoleservice;1"].getService(Ci.nsIConsoleService).
+                                      logStringMessage(aMsg);
+  print(aMsg);
 }
 
-// Put any other stuff relative to this test folder below.
+// If there's no location registered for the profile direcotry, register one now.
+var dirSvc = Cc["@mozilla.org/file/directory_service;1"].getService(Ci.nsIProperties);
+var profileDir = null;
+try {
+  profileDir = dirSvc.get(NS_APP_USER_PROFILE_50_DIR, Ci.nsIFile);
+} catch (e) {}
+if (!profileDir) {
+  // Register our own provider for the profile directory.
+  // It will simply return the current directory.
+  var provider = {
+    getFile: function(prop, persistent) {
+      persistent.value = true;
+      if (prop == NS_APP_USER_PROFILE_50_DIR) {
+        return dirSvc.get("CurProcD", Ci.nsIFile);
+      }
+      throw Cr.NS_ERROR_FAILURE;
+    },
+    QueryInterface: function(iid) {
+      if (iid.equals(Ci.nsIDirectoryServiceProvider) ||
+          iid.equals(Ci.nsISupports)) {
+        return this;
+      }
+      throw Cr.NS_ERROR_NO_INTERFACE;
+    }
+  };
+  dirSvc.QueryInterface(Ci.nsIDirectoryService).registerProvider(provider);
+}
 
-
-XPCOMUtils.defineLazyGetter(this, "PlacesUIUtils", function() {
-  Cu.import("resource:///modules/PlacesUIUtils.jsm");
-  return PlacesUIUtils;
-});
-
-
-const ORGANIZER_FOLDER_ANNO = "PlacesOrganizer/OrganizerFolder";
-const ORGANIZER_QUERY_ANNO = "PlacesOrganizer/OrganizerQuery";
-
-
-// Needed by some test that relies on having an app  registered.
-let (XULAppInfo = {
+var XULAppInfo = {
   vendor: "Mozilla",
   name: "PlacesTest",
   ID: "{230de50e-4cd1-11dc-8314-0800200c9a66}",
@@ -77,35 +92,50 @@ let (XULAppInfo = {
   OS: "XPCShell",
   XPCOMABI: "noarch-spidermonkey",
 
-  QueryInterface: XPCOMUtils.generateQI([
-    Ci.nsIXULAppInfo,
-    Ci.nsIXULRuntime,
-  ])
-}) {
-  let XULAppInfoFactory = {
-    createInstance: function (outer, iid) {
-      if (outer != null)
-        throw Cr.NS_ERROR_NO_AGGREGATION;
-      return XULAppInfo.QueryInterface(iid);
-    }
-  };
-  let registrar = Components.manager.QueryInterface(Ci.nsIComponentRegistrar);
-  registrar.registerFactory(Components.ID("{fbfae60b-64a4-44ef-a911-08ceb70b9f31}"),
-                            "XULAppInfo", "@mozilla.org/xre/app-info;1",
-                            XULAppInfoFactory);
+  QueryInterface: function QueryInterface(iid) {
+    if (iid.equals(Ci.nsIXULAppInfo) ||
+        iid.equals(Ci.nsIXULRuntime) ||
+        iid.equals(Ci.nsISupports))
+      return this;
+    throw Cr.NS_ERROR_NO_INTERFACE;
+  }
+};
+
+var XULAppInfoFactory = {
+  createInstance: function (outer, iid) {
+    if (outer != null)
+      throw Cr.NS_ERROR_NO_AGGREGATION;
+    return XULAppInfo.QueryInterface(iid);
+  }
+};
+
+var registrar = Components.manager.QueryInterface(Ci.nsIComponentRegistrar);
+registrar.registerFactory(Components.ID("{fbfae60b-64a4-44ef-a911-08ceb70b9f31}"),
+                          "XULAppInfo", "@mozilla.org/xre/app-info;1",
+                          XULAppInfoFactory);
+
+var updateSvc = Cc["@mozilla.org/updates/update-service;1"].
+                getService(Ci.nsISupports);
+
+var iosvc = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
+
+function uri(spec) {
+  return iosvc.newURI(spec, null, null);
 }
 
+function cleanUp() {
+  try {
+    // Delete a previously created sqlite file
+    var file = dirSvc.get('ProfD', Ci.nsIFile);
+    file.append("places.sqlite");
+    if (file.exists())
+      file.remove(false);
 
-const FILENAME_BOOKMARKS_HTML = "bookmarks.html";
-let (backup_date = new Date().toLocaleFormat("%Y-%m-%d")) {
-  const FILENAME_BOOKMARKS_JSON = "bookmarks-" + backup_date + ".json";
+    // Delete exported bookmarks html file
+    file = dirSvc.get('ProfD', Ci.nsIFile);
+    file.append("bookmarks.exported.html");
+    if (file.exists())
+      file.remove(false);
+  } catch(ex) { dump("Exception: " + ex); }
 }
-
-// Smart bookmarks constants.
-const SMART_BOOKMARKS_VERSION = 2;
-const SMART_BOOKMARKS_ON_TOOLBAR = 1;
-const SMART_BOOKMARKS_ON_MENU = 3; // Takes in count the additional separator.
-
-// Default bookmarks constants.
-const DEFAULT_BOOKMARKS_ON_TOOLBAR = 2;
-const DEFAULT_BOOKMARKS_ON_MENU = 1;
+cleanUp();

@@ -45,6 +45,9 @@
 // TODO more comprehensive update tests, for example add unittest check 
 //      that the listmanagers tables are properly written on updates
 
+// How frequently we check for updates (30 minutes)
+const kUpdateInterval = 30 * 60 * 1000;
+
 function QueryAdapter(callback) {
   this.callback_ = callback;
 };
@@ -65,7 +68,6 @@ function PROT_ListManager() {
 
   this.currentUpdateChecker_ = null;   // set when we toggle updates
   this.prefs_ = new G_Preferences();
-  this.updateInterval = this.prefs_.getPref("urlclassifier.updateinterval", 30 * 60) * 1000;
 
   this.updateserverURL_ = null;
   this.gethashURL_ = null;
@@ -75,7 +77,7 @@ function PROT_ListManager() {
   this.tablesData = {};
 
   this.observerServiceObserver_ = new G_ObserverServiceObserver(
-                                          'quit-application',
+                                          'xpcom-shutdown',
                                           BindToObject(this.shutdown_, this),
                                           true /*only once*/);
 
@@ -117,10 +119,6 @@ function PROT_ListManager() {
  * Delete all of our data tables which seem to leak otherwise.
  */
 PROT_ListManager.prototype.shutdown_ = function() {
-  if (this.keyManager_) {
-    this.keyManager_.shutdown();
-  }
-
   for (var name in this.tablesData) {
     delete this.tablesData[name];
   }
@@ -299,15 +297,16 @@ PROT_ListManager.prototype.maybeToggleUpdateChecking = function() {
 /**
  * Start periodic checks for updates. Idempotent.
  * We want to distribute update checks evenly across the update period (an
- * hour).  The first update is scheduled for a random time between 0.5 and 1.5
- * times the update interval.
+ * hour).  To do this, we pick a random number of time between 0 and 30
+ * minutes.  The client first checks at 15 + rand, then every 30 minutes after
+ * that.
  */
 PROT_ListManager.prototype.startUpdateChecker = function() {
   this.stopUpdateChecker();
   
   // Schedule the first check for between 15 and 45 minutes.
-  var repeatingUpdateDelay = this.updateInterval / 2;
-  repeatingUpdateDelay += Math.floor(Math.random() * this.updateInterval);
+  var repeatingUpdateDelay = kUpdateInterval / 2;
+  repeatingUpdateDelay += Math.floor(Math.random() * kUpdateInterval);
   this.updateChecker_ = new G_Alarm(BindToObject(this.initialUpdateCheck_,
                                                  this),
                                     repeatingUpdateDelay);
@@ -316,12 +315,12 @@ PROT_ListManager.prototype.startUpdateChecker = function() {
 /**
  * Callback for the first update check.
  * We go ahead and check for table updates, then start a regular timer (once
- * every update interval).
+ * every 30 minutes).
  */
 PROT_ListManager.prototype.initialUpdateCheck_ = function() {
   this.checkForUpdates();
   this.updateChecker_ = new G_Alarm(BindToObject(this.checkForUpdates, this), 
-                                    this.updateInterval, true /* repeat */);
+                                    kUpdateInterval, true /* repeat */);
 }
 
 /**
@@ -443,7 +442,7 @@ PROT_ListManager.prototype.makeUpdateRequest_ = function(tableData) {
   // For each requested table that didn't have chunk data in the database,
   // request it fresh
   for (var tableName in tableNames) {
-    request += tableName + ";mac\n";
+    request += tableName + ";:mac\n";
   }
 
   G_Debug(this, 'checkForUpdates: scheduling request..');
@@ -565,5 +564,6 @@ PROT_ListManager.prototype.QueryInterface = function(iid) {
       iid.equals(Ci.nsITimerCallback))
     return this;
 
-  throw Components.results.NS_ERROR_NO_INTERFACE;
+  Components.returnCode = Components.results.NS_ERROR_NO_INTERFACE;
+  return null;
 }

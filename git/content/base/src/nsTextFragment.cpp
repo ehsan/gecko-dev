@@ -42,12 +42,12 @@
  */
 
 #include "nsTextFragment.h"
+#include "nsString.h"
 #include "nsCRT.h"
 #include "nsReadableUtils.h"
 #include "nsMemory.h"
 #include "nsBidiUtils.h"
 #include "nsUnicharUtils.h"
-#include "nsUTF8Utils.h"
 
 #define TEXTFRAG_WHITE_AFTER_NEWLINE 50
 #define TEXTFRAG_MAX_NEWLINES 7
@@ -105,7 +105,6 @@ nsTextFragment::Shutdown()
 nsTextFragment::~nsTextFragment()
 {
   ReleaseText();
-  MOZ_COUNT_DTOR(nsTextFragment);
 }
 
 void
@@ -227,10 +226,9 @@ nsTextFragment::SetTo(const PRUnichar* aBuffer, PRInt32 aLength)
     }
 
     // Copy data
-    // Use the same copying code we use elsewhere; it's likely to be
-    // carefully tuned.
-    LossyConvertEncoding<PRUnichar, char> converter(buff);
-    copy_string(aBuffer, aBuffer+aLength, converter);
+    for (PRUint32 i = 0; i < (PRUint32)aLength; ++i) {
+      buff[i] = (char)aBuffer[i];
+    }
     m1b = buff;
   }
 
@@ -238,6 +236,27 @@ nsTextFragment::SetTo(const PRUnichar* aBuffer, PRInt32 aLength)
   mState.mInHeap = PR_TRUE;
   mState.mIs2b = need2;
   mState.mLength = aLength;
+}
+
+void
+nsTextFragment::AppendTo(nsAString& aString) const
+{
+  if (mState.mIs2b) {
+    aString.Append(m2b, mState.mLength);
+  } else {
+    AppendASCIItoUTF16(Substring(m1b, m1b + mState.mLength),
+                       aString);
+  }
+}
+
+void
+nsTextFragment::AppendTo(nsAString& aString, PRInt32 aOffset, PRInt32 aLength) const
+{
+  if (mState.mIs2b) {
+    aString.Append(m2b + aOffset, aLength);
+  } else {
+    AppendASCIItoUTF16(Substring(m1b + aOffset, m1b + aOffset + aLength), aString);
+  }
 }
 
 void
@@ -250,7 +269,7 @@ nsTextFragment::CopyTo(PRUnichar *aDest, PRInt32 aOffset, PRInt32 aCount)
     aOffset = 0;
   }
 
-  if (PRUint32(aOffset + aCount) > GetLength()) {
+  if (aOffset + aCount > GetLength()) {
     aCount = mState.mLength - aOffset;
   }
 

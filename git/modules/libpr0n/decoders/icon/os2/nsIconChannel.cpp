@@ -81,7 +81,12 @@ void    ConvertMaskBitMap(PRUint8 *inBuf, PBITMAPINFO2 pBMInfo,
 //------------------------------------------------------------------------
 
 // reduces overhead by preventing calls to nsRws when it isn't present
+#ifdef MOZ_PHOENIX  // should work fine in Firefox
 static PRBool sUseRws = PR_TRUE;
+#else // XXX causes duplicate attachment icons and crashes in apps that
+      //     use mailnews, so off now for other apps
+static PRBool sUseRws = PR_FALSE;
+#endif
 
 //------------------------------------------------------------------------
 // nsIconChannel methods
@@ -103,7 +108,7 @@ nsresult nsIconChannel::Init(nsIURI* uri)
 {
   NS_ASSERTION(uri, "no uri");
   mUrl = uri;
-  mOriginalURI = uri;
+
   nsresult rv;
   mPump = do_CreateInstance(NS_INPUTSTREAMPUMP_CONTRACTID, &rv);
   return rv;
@@ -170,14 +175,13 @@ NS_IMETHODIMP nsIconChannel::SetLoadFlags(PRUint32 aLoadAttributes)
 
 NS_IMETHODIMP nsIconChannel::GetOriginalURI(nsIURI* *aURI)
 {
-  *aURI = mOriginalURI;
+  *aURI = mOriginalURI ? mOriginalURI : mUrl;
   NS_ADDREF(*aURI);
   return NS_OK;
 }
 
 NS_IMETHODIMP nsIconChannel::SetOriginalURI(nsIURI* aURI)
 {
-  NS_ENSURE_ARG_POINTER(aURI);
   mOriginalURI = aURI;
   return NS_OK;
 }
@@ -228,17 +232,17 @@ nsresult nsIconChannel::ExtractIconInfoFromUrl(nsIFile ** aLocalFile, PRUint32 *
   iconURI->GetContentType(aContentType);
   iconURI->GetFileExtension(aFileExtension);
 
-  nsCOMPtr<nsIURL> url;
-  rv = iconURI->GetIconURL(getter_AddRefs(url));
-  if (NS_FAILED(rv) || !url) return NS_OK;
+  nsCOMPtr<nsIURI> fileURI;
+  rv = iconURI->GetIconFile(getter_AddRefs(fileURI));
+  if (NS_FAILED(rv) || !fileURI) return NS_OK;
 
-  nsCOMPtr<nsIFileURL> fileURL = do_QueryInterface(url, &rv);
+  nsCOMPtr<nsIFileURL>    fileURL = do_QueryInterface(fileURI, &rv);
   if (NS_FAILED(rv) || !fileURL) return NS_OK;
 
   nsCOMPtr<nsIFile> file;
   rv = fileURL->GetFile(getter_AddRefs(file));
   if (NS_FAILED(rv) || !file) return NS_OK;
-
+  
   *aLocalFile = file;
   NS_IF_ADDREF(*aLocalFile);
   return NS_OK;

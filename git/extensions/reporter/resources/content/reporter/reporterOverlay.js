@@ -56,6 +56,7 @@ var reporterListener = {
         case "http":
         case "https":
         case "ftp":
+        case "gopher":
           isEnabled = true;
       }
     }
@@ -67,6 +68,7 @@ var reporterListener = {
   onProgressChange: function() {  },
   onStatusChange: function() {  },
   onSecurityChange: function() {  },
+  onLinkIconAvailable: function() {  },
   onProgressChange64: function() { },
   onRefreshAttempted: function() { return true; }
 }

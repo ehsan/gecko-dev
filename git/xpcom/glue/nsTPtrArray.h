@@ -15,7 +15,7 @@
  *
  * The Original Code is C++ pointer array template.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2006
  * the Initial Developer. All Rights Reserved.
  *
@@ -64,13 +64,13 @@ class nsTPtrArray : public nsTArray<E*> {
 
     // Initialize this array and pre-allocate some number of elements.
     explicit nsTPtrArray(size_type capacity) {
-      this->SetCapacity(capacity);
+      SetCapacity(capacity);
     }
     
     // The array's copy-constructor performs a 'deep' copy of the given array.
     // @param other  The array object to copy.
     nsTPtrArray(const self_type& other) {
-      this->AppendElements(other);
+      AppendElements(other);
     }
 
     //
@@ -113,10 +113,7 @@ class nsAutoTPtrArray : public nsTPtrArray<E> {
     }
 
   protected:
-    union {
-      char mAutoBuf[sizeof(Header) + N * sizeof(elem_type)];
-      PRUint64 dummy;
-    };
+    char mAutoBuf[sizeof(Header) + N * sizeof(elem_type)];
 };
 
 #endif  // nsTPtrArray_h__

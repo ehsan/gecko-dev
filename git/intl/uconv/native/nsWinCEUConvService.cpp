@@ -39,6 +39,7 @@
 #include "nsNativeUConvService.h"
 #include "nsIUnicodeDecoder.h"
 #include "nsIUnicodeEncoder.h"
+#include "nsICharRepresentable.h"
 #include "nsIPlatformCharset.h"
 #include "nsIServiceManager.h"
 
@@ -73,7 +74,8 @@ void DisplayLastError(const char * msg)
 
 
 class WinCEUConvAdapter : public nsIUnicodeDecoder,
-                          public nsIUnicodeEncoder
+                          public nsIUnicodeEncoder,
+                          public nsICharRepresentable
 {
 public:
   
@@ -96,9 +98,6 @@ public:
                           PRInt32 * aDestLength);
   NS_IMETHOD Reset();
   
-  virtual void SetInputErrorBehavior(PRInt32 aBehavior);
-  virtual PRUnichar GetCharacterForUnMapped();
-
   // Encoder methods:
   
   NS_IMETHOD Convert(const PRUnichar * aSrc, 
@@ -119,12 +118,15 @@ public:
                                     nsIUnicharEncoder * aEncoder, 
                                     PRUnichar aChar);
   
+  NS_IMETHOD FillInfo(PRUint32* aInfo);
+  
   PRUint32 mCodepage;
 };
 
-NS_IMPL_ISUPPORTS2(WinCEUConvAdapter,
+NS_IMPL_ISUPPORTS3(WinCEUConvAdapter,
                    nsIUnicodeDecoder,
-                   nsIUnicodeEncoder)
+                   nsIUnicodeEncoder,
+                   nsICharRepresentable)
 
 WinCEUConvAdapter::WinCEUConvAdapter()
 {
@@ -310,17 +312,6 @@ WinCEUConvAdapter::Reset()
   return NS_OK;
 }
 
-void
-WinCEUConvAdapter::SetInputErrorBehavior(PRInt32 aBehavior)
-{
-}
-
-PRUnichar
-WinCEUConvAdapter::GetCharacterForUnMapped()
-{
-  return PRUnichar(0xfffd); // Unicode REPLACEMENT CHARACTER
-}
-
 // Encoder methods:
 
 NS_IMETHODIMP
@@ -392,6 +383,12 @@ NS_IMETHODIMP
 WinCEUConvAdapter::SetOutputErrorBehavior(PRInt32 aBehavior, 
                                           nsIUnicharEncoder * aEncoder, 
                                           PRUnichar aChar)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+WinCEUConvAdapter::FillInfo(PRUint32* aInfo)
 {
   return NS_OK;
 }

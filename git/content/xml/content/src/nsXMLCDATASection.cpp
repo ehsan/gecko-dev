@@ -43,11 +43,11 @@
 #include "nsContentUtils.h"
 
 
-class nsXMLCDATASection : public nsGenericTextNode,
+class nsXMLCDATASection : public nsGenericDOMDataNode,
                           public nsIDOMCDATASection
 {
 public:
-  nsXMLCDATASection(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsXMLCDATASection(nsINodeInfo *aNodeInfo);
   virtual ~nsXMLCDATASection();
 
   // nsISupports
@@ -67,8 +67,6 @@ public:
 
   // nsIContent
   virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
-
-  virtual nsXPCClassInfo* GetClassInfo();
 #ifdef DEBUG
   virtual void List(FILE* out, PRInt32 aIndent) const;
   virtual void DumpContent(FILE* out, PRInt32 aIndent,PRBool aDumpAll) const;
@@ -84,11 +82,12 @@ NS_NewXMLCDATASection(nsIContent** aInstancePtrResult,
   *aInstancePtrResult = nsnull;
 
   nsCOMPtr<nsINodeInfo> ni;
-  ni = aNodeInfoManager->GetNodeInfo(nsGkAtoms::cdataTagName,
-                                     nsnull, kNameSpaceID_None);
-  NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);
+  nsresult rv = aNodeInfoManager->GetNodeInfo(nsGkAtoms::cdataTagName,
+                                              nsnull, kNameSpaceID_None,
+                                              getter_AddRefs(ni));
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  nsXMLCDATASection *instance = new nsXMLCDATASection(ni.forget());
+  nsXMLCDATASection *instance = new nsXMLCDATASection(ni);
   if (!instance) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -98,8 +97,8 @@ NS_NewXMLCDATASection(nsIContent** aInstancePtrResult,
   return NS_OK;
 }
 
-nsXMLCDATASection::nsXMLCDATASection(already_AddRefed<nsINodeInfo> aNodeInfo)
-  : nsGenericTextNode(aNodeInfo)
+nsXMLCDATASection::nsXMLCDATASection(nsINodeInfo *aNodeInfo)
+  : nsGenericDOMDataNode(aNodeInfo)
 {
 }
 
@@ -108,14 +107,14 @@ nsXMLCDATASection::~nsXMLCDATASection()
 }
 
 
-DOMCI_NODE_DATA(CDATASection, nsXMLCDATASection)
-
 // QueryInterface implementation for nsXMLCDATASection
-NS_INTERFACE_TABLE_HEAD(nsXMLCDATASection)
-  NS_NODE_INTERFACE_TABLE4(nsXMLCDATASection, nsIDOMNode, nsIDOMCharacterData,
-                           nsIDOMText, nsIDOMCDATASection)
+NS_INTERFACE_MAP_BEGIN(nsXMLCDATASection)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMNode)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMCharacterData)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMText)
   NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOM3Text, new nsText3Tearoff(this))
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CDATASection)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMCDATASection)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(CDATASection)
 NS_INTERFACE_MAP_END_INHERITING(nsGenericDOMDataNode)
 
 NS_IMPL_ADDREF_INHERITED(nsXMLCDATASection, nsGenericDOMDataNode)
@@ -157,8 +156,7 @@ nsXMLCDATASection::GetNodeType(PRUint16* aNodeType)
 nsGenericDOMDataNode*
 nsXMLCDATASection::CloneDataNode(nsINodeInfo *aNodeInfo, PRBool aCloneText) const
 {
-  nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-  nsXMLCDATASection *it = new nsXMLCDATASection(ni.forget());
+  nsXMLCDATASection *it = new nsXMLCDATASection(aNodeInfo);
   if (it && aCloneText) {
     it->mText = mText;
   }

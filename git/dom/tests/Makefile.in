@@ -44,12 +44,12 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE = test_dom
 
-DIRS		+= mochitest \
-		$(NULL)
-XPCSHELL_TESTS = unit
+ifdef MOZ_MOCHITEST
+DIRS		+= mochitest
+endif
 
-ifneq (mobile,$(MOZ_BUILD_APP))
-	dirs += browser
+ifdef ENABLE_TESTS
+XPCSHELL_TESTS = unit
 endif
 
 include $(topsrcdir)/config/rules.mk

@@ -44,8 +44,7 @@
 
 #include "plstr.h"
 #include "nsCOMPtr.h"
-#include "nsIPrefBranch.h"
-#include "nsIPrefService.h"
+#include "nsIPref.h"
 #include "nsIServiceManager.h"
 #include "nsIObserver.h"
 #include "nsWeakReference.h"
@@ -210,7 +209,7 @@ struct SysPrefCallbackData {
     PRUint32 prefAtom;
 };
 
-PRBool
+PRBool PR_CALLBACK
 sysPrefDeleteObserver(void *aElement, void *aData) {
     SysPrefCallbackData *pElement =
         static_cast<SysPrefCallbackData *>(aElement);
@@ -365,7 +364,7 @@ NS_IMETHODIMP nsSystemPrefService::DeleteBranch(const char *aStartingAt)
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-/* void getChildList (in string aStartingAt, [optional] out unsigned long aCount, [array, size_is (aCount), retval] out string aChildArray); */
+/* void getChildList (in string aStartingAt, out unsigned long aCount, [array, size_is (aCount), retval] out string aChildArray); */
 NS_IMETHODIMP nsSystemPrefService::GetChildList(const char *aStartingAt, PRUint32 *aCount, char ***aChildArray)
 {
     return NS_ERROR_NOT_IMPLEMENTED;
@@ -587,7 +586,7 @@ static const PrefNamePair sPrefNameMapping[] = {
     {nsnull, nsnull},
 };
 
-PRBool
+PRBool PR_CALLBACK
 gconfDeleteObserver(void *aElement, void *aData) {
     nsMemory::Free(aElement);
     return PR_TRUE;
@@ -625,8 +624,7 @@ GConfProxy::Init()
     if (mInitialized)
         return PR_TRUE;
 
-    nsCOMPtr<nsIPrefBranch> pref = do_GetService(NS_PREFSERVICE_CONTRACTID); 
-
+    nsCOMPtr<nsIPref> pref = do_GetService(NS_PREF_CONTRACTID);
     if (!pref)
         return PR_FALSE;
 

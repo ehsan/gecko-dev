@@ -46,37 +46,24 @@
 #define nsCSSStruct_h___
 
 #include "nsCSSValue.h"
-#include "nsStyleConsts.h"
+#include <stdio.h>
 
 // Prefer nsCSSValue::Array for lists of fixed size.
 struct nsCSSValueList {
-  nsCSSValueList() : mNext(nsnull) { MOZ_COUNT_CTOR(nsCSSValueList); }
-  ~nsCSSValueList();
+  nsCSSValueList(void);
+  nsCSSValueList(const nsCSSValueList& aCopy);
+  ~nsCSSValueList(void);
 
-  nsCSSValueList* Clone() const;  // makes a deep copy
-  void AppendToString(nsCSSProperty aProperty, nsAString& aResult) const;
-
-  bool operator==(nsCSSValueList const& aOther) const; // deep comparison
-  bool operator!=(const nsCSSValueList& aOther) const
-  { return !(*this == aOther); }
+  static PRBool Equal(nsCSSValueList* aList1, nsCSSValueList* aList2);
 
   nsCSSValue      mValue;
   nsCSSValueList* mNext;
-
-private:
-  nsCSSValueList(const nsCSSValueList& aCopy) // makes a shallow copy
-    : mValue(aCopy.mValue), mNext(nsnull)
-  {
-    MOZ_COUNT_CTOR(nsCSSValueList);
-  }
 };
 
 struct nsCSSRect {
   nsCSSRect(void);
   nsCSSRect(const nsCSSRect& aCopy);
   ~nsCSSRect();
-
-  void AppendToString(nsCSSProperty aProperty, nsAString& aResult) const;
 
   PRBool operator==(const nsCSSRect& aOther) const {
     return mTop == aOther.mTop &&
@@ -108,7 +95,7 @@ struct nsCSSRect {
       mBottom.GetUnit() != eCSSUnit_Null ||
       mLeft.GetUnit() != eCSSUnit_Null;
   }
-
+  
   nsCSSValue mTop;
   nsCSSValue mRight;
   nsCSSValue mBottom;
@@ -123,14 +110,10 @@ struct nsCSSValuePair {
   {
     MOZ_COUNT_CTOR(nsCSSValuePair);
   }
-  nsCSSValuePair(const nsCSSValue& aXValue, const nsCSSValue& aYValue)
-    : mXValue(aXValue), mYValue(aYValue)
-  {
-    MOZ_COUNT_CTOR(nsCSSValuePair);
-  }
   nsCSSValuePair(const nsCSSValuePair& aCopy)
-    : mXValue(aCopy.mXValue), mYValue(aCopy.mYValue)
-  {
+    : mXValue(aCopy.mXValue),
+      mYValue(aCopy.mYValue)
+  { 
     MOZ_COUNT_CTOR(nsCSSValuePair);
   }
   ~nsCSSValuePair()
@@ -153,79 +136,8 @@ struct nsCSSValuePair {
     mYValue = aValue;
   }
 
-  void Reset() {
-    mXValue.Reset();
-    mYValue.Reset();
-  }
-
-  PRBool HasValue() const {
-    return mXValue.GetUnit() != eCSSUnit_Null ||
-           mYValue.GetUnit() != eCSSUnit_Null;
-  }
-
-  void AppendToString(nsCSSProperty aProperty, nsAString& aResult) const;
-
   nsCSSValue mXValue;
   nsCSSValue mYValue;
-};
-
-struct nsCSSCornerSizes {
-  nsCSSCornerSizes(void);
-  nsCSSCornerSizes(const nsCSSCornerSizes& aCopy);
-  ~nsCSSCornerSizes();
-
-  // argument is a "full corner" constant from nsStyleConsts.h
-  nsCSSValuePair const & GetFullCorner(PRUint32 aCorner) const {
-    return (this->*corners[aCorner]);
-  }
-  nsCSSValuePair & GetFullCorner(PRUint32 aCorner) {
-    return (this->*corners[aCorner]);
-  }
-
-  // argument is a "half corner" constant from nsStyleConsts.h
-  const nsCSSValue& GetHalfCorner(PRUint32 hc) const {
-    nsCSSValuePair const & fc = this->*corners[NS_HALF_TO_FULL_CORNER(hc)];
-    return NS_HALF_CORNER_IS_X(hc) ? fc.mXValue : fc.mYValue;
-  }
-  nsCSSValue & GetHalfCorner(PRUint32 hc) {
-    nsCSSValuePair& fc = this->*corners[NS_HALF_TO_FULL_CORNER(hc)];
-    return NS_HALF_CORNER_IS_X(hc) ? fc.mXValue : fc.mYValue;
-  }
-
-  PRBool operator==(const nsCSSCornerSizes& aOther) const {
-    NS_FOR_CSS_FULL_CORNERS(corner) {
-      if (this->GetFullCorner(corner) != aOther.GetFullCorner(corner))
-        return PR_FALSE;
-    }
-    return PR_TRUE;
-  }
-
-  PRBool operator!=(const nsCSSCornerSizes& aOther) const {
-    NS_FOR_CSS_FULL_CORNERS(corner) {
-      if (this->GetFullCorner(corner) != aOther.GetFullCorner(corner))
-        return PR_TRUE;
-    }
-    return PR_FALSE;
-  }
-
-  PRBool HasValue() const {
-    NS_FOR_CSS_FULL_CORNERS(corner) {
-      if (this->GetFullCorner(corner).HasValue())
-        return PR_TRUE;
-    }
-    return PR_FALSE;
-  }
-
-  void Reset();
-
-  nsCSSValuePair mTopLeft;
-  nsCSSValuePair mTopRight;
-  nsCSSValuePair mBottomRight;
-  nsCSSValuePair mBottomLeft;
-
-protected:
-  typedef nsCSSValuePair nsCSSCornerSizes::*corner_type;
-  static const corner_type corners[4];
 };
 
 struct nsCSSValueListRect {
@@ -242,28 +154,30 @@ struct nsCSSValueListRect {
   static const side_type sides[4];
 };
 
-// Maybe should be replaced with nsCSSValueList and nsCSSValue::Array?
-struct nsCSSValuePairList {
-  nsCSSValuePairList() : mNext(nsnull) { MOZ_COUNT_CTOR(nsCSSValuePairList); }
-  ~nsCSSValuePairList();
+// Should be replaced with nsCSSValueList and nsCSSValue::Array.
+struct nsCSSCounterData {
+  nsCSSCounterData(void);
+  nsCSSCounterData(const nsCSSCounterData& aCopy);
+  ~nsCSSCounterData(void);
 
-  nsCSSValuePairList* Clone() const; // makes a deep copy
-  void AppendToString(nsCSSProperty aProperty, nsAString& aResult) const;
+  static PRBool Equal(nsCSSCounterData* aList1, nsCSSCounterData* aList2);
 
-  bool operator==(const nsCSSValuePairList& aOther) const; // deep comparison
-  bool operator!=(const nsCSSValuePairList& aOther) const
-  { return !(*this == aOther); }
+  nsCSSValue        mCounter;
+  nsCSSValue        mValue;
+  nsCSSCounterData* mNext;
+};
 
-  nsCSSValue          mXValue;
-  nsCSSValue          mYValue;
-  nsCSSValuePairList* mNext;
+// Should be replaced with nsCSSValueList and nsCSSValue::Array.
+struct nsCSSQuotes {
+  nsCSSQuotes(void);
+  nsCSSQuotes(const nsCSSQuotes& aCopy);
+  ~nsCSSQuotes(void);
 
-private:
-  nsCSSValuePairList(const nsCSSValuePairList& aCopy) // makes a shallow copy
-    : mXValue(aCopy.mXValue), mYValue(aCopy.mYValue), mNext(nsnull)
-  {
-    MOZ_COUNT_CTOR(nsCSSValuePairList);
-  }
+  static PRBool Equal(nsCSSQuotes* aList1, nsCSSQuotes* aList2);
+
+  nsCSSValue    mOpen;
+  nsCSSValue    mClose;
+  nsCSSQuotes*  mNext;
 };
 
 /****************************************************************************/
@@ -272,7 +186,7 @@ struct nsCSSStruct {
   // EMPTY on purpose.  ABSTRACT with no virtuals (typedef void nsCSSStruct?)
 };
 
-// We use the nsCSS* structures for storing css::Declaration's
+// We use the nsCSS* structures for storing nsCSSDeclaration's
 // *temporary* data during parsing and modification.  (They are too big
 // for permanent storage.)  We also use them for nsRuleData, with some
 // additions of things that the style system must cascade, but that
@@ -295,8 +209,6 @@ struct nsCSSFont : public nsCSSStruct {
   nsCSSValue mSize;
   nsCSSValue mSizeAdjust; // NEW
   nsCSSValue mStretch; // NEW
-  nsCSSValue mFontFeatureSettings;
-  nsCSSValue mFontLanguageOverride;
 
 #ifdef MOZ_MATHML
   nsCSSValue mScriptLevel; // Integer values mean "relative", Number values mean "absolute" 
@@ -321,13 +233,12 @@ struct nsCSSColor : public nsCSSStruct  {
 
   nsCSSValue      mColor;
   nsCSSValue      mBackColor;
-  nsCSSValueList* mBackImage;
-  nsCSSValueList* mBackRepeat;
-  nsCSSValueList* mBackAttachment;
-  nsCSSValuePairList* mBackPosition;
-  nsCSSValuePairList* mBackSize;
-  nsCSSValueList* mBackClip;
-  nsCSSValueList* mBackOrigin;
+  nsCSSValue      mBackImage;
+  nsCSSValue      mBackRepeat;
+  nsCSSValue      mBackAttachment;
+  nsCSSValuePair  mBackPosition;
+  nsCSSValue      mBackClip;
+  nsCSSValue      mBackOrigin;
   nsCSSValue      mBackInlinePolicy;
 private:
   nsCSSColor(const nsCSSColor& aOther); // NOT IMPLEMENTED
@@ -335,11 +246,6 @@ private:
 
 struct nsRuleDataColor : public nsCSSColor {
   nsRuleDataColor() {}
-
-  // A little bit of a hack here:  now that background-image is
-  // represented by a value list, attribute mapping code needs a place
-  // to store one item in a value list in order to map a simple value.
-  nsCSSValueList mTempBackImage;
 private:
   nsRuleDataColor(const nsRuleDataColor& aOther); // NOT IMPLEMENTED
 };
@@ -348,7 +254,6 @@ struct nsCSSText : public nsCSSStruct  {
   nsCSSText(void);
   ~nsCSSText(void);
 
-  nsCSSValue mTabSize;
   nsCSSValue mWordSpacing;
   nsCSSValue mLetterSpacing;
   nsCSSValue mVerticalAlign;
@@ -360,7 +265,6 @@ struct nsCSSText : public nsCSSStruct  {
   nsCSSValue mUnicodeBidi;  // NEW
   nsCSSValue mLineHeight;
   nsCSSValue mWhiteSpace;
-  nsCSSValue mWordWrap;
 private:
   nsCSSText(const nsCSSText& aOther); // NOT IMPLEMENTED
 };
@@ -385,16 +289,8 @@ struct nsCSSDisplay : public nsCSSStruct  {
   nsCSSRect  mClip;
   nsCSSValue mOverflowX;
   nsCSSValue mOverflowY;
-  nsCSSValue mResize;
-  nsCSSValue mPointerEvents;
   nsCSSValue mVisibility;
   nsCSSValue mOpacity;
-  nsCSSValueList *mTransform; // List of Arrays containing transform information
-  nsCSSValuePair mTransformOrigin;
-  nsCSSValueList* mTransitionProperty;
-  nsCSSValueList* mTransitionDuration;
-  nsCSSValueList* mTransitionTimingFunction;
-  nsCSSValueList* mTransitionDelay;
 
   // temp fix for bug 24000 
   nsCSSValue mBreakBefore;
@@ -451,15 +347,13 @@ struct nsCSSMargin : public nsCSSStruct  {
   nsCSSValue  mBorderLeftStyleRTLSource;
   nsCSSValue  mBorderRightStyleLTRSource;
   nsCSSValue  mBorderRightStyleRTLSource;
-  nsCSSCornerSizes mBorderRadius;
+  nsCSSRect   mBorderRadius;  // (extension)
   nsCSSValue  mOutlineWidth;
   nsCSSValue  mOutlineColor;
   nsCSSValue  mOutlineStyle;
   nsCSSValue  mOutlineOffset;
-  nsCSSCornerSizes mOutlineRadius;
+  nsCSSRect   mOutlineRadius; // (extension)
   nsCSSValue  mFloatEdge; // NEW
-  nsCSSValue  mBorderImage;
-  nsCSSValueList* mBoxShadow;
 private:
   nsCSSMargin(const nsCSSMargin& aOther); // NOT IMPLEMENTED
 };
@@ -521,6 +415,8 @@ struct nsCSSTable : public nsCSSStruct  { // NEW
   nsCSSValue mEmptyCells;
   
   nsCSSValue mLayout;
+  nsCSSValue mFrame; // Not mappable via CSS, only using HTML4 table attrs.
+  nsCSSValue mRules; // Not mappable via CSS, only using HTML4 table attrs.
   nsCSSValue mSpan; // Not mappable via CSS, only using HTML4 table attrs.
   nsCSSValue mCols; // Not mappable via CSS, only using HTML4 table attrs.
 private:
@@ -574,11 +470,11 @@ struct nsCSSContent : public nsCSSStruct  {
   nsCSSContent(void);
   ~nsCSSContent(void);
 
-  nsCSSValueList*     mContent;
-  nsCSSValuePairList* mCounterIncrement;
-  nsCSSValuePairList* mCounterReset;
-  nsCSSValue          mMarkerOffset;
-  nsCSSValuePairList* mQuotes;
+  nsCSSValueList*   mContent;
+  nsCSSCounterData* mCounterIncrement;
+  nsCSSCounterData* mCounterReset;
+  nsCSSValue        mMarkerOffset;
+  nsCSSQuotes*      mQuotes;
 private:
   nsCSSContent(const nsCSSContent& aOther); // NOT IMPLEMENTED
 };
@@ -601,7 +497,6 @@ struct nsCSSUserInterface : public nsCSSStruct  { // NEW
   nsCSSValueList* mCursor;
   nsCSSValue      mForceBrokenImageIcon;
   nsCSSValue      mIMEMode;
-  nsCSSValue      mWindowShadow;
 private:
   nsCSSUserInterface(const nsCSSUserInterface& aOther); // NOT IMPLEMENTED
 };
@@ -671,9 +566,6 @@ struct nsCSSColumn : public nsCSSStruct  {
   nsCSSValue  mColumnCount;
   nsCSSValue  mColumnWidth;
   nsCSSValue  mColumnGap;
-  nsCSSValue  mColumnRuleColor;
-  nsCSSValue  mColumnRuleWidth;
-  nsCSSValue  mColumnRuleStyle;
 private:
   nsCSSColumn(const nsCSSColumn& aOther); // NOT IMPLEMENTED
 };
@@ -684,6 +576,7 @@ private:
   nsRuleDataColumn(const nsRuleDataColumn& aOther); // NOT IMPLEMENTED
 };
 
+#ifdef MOZ_SVG
 struct nsCSSSVG : public nsCSSStruct {
   nsCSSSVG(void);
   ~nsCSSSVG(void);
@@ -699,12 +592,12 @@ struct nsCSSSVG : public nsCSSStruct {
   nsCSSValue mFilter;
   nsCSSValue mFloodColor;
   nsCSSValue mFloodOpacity;
-  nsCSSValue mImageRendering;
   nsCSSValue mLightingColor;
   nsCSSValue mMarkerEnd;
   nsCSSValue mMarkerMid;
   nsCSSValue mMarkerStart;
   nsCSSValue mMask;
+  nsCSSValue mPointerEvents;
   nsCSSValue mShapeRendering;
   nsCSSValue mStopColor;
   nsCSSValue mStopOpacity;
@@ -727,5 +620,6 @@ struct nsRuleDataSVG : public nsCSSSVG {
 private:
   nsRuleDataSVG(const nsRuleDataSVG& aOther); // NOT IMPLEMENTED
 };
+#endif
 
 #endif /* nsCSSStruct_h___ */

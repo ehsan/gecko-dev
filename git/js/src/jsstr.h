@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -49,663 +49,199 @@
  * allocated from the malloc heap.
  */
 #include <ctype.h>
-#include "jsapi.h"
+#include "jspubtd.h"
 #include "jsprvtd.h"
-#include "jshashtable.h"
-#include "jslock.h"
-#include "jsobj.h"
-#include "jsvalue.h"
 
-#define JSSTRING_BIT(n)             ((size_t)1 << (n))
-#define JSSTRING_BITMASK(n)         (JSSTRING_BIT(n) - 1)
-
-enum {
-    UNIT_STRING_LIMIT        = 256U,
-    SMALL_CHAR_LIMIT         = 128U, /* Bigger chars cannot be in a length-2 string. */
-    NUM_SMALL_CHARS          = 64U,
-    INT_STRING_LIMIT         = 256U,
-    NUM_HUNDRED_STRINGS      = 156U
-};
-
-extern jschar *
-js_GetDependentStringChars(JSString *str);
-
-extern JSString * JS_FASTCALL
-js_ConcatStrings(JSContext *cx, JSString *left, JSString *right);
-
-extern JSString * JS_FASTCALL
-js_ConcatStringsZ(JSContext *cx, const char *left, JSString *right);
-
-JS_STATIC_ASSERT(JS_BITS_PER_WORD >= 32);
-
-struct JSRopeBufferInfo {
-    /* Number of jschars we can hold, not including null terminator. */
-    size_t capacity;
-};
+JS_BEGIN_EXTERN_C
 
 /*
  * The GC-thing "string" type.
  *
- * In FLAT strings, the mChars field  points to a flat character array owned by
- * its GC-thing descriptor. The array is terminated at index length by a zero
- * character and the size of the array in bytes is
- * (length + 1) * sizeof(jschar). The terminator is purely a backstop, in case
- * the chars pointer flows out to native code that requires \u0000 termination.
+ * When the JSSTRFLAG_DEPENDENT bit of the length field is unset, the u.chars
+ * field points to a flat character array owned by its GC-thing descriptor.
+ * The array is terminated at index length by a zero character and the size of
+ * the array in bytes is (length + 1) * sizeof(jschar). The terminator is
+ * purely a backstop, in case the chars pointer flows out to native code that
+ * requires \u0000 termination.
  *
- * A flat string with the ATOMIZED flag means that the string is hashed as
+ * A flat string with JSSTRFLAG_MUTABLE set means that the string is accessible
+ * only from one thread and it is possible to turn it into a dependent string
+ * of the same length to optimize js_ConcatStrings. It is also possible to grow
+ * such a string, but extreme care must be taken to ensure that no other code
+ * relies on the original length of the string.
+ *
+ * A flat string with JSSTRFLAG_ATOMIZED set means that the string is hashed as
  * an atom. This flag is used to avoid re-hashing the already-atomized string.
  *
- * A flat string with the MUTABLE flag means that the string may change into a
- * dependent string as part of an optimization with js_ConcatStrings. Flat
- * strings without the MUTABLE flag can be safely accessed by multiple threads.
+ * When JSSTRFLAG_DEPENDENT is set, the string depends on characters of another
+ * string strongly referenced by the u.base field. The base member may point to
+ * another dependent string if JSSTRING_CHARS has not been called yet.
  *
- * When the string is DEPENDENT, the string depends on characters of another
- * string strongly referenced by the mBase field. The base member may point to
- * another dependent string if chars() has not been called yet.
+ * JSSTRFLAG_PREFIX determines the kind of the dependent string. When the flag
+ * is unset, the length field encodes both starting position relative to the
+ * base string and the number of characters in the dependent string, see
+ * JSSTRDEP_START_MASK and JSSTRDEP_LENGTH_MASK macros below for details.
  *
- * To optimize js_ConcatStrings and some other cases, we lazily concatenate
- * strings when possible, creating concatenation trees, a.k.a. ropes. A string
- * is an INTERIOR_NODE if it is a non-root, non-leaf node in a rope, and a
- * string is a TOP_NODE if it is the root of a rope. In order to meet API
- * requirements, chars() is not allowed to fail, so we build ropes so that they
- * form a well-defined tree structure, and the top node of every rope contains
- * an (almost) empty buffer that is large enough to contain the entire string.
- * Whenever chars() is called on a rope, it traverses its tree and fills that
- * buffer in, and when concatenating strings, we reuse these empty buffers
- * whenever possible, so that we can build a string through concatenation in
- * linear time, and have relatively few malloc calls when doing so.
+ * When JSSTRFLAG_PREFIX is set, the dependent string is a prefix of the base
+ * string. The number of characters in the prefix is encoded using all non-flag
+ * bits of the length field and spans the same 0 .. SIZE_T_MAX/4 range as the
+ * length of the flat string.
  *
- * NB: Always use the length() and chars() accessor methods.
+ * NB: Always use the JSSTRING_LENGTH and JSSTRING_CHARS accessor macros.
  */
 struct JSString {
-    friend class js::TraceRecorder;
-
-    friend JSAtom *
-    js_AtomizeString(JSContext *cx, JSString *str, uintN flags);
-
-    /*
-     * Not private because we want to be able to use static
-     * initializers for them. Don't use these directly!
-     */
-    size_t                          mLengthAndFlags;  /* in all strings */
+    size_t          length;
     union {
-        jschar                      *mChars; /* in flat and dependent strings */
-        JSString                    *mLeft;  /* in rope interior and top nodes */
-    };
-    union {
-        /*
-         * We may keep more than 4 inline chars, but 4 is necessary for all of
-         * our static initialization.
-         */
-        jschar                      mInlineStorage[4]; /* In short strings. */
-        struct {
-            union {
-                size_t              mCapacity; /* in mutable flat strings (optional) */
-                JSString            *mParent; /* in rope interior nodes */
-                JSRopeBufferInfo    *mBufferWithInfo; /* in rope top nodes */
-            };
-            union {
-                JSString            *mBase;  /* in dependent strings */
-                JSString            *mRight; /* in rope interior and top nodes */
-            };
-        } e;
-    };
-
-    /*
-     * The mLengthAndFlags field in string headers has data arranged in the
-     * following way:
-     *
-     * [ length (bits 4-31) ][ flags (bits 2-3) ][ type (bits 0-1) ]
-     *
-     * The length is packed in mLengthAndFlags, even in string types that don't
-     * need 3 other fields, to make the length check simpler.
-     *
-     * When the string type is FLAT, the flags can contain ATOMIZED or MUTABLE.
-     * When the string type is INTERIOR_NODE or TOP_NODE, the flags area is
-     * used to store the rope traversal count.
-     */
-    static const size_t FLAT =          0;
-    static const size_t DEPENDENT =     1;
-    static const size_t INTERIOR_NODE = 2;
-    static const size_t TOP_NODE =      3;
-
-    /* Rope/non-rope can be checked by checking one bit. */
-    static const size_t ROPE_BIT = JSSTRING_BIT(1);
-
-    static const size_t ATOMIZED = JSSTRING_BIT(2);
-    static const size_t MUTABLE = JSSTRING_BIT(3);
-
-    static const size_t FLAGS_LENGTH_SHIFT = 4;
-
-    static const size_t ROPE_TRAVERSAL_COUNT_SHIFT = 2;
-    static const size_t ROPE_TRAVERSAL_COUNT_MASK = JSSTRING_BITMASK(4) -
-                                                    JSSTRING_BITMASK(2);
-    static const size_t ROPE_TRAVERSAL_COUNT_UNIT =
-                                (1 << ROPE_TRAVERSAL_COUNT_SHIFT);
-
-    static const size_t TYPE_MASK = JSSTRING_BITMASK(2);
-
-    inline bool hasFlag(size_t flag) const {
-        return (mLengthAndFlags & flag) != 0;
-    }
-
-  public:
-    /*
-     * Generous but sane length bound; the "-1" is there for comptibility with
-     * OOM tests.
-     */
-    static const size_t MAX_LENGTH = (1 << 28) - 1;
-
-    inline size_t type() const {
-        return mLengthAndFlags & TYPE_MASK;
-    }
-
-    JS_ALWAYS_INLINE bool isDependent() const {
-        return type() == DEPENDENT;
-    }
-
-    JS_ALWAYS_INLINE bool isFlat() const {
-        return type() == FLAT;
-    }
-
-    inline bool isMutable() const {
-        return isFlat() && hasFlag(MUTABLE);
-    }
-
-    inline bool isRope() const {
-        return hasFlag(ROPE_BIT);
-    }
-
-    JS_ALWAYS_INLINE bool isAtomized() const {
-        return isFlat() && hasFlag(ATOMIZED);
-    }
-
-    inline bool isInteriorNode() const {
-        return type() == INTERIOR_NODE;
-    }
-
-    inline bool isTopNode() const {
-        return type() == TOP_NODE;
-    }
-
-    JS_ALWAYS_INLINE jschar *chars() {
-        if (JS_UNLIKELY(isRope()))
-            flatten();
-        return mChars;
-    }
-
-    JS_ALWAYS_INLINE size_t length() const {
-        return mLengthAndFlags >> FLAGS_LENGTH_SHIFT;
-    }
-
-    JS_ALWAYS_INLINE bool empty() const {
-        return length() == 0;
-    }
-
-    JS_ALWAYS_INLINE void getCharsAndLength(const jschar *&chars, size_t &length) {
-        chars = this->chars();
-        length = this->length();
-    }
-
-    JS_ALWAYS_INLINE void getCharsAndEnd(const jschar *&chars, const jschar *&end) {
-        end = length() + (chars = this->chars());
-    }
-
-    JS_ALWAYS_INLINE jschar *inlineStorage() {
-        JS_ASSERT(isFlat());
-        return mInlineStorage;
-    }
-
-    /* Specific flat string initializer and accessor methods. */
-    JS_ALWAYS_INLINE void initFlat(jschar *chars, size_t length) {
-        JS_ASSERT(length <= MAX_LENGTH);
-        e.mBase = NULL;
-        e.mCapacity = 0;
-        mLengthAndFlags = (length << FLAGS_LENGTH_SHIFT) | FLAT;
-        mChars = chars;
-    }
-
-    JS_ALWAYS_INLINE void initFlatMutable(jschar *chars, size_t length, size_t cap) {
-        JS_ASSERT(length <= MAX_LENGTH);
-        e.mBase = NULL;
-        e.mCapacity = cap;
-        mLengthAndFlags = (length << FLAGS_LENGTH_SHIFT) | FLAT | MUTABLE;
-        mChars = chars;
-    }
-
-    JS_ALWAYS_INLINE jschar *flatChars() const {
-        JS_ASSERT(isFlat());
-        return mChars;
-    }
-
-    JS_ALWAYS_INLINE size_t flatLength() const {
-        JS_ASSERT(isFlat());
-        return length();
-    }
-
-    JS_ALWAYS_INLINE size_t flatCapacity() const {
-        JS_ASSERT(isFlat());
-        return e.mCapacity;
-    }
-
-    /*
-     * Methods to manipulate atomized and mutable flags of flat strings. It is
-     * safe to use these without extra locking due to the following properties:
-     *
-     *   * We do not have a flatClearAtomized method, as a string remains
-     *     atomized until the GC collects it.
-     *
-     *   * A thread may call flatSetMutable only when it is the only
-     *     thread accessing the string until a later call to
-     *     flatClearMutable.
-     *
-     *   * Multiple threads can call flatClearMutable but the function actually
-     *     clears the mutable flag only when the flag is set -- in which case
-     *     only one thread can access the string (see previous property).
-     *
-     * Thus, when multiple threads access the string, JSString::flatSetAtomized
-     * is the only function that can update the mLengthAndFlags field of the
-     * string by changing the mutable bit from 0 to 1. We call the method only
-     * after the string has been hashed. When some threads in js_ValueToStringId
-     * see that the flag is set, it knows that the string was atomized.
-     *
-     * On the other hand, if the thread sees that the flag is unset, it could
-     * be seeing a stale value when another thread has just atomized the string
-     * and set the flag. But this can lead only to an extra call to
-     * js_AtomizeString. This function would find that the string was already
-     * hashed and return it with the atomized bit set.
-     */
-    inline void flatSetAtomized() {
-        JS_ASSERT(isFlat());
-        JS_ATOMIC_SET_MASK((jsword *)&mLengthAndFlags, ATOMIZED);
-    }
-
-    inline void flatSetMutable() {
-        JS_ASSERT(isFlat());
-        JS_ASSERT(!isAtomized());
-        mLengthAndFlags |= MUTABLE;
-    }
-
-    inline void flatClearMutable() {
-        JS_ASSERT(isFlat());
-        mLengthAndFlags &= ~MUTABLE;
-    }
-
-    /*
-     * The chars pointer should point somewhere inside the buffer owned by bstr.
-     * The caller still needs to pass bstr for GC purposes.
-     */
-    inline void initDependent(JSString *bstr, jschar *chars, size_t len) {
-        JS_ASSERT(len <= MAX_LENGTH);
-        e.mParent = NULL;
-        mChars = chars;
-        mLengthAndFlags = DEPENDENT | (len << FLAGS_LENGTH_SHIFT);
-        e.mBase = bstr;
-    }
-
-    inline JSString *dependentBase() const {
-        JS_ASSERT(isDependent());
-        return e.mBase;
-    }
-
-    JS_ALWAYS_INLINE jschar *dependentChars() {
-        return mChars;
-    }
-
-    inline size_t dependentLength() const {
-        JS_ASSERT(isDependent());
-        return length();
-    }
-
-    /* Rope-related initializers and accessors. */
-    inline void initTopNode(JSString *left, JSString *right, size_t len,
-                            JSRopeBufferInfo *buf) {
-        JS_ASSERT(left->length() + right->length() <= MAX_LENGTH);
-        mLengthAndFlags = TOP_NODE | (len << FLAGS_LENGTH_SHIFT);
-        mLeft = left;
-        e.mRight = right;
-        e.mBufferWithInfo = buf;
-    }
-
-    inline void convertToInteriorNode(JSString *parent) {
-        JS_ASSERT(isTopNode());
-        e.mParent = parent;
-        mLengthAndFlags = INTERIOR_NODE | (length() << FLAGS_LENGTH_SHIFT);
-    }
-
-    inline JSString *interiorNodeParent() const {
-        JS_ASSERT(isInteriorNode());
-        return e.mParent;
-    }
-
-    inline JSString *ropeLeft() const {
-        JS_ASSERT(isRope());
-        return mLeft;
-    }
-
-    inline JSString *ropeRight() const {
-        JS_ASSERT(isRope());
-        return e.mRight;
-    }
-
-    inline size_t topNodeCapacity() const {
-        JS_ASSERT(isTopNode());
-        return e.mBufferWithInfo->capacity;
-    }
-
-    inline JSRopeBufferInfo *topNodeBuffer() const {
-        JS_ASSERT(isTopNode());
-        return e.mBufferWithInfo;
-    }
-
-    inline void nullifyTopNodeBuffer() {
-        JS_ASSERT(isTopNode());
-        e.mBufferWithInfo = NULL;
-    }
-
-    /*
-     * When flattening a rope, we need to convert a rope node to a dependent
-     * string in two separate parts instead of calling initDependent.
-     */
-    inline void startTraversalConversion(jschar *chars, size_t offset) {
-        JS_ASSERT(isInteriorNode());
-        mChars = chars + offset;
-    }    
-
-    inline void finishTraversalConversion(JSString *base, jschar *chars,
-                                          size_t end) {
-        JS_ASSERT(isInteriorNode());
-        /* Note that setting flags also clears the traversal count. */
-        mLengthAndFlags = JSString::DEPENDENT |
-            ((chars + end - mChars) << JSString::FLAGS_LENGTH_SHIFT);
-        e.mBase = base;
-    }
-
-    inline void ropeClearTraversalCount() {
-        JS_ASSERT(isRope());
-        mLengthAndFlags &= ~ROPE_TRAVERSAL_COUNT_MASK;
-    }
-
-    inline size_t ropeTraversalCount() const {
-        JS_ASSERT(isRope());
-        return (mLengthAndFlags & ROPE_TRAVERSAL_COUNT_MASK) >>
-                ROPE_TRAVERSAL_COUNT_SHIFT;
-    }
-
-    inline void ropeIncrementTraversalCount() {
-        JS_ASSERT(isRope());
-        mLengthAndFlags += ROPE_TRAVERSAL_COUNT_UNIT;
-    }
-
-    inline bool ensureNotDependent(JSContext *cx) {
-        return !isDependent() || undepend(cx);
-    }
-
-    inline void ensureNotRope() {
-        if (isRope())
-            flatten();
-    }
-
-    const jschar *undepend(JSContext *cx);
-
-    /* By design, this is not allowed to fail. */
-    void flatten();
-
-    typedef uint8 SmallChar;
-
-    static inline bool fitsInSmallChar(jschar c) {
-        return c < SMALL_CHAR_LIMIT && toSmallChar[c] != INVALID_SMALL_CHAR;
-    }
-
-    static inline bool isUnitString(void *ptr) {
-        jsuword delta = reinterpret_cast<jsuword>(ptr) -
-                        reinterpret_cast<jsuword>(unitStringTable);
-        if (delta >= UNIT_STRING_LIMIT * sizeof(JSString))
-            return false;
-
-        /* If ptr points inside the static array, it must be well-aligned. */
-        JS_ASSERT(delta % sizeof(JSString) == 0);
-        return true;
-    }
-
-    static inline bool isLength2String(void *ptr) {
-        jsuword delta = reinterpret_cast<jsuword>(ptr) -
-                        reinterpret_cast<jsuword>(length2StringTable);
-        if (delta >= NUM_SMALL_CHARS * NUM_SMALL_CHARS * sizeof(JSString))
-            return false;
-
-        /* If ptr points inside the static array, it must be well-aligned. */
-        JS_ASSERT(delta % sizeof(JSString) == 0);
-        return true;
-    }
-
-    static inline bool isHundredString(void *ptr) {
-        jsuword delta = reinterpret_cast<jsuword>(ptr) -
-                        reinterpret_cast<jsuword>(hundredStringTable);
-        if (delta >= NUM_HUNDRED_STRINGS * sizeof(JSString))
-            return false;
-
-        /* If ptr points inside the static array, it must be well-aligned. */
-        JS_ASSERT(delta % sizeof(JSString) == 0);
-        return true;
-    }
-
-    static inline bool isStatic(void *ptr) {
-        return isUnitString(ptr) || isLength2String(ptr) || isHundredString(ptr);
-    }
-
-#ifdef __SUNPRO_CC
-#pragma align 8 (__1cIJSStringPunitStringTable_, __1cIJSStringOintStringTable_)
-#endif
-
-    static const SmallChar INVALID_SMALL_CHAR = -1;
-
-    static jschar fromSmallChar[];
-    static SmallChar toSmallChar[];
-    static JSString unitStringTable[];
-    static JSString length2StringTable[];
-    static JSString hundredStringTable[];
-    /*
-     * Since int strings can be unit strings, length-2 strings, or hundred
-     * strings, we keep a table to map from integer to the correct string.
-     */
-    static JSString *intStringTable[];
-    static const char deflatedIntStringTable[];
-    static const char deflatedUnitStringTable[];
-    static const char deflatedLength2StringTable[];
-
-    static JSString *unitString(jschar c);
-    static JSString *getUnitString(JSContext *cx, JSString *str, size_t index);
-    static JSString *length2String(jschar c1, jschar c2);
-    static JSString *intString(jsint i);
+        jschar      *chars;
+        JSString    *base;
+    } u;
 };
 
 /*
- * Short strings should be created in cases where it's worthwhile to avoid
- * mallocing the string buffer for a small string. We keep 2 string headers'
- * worth of space in short strings so that more strings can be stored this way.
+ * Definitions for flags stored in the high order bits of JSString.length.
+ * JSSTRFLAG_PREFIX and JSSTRFLAG_MUTABLE are two aliases for the same value.
+ * JSSTRFLAG_PREFIX should be used only if JSSTRFLAG_DEPENDENT is set and
+ * JSSTRFLAG_MUTABLE should be used only if the string is flat.
+ * JSSTRFLAG_ATOMIZED is used only with the flat immutable strings.
  */
-struct JSShortString {
-    JSString mHeader;
-    JSString mDummy;
+#define JSSTRFLAG_DEPENDENT         JSSTRING_BIT(JS_BITS_PER_WORD - 1)
+#define JSSTRFLAG_PREFIX            JSSTRING_BIT(JS_BITS_PER_WORD - 2)
+#define JSSTRFLAG_MUTABLE           JSSTRFLAG_PREFIX
+#define JSSTRFLAG_ATOMIZED          JSSTRING_BIT(JS_BITS_PER_WORD - 3)
 
-    /*
-     * Set the length of the string, and return a buffer for the caller to write
-     * to. This buffer must be written immediately, and should not be modified
-     * afterward.
-     */
-    inline jschar *init(size_t length) {
-        JS_ASSERT(length <= MAX_SHORT_STRING_LENGTH);
-        mHeader.initFlat(mHeader.inlineStorage(), length);
-        return mHeader.inlineStorage();
-    }
+#define JSSTRING_LENGTH_BITS        (JS_BITS_PER_WORD - 3)
+#define JSSTRING_LENGTH_MASK        JSSTRING_BITMASK(JSSTRING_LENGTH_BITS)
 
-    inline void resetLength(size_t length) {
-        mHeader.initFlat(mHeader.flatChars(), length);
-    }
+/* Universal JSString type inquiry and accessor macros. */
+#define JSSTRING_BIT(n)             ((size_t)1 << (n))
+#define JSSTRING_BITMASK(n)         (JSSTRING_BIT(n) - 1)
+#define JSSTRING_HAS_FLAG(str,flg)  ((str)->length & (flg))
+#define JSSTRING_IS_DEPENDENT(str)  JSSTRING_HAS_FLAG(str, JSSTRFLAG_DEPENDENT)
+#define JSSTRING_IS_FLAT(str)       (!JSSTRING_IS_DEPENDENT(str))
+#define JSSTRING_IS_MUTABLE(str)    (((str)->length & (JSSTRFLAG_DEPENDENT |  \
+                                                       JSSTRFLAG_MUTABLE)) == \
+                                     JSSTRFLAG_MUTABLE)
+#define JSSTRING_IS_ATOMIZED(str)   (((str)->length & (JSSTRFLAG_DEPENDENT |  \
+                                                       JSSTRFLAG_ATOMIZED)) ==\
+                                     JSSTRFLAG_ATOMIZED)
 
-    inline JSString *header() {
-        return &mHeader;
-    }
+#define JSSTRING_CHARS(str)         (JSSTRING_IS_DEPENDENT(str)               \
+                                     ? JSSTRDEP_CHARS(str)                    \
+                                     : JSFLATSTR_CHARS(str))
+#define JSSTRING_LENGTH(str)        (JSSTRING_IS_DEPENDENT(str)               \
+                                     ? JSSTRDEP_LENGTH(str)                   \
+                                     : JSFLATSTR_LENGTH(str))
 
-    static const size_t MAX_SHORT_STRING_LENGTH =
-            ((sizeof(JSString) + 2 * sizeof(size_t)) / sizeof(jschar)) - 1;
+#define JSSTRING_CHARS_AND_LENGTH(str, chars_, length_)                       \
+    ((void)(JSSTRING_IS_DEPENDENT(str)                                        \
+            ? ((length_) = JSSTRDEP_LENGTH(str),                              \
+               (chars_) = JSSTRDEP_CHARS(str))                                \
+            : ((length_) = JSFLATSTR_LENGTH(str),                             \
+               (chars_) = JSFLATSTR_CHARS(str))))
 
-    static inline bool fitsIntoShortString(size_t length) {
-        return length <= MAX_SHORT_STRING_LENGTH;
-    }
-};
+#define JSSTRING_CHARS_AND_END(str, chars_, end)                              \
+    ((void)((end) = JSSTRING_IS_DEPENDENT(str)                                \
+                  ? JSSTRDEP_LENGTH(str) + ((chars_) = JSSTRDEP_CHARS(str))   \
+                  : JSFLATSTR_LENGTH(str) + ((chars_) = JSFLATSTR_CHARS(str))))
+
+/* Specific flat string initializer and accessor macros. */
+#define JSFLATSTR_INIT(str, chars_, length_)                                  \
+    ((void)(JS_ASSERT(((length_) & ~JSSTRING_LENGTH_MASK) == 0),              \
+            (str)->length = (length_), (str)->u.chars = (chars_)))
+
+#define JSFLATSTR_LENGTH(str)                                                 \
+    (JS_ASSERT(JSSTRING_IS_FLAT(str)), (str)->length & JSSTRING_LENGTH_MASK)
+
+#define JSFLATSTR_CHARS(str)                                                  \
+    (JS_ASSERT(JSSTRING_IS_FLAT(str)), (str)->u.chars)
 
 /*
- * We're doing some tricks to give us more space for short strings, so make
- * sure that space is ordered in the way we expect.
- */
-JS_STATIC_ASSERT(offsetof(JSString, mInlineStorage) == 2 * sizeof(void *));
-JS_STATIC_ASSERT(offsetof(JSShortString, mDummy) == sizeof(JSString));
-JS_STATIC_ASSERT(offsetof(JSString, mInlineStorage) +
-                 sizeof(jschar) * (JSShortString::MAX_SHORT_STRING_LENGTH + 1) ==
-                 sizeof(JSShortString));
-
-/*
- * An iterator that iterates through all nodes in a rope (the top node, the
- * interior nodes, and the leaves) without writing to any of the nodes.
+ * Macros to manipulate atomized and mutable flags of flat strings. It is safe
+ * to use these without extra locking due to the following properties:
  *
- * It is safe to iterate through a rope in this way, even when something else is
- * already iterating through it.
+ *   * We do not have a macro like JSFLATSTR_CLEAR_ATOMIZED as a string
+ *     remains atomized until the GC collects it.
  *
- * To use, pass any node of the rope into the constructor. The first call should
- * be to init, which returns the first node, and each subsequent call should
- * be to next. NULL is returned when there are no more nodes to return.
+ *   * A thread may call JSFLATSTR_SET_MUTABLE only when it is the only thread
+ *     accessing the string until a later call to JSFLATSTR_CLEAR_MUTABLE.
+ *
+ *   * Multiple threads can call JSFLATSTR_CLEAR_MUTABLE but the macro
+ *     actually clears the mutable flag only when the flag is set -- in which
+ *     case only one thread can access the string (see previous property).
+ *
+ * Thus, when multiple threads access the string, JSFLATSTR_SET_ATOMIZED is
+ * the only macro that can update the length field of the string by changing
+ * the mutable bit from 0 to 1. We call the macro only after the string has
+ * been hashed. When some threads in js_ValueToStringId see that the flag is
+ * set, it knows that the string was atomized.
+ *
+ * On the other hand, if the thread sees that the flag is unset, it could be
+ * seeing a stale value when another thread has just atomized the string and
+ * set the flag. But this can lead only to an extra call to js_AtomizeString.
+ * This function would find that the string was already hashed and return it
+ * with the atomized bit set.
  */
-class JSRopeNodeIterator {
-  private:
-    JSString *mStr;
-    size_t mUsedFlags;
+#define JSFLATSTR_SET_ATOMIZED(str)                                           \
+    ((void)(JS_ASSERT(JSSTRING_IS_FLAT(str) && !JSSTRING_IS_MUTABLE(str)),    \
+            (str)->length |= JSSTRFLAG_ATOMIZED))
 
-    static const size_t DONE_LEFT = 0x1;
-    static const size_t DONE_RIGHT = 0x2;
+#define JSFLATSTR_SET_MUTABLE(str)                                            \
+    ((void)(JS_ASSERT(JSSTRING_IS_FLAT(str) && !JSSTRING_IS_ATOMIZED(str)),   \
+            (str)->length |= JSSTRFLAG_MUTABLE))
 
-  public:
-    JSRopeNodeIterator(JSString *str)
-      : mUsedFlags(0)
-    {
-        mStr = str;
-    }
-    
-    JSString *init() {
-        /* If we were constructed with a non-rope string, just return that. */
-        if (!mStr->isRope()) {
-            JSString *oldStr = mStr;
-            mStr = NULL;
-            return oldStr;
-        }
-        /* Move to the farthest-left leaf in the rope. */
-        while (mStr->isInteriorNode())
-            mStr = mStr->interiorNodeParent();
-        while (mStr->ropeLeft()->isInteriorNode())
-            mStr = mStr->ropeLeft();
-        JS_ASSERT(mUsedFlags == 0);
-        return mStr;
-    }
+#define JSFLATSTR_CLEAR_MUTABLE(str)                                          \
+    ((void)(JS_ASSERT(JSSTRING_IS_FLAT(str)),                                 \
+            JSSTRING_HAS_FLAG(str, JSSTRFLAG_MUTABLE) &&                      \
+            ((str)->length &= ~JSSTRFLAG_MUTABLE)))
 
-    JSString *next() {
-        if (!mStr)
-            return NULL;
-        if (!mStr->ropeLeft()->isInteriorNode() && !(mUsedFlags & DONE_LEFT)) {
-            mUsedFlags |= DONE_LEFT;
-            return mStr->ropeLeft();
-        }
-        if (!mStr->ropeRight()->isInteriorNode() && !(mUsedFlags & DONE_RIGHT)) {
-            mUsedFlags |= DONE_RIGHT;
-            return mStr->ropeRight();
-        }
-        if (mStr->ropeRight()->isInteriorNode()) {
-            /*
-             * If we have a right child, go right once, then left as far as
-             * possible.
-             */
-            mStr = mStr->ropeRight();
-            while (mStr->ropeLeft()->isInteriorNode())
-                mStr = mStr->ropeLeft();
-        } else {
-            /*
-             * If we have no right child, follow our parent until we move
-             * up-right.
-             */
-            JSString *prev;
-            do {
-                prev = mStr;
-                /* Set the string to NULL if we reach the end of the tree. */
-                mStr = mStr->isInteriorNode() ? mStr->interiorNodeParent() : NULL;
-            } while (mStr && mStr->ropeRight() == prev);
-        }
-        mUsedFlags = 0;
-        return mStr;
-    }
-};
+/* Specific dependent string shift/mask accessor and mutator macros. */
+#define JSSTRDEP_START_BITS         (JSSTRING_LENGTH_BITS-JSSTRDEP_LENGTH_BITS)
+#define JSSTRDEP_START_SHIFT        JSSTRDEP_LENGTH_BITS
+#define JSSTRDEP_START_MASK         JSSTRING_BITMASK(JSSTRDEP_START_BITS)
+#define JSSTRDEP_LENGTH_BITS        (JSSTRING_LENGTH_BITS / 2)
+#define JSSTRDEP_LENGTH_MASK        JSSTRING_BITMASK(JSSTRDEP_LENGTH_BITS)
 
-/*
- * An iterator that returns the leaves of a rope (which hold the actual string
- * data) in order. The usage is the same as JSRopeNodeIterator.
- */
-class JSRopeLeafIterator {
-  private:
-    JSRopeNodeIterator mNodeIterator;
+#define JSSTRDEP_IS_PREFIX(str)     JSSTRING_HAS_FLAG(str, JSSTRFLAG_PREFIX)
 
-  public:
+#define JSSTRDEP_START(str)         (JSSTRDEP_IS_PREFIX(str) ? 0              \
+                                     : (((str)->length                        \
+                                         >> JSSTRDEP_START_SHIFT)             \
+                                        & JSSTRDEP_START_MASK))
+#define JSSTRDEP_LENGTH(str)        ((str)->length                            \
+                                     & (JSSTRDEP_IS_PREFIX(str)               \
+                                        ? JSSTRING_LENGTH_MASK                \
+                                        : JSSTRDEP_LENGTH_MASK))
 
-    JSRopeLeafIterator(JSString *topNode) :
-        mNodeIterator(topNode) {
-        JS_ASSERT(topNode->isTopNode());
-    }
+#define JSSTRDEP_INIT(str,bstr,off,len)                                       \
+    ((str)->length = JSSTRFLAG_DEPENDENT                                      \
+                   | ((off) << JSSTRDEP_START_SHIFT)                          \
+                   | (len),                                                   \
+     (str)->u.base = (bstr))
 
-    inline JSString *init() {
-        JSString *str = mNodeIterator.init();
-        while (str->isRope()) {
-            str = mNodeIterator.next();
-            JS_ASSERT(str);
-        }
-        return str;
-    }
+#define JSPREFIX_INIT(str,bstr,len)                                           \
+    ((str)->length = JSSTRFLAG_DEPENDENT | JSSTRFLAG_PREFIX | (len),          \
+     (str)->u.base = (bstr))
 
-    inline JSString *next() {
-        JSString *str;
-        do {
-            str = mNodeIterator.next();
-        } while (str && str->isRope());
-        return str;
-    }
-};
+#define JSSTRDEP_BASE(str)          ((str)->u.base)
+#define JSPREFIX_BASE(str)          JSSTRDEP_BASE(str)
+#define JSPREFIX_SET_BASE(str,bstr) ((str)->u.base = (bstr))
 
-class JSRopeBuilder {
-  private:
-    JSString *mStr;
+#define JSSTRDEP_CHARS(str)                                                   \
+    (JSSTRING_IS_DEPENDENT(JSSTRDEP_BASE(str))                                \
+     ? js_GetDependentStringChars(str)                                        \
+     : JSFLATSTR_CHARS(JSSTRDEP_BASE(str)) + JSSTRDEP_START(str))
 
-  public:
-    JSRopeBuilder(JSContext *cx);
+extern size_t
+js_MinimizeDependentStrings(JSString *str, int level, JSString **basep);
 
-    inline bool append(JSContext *cx, JSString *str) {
-        mStr = js_ConcatStrings(cx, mStr, str);
-        if (!mStr)
-            return false;
-        return true;
-    }
-
-    inline JSString *getStr() {
-        return mStr;
-    }
-};
-     
-JS_STATIC_ASSERT(JSString::INTERIOR_NODE & JSString::ROPE_BIT);
-JS_STATIC_ASSERT(JSString::TOP_NODE & JSString::ROPE_BIT);
-
-JS_STATIC_ASSERT(((JSString::MAX_LENGTH << JSString::FLAGS_LENGTH_SHIFT) >>
-                   JSString::FLAGS_LENGTH_SHIFT) == JSString::MAX_LENGTH);
-
-JS_STATIC_ASSERT(sizeof(JSString) % JS_GCTHING_ALIGN == 0);
+extern jschar *
+js_GetDependentStringChars(JSString *str);
 
 extern const jschar *
 js_GetStringChars(JSContext *cx, JSString *str);
+
+extern JSString *
+js_ConcatStrings(JSContext *cx, JSString *left, JSString *right);
 
 extern const jschar *
 js_UndependString(JSContext *cx, JSString *str);
@@ -713,11 +249,10 @@ js_UndependString(JSContext *cx, JSString *str);
 extern JSBool
 js_MakeStringImmutable(JSContext *cx, JSString *str);
 
-extern JSString * JS_FASTCALL
-js_toLowerCase(JSContext *cx, JSString *str);
-
-extern JSString * JS_FASTCALL
-js_toUpperCase(JSContext *cx, JSString *str);
+typedef struct JSCharBuffer {
+    size_t          length;
+    jschar          *chars;
+} JSCharBuffer;
 
 struct JSSubString {
     size_t          length;
@@ -812,18 +347,11 @@ typedef enum JSCharType {
 #define JS_ISFORMAT(c) (((1 << JSCT_FORMAT) >> JS_CTYPE(c)) & 1)
 
 /*
- * This table is used in JS_ISWORD.  The definition has external linkage to
- * allow the raw table data to be used in the regular expression compiler.
+ * Per ECMA-262 15.10.2.6, these characters are the only ones that make up a
+ * "word", as far as a RegExp is concerned.  If we want a Unicode-friendlier
+ * definition of "word", we should rename this macro to something regexp-y.
  */
-extern const bool js_alnum[];
-
-/*
- * This macro performs testing for the regular expression word class \w, which
- * is defined by ECMA-262 15.10.2.6 to be [0-9A-Z_a-z].  If we want a
- * Unicode-friendlier definition of "word", we should rename this macro to
- * something regexp-y.
- */
-#define JS_ISWORD(c)    ((c) < 128 && js_alnum[(c)])
+#define JS_ISWORD(c)    ((c) < 128 && (isalnum(c) || (c) == '_'))
 
 #define JS_ISIDSTART(c) (JS_ISLETTER(c) || (c) == '_' || (c) == '$')
 #define JS_ISIDENT(c)   (JS_ISIDPART(c) || (c) == '_' || (c) == '$')
@@ -838,20 +366,9 @@ extern const bool js_alnum[];
 
 #define JS_ISDIGIT(c)   (JS_CTYPE(c) == JSCT_DECIMAL_DIGIT_NUMBER)
 
-const jschar BYTE_ORDER_MARK = 0xFEFF;
-const jschar NO_BREAK_SPACE  = 0x00A0;
-
-static inline bool
-JS_ISSPACE(jschar c)
-{
-    unsigned w = c;
-
-    if (w < 256)
-        return (w <= ' ' && (w == ' ' || (9 <= w && w <= 0xD))) || w == NO_BREAK_SPACE;
-
-    return w == BYTE_ORDER_MARK || (JS_CCODE(w) & 0x00070000) == 0x00040000;
-}
-
+/* XXXbe unify on A/X/Y tbls, avoid ctype.h? */
+/* XXXbe fs, etc. ? */
+#define JS_ISSPACE(c)   ((JS_CCODE(c) & 0x00070000) == 0x00040000)
 #define JS_ISPRINT(c)   ((c) < 128 && isprint(c))
 
 #define JS_ISUPPER(c)   (JS_CTYPE(c) == JSCT_UPPERCASE_LETTER)
@@ -874,14 +391,37 @@ JS_ISSPACE(jschar c)
 #define JS7_UNHEX(c)    (uintN)(JS7_ISDEC(c) ? (c) - '0' : 10 + tolower(c) - 'a')
 #define JS7_ISLET(c)    ((c) < 128 && isalpha(c))
 
-/* Initialize the String class, returning its prototype object. */
-extern js::Class js_StringClass;
+/* Initialize per-runtime string state for the first context in the runtime. */
+extern JSBool
+js_InitRuntimeStringState(JSContext *cx);
 
-inline bool
-JSObject::isString() const
-{
-    return getClass() == &js_StringClass;
-}
+extern JSBool
+js_InitDeflatedStringCache(JSRuntime *rt);
+
+/*
+ * Maximum character code for which we will create a pinned unit string on
+ * demand -- see JSRuntime.unitStrings in jscntxt.h.
+ */
+#define UNIT_STRING_LIMIT 256U
+
+/*
+ * Get the independent string containing only character code at index in str
+ * (backstopped with a zero character as usual for independent strings).
+ */
+extern JSString *
+js_GetUnitString(JSContext *cx, JSString *str, size_t index);
+
+extern void
+js_FinishUnitStrings(JSRuntime *rt);
+
+extern void
+js_FinishRuntimeStringState(JSContext *cx);
+
+extern void
+js_FinishDeflatedStringCache(JSRuntime *rt);
+
+/* Initialize the String class, returning its prototype object. */
+extern JSClass js_StringClass;
 
 extern JSObject *
 js_InitStringClass(JSContext *cx, JSObject *obj);
@@ -898,14 +438,6 @@ extern const char js_encodeURIComponent_str[];
 extern JSString *
 js_NewString(JSContext *cx, jschar *chars, size_t length);
 
-/*
- * GC-allocate a string descriptor and steal the char buffer held by |cb|.
- * This function takes responsibility for adding the terminating '\0' required
- * by js_NewString.
- */
-extern JSString *
-js_NewStringFromCharBuffer(JSContext *cx, JSCharBuffer &cb);
-
 extern JSString *
 js_NewDependentString(JSContext *cx, JSString *base, size_t start,
                       size_t length);
@@ -914,23 +446,27 @@ js_NewDependentString(JSContext *cx, JSString *base, size_t start,
 extern JSString *
 js_NewStringCopyN(JSContext *cx, const jschar *s, size_t n);
 
-extern JSString *
-js_NewStringCopyN(JSContext *cx, const char *s, size_t n);
-
 /* Copy a C string and GC-allocate a descriptor for it. */
 extern JSString *
 js_NewStringCopyZ(JSContext *cx, const jschar *s);
 
-extern JSString *
-js_NewStringCopyZ(JSContext *cx, const char *s);
+/*
+ * Free the chars held by str when it is finalized by the GC. When type is
+ * less then zero, it denotes an internal string. Otherwise it denotes the
+ * type of the external string allocated with JS_NewExternalString.
+ *
+ * This function always needs rt but can live with null cx.
+ */
+extern void
+js_FinalizeStringRT(JSRuntime *rt, JSString *str, intN type, JSContext *cx);
 
 /*
  * Convert a value to a printable C string.
  */
-typedef JSString *(*JSValueToStringFun)(JSContext *cx, const js::Value &v);
+typedef JSString *(*JSValueToStringFun)(JSContext *cx, jsval v);
 
 extern JS_FRIEND_API(const char *)
-js_ValueToPrintable(JSContext *cx, const js::Value &, JSValueToStringFun v2sfun);
+js_ValueToPrintable(JSContext *cx, jsval v, JSValueToStringFun v2sfun);
 
 #define js_ValueToPrintableString(cx,v) \
     js_ValueToPrintable(cx, v, js_ValueToString)
@@ -942,23 +478,15 @@ js_ValueToPrintable(JSContext *cx, const js::Value &, JSValueToStringFun v2sfun)
  * Convert a value to a string, returning null after reporting an error,
  * otherwise returning a new string reference.
  */
-extern JSString *
-js_ValueToString(JSContext *cx, const js::Value &v);
-
-/*
- * This function implements E-262-3 section 9.8, toString. Convert the given
- * value to a string of jschars appended to the given buffer. On error, the
- * passed buffer may have partial results appended.
- */
-extern JSBool
-js_ValueToCharBuffer(JSContext *cx, const js::Value &v, JSCharBuffer &cb);
+extern JS_FRIEND_API(JSString *)
+js_ValueToString(JSContext *cx, jsval v);
 
 /*
  * Convert a value to its source expression, returning null after reporting
  * an error, otherwise returning a new string reference.
  */
 extern JS_FRIEND_API(JSString *)
-js_ValueToSource(JSContext *cx, const js::Value &v);
+js_ValueToSource(JSContext *cx, jsval v);
 
 /*
  * Compute a hash function from str. The caller can call this function even if
@@ -971,29 +499,32 @@ js_HashString(JSString *str);
  * Test if strings are equal. The caller can call the function even if str1
  * or str2 are not GC-allocated things.
  */
-extern JSBool JS_FASTCALL
+extern JSBool
 js_EqualStrings(JSString *str1, JSString *str2);
 
 /*
  * Return less than, equal to, or greater than zero depending on whether
  * str1 is less than, equal to, or greater than str2.
  */
-extern int32 JS_FASTCALL
+extern intN
 js_CompareStrings(JSString *str1, JSString *str2);
 
 /*
  * Boyer-Moore-Horspool superlinear search for pat:patlen in text:textlen.
- * The patlen argument must be positive and no greater than sBMHPatLenMax.
+ * The patlen argument must be positive and no greater than BMH_PATLEN_MAX.
+ * The start argument tells where in text to begin the search.
  *
  * Return the index of pat in text, or -1 if not found.
  */
-static const jsuint sBMHCharSetSize = 256; /* ISO-Latin-1 */
-static const jsuint sBMHPatLenMax   = 255; /* skip table element is uint8 */
-static const jsint  sBMHBadPattern  = -2;  /* return value if pat is not ISO-Latin-1 */
+#define BMH_CHARSET_SIZE 256    /* ISO-Latin-1 */
+#define BMH_PATLEN_MAX   255    /* skip table element is uint8 */
+
+#define BMH_BAD_PATTERN  (-2)   /* return value if pat is not ISO-Latin-1 */
 
 extern jsint
-js_BoyerMooreHorspool(const jschar *text, jsuint textlen,
-                      const jschar *pat, jsuint patlen);
+js_BoyerMooreHorspool(const jschar *text, jsint textlen,
+                      const jschar *pat, jsint patlen,
+                      jsint start);
 
 extern size_t
 js_strlen(const jschar *s);
@@ -1006,29 +537,11 @@ js_strchr_limit(const jschar *s, jschar c, const jschar *limit);
 
 #define js_strncpy(t, s, n)     memcpy((t), (s), (n) * sizeof(jschar))
 
-inline void
-js_short_strncpy(jschar *dest, const jschar *src, size_t num)
-{
-    /*
-     * It isn't strictly necessary here for |num| to be small, but this function
-     * is currently only called on buffers for short strings.
-     */
-    JS_ASSERT(JSShortString::fitsIntoShortString(num));
-    for (size_t i = 0; i < num; i++)
-        dest[i] = src[i];
-}
-
 /*
  * Return s advanced past any Unicode white space characters.
  */
-static inline const jschar *
-js_SkipWhiteSpace(const jschar *s, const jschar *end)
-{
-    JS_ASSERT(s <= end);
-    while (s != end && JS_ISSPACE(*s))
-        s++;
-    return s;
-}
+extern const jschar *
+js_SkipWhiteSpace(const jschar *s, const jschar *end);
 
 /*
  * Inflate bytes to JS chars and vice versa.  Report out of memory via cx
@@ -1045,50 +558,35 @@ js_DeflateString(JSContext *cx, const jschar *chars, size_t length);
  * Inflate bytes to JS chars into a buffer. 'chars' must be large enough for
  * 'length' jschars. The buffer is NOT null-terminated. The destination length
  * must be be initialized with the buffer size and will contain on return the
- * number of copied chars. Conversion behavior depends on js_CStringsAreUTF8.
+ * number of copied chars.
  */
 extern JSBool
-js_InflateStringToBuffer(JSContext *cx, const char *bytes, size_t length,
-                         jschar *chars, size_t *charsLength);
+js_InflateStringToBuffer(JSContext* cx, const char *bytes, size_t length,
+                         jschar *chars, size_t* charsLength);
 
 /*
- * Same as js_InflateStringToBuffer, but always treats 'bytes' as UTF-8.
- */
-extern JSBool
-js_InflateUTF8StringToBuffer(JSContext *cx, const char *bytes, size_t length,
-                             jschar *chars, size_t *charsLength);
-
-/*
- * Get number of bytes in the deflated sequence of characters. Behavior depends
- * on js_CStringsAreUTF8.
+ * Get number of bytes in the deflated sequence of characters.
  */
 extern size_t
 js_GetDeflatedStringLength(JSContext *cx, const jschar *chars,
                            size_t charsLength);
 
 /*
- * Same as js_GetDeflatedStringLength, but always treats the result as UTF-8.
- */
-extern size_t
-js_GetDeflatedUTF8StringLength(JSContext *cx, const jschar *chars,
-                               size_t charsLength);
-
-/*
  * Deflate JS chars to bytes into a buffer. 'bytes' must be large enough for
  * 'length chars. The buffer is NOT null-terminated. The destination length
  * must to be initialized with the buffer size and will contain on return the
- * number of copied bytes. Conversion behavior depends on js_CStringsAreUTF8.
+ * number of copied bytes.
  */
 extern JSBool
-js_DeflateStringToBuffer(JSContext *cx, const jschar *chars,
-                         size_t charsLength, char *bytes, size_t *length);
+js_DeflateStringToBuffer(JSContext* cx, const jschar *chars,
+                         size_t charsLength, char *bytes, size_t* length);
 
 /*
- * Same as js_DeflateStringToBuffer, but always treats 'bytes' as UTF-8.
+ * Associate bytes with str in the deflated string cache, returning true on
+ * successful association, false on out of memory.
  */
 extern JSBool
-js_DeflateStringToUTF8Buffer(JSContext *cx, const jschar *chars,
-                             size_t charsLength, char *bytes, size_t *length);
+js_SetStringBytes(JSContext *cx, JSString *str, char *bytes, size_t length);
 
 /*
  * Find or create a deflated string cache entry for str that contains its
@@ -1097,28 +595,13 @@ js_DeflateStringToUTF8Buffer(JSContext *cx, const jschar *chars,
 extern const char *
 js_GetStringBytes(JSContext *cx, JSString *str);
 
-/* Export a few natives and a helper to other files in SpiderMonkey. */
-extern JSBool
-js_str_escape(JSContext *cx, JSObject *obj, uintN argc, js::Value *argv,
-              js::Value *rval);
+/* Remove a deflated string cache entry associated with str if any. */
+extern void
+js_PurgeDeflatedStringCache(JSRuntime *rt, JSString *str);
 
-/*
- * The String.prototype.replace fast-native entry point is exported for joined
- * function optimization in js{interp,tracer}.cpp.
- */
-namespace js {
-extern JSBool
-str_replace(JSContext *cx, uintN argc, js::Value *vp);
-}
-
-extern JSBool
-js_str_toString(JSContext *cx, uintN argc, js::Value *vp);
-
-extern JSBool
-js_str_charAt(JSContext *cx, uintN argc, js::Value *vp);
-
-extern JSBool
-js_str_charCodeAt(JSContext *cx, uintN argc, js::Value *vp);
+JSBool
+js_str_escape(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
+              jsval *rval);
 
 /*
  * Convert one UCS-4 char and write it into a UTF-8 buffer, which must be at
@@ -1153,60 +636,6 @@ extern JS_FRIEND_API(size_t)
 js_PutEscapedStringImpl(char *buffer, size_t bufferSize, FILE *fp,
                         JSString *str, uint32 quote);
 
-extern JSBool
-js_String(JSContext *cx, uintN argc, js::Value *vp);
-
-namespace js {
-
-class DeflatedStringCache {
-  public:
-    DeflatedStringCache();
-    bool init();
-    ~DeflatedStringCache();
-
-    void sweep(JSContext *cx);
-    void remove(JSString *str);
-    bool setBytes(JSContext *cx, JSString *str, char *bytes);
-
-  private:
-    struct StringPtrHasher
-    {
-        typedef JSString *Lookup;
-
-        static HashNumber hash(JSString *str) {
-            /*
-             * We hash only GC-allocated Strings. They are aligned on
-             * sizeof(JSString) boundary so we can improve hashing by stripping
-             * initial zeros.
-             */
-            const jsuword ALIGN_LOG = tl::FloorLog2<sizeof(JSString)>::result;
-            JS_STATIC_ASSERT(sizeof(JSString) == (size_t(1) << ALIGN_LOG));
-
-            jsuword ptr = reinterpret_cast<jsuword>(str);
-            jsuword key = ptr >> ALIGN_LOG;
-            JS_ASSERT((key << ALIGN_LOG) == ptr);
-            return HashNumber(key);
-        }
-
-        static bool match(JSString *s1, JSString *s2) {
-            return s1 == s2;
-        }
-    };
-
-    typedef HashMap<JSString *, char *, StringPtrHasher, SystemAllocPolicy> Map;
-
-    /* cx is NULL when the caller is JS_GetStringBytes(JSString *). */
-    char *getBytes(JSContext *cx, JSString *str);
-
-    friend const char *
-    ::js_GetStringBytes(JSContext *cx, JSString *str);
-
-    Map                 map;
-#ifdef JS_THREADSAFE
-    JSLock              *lock;
-#endif
-};
-
-} /* namespace js */
+JS_END_EXTERN_C
 
 #endif /* jsstr_h___ */

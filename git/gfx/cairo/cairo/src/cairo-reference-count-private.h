@@ -39,6 +39,8 @@
 
 #include "cairo-atomic-private.h"
 
+CAIRO_BEGIN_DECLS
+
 /* Encapsulate operations on the object's reference count */
 typedef struct {
     cairo_atomic_int_t ref_count;
@@ -58,5 +60,7 @@ typedef struct {
 #define CAIRO_REFERENCE_COUNT_IS_INVALID(RC) (CAIRO_REFERENCE_COUNT_GET_VALUE (RC) == CAIRO_REFERENCE_COUNT_INVALID_VALUE)
 
 #define CAIRO_REFERENCE_COUNT_HAS_REFERENCE(RC) (CAIRO_REFERENCE_COUNT_GET_VALUE (RC) > 0)
+
+CAIRO_END_DECLS
 
 #endif

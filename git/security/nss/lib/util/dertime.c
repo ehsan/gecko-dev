@@ -43,6 +43,10 @@
 #define HIDIGIT(v) (((v) / 10) + '0')
 #define LODIGIT(v) (((v) % 10) + '0')
 
+#define C_SINGLE_QUOTE '\047'
+
+#define DIGITHI(dig) (((dig) - '0') * 10)
+#define DIGITLO(dig) ((dig) - '0')
 #define ISDIGIT(dig) (((dig) >= '0') && ((dig) <= '9'))
 #define CAPTURE(var,p,label)				  \
 {							  \
@@ -50,6 +54,26 @@
     (var) = ((p)[0] - '0') * 10 + ((p)[1] - '0');	  \
     p += 2; \
 }
+
+#define SECMIN  60L            /* seconds in a minute        */
+#define SECHOUR (60L*SECMIN)   /* seconds in an hour         */
+#define SECDAY  (24L*SECHOUR)  /* seconds in a day           */
+#define SECYEAR (365L*SECDAY)  /* seconds in a non-leap year */
+
+static long monthToDayInYear[12] = {
+    0,
+    31,
+    31+28,
+    31+28+31,
+    31+28+31+30,
+    31+28+31+30+31,
+    31+28+31+30+31+30,
+    31+28+31+30+31+30+31,
+    31+28+31+30+31+30+31+31,
+    31+28+31+30+31+30+31+31+30,
+    31+28+31+30+31+30+31+31+30+31,
+    31+28+31+30+31+30+31+31+30+31+30,
+};
 
 static const PRTime January1st1     = (PRTime) LL_INIT(0xff234001U, 0x00d44000U);
 static const PRTime January1st1950  = (PRTime) LL_INIT(0xfffdc1f8U, 0x793da000U);
@@ -112,8 +136,7 @@ DER_TimeToUTCTime(SECItem *dst, int64 gmttime)
 }
 
 static SECStatus /* forward */
-der_TimeStringToTime(PRTime *dst, const char *string, int generalized,
-                     const char **endptr);
+der_TimeStringToTime(PRTime *dst, const char * string, int generalized);
 
 #define GEN_STRING 2 /* TimeString is a GeneralizedTime */
 #define UTC_STRING 0 /* TimeString is a UTCTime         */
@@ -129,7 +152,7 @@ der_TimeStringToTime(PRTime *dst, const char *string, int generalized,
 SECStatus
 DER_AsciiToTime(int64 *dst, const char *string)
 {
-    return der_TimeStringToTime(dst, string, UTC_STRING, NULL);
+    return der_TimeStringToTime(dst, string, UTC_STRING);
 }
 
 SECStatus
@@ -139,31 +162,21 @@ DER_UTCTimeToTime(int64 *dst, const SECItem *time)
     ** Maximum valid UTCTime is yymmddhhmmss+0000 which is 17 bytes.
     ** 20 should be large enough for all valid encoded times. 
     */
-    unsigned int i;
+    int  len;
     char localBuf[20];
-    const char *end = NULL;
-    SECStatus rv;
 
-    if (!time || !time->data || time->len < 11 || time->len > 17) {
+    if (!time || !time->data || time->len < 11) {
 	PORT_SetError(SEC_ERROR_INVALID_TIME);
 	return SECFailure;
     }
 
-    for (i = 0; i < time->len; i++) {
-	if (time->data[i] == '\0') {
-	    PORT_SetError(SEC_ERROR_INVALID_TIME);
-	    return SECFailure;
-	}
-	localBuf[i] = time->data[i];
+    len = PR_MIN(time->len, sizeof localBuf);
+    memcpy(localBuf, time->data, len);
+    while (len < sizeof localBuf) {
+        localBuf[len++] = '\0';
     }
-    localBuf[i] = '\0';
 
-    rv = der_TimeStringToTime(dst, localBuf, UTC_STRING, &end);
-    if (rv == SECSuccess && *end != '\0') {
-	PORT_SetError(SEC_ERROR_INVALID_TIME);
-	return SECFailure;
-    }
-    return rv;
+    return der_TimeStringToTime(dst, localBuf, UTC_STRING);
 }
 
 /*
@@ -233,36 +246,25 @@ DER_GeneralizedTimeToTime(int64 *dst, const SECItem *time)
     ** Maximum valid GeneralizedTime is ccyymmddhhmmss+0000 which is 19 bytes.
     ** 20 should be large enough for all valid encoded times. 
     */
-    unsigned int i;
+    int  len;
     char localBuf[20];
-    const char *end = NULL;
-    SECStatus rv;
 
-    if (!time || !time->data || time->len < 13 || time->len > 19) {
+    if (!time || !time->data || time->len < 13) {
 	PORT_SetError(SEC_ERROR_INVALID_TIME);
 	return SECFailure;
     }
 
-    for (i = 0; i < time->len; i++) {
-	if (time->data[i] == '\0') {
-	    PORT_SetError(SEC_ERROR_INVALID_TIME);
-	    return SECFailure;
-	}
-	localBuf[i] = time->data[i];
+    len = PR_MIN(time->len, sizeof localBuf);
+    memcpy(localBuf, time->data, len);
+    while (len < sizeof localBuf) {
+        localBuf[len++] = '\0';
     }
-    localBuf[i] = '\0';
 
-    rv = der_TimeStringToTime(dst, localBuf, GEN_STRING, &end);
-    if (rv == SECSuccess && *end != '\0') {
-	PORT_SetError(SEC_ERROR_INVALID_TIME);
-	return SECFailure;
-    }
-    return rv;
+    return der_TimeStringToTime(dst, localBuf, GEN_STRING);
 }
 
 static SECStatus
-der_TimeStringToTime(PRTime *dst, const char *string, int generalized,
-                     const char **endptr)
+der_TimeStringToTime(PRTime *dst, const char * string, int generalized)
 {
     PRExplodedTime genTime;
     long hourOff = 0, minOff = 0;
@@ -325,9 +327,6 @@ der_TimeStringToTime(PRTime *dst, const char *string, int generalized,
     } else if (signum != 'Z') {
 	goto loser;
     }
-
-    if (endptr)
-    	*endptr = string;
 
     /* Convert the GMT offset to seconds and save it in genTime
      * for the implode time call.

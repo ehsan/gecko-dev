@@ -2,7 +2,7 @@
 <html>
 <head>
   <title>Test for Login Manager</title>
-  <script type="text/javascript" src="/MochiKit/packed.js"></script>
+  <script type="text/javascript" src="/MochiKit/MochiKit.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>  
   <script type="text/javascript" src="pwmgr_common.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
@@ -103,12 +103,10 @@ function getFormSubmitButton(formNum) {
 function countLogins() {
   netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
 
-  var logins = pwmgr.getAllLogins();
+  var logins = pwmgr.getAllLogins({});
 
   return logins.length;
 }
-
-commonInit();
 
 // Get the pwmgr service
 netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');

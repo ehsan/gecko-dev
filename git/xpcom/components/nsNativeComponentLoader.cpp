@@ -59,11 +59,11 @@
 
 #include "nsComponentManager.h"
 #include "nsCRTGlue.h"
-#include "nsThreadUtils.h"
+#include "nsModule.h"
 #include "nsTraceRefcntImpl.h"
 
 #include "nsILocalFile.h"
-#include "nsIProxyObjectManager.h"
+#include "nsIModule.h"
 
 #ifdef XP_WIN
 #include <windows.h>
@@ -88,7 +88,7 @@ static PRLogModuleInfo *nsNativeModuleLoaderLog =
 #define LOG(level, args) PR_LOG(nsNativeModuleLoaderLog, level, args)
 
 NS_IMPL_QUERY_INTERFACE1(nsNativeModuleLoader, 
-                         mozilla::ModuleLoader)
+                         nsIModuleLoader)
 
 NS_IMPL_ADDREF_USING_AGGREGATOR(nsNativeModuleLoader,
                                 nsComponentManagerImpl::gComponentManager)
@@ -98,64 +98,39 @@ NS_IMPL_RELEASE_USING_AGGREGATOR(nsNativeModuleLoader,
 nsresult
 nsNativeModuleLoader::Init()
 {
-    NS_ASSERTION(NS_IsMainThread(), "Startup not on main thread?");
-
     LOG(PR_LOG_DEBUG, ("nsNativeModuleLoader::Init()"));
 
     return mLibraries.Init() ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
-class LoadModuleMainThreadRunnable : public nsRunnable
-{
-public:
-    LoadModuleMainThreadRunnable(nsNativeModuleLoader* loader,
-                                 nsILocalFile* file)
-        : mLoader(loader)
-        , mFile(file)
-        , mResult(NULL)
-    { }
-
-    NS_IMETHOD Run()
-    {
-        mResult = mLoader->LoadModule(mFile);
-        return NS_OK;
-    }
-
-    nsRefPtr<nsNativeModuleLoader> mLoader;
-    nsCOMPtr<nsILocalFile> mFile;
-    const mozilla::Module* mResult;
-};
-
-const mozilla::Module*
-nsNativeModuleLoader::LoadModule(nsILocalFile* aFile)
+NS_IMETHODIMP
+nsNativeModuleLoader::LoadModule(nsILocalFile* aFile, nsIModule* *aResult)
 {
     nsresult rv;
 
-    if (!NS_IsMainThread()) {
-        // If this call is off the main thread, synchronously proxy it
-        // to the main thread.
-        nsRefPtr<LoadModuleMainThreadRunnable> r = new LoadModuleMainThreadRunnable(this, aFile);
-        NS_DispatchToMainThread(r, NS_DISPATCH_SYNC);
-        return r->mResult;
-    }
+    // Only load components that end in the proper dynamic library suffix
+    nsCAutoString filePath;
+    aFile->GetNativePath(filePath);
+    if (!StringTail(filePath, sizeof(MOZ_DLL_SUFFIX) - 1).
+        LowerCaseEqualsLiteral(MOZ_DLL_SUFFIX))
+        return NS_ERROR_INVALID_ARG;
 
     nsCOMPtr<nsIHashable> hashedFile(do_QueryInterface(aFile));
     if (!hashedFile) {
         NS_ERROR("nsIFile is not nsIHashable");
-        return NULL;
+        return NS_NOINTERFACE;
     }
-
-    nsCAutoString filePath;
-    aFile->GetNativePath(filePath);
 
     NativeLoadData data;
 
     if (mLibraries.Get(hashedFile, &data)) {
         NS_ASSERTION(data.module, "Corrupt mLibraries hash");
+        NS_ADDREF(*aResult = data.module);
+
         LOG(PR_LOG_DEBUG,
             ("nsNativeModuleLoader::LoadModule(\"%s\") - found in cache",
              filePath.get()));
-        return data.module;
+        return NS_OK;
     }
 
     // We haven't loaded this module before
@@ -177,10 +152,10 @@ nsNativeModuleLoader::LoadModule(nsILocalFile* aFile)
         fprintf(stderr,
                 "nsNativeModuleLoader::LoadModule(\"%s\") - load FAILED, "
                 "rv: %lx, error:\n\t%s\n",
-                filePath.get(), (unsigned long)rv, errorMsg);
+                filePath.get(), rv, errorMsg);
 #endif
 
-        return NULL;
+        return rv;
     }
 
 #ifdef IMPLEMENT_BREAK_AFTER_LOAD
@@ -201,30 +176,40 @@ nsNativeModuleLoader::LoadModule(nsILocalFile* aFile)
     }
 #endif
 
-    void *module = PR_FindSymbol(data.library, "NSModule");
-    if (module) {
-        data.module = *(mozilla::Module const *const *) module;
-        if (mLibraries.Put(hashedFile, data))
-            return data.module;
+    nsGetModuleProc proc = (nsGetModuleProc)
+        PR_FindFunctionSymbol(data.library, NS_GET_MODULE_SYMBOL);
+
+    if (proc) {
+        rv = proc(nsComponentManagerImpl::gComponentManager,
+                  aFile,
+                  getter_AddRefs(data.module));
+        if (NS_SUCCEEDED(rv)) {
+            LOG(PR_LOG_DEBUG,
+                ("nsNativeModuleLoader::LoadModule(\"%s\") - Success",
+                 filePath.get()));
+
+            if (mLibraries.Put(hashedFile, data)) {
+                NS_ADDREF(*aResult = data.module);
+                return NS_OK;
+            }
+        }
+        else {
+            LOG(PR_LOG_WARNING,
+                ("nsNativeModuleLoader::LoadModule(\"%s\") - "
+                 "Call to NSGetModule failed, rv: %lx", filePath.get(), rv));
+        }
     }
     else {
         LOG(PR_LOG_ERROR,
             ("nsNativeModuleLoader::LoadModule(\"%s\") - "
-             "Symbol NSModule not found", filePath.get()));
+             "Symbol NSGetModule not found", filePath.get()));
     }
 
     // at some point we failed, clean up
     data.module = nsnull;
     PR_UnloadLibrary(data.library);
 
-    return NULL;
-}
-
-const mozilla::Module*
-nsNativeModuleLoader::LoadModuleFromJAR(nsILocalFile* aJARFile, const nsACString &aPath)
-{
-    NS_ERROR("Binary components cannot be loaded from JARs");
-    return NULL;
+    return NS_ERROR_FAILURE;
 }
 
 PLDHashOperator
@@ -270,8 +255,6 @@ nsNativeModuleLoader::UnloaderFunc(nsIHashable* aHashedFile,
 void
 nsNativeModuleLoader::UnloadLibraries()
 {
-    NS_ASSERTION(NS_IsMainThread(), "Shutdown not on main thread?");
-
     mLibraries.Enumerate(ReleaserFunc, nsnull);
     mLibraries.Enumerate(UnloaderFunc, nsnull);
 }

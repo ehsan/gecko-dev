@@ -36,7 +36,13 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+/* ===== dialog.css =====================================================
+  == Styles used by the XUL dialog element.
+  ======================================================================= */
+
 @namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
+
+/* ::::: dialog ::::: */
 
 #commonDialog > image {
   -moz-margin-end: 14px !important;
@@ -96,12 +102,14 @@ dialogheader {
 	font-weight: bold !important;
 }
 
-/*XXX - belongs to toolkit/content/finddialog.xul: */
+#loginContainer {
+	padding-top: 10px;
+}
 
 #findDialog, #findDialog > menu, #findDialog > groupbox {
 	font: menu !important;
 }
 
-#dialog\.caseSensitive {
+#dialog.caseSensitive {
 	margin-top: 8px;
 }

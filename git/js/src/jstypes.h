@@ -55,7 +55,6 @@
 #define jstypes_h___
 
 #include <stddef.h>
-#include "js-config.h"
 
 /***********************************************************************
 ** MACROS:      JS_EXTERN_API
@@ -77,9 +76,6 @@
 **
 **
 ***********************************************************************/
-
-#define DEFINE_LOCAL_CLASS_OF_STATIC_FUNCTION(Name) class Name
-
 #ifdef WIN32
 
 /* These also work for __MWERKS__ */
@@ -88,6 +84,9 @@
 # define JS_EXTERN_DATA(__type) extern __declspec(dllexport) __type
 # define JS_EXPORT_DATA(__type) __declspec(dllexport) __type
 
+# define JS_DLL_CALLBACK
+# define JS_STATIC_DLL_CALLBACK(__x)    static __x
+
 #elif defined(XP_OS2) && defined(__declspec)
 
 # define JS_EXTERN_API(__type)  extern __declspec(dllexport) __type
@@ -95,30 +94,13 @@
 # define JS_EXTERN_DATA(__type) extern __declspec(dllexport) __type
 # define JS_EXPORT_DATA(__type) __declspec(dllexport) __type
 
-#elif defined(__SYMBIAN32__)
-
-# define JS_EXTERN_API(__type) extern EXPORT_C __type
-# define JS_EXPORT_API(__type) EXPORT_C __type
-# define JS_EXTERN_DATA(__type) extern EXPORT_C __type
-# define JS_EXPORT_DATA(__type) EXPORT_C __type
+# define JS_DLL_CALLBACK
+# define JS_STATIC_DLL_CALLBACK(__x)    static __x
 
 #else /* Unix */
 
 # ifdef HAVE_VISIBILITY_ATTRIBUTE
 #  define JS_EXTERNAL_VIS __attribute__((visibility ("default")))
-#  if defined(__GNUC__) && __GNUC__ <= 4 && __GNUC_MINOR__ < 5
-    /*
-     * GCC wrongly produces a warning when a type with hidden visibility
-     * (e.g. js::Value) is a member of a local class of a static function.
-     * This is apparently fixed with GCC 4.5 and above.  See:
-     *
-     *   http://gcc.gnu.org/bugzilla/show_bug.cgi?id=40145.
-     */
-#   undef  DEFINE_LOCAL_CLASS_OF_STATIC_FUNCTION
-#   define DEFINE_LOCAL_CLASS_OF_STATIC_FUNCTION(Name) class __attribute__((visibility ("hidden"))) Name
-#  endif
-# elif defined(__SUNPRO_C) || defined(__SUNPRO_CC)
-#  define JS_EXTERNAL_VIS __global
 # else
 #  define JS_EXTERNAL_VIS
 # endif
@@ -127,6 +109,9 @@
 # define JS_EXPORT_API(__type)  JS_EXTERNAL_VIS __type
 # define JS_EXTERN_DATA(__type) extern JS_EXTERNAL_VIS __type
 # define JS_EXPORT_DATA(__type) JS_EXTERNAL_VIS __type
+
+# define JS_DLL_CALLBACK
+# define JS_STATIC_DLL_CALLBACK(__x)    static __x
 
 #endif
 
@@ -138,8 +123,6 @@
 # endif
 #elif defined(XP_OS2) && defined(__declspec)
 # define JS_IMPORT_API(__x)     __declspec(dllimport) __x
-#elif defined(__SYMBIAN32__)
-# define JS_IMPORT_API(__x)     IMPORT_C __x
 #else
 # define JS_IMPORT_API(__x)     JS_EXPORT_API (__x)
 #endif
@@ -148,12 +131,6 @@
 # define JS_IMPORT_DATA(__x)      __declspec(dllimport) __x
 #elif defined(XP_OS2) && defined(__declspec)
 # define JS_IMPORT_DATA(__x)      __declspec(dllimport) __x
-#elif defined(__SYMBIAN32__)
-# if defined(__CW32__)
-#   define JS_IMPORT_DATA(__x)    __declspec(dllimport) __x
-# else
-#   define JS_IMPORT_DATA(__x)    IMPORT_C __x
-# endif
 #else
 # define JS_IMPORT_DATA(__x)     JS_EXPORT_DATA (__x)
 #endif
@@ -169,7 +146,7 @@
 # define JS_PUBLIC_API(t)   t
 # define JS_PUBLIC_DATA(t)  t
 
-#elif defined(EXPORT_JS_API) || defined(STATIC_EXPORTABLE_JS_API)
+#elif defined(EXPORT_JS_API)
 
 # define JS_PUBLIC_API(t)   JS_EXPORT_API(t)
 # define JS_PUBLIC_DATA(t)  JS_EXPORT_DATA(t)
@@ -184,67 +161,16 @@
 #define JS_FRIEND_API(t)    JS_PUBLIC_API(t)
 #define JS_FRIEND_DATA(t)   JS_PUBLIC_DATA(t)
 
-#if defined(_MSC_VER) && defined(_M_IX86)
-#define JS_FASTCALL __fastcall
-#elif defined(__GNUC__) && defined(__i386__) &&                         \
-  ((__GNUC__ >= 4) || (__GNUC__ == 3 && __GNUC_MINOR__ >= 4))
-#define JS_FASTCALL __attribute__((fastcall))
+#if defined(_MSC_VER)
+# define JS_INLINE __forceinline
+#elif defined(__GNUC__)
+# ifndef DEBUG
+#  define JS_INLINE __attribute__((always_inline))
+# else
+#  define JS_INLINE inline
+# endif
 #else
-#define JS_FASTCALL
-#define JS_NO_FASTCALL
-#endif
-
-#ifndef JS_INLINE
-# if defined __cplusplus
-#  define JS_INLINE          inline
-# elif defined _MSC_VER
-#  define JS_INLINE          __inline
-# elif defined __GNUC__
-#  define JS_INLINE          __inline__
-# else
-#  define JS_INLINE          inline
-# endif
-#endif
-
-#ifndef JS_ALWAYS_INLINE
-# if defined DEBUG
-#  define JS_ALWAYS_INLINE   JS_INLINE
-# elif defined _MSC_VER
-#  define JS_ALWAYS_INLINE   __forceinline
-# elif defined __GNUC__
-#  define JS_ALWAYS_INLINE   __attribute__((always_inline)) JS_INLINE
-# else
-#  define JS_ALWAYS_INLINE   JS_INLINE
-# endif
-#endif
-
-#ifndef JS_NEVER_INLINE
-# if defined _MSC_VER
-#  define JS_NEVER_INLINE __declspec(noinline)
-# elif defined __GNUC__
-#  define JS_NEVER_INLINE __attribute__((noinline))
-# else
-#  define JS_NEVER_INLINE
-# endif
-#endif
-
-#ifdef NS_STATIC_CHECKING
-/*
- * Attributes for static analysis. Functions declared with JS_REQUIRES_STACK
- * always have a valid cx->fp and can access it freely.  Other functions can
- * access cx->fp only after calling a function that "forces" the stack
- * (i.e. lazily instantiates it as needed).
- */
-# define JS_REQUIRES_STACK   __attribute__((user("JS_REQUIRES_STACK")))
-# define JS_FORCES_STACK     __attribute__((user("JS_FORCES_STACK")))
-/*
- * Skip the JS_REQUIRES_STACK analysis within functions with this annotation.
- */
-# define JS_IGNORE_STACK     __attribute__((user("JS_IGNORE_STACK")))
-#else
-# define JS_REQUIRES_STACK
-# define JS_FORCES_STACK
-# define JS_IGNORE_STACK
+# define JS_INLINE
 #endif
 
 /***********************************************************************
@@ -292,6 +218,19 @@
 #define JS_BITMASK(n)   (JS_BIT(n) - 1)
 
 /***********************************************************************
+** MACROS:      JS_PTR_TO_INT32
+**              JS_PTR_TO_UINT32
+**              JS_INT32_TO_PTR
+**              JS_UINT32_TO_PTR
+** DESCRIPTION:
+** Integer to pointer and pointer to integer conversion macros.
+***********************************************************************/
+#define JS_PTR_TO_INT32(x)  ((jsint)((char *)(x) - (char *)0))
+#define JS_PTR_TO_UINT32(x) ((jsuint)((char *)(x) - (char *)0))
+#define JS_INT32_TO_PTR(x)  ((void *)((char *)0 + (jsint)(x)))
+#define JS_UINT32_TO_PTR(x) ((void *)((char *)0 + (jsuint)(x)))
+
+/***********************************************************************
 ** MACROS:      JS_HOWMANY
 **              JS_ROUNDUP
 **              JS_MIN
@@ -304,39 +243,101 @@
 #define JS_MIN(x,y)     ((x)<(y)?(x):(y))
 #define JS_MAX(x,y)     ((x)>(y)?(x):(y))
 
-#ifdef _MSC_VER
-# include "jscpucfg.h"  /* We can't auto-detect MSVC configuration */
-# if _MSC_VER < 1400
-#  define NJ_NO_VARIADIC_MACROS
-# endif
+#if (defined(XP_WIN) && !defined(CROSS_COMPILE)) || defined (WINCE)
+# include "jscpucfg.h"      /* Use standard Mac or Windows configuration */
+#elif defined(XP_UNIX) || defined(XP_BEOS) || defined(XP_OS2) || defined(CROSS_COMPILE)
+# include "jsautocfg.h"     /* Use auto-detected configuration */
 #else
-# include "jsautocfg.h" /* Use auto-detected configuration */
+# error "Must define one of XP_BEOS, XP_OS2, XP_WIN or XP_UNIX"
 #endif
-
-/*
- * Define JS_64BIT iff we are building in an environment with 64-bit
- * addresses.
- */
-#ifdef _MSC_VER
-# if defined(_M_X64) || defined(_M_AMD64)
-#  define JS_64BIT
-# endif
-#elif defined(__GNUC__)
-# ifdef __x86_64__
-#  define JS_64BIT
-# endif
-#elif defined(__SUNPRO_C) || defined(__SUNPRO_CC)
-# ifdef __x86_64
-#  define JS_64BIT
-# endif
-#else
-# error "Implement me"
-#endif
-
-
-#include "jsinttypes.h"
 
 JS_BEGIN_EXTERN_C
+
+/************************************************************************
+** TYPES:       JSUint8
+**              JSInt8
+** DESCRIPTION:
+**  The int8 types are known to be 8 bits each. There is no type that
+**      is equivalent to a plain "char".
+************************************************************************/
+#if JS_BYTES_PER_BYTE == 1
+typedef unsigned char JSUint8;
+typedef signed char JSInt8;
+#else
+# error No suitable type for JSInt8/JSUint8
+#endif
+
+/************************************************************************
+** TYPES:       JSUint16
+**              JSInt16
+** DESCRIPTION:
+**  The int16 types are known to be 16 bits each.
+************************************************************************/
+#if JS_BYTES_PER_SHORT == 2
+typedef unsigned short JSUint16;
+typedef short JSInt16;
+#else
+# error No suitable type for JSInt16/JSUint16
+#endif
+
+/************************************************************************
+** TYPES:       JSUint32
+**              JSInt32
+** DESCRIPTION:
+**  The int32 types are known to be 32 bits each.
+************************************************************************/
+#if JS_BYTES_PER_INT == 4
+typedef unsigned int JSUint32;
+typedef int JSInt32;
+# define JS_INT32(x)    x
+# define JS_UINT32(x)   x ## U
+#elif JS_BYTES_PER_LONG == 4
+typedef unsigned long JSUint32;
+typedef long JSInt32;
+# define JS_INT32(x)    x ## L
+# define JS_UINT32(x)   x ## UL
+#else
+# error No suitable type for JSInt32/JSUint32
+#endif
+
+/************************************************************************
+** TYPES:       JSUint64
+**              JSInt64
+** DESCRIPTION:
+**  The int64 types are known to be 64 bits each. Care must be used when
+**      declaring variables of type JSUint64 or JSInt64. Different hardware
+**      architectures and even different compilers have varying support for
+**      64 bit values. The only guaranteed portability requires the use of
+**      the JSLL_ macros (see jslong.h).
+************************************************************************/
+#ifdef JS_HAVE_LONG_LONG
+
+# if JS_BYTES_PER_LONG == 8
+typedef long JSInt64;
+typedef unsigned long JSUint64;
+# elif defined(WIN16)
+typedef __int64 JSInt64;
+typedef unsigned __int64 JSUint64;
+# elif defined(WIN32) && !defined(__GNUC__)
+typedef __int64  JSInt64;
+typedef unsigned __int64 JSUint64;
+# else
+typedef long long JSInt64;
+typedef unsigned long long JSUint64;
+# endif /* JS_BYTES_PER_LONG == 8 */
+
+#else  /* !JS_HAVE_LONG_LONG */
+
+typedef struct {
+# ifdef IS_LITTLE_ENDIAN
+    JSUint32 lo, hi;
+# else
+    JSUint32 hi, lo;
+#endif
+} JSInt64;
+typedef JSInt64 JSUint64;
+
+#endif /* !JS_HAVE_LONG_LONG */
 
 /************************************************************************
 ** TYPES:       JSUintn
@@ -347,9 +348,12 @@ JS_BEGIN_EXTERN_C
 **      define them to be wider (e.g., 32 or even 64 bits). These types are
 **      never valid for fields of a structure.
 ************************************************************************/
-
+#if JS_BYTES_PER_INT >= 2
 typedef int JSIntn;
 typedef unsigned int JSUintn;
+#else
+# error 'sizeof(int)' not sufficient for platform use
+#endif
 
 /************************************************************************
 ** TYPES:       JSFloat64
@@ -379,7 +383,11 @@ typedef ptrdiff_t JSPtrdiff;
 **  A type for pointer difference. Variables of this type are suitable
 **      for storing a pointer or pointer sutraction.
 ************************************************************************/
-typedef JSUintPtr JSUptrdiff;
+#if JS_BYTES_PER_WORD == 8 && JS_BYTES_PER_LONG != 8
+typedef JSUint64 JSUptrdiff;
+#else
+typedef unsigned long JSUptrdiff;
+#endif
 
 /************************************************************************
 ** TYPES:       JSBool
@@ -392,11 +400,6 @@ typedef JSUintPtr JSUptrdiff;
 typedef JSIntn JSBool;
 #define JS_TRUE (JSIntn)1
 #define JS_FALSE (JSIntn)0
-/*
-** Special: JS_NEITHER is used by the tracer to have tri-state booleans.
-** This should not be used in new code.
-*/
-#define JS_NEITHER (JSIntn)2
 
 /************************************************************************
 ** TYPES:       JSPackedBool
@@ -409,8 +412,13 @@ typedef JSUint8 JSPackedBool;
 /*
 ** A JSWord is an integer that is the same size as a void*
 */
-typedef JSIntPtr JSWord;
-typedef JSUintPtr JSUword;
+#if JS_BYTES_PER_WORD == 8 && JS_BYTES_PER_LONG != 8
+typedef JSInt64 JSWord;
+typedef JSUint64 JSUword;
+#else
+typedef long JSWord;
+typedef unsigned long JSUword;
+#endif
 
 #include "jsotypes.h"
 
@@ -461,45 +469,6 @@ typedef JSUintPtr JSUword;
 
 #define JS_ARRAY_LENGTH(array) (sizeof (array) / sizeof (array)[0])
 #define JS_ARRAY_END(array)    ((array) + JS_ARRAY_LENGTH(array))
-
-#define JS_BITS_PER_BYTE 8
-#define JS_BITS_PER_BYTE_LOG2 3
-
-#define JS_BITS_PER_WORD (JS_BITS_PER_BYTE * JS_BYTES_PER_WORD)
-#define JS_BITS_PER_DOUBLE (JS_BITS_PER_BYTE * JS_BYTES_PER_DOUBLE)
-
-/***********************************************************************
-** MACROS:      JS_FUNC_TO_DATA_PTR
-**              JS_DATA_TO_FUNC_PTR
-** DESCRIPTION:
-**      Macros to convert between function and data pointers assuming that
-**      they have the same size. Use them like this:
-**
-**      JSPropertyOp nativeGetter;
-**      JSObject *scriptedGetter;
-**      ...
-**      scriptedGetter = JS_FUNC_TO_DATA_PTR(JSObject *, nativeGetter);
-**      ...
-**      nativeGetter = JS_DATA_TO_FUNC_PTR(JSPropertyOp, scriptedGetter);
-**
-***********************************************************************/
-
-#ifdef __GNUC__
-# define JS_FUNC_TO_DATA_PTR(type, fun) (__extension__ (type) (fun))
-# define JS_DATA_TO_FUNC_PTR(type, ptr) (__extension__ (type) (ptr))
-#else
-/* Use an extra (void *) cast for MSVC. */
-# define JS_FUNC_TO_DATA_PTR(type, fun) ((type) (void *) (fun))
-# define JS_DATA_TO_FUNC_PTR(type, ptr) ((type) (void *) (ptr))
-#endif
-
-#ifdef __GNUC__
-# define JS_EXTENSION __extension__
-# define JS_EXTENSION_(s) __extension__ ({ s; })
-#else
-# define JS_EXTENSION
-# define JS_EXTENSION_(s) s
-#endif
 
 JS_END_EXTERN_C
 

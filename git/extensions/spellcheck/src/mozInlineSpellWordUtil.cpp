@@ -50,8 +50,6 @@
 #include "nsIDOMHTMLBRElement.h"
 #include "nsUnicharUtilCIID.h"
 #include "nsServiceManagerUtils.h"
-#include "nsIContent.h"
-#include "nsTextFragment.h"
 
 // IsIgnorableCharacter
 //
@@ -135,7 +133,6 @@ typedef void (* OnLeaveNodeFunPtr)(nsIDOMNode* aNode, void* aClosure);
 // Find the next node in the DOM tree in preorder. This isn't fast because
 // one call to GetNextSibling can be O(N) in the number of siblings...
 // Calls OnLeaveNodeFunPtr when the traversal leaves a node
-// XXXbz if this used nsINode, this would be trivial
 static nsIDOMNode*
 FindNextNode(nsIDOMNode* aNode, nsIDOMNode* aRoot,
              OnLeaveNodeFunPtr aOnLeaveNode = nsnull, void* aClosure = nsnull)
@@ -180,37 +177,33 @@ FindNextTextNode(nsIDOMNode* aNode, PRInt32 aOffset, nsIDOMNode* aRoot)
   NS_PRECONDITION(aNode, "Null starting node?");
   NS_ASSERTION(!IsTextNode(aNode), "FindNextTextNode should start with a non-text node");
 
-  nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
-  nsCOMPtr<nsIDOMNode> checkNode;
+  nsIDOMNode* checkNode;
   // Need to start at the aOffset'th child
-  nsIContent* child = node->GetChildAt(aOffset);
-
+  nsCOMPtr<nsIDOMNode> child;
+  aNode->GetFirstChild(getter_AddRefs(child));
+  while (child && aOffset > 0) {
+    nsCOMPtr<nsIDOMNode> next;
+    child->GetNextSibling(getter_AddRefs(next));
+    child.swap(next);
+    --aOffset;
+  }
   if (child) {
-    checkNode = do_QueryInterface(child);
+    checkNode = child;
   } else {
-    // aOffset was beyond the end of the child list. 
-    // goto next node in a preorder DOM traversal.
-    // XXXbz this is generally reimplementing GetNextNode.
-    nsINode* next = node->GetNextSibling();
-    if (!next) {
-      nsCOMPtr<nsINode> root = do_QueryInterface(aRoot);
-      while (!next) {
-        // Go up
-        next = node->GetNodeParent();
-        if (next == root || !next) {
-          return nsnull;
-        }
-        node = next;
-        next = node->GetNextSibling();
-      }
+    // aOffset was beyond the end of the child list. Start checking at the next
+    // node after the last child, or aNode if there are no children.
+    aNode->GetLastChild(getter_AddRefs(child));
+    if (child) {
+      checkNode = FindNextNode(child, aRoot);
+    } else {
+      checkNode = FindNextNode(aNode, aRoot);
     }
-    checkNode = do_QueryInterface(next);
   }
   
   while (checkNode && !IsTextNode(checkNode)) {
     checkNode = FindNextNode(checkNode, aRoot);
   }
-  return checkNode.get();
+  return checkNode;
 }
 
 // mozInlineSpellWordUtil::SetEnd
@@ -430,6 +423,13 @@ IsBRElement(nsIDOMNode* aNode)
   return NS_SUCCEEDED(rv);
 }
 
+static void
+GetNodeText(nsIDOMNode* aNode, nsAutoString& aText)
+{
+  nsresult rv = aNode->GetNodeValue(aText);
+  NS_ASSERTION(NS_SUCCEEDED(rv), "Unable to get node text");
+}
+
 // Find the previous node in the DOM tree in preorder. This isn't fast because
 // one call to GetPrevSibling can be O(N) in the number of siblings...
 static nsIDOMNode*
@@ -474,12 +474,10 @@ ContainsDOMWordSeparator(nsIDOMNode* aNode, PRInt32 aBeforeOffset,
   if (!IsTextNode(aNode))
     return PR_FALSE;
 
-  nsCOMPtr<nsIContent> content = do_QueryInterface(aNode);
-  NS_ASSERTION(content, "Where is our content?");
-  const nsTextFragment* textFragment = content->GetText();
-  NS_ASSERTION(textFragment, "Where is our text?");
-  for (PRInt32 i = NS_MIN(aBeforeOffset, PRInt32(textFragment->GetLength())) - 1; i >= 0; --i) {
-    if (IsDOMWordSeparator(textFragment->CharAt(i))) {
+  nsAutoString str;
+  GetNodeText(aNode, str);
+  for (PRInt32 i = PR_MIN(aBeforeOffset, PRInt32(str.Length())) - 1; i >= 0; --i) {
+    if (IsDOMWordSeparator(str.CharAt(i))) {
       *aSeparatorOffset = i;
       return PR_TRUE;
     }
@@ -580,6 +578,7 @@ mozInlineSpellWordUtil::BuildSoftText()
   PRBool seenSoftEnd = PR_FALSE;
   // Leave this outside the loop so large heap string allocations can be reused
   // across iterations
+  nsAutoString str;
   while (node) {
     if (node == mSoftEnd.mNode) {
       seenSoftEnd = PR_TRUE;
@@ -587,17 +586,14 @@ mozInlineSpellWordUtil::BuildSoftText()
 
     PRBool exit = PR_FALSE;
     if (IsTextNode(node)) {
-      nsCOMPtr<nsIContent> content = do_QueryInterface(node);
-      NS_ASSERTION(content, "Where is our content?");
-      const nsTextFragment* textFragment = content->GetText();
-      NS_ASSERTION(textFragment, "Where is our text?");
-      PRInt32 lastOffsetInNode = textFragment->GetLength();
+      GetNodeText(node, str);
+      PRInt32 lastOffsetInNode = str.Length();
 
       if (seenSoftEnd) {
         // check whether we can stop after this
         for (PRInt32 i = node == mSoftEnd.mNode ? mSoftEnd.mOffset : 0;
-             i < PRInt32(textFragment->GetLength()); ++i) {
-          if (IsDOMWordSeparator(textFragment->CharAt(i))) {
+             i < PRInt32(str.Length()); ++i) {
+          if (IsDOMWordSeparator(str.CharAt(i))) {
             exit = PR_TRUE;
             // stop at the first separator after the soft end point
             lastOffsetInNode = i;
@@ -610,7 +606,7 @@ mozInlineSpellWordUtil::BuildSoftText()
         PRInt32 len = lastOffsetInNode - firstOffsetInNode;
         mSoftTextDOMMapping.AppendElement(
           DOMTextMapping(NodeOffset(node, firstOffsetInNode), mSoftText.Length(), len));
-        textFragment->AppendTo(mSoftText, firstOffsetInNode, len);
+        mSoftText.Append(Substring(str, firstOffsetInNode, len));
       }
       
       firstOffsetInNode = 0;

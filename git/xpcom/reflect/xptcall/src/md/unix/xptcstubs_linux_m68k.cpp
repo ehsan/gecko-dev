@@ -38,7 +38,6 @@
 /* Implement shared vtbl methods. */
 
 #include "xptcprivate.h"
-#include "xptiprivate.h"
 
 extern "C" {
     nsresult
@@ -48,6 +47,7 @@ extern "C" {
 
         nsXPTCMiniVariant paramBuffer[PARAM_BUFFER_COUNT];
         nsXPTCMiniVariant* dispatchParams = NULL;
+        nsIInterfaceInfo* iface_info = NULL;
         const nsXPTMethodInfo* info;
         PRUint8 paramCount;
         PRUint8 i;
@@ -55,8 +55,11 @@ extern "C" {
 
         NS_ASSERTION(self,"no self");
 
-        self->mEntry->GetMethodInfo(PRUint16(methodIndex), &info);
-        NS_ASSERTION(info,"no method info");
+        self->GetInterfaceInfo(&iface_info);
+        NS_ASSERTION(iface_info,"no interface info");
+
+        iface_info->GetMethodInfo(PRUint16(methodIndex), &info);
+        NS_ASSERTION(info,"no interface info");
 
         paramCount = info->GetParamCount();
 
@@ -99,12 +102,14 @@ extern "C" {
             case nsXPTType::T_CHAR   : dp->val.c   = *(((char*)   ap) + 3);  break;
             case nsXPTType::T_WCHAR  : dp->val.wc  = *((wchar_t*) ap);       break;
             default:
-                NS_ERROR("bad type");
+                NS_ASSERTION(0, "bad type");
                 break;
             }
         }
 
-        result = self->mOuter->CallMethod((PRUint16)methodIndex, info, dispatchParams);
+        result = self->CallMethod((PRUint16)methodIndex, info, dispatchParams);
+
+        NS_RELEASE(iface_info);
 
         if(dispatchParams != paramBuffer)
             delete [] dispatchParams;
@@ -123,7 +128,7 @@ nsresult nsXPTCStubBase::Stub##n() \
 #define SENTINEL_ENTRY(n) \
 nsresult nsXPTCStubBase::Sentinel##n() \
 { \
-    NS_ERROR("nsXPTCStubBase::Sentinel called"); \
+    NS_ASSERTION(0,"nsXPTCStubBase::Sentinel called"); \
     return NS_ERROR_NOT_IMPLEMENTED; \
 }
 

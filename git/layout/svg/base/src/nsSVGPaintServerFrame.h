@@ -38,41 +38,34 @@
 #define __NS_SVGPAINTSERVERFRAME_H__
 
 #include "nsSVGContainerFrame.h"
+#include "nsSVGValue.h"
 
 class gfxContext;
 class nsSVGGeometryFrame;
 
 typedef nsSVGContainerFrame nsSVGPaintServerFrameBase;
 
-class nsSVGPaintServerFrame : public nsSVGPaintServerFrameBase
+class nsSVGPaintServerFrame : public nsSVGPaintServerFrameBase,
+                              public nsSVGValue
 {
 protected:
   nsSVGPaintServerFrame(nsStyleContext* aContext) :
     nsSVGPaintServerFrameBase(aContext) {}
 
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
-  /**
-   * Constructs a gfxPattern of the paint server rendering.
-   */
-  virtual already_AddRefed<gfxPattern>
-    GetPaintServerPattern(nsIFrame *aSource,
-                          float aOpacity,
-                          const gfxRect *aOverrideBounds = nsnull) = 0;
-
-  /**
+  /*
    * Configure paint server prior to rendering
    * @return PR_FALSE to skip rendering
    */
   virtual PRBool SetupPaintServer(gfxContext *aContext,
                                   nsSVGGeometryFrame *aSource,
-                                  float aOpacity);
+                                  float aOpacity) = 0;
+  // nsISupports interface:
+  NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
 
-  virtual PRBool IsFrameOfType(PRUint32 aFlags) const
-  {
-    return nsSVGPaintServerFrameBase::IsFrameOfType(aFlags & ~nsIFrame::eSVGPaintServer);
-  }
+  // nsISVGValue interface:
+  NS_IMETHOD SetValueString(const nsAString &aValue) { return NS_OK; }
+  NS_IMETHOD GetValueString(nsAString& aValue) { return NS_ERROR_NOT_IMPLEMENTED; }
 };
 
 #endif // __NS_SVGPAINTSERVERFRAME_H__

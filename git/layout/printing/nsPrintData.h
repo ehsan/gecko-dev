@@ -42,9 +42,8 @@
 #include "nsIDeviceContext.h"
 #include "nsIPrintProgressParams.h"
 #include "nsIPrintOptions.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsCOMArray.h"
-#include "nsAutoPtr.h"
 
 // Classes
 class nsPrintObject;
@@ -103,7 +102,7 @@ public:
 
   nsCOMPtr<nsIDOMWindow> mCurrentFocusWin; // cache a pointer to the currently focused window
 
-  nsTArray<nsPrintObject*>    mPrintDocList;
+  nsVoidArray*                mPrintDocList;
   PRPackedBool                mIsIFrameSelected;
   PRPackedBool                mIsParentAFrameSet;
   PRPackedBool                mOnStartSent;

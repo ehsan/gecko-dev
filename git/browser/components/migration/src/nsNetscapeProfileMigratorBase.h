@@ -56,8 +56,8 @@ public:
   typedef nsresult(*prefConverter)(void*, nsIPrefBranch*);
 
   struct PrefTransform {
-    const char*   sourcePrefName;
-    const char*   targetPrefName;
+    char*         sourcePrefName;
+    char*         targetPrefName;
     prefConverter prefGetterFunc;
     prefConverter prefSetterFunc;
     PRBool        prefHasValue;

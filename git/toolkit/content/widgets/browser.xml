@@ -25,7 +25,6 @@
    -   Peter Parente <parente@cs.unc.edu>
    -   Christopher Thomas <cst@yecc.com>
    -   Michael Ventnor <m.ventnor@gmail.com>
-   -   Arpad Borsos <arpad.borsos@googlemail.com>
    -
    - Alternatively, the contents of this file may be used under the terms of
    - either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -51,9 +50,6 @@
           xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 
   <binding id="browser" extends="xul:browser">
-    <content clickthrough="never">
-      <children/>
-    </content>
     <implementation type="application/javascript" implements="nsIAccessibleProvider, nsIObserver, nsIDOMEventListener">
       <property name="accessibleType" readonly="true">
         <getter>
@@ -185,11 +181,8 @@
               catch (e) {
               }
             }
-
-            if (!(aFlags & this.webNavigation.LOAD_FLAGS_FROM_EXTERNAL))
-              this.userTypedClear++;
-
             try {
+              this.userTypedClear++;
               this.webNavigation.loadURI(aURI, aFlags, aReferrerURI, aPostData, null);
             } finally {
               if (this.userTypedClear)
@@ -261,10 +254,8 @@
                 onget="return this._docShell || (this._docShell = this.boxObject.QueryInterface(Components.interfaces.nsIContainerBoxObject).docShell);"
                 readonly="true"/>
 
-      <field name="_webNavigation">null</field>
-
       <property name="webNavigation"
-                onget="return this._webNavigation || (this._webNavigation = this.docShell.QueryInterface(Components.interfaces.nsIWebNavigation));"
+                onget="return this.docShell.QueryInterface(Components.interfaces.nsIWebNavigation);"
                 readonly="true"/>
 
       <field name="_webBrowserFind">null</field>
@@ -318,13 +309,11 @@
       
       <property name="webProgress"
                 readonly="true"
-                onget="return this.QueryInterface(Components.interfaces.nsIFrameLoaderOwner).frameLoader.webProgress;"/>
-
-      <field name="_contentWindow">null</field>
+                onget="return this.docShell.QueryInterface(Components.interfaces.nsIInterfaceRequestor).getInterface(Components.interfaces.nsIWebProgress);"/>
 
       <property name="contentWindow"
                 readonly="true"
-                onget="return this._contentWindow || (this._contentWindow = this.docShell.QueryInterface(Components.interfaces.nsIInterfaceRequestor).getInterface(Components.interfaces.nsIDOMWindow));"/>
+                onget="return this.docShell.QueryInterface(Components.interfaces.nsIInterfaceRequestor).getInterface(Components.interfaces.nsIDOMWindow);"/>
 
       <property name="sessionHistory"
                 onget="return this.webNavigation.sessionHistory;"
@@ -377,9 +366,12 @@
           if (!this._mStrBundle) {
             // need to create string bundle manually instead of using <xul:stringbundle/>
             // see bug 63370 for details
-            this._mStrBundle = Components.classes["@mozilla.org/intl/stringbundle;1"]
-                                         .getService(Components.interfaces.nsIStringBundleService)
-                                         .createBundle("chrome://global/locale/browser.properties");
+            var localeService = Components.classes["@mozilla.org/intl/nslocaleservice;1"]
+                                  .getService(Components.interfaces.nsILocaleService);
+            var stringBundleService = Components.classes["@mozilla.org/intl/stringbundle;1"]
+                                  .getService(Components.interfaces.nsIStringBundleService);
+            var bundleURL = "chrome://global/locale/browser.properties";
+            this._mStrBundle = stringBundleService.createBundle(bundleURL, localeService.getApplicationLocale());
           }
           return this._mStrBundle;
         ]]></getter>
@@ -500,7 +492,7 @@
             if (!tabBrowser || tabBrowser.mCurrentBrowser == this)
               this.fastFind.setDocShell(this.docShell);
 
-            if (this._scrollable)
+            if (this._scrollingView)
               this._autoScrollPopup.hidePopup();
          ]]>
         </body>
@@ -540,6 +532,10 @@
       </method>
 
       <field name="pageReport">null</field>
+
+      <field name="mDragDropHandler">
+        null
+      </field>
 
       <property name="securityUI">
         <getter>
@@ -619,18 +615,19 @@
         false
       </field>
       
+      <field name="focusedWindow">
+        null
+      </field>
+
+      <field name="focusedElement">
+        null
+      </field>
+      
       <field name="isShowingMessage">
         false
       </field>
 
-      <field name="droppedLinkHandler">
-        null
-      </field>
-
       <field name="mIconURL">null</field>
-
-      <!-- This is managed by the tabbrowser -->
-      <field name="lastURI">null</field>
 
       <field name="mDestroyed">false</field>
 
@@ -651,6 +648,12 @@
           }
           catch (e) {
             Components.utils.reportError(e);
+          }
+          try {
+            this.mDragDropHandler = Components.classes["@mozilla.org:/content/content-area-dragdrop;1"].createInstance(Components.interfaces.nsIDragDropHandler);
+            this.mDragDropHandler.hookupTo(this, null);
+          }
+          catch (e) {
           }
           try {
             var securityUI = this.securityUI;
@@ -690,15 +693,14 @@
             }
           }
 
+          if (this.mDragDropHandler)
+            this.mDragDropHandler.detach();
+          this.mDragDropHandler = null;
+
           this.detachFormFill();
           
           this._fastFind = null;
           this._webBrowserFind = null;
-          
-          // The feeds cache can keep the document inside this browser alive.
-          this.feeds = null;
-
-          this.lastURI = null;
 
           this.removeEventListener("pageshow", this.onPageShow, true);
           this.removeEventListener("pagehide", this.onPageHide, true);
@@ -741,7 +743,7 @@
           
       <field name="_AUTOSCROLL_SPEED">3</field>
       <field name="_AUTOSCROLL_SNAP">10</field>
-      <field name="_scrollable">null</field>
+      <field name="_scrollingView">null</field>
       <field name="_autoScrollTimer">null</field>
       <field name="_startX">null</field>
       <field name="_startY">null</field>
@@ -753,15 +755,12 @@
       <method name="stopScroll">
         <body>
           <![CDATA[
-            if (this._scrollable) {
-              this._scrollable = null;
+            if (this._scrollingView) {
+              this._scrollingView = null;
               window.removeEventListener("mousemove", this, true);
               window.removeEventListener("mousedown", this, true);
               window.removeEventListener("mouseup", this, true);
               window.removeEventListener("contextmenu", this, true);
-              window.removeEventListener("keydown", this, true);
-              window.removeEventListener("keypress", this, true);
-              window.removeEventListener("keyup", this, true);
               clearInterval(this._autoScrollTimer);
             }
          ]]>
@@ -772,8 +771,8 @@
         <body>
           <![CDATA[
             const XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
-            var popup = document.createElementNS(XUL_NS, "panel");
-            popup.className = "autoscroller";
+            var popup = document.createElementNS(XUL_NS, "popup");
+            popup.id = "autoscroller";
             return popup;
           ]]>
         </body>
@@ -801,68 +800,21 @@
             // we need these attributes so themers don't need to create per-platform packages
             if (screen.colorDepth > 8) { // need high color for transparency
               // Exclude second-rate platforms
-              this._autoScrollPopup.setAttribute("transparent", !/BeOS|OS\/2/.test(navigator.appVersion));
+              this._autoScrollPopup.setAttribute("transparent", !/BeOS|OS\/2|Photon/.test(navigator.appVersion));
               // Enable translucency on Windows and Mac
               this._autoScrollPopup.setAttribute("translucent", /Win|Mac/.test(navigator.platform));
             }
 
-            // this is a list of overflow property values that allow scrolling
-            const scrollingAllowed = ['scroll', 'auto'];
-
-            // go upward in the DOM and find any parent element that has a overflow
-            // area and can therefore be scrolled
-            for (this._scrollable = event.originalTarget; this._scrollable;
-                 this._scrollable = this._scrollable.parentNode) {
-              // do not use overflow based autoscroll for <html> Elements
-              // or non-html elements such as svg or Document nodes
-              // also make sure to skip select elements that are not multiline
-              if (!(this._scrollable instanceof HTMLElement) ||
-                  (this._scrollable instanceof HTMLHtmlElement) ||
-                  ((this._scrollable instanceof HTMLSelectElement) && !this._scrollable.multiple)) {
-                continue;
-              }
-
-              var overflowx = this._scrollable.ownerDocument.defaultView
-                                  .getComputedStyle(this._scrollable, '')
-                                  .getPropertyValue('overflow-x');
-              var overflowy = this._scrollable.ownerDocument.defaultView
-                                  .getComputedStyle(this._scrollable, '')
-                                  .getPropertyValue('overflow-y');
-              // we already discarded non-multiline selects so allow vertical
-              // scroll for multiline ones directly without checking for a
-              // overflow property
-              var scrollVert = this._scrollable.clientHeight > 0 &&
-                               this._scrollable.scrollHeight > this._scrollable.clientHeight &&
-                               (this._scrollable instanceof HTMLSelectElement ||
-                                scrollingAllowed.indexOf(overflowy) >= 0);
-
-              // do not allow horizontal scrolling for select elements, it leads
-              // to visual artifacts and is not the expected behavior anyway
-              if (!(this._scrollable instanceof HTMLSelectElement) &&
-                  this._scrollable.clientWidth > 0 &&
-                  this._scrollable.scrollWidth > this._scrollable.clientWidth &&
-                  scrollingAllowed.indexOf(overflowx) >= 0) {
-                this._autoScrollPopup.setAttribute("scrolldir", scrollVert ? "NSEW" : "EW");
-                break;
-              }
-              else if (scrollVert) {
-                this._autoScrollPopup.setAttribute("scrolldir", "NS");
-                break;
-              }
+            this._scrollingView = event.originalTarget.ownerDocument.defaultView;
+            if (this._scrollingView.scrollMaxX > 0) {
+              this._autoScrollPopup.setAttribute("scrolldir", this._scrollingView.scrollMaxY > 0 ? "NSEW" : "EW");
             }
-
-            if (!this._scrollable) {
-              this._scrollable = event.originalTarget.ownerDocument.defaultView;
-              if (this._scrollable.scrollMaxX > 0) {
-                this._autoScrollPopup.setAttribute("scrolldir", this._scrollable.scrollMaxY > 0 ? "NSEW" : "EW");
-              }
-              else if (this._scrollable.scrollMaxY > 0) {
-                this._autoScrollPopup.setAttribute("scrolldir", "NS");
-              }
-              else {
-                this._scrollable = null; // abort scrolling
-                return;
-              }
+            else if (this._scrollingView.scrollMaxY > 0) {
+              this._autoScrollPopup.setAttribute("scrolldir", "NS");
+            }
+            else {
+              this._scrollingView = null; // abort scrolling
+              return;
             }
 
             document.popupNode = null;
@@ -880,9 +832,6 @@
             window.addEventListener("mousedown", this, true);
             window.addEventListener("mouseup", this, true);
             window.addEventListener("contextmenu", this, true);
-            window.addEventListener("keydown", this, true);
-            window.addEventListener("keypress", this, true);
-            window.addEventListener("keyup", this, true);
 
             this._scrollErrorX = 0;
             this._scrollErrorY = 0;
@@ -924,30 +873,17 @@
      <method name="autoScrollLoop">
        <body>
          <![CDATA[
-           var actualScrollX = 0;
-           var actualScrollY = 0;
-           // don't bother scrolling vertically when the scrolldir is only horizontal
-           // and the other way around
-           var scrolldir = this._autoScrollPopup.getAttribute("scrolldir");
-           if (scrolldir != 'EW') {
-             var y = this._accelerate(this._screenY, this._startY);
-             var desiredScrollY = this._scrollErrorY + y;
-             actualScrollY = this._roundToZero(desiredScrollY);
-             this._scrollErrorY = (desiredScrollY - actualScrollY);
-           }
-           if (scrolldir != 'NS') {
-             var x = this._accelerate(this._screenX, this._startX);
-             var desiredScrollX = this._scrollErrorX + x;
-             actualScrollX = this._roundToZero(desiredScrollX);
-             this._scrollErrorX = (desiredScrollX - actualScrollX);
-           }
+           var x = this._accelerate(this._screenX, this._startX);
+           var y = this._accelerate(this._screenY, this._startY);
 
-           if (this._scrollable instanceof Window)
-             this._scrollable.scrollBy(actualScrollX, actualScrollY);
-           else { // an element with overflow
-             this._scrollable.scrollLeft += actualScrollX;
-             this._scrollable.scrollTop += actualScrollY;
-           }
+           var desiredScrollX = this._scrollErrorX + x;
+           var actualScrollX = this._roundToZero(desiredScrollX);
+           this._scrollErrorX = (desiredScrollX - actualScrollX);
+           var desiredScrollY = this._scrollErrorY + y;
+           var actualScrollY = this._roundToZero(desiredScrollY);
+           this._scrollErrorY = (desiredScrollY - actualScrollY);
+
+           this._scrollingView.scrollBy(actualScrollX, actualScrollY);
          ]]>
        </body>
      </method>
@@ -992,7 +928,7 @@
         <parameter name="aEvent"/>
         <body>
         <![CDATA[
-          if (this._scrollable) {
+          if (this._scrollingView) {
             switch(aEvent.type) {
               case "mousemove": {
                 this._screenX = aEvent.screenX;
@@ -1019,61 +955,7 @@
                 this.stopScroll();
                 break;
               }
-              case "keypress": {
-                if (aEvent.keyCode == aEvent.DOM_VK_ESCAPE) {
-                  // the escape key will be processed by
-                  // nsXULPopupManager::KeyPress and the panel will be closed.
-                  // So, nothing to do here.
-                  break;
-                }
-                // don't break here. we need to eat keypress events.
-              }
-              case "keydown":
-              case "keyup": {
-                // All keyevents should be eaten here during autoscrolling.
-                aEvent.stopPropagation();
-                aEvent.preventDefault();
-                break;
-              }
             }
-          }
-        ]]>
-        </body>
-      </method>
-
-      <method name="swapDocShells">
-        <parameter name="aOtherBrowser"/>
-        <body>
-        <![CDATA[
-          // We need to swap fields that are tied to our docshell or related to
-          // the loaded page
-          // Fields which are built as a result of notifactions (pageshow/hide,
-          // DOMLinkAdded/Removed, onStateChange) should not be swapped here,
-          // because these notifications are dispatched again once the docshells
-          // are swapped.
-          var fieldsToSwap = [ "_docShell", "_webBrowserFind", "_contentWindow", "_webNavigation"];
-
-          var ourTabBrowser = this.getTabBrowser();
-
-          // _fastFind is tied to the docshell if we don't have a tabbrowser
-          if ((ourTabBrowser != null) !=
-              (aOtherBrowser.getTabBrowser() != null))
-            throw "Unable to perform swap on <browsers> if one is in a <tabbrowser> and one is not";
-
-          if (!ourTabBrowser)
-            fieldsToSwap.push("_fastFind");
-
-          var ourFieldValues = {};
-          var otherFieldValues = {};
-          for each (var field in fieldsToSwap) {
-            ourFieldValues[field] = this[field];
-            otherFieldValues[field] = aOtherBrowser[field];
-          }
-          this.QueryInterface(Components.interfaces.nsIFrameLoaderOwner)
-              .swapFrameLoaders(aOtherBrowser);
-          for each (var field in fieldsToSwap) {
-            this[field] = otherFieldValues[field];
-            aOtherBrowser[field] = ourFieldValues[field];
           }
         ]]>
         </body>
@@ -1084,10 +966,6 @@
       <handler event="keypress" keycode="VK_F7" group="system">
         <![CDATA[
           if (event.getPreventDefault() || !event.isTrusted)
-            return;
-
-          var isEnabled = this.mPrefs.getBoolPref("accessibility.browsewithcaret_shortcut.enabled");
-          if (!isEnabled)
             return;
 
           // Toggle browse with caret mode
@@ -1133,61 +1011,15 @@
       </handler>
       <handler event="mousedown" phase="capturing">
         <![CDATA[
-          if (!this._scrollable && event.button == 1) {
-            if (!this.autoscrollEnabled ||
+          if (!this._scrollingView && event.button == 1) {
+            if (!this.autoscrollEnabled  ||
+                this.currentURI.spec == "about:blank"|| 
                 this.isAutoscrollBlocker(event.originalTarget))
               return;
 
             this.startScroll(event);
           }
         ]]>
-      </handler>
-      <handler event="dragover" group="system">
-      <![CDATA[
-        if (event.getPreventDefault())
-          return;
-
-        // For drags that appear to be internal text (for example, tab drags),
-        // set the dropEffect to 'none'. This prevents the drop even if some
-        // other listener cancelled the event.
-        var types = event.dataTransfer.types;
-        if (types.contains("text/x-moz-text-internal") && !types.contains("text/plain")) {
-          event.dataTransfer.dropEffect = "none";
-          event.stopPropagation();
-          event.preventDefault();
-        }
-
-        let linkHandler = Components.classes["@mozilla.org/content/dropped-link-handler;1"].
-                            getService(Components.interfaces.nsIDroppedLinkHandler);
-        if (linkHandler.canDropLink(event, false))
-          event.preventDefault();
-      ]]>
-      </handler>
-      <handler event="drop" group="system">
-      <![CDATA[
-        if (event.getPreventDefault())
-          return;
-
-        let name = { };
-        let linkHandler = Components.classes["@mozilla.org/content/dropped-link-handler;1"].
-                            getService(Components.interfaces.nsIDroppedLinkHandler);
-        try {
-          var uri = linkHandler.dropLink(event, name);
-        } catch (ex) {
-          return;
-        }
-
-        // don't allow dropping javascript or data urls
-        if (/^\s*(javascript|data):/.test(uri))
-          return;
-
-        if (uri) {
-          if (this.droppedLinkHandler)
-            this.droppedLinkHandler(event, uri, name.value);
-          else
-            this.loadURI(uri, null, "");
-        }
-      ]]>
       </handler>
     </handlers>
 

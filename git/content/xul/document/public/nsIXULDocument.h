@@ -47,10 +47,10 @@ class nsIContent;
 class nsIScriptGlobalObjectOwner;
 
 
-// 3e872e97-b678-418e-a7e3-41b8305d4e75
+// {AF676EDD-1FB9-4C75-9B1F-CB4E02E1C779}
 #define NS_IXULDOCUMENT_IID \
-{ 0x3e872e97, 0xb678, 0x418e, \
-  { 0xa7, 0xe3, 0x41, 0xb8, 0x30, 0x5d, 0x4e, 0x75 } }
+{ 0xaf676edd, 0x1fb9, 0x4c75, \
+  { 0x9b, 0x1f, 0xcb, 0x4e, 0x02, 0xe1, 0xc7, 0x79 } }
 
 
 /*
@@ -63,12 +63,20 @@ class nsIXULDocument : public nsISupports
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_IXULDOCUMENT_IID)
 
+  // The resource-to-element map is a one-to-many mapping of RDF
+  // resources to content elements.
+
+  /**
+   * Add an entry to the ID-to-element map.
+   */
+  NS_IMETHOD AddElementForID(nsIContent* aElement) = 0;
+
   /**
    * Get the elements for a particular resource --- all elements whose 'id'
    * or 'ref' is aID. The nsCOMArray will be truncated and filled in with
    * nsIContent pointers.
    */
-  virtual void GetElementsForID(const nsAString& aID, nsCOMArray<nsIContent>& aElements) = 0;
+  NS_IMETHOD GetElementsForID(const nsAString& aID, nsCOMArray<nsIContent>& aElements) = 0;
 
   /**
    * Get the nsIScriptGlobalObjectOwner for this document.
@@ -114,13 +122,6 @@ public:
    * Callback notifying when a document could not be parsed properly.
    */
   virtual PRBool OnDocumentParserError() = 0;
-
-  /**
-   * Reset the document direction so that it is recomputed.
-   */
-  virtual void ResetDocumentDirection() = 0;
-
-  virtual void ResetDocumentLWTheme() = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIXULDocument, NS_IXULDOCUMENT_IID)

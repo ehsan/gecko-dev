@@ -52,31 +52,13 @@ PlaceholderTxn::PlaceholderTxn() :  EditAggregateTxn(),
 {
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(PlaceholderTxn)
 
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(PlaceholderTxn,
-                                                EditAggregateTxn)
-  tmp->mStartSel->DoUnlink();
-  tmp->mEndSel.DoUnlink();
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(PlaceholderTxn,
-                                                  EditAggregateTxn)
-  tmp->mStartSel->DoTraverse(cb);
-  tmp->mEndSel.DoTraverse(cb);
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(PlaceholderTxn)
-  NS_INTERFACE_MAP_ENTRY(nsIAbsorbingTransaction)
-  NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
-NS_INTERFACE_MAP_END_INHERITING(EditAggregateTxn)
-
-NS_IMPL_ADDREF_INHERITED(PlaceholderTxn, EditAggregateTxn)
-NS_IMPL_RELEASE_INHERITED(PlaceholderTxn, EditAggregateTxn)
+NS_IMPL_ISUPPORTS_INHERITED2(PlaceholderTxn, EditAggregateTxn,
+                             nsIAbsorbingTransaction, nsISupportsWeakReference)
 
 NS_IMETHODIMP PlaceholderTxn::Init(nsIAtom *aName, nsSelectionState *aSelState, nsIEditor *aEditor)
 {
-  NS_ENSURE_TRUE(aEditor && aSelState, NS_ERROR_NULL_POINTER);
+  if (!aEditor || !aSelState) return NS_ERROR_NULL_POINTER;
 
   mName = aName;
   mStartSel = aSelState;
@@ -93,15 +75,15 @@ NS_IMETHODIMP PlaceholderTxn::UndoTransaction(void)
 {
   // undo txns
   nsresult res = EditAggregateTxn::UndoTransaction();
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   
-  NS_ENSURE_TRUE(mStartSel, NS_ERROR_NULL_POINTER);
+  if (!mStartSel) return NS_ERROR_NULL_POINTER;
 
   // now restore selection
   nsCOMPtr<nsISelection> selection;
   res = mEditor->GetSelection(getter_AddRefs(selection));
-  NS_ENSURE_SUCCESS(res, res);
-  NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
+  if (NS_FAILED(res)) return res;
+  if (!selection) return NS_ERROR_NULL_POINTER;
   return mStartSel->RestoreSelection(selection);
 }
 
@@ -110,20 +92,20 @@ NS_IMETHODIMP PlaceholderTxn::RedoTransaction(void)
 {
   // redo txns
   nsresult res = EditAggregateTxn::RedoTransaction();
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   
   // now restore selection
   nsCOMPtr<nsISelection> selection;
   res = mEditor->GetSelection(getter_AddRefs(selection));
-  NS_ENSURE_SUCCESS(res, res);
-  NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
+  if (NS_FAILED(res)) return res;
+  if (!selection) return NS_ERROR_NULL_POINTER;
   return mEndSel.RestoreSelection(selection);
 }
 
 
 NS_IMETHODIMP PlaceholderTxn::Merge(nsITransaction *aTransaction, PRBool *aDidMerge)
 {
-  NS_ENSURE_TRUE(aDidMerge && aTransaction, NS_ERROR_NULL_POINTER);
+  if (!aDidMerge || !aTransaction) return NS_ERROR_NULL_POINTER;
 
   // set out param default value
   *aDidMerge=PR_FALSE;
@@ -140,7 +122,7 @@ NS_IMETHODIMP PlaceholderTxn::Merge(nsITransaction *aTransaction, PRBool *aDidMe
   // don't know what it does.
 
   nsCOMPtr<nsPIEditorTransaction> pTxn = do_QueryInterface(aTransaction);
-  NS_ENSURE_TRUE(pTxn, NS_OK); // it's foreign so just bail!
+  if (!pTxn) return NS_OK; // it's foreign so just bail!
 
   EditTxn *editTxn = (EditTxn*)aTransaction;  //XXX: hack, not safe!  need nsIEditTransaction!
   // determine if this incoming txn is a placeholder txn
@@ -250,7 +232,7 @@ NS_IMETHODIMP PlaceholderTxn::StartSelectionEquals(nsSelectionState *aSelState, 
 {
   // determine if starting selection matches the given selection state.
   // note that we only care about collapsed selections.
-  NS_ENSURE_TRUE(aResult && aSelState, NS_ERROR_NULL_POINTER);
+  if (!aResult || !aSelState) return NS_ERROR_NULL_POINTER;
   if (!mStartSel->IsCollapsed() || !aSelState->IsCollapsed())
   {
     *aResult = PR_FALSE;
@@ -290,8 +272,8 @@ NS_IMETHODIMP PlaceholderTxn::RememberEndingSelection()
 {
   nsCOMPtr<nsISelection> selection;
   nsresult res = mEditor->GetSelection(getter_AddRefs(selection));
-  NS_ENSURE_SUCCESS(res, res);
-  NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
+  if (NS_FAILED(res)) return res;
+  if (!selection) return NS_ERROR_NULL_POINTER;
   return mEndSel.SaveSelection(selection);
 }
 

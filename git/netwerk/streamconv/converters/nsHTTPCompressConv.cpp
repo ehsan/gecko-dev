@@ -85,7 +85,7 @@ nsHTTPCompressConv::~nsHTTPCompressConv()
 
     // For some reason we are not getting Z_STREAM_END.  But this was also seen
     //    for mozilla bug 198133.  Need to handle this case.
-    if (mStreamInitialized && !mStreamEnded)
+    if ((mStreamInitialized == PR_TRUE) && (mStreamEnded == PR_FALSE))
         inflateEnd (&d_stream);
 }
 

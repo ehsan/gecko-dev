@@ -42,48 +42,37 @@ VPATH       = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-MODULE         = gfx
-LIBRARY_NAME   = gkgfx
+MODULE      = gfx
+LIBRARY_NAME    = gkgfx
 EXPORT_LIBRARY = 1
-GRE_MODULE     = 1
+GRE_MODULE	= 1
 LIBXUL_LIBRARY = 1
 
-XPIDLSRCS = \
-	nsIFontEnumerator.idl \
-	nsIScriptableRegion.idl \
-	gfxIFormats.idl \
-	gfxidltypes.idl \
-	$(NULL)
+PACKAGE_FILE = gfx.pkg
 
-EXPORTS	= \
-	gfxCore.h \
-	nsColor.h \
-	nsColorNames.h \
-	nsColorNameList.h \
-	nsCoord.h \
-	nsFont.h \
-	nsRect.h \
-	nsRegion.h \
-	nsPoint.h \
-	nsSize.h \
-	nsMargin.h \
-	nsTransform2D.h \
-	nsIRenderingContext.h \
-	nsIFontMetrics.h \
-	nsIDeviceContext.h \
-	nsGfxCIID.h \
-	nsIRegion.h \
-	nsITheme.h \
-	nsThemeConstants.h \
-	$(NULL)
+REQUIRES	= xpcom \
+		  string \
+		  widget \
+		  locale \
+		  view \
+		  unicharutil \
+		  thebes \
+		  $(NULL)
 
-ifdef MOZ_X11
-EXPORTS_NAMESPACES	= mozilla
-EXPORTS_mozilla		= X11Util.h
+DIRS        = shared thebes
+
+ifdef MOZ_ENABLE_POSTSCRIPT
+DIRS        += psshared
+endif
+
+ifdef MOZ_ENABLE_PHOTON
+DIRS        += photon
 endif
 
 CPPSRCS = \
         nsColor.cpp \
+        nsColorNames.cpp \
+        nsDeviceContext.cpp \
         nsFont.cpp \
         nsRect.cpp \
         nsRegion.cpp \
@@ -91,10 +80,14 @@ CPPSRCS = \
         nsScriptableRegion.cpp \
         $(NULL)
 
+ifeq (,$(filter windows,$(MOZ_WIDGET_TOOLKIT)))
+REQUIRES += uconv
+endif
+
 EXTRA_DSO_LDOPTS = \
+        $(DEPTH)/modules/libutil/src/$(LIB_PREFIX)mozutil_s.$(LIB_SUFFIX) \
         $(MOZ_UNICHARUTIL_LIBS) \
         $(MOZ_COMPONENT_LIBS) \
-        $(MOZ_JS_LIBS) \
         $(NULL)
 
 ifneq (,$(filter cocoa,$(MOZ_WIDGET_TOOLKIT)))

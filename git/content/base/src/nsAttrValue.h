@@ -49,16 +49,14 @@
 #include "nsStringBuffer.h"
 #include "nsColor.h"
 #include "nsCaseTreatment.h"
-#include "nsMargin.h"
-#include "nsCOMPtr.h"
 
-typedef PRUptrdiff PtrBits;
+typedef unsigned long PtrBits;
 class nsAString;
 class nsIAtom;
 class nsICSSStyleRule;
 class nsISVGValue;
 class nsIDocument;
-template<class E> class nsTArray;
+template<class E> class nsCOMArray;
 template<class E> class nsTPtrArray;
 
 #define NS_ATTRVALUE_MAX_STRINGLENGTH_ATOM 12
@@ -73,10 +71,8 @@ template<class E> class nsTPtrArray;
 #define NS_ATTRVALUE_INTEGERTYPE_MINVALUE (-NS_ATTRVALUE_INTEGERTYPE_MAXVALUE - 1)
 
 #define NS_ATTRVALUE_ENUMTABLEINDEX_BITS (32 - 16 - NS_ATTRVALUE_INTEGERTYPE_BITS)
-#define NS_ATTRVALUE_ENUMTABLE_VALUE_NEEDS_TO_UPPER (1 << (NS_ATTRVALUE_ENUMTABLEINDEX_BITS - 1))
-#define NS_ATTRVALUE_ENUMTABLEINDEX_MAXVALUE (NS_ATTRVALUE_ENUMTABLE_VALUE_NEEDS_TO_UPPER - 1)
-#define NS_ATTRVALUE_ENUMTABLEINDEX_MASK \
-  (PtrBits((((1 << NS_ATTRVALUE_ENUMTABLEINDEX_BITS) - 1) &~ NS_ATTRVALUE_ENUMTABLE_VALUE_NEEDS_TO_UPPER)))
+#define NS_ATTRVALUE_ENUMTABLEINDEX_MAXVALUE ((1 << NS_ATTRVALUE_ENUMTABLEINDEX_BITS) - 1)
+#define NS_ATTRVALUE_ENUMTABLEINDEX_MASK (PtrBits((1 << NS_ATTRVALUE_ENUMTABLEINDEX_BITS) - 1))
 
 /**
  * A class used to construct a nsString from a nsStringBuffer (we might
@@ -93,16 +89,13 @@ public:
 
 class nsAttrValue {
 public:
-  typedef nsTArray< nsCOMPtr<nsIAtom> > AtomArray;
-
   nsAttrValue();
   nsAttrValue(const nsAttrValue& aOther);
   explicit nsAttrValue(const nsAString& aValue);
-  nsAttrValue(nsICSSStyleRule* aValue, const nsAString* aSerialized);
+  explicit nsAttrValue(nsICSSStyleRule* aValue);
 #ifdef MOZ_SVG
   explicit nsAttrValue(nsISVGValue* aValue);
 #endif
-  explicit nsAttrValue(const nsIntMargin& aValue);
   ~nsAttrValue();
 
   static nsresult Init();
@@ -117,15 +110,13 @@ public:
     eColor =        0x07, // 0111
     eEnum =         0x0B, // 1011  This should eventually die
     ePercent =      0x0F, // 1111
-    // Values below here won't matter, they'll be always stored in the 'misc'
-    // struct.
+    // Values below here won't matter, they'll be stored in the 'misc' struct
+    // anyway
     eCSSStyleRule = 0x10,
     eAtomArray =    0x11 
 #ifdef MOZ_SVG
     ,eSVGValue =    0x12
 #endif
-    ,eFloatValue  = 0x13
-    ,eIntMarginValue = 0x14
   };
 
   ValueType Type() const;
@@ -135,11 +126,10 @@ public:
   void SetTo(const nsAttrValue& aOther);
   void SetTo(const nsAString& aValue);
   void SetTo(PRInt16 aInt);
-  void SetTo(nsICSSStyleRule* aValue, const nsAString* aSerialized);
+  void SetTo(nsICSSStyleRule* aValue);
 #ifdef MOZ_SVG
   void SetTo(nsISVGValue* aValue);
 #endif
-  void SetTo(const nsIntMargin& aValue);
 
   void SwapValueWith(nsAttrValue& aOther);
 
@@ -154,26 +144,16 @@ public:
   PRBool GetColorValue(nscolor& aColor) const;
   inline PRInt16 GetEnumValue() const;
   inline float GetPercentValue() const;
-  inline AtomArray* GetAtomArrayValue() const;
+  inline nsCOMArray<nsIAtom>* GetAtomArrayValue() const;
   inline nsICSSStyleRule* GetCSSStyleRuleValue() const;
 #ifdef MOZ_SVG
   inline nsISVGValue* GetSVGValue() const;
 #endif
-  inline float GetFloatValue() const;
-  PRBool GetIntMarginValue(nsIntMargin& aMargin) const;
-
-  /**
-   * Returns the string corresponding to the stored enum value.
-   *
-   * @param aResult   the string representing the enum tag
-   * @param aRealTag  wheter we want to have the real tag or the saved one
-   */
-  void GetEnumString(nsAString& aResult, PRBool aRealTag) const;
 
   // Methods to get access to atoms we may have
   // Returns the number of atoms we have; 0 if we have none.  It's OK
   // to call this without checking the type first; it handles that.
-  PRUint32 GetAtomCount() const;
+  PRInt32 GetAtomCount() const;
   // Returns the atom at aIndex (0-based).  Do not call this with
   // aIndex >= GetAtomCount().
   nsIAtom* AtomAt(PRInt32 aIndex) const;
@@ -215,12 +195,12 @@ public:
    *
    * @param aValue the string to find the value for
    * @param aTable the enumeration to map with
-   * @param aCaseSensitive specify if the parsing has to be case sensitive
+   * @param aResult the enum mapping [OUT]
    * @return whether the enum value was found or not
    */
   PRBool ParseEnumValue(const nsAString& aValue,
                         const EnumTable* aTable,
-                        PRBool aCaseSensitive);
+                        PRBool aCaseSensitive = PR_FALSE);
 
   /**
    * Parse a string into an integer. Can optionally parse percent (n%).
@@ -242,7 +222,8 @@ public:
    * @return whether the value could be parsed
    */
   PRBool ParseIntValue(const nsAString& aString) {
-    return ParseIntWithBounds(aString, PR_INT32_MIN, PR_INT32_MAX);
+    return ParseIntWithBounds(aString, NS_ATTRVALUE_INTEGERTYPE_MINVALUE,
+                              NS_ATTRVALUE_INTEGERTYPE_MAXVALUE);
   }
 
   /**
@@ -254,64 +235,16 @@ public:
    * @return whether the value could be parsed
    */
   PRBool ParseIntWithBounds(const nsAString& aString, PRInt32 aMin,
-                            PRInt32 aMax = PR_INT32_MAX);
+                            PRInt32 aMax = NS_ATTRVALUE_INTEGERTYPE_MAXVALUE);
 
   /**
-   * Parse a string value into a non-negative integer.
-   * This method follows the rules for parsing non-negative integer from:
-   * http://dev.w3.org/html5/spec/infrastructure.html#rules-for-parsing-non-negative-integers
-   *
-   * @param  aString the string to parse
-   * @return whether the value is valid
-   */
-  PRBool ParseNonNegativeIntValue(const nsAString& aString);
-
-  /**
-   * Parse a string value into a positive integer.
-   * This method follows the rules for parsing non-negative integer from:
-   * http://dev.w3.org/html5/spec/infrastructure.html#rules-for-parsing-non-negative-integers
-   * In addition of these rules, the value has to be greater than zero.
-   *
-   * This is generally used for parsing content attributes which reflecting IDL
-   * attributes are limited to only non-negative numbers greater than zero, see:
-   * http://dev.w3.org/html5/spec/common-dom-interfaces.html#limited-to-only-non-negative-numbers-greater-than-zero
-   *
-   * @param aString       the string to parse
-   * @return              whether the value was valid
-   */
-  PRBool ParsePositiveIntValue(const nsAString& aString);
-
-  /**
-   * Parse a string into a color.  This implements what HTML5 calls the
-   * "rules for parsing a legacy color value".
+   * Parse a string into a color.
    *
    * @param aString the string to parse
+   * @param aDocument the document (to find out whether we're in quirks mode)
    * @return whether the value could be parsed
    */
-  PRBool ParseColor(const nsAString& aString);
-
-  /**
-   * Parse a string value into a float.
-   *
-   * @param aString the string to parse
-   * @return whether the value could be parsed
-   */
-  PRBool ParseFloatValue(const nsAString& aString);
-
-  /**
-   * Parse a lazy URI.  This just sets up the storage for the URI; it
-   * doesn't actually allocate it.
-   */
-  PRBool ParseLazyURIValue(const nsAString& aString);
-
-  /**
-   * Parse a margin string of format 'top, right, bottom, left' into
-   * an nsIntMargin.
-   *
-   * @param aString the string to parse
-   * @return whether the value could be parsed
-   */
-  PRBool ParseIntMarginValue(const nsAString& aString);
+  PRBool ParseColor(const nsAString& aString, nsIDocument* aDocument);
 
 private:
   // These have to be the same as in ValueType
@@ -325,45 +258,20 @@ private:
   struct MiscContainer
   {
     ValueType mType;
-    // mStringBits points to either nsIAtom* or nsStringBuffer* and is used when
-    // mType isn't mCSSStyleRule or eSVGValue.
-    // Note eStringBase and eAtomBase is used also to handle the type of
-    // mStringBits.
-    PtrBits mStringBits;
     union {
-      PRInt32 mInteger;
       nscolor mColor;
-      PRUint32 mEnumValue;
-      PRInt32 mPercent;
       nsICSSStyleRule* mCSSStyleRule;
-      AtomArray* mAtomArray;
+      nsCOMArray<nsIAtom>* mAtomArray;
 #ifdef MOZ_SVG
       nsISVGValue* mSVGValue;
 #endif
-      float mFloatValue;
-      nsIntMargin* mIntMargin;
     };
   };
 
   inline ValueBaseType BaseType() const;
 
-  /**
-   * Get the index of an EnumTable in the sEnumTableArray.
-   * If the EnumTable is not in the sEnumTableArray, it is added.
-   * If there is no more space in sEnumTableArray, it returns PR_FALSE.
-   *
-   * @param aTable   the EnumTable to get the index of.
-   * @param aResult  the index of the EnumTable.
-   * @return         whether the index has been found or inserted.
-   */
-  PRBool GetEnumTableIndex(const EnumTable* aTable, PRInt16& aResult);
-
   inline void SetPtrValueAndType(void* aValue, ValueBaseType aType);
-  void SetIntValueAndType(PRInt32 aValue, ValueType aType,
-                          const nsAString* aStringValue);
-  void SetColorValue(nscolor aColor, const nsAString& aString);
-  void SetMiscAtomOrString(const nsAString* aValue);
-  void ResetMiscAtomOrString();
+  inline void SetIntValueAndType(PRInt32 aValue, ValueType aType);
   inline void ResetIfSet();
 
   inline void* GetPtr() const;
@@ -372,14 +280,6 @@ private:
 
   PRBool EnsureEmptyMiscContainer();
   PRBool EnsureEmptyAtomArray();
-  nsStringBuffer* GetStringBuffer(const nsAString& aValue) const;
-  // aStrict is set PR_TRUE if stringifying the return value equals with
-  // aValue.
-  PRInt32 StringToInteger(const nsAString& aValue,
-                          PRBool* aStrict,
-                          PRInt32* aErrorCode,
-                          PRBool aCanBePercent = PR_FALSE,
-                          PRBool* aIsPercent = nsnull) const;
 
   static nsTPtrArray<const EnumTable>* sEnumTableArray;
 
@@ -401,9 +301,7 @@ inline PRInt32
 nsAttrValue::GetIntegerValue() const
 {
   NS_PRECONDITION(Type() == eInteger, "wrong type");
-  return (BaseType() == eIntegerBase)
-         ? GetIntInternal()
-         : GetMiscContainer()->mInteger;
+  return GetIntInternal();
 }
 
 inline PRInt16
@@ -412,24 +310,19 @@ nsAttrValue::GetEnumValue() const
   NS_PRECONDITION(Type() == eEnum, "wrong type");
   // We don't need to worry about sign extension here since we're
   // returning an PRInt16 which will cut away the top bits.
-  return static_cast<PRInt16>((
-    (BaseType() == eIntegerBase)
-    ? static_cast<PRUint32>(GetIntInternal())
-    : GetMiscContainer()->mEnumValue)
-      >> NS_ATTRVALUE_ENUMTABLEINDEX_BITS);
+  return static_cast<PRInt16>
+                    (GetIntInternal() >> NS_ATTRVALUE_ENUMTABLEINDEX_BITS);
 }
 
 inline float
 nsAttrValue::GetPercentValue() const
 {
   NS_PRECONDITION(Type() == ePercent, "wrong type");
-  return ((BaseType() == eIntegerBase)
-          ? GetIntInternal()
-          : GetMiscContainer()->mPercent)
-            / 100.0f;
+  return static_cast<float>(GetIntInternal()) /
+         100.0f;
 }
 
-inline nsAttrValue::AtomArray*
+inline nsCOMArray<nsIAtom>*
 nsAttrValue::GetAtomArrayValue() const
 {
   NS_PRECONDITION(Type() == eAtomArray, "wrong type");
@@ -452,24 +345,6 @@ nsAttrValue::GetSVGValue() const
 }
 #endif
 
-inline float
-nsAttrValue::GetFloatValue() const
-{
-  NS_PRECONDITION(Type() == eFloatValue, "wrong type");
-  return GetMiscContainer()->mFloatValue;
-}
-
-inline PRBool
-nsAttrValue::GetIntMarginValue(nsIntMargin& aMargin) const
-{
-  NS_PRECONDITION(Type() == eIntMarginValue, "wrong type");
-  nsIntMargin* m = GetMiscContainer()->mIntMargin;
-  if (!m)
-    return PR_FALSE;
-  aMargin = *m;
-  return PR_TRUE;
-}
-
 inline nsAttrValue::ValueBaseType
 nsAttrValue::BaseType() const
 {
@@ -482,6 +357,19 @@ nsAttrValue::SetPtrValueAndType(void* aValue, ValueBaseType aType)
   NS_ASSERTION(!(NS_PTR_TO_INT32(aValue) & ~NS_ATTRVALUE_POINTERVALUE_MASK),
                "pointer not properly aligned, this will crash");
   mBits = reinterpret_cast<PtrBits>(aValue) | aType;
+}
+
+inline void
+nsAttrValue::SetIntValueAndType(PRInt32 aValue, ValueType aType)
+{
+#ifdef DEBUG
+  {
+    PRInt32 tmp = aValue * NS_ATTRVALUE_INTEGERTYPE_MULTIPLIER;
+    NS_ASSERTION(tmp / NS_ATTRVALUE_INTEGERTYPE_MULTIPLIER == aValue,
+                 "Integer too big to fit");
+  }
+#endif
+  mBits = (aValue * NS_ATTRVALUE_INTEGERTYPE_MULTIPLIER) | aType;
 }
 
 inline void

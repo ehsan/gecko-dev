@@ -374,7 +374,7 @@ nsNSSCertificateDB::handleCACertDownload(nsIArray *x509Certs,
   der.len = 0;
   
   if (!tmpCert) {
-    NS_ERROR("Couldn't create cert from DER blob");
+    NS_ERROR("Couldn't create cert from DER blob\n");
     return NS_ERROR_FAILURE;
   }
 
@@ -407,9 +407,9 @@ nsNSSCertificateDB::handleCACertDownload(nsIArray *x509Certs,
 
   nsNSSCertTrust trust;
   trust.SetValidCA();
-  trust.AddCATrust(!!(trustBits & nsIX509CertDB::TRUSTED_SSL),
-                   !!(trustBits & nsIX509CertDB::TRUSTED_EMAIL),
-                   !!(trustBits & nsIX509CertDB::TRUSTED_OBJSIGN));
+  trust.AddCATrust(trustBits & nsIX509CertDB::TRUSTED_SSL,
+                   trustBits & nsIX509CertDB::TRUSTED_EMAIL,
+                   trustBits & nsIX509CertDB::TRUSTED_OBJSIGN);
 
   SECStatus srv = CERT_AddTempCertToPerm(tmpCert, 
                                          const_cast<char*>(nickname.get()), 
@@ -447,7 +447,7 @@ nsNSSCertificateDB::handleCACertDownload(nsIArray *x509Certs,
     der.len = 0;
 
     if (!tmpCert2) {
-      NS_ERROR("Couldn't create temp cert from DER blob");
+      NS_ASSERTION(0, "Couldn't create temp cert from DER blob\n");
       continue;  // Let's try to import the rest of 'em
     }
     
@@ -1018,9 +1018,9 @@ nsNSSCertificateDB::SetCertTrust(nsIX509Cert *cert,
   if (type == nsIX509Cert::CA_CERT) {
     // always start with untrusted and move up
     trust.SetValidCA();
-    trust.AddCATrust(!!(trusted & nsIX509CertDB::TRUSTED_SSL),
-                     !!(trusted & nsIX509CertDB::TRUSTED_EMAIL),
-                     !!(trusted & nsIX509CertDB::TRUSTED_OBJSIGN));
+    trust.AddCATrust(trusted & nsIX509CertDB::TRUSTED_SSL,
+                     trusted & nsIX509CertDB::TRUSTED_EMAIL,
+                     trusted & nsIX509CertDB::TRUSTED_OBJSIGN);
     srv = CERT_ChangeCertTrust(CERT_GetDefaultCertDB(), 
                                nsscert,
                                trust.GetTrust());
@@ -1034,7 +1034,7 @@ nsNSSCertificateDB::SetCertTrust(nsIX509Cert *cert,
   } else if (type == nsIX509Cert::EMAIL_CERT) {
     // always start with untrusted and move up
     trust.SetValidPeer();
-    trust.AddPeerTrust(0, !!(trusted & nsIX509CertDB::TRUSTED_EMAIL), 0);
+    trust.AddPeerTrust(0, trusted & nsIX509CertDB::TRUSTED_EMAIL, 0);
     srv = CERT_ChangeCertTrust(CERT_GetDefaultCertDB(), 
                                nsscert,
                                trust.GetTrust());
@@ -1341,7 +1341,8 @@ nsNSSCertificateDB::getCertNames(CERTCertList *certList,
           if (sc) *sc = DELIM;
         }
       }
-      nsAutoString certname = NS_ConvertASCIItoUTF16(namestr ? namestr : "");
+      if (!namestr) namestr = "";
+      nsAutoString certname = NS_ConvertASCIItoUTF16(namestr);
       certstr.Append(PRUnichar(DELIM));
       certstr += certname;
       certstr.Append(PRUnichar(DELIM));
@@ -1693,7 +1694,7 @@ NS_IMETHODIMP nsNSSCertificateDB::AddCertFromBase64(const char *aBase64, const c
   der.len = 0;
 
   if (!tmpCert) {
-    NS_ERROR("Couldn't create cert from DER blob");
+    NS_ASSERTION(0,"Couldn't create cert from DER blob\n");
     return NS_ERROR_FAILURE;
   }
 

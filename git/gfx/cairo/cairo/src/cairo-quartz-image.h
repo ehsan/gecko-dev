@@ -27,7 +27,7 @@
  *
  * The Original Code is the cairo graphics library.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corporation.
  *
  * Contributor(s):
  *      Vladimir Vukicevic <vladimir@mozilla.com>
@@ -36,7 +36,7 @@
 #ifndef CAIRO_QUARTZ_IMAGE_H
 #define CAIRO_QUARTZ_IMAGE_H
 
-#include "cairo.h"
+#include <cairo.h>
 
 #if CAIRO_HAS_QUARTZ_IMAGE_SURFACE
 

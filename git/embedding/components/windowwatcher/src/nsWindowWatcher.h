@@ -47,8 +47,9 @@
 #include "nsIWindowCreator.h" // for stupid compilers
 #include "nsIWindowWatcher.h"
 #include "nsIPromptFactory.h"
+#include "nsIAuthPromptAdapterFactory.h"
 #include "nsPIWindowWatcher.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 
 class  nsIURI;
 class  nsIDocShellTreeItem;
@@ -57,7 +58,6 @@ class  nsIWebBrowserChrome;
 class  nsString;
 class  nsWatcherWindowEnumerator;
 class  nsIScriptContext;
-class  nsPromptService;
 struct JSContext;
 struct JSObject;
 struct nsWatcherWindowEntry;
@@ -67,7 +67,8 @@ struct SizeSpec;
 class nsWindowWatcher :
       public nsIWindowWatcher,
       public nsPIWindowWatcher,
-      public nsIPromptFactory
+      public nsIPromptFactory,
+      public nsIAuthPromptAdapterFactory
 {
 friend class nsWatcherWindowEnumerator;
 
@@ -82,9 +83,9 @@ public:
   NS_DECL_NSIWINDOWWATCHER
   NS_DECL_NSPIWINDOWWATCHER
   NS_DECL_NSIPROMPTFACTORY
+  NS_DECL_NSIAUTHPROMPTADAPTERFACTORY
 
-protected:
-  friend class nsPromptService;
+private:
   PRBool AddEnumerator(nsWatcherWindowEnumerator* inEnumerator);
   PRBool RemoveEnumerator(nsWatcherWindowEnumerator* inEnumerator);
 
@@ -143,8 +144,9 @@ protected:
   static void       GetWindowTreeOwner(nsIDOMWindow *inWindow,
                                        nsIDocShellTreeOwner **outTreeOwner);
 
-  nsTArray<nsWatcherWindowEnumerator*> mEnumeratorList;
+  nsVoidArray           mEnumeratorList;
   nsWatcherWindowEntry *mOldestWindow;
+  nsIDOMWindow         *mActiveWindow;
   PRLock               *mListLock;
 
   nsCOMPtr<nsIWindowCreator> mWindowCreator;

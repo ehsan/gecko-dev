@@ -46,7 +46,7 @@
 #include "nsStubMutationObserver.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMDocument.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsCOMArray.h"
 #include "nsStaticAtom.h"
 
@@ -74,10 +74,20 @@ public:
   static void InitAtoms();
 
 protected:
-
-#define DOMVIEW_ATOM(name_, value_) static nsIAtom* name_;
-#include "inDOMViewAtomList.h"
-#undef DOMVIEW_ATOM
+  static nsIAtom* kAnonymousAtom;
+  static nsIAtom* kElementNodeAtom;
+  static nsIAtom* kAttributeNodeAtom;
+  static nsIAtom* kTextNodeAtom;
+  static nsIAtom* kCDataSectionNodeAtom;
+  static nsIAtom* kEntityReferenceNodeAtom;
+  static nsIAtom* kEntityNodeAtom;
+  static nsIAtom* kProcessingInstructionNodeAtom;
+  static nsIAtom* kCommentNodeAtom;
+  static nsIAtom* kDocumentNodeAtom;
+  static nsIAtom* kDocumentTypeNodeAtom;
+  static nsIAtom* kDocumentFragmentNodeAtom;
+  static nsIAtom* kNotationNodeAtom;
+  static nsIAtom* kAccessibleNodeAtom;
 
   static const nsStaticAtom Atoms_info[]; 
 
@@ -94,7 +104,7 @@ protected:
   nsCOMPtr<nsIDOMNode> mRootNode;
   nsCOMPtr<nsIDOMDocument> mRootDocument;
 
-  nsTArray<inDOMViewNode*> mNodes;
+  nsVoidArray mNodes;
 
   inDOMViewNode* GetNodeAt(PRInt32 aIndex);
   PRInt32 GetRowCount();
@@ -105,7 +115,7 @@ protected:
   void InsertNode(inDOMViewNode* aNode, PRInt32 aIndex);
   void RemoveNode(PRInt32 aIndex);
   void ReplaceNode(inDOMViewNode* aNode, PRInt32 aIndex);
-  void InsertNodes(nsTArray<inDOMViewNode*>& aNodes, PRInt32 aIndex);
+  void InsertNodes(nsVoidArray& aNodes, PRInt32 aIndex);
   void RemoveNodes(PRInt32 aIndex, PRInt32 aCount);
   void RemoveAllNodes();
   void ExpandNode(PRInt32 aRow);

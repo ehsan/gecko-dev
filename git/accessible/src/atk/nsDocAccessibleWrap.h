@@ -51,8 +51,7 @@
 class nsDocAccessibleWrap: public nsDocAccessible
 {
 public:
-  nsDocAccessibleWrap(nsIDocument *aDocument, nsIContent *aRootContent,
-                      nsIWeakReference *aShell);
+  nsDocAccessibleWrap(nsIDOMNode *aNode, nsIWeakReference *aShell);
   virtual ~nsDocAccessibleWrap();
 
   PRBool mActivated;

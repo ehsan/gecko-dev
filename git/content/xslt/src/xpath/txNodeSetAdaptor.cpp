@@ -41,27 +41,28 @@
 #include "txXPathTreeWalker.h"
 
 txNodeSetAdaptor::txNodeSetAdaptor()
-    : txXPathObjectAdaptor(),
-      mWritable(PR_TRUE)
+    : mWritable(PR_TRUE)
 {
 }
 
 txNodeSetAdaptor::txNodeSetAdaptor(txNodeSet *aNodeSet)
-    : txXPathObjectAdaptor(aNodeSet),
+    : mNodeSet(aNodeSet),
       mWritable(PR_FALSE)
 {
+    NS_ASSERTION(aNodeSet,
+                 "Don't create an adaptor if you don't have a txNodeSet");
 }
 
-NS_IMPL_ISUPPORTS_INHERITED1(txNodeSetAdaptor, txXPathObjectAdaptor, txINodeSet)
+NS_IMPL_ISUPPORTS1(txNodeSetAdaptor, txINodeSet)
 
 nsresult
 txNodeSetAdaptor::Init()
 {
-    if (!mValue) {
-        mValue = new txNodeSet(nsnull);
+    if (!mNodeSet) {
+        mNodeSet = new txNodeSet(nsnull);
     }
 
-    return mValue ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
+    return mNodeSet ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
 NS_IMETHODIMP
@@ -69,22 +70,22 @@ txNodeSetAdaptor::Item(PRUint32 aIndex, nsIDOMNode **aResult)
 {
     *aResult = nsnull;
 
-    if (aIndex > (PRUint32)NodeSet()->size()) {
+    if (aIndex > (PRUint32)mNodeSet->size()) {
         return NS_ERROR_ILLEGAL_VALUE;
     }
 
-    return txXPathNativeNode::getNode(NodeSet()->get(aIndex), aResult);
+    return txXPathNativeNode::getNode(mNodeSet->get(aIndex), aResult);
 }
 
 NS_IMETHODIMP
 txNodeSetAdaptor::ItemAsNumber(PRUint32 aIndex, double *aResult)
 {
-    if (aIndex > (PRUint32)NodeSet()->size()) {
+    if (aIndex > (PRUint32)mNodeSet->size()) {
         return NS_ERROR_ILLEGAL_VALUE;
     }
 
     nsAutoString result;
-    txXPathNodeUtils::appendNodeValue(NodeSet()->get(aIndex), result);
+    txXPathNodeUtils::appendNodeValue(mNodeSet->get(aIndex), result);
 
     *aResult = Double::toDouble(result);
 
@@ -94,11 +95,11 @@ txNodeSetAdaptor::ItemAsNumber(PRUint32 aIndex, double *aResult)
 NS_IMETHODIMP
 txNodeSetAdaptor::ItemAsString(PRUint32 aIndex, nsAString &aResult)
 {
-    if (aIndex > (PRUint32)NodeSet()->size()) {
+    if (aIndex > (PRUint32)mNodeSet->size()) {
         return NS_ERROR_ILLEGAL_VALUE;
     }
 
-    txXPathNodeUtils::appendNodeValue(NodeSet()->get(aIndex), aResult);
+    txXPathNodeUtils::appendNodeValue(mNodeSet->get(aIndex), aResult);
 
     return NS_OK;
 }
@@ -106,7 +107,7 @@ txNodeSetAdaptor::ItemAsString(PRUint32 aIndex, nsAString &aResult)
 NS_IMETHODIMP
 txNodeSetAdaptor::GetLength(PRUint32 *aLength)
 {
-    *aLength = (PRUint32)NodeSet()->size();
+    *aLength = (PRUint32)mNodeSet->size();
 
     return NS_OK;
 }
@@ -119,5 +120,11 @@ txNodeSetAdaptor::Add(nsIDOMNode *aNode)
     nsAutoPtr<txXPathNode> node(txXPathNativeNode::createXPathNode(aNode,
                                                                    PR_TRUE));
 
-    return node ? NodeSet()->add(*node) : NS_ERROR_OUT_OF_MEMORY;
+    return node ? mNodeSet->add(*node) : NS_ERROR_OUT_OF_MEMORY;
+}
+
+txAExprResult*
+txNodeSetAdaptor::GetTxNodeSet()
+{
+    return mNodeSet;
 }

@@ -50,20 +50,28 @@ public:
   nsXBLInsertionPoint(nsIContent* aParentElement, PRUint32 aIndex, nsIContent* aDefContent);
   ~nsXBLInsertionPoint();
 
-  NS_INLINE_DECL_REFCOUNTING(nsXBLInsertionPoint)
+  nsrefcnt AddRef()
+  {
+    ++mRefCnt;
+    NS_LOG_ADDREF(this, mRefCnt, "nsXBLInsertionPoint",
+                  sizeof(nsXBLInsertionPoint));
+    return mRefCnt;
+  }
+
+  nsrefcnt Release();
 
   NS_DECL_CYCLE_COLLECTION_NATIVE_CLASS(nsXBLInsertionPoint)
 
-  nsIContent* GetInsertionParent();
+  already_AddRefed<nsIContent> GetInsertionParent();
   void ClearInsertionParent() { mParentElement = nsnull; }
 
   PRInt32 GetInsertionIndex() { return mIndex; }
 
   void SetDefaultContent(nsIContent* aDefaultContent) { mDefaultContent = aDefaultContent; }
-  nsIContent* GetDefaultContent();
+  already_AddRefed<nsIContent> GetDefaultContent();
 
   void SetDefaultContentTemplate(nsIContent* aDefaultContent) { mDefaultContentTemplate = aDefaultContent; }
-  nsIContent* GetDefaultContentTemplate();
+  already_AddRefed<nsIContent> GetDefaultContentTemplate();
 
   void AddChild(nsIContent* aChildElement) { mElements.AppendObject(aChildElement); }
   void InsertChildAt(PRInt32 aIndex, nsIContent* aChildElement) { mElements.InsertObjectAt(aChildElement, aIndex); }
@@ -71,9 +79,7 @@ public:
   
   PRInt32 ChildCount() { return mElements.Count(); }
 
-  nsIContent* ChildAt(PRUint32 aIndex);
-
-  PRInt32 IndexOf(nsIContent* aContent) { return mElements.IndexOf(aContent); }
+  already_AddRefed<nsIContent> ChildAt(PRUint32 aIndex);
 
   PRBool Matches(nsIContent* aContent, PRUint32 aIndex);
 
@@ -82,6 +88,7 @@ public:
   void UnbindDefaultContent();
 
 protected:
+  nsAutoRefCnt mRefCnt;
   nsIContent* mParentElement;            // This ref is weak.  The parent of the <children> element.
   PRInt32 mIndex;                        // The index of this insertion point. -1 is a pseudo-point.
   nsCOMArray<nsIContent> mElements;      // An array of elements present at the insertion point.

@@ -71,7 +71,7 @@ sub editTalkback
 
     if ($ostype =~ /cygwin/i)
     {
-        $os = "nt";
+        $os = "win32";
     }
     elsif ($ostype =~ /linux/i)
     {
@@ -79,7 +79,7 @@ sub editTalkback
     }
     elsif ($ostype =~ /darwin/)
     {
-        $os = "darwin";
+        $os = "mac";
     }
     else
     {
@@ -187,7 +187,7 @@ sub editTalkback
 
         my $appdata;
 
-        if ($os eq "nt")
+        if ($os eq "win32")
         {
             # get application data directory in windows format
             $appdata = $ENV{APPDATA};
@@ -230,7 +230,7 @@ sub editTalkback
         {
             $talkbackdir="$home/.fullcircle";
         }
-        elsif ($os eq "darwin")
+        elsif ($os eq "mac")
         {
             $talkbackdir="$home/Library/Application\ Support/FullCircle";
         }
@@ -250,7 +250,7 @@ sub editTalkback
 
         my $talkbackinidir;
 
-        if ($os eq "nt")
+        if ($os eq "win32")
         {
             $talkbackinidir="$talkbackdir/$vendorid/$productid/$platformid/$buildid/";
 
@@ -307,7 +307,7 @@ sub editTalkback
                 }
             }
         }
-        elsif ($os eq "darwin")
+        elsif ($os eq "mac")
         {
             $talkbackinidir="$talkbackdir/$vendorid$productid$platformid$buildid";
             if (! -e "$talkbackdir/$vendorid$productid$platformid$buildid" )
@@ -335,7 +335,7 @@ sub editTalkback
         }
         
         #print "patching Talkback.ini\n";
-        if ($os eq "nt")
+        if ($os eq "win32")
         {
             $rc = system(("sed", 
                           "-ibak", 
@@ -359,7 +359,7 @@ sub editTalkback
                 die "unable to edit Talkback.ini: $!";
             }
         }
-        elsif ($os eq "darwin")
+        elsif ($os eq "mac")
         {
             $rc = system(("sed", 
                           "-ibak", 

@@ -48,13 +48,18 @@ FORCE_STATIC_LIB = 1
 MODULE_NAME	= nsJPEGDecoderModule
 LIBXUL_LIBRARY  = 1
 
+REQUIRES	= xpcom \
+		  string \
+		  gfx \
+		  thebes \
+		  imglib2 \
+		  $(JPEG_REQUIRES) \
+		  $(LCMS_REQUIRES) \
+		  $(NULL)
 
 CPPSRCS		= nsJPEGDecoder.cpp
 
 CSRCS		= iccjpeg.c
-
-# nsJPEGDecoder.cpp includes RasterImage.h
-LOCAL_INCLUDES += -I$(topsrcdir)/modules/libpr0n/src/
 
 include $(topsrcdir)/config/rules.mk
 

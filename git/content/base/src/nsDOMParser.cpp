@@ -116,7 +116,6 @@ nsDOMParser::~nsDOMParser()
   mLoopingForSyncLoad = PR_FALSE;
 }
 
-DOMCI_DATA(DOMParser, nsDOMParser)
 
 // QueryInterface implementation for nsDOMParser
 NS_INTERFACE_MAP_BEGIN(nsDOMParser)
@@ -127,7 +126,7 @@ NS_INTERFACE_MAP_BEGIN(nsDOMParser)
   NS_INTERFACE_MAP_ENTRY(nsIDOMEventListener)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_INTERFACE_MAP_ENTRY(nsIJSNativeInitializer)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(DOMParser)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(DOMParser)
 NS_INTERFACE_MAP_END
 
 
@@ -498,7 +497,7 @@ nsDOMParser::Initialize(nsISupports* aOwner, JSContext* cx, JSObject* obj,
       return NS_ERROR_UNEXPECTED;
     }
 
-    baseURI = doc->GetDocBaseURI();
+    baseURI = doc->GetBaseURI();
     documentURI = doc->GetDocumentURI();
   }
 
@@ -507,14 +506,39 @@ nsDOMParser::Initialize(nsISupports* aOwner, JSContext* cx, JSObject* obj,
 }
 
 NS_IMETHODIMP
-nsDOMParser::Init(nsIPrincipal *principal, nsIURI *documentURI, nsIURI *baseURI)
+nsDOMParser::Init()
 {
   AttemptedInitMarker marker(&mAttemptedInit);
 
-  JSContext *cx = nsContentUtils::GetCurrentJSContext();
+  nsAXPCNativeCallContext *ncc = nsnull;
+
+  nsresult rv = nsContentUtils::XPConnect()->
+    GetCurrentNativeCallContext(&ncc);
+  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_TRUE(ncc, NS_ERROR_UNEXPECTED);
+
+  JSContext *cx = nsnull;
+  rv = ncc->GetJSContext(&cx);
+  NS_ENSURE_SUCCESS(rv, rv);
   NS_ENSURE_TRUE(cx, NS_ERROR_UNEXPECTED);
 
+  PRUint32 argc;
+  jsval *argv = nsnull;
+  ncc->GetArgc(&argc);
+  ncc->GetArgvPtr(&argv);
+
+  if (argc != 3) {
+    return NS_ERROR_INVALID_ARG;
+  }
+
+  nsCOMPtr<nsIPrincipal> prin;
+  nsCOMPtr<nsIURI> documentURI;
+  nsCOMPtr<nsIURI> baseURI;
+  rv = GetInitArgs(cx, argc, argv, getter_AddRefs(prin),
+                   getter_AddRefs(documentURI), getter_AddRefs(baseURI));
+  NS_ENSURE_SUCCESS(rv, rv);
+
   nsIScriptContext* scriptContext = GetScriptContextFromJSContext(cx);
-  return Init(principal, documentURI, baseURI,
+  return Init(prin, documentURI, baseURI,
               scriptContext ? scriptContext->GetGlobalObject() : nsnull);
 }

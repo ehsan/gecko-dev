@@ -61,7 +61,6 @@
 #include "nsIAssociatedContentSecurity.h"
 #include "pldhash.h"
 #include "prmon.h"
-#include "nsINetUtil.h"
 
 class nsITransportSecurityInfo;
 class nsISecurityWarningDialogs;
@@ -96,9 +95,9 @@ public:
   
 protected:
   PRMonitor *mMonitor;
+  PRInt32 mOnStateLocationChangeReentranceDetection;
   
   nsWeakPtr mWindow;
-  nsCOMPtr<nsINetUtil> mIOService;
   nsCOMPtr<nsIStringBundle> mStringBundle;
   nsCOMPtr<nsIURI> mCurrentURI;
   nsCOMPtr<nsISecurityEventSink> mToplevelEventSink;
@@ -126,22 +125,15 @@ protected:
   PRInt32 mSubRequestsLowSecurity;
   PRInt32 mSubRequestsBrokenSecurity;
   PRInt32 mSubRequestsNoSecurity;
-#ifdef DEBUG
-  /* related to mMonitor */
-  PRInt32 mOnStateLocationChangeReentranceDetection;
-#endif
 
-  static already_AddRefed<nsISupports> ExtractSecurityInfo(nsIRequest* aRequest);
   static nsresult MapInternalToExternalState(PRUint32* aState, lockIconState lock, PRBool ev);
-  nsresult UpdateSecurityState(nsIRequest* aRequest, PRBool withNewLocation,
-                               PRBool withUpdateStatus, PRBool withUpdateTooltip);
-  PRBool UpdateMyFlags(PRBool &showWarning, lockIconState &warnSecurityState);
+  nsresult UpdateSecurityState(nsIRequest* aRequest);
+  void UpdateMyFlags(PRBool &showWarning, lockIconState &warnSecurityState);
   nsresult TellTheWorld(PRBool showWarning, 
                         lockIconState warnSecurityState, 
                         nsIRequest* aRequest);
 
-  nsresult EvaluateAndUpdateSecurityState(nsIRequest* aRequest, nsISupports *info,
-                                          PRBool withNewLocation);
+  nsresult EvaluateAndUpdateSecurityState(nsIRequest* aRequest, nsISupports *info);
   void UpdateSubrequestMembers(nsISupports *securityInfo);
 
   void ObtainEventSink(nsIChannel *channel, 

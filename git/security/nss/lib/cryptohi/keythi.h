@@ -42,20 +42,6 @@
 #include "secmodt.h"
 #include "prclist.h"
 
-/*
-** RFC 4055 specifies three different RSA key types.
-**
-** rsaKey maps to keys with SEC_OID_PKCS1_RSA_ENCRYPTION and can be used for
-** both encryption and signatures with old (PKCS #1 v1.5) and new (PKCS #1
-** v2.1) padding schemes.
-**
-** rsaPssKey maps to keys with SEC_OID_PKCS1_RSA_PSS_SIGNATURE and may only
-** be used for signatures with PSS padding (PKCS #1 v2.1).
-**
-** rsaOaepKey maps to keys with SEC_OID_PKCS1_RSA_OAEP_ENCRYPTION and may only
-** be used for encryption with OAEP padding (PKCS #1 v2.1).
-*/ 
-
 typedef enum { 
     nullKey = 0, 
     rsaKey = 1, 
@@ -63,9 +49,7 @@ typedef enum {
     fortezzaKey = 3,
     dhKey = 4, 
     keaKey = 5,
-    ecKey = 6,
-    rsaPssKey = 7,
-    rsaOaepKey = 8
+    ecKey = 6
 } KeyType;
 
 /*
@@ -92,7 +76,7 @@ SEC_END_PROTOS
 */
 
 struct SECKEYRSAPublicKeyStr {
-    PLArenaPool * arena;
+    PRArenaPool * arena;
     SECItem modulus;
     SECItem publicExponent;
 };
@@ -104,7 +88,7 @@ typedef struct SECKEYRSAPublicKeyStr SECKEYRSAPublicKey;
 */
 
 struct SECKEYPQGParamsStr {
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     SECItem prime;    /* p */
     SECItem subPrime; /* q */
     SECItem base;     /* g */
@@ -124,14 +108,14 @@ typedef struct SECKEYDSAPublicKeyStr SECKEYDSAPublicKey;
 ** Structure member names suggested by PKCS#3.
 */
 struct SECKEYDHParamsStr {
-    PLArenaPool * arena;
+    PRArenaPool * arena;
     SECItem prime; /* p */
     SECItem base; /* g */
 };
 typedef struct SECKEYDHParamsStr SECKEYDHParams;
 
 struct SECKEYDHPublicKeyStr {
-    PLArenaPool * arena;
+    PRArenaPool * arena;
     SECItem prime;
     SECItem base;
     SECItem publicValue;
@@ -174,8 +158,6 @@ struct SECKEYFortezzaPublicKeyStr {
     SECKEYPQGParams keaParams;
 };
 typedef struct SECKEYFortezzaPublicKeyStr SECKEYFortezzaPublicKey;
-#define KEAprivilege KEApriviledge /* corrected spelling */
-#define DSSprivilege DSSpriviledge /* corrected spelling */
 
 struct SECKEYDiffPQGParamsStr {
     SECKEYPQGParams DiffKEAParams;
@@ -220,10 +202,13 @@ struct SECKEYPublicKeyStr {
 };
 typedef struct SECKEYPublicKeyStr SECKEYPublicKey;
 
+#define CachedAttribute(attribute,setbit) \
+static const PRUint32 SECKEY_##attribute = 1 << setbit;
+
 /* bit flag definitions for staticflags */
 #define SECKEY_Attributes_Cached 0x1    /* bit 0 states
                                            whether attributes are cached */
-#define SECKEY_CKA_PRIVATE (1U << 1)    /* bit 1 is the value of CKA_PRIVATE */
+CachedAttribute(CKA_PRIVATE,1) /* bit 1 is the value of CKA_PRIVATE */
 
 #define SECKEY_ATTRIBUTES_CACHED(key) \
      (0 != (key->staticflags & SECKEY_Attributes_Cached))
@@ -257,7 +242,7 @@ typedef struct {
 
 typedef struct {
     PRCList list;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
 } SECKEYPrivateKeyList;
 
 typedef struct {
@@ -267,7 +252,7 @@ typedef struct {
 
 typedef struct {
     PRCList list;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
 } SECKEYPublicKeyList;
 #endif /* _KEYTHI_H_ */
 

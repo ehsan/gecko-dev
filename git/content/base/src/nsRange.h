@@ -53,6 +53,8 @@
 #include "prmon.h"
 #include "nsStubMutationObserver.h"
 
+class nsVoidArray;
+
 // -------------------------------------------------------------------------------
 
 class nsRangeUtils : public nsIRangeUtils
@@ -73,6 +75,7 @@ public:
 // -------------------------------------------------------------------------------
 
 class nsRange : public nsIRange,
+                public nsIDOMRange,
                 public nsIDOMNSRange,
                 public nsStubMutationObserver
 {
@@ -82,8 +85,7 @@ public:
   }
   virtual ~nsRange();
 
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsRange, nsIRange)
+  NS_DECL_ISUPPORTS
 
   // nsIDOMRange interface
   NS_DECL_NSIDOMRANGE
@@ -92,17 +94,23 @@ public:
   NS_DECL_NSIDOMNSRANGE
   
   // nsIRange interface
-  virtual nsINode* GetCommonAncestor() const;
+  virtual nsINode* GetCommonAncestor();
   virtual void Reset();
-  virtual nsresult SetStart(nsINode* aParent, PRInt32 aOffset);
-  virtual nsresult SetEnd(nsINode* aParent, PRInt32 aOffset);
-  virtual nsresult CloneRange(nsIRange** aNewRange) const;
-
+  
   // nsIMutationObserver methods
-  NS_DECL_NSIMUTATIONOBSERVER_CHARACTERDATACHANGED
-  NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
-  NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
-  NS_DECL_NSIMUTATIONOBSERVER_PARENTCHAINCHANGED
+  virtual void CharacterDataChanged(nsIDocument* aDocument,
+                                    nsIContent* aContent,
+                                    CharacterDataChangeInfo* aChangeInfo);
+  virtual void ContentInserted(nsIDocument* aDocument,
+                               nsIContent* aContainer,
+                               nsIContent* aChild,
+                               PRInt32 aIndexInContainer);
+  virtual void ContentRemoved(nsIDocument* aDocument,
+                              nsIContent* aContainer,
+                              nsIContent* aChild,
+                              PRInt32 aIndexInContainer);
+  virtual void NodeWillBeDestroyed(const nsINode* aNode);
+  virtual void ParentChainChanged(nsIContent *aContent);
 
 private:
   // no copy's or assigns
@@ -111,24 +119,6 @@ private:
 
   nsINode* IsValidBoundary(nsINode* aNode);
  
-  /**
-   * Cut or delete the range's contents.
-   *
-   * @param aFragment nsIDOMDocumentFragment containing the nodes.
-   *                  May be null to indicate the caller doesn't want a fragment.
-   */
-  nsresult CutContents(nsIDOMDocumentFragment** frag);
-
-  /**
-   * Guts of cloning a range.  Addrefs the new range.
-   */
-  nsresult DoCloneRange(nsIRange** aNewRange) const;
-
-  static nsresult CloneParentsBetween(nsIDOMNode *aAncestor,
-                                      nsIDOMNode *aNode,
-                                      nsIDOMNode **aClosestAncestor,
-                                      nsIDOMNode **aFarthestAncestor);
-
 public:
 /******************************************************************************
  *  Utility routine to detect if a content node starts before a range and/or 
@@ -137,10 +127,10 @@ public:
  *  XXX - callers responsibility to ensure node in same doc as range!
  *
  *****************************************************************************/
-  static nsresult CompareNodeToRange(nsINode* aNode, nsIDOMRange* aRange,
+  static nsresult CompareNodeToRange(nsIContent* aNode, nsIDOMRange* aRange,
                                      PRBool *outNodeBefore,
                                      PRBool *outNodeAfter);
-  static nsresult CompareNodeToRange(nsINode* aNode, nsIRange* aRange,
+  static nsresult CompareNodeToRange(nsIContent* aNode, nsIRange* aRange,
                                      PRBool *outNodeBefore,
                                      PRBool *outNodeAfter);
 

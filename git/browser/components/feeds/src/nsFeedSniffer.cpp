@@ -60,8 +60,6 @@
 #include "nsIHttpChannel.h"
 #include "nsIMIMEHeaderParam.h"
 
-#include "nsMimeTypes.h"
-
 #define TYPE_ATOM "application/atom+xml"
 #define TYPE_RSS "application/rss+xml"
 #define TYPE_MAYBE_FEED "application/vnd.mozilla.maybe.feed"
@@ -161,14 +159,17 @@ HasAttachmentDisposition(nsIHttpChannel* httpChannel)
       // XXXbz this code is duplicated in GetFilenameAndExtensionFromChannel in
       // nsExternalHelperAppService.  Factor it out!
       if (NS_FAILED(rv) || 
-          (!dispToken.IsEmpty() &&
+          (// Some broken sites just send
+           // Content-Disposition: ; filename="file"
+           // screen those out here.
+           !dispToken.IsEmpty() &&
            !StringBeginsWithLowercaseLiteral(dispToken, "inline") &&
            // Broken sites just send
            // Content-Disposition: filename="file"
            // without a disposition token... screen those out.
-           !StringBeginsWithLowercaseLiteral(dispToken, "filename") &&
-           // Also in use is Content-Disposition: name="file"
-           !StringBeginsWithLowercaseLiteral(dispToken, "name")))
+           !StringBeginsWithLowercaseLiteral(dispToken, "filename")) &&
+          // Also in use is Content-Disposition: name="file"
+          !StringBeginsWithLowercaseLiteral(dispToken, "name"))
         // We have a content-disposition of "attachment" or unknown
         return PR_TRUE;
     }
@@ -330,17 +331,6 @@ nsFeedSniffer::GetMIMETypeFromContent(nsIRequest* request,
     return NS_OK;
   }
 
-  // Don't sniff arbitrary types.  Limit sniffing to situations that
-  // we think can reasonably arise.
-  if (!contentType.EqualsLiteral(TEXT_HTML) &&
-      !contentType.EqualsLiteral(APPLICATION_OCTET_STREAM) &&
-      // Same criterion as XMLHttpRequest.  Should we be checking for "+xml"
-      // and check for text/xml and application/xml by hand instead?
-      contentType.Find("xml") == -1) {
-    sniffedType.Truncate();
-    return NS_OK;
-  }
-
   // Now we need to potentially decompress data served with 
   // Content-Encoding: gzip
   nsresult rv = ConvertEncodedData(request, data, length);
@@ -422,4 +412,20 @@ nsFeedSniffer::OnStopRequest(nsIRequest* request, nsISupports* context,
                              nsresult status)
 {
   return NS_OK; 
+}
+
+NS_METHOD
+nsFeedSniffer::Register(nsIComponentManager *compMgr, nsIFile *path, 
+                        const char *registryLocation,
+                        const char *componentType, 
+                        const nsModuleComponentInfo *info)
+{
+  nsresult rv;
+  nsCOMPtr<nsICategoryManager> catman = do_GetService(NS_CATEGORYMANAGER_CONTRACTID, &rv);
+  if (NS_FAILED(rv)) 
+    return rv;
+
+  return catman->AddCategoryEntry(NS_CONTENT_SNIFFER_CATEGORY, "Feed Sniffer", 
+                                  NS_FEEDSNIFFER_CONTRACTID, PR_TRUE, PR_TRUE, 
+                                  nsnull);
 }

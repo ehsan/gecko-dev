@@ -70,25 +70,26 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsSVGUseElement,
   nsAutoScriptBlocker scriptBlocker;
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOriginal)
   tmp->DestroyAnonymousContent();
-  tmp->UnlinkSource();
+  tmp->RemoveListener();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsSVGUseElement,
                                                   nsSVGUseElementBase)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOriginal)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mClone)
-  tmp->mSource.Traverse(&cb);
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mSourceContent)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(nsSVGUseElement,nsSVGUseElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGUseElement,nsSVGUseElementBase)
 
-DOMCI_NODE_DATA(SVGUseElement, nsSVGUseElement)
-
-NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsSVGUseElement)
-  NS_NODE_INTERFACE_TABLE6(nsSVGUseElement, nsIDOMNode, nsIDOMElement,
-                           nsIDOMSVGElement, nsIDOMSVGURIReference,
-                           nsIDOMSVGUseElement, nsIMutationObserver)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGUseElement)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsSVGUseElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMNode)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGURIReference)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGUseElement)
+  NS_INTERFACE_MAP_ENTRY(nsIMutationObserver)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGUseElement)
   if (aIID.Equals(NS_GET_IID(nsSVGUseElement)))
     foundInterface = reinterpret_cast<nsISupports*>(this);
   else
@@ -97,24 +98,14 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGUseElementBase)
 //----------------------------------------------------------------------
 // Implementation
 
-#ifdef _MSC_VER
-// Disable "warning C4355: 'this' : used in base member initializer list".
-// We can ignore that warning because we know that mSource's constructor 
-// doesn't dereference the pointer passed to it.
-#pragma warning(push)
-#pragma warning(disable:4355)
-#endif
-nsSVGUseElement::nsSVGUseElement(already_AddRefed<nsINodeInfo> aNodeInfo)
-  : nsSVGUseElementBase(aNodeInfo), mSource(this)
-#ifdef _MSC_VER
-#pragma warning(pop)
-#endif
+nsSVGUseElement::nsSVGUseElement(nsINodeInfo *aNodeInfo)
+  : nsSVGUseElementBase(aNodeInfo)
 {
 }
 
 nsSVGUseElement::~nsSVGUseElement()
 {
-  UnlinkSource();
+  RemoveListener();
 }
 
 //----------------------------------------------------------------------
@@ -124,8 +115,8 @@ nsresult
 nsSVGUseElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 {
   *aResult = nsnull;
-  nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-  nsSVGUseElement *it = new nsSVGUseElement(ni.forget());
+
+  nsSVGUseElement *it = new nsSVGUseElement(aNodeInfo);
   if (!it) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -198,7 +189,8 @@ nsSVGUseElement::AttributeChanged(nsIDocument *aDocument,
                                   nsIContent *aContent,
                                   PRInt32 aNameSpaceID,
                                   nsIAtom *aAttribute,
-                                  PRInt32 aModType)
+                                  PRInt32 aModType,
+                                  PRUint32 aStateMask)
 {
   if (nsContentUtils::IsInSameAnonymousTree(this, aContent)) {
     TriggerReclone();
@@ -208,7 +200,6 @@ nsSVGUseElement::AttributeChanged(nsIDocument *aDocument,
 void
 nsSVGUseElement::ContentAppended(nsIDocument *aDocument,
                                  nsIContent *aContainer,
-                                 nsIContent *aFirstNewContent,
                                  PRInt32 aNewIndexInContainer)
 {
   if (nsContentUtils::IsInSameAnonymousTree(this, aContainer)) {
@@ -231,8 +222,7 @@ void
 nsSVGUseElement::ContentRemoved(nsIDocument *aDocument,
                                 nsIContent *aContainer,
                                 nsIContent *aChild,
-                                PRInt32 aIndexInContainer,
-                                nsIContent *aPreviousSibling)
+                                PRInt32 aIndexInContainer)
 {
   if (nsContentUtils::IsInSameAnonymousTree(this, aChild)) {
     TriggerReclone();
@@ -242,8 +232,7 @@ nsSVGUseElement::ContentRemoved(nsIDocument *aDocument,
 void
 nsSVGUseElement::NodeWillBeDestroyed(const nsINode *aNode)
 {
-  nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
-  UnlinkSource();
+  RemoveListener();
 }
 
 //----------------------------------------------------------------------
@@ -252,21 +241,22 @@ nsIContent*
 nsSVGUseElement::CreateAnonymousContent()
 {
 #ifdef DEBUG_tor
-  nsAutoString href;
-  mStringAttributes[HREF].GetAnimValue(href, this);
+  const nsString &href = mStringAttributes[HREF].GetAnimValue();
   fprintf(stderr, "<svg:use> reclone of \"%s\"\n", ToNewCString(href));
 #endif
 
   mClone = nsnull;
 
-  if (mSource.get()) {
-    mSource.get()->RemoveMutationObserver(this);
-  }
+  nsCOMPtr<nsIContent> targetContent = LookupHref();
 
-  LookupHref();
-  nsIContent* targetContent = mSource.get();
   if (!targetContent)
     return nsnull;
+
+  PRBool needAddObserver = PR_FALSE;
+  if (mSourceContent != targetContent) {
+    RemoveListener();
+    needAddObserver = PR_TRUE;
+  }
 
   // make sure target is valid type for <use>
   // QIable nsSVGGraphicsElement would eliminate enumerating all elements
@@ -312,10 +302,7 @@ nsSVGUseElement::CreateAnonymousContent()
 
   nsCOMPtr<nsIDOMNode> newnode;
   nsCOMArray<nsINode> unused;
-  nsNodeInfoManager* nodeInfoManager =
-    targetContent->GetOwnerDoc() == GetOwnerDoc() ?
-      nsnull : GetOwnerDoc()->NodeInfoManager();
-  nsNodeUtils::Clone(targetContent, PR_TRUE, nodeInfoManager, unused,
+  nsNodeUtils::Clone(targetContent, PR_TRUE, nsnull, unused,
                      getter_AddRefs(newnode));
 
   nsCOMPtr<nsIContent> newcontent = do_QueryInterface(newnode);
@@ -336,12 +323,13 @@ nsSVGUseElement::CreateAnonymousContent()
       return nsnull;
 
     nsCOMPtr<nsINodeInfo> nodeInfo;
-    nodeInfo = nodeInfoManager->GetNodeInfo(nsGkAtoms::svg, nsnull, kNameSpaceID_SVG);
+    nodeInfoManager->GetNodeInfo(nsGkAtoms::svg, nsnull, kNameSpaceID_SVG,
+                                 getter_AddRefs(nodeInfo));
     if (!nodeInfo)
       return nsnull;
 
     nsCOMPtr<nsIContent> svgNode;
-    NS_NewSVGSVGElement(getter_AddRefs(svgNode), nodeInfo.forget(), PR_FALSE);
+    NS_NewSVGSVGElement(getter_AddRefs(svgNode), nodeInfo);
 
     if (!svgNode)
       return nsnull;
@@ -389,16 +377,10 @@ nsSVGUseElement::CreateAnonymousContent()
     }
   }
 
-  // Set up its base URI correctly
-  nsCOMPtr<nsIURI> baseURI = targetContent->GetBaseURI();
-  if (!baseURI)
-    return nsnull;
-  nsCAutoString spec;
-  baseURI->GetSpec(spec);
-  newcontent->SetAttr(kNameSpaceID_XML, nsGkAtoms::base,
-                      NS_ConvertUTF8toUTF16(spec), PR_FALSE);
-
-  targetContent->AddMutationObserver(this);
+  if (needAddObserver) {
+    targetContent->AddMutationObserver(this);
+  }
+  mSourceContent = targetContent;
   mClone = newcontent;
   return mClone;
 }
@@ -433,57 +415,41 @@ nsSVGUseElement::SyncWidthHeight(PRUint8 aAttrEnum)
   }
 }
 
-void
+nsIContent *
 nsSVGUseElement::LookupHref()
 {
-  nsAutoString href;
-  mStringAttributes[HREF].GetAnimValue(href, this);
+  const nsString &href = mStringAttributes[HREF].GetAnimValue();
   if (href.IsEmpty())
-    return;
+    return nsnull;
 
-  nsCOMPtr<nsIURI> targetURI;
-  nsCOMPtr<nsIURI> baseURI = mOriginal ? mOriginal->GetBaseURI() : GetBaseURI();
+  nsCOMPtr<nsIURI> targetURI, baseURI = GetBaseURI();
   nsContentUtils::NewURIWithDocumentCharset(getter_AddRefs(targetURI), href,
                                             GetCurrentDoc(), baseURI);
 
-  mSource.Reset(this, targetURI);
+  return nsContentUtils::GetReferencedElement(targetURI, this);
 }
 
 void
 nsSVGUseElement::TriggerReclone()
 {
   nsIDocument *doc = GetCurrentDoc();
-  if (!doc)
-    return;
-  nsIPresShell *presShell = doc->GetShell();
-  if (!presShell)
-    return;
-  presShell->PostRecreateFramesFor(this);
+  if (!doc) return;
+  nsIPresShell *presShell = doc->GetPrimaryShell();
+  if (!presShell) return;
+  presShell->RecreateFramesFor(this);
 }
 
 void
-nsSVGUseElement::UnlinkSource()
+nsSVGUseElement::RemoveListener()
 {
-  if (mSource.get()) {
-    mSource.get()->RemoveMutationObserver(this);
+  if (mSourceContent) {
+    mSourceContent->RemoveMutationObserver(this);
+    mSourceContent = nsnull;
   }
-  mSource.Unlink();
 }
 
 //----------------------------------------------------------------------
 // nsSVGElement methods
-
-/* virtual */ gfxMatrix
-nsSVGUseElement::PrependLocalTransformTo(const gfxMatrix &aMatrix)
-{
-  // 'transform' attribute:
-  gfxMatrix matrix = nsSVGUseElementBase::PrependLocalTransformTo(aMatrix);
-
-  // now translate by our 'x' and 'y':
-  float x, y;
-  GetAnimatedLengthValues(&x, &y, nsnull);
-  return matrix.PreMultiply(gfxMatrix().Translate(gfxPoint(x, y)));
-}
 
 void
 nsSVGUseElement::DidChangeLength(PRUint8 aAttrEnum, PRBool aDoSetAttr)
@@ -501,14 +467,14 @@ nsSVGUseElement::GetLengthInfo()
 }
 
 void
-nsSVGUseElement::DidChangeString(PRUint8 aAttrEnum)
+nsSVGUseElement::DidChangeString(PRUint8 aAttrEnum, PRBool aDoSetAttr)
 {
-  nsSVGUseElementBase::DidChangeString(aAttrEnum);
+  nsSVGUseElementBase::DidChangeString(aAttrEnum, aDoSetAttr);
 
   if (aAttrEnum == HREF) {
     // we're changing our nature, clear out the clone information
     mOriginal = nsnull;
-    UnlinkSource();
+
     TriggerReclone();
   }
 }
@@ -540,4 +506,3 @@ nsSVGUseElement::IsAttributeMapped(const nsIAtom* name) const
   return FindAttributeDependence(name, map, NS_ARRAY_LENGTH(map)) ||
     nsSVGUseElementBase::IsAttributeMapped(name);
 }
-

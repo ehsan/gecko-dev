@@ -1,6 +1,4 @@
-// -*- mode: c++ -*-
-
-// Copyright (c) 2010, Google Inc.
+// Copyright (c) 2006, Google Inc.
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -29,467 +27,897 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-// Author: Jim Blandy <jimb@mozilla.com> <jimb@red-bean.com>
-
 // dump_syms.mm: Create a symbol file for use with minidumps
 
-#include "common/mac/dump_syms.h"
+#include <unistd.h>
+#include <signal.h>
+#include <cxxabi.h>
+#include <stdlib.h>
 
-#include <Foundation/Foundation.h>
+#include <mach/machine.h>
 #include <mach-o/arch.h>
 #include <mach-o/fat.h>
-#include <stdio.h>
+#include <mach-o/loader.h>
+#include <mach-o/nlist.h>
+#include <mach-o/stab.h>
+#include <fcntl.h>
 
-#include <string>
-#include <vector>
+#import <Foundation/Foundation.h>
 
-#include "common/dwarf/bytereader-inl.h"
-#include "common/dwarf/dwarf2reader.h"
-#include "common/dwarf_cfi_to_module.h"
-#include "common/dwarf_cu_to_module.h"
-#include "common/dwarf_line_to_module.h"
-#include "common/mac/file_id.h"
-#include "common/mac/macho_reader.h"
-#include "common/module.h"
-#include "common/stabs_reader.h"
-#include "common/stabs_to_module.h"
+#import "dump_syms.h"
+#import "common/mac/file_id.h"
+#import "common/mac/macho_utilities.h"
 
-#ifndef CPU_TYPE_ARM
-#define CPU_TYPE_ARM (static_cast<cpu_type_t>(12))
-#endif //  CPU_TYPE_ARM
-
-using dwarf2reader::ByteReader;
-using google_breakpad::DwarfCUToModule;
-using google_breakpad::DwarfLineToModule;
 using google_breakpad::FileID;
-using google_breakpad::mach_o::FatReader;
-using google_breakpad::mach_o::Section;
-using google_breakpad::mach_o::Segment;
-using google_breakpad::Module;
-using google_breakpad::StabsReader;
-using google_breakpad::StabsToModule;
-using std::make_pair;
-using std::pair;
-using std::string;
-using std::vector;
 
-namespace google_breakpad {
+static NSString *kAddressSymbolKey = @"symbol";
+static NSString *kAddressConvertedSymbolKey = @"converted_symbol";
+static NSString *kAddressSourceLineKey = @"line";
+static NSString *kFunctionSizeKey = @"size";
+static NSString *kHeaderBaseAddressKey = @"baseAddr";
+static NSString *kHeaderSizeKey = @"size";
+static NSString *kHeaderOffsetKey = @"offset";  // Offset to the header
+static NSString *kHeaderIs64BitKey = @"is64";
+static NSString *kHeaderCPUTypeKey = @"cpuType";
+static NSString *kUnknownSymbol = @"???";
 
-bool DumpSymbols::Read(NSString *filename) {
-  if (![[NSFileManager defaultManager] fileExistsAtPath:filename]) {
-    fprintf(stderr, "Object file does not exist: %s\n",
-	    [filename fileSystemRepresentation]);
-    return false;
+// The section for __TEXT, __text seems to be always 1.  This is useful
+// for pruning out extraneous non-function symbols.
+static const int kTextSection = 1;
+
+@interface DumpSymbols(PrivateMethods)
+- (NSArray *)convertCPlusPlusSymbols:(NSArray *)symbols;
+- (void)convertSymbols;
+- (void)addFunction:(NSString *)name line:(int)line address:(uint64_t)address section:(int)section;
+- (BOOL)processSymbolItem:(struct nlist_64 *)list stringTable:(char *)table;
+- (BOOL)loadSymbolInfo:(void *)base offset:(uint32_t)offset;
+- (BOOL)loadSymbolInfo64:(void *)base offset:(uint32_t)offset;
+- (BOOL)loadSymbolInfoForArchitecture;
+- (void)generateSectionDictionary:(struct mach_header*)header;
+- (BOOL)loadHeader:(void *)base offset:(uint32_t)offset;
+- (BOOL)loadHeader64:(void *)base offset:(uint32_t)offset;
+- (BOOL)loadModuleInfo;
+@end
+
+@implementation DumpSymbols
+//=============================================================================
+- (NSArray *)convertCPlusPlusSymbols:(NSArray *)symbols {
+  NSMutableArray *symbols_demangled = [[NSMutableArray alloc]
+					initWithCapacity:[symbols count]];
+  // __cxa_demangle will realloc this if needed
+  char *buffer = (char *)malloc(1024);
+  size_t buffer_size = 1024;
+  int result;
+
+  NSEnumerator *enumerator = [symbols objectEnumerator];
+  id symbolObject;
+  while ((symbolObject = [enumerator nextObject])) {
+    const char *symbol = [symbolObject UTF8String];
+    buffer = abi::__cxa_demangle(symbol, buffer, &buffer_size, &result);
+    if (result == 0) {
+      [symbols_demangled addObject:[NSString stringWithUTF8String:buffer]];
+    } else {
+      // unable to demangle - use mangled name instead
+      [symbols_demangled addObject:symbolObject];
+    }
   }
+  free(buffer);
 
-  input_pathname_ = [filename retain];
-
-  // Does this filename refer to a dSYM bundle?
-  NSBundle *bundle = [NSBundle bundleWithPath:input_pathname_];
-
-  if (bundle) {
-    // Filenames referring to bundles usually have names of the form
-    // "<basename>.dSYM"; however, if the user has specified a wrapper
-    // suffix (the WRAPPER_SUFFIX and WRAPPER_EXTENSION build settings),
-    // then the name may have the form "<basename>.<extension>.dSYM". In
-    // either case, the resource name for the file containing the DWARF
-    // info within the bundle is <basename>.
-    //
-    // Since there's no way to tell how much to strip off, remove one
-    // extension at a time, and use the first one that
-    // pathForResource:ofType:inDirectory likes.
-    NSString *base_name = [input_pathname_ lastPathComponent];
-    NSString *dwarf_resource;
-    
-    do {
-      NSString *new_base_name = [base_name stringByDeletingPathExtension];
-
-      // If stringByDeletingPathExtension returned the name unchanged, then
-      // there's nothing more for us to strip off --- lose.
-      if ([new_base_name isEqualToString:base_name]) {
-	fprintf(stderr, "Unable to find DWARF-bearing file in bundle: %s\n",
-		[input_pathname_ fileSystemRepresentation]);
-        return false;
-      }
-
-      // Take the shortened result as our new base_name.
-      base_name = new_base_name;
-
-      // Try to find a DWARF resource in the bundle under the new base_name.
-      dwarf_resource = [bundle pathForResource:base_name
-                        ofType:nil inDirectory:@"DWARF"];
-    } while (!dwarf_resource);
-
-    object_filename_ = [dwarf_resource retain];
-  } else {
-    object_filename_ = [input_pathname_ retain];
-  }
-
-  // Read the file's contents into memory.
-  //
-  // The documentation for dataWithContentsOfMappedFile says:
-  //
-  //     Because of file mapping restrictions, this method should only be
-  //     used if the file is guaranteed to exist for the duration of the
-  //     data object’s existence. It is generally safer to use the
-  //     dataWithContentsOfFile: method.
-  //
-  // I gather this means that OS X doesn't have (or at least, that method
-  // doesn't use) a form of mapping like Linux's MAP_PRIVATE, where the
-  // process appears to get its own copy of the data, and changes to the
-  // file don't affect memory and vice versa).
-  NSError *error;
-  contents_ = [NSData dataWithContentsOfFile:object_filename_
-	                             options:0
-	                               error:&error];
-  if (!contents_) {
-    fprintf(stderr, "Error reading object file: %s: %s\n",
-	    [object_filename_ fileSystemRepresentation],
-	    [[error localizedDescription] UTF8String]);
-    return false;
-  }
-  [contents_ retain];
-
-  // Get the list of object files present in the file.
-  FatReader::Reporter fat_reporter([object_filename_
-                                    fileSystemRepresentation]);
-  FatReader fat_reader(&fat_reporter);
-  if (!fat_reader.Read(reinterpret_cast<const uint8_t *>([contents_ bytes]),
-                       [contents_ length])) {
-    return false;
-  }
-
-  // Get our own copy of fat_reader's object file list.
-  size_t object_files_count;
-  const struct fat_arch *object_files =
-    fat_reader.object_files(&object_files_count);
-  if (object_files_count == 0) {
-    fprintf(stderr, "Fat binary file contains *no* architectures: %s\n",
-	    [object_filename_ fileSystemRepresentation]);
-    return false;
-  }
-  object_files_.resize(object_files_count);
-  memcpy(&object_files_[0], object_files,
-         sizeof(struct fat_arch) * object_files_count);
-
-  return true;
+  return symbols_demangled;
 }
 
-bool DumpSymbols::SetArchitecture(cpu_type_t cpu_type,
-                                  cpu_subtype_t cpu_subtype) {
-  // Find the best match for the architecture the user requested.
-  const struct fat_arch *best_match
-    = NXFindBestFatArch(cpu_type, cpu_subtype, &object_files_[0],
-                        static_cast<uint32_t>(object_files_.size()));
-  if (!best_match) return false;
+//=============================================================================
+- (void)convertSymbols {
+  unsigned int count = [cppAddresses_ count];
+  NSMutableArray *symbols = [[NSMutableArray alloc] initWithCapacity:count];
 
-  // Record the selected object file.
-  selected_object_file_ = best_match;
-  return true;
-}
+  // Sort addresses for processing
+  NSArray *addresses = [cppAddresses_ sortedArrayUsingSelector:
+    @selector(compare:)];
 
-bool DumpSymbols::SetArchitecture(const std::string &arch_name) {
-  bool arch_set = false;
-  const NXArchInfo *arch_info = NXGetArchInfoFromName(arch_name.c_str());
-  if (arch_info) {
-    arch_set = SetArchitecture(arch_info->cputype, arch_info->cpusubtype);
+  for (unsigned int i = 0; i < count; ++i) {
+    NSMutableDictionary *dict = [addresses_ objectForKey:
+      [addresses objectAtIndex:i]];
+    NSString *symbol = [dict objectForKey:kAddressSymbolKey];
+
+    // Make sure that the symbol is valid
+    if ([symbol length] < 1)
+      symbol = kUnknownSymbol;
+
+    [symbols addObject:symbol];
   }
-  return arch_set;
-}
+
+  // In order to deal with crashing problems in c++filt, we setup
+  // a while loop to handle the case where convertCPlusPlusSymbols
+  // only returns partial results.
+  // We then attempt to continue from the point where c++filt failed
+  // and add the partial results to the total results until we're
+  // completely done.
   
-string DumpSymbols::Identifier() {
-  FileID file_id([object_filename_ fileSystemRepresentation]);
-  unsigned char identifier_bytes[16];
-  cpu_type_t cpu_type = selected_object_file_->cputype;
-  if (!file_id.MachoIdentifier(cpu_type, identifier_bytes)) {
-    fprintf(stderr, "Unable to calculate UUID of mach-o binary %s!\n",
-	    [object_filename_ fileSystemRepresentation]);
-    return "";
-  }
+  unsigned int totalIndex = 0;
+  unsigned int totalCount = count;
+  
+  while (totalIndex < totalCount) {
+    NSRange range = NSMakeRange(totalIndex, totalCount - totalIndex);
+    NSArray *subarray = [symbols subarrayWithRange:range];
+    NSArray *converted = [self convertCPlusPlusSymbols:subarray];
+    unsigned int convertedCount = [converted count];
 
-  char identifier_string[40];
-  FileID::ConvertIdentifierToString(identifier_bytes, identifier_string,
-                                    sizeof(identifier_string));
-
-  string compacted(identifier_string);
-  for(size_t i = compacted.find('-'); i != string::npos;
-      i = compacted.find('-', i))
-    compacted.erase(i, 1);
-
-  return compacted;
-}
-
-// A line-to-module loader that accepts line number info parsed by
-// dwarf2reader::LineInfo and populates a Module and a line vector
-// with the results.
-class DumpSymbols::DumperLineToModule:
-      public DwarfCUToModule::LineToModuleFunctor {
- public:
-  // Create a line-to-module converter using BYTE_READER.
-  DumperLineToModule(dwarf2reader::ByteReader *byte_reader)
-      : byte_reader_(byte_reader) { }
-  void operator()(const char *program, uint64 length,
-                  Module *module, vector<Module::Line> *lines) {
-    DwarfLineToModule handler(module, lines);
-    dwarf2reader::LineInfo parser(program, length, byte_reader_, &handler);
-    parser.Start();
-  }
- private:
-  dwarf2reader::ByteReader *byte_reader_;  // WEAK
-};
-
-bool DumpSymbols::ReadDwarf(google_breakpad::Module *module,
-                            const mach_o::Reader &macho_reader,
-                            const mach_o::SectionMap &dwarf_sections) const {
-  // Build a byte reader of the appropriate endianness.
-  ByteReader byte_reader(macho_reader.big_endian() 
-                         ? dwarf2reader::ENDIANNESS_BIG
-                         : dwarf2reader::ENDIANNESS_LITTLE);
-
-  // Construct a context for this file.
-  DwarfCUToModule::FileContext file_context(selected_object_name_,
-                                            module);
-
-  // Build a dwarf2reader::SectionMap from our mach_o::SectionMap.
-  for (mach_o::SectionMap::const_iterator it = dwarf_sections.begin();
-       it != dwarf_sections.end(); it++) {
-    file_context.section_map[it->first] =
-      make_pair(reinterpret_cast<const char *>(it->second.contents.start),
-                it->second.contents.Size());
-  }
-
-  // Find the __debug_info section.
-  std::pair<const char *, uint64> debug_info_section
-      = file_context.section_map["__debug_info"];
-  // There had better be a __debug_info section!
-  if (!debug_info_section.first) {
-    fprintf(stderr, "%s: __DWARF segment of file has no __debug_info section\n",
-	    selected_object_name_.c_str());
-    return false;
-  }
- 
-  // Build a line-to-module loader for the root handler to use.
-  DumperLineToModule line_to_module(&byte_reader);
-
-  // Walk the __debug_info section, one compilation unit at a time.
-  uint64 debug_info_length = debug_info_section.second;
-  for (uint64 offset = 0; offset < debug_info_length;) {
-    // Make a handler for the root DIE that populates MODULE with the
-    // debug info.
-    DwarfCUToModule::WarningReporter reporter(selected_object_name_,
-                                              offset);
-    DwarfCUToModule root_handler(&file_context, &line_to_module, &reporter);
-    // Make a Dwarf2Handler that drives our DIEHandler.
-    dwarf2reader::DIEDispatcher die_dispatcher(&root_handler);
-    // Make a DWARF parser for the compilation unit at OFFSET.
-    dwarf2reader::CompilationUnit dwarf_reader(file_context.section_map,
-                                               offset,
-                                               &byte_reader,
-                                               &die_dispatcher);
-    // Process the entire compilation unit; get the offset of the next.
-    offset += dwarf_reader.Start();
-  }
-
-  return true;
-}
-
-bool DumpSymbols::ReadCFI(google_breakpad::Module *module,
-                          const mach_o::Reader &macho_reader,
-                          const mach_o::Section &section,
-                          bool eh_frame) const {
-  // Find the appropriate set of register names for this file's
-  // architecture.
-  vector<string> register_names;
-  switch (macho_reader.cpu_type()) {
-    case CPU_TYPE_X86:
-      register_names = DwarfCFIToModule::RegisterNames::I386();
-      break;
-    case CPU_TYPE_X86_64:
-      register_names = DwarfCFIToModule::RegisterNames::X86_64();
-      break;
-    case CPU_TYPE_ARM:
-      register_names = DwarfCFIToModule::RegisterNames::ARM();
-      break;
-    default: {
-      const NXArchInfo *arch =
-          NXGetArchInfoFromCpuType(macho_reader.cpu_type(),
-                                   macho_reader.cpu_subtype());
-      fprintf(stderr, "%s: cannot convert DWARF call frame information for ",
-              selected_object_name_.c_str());
-      if (arch)
-        fprintf(stderr, "architecture '%s'", arch->name);
-      else
-        fprintf(stderr, "architecture %d,%d",
-                macho_reader.cpu_type(), macho_reader.cpu_subtype());
-      fprintf(stderr, " to Breakpad symbol file: no register name table\n");
-      return false;
+    if (convertedCount == 0) {
+      break; // we give up at this point
     }
-  }
-
-  // Find the call frame information and its size.
-  const char *cfi = reinterpret_cast<const char *>(section.contents.start);
-  size_t cfi_size = section.contents.Size();
-
-  // Plug together the parser, handler, and their entourages.
-  DwarfCFIToModule::Reporter module_reporter(selected_object_name_,
-                                             section.section_name);
-  DwarfCFIToModule handler(module, register_names, &module_reporter);
-  dwarf2reader::ByteReader byte_reader(macho_reader.big_endian() ?
-                                       dwarf2reader::ENDIANNESS_BIG :
-                                       dwarf2reader::ENDIANNESS_LITTLE);
-  byte_reader.SetAddressSize(macho_reader.bits_64() ? 8 : 4);
-  // At the moment, according to folks at Apple and some cursory
-  // investigation, Mac OS X only uses DW_EH_PE_pcrel-based pointers, so
-  // this is the only base address the CFI parser will need.
-  byte_reader.SetCFIDataBase(section.address, cfi);
     
-  dwarf2reader::CallFrameInfo::Reporter dwarf_reporter(selected_object_name_,
-                                                       section.section_name);
-  dwarf2reader::CallFrameInfo parser(cfi, cfi_size,
-                                     &byte_reader, &handler, &dwarf_reporter,
-                                     eh_frame);
-  parser.Start();
-  return true;
-}
+    for (unsigned int convertedIndex = 0;
+      convertedIndex < convertedCount && totalIndex < totalCount;
+       ++totalIndex, ++convertedIndex) {
+      NSMutableDictionary *dict = [addresses_ objectForKey:
+        [addresses objectAtIndex:totalIndex]];
+      NSString *symbol = [converted objectAtIndex:convertedIndex];
 
-// A LoadCommandHandler that loads whatever debugging data it finds into a
-// Module.
-class DumpSymbols::LoadCommandDumper:
-      public mach_o::Reader::LoadCommandHandler {
- public:
-  // Create a load command dumper handling load commands from READER's
-  // file, and adding data to MODULE.
-  LoadCommandDumper(const DumpSymbols &dumper,
-                    google_breakpad::Module *module,
-                    const mach_o::Reader &reader)
-      : dumper_(dumper), module_(module), reader_(reader) { }
-
-  bool SegmentCommand(const mach_o::Segment &segment);
-  bool SymtabCommand(const ByteBuffer &entries, const ByteBuffer &strings);
-
- private:
-  const DumpSymbols &dumper_;
-  google_breakpad::Module *module_;  // WEAK
-  const mach_o::Reader &reader_;
-};
-
-bool DumpSymbols::LoadCommandDumper::SegmentCommand(const Segment &segment) {
-  mach_o::SectionMap section_map;
-  if (!reader_.MapSegmentSections(segment, &section_map))
-    return false;
-
-  if (segment.name == "__TEXT") {
-    module_->SetLoadAddress(segment.vmaddr);
-    mach_o::SectionMap::const_iterator eh_frame =
-        section_map.find("__eh_frame");
-    if (eh_frame != section_map.end()) {
-      // If there is a problem reading this, don't treat it as a fatal error.
-      dumper_.ReadCFI(module_, reader_, eh_frame->second, true);
-    }
-    return true;
-  }
-
-  if (segment.name == "__DWARF") {
-    if (!dumper_.ReadDwarf(module_, reader_, section_map))
-      return false;
-    mach_o::SectionMap::const_iterator debug_frame
-        = section_map.find("__debug_frame");
-    if (debug_frame != section_map.end()) {
-      // If there is a problem reading this, don't treat it as a fatal error.
-      dumper_.ReadCFI(module_, reader_, debug_frame->second, false);
+      // Only add if this is a non-zero length symbol
+      if ([symbol length])
+        [dict setObject:symbol forKey:kAddressConvertedSymbolKey];
     }
   }
-
-  return true;
+  
+  [symbols release];
 }
 
-bool DumpSymbols::LoadCommandDumper::SymtabCommand(const ByteBuffer &entries,
-                                                   const ByteBuffer &strings) {
-  StabsToModule stabs_to_module(module_);
-  // Mac OS X STABS are never "unitized", and the size of the 'value' field
-  // matches the address size of the executable.
-  StabsReader stabs_reader(entries.start, entries.Size(),
-                           strings.start, strings.Size(),
-                           reader_.big_endian(),
-                           reader_.bits_64() ? 8 : 4,
-                           true,
-                           &stabs_to_module);
-  if (!stabs_reader.Process())
-    return false;
-  stabs_to_module.Finalize();
-  return true;
+//=============================================================================
+- (void)addFunction:(NSString *)name line:(int)line address:(uint64_t)address section:(int)section {
+  NSNumber *addressNum = [NSNumber numberWithUnsignedLongLong:address];
+
+  if (!address)
+    return;
+
+  // If the function starts with "_Z" or "__Z" then add it to the list of
+  // addresses to run through the c++filt
+  BOOL isCPP = NO;
+
+  if ([name hasPrefix:@"__Z"]) {
+    // Remove the leading underscore
+    name = [name substringFromIndex:1];
+    isCPP = YES;
+  } else if ([name hasPrefix:@"_Z"]) {
+    isCPP = YES;
+  }
+
+  // Filter out non-functions
+  if ([name hasSuffix:@".eh"])
+    return;
+
+  if ([name hasSuffix:@"__func__"])
+    return;
+
+  if ([name hasSuffix:@"GCC_except_table"])
+    return;
+
+  if (isCPP) {
+    // OBJCPP_MANGLING_HACK
+    // There are cases where ObjC++ mangles up an ObjC name using quasi-C++ 
+    // mangling:
+    // @implementation Foozles + (void)barzles {
+    //    static int Baz = 0;
+    // } @end
+    // gives you _ZZ18+[Foozles barzles]E3Baz
+    // c++filt won't parse this properly, and will crash in certain cases. 
+    // Logged as radar:
+    // 5129938: c++filt does not deal with ObjC++ symbols
+    // If 5129938 ever gets fixed, we can remove this, but for now this prevents
+    // c++filt from attempting to demangle names it doesn't know how to handle.
+    // This is with c++filt 2.16
+    NSCharacterSet *objcppCharSet = [NSCharacterSet characterSetWithCharactersInString:@"-+[]: "];
+    NSRange emptyRange = { NSNotFound, 0 };
+    NSRange objcppRange = [name rangeOfCharacterFromSet:objcppCharSet];
+    isCPP = NSEqualRanges(objcppRange, emptyRange);
+  }
+  
+  if (isCPP) {
+    if (!cppAddresses_)
+      cppAddresses_ = [[NSMutableArray alloc] init];
+    [cppAddresses_ addObject:addressNum];
+  } else if ([name characterAtIndex:0] == '_') {
+    // Remove the leading underscore
+    name = [name substringFromIndex:1];
+  }
+
+  // If there's already an entry for this address, check and see if we can add
+  // either the symbol, or a missing line #
+  NSMutableDictionary *dict = [addresses_ objectForKey:addressNum];
+
+  if (!dict) {
+    dict = [[NSMutableDictionary alloc] init];
+    [addresses_ setObject:dict forKey:addressNum];
+    [dict release];
+  }
+
+  if (name && ![dict objectForKey:kAddressSymbolKey]) {
+    [dict setObject:name forKey:kAddressSymbolKey];
+
+    // only functions, not line number addresses
+    [functionAddresses_ addObject:addressNum];
+  }
+  
+  if (line && ![dict objectForKey:kAddressSourceLineKey])
+    [dict setObject:[NSNumber numberWithUnsignedInt:line]
+             forKey:kAddressSourceLineKey];
 }
 
-bool DumpSymbols::WriteSymbolFile(FILE *stream) {
-  // Select an object file, if SetArchitecture hasn't been called to set one
-  // explicitly.
-  if (!selected_object_file_) {
-    // If there's only one architecture, that's the one.
-    if (object_files_.size() == 1)
-      selected_object_file_ = &object_files_[0];
+//=============================================================================
+- (BOOL)processSymbolItem:(struct nlist_64 *)list stringTable:(char *)table {
+  uint32_t n_strx = list->n_un.n_strx;
+  BOOL result = NO;
+
+  // We don't care about non-section specific information except function length
+  if (list->n_sect == 0 && list->n_type != N_FUN )
+    return NO;
+
+  if (list->n_type == N_FUN) {
+    if (list->n_sect != 0) {
+      // we get the function address from the first N_FUN
+      lastStartAddress_ = list->n_value;
+    }
     else {
-      // Look for an object file whose architecture matches our own.
-      const NXArchInfo *local_arch = NXGetLocalArchInfo();
-      if (!SetArchitecture(local_arch->cputype, local_arch->cpusubtype)) {
-        fprintf(stderr, "%s: object file contains more than one"
-		" architecture, none of which match the current"
-                " architecture; specify an architecture explicitly"
-		" with '-a ARCH' to resolve the ambiguity\n",
-		[object_filename_ fileSystemRepresentation]);
-        return false;
+      // an N_FUN from section 0 may follow the initial N_FUN
+      // giving us function length information
+      NSMutableDictionary *dict = [addresses_ objectForKey:
+        [NSNumber numberWithUnsignedLong:lastStartAddress_]];
+      
+      assert(dict);
+
+      // only set the function size the first time
+      // (sometimes multiple section 0 N_FUN entries appear!)
+      if (![dict objectForKey:kFunctionSizeKey]) {
+        [dict setObject:[NSNumber numberWithUnsignedLongLong:list->n_value]
+                 forKey:kFunctionSizeKey];
       }
     }
   }
+  
+  int line = list->n_desc;
+  
+  // __TEXT __text section
+  uint32_t mainSection = [[sectionNumbers_ objectForKey:@"__TEXT__text" ] unsignedLongValue];
 
-  assert(selected_object_file_);
+  // Extract debugging information:
+  // Doc: http://developer.apple.com/documentation/DeveloperTools/gdb/stabs/stabs_toc.html
+  // Header: /usr/include/mach-o/stab.h:
+  if (list->n_type == N_SO)  {
+    NSString *src = [NSString stringWithUTF8String:&table[n_strx]];
+    NSString *ext = [src pathExtension];
+    NSNumber *address = [NSNumber numberWithUnsignedLongLong:list->n_value];
 
-  // Find the name of the selected file's architecture, to appear in
-  // the MODULE record and in error messages.
-  const NXArchInfo *selected_arch_info
-      = NXGetArchInfoFromCpuType(selected_object_file_->cputype,
-                                 selected_object_file_->cpusubtype);
+    // TODO(waylonis):Ensure that we get the full path for the source file
+    // from the first N_SO record
+    // If there is an extension, we'll consider it source code
+    if ([ext length]) {
+      if (!sources_)
+        sources_ = [[NSMutableDictionary alloc] init];
+      // Save the source associated with an address
+      [sources_ setObject:src forKey:address];
 
-  const char *selected_arch_name = selected_arch_info->name;
-  if (strcmp(selected_arch_name, "i386") == 0)
-    selected_arch_name = "x86";
+      result = YES;
+    }
+  } else if (list->n_type == N_FUN) {
+    NSString *fn = [NSString stringWithUTF8String:&table[n_strx]];
+    NSRange range = [fn rangeOfString:@":" options:NSBackwardsSearch];
 
-  // Produce a name to use in error messages that includes the
-  // filename, and the architecture, if there is more than one.
-  selected_object_name_ = [object_filename_ UTF8String];
-  if (object_files_.size() > 1) {
-    selected_object_name_ += ", architecture ";
-    selected_object_name_ + selected_arch_name;
+    if (![fn length])
+      return NO;
+
+    if (range.length > 0) {
+      // The function has a ":" followed by some stuff, so strip it off
+      fn = [fn substringToIndex:range.location];
+    }
+    
+    [self addFunction:fn line:line address:list->n_value section:list->n_sect ];
+
+    result = YES;
+  } else if (list->n_type == N_SLINE && list->n_sect == mainSection ) {
+    [self addFunction:nil line:line address:list->n_value section:list->n_sect ];
+    result = YES;
+  } else if (((list->n_type & N_TYPE) == N_SECT) && !(list->n_type & N_STAB)) {
+    // Regular symbols or ones that are external
+    NSString *fn = [NSString stringWithUTF8String:&table[n_strx]];
+
+    [self addFunction:fn line:0 address:list->n_value section:list->n_sect ];
+    result = YES;
   }
 
-  // Compute a module name, to appear in the MODULE record.
-  NSString *module_name = [object_filename_ lastPathComponent];
-
-  // Choose an identifier string, to appear in the MODULE record.
-  string identifier = Identifier();
-  if (identifier.empty())
-    return false;
-  identifier += "0";
-
-  // Create a module to hold the debugging information.
-  Module module([module_name UTF8String], "mac", selected_arch_name, 
-                identifier);
-
-  // Parse the selected object file.
-  mach_o::Reader::Reporter reporter(selected_object_name_);
-  mach_o::Reader reader(&reporter);
-  if (!reader.Read(reinterpret_cast<const uint8_t *>([contents_ bytes])
-                   + selected_object_file_->offset,
-                   selected_object_file_->size,
-		   selected_object_file_->cputype,
-		   selected_object_file_->cpusubtype))
-    return false;
-
-  // Walk its load commands, and deal with whatever is there.
-  LoadCommandDumper load_command_dumper(*this, &module, reader);
-  if (!reader.WalkLoadCommands(&load_command_dumper))
-    return false;
-
-  return module.Write(stream);
+  return result;
 }
 
-}  // namespace google_breakpad
+#define SwapLongLongIfNeeded(a) (swap ? NXSwapLongLong(a) : (a))
+#define SwapLongIfNeeded(a) (swap ? NXSwapLong(a) : (a))
+#define SwapIntIfNeeded(a) (swap ? NXSwapInt(a) : (a))
+#define SwapShortIfNeeded(a) (swap ? NXSwapShort(a) : (a))
+//=============================================================================
+- (BOOL)loadSymbolInfo:(void *)base offset:(uint32_t)offset {
+  struct mach_header *header = (struct mach_header *)((uint32_t)base + offset);
+  BOOL swap = (header->magic == MH_CIGAM);
+  uint32_t count = SwapLongIfNeeded(header->ncmds);
+  struct load_command *cmd =
+    (struct load_command *)((uint32_t)header + sizeof(struct mach_header));
+  uint32_t symbolTableCommand = SwapLongIfNeeded(LC_SYMTAB);
+  BOOL result = NO;
+
+  if (!addresses_)
+    addresses_ = [[NSMutableDictionary alloc] init];
+
+  for (uint32_t i = 0; cmd && (i < count); ++i) {
+    if (cmd->cmd == symbolTableCommand) {
+      struct symtab_command *symtab = (struct symtab_command *)cmd;
+      uint32_t ncmds = SwapLongIfNeeded(symtab->nsyms);
+      uint32_t symoff = SwapLongIfNeeded(symtab->symoff);
+      uint32_t stroff = SwapLongIfNeeded(symtab->stroff);
+      struct nlist *list = (struct nlist *)((uint32_t)base + symoff + offset);
+      char *strtab = ((char *)header + stroff);
+
+      // Process each command, looking for debugging stuff
+      for (uint32_t j = 0; j < ncmds; ++j, ++list) {
+        // Fill in an nlist_64 structure and process with that
+        struct nlist_64 nlist64;
+        nlist64.n_un.n_strx = SwapLongIfNeeded(list->n_un.n_strx);
+        nlist64.n_type = list->n_type;
+        nlist64.n_sect = list->n_sect;
+        nlist64.n_desc = SwapShortIfNeeded(list->n_desc);
+        nlist64.n_value = (uint64_t)SwapLongIfNeeded(list->n_value);
+
+        if ([self processSymbolItem:&nlist64 stringTable:strtab])
+          result = YES;
+      }
+    }
+
+    uint32_t cmdSize = SwapLongIfNeeded(cmd->cmdsize);
+    cmd = (struct load_command *)((uint32_t)cmd + cmdSize);
+  }
+
+  return result;
+}
+
+//=============================================================================
+- (BOOL)loadSymbolInfo64:(void *)base offset:(uint32_t)offset {
+  struct mach_header_64 *header = (struct mach_header_64 *)
+    ((uint32_t)base + offset);
+  BOOL swap = (header->magic == MH_CIGAM_64);
+  uint32_t count = SwapLongIfNeeded(header->ncmds);
+  struct load_command *cmd =
+    (struct load_command *)((uint32_t)header + sizeof(struct mach_header));
+  uint32_t symbolTableCommand = SwapLongIfNeeded(LC_SYMTAB);
+  BOOL result = NO;
+
+  for (uint32_t i = 0; cmd && (i < count); i++) {
+    if (cmd->cmd == symbolTableCommand) {
+      struct symtab_command *symtab = (struct symtab_command *)cmd;
+      uint32_t ncmds = SwapLongIfNeeded(symtab->nsyms);
+      uint32_t symoff = SwapLongIfNeeded(symtab->symoff);
+      uint32_t stroff = SwapLongIfNeeded(symtab->stroff);
+      struct nlist_64 *list = (struct nlist_64 *)((uint32_t)base + symoff);
+      char *strtab = ((char *)header + stroff);
+
+      // Process each command, looking for debugging stuff
+      for (uint32_t j = 0; j < ncmds; ++j, ++list) {
+        if (!(list->n_type & (N_STAB | N_TYPE)))
+          continue;
+
+        // Fill in an nlist_64 structure and process with that
+        struct nlist_64 nlist64;
+        nlist64.n_un.n_strx = SwapLongIfNeeded(list->n_un.n_strx);
+        nlist64.n_type = list->n_type;
+        nlist64.n_sect = list->n_sect;
+        nlist64.n_desc = SwapShortIfNeeded(list->n_desc);
+        nlist64.n_value = SwapLongLongIfNeeded(list->n_value);
+
+        if ([self processSymbolItem:&nlist64 stringTable:strtab])
+          result = YES;
+      }
+    }
+
+    uint32_t cmdSize = SwapLongIfNeeded(cmd->cmdsize);
+    cmd = (struct load_command *)((uint32_t)cmd + cmdSize);
+  }
+
+  return result;
+}
+
+//=============================================================================
+- (BOOL)loadSymbolInfoForArchitecture {
+  NSMutableData *data = [[NSMutableData alloc]
+    initWithContentsOfMappedFile:sourcePath_];
+  NSDictionary *headerInfo = [headers_ objectForKey:architecture_];
+  void *base = [data mutableBytes];
+  uint32_t offset =
+    [[headerInfo objectForKey:kHeaderOffsetKey] unsignedLongValue];
+  BOOL is64 = [[headerInfo objectForKey:kHeaderIs64BitKey] boolValue];
+  BOOL result = is64 ? [self loadSymbolInfo64:base offset:offset] :
+    [self loadSymbolInfo:base offset:offset];
+
+  [data release];
+  return result;
+}
+
+//=============================================================================
+// build a dictionary of section numbers keyed off a string
+// which is the concatenation of the segment name and the section name
+- (void)generateSectionDictionary:(struct mach_header*)header {
+  BOOL swap = (header->magic == MH_CIGAM);
+  uint32_t count = SwapLongIfNeeded(header->ncmds);
+  struct load_command *cmd =
+    (struct load_command *)((uint32_t)header + sizeof(struct mach_header));
+  uint32_t segmentCommand = SwapLongIfNeeded(LC_SEGMENT);
+  uint32_t sectionNumber = 1;   // section numbers are counted from 1
+  
+  if (!sectionNumbers_)
+    sectionNumbers_ = [[NSMutableDictionary alloc] init];
+  
+  // loop through every segment command, then through every section
+  // contained inside each of them
+  for (uint32_t i = 0; cmd && (i < count); ++i) {
+    if (cmd->cmd == segmentCommand) {            
+      struct segment_command *seg = (struct segment_command *)cmd;
+      section *sect = (section *)((uint32_t)cmd + sizeof(segment_command));
+      uint32_t nsects = SwapLongIfNeeded(seg->nsects);
+      
+      for (uint32_t j = 0; j < nsects; ++j) {
+        //printf("%d: %s %s\n", sectionNumber, seg->segname, sect->sectname );
+        NSString *segSectName = [NSString stringWithFormat:@"%s%s",
+          seg->segname, sect->sectname ];
+        
+        [sectionNumbers_ setValue:[NSNumber numberWithUnsignedLong:sectionNumber]
+          forKey:segSectName ];
+        
+        ++sect;
+        ++sectionNumber;
+      }
+    }
+
+    uint32_t cmdSize = SwapLongIfNeeded(cmd->cmdsize);
+    cmd = (struct load_command *)((uint32_t)cmd + cmdSize);
+  }
+}
+
+//=============================================================================
+- (BOOL)loadHeader:(void *)base offset:(uint32_t)offset {
+  struct mach_header *header = (struct mach_header *)((uint32_t)base + offset);
+  BOOL swap = (header->magic == MH_CIGAM);
+  uint32_t count = SwapLongIfNeeded(header->ncmds);
+  struct load_command *cmd =
+    (struct load_command *)((uint32_t)header + sizeof(struct mach_header));
+  uint32_t segmentCommand = SwapLongIfNeeded(LC_SEGMENT);
+
+  [self generateSectionDictionary:header];
+
+  for (uint32_t i = 0; cmd && (i < count); ++i) {
+    if (cmd->cmd == segmentCommand) {
+      struct segment_command *seg = (struct segment_command *)cmd;
+      
+      if (!strcmp(seg->segname, "__TEXT")) {
+        uint32_t addr = SwapLongIfNeeded(seg->vmaddr);
+        uint32_t size = SwapLongIfNeeded(seg->vmsize);
+        cpu_type_t cpu = SwapIntIfNeeded(header->cputype);
+        NSString *cpuStr = (cpu == CPU_TYPE_I386) ? @"x86" : @"ppc";
+
+        [headers_ setObject:[NSDictionary dictionaryWithObjectsAndKeys:
+          [NSNumber numberWithUnsignedLongLong:(uint64_t)addr],
+          kHeaderBaseAddressKey,
+          [NSNumber numberWithUnsignedLongLong:(uint64_t)size], kHeaderSizeKey,
+          [NSNumber numberWithUnsignedLong:offset], kHeaderOffsetKey,
+          [NSNumber numberWithBool:NO], kHeaderIs64BitKey,
+          [NSNumber numberWithUnsignedLong:cpu], kHeaderCPUTypeKey,
+          nil] forKey:cpuStr];
+
+        return YES;
+      }
+    }
+
+    uint32_t cmdSize = SwapLongIfNeeded(cmd->cmdsize);
+    cmd = (struct load_command *)((uint32_t)cmd + cmdSize);
+  }
+
+  return NO;
+}
+
+//=============================================================================
+- (BOOL)loadHeader64:(void *)base offset:(uint32_t)offset {
+  struct mach_header_64 *header =
+    (struct mach_header_64 *)((uint32_t)base + offset);
+  BOOL swap = (header->magic == MH_CIGAM_64);
+  uint32_t count = SwapLongIfNeeded(header->ncmds);
+  struct load_command *cmd =
+    (struct load_command *)((uint32_t)header + sizeof(struct mach_header_64));
+
+  for (uint32_t i = 0; cmd && (i < count); ++i) {
+    uint32_t segmentCommand = SwapLongIfNeeded(LC_SEGMENT_64);
+    if (cmd->cmd == segmentCommand) {
+      struct segment_command_64 *seg = (struct segment_command_64 *)cmd;
+      if (!strcmp(seg->segname, "__TEXT")) {
+        uint64_t addr = SwapLongLongIfNeeded(seg->vmaddr);
+        uint64_t size = SwapLongLongIfNeeded(seg->vmsize);
+        cpu_type_t cpu = SwapIntIfNeeded(header->cputype);
+        cpu &= (~CPU_ARCH_ABI64);
+        NSString *cpuStr = (cpu == CPU_TYPE_I386) ? @"x86_64" : @"ppc64";
+
+        [headers_ setObject:[NSDictionary dictionaryWithObjectsAndKeys:
+          [NSNumber numberWithUnsignedLongLong:addr], kHeaderBaseAddressKey,
+          [NSNumber numberWithUnsignedLongLong:size], kHeaderSizeKey,
+          [NSNumber numberWithUnsignedLong:offset], kHeaderOffsetKey,
+          [NSNumber numberWithBool:YES], kHeaderIs64BitKey,
+          [NSNumber numberWithUnsignedLong:cpu], kHeaderCPUTypeKey,
+          nil] forKey:cpuStr];
+        return YES;
+      }
+    }
+
+    uint32_t cmdSize = SwapLongIfNeeded(cmd->cmdsize);
+    cmd = (struct load_command *)((uint32_t)cmd + cmdSize);
+  }
+
+  return NO;
+}
+
+//=============================================================================
+- (BOOL)loadModuleInfo {
+  uint64_t result = 0;
+  NSMutableData *data = [[NSMutableData alloc]
+    initWithContentsOfMappedFile:sourcePath_];
+  void *bytes = [data mutableBytes];
+  struct fat_header *fat = (struct fat_header *)bytes;
+
+  if (!fat) {
+    [data release];
+    return 0;
+  }
+
+  // Gather some information based on the header
+  BOOL isFat = fat->magic == FAT_MAGIC || fat->magic == FAT_CIGAM;
+  BOOL is64 = fat->magic == MH_MAGIC_64 || fat->magic == MH_CIGAM_64;
+  BOOL is32 = fat->magic == MH_MAGIC || fat->magic == MH_CIGAM;
+  BOOL swap = fat->magic == FAT_CIGAM || fat->magic == MH_CIGAM_64 ||
+    fat->magic == MH_CIGAM;
+
+  if (!is64 && !is32 && !isFat) {
+    [data release];
+    return 0;
+  }
+
+  // Load any available architectures and save the information
+  headers_ = [[NSMutableDictionary alloc] init];
+
+  if (isFat) {
+    struct fat_arch *archs =
+      (struct fat_arch *)((uint32_t)fat + sizeof(struct fat_header));
+    uint32_t count = SwapLongIfNeeded(fat->nfat_arch);
+
+    for (uint32_t i = 0; i < count; ++i) {
+      archs[i].cputype = SwapIntIfNeeded(archs[i].cputype);
+      archs[i].cpusubtype = SwapIntIfNeeded(archs[i].cpusubtype);
+      archs[i].offset = SwapLongIfNeeded(archs[i].offset);
+      archs[i].size = SwapLongIfNeeded(archs[i].size);
+      archs[i].align = SwapLongIfNeeded(archs[i].align);
+
+      if (archs[i].cputype & CPU_ARCH_ABI64)
+        result = [self loadHeader64:bytes offset:archs[i].offset];
+      else
+        result = [self loadHeader:bytes offset:archs[i].offset];
+    }
+  } else if (is32) {
+    result = [self loadHeader:bytes offset:0];
+  } else {
+    result = [self loadHeader64:bytes offset:0];
+  }
+
+  [data release];
+  return result;
+}
+
+//=============================================================================
+static BOOL WriteFormat(int fd, const char *fmt, ...) {
+  va_list list;
+  char buffer[4096];
+  ssize_t expected, written;
+
+  va_start(list, fmt);
+  vsnprintf(buffer, sizeof(buffer), fmt, list);
+  expected = strlen(buffer);
+  written = write(fd, buffer, strlen(buffer));
+  va_end(list);
+
+  return expected == written;
+}
+
+//=============================================================================
+- (BOOL)outputSymbolFile:(int)fd {
+  // Get the baseAddress for this architecture
+  NSDictionary *archDict = [headers_ objectForKey:architecture_];
+  NSNumber *baseAddressNum = [archDict objectForKey:kHeaderBaseAddressKey];
+  uint64_t baseAddress =
+    baseAddressNum ? [baseAddressNum unsignedLongLongValue] : 0;
+  NSNumber *moduleSizeNum = [archDict objectForKey:kHeaderSizeKey];
+  uint64_t moduleSize =
+    moduleSizeNum ? [moduleSizeNum unsignedLongLongValue] : 0;
+
+  // UUID
+  FileID file_id([sourcePath_ fileSystemRepresentation]);
+  unsigned char identifier[16];
+  char identifierStr[40];
+  const char *moduleName = [[sourcePath_ lastPathComponent] UTF8String];
+  int cpu_type = [[archDict objectForKey:kHeaderCPUTypeKey] unsignedLongValue];
+  if (file_id.MachoIdentifier(cpu_type, identifier)) {
+    FileID::ConvertIdentifierToString(identifier, identifierStr,
+                                      sizeof(identifierStr));
+  }
+  else {
+    fprintf(stderr, "Unable to calculate UUID of mach-o binary!\n");
+    return NO;
+  }
+
+  // keep track exclusively of function addresses
+  // for sanity checking function lengths
+  functionAddresses_ = [[NSMutableSet alloc] init];
+
+  // Gather the information
+  [self loadSymbolInfoForArchitecture];
+  [self convertSymbols];
+
+  NSArray *sortedAddresses = [[addresses_ allKeys]
+    sortedArrayUsingSelector:@selector(compare:)];
+
+  NSArray *sortedFunctionAddresses = [[functionAddresses_ allObjects]
+    sortedArrayUsingSelector:@selector(compare:)];
+
+  // position ourselves at the 2nd function
+  unsigned int funcIndex = 1;
+
+  // Remove the dashes from the string
+  NSMutableString *compactedStr =
+    [NSMutableString stringWithCString:identifierStr encoding:NSASCIIStringEncoding];
+  [compactedStr replaceOccurrencesOfString:@"-" withString:@"" options:0
+                                     range:NSMakeRange(0, [compactedStr length])];
+
+  if (!WriteFormat(fd, "MODULE mac %s %s0 %s\n", [architecture_ UTF8String],
+                   [compactedStr UTF8String], moduleName)) {
+    return NO;
+  }
+
+  // Sources ordered by address
+  NSArray *sources = [[sources_ allKeys]
+    sortedArrayUsingSelector:@selector(compare:)];
+  unsigned int sourceCount = [sources count];
+  for (unsigned int i = 0; i < sourceCount; ++i) {
+    NSString *file = [sources_ objectForKey:[sources objectAtIndex:i]];
+    if (!WriteFormat(fd, "FILE %d %s\n", i + 1, [file UTF8String]))
+      return NO;
+  }
+
+  // Symbols
+  char terminatingChar = '\n';
+  uint32_t fileIdx = 0, nextFileIdx = 0;
+  uint64_t nextSourceFileAddress = 0;
+  NSNumber *nextAddress;
+  uint64_t nextAddressVal;
+  unsigned int addressCount = [sortedAddresses count];
+
+  for (unsigned int i = 0; i < addressCount; ++i) {
+    NSNumber *address = [sortedAddresses objectAtIndex:i];
+    uint64_t addressVal = [address unsignedLongLongValue] - baseAddress;
+
+    // Get the next address to calculate the length
+    if (i + 1 < addressCount) {
+      nextAddress = [sortedAddresses objectAtIndex:i + 1];
+      nextAddressVal = [nextAddress unsignedLongLongValue] - baseAddress;
+    } else {
+      nextAddressVal = baseAddress + moduleSize;
+      // The symbol reader doesn't want a trailing newline
+      terminatingChar = '\0';
+    }
+    
+    NSDictionary *dict = [addresses_ objectForKey:address];
+    NSNumber *line = [dict objectForKey:kAddressSourceLineKey];
+    NSString *symbol = [dict objectForKey:kAddressConvertedSymbolKey];
+
+    if (!symbol)
+      symbol = [dict objectForKey:kAddressSymbolKey];
+
+    // sanity check the function length by making sure it doesn't
+    // run beyond the next function entry
+    uint64_t nextFunctionAddress = 0;
+    if (symbol && funcIndex < [sortedFunctionAddresses count]) {
+      nextFunctionAddress = [[sortedFunctionAddresses objectAtIndex:funcIndex]
+        unsignedLongLongValue] - baseAddress;
+      ++funcIndex;
+    }
+
+    // Skip some symbols
+    if ([symbol hasPrefix:@"vtable for"])
+      continue;
+
+    if ([symbol hasPrefix:@"__static_initialization_and_destruction_0"])
+      continue;
+
+    if ([symbol hasPrefix:@"_GLOBAL__I__"])
+      continue;
+
+    if ([symbol hasPrefix:@"__func__."])
+      continue;
+
+    if ([symbol hasPrefix:@"__gnu"])
+      continue;
+
+    if ([symbol hasPrefix:@"typeinfo "])
+      continue;
+
+    if ([symbol hasPrefix:@"EH_frame"])
+      continue;
+
+    if ([symbol hasPrefix:@"GCC_except_table"])
+      continue;
+
+    // Find the source file (if any) that contains this address
+    while (sourceCount && (addressVal >= nextSourceFileAddress)) {
+      fileIdx = nextFileIdx;
+
+      if (nextFileIdx < sourceCount) {
+        NSNumber *addr = [sources objectAtIndex:nextFileIdx];
+        ++nextFileIdx;
+        nextSourceFileAddress = [addr unsignedLongLongValue] - baseAddress;
+      } else {
+        nextSourceFileAddress = baseAddress + moduleSize;
+        break;
+      }
+    }
+
+    NSNumber *functionLength = [dict objectForKey:kFunctionSizeKey];
+
+    if (line) {
+      if (symbol && functionLength) {
+        uint64_t functionLengthVal = [functionLength unsignedLongLongValue];
+        
+        // sanity check to make sure the length we were told does not exceed
+        // the space between this function and the next
+        if (nextFunctionAddress != 0) {
+          uint64_t functionLengthVal2 = nextFunctionAddress - addressVal;
+
+          if(functionLengthVal > functionLengthVal2 ) {
+            functionLengthVal = functionLengthVal2;
+          }
+        }
+
+        // Function
+        if (!WriteFormat(fd, "FUNC %llx %llx 0 %s\n", addressVal,
+                         functionLengthVal, [symbol UTF8String]))
+          return NO;
+      }
+
+      // Source line
+      uint64_t length = nextAddressVal - addressVal;
+      if (!WriteFormat(fd, "%llx %llx %d %d\n", addressVal, length,
+                       [line unsignedIntValue], fileIdx))
+        return NO;
+    } else {
+      // PUBLIC <address> <stack-size> <name>
+      if (!WriteFormat(fd, "PUBLIC %llx 0 %s\n", addressVal,
+                       [symbol UTF8String]))
+        return NO;
+    }
+  }
+
+  return YES;
+}
+
+//=============================================================================
+- (id)initWithContentsOfFile:(NSString *)path {
+  if ((self = [super init])) {
+
+    if (![[NSFileManager defaultManager] fileExistsAtPath:path]) {
+      [self autorelease];
+      return nil;
+    }
+
+    sourcePath_ = [path copy];
+
+    if (![self loadModuleInfo]) {
+      [self autorelease];
+      return nil;
+    }
+
+    // If there's more than one, use the native one
+    if ([headers_ count] > 1) {
+      const NXArchInfo *localArchInfo = NXGetLocalArchInfo();
+
+      if (localArchInfo) {
+        cpu_type_t cpu = localArchInfo->cputype;
+        NSString *arch;
+
+        if (cpu & CPU_ARCH_ABI64)
+          arch = ((cpu & ~CPU_ARCH_ABI64) == CPU_TYPE_X86) ?
+            @"x86_64" : @"ppc64";
+        else
+          arch = (cpu == CPU_TYPE_X86) ? @"x86" : @"ppc";
+
+        [self setArchitecture:arch];
+      }
+    } else {
+      // Specify the default architecture
+      [self setArchitecture:[[headers_ allKeys] objectAtIndex:0]];
+    }
+  }
+
+  return self;
+}
+
+//=============================================================================
+- (NSArray *)availableArchitectures {
+  return [headers_ allKeys];
+}
+
+//=============================================================================
+- (void)dealloc {
+  [sourcePath_ release];
+  [architecture_ release];
+  [addresses_ release];
+  [functionAddresses_ release];
+  [sources_ release];
+  [headers_ release];
+  
+  [super dealloc];
+}
+
+//=============================================================================
+- (BOOL)setArchitecture:(NSString *)architecture {
+  NSString *normalized = [architecture lowercaseString];
+  BOOL isValid = NO;
+
+  if ([normalized isEqualToString:@"ppc"]) {
+    isValid = YES;
+  }
+  else if ([normalized isEqualToString:@"i386"]) {
+    normalized = @"x86";
+    isValid = YES;
+  }
+  else if ([normalized isEqualToString:@"x86"]) {
+    isValid = YES;
+  }
+  else if ([normalized isEqualToString:@"ppc64"]) {
+    isValid = YES;
+  }
+  else if ([normalized isEqualToString:@"x86_64"]) {
+    isValid = YES;
+  }
+
+  if (isValid) {
+    if (![headers_ objectForKey:normalized])
+      return NO;
+
+    [architecture_ autorelease];
+    architecture_ = [architecture copy];
+  }
+
+  return isValid;
+}
+
+//=============================================================================
+- (NSString *)architecture {
+  return architecture_;
+}
+
+//=============================================================================
+- (BOOL)writeSymbolFile:(NSString *)destinationPath {
+  const char *dest = [destinationPath fileSystemRepresentation];
+  int fd;
+
+  if ([[destinationPath substringToIndex:1] isEqualToString:@"-"])
+    fd = STDOUT_FILENO;
+  else
+    fd = open(dest, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+
+  if (fd == -1)
+    return NO;
+
+  BOOL result = [self outputSymbolFile:fd];
+
+  close(fd);
+
+  return result;
+}
+
+@end

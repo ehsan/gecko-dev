@@ -33,8 +33,9 @@ following:
 
   set BUILD_OPT=1
   set MOZ_DEBUG=
+  set MOZ_PROFILE=
 
-That is, MOZ_DEBUG should be unset.
+That is, MOZ_DEBUG and MOZ_PROFILE should be unset.
 
 5. To collect data and build the dynamic footprint graph, type the
 following command from the mozilla/tools/footprint directory:

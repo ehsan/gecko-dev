@@ -57,8 +57,7 @@ public:
                                  PRUnichar * aDest, PRInt32 * aDestLength,
                                  uScanClassID aScanClass,
                                  uShiftInTable * aShiftInTable,
-                                 uMappingTable  * aMappingTable,
-                                 PRBool aErrorSignal = PR_FALSE);
+                                 uMappingTable  * aMappingTable);
 
   /**
    * Converts data using a set of lookup tables.
@@ -66,14 +65,14 @@ public:
   static nsresult ConvertByMultiTable(const char * aSrc, PRInt32 * aSrcLength,
       PRUnichar * aDest, PRInt32 * aDestLength, PRInt32 aTableCount, 
       const uRange * aRangeArray, uScanClassID * aScanClassArray,
-      uMappingTable ** aMappingTable, PRBool aErrorSignal = PR_FALSE);
+      uMappingTable ** aMappingTable);
 
   /**
    * Converts data using a fast lookup table.
    */
   static nsresult ConvertByFastTable(const char * aSrc, PRInt32 * aSrcLength, 
       PRUnichar * aDest, PRInt32 * aDestLength, const PRUnichar * aFastTable, 
-      PRInt32 aTableSize, PRBool aErrorSignal);
+      PRInt32 aTableSize);
 
   /**
    * Create a cache-like fast lookup table from a normal one.

@@ -110,8 +110,7 @@ NSPR_API(PRInt32)	PR_AtomicAdd(PRInt32 *ptr, PRInt32 val);
 **    the macros and functions won't be compatible and can't be used
 **    interchangeably.
 */
-#if defined(_WIN32) && !defined(_WIN32_WCE) && \
-    defined(_MSC_VER) && (_MSC_VER >= 1310)
+#if defined(_WIN32) && (_MSC_VER >= 1310)
 
 long __cdecl _InterlockedIncrement(long volatile *Addend);
 #pragma intrinsic(_InterlockedIncrement)
@@ -125,20 +124,16 @@ long __cdecl _InterlockedExchange(long volatile *Target, long Value);
 long __cdecl _InterlockedExchangeAdd(long volatile *Addend, long Value);
 #pragma intrinsic(_InterlockedExchangeAdd)
 
-#define PR_ATOMIC_INCREMENT(val) _InterlockedIncrement((long volatile *)(val))
-#define PR_ATOMIC_DECREMENT(val) _InterlockedDecrement((long volatile *)(val))
-#define PR_ATOMIC_SET(val, newval) \
-        _InterlockedExchange((long volatile *)(val), (long)(newval))
-#define PR_ATOMIC_ADD(ptr, val) \
-        (_InterlockedExchangeAdd((long volatile *)(ptr), (long)(val)) + (val))
+#define PR_ATOMIC_INCREMENT(val) _InterlockedIncrement(val)
+#define PR_ATOMIC_DECREMENT(val) _InterlockedDecrement(val)
+#define PR_ATOMIC_SET(val, newval) _InterlockedExchange(val, newval)
+#define PR_ATOMIC_ADD(ptr, val) (_InterlockedExchangeAdd(ptr, val) + (val))
 
 #elif ((__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 1)) && \
       ((defined(DARWIN) && \
-           (defined(__ppc__) || defined(__i386__) || defined(__x86_64__))) || \
+           (defined(__ppc__) || defined(__i386__))) || \
        (defined(LINUX) && \
-           ((defined(__i386__) && \
-           defined(__GCC_HAVE_SYNC_COMPARE_AND_SWAP_4)) || \
-           defined(__ia64__) || defined(__x86_64__) || \
+           (defined(__i386__) || defined(__ia64__) || defined(__x86_64__) || \
            (defined(__powerpc__) && !defined(__powerpc64__)) || \
            defined(__alpha))))
 

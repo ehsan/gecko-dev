@@ -58,7 +58,7 @@ nsScriptElement::ScriptAvailable(nsresult aResult,
     nsCOMPtr<nsIContent> cont =
       do_QueryInterface((nsIScriptElement*) this);
 
-    nsRefPtr<nsPresContext> presContext =
+    nsCOMPtr<nsPresContext> presContext =
       nsContentUtils::GetContextForContent(cont);
 
     nsEventStatus status = nsEventStatus_eIgnore;
@@ -91,7 +91,7 @@ nsScriptElement::ScriptEvaluated(nsresult aResult,
     nsCOMPtr<nsIContent> cont =
       do_QueryInterface((nsIScriptElement*) this);
 
-    nsRefPtr<nsPresContext> presContext =
+    nsCOMPtr<nsPresContext> presContext =
       nsContentUtils::GetContextForContent(cont);
 
     nsEventStatus status = nsEventStatus_eIgnore;
@@ -121,7 +121,8 @@ nsScriptElement::AttributeChanged(nsIDocument* aDocument,
                                   nsIContent* aContent,
                                   PRInt32 aNameSpaceID,
                                   nsIAtom* aAttribute,
-                                  PRInt32 aModType)
+                                  PRInt32 aModType,
+                                  PRUint32 aStateMask)
 {
   MaybeProcessScript();
 }
@@ -129,7 +130,6 @@ nsScriptElement::AttributeChanged(nsIDocument* aDocument,
 void
 nsScriptElement::ContentAppended(nsIDocument* aDocument,
                                  nsIContent* aContainer,
-                                 nsIContent* aFirstNewContent,
                                  PRInt32 aNewIndexInContainer)
 {
   MaybeProcessScript();
@@ -145,23 +145,23 @@ nsScriptElement::ContentInserted(nsIDocument *aDocument,
 }
 
 static PRBool
-InNonScriptingContainer(nsIContent* aNode)
+InNonScriptingContainer(nsINode* aNode)
 {
-  aNode = aNode->GetParent();
+  aNode = aNode->GetNodeParent();
   while (aNode) {
     // XXX noframes and noembed are currently unconditionally not
     // displayed and processed. This might change if we support either
     // prefs or per-document container settings for not allowing
     // frames or plugins.
-    if (aNode->IsHTML()) {
-      nsIAtom *localName = aNode->Tag();
+    if (aNode->IsNodeOfType(nsINode::eHTML)) {
+      nsIAtom *localName = static_cast<nsIContent*>(aNode)->Tag();
       if (localName == nsGkAtoms::iframe ||
           localName == nsGkAtoms::noframes ||
           localName == nsGkAtoms::noembed) {
         return PR_TRUE;
       }
     }
-    aNode = aNode->GetParent();
+    aNode = aNode->GetNodeParent();
   }
 
   return PR_FALSE;
@@ -177,15 +177,8 @@ nsScriptElement::MaybeProcessScript()
                "You forgot to add self as observer");
 
   if (mIsEvaluated || !mDoneAddingChildren || !cont->IsInDoc() ||
-      mMalformed || !HasScriptContent()) {
-    return NS_OK;
-  }
-
-  FreezeUriAsyncDefer();
-
-  if (InNonScriptingContainer(cont)) {
-    // Make sure to flag ourselves as evaluated
-    mIsEvaluated = PR_TRUE;
+      mMalformed || InNonScriptingContainer(cont) ||
+      !HasScriptContent()) {
     return NS_OK;
   }
 

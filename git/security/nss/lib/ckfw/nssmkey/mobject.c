@@ -36,7 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 #ifdef DEBUG
-static const char CVS_ID[] = "@(#) $RCSfile: mobject.c,v $ $Revision: 1.5 $ $Date: 2010/04/25 23:37:40 $";
+static const char CVS_ID[] = "@(#) $RCSfile: mobject.c,v $ $Revision: 1.3 $ $Date: 2007/10/12 01:44:42 $";
 #endif /* DEBUG */
 
 #include "ckmk.h"
@@ -132,7 +132,7 @@ static const NSSItem ckmk_trueItem = {
 static const NSSItem ckmk_falseItem = { 
   (void *)&ck_false, (PRUint32)sizeof(CK_BBOOL) };
 static const NSSItem ckmk_x509Item = { 
-  (void *)&ckc_x509, (PRUint32)sizeof(CK_CERTIFICATE_TYPE) };
+  (void *)&ckc_x509, (PRUint32)sizeof(CKC_X_509) };
 static const NSSItem ckmk_rsaItem = { 
   (void *)&ckk_rsa, (PRUint32)sizeof(CK_KEY_TYPE) };
 static const NSSItem ckmk_certClassItem = { 
@@ -852,7 +852,7 @@ ckmk_FetchPrivKeyAttribute
   case CKA_PUBLIC_EXPONENT:
     return &ckmk_emptyItem;
 #ifdef notdef
-  /* the following are sensitive attributes. We could implement them for 
+  /* the following are sensitive attributes. We could implment them for 
    * sensitive keys using the key export function, but it's better to
    * just support wrap through this token. That will more reliably allow us
    * to export any private key that is truly exportable.

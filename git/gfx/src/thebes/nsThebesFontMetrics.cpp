@@ -44,7 +44,6 @@
 
 #include "gfxTextRunCache.h"
 #include "gfxPlatform.h"
-#include "gfxUserFontSet.h"
 
 NS_IMPL_ISUPPORTS1(nsThebesFontMetrics, nsIFontMetrics)
 
@@ -58,19 +57,16 @@ nsThebesFontMetrics::nsThebesFontMetrics()
 
 nsThebesFontMetrics::~nsThebesFontMetrics()
 {
-    if (mDeviceContext)
-        mDeviceContext->FontMetricsDeleted(this);
     delete mFontStyle;
     //delete mFontGroup;
 }
 
 NS_IMETHODIMP
-nsThebesFontMetrics::Init(const nsFont& aFont, nsIAtom* aLanguage,
-                          nsIDeviceContext *aContext, 
-                          gfxUserFontSet *aUserFontSet)
+nsThebesFontMetrics::Init(const nsFont& aFont, nsIAtom* aLangGroup,
+                          nsIDeviceContext *aContext)
 {
     mFont = aFont;
-    mLanguage = aLanguage;
+    mLangGroup = aLangGroup;
     mDeviceContext = (nsThebesDeviceContext*)aContext;
     mP2A = mDeviceContext->AppUnitsPerDevPixel();
     mIsRightToLeft = PR_FALSE;
@@ -78,20 +74,19 @@ nsThebesFontMetrics::Init(const nsFont& aFont, nsIAtom* aLanguage,
 
     gfxFloat size = gfxFloat(aFont.size) / mP2A;
 
-    PRBool printerFont = mDeviceContext->IsPrinterSurface();
-    mFontStyle = new gfxFontStyle(aFont.style, aFont.weight, aFont.stretch,
-                                  size, aLanguage,
+    nsCString langGroup;
+    if (aLangGroup) {
+        const char* lg;
+        mLangGroup->GetUTF8String(&lg);
+        langGroup.Assign(lg);
+    }
+
+    mFontStyle = new gfxFontStyle(aFont.style, aFont.weight, size, langGroup,
                                   aFont.sizeAdjust, aFont.systemFont,
-                                  aFont.familyNameQuirks,
-                                  printerFont,
-                                  aFont.featureSettings,
-                                  aFont.languageOverride);
+                                  aFont.familyNameQuirks);
 
     mFontGroup =
-        gfxPlatform::GetPlatform()->CreateFontGroup(aFont.name, mFontStyle, 
-                                                    aUserFontSet);
-    if (mFontGroup->FontListLength() < 1) 
-        return NS_ERROR_UNEXPECTED;
+        gfxPlatform::GetPlatform()->CreateFontGroup(aFont.name, mFontStyle);
 
     return NS_OK;
 }
@@ -99,7 +94,6 @@ nsThebesFontMetrics::Init(const nsFont& aFont, nsIAtom* aLanguage,
 NS_IMETHODIMP
 nsThebesFontMetrics::Destroy()
 {
-    mDeviceContext = nsnull;
     return NS_OK;
 }
 
@@ -242,10 +236,10 @@ nsThebesFontMetrics::GetMaxAdvance(nscoord &aAdvance)
 }
 
 NS_IMETHODIMP
-nsThebesFontMetrics::GetLanguage(nsIAtom** aLanguage)
+nsThebesFontMetrics::GetLangGroup(nsIAtom** aLangGroup)
 {
-    *aLanguage = mLanguage;
-    NS_IF_ADDREF(*aLanguage);
+    *aLangGroup = mLangGroup;
+    NS_IF_ADDREF(*aLangGroup);
     return NS_OK;
 }
 
@@ -436,10 +430,7 @@ GetTextRunBoundingMetrics(gfxTextRun *aTextRun, PRUint32 aStart, PRUint32 aLengt
 {
     StubPropertyProvider provider;
     gfxTextRun::Metrics theMetrics =
-        aTextRun->MeasureText(aStart, aLength, gfxFont::TIGHT_HINTED_OUTLINE_EXTENTS,
-                              aContext->ThebesContext(), &provider);
-        // note that TIGHT_HINTED_OUTLINE_EXTENTS can be expensive (on Windows)
-        // but this is only used for MathML positioning so it's not critical
+        aTextRun->MeasureText(aStart, aLength, PR_TRUE, aContext->ThebesContext(), &provider);
 
     aBoundingMetrics.leftBearing = NSToCoordFloor(theMetrics.mBoundingBox.X());
     aBoundingMetrics.rightBearing = NSToCoordCeil(theMetrics.mBoundingBox.XMost());
@@ -499,10 +490,4 @@ PRBool
 nsThebesFontMetrics::GetRightToLeftText()
 {
     return mIsRightToLeft;
-}
-
-/* virtual */ gfxUserFontSet*
-nsThebesFontMetrics::GetUserFontSet()
-{
-    return mFontGroup->GetUserFontSet();
 }

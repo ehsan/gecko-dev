@@ -58,7 +58,7 @@
 /**
  * A character set converter from Unicode to CP864.
  */
-nsresult
+NS_METHOD
 nsUnicodeToCP864Constructor(nsISupports *aOuter, REFNSIID aIID,
                             void **aResult);
 

@@ -36,7 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsICacheInfoChannel.idl"
+#include "nsISupports.idl"
 
 interface nsIFile;
 
@@ -51,7 +51,7 @@ interface nsIFile;
  *      is insufficient (e.g., HTTP form submission).
  */
 [scriptable, uuid(830D4BCB-3E46-4011-9BDA-51A5D1AF891F)]
-interface nsICachingChannel : nsICacheInfoChannel
+interface nsICachingChannel : nsISupports
 {
     /**
      * Set/get the cache token... uniquely identifies the data in the cache.
@@ -127,6 +127,13 @@ interface nsICachingChannel : nsICacheInfoChannel
      */
     readonly attribute nsIFile cacheFile;
 
+    /**
+     * TRUE if this channel's data is being loaded from the cache.  This value
+     * is undefined before the channel fires its OnStartRequest notification
+     * and after the channel fires its OnStopRequest notification.
+     */
+    boolean isFromCache();
+
     /**************************************************************************
      * Caching channel specific load flags:
      */
@@ -149,8 +156,6 @@ interface nsICachingChannel : nsICacheInfoChannel
     /**
      * This load flag causes the offline cache to be checked when fetching
      * a request.  It will be set automatically if the browser is offline.
-     *
-     * This flag will not be transferred through a redirect.
      */
     const unsigned long LOAD_CHECK_OFFLINE_CACHE = 1 << 27;
 

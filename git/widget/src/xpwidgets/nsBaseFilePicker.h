@@ -41,13 +41,9 @@
 #ifndef nsBaseFilePicker_h__
 #define nsBaseFilePicker_h__
 
-#include "nsISupports.h"
 #include "nsIFilePicker.h"
+#include "nsIWidget.h"
 #include "nsISimpleEnumerator.h"
-#include "nsArrayEnumerator.h"
-#include "nsCOMPtr.h"
-
-class nsIWidget;
 
 #define BASEFILEPICKER_HAS_DISPLAYDIRECTORY 1
 
@@ -75,6 +71,7 @@ protected:
   virtual void InitNative(nsIWidget *aParent, const nsAString& aTitle,
                           PRInt16 aMode) = 0;
 
+  nsIWidget *DOMWindowToWidget(nsIDOMWindow *dw);
 #ifdef BASEFILEPICKER_HAS_DISPLAYDIRECTORY 
   nsCOMPtr<nsILocalFile> mDisplayDirectory;
 #endif

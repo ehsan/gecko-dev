@@ -37,23 +37,16 @@
 
 #include "domstubs.idl"
 
-interface nsIDOMFileError;
-
-[scriptable, uuid(b10293e1-d531-4bdd-9b2b-4d8c1c9bc633)]
+[scriptable, uuid(4a17d83b-424f-43f3-8a7c-430f406921be)]
 interface nsIDOMFile : nsISupports
 {
-  //fileName and fileSize are now deprecated attributes
   readonly attribute DOMString fileName;
   readonly attribute unsigned long long fileSize;
 
-  readonly attribute DOMString name;
-  readonly attribute DOMString mozFullPath;
-  readonly attribute unsigned long long size;
-  readonly attribute DOMString type;
-
-  readonly attribute DOMString url;
-
-  DOMString getAsText(in DOMString encoding); // raises(FileException) on retrieval
-  DOMString getAsDataURL();             // raises(FileException) on retrieval
-  DOMString getAsBinary();              // raises(FileException) on retrieval
+  DOMString getAsText(in DOMString encoding);
+                                  // raises(FileException) on retrieval
+  DOMString getAsDataURL();
+                                  // raises(FileException) on retrieval
+  DOMString getAsBinary();
+                                  // raises(FileException) on retrieval
 };

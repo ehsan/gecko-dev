@@ -64,14 +64,13 @@
 #ifndef WINABLEAPI
 #include <winable.h>
 #endif
+#undef ERROR /// Otherwise we can't include nsIDOMNSEvent.h if we include this
 #ifdef MOZ_CRASHREPORTER
 #include "nsICrashReporter.h"
 #endif
 
 typedef LRESULT (STDAPICALLTYPE *LPFNNOTIFYWINEVENT)(DWORD event,HWND hwnd,LONG idObjectType,LONG idObject);
 typedef LRESULT (STDAPICALLTYPE *LPFNGETGUITHREADINFO)(DWORD idThread, GUITHREADINFO* pgui);
-
-class nsAccTextChangeEvent;
 
 class nsAccessNodeWrap :  public nsAccessNode,
                           public nsIWinAccessNode,
@@ -85,9 +84,9 @@ class nsAccessNodeWrap :  public nsAccessNode,
   public: // IServiceProvider
     STDMETHODIMP QueryService(REFGUID guidService, REFIID riid, void** ppv);
 
-public: // construction, destruction
-  nsAccessNodeWrap(nsIContent *aContent, nsIWeakReference *aShell);
-  virtual ~nsAccessNodeWrap();
+  public: // construction, destruction
+    nsAccessNodeWrap(nsIDOMNode *, nsIWeakReference* aShell);
+    virtual ~nsAccessNodeWrap();
 
     // IUnknown
     STDMETHODIMP QueryInterface(REFIID, void**);
@@ -159,35 +158,17 @@ public: // construction, destruction
 
     static int FilterA11yExceptions(unsigned int aCode, EXCEPTION_POINTERS *aExceptionInfo);
 
-    static PRBool IsOnlyMsaaCompatibleJawsPresent();
-
-    static void TurnOffNewTabSwitchingForJawsAndWE();
-
-    static void DoATSpecificProcessing();
-
-protected:
-
-  /**
-   * Return ISimpleDOMNode instance for existing accessible object or
-   * creates new nsAccessNode instance if the accessible doesn't exist.
-   *
-   * @note ISimpleDOMNode is returned addrefed
-   */
-  ISimpleDOMNode *MakeAccessNode(nsINode *aNode);
+  protected:
+    void GetAccessibleFor(nsIDOMNode *node, nsIAccessible **newAcc);
+    ISimpleDOMNode* MakeAccessNode(nsIDOMNode *node);
 
     static PRBool gIsEnumVariantSupportDisabled;
-
-    /**
-     * Used to determine whether an IAccessible2 compatible screen reader is
-     * loaded. Currently used for JAWS versions older than 8.0.2173.
-     */
-     static PRBool gIsIA2Disabled;
 
     /**
      * It is used in nsHyperTextAccessibleWrap for IA2::newText/oldText
      * implementation.
      */
-    static nsAccTextChangeEvent *gTextEvent;
+    static nsIAccessibleTextChangeEvent *gTextEvent;
 };
 
 /**

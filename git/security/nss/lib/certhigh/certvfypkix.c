@@ -57,6 +57,7 @@
 #include "pkit.h"
 
 #include "pkix_pl_common.h"
+#include "pkix_pl_ekuchecker.h"
 
 extern PRLogModuleInfo *pkixLog;
 
@@ -83,6 +84,7 @@ extern SECStatus
 pkix_pl_lifecycle_ObjectTableUpdate(int *objCountTable);
 
 PRInt32 parallelFnInvocationCount;
+
 #endif /* PKIX_OBJECT_LEAK_TEST */
 
 
@@ -130,7 +132,6 @@ CERT_GetUsePKIXForValidation()
     return usePKIXValidationEngine;
 }
 
-#ifdef NOTDEF
 /*
  * FUNCTION: cert_NssKeyUsagesToPkix
  * DESCRIPTION:
@@ -205,7 +206,7 @@ cert_NssKeyUsagesToPkix(
     PKIX_RETURN(CERTVFYPKIX);
 }
 
-extern SECOidTag ekuOidStrings[];
+extern char* ekuOidStrings[];
 
 enum {
     ekuIndexSSLServer = 0,
@@ -338,13 +339,12 @@ cleanup:
     PKIX_RETURN(CERTVFYPKIX);
 }
 
-#endif
 
 /*
- * FUNCTION: cert_ProcessingParamsSetKeyAndCertUsage
+ * FUNCTION: cert_ProcessingParamsSetKuAndEku
  * DESCRIPTION:
  *
- * Converts cert usage to pkix KU type and sets
+ * Converts cert usage to pkix KU and EKU types and sets
  * converted data into PKIX_ProcessingParams object. It also sets
  * proper cert usage into nsscontext object.
  *
@@ -356,6 +356,8 @@ cleanup:
  *      validated for.
  *  "requiredKeyUsage"
  *      Request additional key usages the certificate should be validated for.
+ *  "isCA"
+ *      Should the cert be verifyed as CA cert for the usages.
  *  "plContext"
  *      Platform-specific context pointer.
  * THREAD SAFETY:
@@ -366,17 +368,21 @@ cleanup:
  *  Returns a Fatal Error if the function fails in an unrecoverable way.
  */
 static PKIX_Error*
-cert_ProcessingParamsSetKeyAndCertUsage(
+cert_ProcessingParamsSetKuAndEku(
     PKIX_ProcessingParams *procParams,
+    CERTCertificate       *cert,
+    PRBool                 isCA,
     SECCertUsage           requiredCertUsage,
     PRUint32               requiredKeyUsages,
     void                  *plContext)
 {
+    PKIX_List             *extKeyUsage = NULL;
     PKIX_CertSelector     *certSelector = NULL;
     PKIX_ComCertSelParams *certSelParams = NULL;
     PKIX_PL_NssContext    *nssContext = (PKIX_PL_NssContext*)plContext;
+    PKIX_UInt32            keyUsage = 0;
  
-    PKIX_ENTER(CERTVFYPKIX, "cert_ProcessingParamsSetKeyAndCertUsage");
+    PKIX_ENTER(CERTVFYPKIX, "cert_ProcessingParamsSetKuAndEku");
     PKIX_NULLCHECK_TWO(procParams, nssContext);
     
     PKIX_CHECK(
@@ -384,24 +390,41 @@ cert_ProcessingParamsSetKeyAndCertUsage(
 	    ((SECCertificateUsage)1) << requiredCertUsage, nssContext),
 	    PKIX_NSSCONTEXTSETCERTUSAGEFAILED);
 
-    if (requiredKeyUsages) {
-        PKIX_CHECK(
-            PKIX_ProcessingParams_GetTargetCertConstraints(procParams,
-                                                           &certSelector, plContext),
-            PKIX_PROCESSINGPARAMSGETTARGETCERTCONSTRAINTSFAILED);
-        
-        PKIX_CHECK(
-            PKIX_CertSelector_GetCommonCertSelectorParams(certSelector,
-                                                          &certSelParams, plContext),
-            PKIX_CERTSELECTORGETCOMMONCERTSELECTORPARAMSFAILED);
-        
-        
-        PKIX_CHECK(
-            PKIX_ComCertSelParams_SetKeyUsage(certSelParams, requiredKeyUsages,
-                                              plContext),
-            PKIX_COMCERTSELPARAMSSETKEYUSAGEFAILED);
-    }
+    PKIX_CHECK(
+        cert_NssCertificateUsageToPkixKUAndEKU(cert, requiredCertUsage,
+                                               requiredKeyUsages, isCA, 
+                                               &extKeyUsage, &keyUsage,
+                                               plContext),
+        PKIX_CANNOTCONVERTCERTUSAGETOPKIXKEYANDEKUSAGES);
+
+    PKIX_CHECK(
+        PKIX_ProcessingParams_GetTargetCertConstraints(procParams,
+                                                       &certSelector, plContext),
+        PKIX_PROCESSINGPARAMSGETTARGETCERTCONSTRAINTSFAILED);
+
+    PKIX_CHECK(
+        PKIX_CertSelector_GetCommonCertSelectorParams(certSelector,
+                                                      &certSelParams, plContext),
+        PKIX_CERTSELECTORGETCOMMONCERTSELECTORPARAMSFAILED);
+    
+
+    PKIX_CHECK(
+        PKIX_ComCertSelParams_SetKeyUsage(certSelParams, keyUsage,
+                                          plContext),
+        PKIX_COMCERTSELPARAMSSETKEYUSAGEFAILED);
+
+    PKIX_CHECK(
+        PKIX_ComCertSelParams_SetExtendedKeyUsage(certSelParams,
+                                                  extKeyUsage,
+                                                  plContext),
+        PKIX_COMCERTSELPARAMSSETEXTKEYUSAGEFAILED);
+
+    PKIX_CHECK(
+        PKIX_PL_EkuChecker_Create(procParams, plContext),
+        PKIX_EKUCHECKERINITIALIZEFAILED);
+
 cleanup:
+    PKIX_DECREF(extKeyUsage);
     PKIX_DECREF(certSelector);
     PKIX_DECREF(certSelParams);
 
@@ -457,7 +480,9 @@ cert_CreatePkixProcessingParams(
     PRTime                  time,
     void                   *wincx,
     PRBool                  useArena,
-    PRBool                  disableOCSPRemoteFetching,
+#ifdef DEBUG_volkov
+    PRBool                  checkAllCertsOCSP,
+#endif
     PKIX_ProcessingParams **pprocParams,
     void                  **pplContext)
 {
@@ -469,10 +494,10 @@ cert_CreatePkixProcessingParams(
     PKIX_ComCertSelParams *certSelParams = NULL;
     PKIX_CertStore        *certStore = NULL;
     PKIX_List             *certStores = NULL;
-    PKIX_RevocationChecker *revChecker = NULL;
-    PKIX_UInt32           methodFlags = 0;
+#ifdef DEBUG_volkov
+    PKIX_RevocationChecker *ocspChecker = NULL;
+#endif
     void                  *plContext = NULL;
-    CERTStatusConfig      *statusConfig = NULL;
     
     PKIX_ENTER(CERTVFYPKIX, "cert_CreatePkixProcessingParams");
     PKIX_NULLCHECK_TWO(cert, pprocParams);
@@ -523,14 +548,6 @@ cert_CreatePkixProcessingParams(
                                                        certSelector, plContext),
         PKIX_PROCESSINGPARAMSSETTARGETCERTCONSTRAINTSFAILED);
 
-    /* Turn off quialification of target cert since leaf cert is
-     * already check for date validity, key usages and extended
-     * key usages. */
-    PKIX_CHECK(
-        PKIX_ProcessingParams_SetQualifyTargetCert(procParams, PKIX_FALSE,
-                                                   plContext),
-        PKIX_PROCESSINGPARAMSSETQUALIFYTARGETCERTFLAGFAILED);
-
     PKIX_CHECK(
         PKIX_PL_Pk11CertStore_Create(&certStore, plContext),
         PKIX_PK11CERTSTORECREATEFAILED);
@@ -556,79 +573,28 @@ cert_CreatePkixProcessingParams(
     PKIX_CHECK(
         PKIX_ProcessingParams_SetDate(procParams, date, plContext),
         PKIX_PROCESSINGPARAMSSETDATEFAILED);
-
-    PKIX_CHECK(
-        PKIX_RevocationChecker_Create(
-                                  PKIX_REV_MI_TEST_ALL_LOCAL_INFORMATION_FIRST |
-                                  PKIX_REV_MI_NO_OVERALL_INFO_REQUIREMENT,
-                                  PKIX_REV_MI_TEST_ALL_LOCAL_INFORMATION_FIRST |
-                                  PKIX_REV_MI_NO_OVERALL_INFO_REQUIREMENT,
-                                  &revChecker, plContext),
-        PKIX_REVOCATIONCHECKERCREATEFAILED);
-
-    PKIX_CHECK(
-        PKIX_ProcessingParams_SetRevocationChecker(procParams, revChecker,
-                                                   plContext),
-        PKIX_PROCESSINGPARAMSSETREVOCATIONCHECKERFAILED);
-
-    /* CRL method flags */
-    methodFlags = 
-        PKIX_REV_M_TEST_USING_THIS_METHOD |
-        PKIX_REV_M_FORBID_NETWORK_FETCHING |
-        PKIX_REV_M_SKIP_TEST_ON_MISSING_SOURCE |   /* 0 */
-        PKIX_REV_M_IGNORE_MISSING_FRESH_INFO |     /* 0 */
-        PKIX_REV_M_CONTINUE_TESTING_ON_FRESH_INFO;
-
-    /* add CRL revocation method to check the leaf certificate */
-    PKIX_CHECK(
-        PKIX_RevocationChecker_CreateAndAddMethod(revChecker, procParams,
-                                         PKIX_RevocationMethod_CRL, methodFlags,
-                                         0, NULL, PKIX_TRUE, plContext),
-        PKIX_REVOCATIONCHECKERADDMETHODFAILED);
-
-    /* add CRL revocation method for other certs in the chain. */
-    PKIX_CHECK(
-        PKIX_RevocationChecker_CreateAndAddMethod(revChecker, procParams,
-                                         PKIX_RevocationMethod_CRL, methodFlags,
-                                         0, NULL, PKIX_FALSE, plContext),
-        PKIX_REVOCATIONCHECKERADDMETHODFAILED);
     
-    /* For compatibility with the old code, need to check that
-     * statusConfig is set in the db handle and status checker
-     * is defined befor allow ocsp status check on the leaf cert.*/
-    statusConfig = CERT_GetStatusConfig(CERT_GetDefaultCertDB());
-    if (statusConfig != NULL && statusConfig->statusChecker != NULL) {
+    PKIX_CHECK(
+        PKIX_ProcessingParams_SetNISTRevocationPolicyEnabled(procParams,
+                                                             PKIX_FALSE,
+                                                             plContext),
+        PKIX_PROCESSINGPARAMSSETNISTREVOCATIONENABLEDFAILED);
 
-        /* Enable OCSP revocation checking for the leaf cert. */
-        /* OCSP method flags */
-        methodFlags =
-            PKIX_REV_M_TEST_USING_THIS_METHOD |
-            PKIX_REV_M_ALLOW_NETWORK_FETCHING |         /* 0 */
-            PKIX_REV_M_ALLOW_IMPLICIT_DEFAULT_SOURCE |  /* 0 */
-            PKIX_REV_M_SKIP_TEST_ON_MISSING_SOURCE |    /* 0 */
-            PKIX_REV_M_IGNORE_MISSING_FRESH_INFO |      /* 0 */
-            PKIX_REV_M_CONTINUE_TESTING_ON_FRESH_INFO;
-        
-        /* Disabling ocsp fetching when checking the status
-         * of ocsp response signer. Here and in the next if,
-         * adjust flags for ocsp signer cert validation case. */
-        if (disableOCSPRemoteFetching) {
-            methodFlags |= PKIX_REV_M_FORBID_NETWORK_FETCHING;
-        }
-        
-        if (ocsp_FetchingFailureIsVerificationFailure()
-            && !disableOCSPRemoteFetching) {
-            methodFlags |=
-                PKIX_REV_M_FAIL_ON_MISSING_FRESH_INFO;
-        }
-        
-        /* add OCSP revocation method to check only the leaf certificate.*/
+#ifdef DEBUG_volkov1
+    /* Enables ocsp rev checking of the chain cert through pkix OCSP
+     * implementation. */
+    if (checkAllCertsOCSP) {
         PKIX_CHECK(
-            PKIX_RevocationChecker_CreateAndAddMethod(revChecker, procParams,
-                                     PKIX_RevocationMethod_OCSP, methodFlags,
-                                     1, NULL, PKIX_TRUE, plContext),
-            PKIX_REVOCATIONCHECKERADDMETHODFAILED);
+            PKIX_OcspChecker_Initialize(date, NULL, NULL, 
+                                        &ocspChecker, plContext),
+            PKIX_PROCESSINGPARAMSSETDATEFAILED);
+        
+        PKIX_CHECK(
+            PKIX_ProcessingParams_AddRevocationChecker(procParams,
+                                                       ocspChecker, plContext),
+            PKIX_PROCESSINGPARAMSSETDATEFAILED);
     }
+#endif
 
     PKIX_CHECK(
         PKIX_ProcessingParams_SetAnyPolicyInhibited(procParams, PR_FALSE,
@@ -657,7 +623,9 @@ cleanup:
     PKIX_DECREF(certStore);
     PKIX_DECREF(certStores);
     PKIX_DECREF(procParams);
-    PKIX_DECREF(revChecker);
+#ifdef DEBUG_volkov    
+    PKIX_DECREF(ocspChecker);
+#endif
 
     PKIX_RETURN(CERTVFYPKIX);
 }
@@ -878,13 +846,8 @@ cert_PkixErrorToNssCode(
             if (!pkixLog) break;
         }
         if (pkixLog) {
-#ifdef PKIX_ERROR_DESCRIPTION            
-            PR_LOG(pkixLog, 2, ("Error at level %d: %s\n", errLevel,
+            PR_LOG(pkixLog, 1, ("Error at level %d: %s\n", errLevel,
                                 PKIX_ErrorText[errPtr->errCode]));
-#else
-            PR_LOG(pkixLog, 2, ("Error at level %d: Error code %d\n", errLevel,
-                                errPtr->errCode));
-#endif /* PKIX_ERROR_DESCRIPTION */
         }
         errPtr = errPtr->cause;
         errLevel += 1; 
@@ -1057,6 +1020,9 @@ cert_GetBuildResults(
         fprintf(stderr, "BUILD ERROR:\n%s\n", temp);
         PKIX_PL_Free(temp, NULL);
 #endif /* DEBUG */
+        cert_PkixErrorToNssCode(error, &nssErrorCode, plContext);
+        PORT_SetError(nssErrorCode);
+        
         if (verifyNode) {
             PKIX_Error *tmpError =
                 cert_GetLogFromVerifyNode(log, verifyNode, plContext);
@@ -1064,8 +1030,6 @@ cert_GetBuildResults(
                 PKIX_PL_Object_DecRef((PKIX_PL_Object *)tmpError, plContext);
             }
         }
-        cert_PkixErrorToNssCode(error, &nssErrorCode, plContext);
-        PORT_SetError(nssErrorCode);
         goto cleanup;
     }
 
@@ -1183,7 +1147,7 @@ cert_VerifyCertChainPkix(
     CERTCertificate *cert,
     PRBool           checkSig,
     SECCertUsage     requiredUsage,
-    PRTime           time,
+    PRUint64         time,
     void            *wincx,
     CERTVerifyLog   *log,
     PRBool          *pSigerror,
@@ -1206,16 +1170,7 @@ cert_VerifyCertChainPkix(
     int  memLeakLoopCount = 0;
     int  objCountTable[PKIX_NUMTYPES]; 
     int  fnInvLocalCount = 0;
-    PKIX_Boolean savedUsePkixEngFlag = usePKIXValidationEngine;
 
-    if (usePKIXValidationEngine) {
-        /* current memory leak testing implementation does not allow
-         * to run simultaneous tests one the same or a different threads.
-         * Setting the variable to false, to make additional chain
-         * validations be handled by old nss. */
-        usePKIXValidationEngine = PR_FALSE;
-    }
-    testStartFnStackPosition = 2;
     fnStackNameArr[0] = "cert_VerifyCertChainPkix";
     fnStackInvCountArr[0] = 0;
     PKIX_Boolean abortOnLeak = 
@@ -1224,7 +1179,7 @@ cert_VerifyCertChainPkix(
     runningLeakTest = PKIX_TRUE;
 
     /* Prevent multi-threaded run of object leak test */
-    fnInvLocalCount = PR_ATOMIC_INCREMENT(&parallelFnInvocationCount);
+    fnInvLocalCount = PR_AtomicIncrement(&parallelFnInvocationCount);
     PORT_Assert(fnInvLocalCount == 1);
 
 do {
@@ -1244,21 +1199,28 @@ do {
     if (leakedObjNum) {
         pkix_pl_lifecycle_ObjectTableUpdate(objCountTable); 
     }
-    memLeakLoopCount += 1;
+
+    PR_LOG(pkixLog, 1, ("Memory leak test: Loop %d\n", memLeakLoopCount));
 #endif /* PKIX_OBJECT_LEAK_TEST */
 
     error =
         cert_CreatePkixProcessingParams(cert, checkSig, time, wincx,
-                                    PR_FALSE/*use arena*/,
-                                    requiredUsage == certUsageStatusResponder,
-                                    &procParams, &plContext);
+                                        PR_FALSE/*use arena*/,
+#ifdef DEBUG_volkov
+                                        /* If in DEBUG_volkov, then enable OCSP
+                                         * check for all certs in the chain
+                                         * using libpkix ocsp code.
+                                         * (except for certUsageStatusResponder). */
+                                        requiredUsage != certUsageStatusResponder,
+#endif
+                                        &procParams, &plContext);
     if (error) {
         goto cleanup;
     }
 
     error =
-        cert_ProcessingParamsSetKeyAndCertUsage(procParams, requiredUsage, 0,
-                                                plContext);
+        cert_ProcessingParamsSetKuAndEku(procParams, cert, PR_TRUE,
+                                         requiredUsage, 0, plContext);
     if (error) {
         goto cleanup;
     }
@@ -1314,12 +1276,6 @@ cleanup:
     leakedObjNum =
         pkix_pl_lifecycle_ObjectLeakCheck(leakedObjNum ? objCountTable : NULL);
     
-    if (pkixLog && leakedObjNum) {
-        PR_LOG(pkixLog, 1, ("The generated error caused an object leaks. Loop %d."
-                            "Stack %s\n", memLeakLoopCount, errorFnStackString));
-    }
-    PR_Free(errorFnStackString);
-    errorFnStackString = NULL;
     if (abortOnLeak) {
         PORT_Assert(leakedObjNum == 0);
     }
@@ -1327,8 +1283,7 @@ cleanup:
 } while (errorGenerated);
 
     runningLeakTest = PKIX_FALSE; 
-    PR_ATOMIC_DECREMENT(&parallelFnInvocationCount);
-    usePKIXValidationEngine = savedUsePkixEngFlag;
+    PR_AtomicDecrement(&parallelFnInvocationCount);
 #endif /* PKIX_OBJECT_LEAK_TEST */
 
     return rv;
@@ -1423,6 +1378,39 @@ cleanup:
     return r;
 }
 
+/* XXX
+ *  There is no NSS SECItem -> PKIX OID
+ *  conversion function. For now, I go via the ascii
+ *  representation 
+ *  this should be in PKIX_PL_*
+ */
+
+PKIX_PL_OID *
+CERT_PKIXOIDFromNSSOid(SECOidTag tag, void*plContext)
+{
+    char *oidstring = NULL;
+    char *oidstring_adj = NULL;
+    PKIX_PL_OID *policyOID = NULL;
+    SECOidData *data;
+
+    data =  SECOID_FindOIDByTag(tag);
+    if (data != NULL) {
+        oidstring = CERT_GetOidString(&data->oid);
+        if (oidstring == NULL) {
+            goto cleanup;
+        }
+        oidstring_adj = oidstring;
+        if (PORT_Strncmp("OID.",oidstring_adj,4) == 0) {
+            oidstring_adj += 4;
+        }
+
+        PKIX_PL_OID_Create(oidstring_adj, &policyOID, plContext);
+    }
+cleanup:
+    if (oidstring != NULL) PR_smprintf_free(oidstring);
+
+    return policyOID;
+}
 
 struct fake_PKIX_PL_CertStruct {
         CERTCertificate *nssCert;
@@ -1455,8 +1443,8 @@ PKIX_List *cert_PKIXMakeOIDList(const SECOidTag *oids, int oidCount, void *plCon
     }
 
     for (i=0; i<oidCount; i++) {
-        error = PKIX_PL_OID_Create(oids[i], &policyOID, plContext);
-        if (error) {
+        policyOID = CERT_PKIXOIDFromNSSOid(oids[i],plContext);
+        if (policyOID == NULL) {
             goto cleanup;
         }
         error = PKIX_List_AppendItem(policyList, 
@@ -1502,46 +1490,6 @@ cert_pkix_FindOutputParam(CERTValOutParam *params, const CERTValParamOutType t)
     return NULL;
 }
 
-
-static PKIX_Error*
-setRevocationMethod(PKIX_RevocationChecker *revChecker,
-                    PKIX_ProcessingParams *procParams,
-                    const CERTRevocationTests *revTest,
-                    CERTRevocationMethodIndex certRevMethod,
-                    PKIX_RevocationMethodType pkixRevMethod,
-                    PKIX_Boolean verifyResponderUsages,
-                    PKIX_Boolean isLeafTest,
-                    void *plContext)
-{
-    PKIX_UInt32 methodFlags = 0;
-    PKIX_Error *error = NULL;
-    int priority = 0;
-    
-    if (revTest->number_of_defined_methods <= certRevMethod) {
-        return NULL;
-    }
-    if (revTest->preferred_methods) {
-        int i = 0;
-        for (;i < revTest->number_of_preferred_methods;i++) {
-            if (revTest->preferred_methods[i] == certRevMethod) 
-                break;
-        }
-        priority = i;
-    }
-    methodFlags = revTest->cert_rev_flags_per_method[certRevMethod];
-    if (verifyResponderUsages &&
-        pkixRevMethod == PKIX_RevocationMethod_OCSP) {
-        methodFlags |= PKIX_REV_M_FORBID_NETWORK_FETCHING;
-    }
-    error =
-        PKIX_RevocationChecker_CreateAndAddMethod(revChecker, procParams,
-                                         pkixRevMethod, methodFlags,
-                                         priority, NULL,
-                                         isLeafTest, plContext);
-    return error;
-}
-
-
 SECStatus
 cert_pkixSetParam(PKIX_ProcessingParams *procParams, 
   const CERTValInParam *param, void *plContext)
@@ -1550,6 +1498,7 @@ cert_pkixSetParam(PKIX_ProcessingParams *procParams,
     SECStatus r=SECSuccess;
     PKIX_PL_Date *date = NULL;
     PKIX_List *policyOIDList = NULL;
+    PKIX_RevocationChecker *ocspChecker = NULL;
     PKIX_List *certListPkix = NULL;
     const CERTRevocationFlags *flags;
     SECErrorCodes errCode = SEC_ERROR_INVALID_ARGS;
@@ -1557,8 +1506,6 @@ cert_pkixSetParam(PKIX_ProcessingParams *procParams,
     CERTCertListNode *node;
     PKIX_PL_Cert *certPkix = NULL;
     PKIX_TrustAnchor *trustAnchor = NULL;
-    PKIX_PL_Date *revDate = NULL;
-    PKIX_RevocationChecker *revChecker = NULL;
 
     /* XXX we need a way to map generic PKIX error to generic NSS errors */
 
@@ -1610,9 +1557,11 @@ cert_pkixSetParam(PKIX_ProcessingParams *procParams,
 
         case cert_pi_revocationFlags:
         {
-            PKIX_UInt32 leafIMFlags = 0;
-            PKIX_UInt32 chainIMFlags = 0;
-            PKIX_Boolean validatingResponderCert = PKIX_FALSE;
+            PRBool ocspTurnedOnForLeaf = PR_FALSE;
+            PRBool ocspTurnedOnForChain = PR_FALSE;
+            PRBool crlTurnedOnForLeaf = PR_FALSE;
+            PRBool crlTurnedOnForChain = PR_FALSE;
+            PRBool crlHardFailure = PR_FALSE;
 
             flags = param->value.pointer.revocation;
             if (!flags) {
@@ -1621,80 +1570,144 @@ cert_pkixSetParam(PKIX_ProcessingParams *procParams,
                 break;
             }
 
-            leafIMFlags = 
-                flags->leafTests.cert_rev_method_independent_flags;
-            chainIMFlags =
-                flags->chainTests.cert_rev_method_independent_flags;
+            if (
+                /* caller did define OCSP leaf behavior */
+                (flags->leafTests.number_of_defined_methods >
+                    cert_revocation_method_ocsp)
+                &&
+                /* caller allows OCSP testing for the leaf */
+                (flags->leafTests.cert_rev_flags_per_method
+                    [cert_revocation_method_ocsp]
+                    & CERT_REV_M_TEST_USING_THIS_METHOD)) {
+                ocspTurnedOnForLeaf = PR_TRUE;
+            }
 
-            error =
-                PKIX_RevocationChecker_Create(leafIMFlags, chainIMFlags,
-                                              &revChecker, plContext);
-            if (error) {
+            if (
+                /* caller did define OCSP chain behavior */
+                (flags->chainTests.number_of_defined_methods >
+                    cert_revocation_method_ocsp)
+                &&
+                /* caller allows OCSP testing for the chain */
+                (flags->chainTests.cert_rev_flags_per_method
+                    [cert_revocation_method_ocsp]
+                    & CERT_REV_M_TEST_USING_THIS_METHOD)) {
+                ocspTurnedOnForChain = PR_TRUE;
+            }
+
+            if (
+                /* caller did define CRL leaf behavior */
+                (flags->leafTests.number_of_defined_methods >
+                    cert_revocation_method_crl)
+                &&
+                /* caller allows CRL testing for the chain */
+                (flags->leafTests.cert_rev_flags_per_method
+                    [cert_revocation_method_crl]
+                    & CERT_REV_M_TEST_USING_THIS_METHOD)) {
+                crlTurnedOnForLeaf = PR_TRUE;
+            }
+
+            if (
+                /* caller did define CRL chain behavior */
+                (flags->chainTests.number_of_defined_methods >
+                    cert_revocation_method_crl)
+                &&
+                /* caller allows CRL testing for the chain */
+                (flags->chainTests.cert_rev_flags_per_method
+                    [cert_revocation_method_crl]
+                    & CERT_REV_M_TEST_USING_THIS_METHOD)) {
+                crlTurnedOnForChain = PR_TRUE;
+            }
+
+            if (
+                /* caller did define CRL chain behavior */
+                (flags->chainTests.number_of_defined_methods >
+                    cert_revocation_method_crl)
+                &&
+                /* caller requests hard failure on missing (fresh) CRL */
+                (flags->chainTests.cert_rev_flags_per_method
+                    [cert_revocation_method_crl]
+                    & CERT_REV_M_FAIL_ON_MISSING_FRESH_INFO)) {
+                /* FIXME: should also consider flag
+                 *        CERT_REV_M_SKIP_TEST_ON_MISSING_SOURCE
+                 */
+                crlHardFailure = PR_TRUE;
+            }
+
+            if (!ocspTurnedOnForChain) {
+                /* OCSP off either because: 
+                 * 1) we didn't  turn ocsp on, or
+                 * 2) we are only checking ocsp on the leaf cert only.
+                 * The caller needs to handle the leaf case once we add leaf
+                 * checking there */
+
+                /* currently OCSP is the only external revocation checker */
+                error = PKIX_ProcessingParams_SetRevocationCheckers(procParams,
+                        NULL, plContext);
+            } else {
+                /* FIXME: What should be done if !ocspTurnedOnForLeaf ? */
+
+                /* OCSP is on for the whole chain */
+                if (date == NULL) {
+                    error = PKIX_ProcessingParams_GetDate
+                                        (procParams, &date, plContext );
+                    if (error != NULL) {
+                        errCode = SEC_ERROR_INVALID_TIME;
+                        break;
+                    }
+                }
+                error = PKIX_OcspChecker_Initialize(date, NULL, NULL, 
+                                &ocspChecker, plContext);
+                if (error != NULL) {
+                    break;
+                }
+
+                error = PKIX_ProcessingParams_AddRevocationChecker(procParams,
+                        ocspChecker, plContext);
+                PKIX_PL_Object_DecRef((PKIX_PL_Object *)ocspChecker, plContext);
+                ocspChecker=NULL;
+
+                /* FIXME: add support for other revocation flags when underlying
+                 * pkix supports it */
+            }
+            if (error != NULL) {
                 break;
             }
+            if (!crlTurnedOnForChain) {
+                /* CRL checking is off either because: 
+                 * 1) we didn't turn crl checking on, or
+                 * 2) we are only checking crls on the leaf cert only.
+                 * The caller needs to handle the leaf case once we add leaf
+                 * checking there */
 
-            error =
-                PKIX_ProcessingParams_SetRevocationChecker(procParams,
-                                                revChecker, plContext);
-            if (error) {
-                break;
+                /* this function only affects the built-in CRL checker */
+                error = PKIX_ProcessingParams_SetRevocationEnabled(procParams,
+                        PKIX_FALSE, plContext);
+                if (error != NULL) {
+                    break;
+                }
+                /* make sure NIST Revocation Policy is off as well */
+                error = PKIX_ProcessingParams_SetNISTRevocationPolicyEnabled
+                        (procParams, PKIX_FALSE, plContext);
+            } else {
+                /* FIXME: What should be done if !crlTurnedOnForLeaf ? */
+
+                /* CRL checking is on for the whole chain */
+                error = PKIX_ProcessingParams_SetRevocationEnabled(procParams,
+                        PKIX_TRUE, plContext);
+                if (error != NULL) {
+                    break;
+                }
+                error = PKIX_ProcessingParams_SetNISTRevocationPolicyEnabled
+                    (procParams, 
+                     crlHardFailure ? PKIX_TRUE : PKIX_FALSE,
+                     plContext);
             }
-
-            if (((PKIX_PL_NssContext*)plContext)->certificateUsage &
-                certificateUsageStatusResponder) {
-                validatingResponderCert = PKIX_TRUE;
-            }
-
-            error = setRevocationMethod(revChecker,
-                                        procParams, &flags->leafTests,
-                                        cert_revocation_method_crl,
-                                        PKIX_RevocationMethod_CRL,
-                                        validatingResponderCert,
-                                        PKIX_TRUE, plContext);
-            if (error) {
-                break;
-            }
-
-            error = setRevocationMethod(revChecker,
-                                        procParams, &flags->leafTests,
-                                        cert_revocation_method_ocsp,
-                                        PKIX_RevocationMethod_OCSP,
-                                        validatingResponderCert,
-                                        PKIX_TRUE, plContext);
-            if (error) {
-                break;
-            }
-
-            error = setRevocationMethod(revChecker,
-                                        procParams, &flags->chainTests,
-                                        cert_revocation_method_crl,
-                                        PKIX_RevocationMethod_CRL,
-                                        validatingResponderCert,
-                                        PKIX_FALSE, plContext);
-            if (error) {
-                break;
-            }
-
-            error = setRevocationMethod(revChecker,
-                                        procParams, &flags->chainTests,
-                                        cert_revocation_method_ocsp,
-                                        PKIX_RevocationMethod_OCSP,
-                                        validatingResponderCert,
-                                        PKIX_FALSE, plContext);
-            if (error) {
-                break;
-            }
-
         }
         break;
 
         case cert_pi_trustAnchors:
             certList = param->value.pointer.chain;
-            if (!certList) {
-                PORT_SetError(errCode);
-                r = SECFailure;
-                break;
-            }
+
             error = PKIX_List_Create(&certListPkix, plContext);
             if (error != NULL) {
                 break;
@@ -1726,17 +1739,9 @@ cert_pkixSetParam(PKIX_ProcessingParams *procParams,
                                                       plContext);
             break;
 
-        case cert_pi_useAIACertFetch:
-            error =
-                PKIX_ProcessingParams_SetUseAIAForCertFetching(procParams,
-                                     (PRBool)(param->value.scalar.b != 0),
-                                                               plContext);
-            break;
-            
         default:
             PORT_SetError(errCode);
             r = SECFailure;
-            break;
     }
 
     if (policyOIDList != NULL)
@@ -1745,11 +1750,8 @@ cert_pkixSetParam(PKIX_ProcessingParams *procParams,
     if (date != NULL) 
         PKIX_PL_Object_DecRef((PKIX_PL_Object *)date, plContext);
 
-    if (revDate != NULL) 
-        PKIX_PL_Object_DecRef((PKIX_PL_Object *)revDate, plContext);
-
-    if (revChecker != NULL) 
-        PKIX_PL_Object_DecRef((PKIX_PL_Object *)revChecker, plContext);
+    if (ocspChecker != NULL) 
+        PKIX_PL_Object_DecRef((PKIX_PL_Object *)ocspChecker, plContext);
 
     if (certListPkix) 
         PKIX_PL_Object_DecRef((PKIX_PL_Object *)certListPkix, plContext);
@@ -1792,10 +1794,6 @@ cert_pkixDestroyValOutParam(CERTValOutParam *params)
                 CERT_DestroyCertList(i->value.pointer.chain);
                 i->value.pointer.chain = NULL;
             }
-            break;
-
-        default:
-            break;
         }
     }
 }
@@ -2042,25 +2040,15 @@ SECStatus CERT_PKIXVerifyCert(
     int  memLeakLoopCount = 0;
     int  objCountTable[PKIX_NUMTYPES];
     int  fnInvLocalCount = 0;
-    PKIX_Boolean savedUsePkixEngFlag = usePKIXValidationEngine;
-
-    if (usePKIXValidationEngine) {
-        /* current memory leak testing implementation does not allow
-         * to run simultaneous tests one the same or a different threads.
-         * Setting the variable to false, to make additional chain
-         * validations be handled by old nss. */
-        usePKIXValidationEngine = PR_FALSE;
-    }
-    testStartFnStackPosition = 1;
     fnStackNameArr[0] = "CERT_PKIXVerifyCert";
     fnStackInvCountArr[0] = 0;
     PKIX_Boolean abortOnLeak = 
-        (PR_GetEnv("PKIX_OBJECT_LEAK_TEST_ABORT_ON_LEAK") == NULL) ?
+        PR_GetEnv("PKIX_OBJECT_LEAK_TEST_ABORT_ON_LEAK") ?
                                                    PKIX_FALSE : PKIX_TRUE;
     runningLeakTest = PKIX_TRUE;
 
     /* Prevent multi-threaded run of object leak test */
-    fnInvLocalCount = PR_ATOMIC_INCREMENT(&parallelFnInvocationCount);
+    fnInvLocalCount = PR_AtomicIncrement(&parallelFnInvocationCount);
     PORT_Assert(fnInvLocalCount == 1);
 
 do {
@@ -2073,10 +2061,8 @@ do {
     certSelector = NULL;
     certStores = NULL;
     valResult = NULL;
-    verifyNode = NULL;
     trustAnchor = NULL;
     trustAnchorCert = NULL;
-    builtCertList = NULL;
     oparam = NULL;
     i=0;
     errorGenerated = PKIX_FALSE;
@@ -2085,7 +2071,8 @@ do {
     if (leakedObjNum) {
         pkix_pl_lifecycle_ObjectTableUpdate(objCountTable);
     }
-    memLeakLoopCount += 1;
+
+    PR_LOG(pkixLog, 1, ("Memory leak test: Loop %d\n", memLeakLoopCount));
 #endif /* PKIX_OBJECT_LEAK_TEST */
 
     error = PKIX_PL_NssContext_Create(
@@ -2107,17 +2094,6 @@ do {
         goto cleanup;
     }
 
-    /* local cert store should be set into procParams before
-     * filling in revocation settings. */
-    certStores = cert_GetCertStores(plContext);
-    if (certStores == NULL) {
-        goto cleanup;
-    }
-    error = PKIX_ProcessingParams_SetCertStores
-        (procParams, certStores, plContext);
-    if (error != NULL) {
-        goto cleanup;
-    }
 
     /* now process the extensible input parameters structure */
     if (paramsIn != NULL) {
@@ -2136,12 +2112,23 @@ do {
         }
     }
 
+
     certSelector = cert_GetTargetCertConstraints(cert, plContext);
     if (certSelector == NULL) {
         goto cleanup;
     }
     error = PKIX_ProcessingParams_SetTargetCertConstraints
         (procParams, certSelector, plContext);
+    if (error != NULL) {
+        goto cleanup;
+    }
+
+    certStores = cert_GetCertStores(plContext);
+    if (certStores == NULL) {
+        goto cleanup;
+    }
+    error = PKIX_ProcessingParams_SetCertStores
+        (procParams, certStores, plContext);
     if (error != NULL) {
         goto cleanup;
     }
@@ -2171,12 +2158,6 @@ do {
         goto cleanup;
     }
 
-#ifdef PKIX_OBJECT_LEAK_TEST
-    /* Can not continue if error was generated but not returned.
-     * Jumping to cleanup. */
-    if (errorGenerated) goto cleanup;
-#endif /* PKIX_OBJECT_LEAK_TEST */
-
     oparam = cert_pkix_FindOutputParam(paramsOut, cert_po_trustAnchor);
     if (oparam != NULL) {
         oparam->value.pointer.cert = 
@@ -2203,9 +2184,6 @@ cleanup:
     if (verifyNode) {
         /* Return validation log only upon error. */
         oparam = cert_pkix_FindOutputParam(paramsOut, cert_po_errorLog);
-#ifdef PKIX_OBJECT_LEAK_TEST
-        if (!errorGenerated)
-#endif /* PKIX_OBJECT_LEAK_TEST */
         if (r && oparam != NULL) {
             PKIX_Error *tmpError =
                 cert_GetLogFromVerifyNode(oparam->value.pointer.log,
@@ -2256,12 +2234,6 @@ cleanup:
     leakedObjNum =
         pkix_pl_lifecycle_ObjectLeakCheck(leakedObjNum ? objCountTable : NULL);
 
-    if (pkixLog && leakedObjNum) {
-        PR_LOG(pkixLog, 1, ("The generated error caused an object leaks. Loop %d."
-                            "Stack %s\n", memLeakLoopCount, errorFnStackString));
-    }
-    PR_Free(errorFnStackString);
-    errorFnStackString = NULL;
     if (abortOnLeak) {
         PORT_Assert(leakedObjNum == 0);
     }
@@ -2269,9 +2241,9 @@ cleanup:
 } while (errorGenerated);
 
     runningLeakTest = PKIX_FALSE; 
-    PR_ATOMIC_DECREMENT(&parallelFnInvocationCount);
-    usePKIXValidationEngine = savedUsePkixEngFlag;
+    PR_AtomicDecrement(&parallelFnInvocationCount);
 #endif /* PKIX_OBJECT_LEAK_TEST */
 
     return r;
 }
+

@@ -43,24 +43,12 @@
 
 #include "nsIdleService.h"
 
-
-/* NOTE: Compare of GetTickCount() could overflow.  This corrects for
-* overflow situations.
-***/
-#ifndef SAFE_COMPARE_EVEN_WITH_WRAPPING
-#define SAFE_COMPARE_EVEN_WITH_WRAPPING(A, B) (((int)((long)A - (long)B) & 0xFFFFFFFF))
-#endif
-
-
 class nsIdleServiceWin : public nsIdleService
 {
 public:
     NS_DECL_ISUPPORTS
 
-    bool PollIdleTime(PRUint32* aIdleTime);
-
-protected:
-    bool UsePollMode();
+    NS_IMETHOD GetIdleTime(PRUint32* idleTime);
 };
 
 #endif // nsIdleServiceWin_h__

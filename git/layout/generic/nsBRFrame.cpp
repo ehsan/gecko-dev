@@ -50,6 +50,7 @@
 
 #ifdef ACCESSIBILITY
 #include "nsIServiceManager.h"
+#include "nsIAccessible.h"
 #include "nsIAccessibilityService.h"
 #endif
 
@@ -60,8 +61,6 @@
 
 class BRFrame : public nsFrame {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   friend nsIFrame* NS_NewBRFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   virtual ContentOffsets CalcContentOffsetsFromFramePoint(nsPoint aPoint);
@@ -89,8 +88,8 @@ public:
                                              nsIFrame::eLineParticipant));
   }
 
-#ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+#ifdef ACCESSIBILITY  
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
 
 protected:
@@ -103,8 +102,6 @@ NS_NewBRFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) BRFrame(aContext);
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(BRFrame)
 
 BRFrame::~BRFrame()
 {
@@ -145,15 +142,19 @@ BRFrame::Reflow(nsPresContext* aPresContext,
 
       // We also do this in strict mode because BR should act like a
       // normal inline frame.  That line-height is used is important
-      // here for cases where the line-height is less than 1.
+      // here for cases where the line-height is less that 1.
       nsLayoutUtils::SetFontFromStyle(aReflowState.rendContext, mStyleContext);
       nsCOMPtr<nsIFontMetrics> fm;
       aReflowState.rendContext->GetFontMetrics(*getter_AddRefs(fm));
       if (fm) {
-        nscoord logicalHeight = aReflowState.CalcLineHeight();
+        nscoord ascent, descent;
+        fm->GetMaxAscent(ascent);
+        fm->GetMaxDescent(descent);
+        nscoord logicalHeight =
+          aReflowState.CalcLineHeight(aReflowState.rendContext, this);
+        nscoord leading = logicalHeight - ascent - descent;
         aMetrics.height = logicalHeight;
-        aMetrics.ascent =
-          nsLayoutUtils::GetCenteredFontBaseline(fm, logicalHeight);
+        aMetrics.ascent = ascent + (leading/2);
       }
       else {
         aMetrics.ascent = aMetrics.height = 0;
@@ -268,23 +269,18 @@ BRFrame::PeekOffsetWord(PRBool aForward, PRBool aWordSelectEatSpace, PRBool aIsK
 }
 
 #ifdef ACCESSIBILITY
-already_AddRefed<nsAccessible>
-BRFrame::CreateAccessible()
+NS_IMETHODIMP BRFrame::GetAccessible(nsIAccessible** aAccessible)
 {
+  NS_ENSURE_TRUE(mContent, NS_ERROR_FAILURE);
   nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
-  if (!accService) {
-    return nsnull;
-  }
-  nsIContent *parent = mContent->GetParent();
-  if (parent &&
-      parent->IsRootOfNativeAnonymousSubtree() &&
-      parent->GetChildCount() == 1) {
+  NS_ENSURE_TRUE(accService, NS_ERROR_FAILURE);
+  nsCOMPtr<nsIContent> parent = mContent->GetBindingParent();
+  if (parent && parent->IsNativeAnonymous() && parent->GetChildCount() == 1) {
     // This <br> is the only node in a text control, therefore it is the hacky
     // "bogus node" used when there is no text in the control
-    return nsnull;
+    return NS_ERROR_FAILURE;
   }
-  return accService->CreateHTMLBRAccessible(mContent,
-                                            PresContext()->PresShell());
+  return accService->CreateHTMLBRAccessible(static_cast<nsIFrame*>(this), aAccessible);
 }
 #endif
 

@@ -39,6 +39,7 @@
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsIAtom.h"
 #include "nsRuleData.h"
 
@@ -46,7 +47,7 @@ class nsHTMLSpanElement : public nsGenericHTMLElement,
                           public nsIDOMHTMLElement
 {
 public:
-  nsHTMLSpanElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLSpanElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLSpanElement();
 
   // nsISupports
@@ -61,16 +62,17 @@ public:
   // nsIDOMHTMLElement
   NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
 
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
+  virtual nsresult GetInnerHTML(nsAString& aInnerHTML);
+  virtual nsresult SetInnerHTML(const nsAString& aInnerHTML);
 
-  virtual nsXPCClassInfo* GetClassInfo();
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 };
 
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Span)
 
 
-nsHTMLSpanElement::nsHTMLSpanElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLSpanElement::nsHTMLSpanElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -84,39 +86,53 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLSpanElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLSpanElement, nsGenericElement)
 
 
-DOMCI_NODE_DATA(HTMLSpanElement, nsHTMLSpanElement)
-
 // QueryInterface implementation for nsHTMLSpanElement
-NS_INTERFACE_TABLE_HEAD(nsHTMLSpanElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE0(nsHTMLSpanElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLSpanElement,
-                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLSpanElement, nsGenericHTMLElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLSpanElement)
 
 
 NS_IMPL_ELEMENT_CLONE(nsHTMLSpanElement)
 
 
+nsresult
+nsHTMLSpanElement::GetInnerHTML(nsAString& aInnerHTML)
+{
+  if (mNodeInfo->Equals(nsGkAtoms::xmp) ||
+      mNodeInfo->Equals(nsGkAtoms::plaintext)) {
+    nsContentUtils::GetNodeTextContent(this, PR_FALSE, aInnerHTML);
+    return NS_OK;
+  }
+
+  return nsGenericHTMLElement::GetInnerHTML(aInnerHTML);  
+}
+
+nsresult
+nsHTMLSpanElement::SetInnerHTML(const nsAString& aInnerHTML)
+{
+  if (mNodeInfo->Equals(nsGkAtoms::xmp) ||
+      mNodeInfo->Equals(nsGkAtoms::plaintext)) {
+    return nsContentUtils::SetNodeTextContent(this, aInnerHTML, PR_TRUE);
+  }
+
+  return nsGenericHTMLElement::SetInnerHTML(aInnerHTML);
+}
+
 // ------------------------------------------------------------------
 
 class nsHTMLUnknownElement : public nsHTMLSpanElement
 {
 public:
-  nsHTMLUnknownElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLUnknownElement(nsINodeInfo *aNodeInfo);
 
   NS_IMETHOD QueryInterface(REFNSIID aIID, void** aInstancePtr);
   nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-
-  virtual nsXPCClassInfo* GetClassInfo();
 };
 
-DOMCI_NODE_DATA(HTMLUnknownElement, nsHTMLUnknownElement)
-
 NS_INTERFACE_MAP_BEGIN(nsHTMLUnknownElement)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(HTMLUnknownElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(HTMLUnknownElement)
 NS_INTERFACE_MAP_END_INHERITING(nsHTMLSpanElement)
 
-nsHTMLUnknownElement::nsHTMLUnknownElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLUnknownElement::nsHTMLUnknownElement(nsINodeInfo *aNodeInfo)
   : nsHTMLSpanElement(aNodeInfo)
 {
 }

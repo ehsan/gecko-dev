@@ -261,7 +261,7 @@ class DuplicateError(ConfigObjError):
 
 class ConfigspecError(ConfigObjError):
     """
-    An error occurred whilst parsing a configspec.
+    An error occured whilst parsing a configspec.
     """
 
 class InterpolationError(ConfigObjError):
@@ -796,7 +796,7 @@ class Section(dict):
         
         Note: if ``call_on_sections`` is ``True`` then - on encountering a
         subsection, *first* the function is called for the *whole* subsection,
-        and then recurses into its members. This means your function must be
+        and then recurses into it's members. This means your function must be
         able to handle strings, dictionaries and lists. This allows you
         to change the key of subsections as well as for ordinary members. The
         return value when called on the whole subsection has to be discarded.
@@ -1600,7 +1600,7 @@ class ConfigObj(Section):
         Handle an error according to the error settings.
         
         Either raise the error or store it.
-        The error will have occurred at ``cur_index``
+        The error will have occured at ``cur_index``
         """
         line = infile[cur_index]
         cur_index += 1

@@ -37,11 +37,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsAccessibleWrap.h"
-
 #include "nsAccessibilityAtoms.h"
-#include "nsAccUtils.h"
-#include "nsCoreUtils.h"
-#include "nsRelUtils.h"
 
 #include "nsIAccessibleDocument.h"
 #include "nsIAccessibleSelectable.h"
@@ -62,7 +58,6 @@
 #include "nsIServiceManager.h"
 #include "nsTextFormatter.h"
 #include "nsIView.h"
-#include "nsIViewManager.h"
 #include "nsRoleMap.h"
 #include "nsEventMap.h"
 #include "nsArrayUtils.h"
@@ -80,18 +75,15 @@ static gAccessibles = 0;
 EXTERN_C GUID CDECL CLSID_Accessible =
 { 0x61044601, 0xa811, 0x4e2b, { 0xbb, 0xba, 0x17, 0xbf, 0xab, 0xd3, 0x29, 0xd7 } };
 
-static const PRInt32 kIEnumVariantDisconnected = -1;
-
-////////////////////////////////////////////////////////////////////////////////
-// nsAccessibleWrap
-////////////////////////////////////////////////////////////////////////////////
+/*
+ * Class nsAccessibleWrap
+ */
 
 //-----------------------------------------------------
 // construction
 //-----------------------------------------------------
-nsAccessibleWrap::
-  nsAccessibleWrap(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsAccessible(aContent, aShell), mEnumVARIANTPosition(0), mTypeInfo(NULL)
+nsAccessibleWrap::nsAccessibleWrap(nsIDOMNode* aNode, nsIWeakReference *aShell):
+  nsAccessible(aNode, aShell), mEnumVARIANTPosition(0)
 {
 }
 
@@ -100,8 +92,6 @@ nsAccessibleWrap::
 //-----------------------------------------------------
 nsAccessibleWrap::~nsAccessibleWrap()
 {
-  if (mTypeInfo)
-    mTypeInfo->Release();
 }
 
 NS_IMPL_ISUPPORTS_INHERITED0(nsAccessibleWrap, nsAccessible);
@@ -125,7 +115,7 @@ __try {
       *ppv = static_cast<IEnumVARIANT*>(this);
   } else if (IID_IServiceProvider == iid)
     *ppv = static_cast<IServiceProvider*>(this);
-  else if (IID_IAccessible2 == iid && !gIsIA2Disabled)
+  else if (IID_IAccessible2 == iid)
     *ppv = static_cast<IAccessible2*>(this);
 
   if (NULL == *ppv) {
@@ -166,7 +156,7 @@ STDMETHODIMP nsAccessibleWrap::AccessibleObjectFromWindow(HWND hwnd,
 {
   // open the dll dynamically
   if (!gmAccLib)
-    gmAccLib =::LoadLibraryW(L"OLEACC.DLL");
+    gmAccLib =::LoadLibrary("OLEACC.DLL");
 
   if (gmAccLib) {
     if (!gmAccessibleObjectFromWindow)
@@ -211,33 +201,23 @@ __try {
       if (widget) {
         hwnd = (HWND)widget->GetNativeData(NS_NATIVE_WINDOW);
         NS_ASSERTION(hwnd, "No window handle for window");
-
-        nsIViewManager* viewManager = view->GetViewManager();
-        if (!viewManager)
-          return E_UNEXPECTED;
-
         nsIView *rootView;
-        viewManager->GetRootView(rootView);
+        view->GetViewManager()->GetRootView(rootView);
         if (rootView == view) {
-          // If the client accessible (OBJID_CLIENT) has a window but its window
-          // was created by an outer window then we want the native accessible
-          // for that outer window. If the accessible was created for outer
-          // window (if the outer window has inner windows then they share the
-          // same client accessible with it) then return native accessible for
-          // the outer window.
-          HWND parenthwnd = ::GetParent(hwnd);
-          if (parenthwnd)
-            hwnd = parenthwnd;
-
+          // If the current object has a widget but was created by an
+          // outer object with its own outer window, then
+          // we want the native accessible for that outer window
+          hwnd = ::GetParent(hwnd);
           NS_ASSERTION(hwnd, "No window handle for window");
         }
       }
       else {
         // If a frame is a scrollable frame, then it has one window for the client area,
         // not an extra parent window for just the scrollbars
-        nsIScrollableFrame *scrollFrame = do_QueryFrame(frame);
+        nsIScrollableFrame *scrollFrame = nsnull;
+        CallQueryInterface(frame, &scrollFrame);
         if (scrollFrame) {
-          hwnd = (HWND)scrollFrame->GetScrolledFrame()->GetNearestWidget()->GetNativeData(NS_NATIVE_WINDOW);
+          hwnd = (HWND)scrollFrame->GetScrolledFrame()->GetWindow()->GetNativeData(NS_NATIVE_WINDOW);
           NS_ASSERTION(hwnd, "No window handle for window");
         }
       }
@@ -249,14 +229,12 @@ __try {
     }
   }
 
-  nsAccessible* xpParentAcc = GetParent();
-  NS_ASSERTION(xpParentAcc,
-               "No parent accessible where we're not direct child of window");
-
-  if (!xpParentAcc)
+  nsCOMPtr<nsIAccessible> xpParentAccessible(GetParent());
+  NS_ASSERTION(xpParentAccessible, "No parent accessible where we're not direct child of window");
+  if (!xpParentAccessible) {
     return E_UNEXPECTED;
-
-  *ppdispParent = NativeAccessible(xpParentAcc);
+  }
+  *ppdispParent = NativeAccessible(xpParentAccessible);
 
 } __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return S_OK;
@@ -266,8 +244,9 @@ STDMETHODIMP nsAccessibleWrap::get_accChildCount( long __RPC_FAR *pcountChildren
 {
 __try {
   *pcountChildren = 0;
-  if (nsAccUtils::MustPrune(this))
+  if (MustPrune(this)) {
     return NS_OK;
+  }
 
   PRInt32 numChildren;
   GetChildCount(&numChildren);
@@ -292,10 +271,11 @@ __try {
     return S_OK;
   }
 
-  if (!nsAccUtils::MustPrune(this)) {
-    nsAccessible* child = GetChildAt(varChild.lVal - 1);
-    if (child) {
-      *ppdispChild = NativeAccessible(child);
+  nsCOMPtr<nsIAccessible> childAccessible;
+  if (!MustPrune(this)) {
+    GetChildAt(varChild.lVal - 1, getter_AddRefs(childAccessible));
+    if (childAccessible) {
+      *ppdispChild = NativeAccessible(childAccessible);
     }
   }
 } __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
@@ -309,7 +289,8 @@ STDMETHODIMP nsAccessibleWrap::get_accName(
 {
 __try {
   *pszName = NULL;
-  nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
+  nsCOMPtr<nsIAccessible> xpAccessible;
+  GetXPAccessibleFor(varChild, getter_AddRefs(xpAccessible));
   if (!xpAccessible)
     return E_FAIL;
   nsAutoString name;
@@ -330,6 +311,9 @@ __try {
   if (!*pszName)
     return E_OUTOFMEMORY;
 
+#ifdef DEBUG_A11Y
+  NS_ASSERTION(mIsInitialized, "Access node was not initialized");
+#endif
 } __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
 
   return S_OK;
@@ -342,17 +326,12 @@ STDMETHODIMP nsAccessibleWrap::get_accValue(
 {
 __try {
   *pszValue = NULL;
-  nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
+  nsCOMPtr<nsIAccessible> xpAccessible;
+  GetXPAccessibleFor(varChild, getter_AddRefs(xpAccessible));
   if (xpAccessible) {
     nsAutoString value;
     if (NS_FAILED(xpAccessible->GetValue(value)))
       return E_FAIL;
-
-    // see bug 438784: Need to expose URL on doc's value attribute.
-    // For this, reverting part of fix for bug 425693 to make this MSAA method 
-    // behave IAccessible2-style.
-    if (value.IsEmpty())
-      return S_FALSE;
 
     *pszValue = ::SysAllocStringLen(value.get(), value.Length());
     if (!*pszValue)
@@ -369,12 +348,100 @@ nsAccessibleWrap::get_accDescription(VARIANT varChild,
 __try {
   *pszDescription = NULL;
 
-  nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
+  nsCOMPtr<nsIAccessible> xpAccessible;
+  GetXPAccessibleFor(varChild, getter_AddRefs(xpAccessible));
   if (!xpAccessible)
     return E_FAIL;
 
+  // For items that are a choice in a list of choices, use MSAA description
+  // field to shoehorn positional info, it's becoming a defacto standard use for
+  // the field.
+
   nsAutoString description;
+
+  // Try to get group attributes to make a positional description string. We
+  // can't use nsIAccessible::groupPosition because the method isn't supposed
+  // to work with elements exposing 'level' attribute only (like HTML headings).
+  nsCOMPtr<nsIPersistentProperties> attributes;
+  nsresult rv = xpAccessible->GetAttributes(getter_AddRefs(attributes));
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!attributes)
+    return NS_ERROR_FAILURE;
+
+  PRInt32 groupLevel = 0;
+  PRInt32 itemsInGroup = 0;
+  PRInt32 positionInGroup = 0;
+  nsAccUtils::GetAccGroupAttrs(attributes, &groupLevel, &positionInGroup,
+                               &itemsInGroup);
+
+  if (positionInGroup > 0) {
+    if (groupLevel > 0) {
+      // XXX: How do we calculate the number of children? Now we append
+      // " with [numChildren]c" for tree item. In the future we may need to
+      // use the ARIA owns property to calculate that if it's present.
+      PRInt32 numChildren = 0;
+
+      PRUint32 currentRole = 0;
+      rv = xpAccessible->GetFinalRole(&currentRole);
+      if (NS_SUCCEEDED(rv) &&
+          currentRole == nsIAccessibleRole::ROLE_OUTLINEITEM) {
+        nsCOMPtr<nsIAccessible> child;
+        xpAccessible->GetFirstChild(getter_AddRefs(child));
+        while (child) {
+          child->GetFinalRole(&currentRole);
+          if (currentRole == nsIAccessibleRole::ROLE_GROUPING) {
+            nsCOMPtr<nsIAccessible> groupChild;
+            child->GetFirstChild(getter_AddRefs(groupChild));
+            while (groupChild) {
+              groupChild->GetFinalRole(&currentRole);
+              numChildren +=
+                (currentRole == nsIAccessibleRole::ROLE_OUTLINEITEM);
+              nsCOMPtr<nsIAccessible> nextGroupChild;
+              groupChild->GetNextSibling(getter_AddRefs(nextGroupChild));
+              groupChild.swap(nextGroupChild);
+            }
+            break;
+          }
+          nsCOMPtr<nsIAccessible> nextChild;
+          child->GetNextSibling(getter_AddRefs(nextChild));
+          child.swap(nextChild);
+        }
+      }
+
+      if (numChildren) {
+        nsTextFormatter::ssprintf(description,
+                                  NS_LITERAL_STRING("L%d, %d of %d with %d").get(),
+                                  groupLevel, positionInGroup, itemsInGroup,
+                                  numChildren);
+      } else {
+        nsTextFormatter::ssprintf(description,
+                                  NS_LITERAL_STRING("L%d, %d of %d").get(),
+                                  groupLevel, positionInGroup, itemsInGroup);
+      }
+    } else { // Position has no level
+      nsTextFormatter::ssprintf(description,
+                                NS_LITERAL_STRING("%d of %d").get(),
+                                positionInGroup, itemsInGroup);
+    }
+  } else if (groupLevel > 0) {
+    nsTextFormatter::ssprintf(description, NS_LITERAL_STRING("L%d").get(),
+                              groupLevel);
+  }
+
+  if (!description.IsEmpty()) {
+    *pszDescription = ::SysAllocStringLen(description.get(),
+                                          description.Length());
+    return *pszDescription ? S_OK : E_OUTOFMEMORY;
+  }
+
   xpAccessible->GetDescription(description);
+  if (!description.IsEmpty()) {
+    // Signal to screen readers that this description is speakable
+    // and is not a formatted positional information description
+    // Don't localize the "Description: " part of this string, it will be
+    // parsed out by assistive technologies.
+    description = NS_LITERAL_STRING("Description: ") + description;
+  }
 
   *pszDescription = ::SysAllocStringLen(description.get(),
                                         description.Length());
@@ -391,17 +458,18 @@ STDMETHODIMP nsAccessibleWrap::get_accRole(
 __try {
   VariantInit(pvarRole);
 
-  nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
+  nsCOMPtr<nsIAccessible> xpAccessible;
+  GetXPAccessibleFor(varChild, getter_AddRefs(xpAccessible));
+
   if (!xpAccessible)
     return E_FAIL;
 
 #ifdef DEBUG_A11Y
-  NS_ASSERTION(nsAccUtils::IsTextInterfaceSupportCorrect(xpAccessible),
-               "Does not support nsIAccessibleText when it should");
+  NS_ASSERTION(nsAccessible::IsTextInterfaceSupportCorrect(xpAccessible), "Does not support nsIAccessibleText when it should");
 #endif
 
   PRUint32 xpRole = 0, msaaRole = 0;
-  if (NS_FAILED(xpAccessible->GetRole(&xpRole)))
+  if (NS_FAILED(xpAccessible->GetFinalRole(&xpRole)))
     return E_FAIL;
 
   msaaRole = gWindowsRoleMap[xpRole].msaaRole;
@@ -412,8 +480,10 @@ __try {
   // a ROLE_OUTLINEITEM for consistency and compatibility.
   // We need this because ARIA has a role of "row" for both grid and treegrid
   if (xpRole == nsIAccessibleRole::ROLE_ROW) {
-    if (nsAccUtils::Role(GetParent()) == nsIAccessibleRole::ROLE_TREE_TABLE)
+    nsCOMPtr<nsIAccessible> parent = GetParent();
+    if (parent && Role(parent) == nsIAccessibleRole::ROLE_TREE_TABLE) {
       msaaRole = ROLE_SYSTEM_OUTLINEITEM;
+    }
   }
   
   // -- Try enumerated role
@@ -426,29 +496,29 @@ __try {
   // -- Try BSTR role
   // Could not map to known enumerated MSAA role like ROLE_BUTTON
   // Use BSTR role to expose role attribute or tag name + namespace
-  nsIContent *content = xpAccessible->GetContent();
+  nsCOMPtr<nsIDOMNode> domNode;
+  nsCOMPtr<nsIAccessNode> accessNode(do_QueryInterface(xpAccessible));
+  if (!accessNode)
+    return E_FAIL;
+
+  accessNode->GetDOMNode(getter_AddRefs(domNode));
+  nsIContent *content = GetRoleContent(domNode);
   if (!content)
     return E_FAIL;
 
-  if (content->IsElement()) {
+  if (content->IsNodeOfType(nsINode::eELEMENT)) {
     nsAutoString roleString;
     if (msaaRole != ROLE_SYSTEM_CLIENT &&
         !content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::role, roleString)) {
-      nsIDocument * document = content->GetCurrentDoc();
-      if (!document)
-        return E_FAIL;
-
       nsINodeInfo *nodeInfo = content->NodeInfo();
       nodeInfo->GetName(roleString);
-
-      // Only append name space if different from that of current document.
-      if (!nodeInfo->NamespaceEquals(document->GetDefaultNamespaceID())) {
-        nsAutoString nameSpaceURI;
-        nodeInfo->GetNamespaceURI(nameSpaceURI);
+      nsAutoString nameSpaceURI;
+      nodeInfo->GetNamespaceURI(nameSpaceURI);
+      if (!nameSpaceURI.IsEmpty()) {
+        // Only append name space if different from that of current document
         roleString += NS_LITERAL_STRING(", ") + nameSpaceURI;
       }
     }
-
     if (!roleString.IsEmpty()) {
       pvarRole->vt = VT_BSTR;
       pvarRole->bstrVal = ::SysAllocString(roleString.get());
@@ -468,12 +538,13 @@ __try {
   pvarState->vt = VT_I4;
   pvarState->lVal = 0;
 
-  nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
+  nsCOMPtr<nsIAccessible> xpAccessible;
+  GetXPAccessibleFor(varChild, getter_AddRefs(xpAccessible));
   if (!xpAccessible)
     return E_FAIL;
 
   PRUint32 state = 0;
-  if (NS_FAILED(xpAccessible->GetState(&state, nsnull)))
+  if (NS_FAILED(xpAccessible->GetFinalState(&state, nsnull)))
     return E_FAIL;
 
   pvarState->lVal = state;
@@ -486,13 +557,8 @@ STDMETHODIMP nsAccessibleWrap::get_accHelp(
       /* [optional][in] */ VARIANT varChild,
       /* [retval][out] */ BSTR __RPC_FAR *pszHelp)
 {
-__try {
   *pszHelp = NULL;
   return S_FALSE;
-
-} __except(FilterA11yExceptions(::GetExceptionCode(),
-                                GetExceptionInformation())) { }
-  return E_FAIL;
 }
 
 STDMETHODIMP nsAccessibleWrap::get_accHelpTopic(
@@ -500,14 +566,9 @@ STDMETHODIMP nsAccessibleWrap::get_accHelpTopic(
       /* [optional][in] */ VARIANT varChild,
       /* [retval][out] */ long __RPC_FAR *pidTopic)
 {
-__try {
   *pszHelpFile = NULL;
   *pidTopic = 0;
-  return S_FALSE;
-
-} __except(FilterA11yExceptions(::GetExceptionCode(),
-                                GetExceptionInformation())) { }
-  return E_FAIL;
+  return E_NOTIMPL;
 }
 
 STDMETHODIMP nsAccessibleWrap::get_accKeyboardShortcut(
@@ -516,7 +577,8 @@ STDMETHODIMP nsAccessibleWrap::get_accKeyboardShortcut(
 {
 __try {
   *pszKeyboardShortcut = NULL;
-  nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
+  nsCOMPtr<nsIAccessible> xpAccessible;
+  GetXPAccessibleFor(varChild, getter_AddRefs(xpAccessible));
   if (xpAccessible) {
     nsAutoString shortcut;
     nsresult rv = xpAccessible->GetKeyboardShortcut(shortcut);
@@ -541,8 +603,9 @@ STDMETHODIMP nsAccessibleWrap::get_accFocus(
   // VT_DISPATCH: pdispVal member is the address of the IDispatch interface
   //              for the child object with the keyboard focus.
 __try {
-  if (IsDefunct())
-    return E_FAIL;
+  if (!mDOMNode) {
+    return E_FAIL; // This node is shut down
+  }
 
   VariantInit(pvarChild);
 
@@ -746,7 +809,8 @@ STDMETHODIMP nsAccessibleWrap::get_accDefaultAction(
 {
 __try {
   *pszDefaultAction = NULL;
-  nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
+  nsCOMPtr<nsIAccessible> xpAccessible;
+  GetXPAccessibleFor(varChild, getter_AddRefs(xpAccessible));
   if (xpAccessible) {
     nsAutoString defaultAction;
     if (NS_FAILED(xpAccessible->GetActionName(0, defaultAction)))
@@ -767,7 +831,8 @@ STDMETHODIMP nsAccessibleWrap::accSelect(
 {
 __try {
   // currently only handle focus and selection
-  nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
+  nsCOMPtr<nsIAccessible> xpAccessible;
+  GetXPAccessibleFor(varChild, getter_AddRefs(xpAccessible));
   NS_ENSURE_TRUE(xpAccessible, E_FAIL);
 
   if (flagsSelect & (SELFLAG_TAKEFOCUS|SELFLAG_TAKESELECTION|SELFLAG_REMOVESELECTION))
@@ -802,7 +867,8 @@ STDMETHODIMP nsAccessibleWrap::accLocation(
       /* [optional][in] */ VARIANT varChild)
 {
 __try {
-  nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
+  nsCOMPtr<nsIAccessible> xpAccessible;
+  GetXPAccessibleFor(varChild, getter_AddRefs(xpAccessible));
 
   if (xpAccessible) {
     PRInt32 x, y, width, height;
@@ -826,13 +892,12 @@ STDMETHODIMP nsAccessibleWrap::accNavigate(
       /* [retval][out] */ VARIANT __RPC_FAR *pvarEndUpAt)
 {
 __try {
-  nsAccessible *xpAccessibleStart = GetXPAccessibleFor(varStart);
+  nsCOMPtr<nsIAccessible> xpAccessibleStart, xpAccessibleResult;
+  GetXPAccessibleFor(varStart, getter_AddRefs(xpAccessibleStart));
   if (!xpAccessibleStart)
     return E_FAIL;
 
   VariantInit(pvarEndUpAt);
-
-  nsCOMPtr<nsIAccessible> xpAccessibleResult;
   PRUint32 xpRelation = 0;
 
   switch(navDir) {
@@ -840,12 +905,14 @@ __try {
       xpAccessibleStart->GetAccessibleBelow(getter_AddRefs(xpAccessibleResult));
       break;
     case NAVDIR_FIRSTCHILD:
-      if (!nsAccUtils::MustPrune(xpAccessibleStart))
+      if (!MustPrune(xpAccessibleStart)) {
         xpAccessibleStart->GetFirstChild(getter_AddRefs(xpAccessibleResult));
+      }
       break;
     case NAVDIR_LASTCHILD:
-      if (!nsAccUtils::MustPrune(xpAccessibleStart))
+      if (!MustPrune(xpAccessibleStart)) {
         xpAccessibleStart->GetLastChild(getter_AddRefs(xpAccessibleResult));
+      }
       break;
     case NAVDIR_LEFT:
       xpAccessibleStart->GetAccessibleToLeft(getter_AddRefs(xpAccessibleResult));
@@ -916,8 +983,13 @@ __try {
 
   pvarEndUpAt->vt = VT_EMPTY;
 
-  if (xpRelation)
-    xpAccessibleResult = nsRelUtils::GetRelatedAccessible(this, xpRelation);
+  if (xpRelation) {
+    nsresult rv = GetAccessibleRelated(xpRelation,
+                                       getter_AddRefs(xpAccessibleResult));
+    if (rv == NS_ERROR_NOT_IMPLEMENTED) {
+      return E_NOTIMPL;
+    }
+  }
 
   if (xpAccessibleResult) {
     pvarEndUpAt->pdispVal = NativeAccessible(xpAccessibleResult);
@@ -942,7 +1014,7 @@ __try {
   xLeft = xLeft;
   yTop = yTop;
 
-  if (nsAccUtils::MustPrune(this)) {
+  if (MustPrune(this)) {
     xpAccessible = this;
   }
   else {
@@ -982,7 +1054,9 @@ STDMETHODIMP nsAccessibleWrap::accDoDefaultAction(
       /* [optional][in] */ VARIANT varChild)
 {
 __try {
-  nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
+  nsCOMPtr<nsIAccessible> xpAccessible;
+  GetXPAccessibleFor(varChild, getter_AddRefs(xpAccessible));
+
   if (!xpAccessible || FAILED(xpAccessible->DoAction(0))) {
     return E_FAIL;
   }
@@ -1006,53 +1080,58 @@ STDMETHODIMP nsAccessibleWrap::put_accValue(
 
 #include "mshtml.h"
 
-////////////////////////////////////////////////////////////////////////////////
-// nsAccessibleWrap. IEnumVariant
-
 STDMETHODIMP
-nsAccessibleWrap::Next(ULONG aNumElementsRequested, VARIANT FAR* aPVar,
-                       ULONG FAR* aNumElementsFetched)
+nsAccessibleWrap::Next(ULONG aNumElementsRequested, VARIANT FAR* pvar, ULONG FAR* aNumElementsFetched)
 {
+  // If there are two clients using this at the same time, and they are
+  // each using a different mEnumVariant position it would be bad, because
+  // we have only 1 object and can only keep of mEnumVARIANT position once
+
   // Children already cached via QI to IEnumVARIANT
 __try {
   *aNumElementsFetched = 0;
 
-  if (aNumElementsRequested <= 0 || !aPVar)
-    return E_INVALIDARG;
+  PRInt32 numChildren;
+  GetChildCount(&numChildren);
 
-  if (mEnumVARIANTPosition == kIEnumVariantDisconnected)
-    return CO_E_OBJNOTCONNECTED;
-
-  PRUint32 numElementsFetched = 0;
-  for (; numElementsFetched < aNumElementsRequested;
-       numElementsFetched++, mEnumVARIANTPosition++) {
-
-    nsAccessible* accessible = GetChildAt(mEnumVARIANTPosition);
-    if (!accessible)
-      break;
-
-    VariantInit(&aPVar[numElementsFetched]);
-
-    aPVar[numElementsFetched].pdispVal = NativeAccessible(accessible);
-    aPVar[numElementsFetched].vt = VT_DISPATCH;
+  if (aNumElementsRequested <= 0 || !pvar ||
+      mEnumVARIANTPosition >= numChildren) {
+    return E_FAIL;
   }
 
-  (*aNumElementsFetched) = numElementsFetched;
+  VARIANT varStart;
+  VariantInit(&varStart);
+  varStart.lVal = CHILDID_SELF;
+  varStart.vt = VT_I4;
 
-  return numElementsFetched < aNumElementsRequested ? S_FALSE : S_OK;
+  accNavigate(NAVDIR_FIRSTCHILD, varStart, &pvar[0]);
 
+  for (long childIndex = 0; pvar[*aNumElementsFetched].vt == VT_DISPATCH; ++childIndex) {
+    PRBool wasAccessibleFetched = PR_FALSE;
+    nsAccessibleWrap *msaaAccessible =
+      static_cast<nsAccessibleWrap*>(pvar[*aNumElementsFetched].pdispVal);
+    if (!msaaAccessible)
+      break;
+    if (childIndex >= mEnumVARIANTPosition) {
+      if (++*aNumElementsFetched >= aNumElementsRequested)
+        break;
+      wasAccessibleFetched = PR_TRUE;
+    }
+    msaaAccessible->accNavigate(NAVDIR_NEXT, varStart, &pvar[*aNumElementsFetched] );
+    if (!wasAccessibleFetched)
+      msaaAccessible->nsAccessNode::Release(); // this accessible will not be received by the caller
+  }
+
+  mEnumVARIANTPosition += static_cast<PRUint16>(*aNumElementsFetched);
 } __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
-  return E_FAIL;
+  return NOERROR;
 }
 
 STDMETHODIMP
 nsAccessibleWrap::Skip(ULONG aNumElements)
 {
 __try {
-  if (mEnumVARIANTPosition == kIEnumVariantDisconnected)
-    return CO_E_OBJNOTCONNECTED;
-
-  mEnumVARIANTPosition += aNumElements;
+  mEnumVARIANTPosition += static_cast<PRUint16>(aNumElements);
 
   PRInt32 numChildren;
   GetChildCount(&numChildren);
@@ -1073,26 +1152,8 @@ nsAccessibleWrap::Reset(void)
   return NOERROR;
 }
 
-STDMETHODIMP
-nsAccessibleWrap::Clone(IEnumVARIANT FAR* FAR* ppenum)
-{
-__try {
-  *ppenum = nsnull;
-  
-  nsCOMPtr<nsIArray> childArray;
-  nsresult rv = GetChildren(getter_AddRefs(childArray));
 
-  *ppenum = new AccessibleEnumerator(childArray);
-  if (!*ppenum)
-    return E_OUTOFMEMORY;
-  NS_ADDREF(*ppenum);
-
-} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
-  return NOERROR;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// nsAccessibleWrap. IAccessible2
+// IAccessible2
 
 STDMETHODIMP
 nsAccessibleWrap::get_nRelations(long *aNRelations)
@@ -1199,7 +1260,7 @@ __try {
   *aRole = 0;
 
   PRUint32 xpRole = 0;
-  nsresult rv = GetRole(&xpRole);
+  nsresult rv = GetFinalRole(&xpRole);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
 
@@ -1207,14 +1268,6 @@ __try {
                "MSAA role map skewed");
 
   *aRole = gWindowsRoleMap[xpRole].ia2Role;
-
-  // Special case, if there is a ROLE_ROW inside of a ROLE_TREE_TABLE, then call
-  // the IA2 role a ROLE_OUTLINEITEM.
-  if (xpRole == nsIAccessibleRole::ROLE_ROW) {
-    if (nsAccUtils::Role(GetParent()) == nsIAccessibleRole::ROLE_TREE_TABLE)
-      *aRole = ROLE_SYSTEM_OUTLINEITEM;
-  }
-
   return S_OK;
 
 } __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
@@ -1257,22 +1310,18 @@ __try {
   PRInt32 groupLevel = 0;
   PRInt32 similarItemsInGroup = 0;
   PRInt32 positionInGroup = 0;
-
   nsresult rv = GroupPosition(&groupLevel, &similarItemsInGroup,
                               &positionInGroup);
-  if (NS_FAILED(rv))
-    return GetHRESULT(rv);
-
-  // Group information for accessibles having level only (like html headings
-  // elements) isn't exposed by this method. AT should look for 'level' object
-  // attribute.
-  if (!similarItemsInGroup && !positionInGroup)
-    return S_FALSE;
 
   *aGroupLevel = groupLevel;
   *aSimilarItemsInGroup = similarItemsInGroup;
   *aPositionInGroup = positionInGroup;
 
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
+  if (groupLevel ==0 && similarItemsInGroup == 0 && positionInGroup == 0)
+    return S_FALSE;
   return S_OK;
 
 } __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
@@ -1288,7 +1337,7 @@ __try {
   // XXX: bug 344674 should come with better approach that we have here.
 
   PRUint32 states = 0, extraStates = 0;
-  nsresult rv = GetState(&states, &extraStates);
+  nsresult rv = GetFinalState(&states, &extraStates);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
 
@@ -1414,7 +1463,7 @@ nsAccessibleWrap::get_windowHandle(HWND *aWindowHandle)
 __try {
   *aWindowHandle = 0;
 
-  if (IsDefunct())
+  if (!mDOMNode)
     return E_FAIL;
 
   void *handle = nsnull;
@@ -1509,228 +1558,11 @@ __try {
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
 
-  return ConvertToIA2Attributes(attributes, aAttributes);
-
-} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
-  return E_FAIL;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// IDispatch
-
-STDMETHODIMP
-nsAccessibleWrap::GetTypeInfoCount(UINT *pctinfo)
-{
-  *pctinfo = 1;
-  return S_OK;
-}
-
-STDMETHODIMP
-nsAccessibleWrap::GetTypeInfo(UINT iTInfo, LCID lcid, ITypeInfo **ppTInfo)
-{
-  *ppTInfo = NULL;
-
-  if (iTInfo != 0)
-    return DISP_E_BADINDEX;
-
-  ITypeInfo * typeInfo = GetTI(lcid);
-  if (!typeInfo)
-    return E_FAIL;
-
-  typeInfo->AddRef();
-  *ppTInfo = typeInfo;
-
-  return S_OK;
-}
-
-STDMETHODIMP
-nsAccessibleWrap::GetIDsOfNames(REFIID riid, LPOLESTR *rgszNames,
-                                UINT cNames, LCID lcid, DISPID *rgDispId)
-{
-  ITypeInfo *typeInfo = GetTI(lcid);
-  if (!typeInfo)
-    return E_FAIL;
-
-  HRESULT hr = DispGetIDsOfNames(typeInfo, rgszNames, cNames, rgDispId);
-  return hr;
-}
-
-STDMETHODIMP
-nsAccessibleWrap::Invoke(DISPID dispIdMember, REFIID riid,
-                         LCID lcid, WORD wFlags, DISPPARAMS *pDispParams,
-                         VARIANT *pVarResult, EXCEPINFO *pExcepInfo,
-                         UINT *puArgErr)
-{
-  ITypeInfo *typeInfo = GetTI(lcid);
-  if (!typeInfo)
-    return E_FAIL;
-
-  return typeInfo->Invoke(static_cast<IAccessible*>(this), dispIdMember,
-                          wFlags, pDispParams, pVarResult, pExcepInfo,
-                          puArgErr);
-}
-
-
-// nsIAccessible method
-NS_IMETHODIMP nsAccessibleWrap::GetNativeInterface(void **aOutAccessible)
-{
-  *aOutAccessible = static_cast<IAccessible*>(this);
-  NS_ADDREF_THIS();
-  return NS_OK;
-}
-
-// nsAccessible
-
-nsresult
-nsAccessibleWrap::HandleAccEvent(nsAccEvent *aEvent)
-{
-  nsresult rv = nsAccessible::HandleAccEvent(aEvent);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return FirePlatformEvent(aEvent);
-}
-
-nsresult
-nsAccessibleWrap::FirePlatformEvent(nsAccEvent *aEvent)
-{
-  PRUint32 eventType = aEvent->GetEventType();
-
-  NS_ENSURE_TRUE(eventType > 0 &&
-                 eventType < nsIAccessibleEvent::EVENT_LAST_ENTRY,
-                 NS_ERROR_FAILURE);
-
-  PRUint32 winLastEntry = gWinEventMap[nsIAccessibleEvent::EVENT_LAST_ENTRY];
-  NS_ASSERTION(winLastEntry == kEVENT_LAST_ENTRY,
-               "MSAA event map skewed");
-
-  PRUint32 winEvent = gWinEventMap[eventType];
-  if (!winEvent)
-    return NS_OK;
-
-  // Means we're not active.
-  NS_ENSURE_TRUE(mWeakShell, NS_ERROR_FAILURE);
-
-  nsAccessible *accessible = aEvent->GetAccessible();
-  if (!accessible)
-    return NS_OK;
-
-  if (eventType == nsIAccessibleEvent::EVENT_TEXT_CARET_MOVED ||
-      eventType == nsIAccessibleEvent::EVENT_FOCUS) {
-    UpdateSystemCaret();
-  }
- 
-  PRInt32 childID = GetChildIDFor(accessible); // get the id for the accessible
-  if (!childID)
-    return NS_OK; // Can't fire an event without a child ID
-
-  // See if we're in a scrollable area with its own window
-  nsAccessible *newAccessible = nsnull;
-  if (eventType == nsIAccessibleEvent::EVENT_HIDE) {
-    // Don't use frame from current accessible when we're hiding that
-    // accessible.
-    newAccessible = accessible->GetCachedParent();
-  } else {
-    newAccessible = accessible;
-  }
-
-  HWND hWnd = GetHWNDFor(newAccessible);
-  NS_ENSURE_TRUE(hWnd, NS_ERROR_FAILURE);
-
-  // Gecko uses two windows for every scrollable area. One window contains
-  // scrollbars and the child window contains only the client area.
-  // Details of the 2 window system:
-  // * Scrollbar window: caret drawing window & return value for WindowFromAccessibleObject()
-  // * Client area window: text drawing window & MSAA event window
-
-  // Fire MSAA event for client area window.
-  NotifyWinEvent(winEvent, hWnd, OBJID_CLIENT, childID);
-
-  // If the accessible children are changed then drop the IEnumVariant current
-  // position of the accessible.
-  if (eventType == nsIAccessibleEvent::EVENT_REORDER)
-    UnattachIEnumVariant();
-
-  return NS_OK;
-}
-
-//------- Helper methods ---------
-
-PRInt32 nsAccessibleWrap::GetChildIDFor(nsIAccessible* aAccessible)
-{
-  // A child ID of the window is required, when we use NotifyWinEvent,
-  // so that the 3rd party application can call back and get the IAccessible
-  // the event occurred on.
-
-  void *uniqueID = nsnull;
-  nsCOMPtr<nsIAccessNode> accessNode(do_QueryInterface(aAccessible));
-  if (!accessNode) {
-    return 0;
-  }
-  accessNode->GetUniqueID(&uniqueID);
-
-  // Yes, this means we're only compatibible with 32 bit
-  // MSAA is only available for 32 bit windows, so it's okay
-  return - NS_PTR_TO_INT32(uniqueID);
-}
-
-HWND
-nsAccessibleWrap::GetHWNDFor(nsAccessible *aAccessible)
-{
-  HWND hWnd = 0;
-  if (!aAccessible)
-    return hWnd;
-
-  nsIFrame *frame = aAccessible->GetFrame();
-  if (frame) {
-    nsIWidget *window = frame->GetNearestWidget();
-    PRBool isVisible;
-    window->IsVisible(isVisible);
-    if (isVisible) {
-      // Short explanation:
-      // If HWND for frame is inside a hidden window, fire the event on the
-      // containing document's visible window.
-      //
-      // Long explanation:
-      // This is really just to fix combo boxes with JAWS. Window-Eyes already
-      // worked with combo boxes because they use the value change event in
-      // the closed combo box case. JAWS will only pay attention to the focus
-      // events on the list items. The JAWS developers haven't fixed that, so
-      // we'll use the focus events to make JAWS work. However, JAWS is
-      // ignoring events on a hidden window. So, in order to fix the bug where
-      // JAWS doesn't echo the current option as it changes in a closed
-      // combo box, we need to use an ensure that we never fire an event with
-      // an HWND for a hidden window.
-      hWnd = (HWND)frame->GetNearestWidget()->GetNativeData(NS_NATIVE_WINDOW);
-    }
-  }
-
-  if (!hWnd) {
-    void* handle = nsnull;
-    nsDocAccessible *accessibleDoc = aAccessible->GetDocAccessible();
-    if (!accessibleDoc)
-      return 0;
-
-    accessibleDoc->GetWindowHandle(&handle);
-    hWnd = (HWND)handle;
-  }
-
-  return hWnd;
-}
-
-HRESULT
-nsAccessibleWrap::ConvertToIA2Attributes(nsIPersistentProperties *aAttributes,
-                                         BSTR *aIA2Attributes)
-{
-  *aIA2Attributes = NULL;
-
-  // The format is name:value;name:value; with \ for escaping these
-  // characters ":;=,\".
-
-  if (!aAttributes)
+  if (!attributes)
     return S_FALSE;
 
   nsCOMPtr<nsISimpleEnumerator> propEnum;
-  aAttributes->Enumerate(getter_AddRefs(propEnum));
+  attributes->Enumerate(getter_AddRefs(propEnum));
   if (!propEnum)
     return E_FAIL;
 
@@ -1748,8 +1580,9 @@ nsAccessibleWrap::ConvertToIA2Attributes(nsIPersistentProperties *aAttributes,
       return E_FAIL;
 
     nsCAutoString name;
-    if (NS_FAILED(propElem->GetKey(name)))
-      return E_FAIL;
+    rv = propElem->GetKey(name);
+    if (NS_FAILED(rv))
+      return GetHRESULT(rv);
 
     PRUint32 offset = 0;
     while ((offset = name.FindCharInSet(kCharsToEscape, offset)) != kNotFound) {
@@ -1758,7 +1591,8 @@ nsAccessibleWrap::ConvertToIA2Attributes(nsIPersistentProperties *aAttributes,
     }
 
     nsAutoString value;
-    if (NS_FAILED(propElem->GetValue(value)))
+    rv = propElem->GetValue(value);
+    if (NS_FAILED(rv))
       return E_FAIL;
 
     offset = 0;
@@ -1776,8 +1610,216 @@ nsAccessibleWrap::ConvertToIA2Attributes(nsIPersistentProperties *aAttributes,
   if (strAttrs.IsEmpty())
     return S_FALSE;
 
-  *aIA2Attributes = ::SysAllocStringLen(strAttrs.get(), strAttrs.Length());
-  return *aIA2Attributes ? S_OK : E_OUTOFMEMORY;
+  *aAttributes = ::SysAllocStringLen(strAttrs.get(), strAttrs.Length());
+  return *aAttributes ? S_OK : E_OUTOFMEMORY;
+
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
+}
+
+STDMETHODIMP
+nsAccessibleWrap::Clone(IEnumVARIANT FAR* FAR* ppenum)
+{
+__try {
+  // Clone could be bad, the cloned items aren't tracked for shutdown
+  // Then again, as long as the client releases the items in time, we're okay
+  *ppenum = nsnull;
+
+  nsAccessibleWrap *accessibleWrap = new nsAccessibleWrap(mDOMNode, mWeakShell);
+  if (!accessibleWrap)
+    return E_FAIL;
+
+  IAccessible *msaaAccessible = static_cast<IAccessible*>(accessibleWrap);
+  msaaAccessible->AddRef();
+  QueryInterface(IID_IEnumVARIANT, (void**)ppenum);
+  if (*ppenum)
+    (*ppenum)->Skip(mEnumVARIANTPosition); // QI addrefed
+  msaaAccessible->Release();
+
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return NOERROR;
+}
+
+
+// For IDispatch support
+STDMETHODIMP
+nsAccessibleWrap::GetTypeInfoCount(UINT *p)
+{
+  *p = 0;
+  return E_NOTIMPL;
+}
+
+// For IDispatch support
+STDMETHODIMP nsAccessibleWrap::GetTypeInfo(UINT i, LCID lcid, ITypeInfo **ppti)
+{
+  *ppti = 0;
+  return E_NOTIMPL;
+}
+
+// For IDispatch support
+STDMETHODIMP
+nsAccessibleWrap::GetIDsOfNames(REFIID riid, LPOLESTR *rgszNames,
+                           UINT cNames, LCID lcid, DISPID *rgDispId)
+{
+  return E_NOTIMPL;
+}
+
+// For IDispatch support
+STDMETHODIMP nsAccessibleWrap::Invoke(DISPID dispIdMember, REFIID riid,
+    LCID lcid, WORD wFlags, DISPPARAMS *pDispParams,
+    VARIANT *pVarResult, EXCEPINFO *pExcepInfo, UINT *puArgErr)
+{
+  return E_NOTIMPL;
+}
+
+
+NS_IMETHODIMP nsAccessibleWrap::GetNativeInterface(void **aOutAccessible)
+{
+  *aOutAccessible = static_cast<IAccessible*>(this);
+  NS_ADDREF_THIS();
+  return NS_OK;
+}
+
+// nsPIAccessible
+
+NS_IMETHODIMP
+nsAccessibleWrap::FireAccessibleEvent(nsIAccessibleEvent *aEvent)
+{
+  NS_ENSURE_ARG(aEvent);
+
+  nsresult rv = nsAccessible::FireAccessibleEvent(aEvent);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return FirePlatformEvent(aEvent);
+}
+
+nsresult
+nsAccessibleWrap::FirePlatformEvent(nsIAccessibleEvent *aEvent)
+{
+  PRUint32 eventType = 0;
+  aEvent->GetEventType(&eventType);
+
+  NS_ENSURE_TRUE(eventType > 0 &&
+                 eventType < nsIAccessibleEvent::EVENT_LAST_ENTRY,
+                 NS_ERROR_FAILURE);
+
+  PRUint32 winLastEntry = gWinEventMap[nsIAccessibleEvent::EVENT_LAST_ENTRY];
+  NS_ASSERTION(winLastEntry == kEVENT_LAST_ENTRY,
+               "MSAA event map skewed");
+
+  PRUint32 winEvent = gWinEventMap[eventType];
+  if (!winEvent)
+    return NS_OK;
+
+  // Means we're not active.
+  NS_ENSURE_TRUE(mWeakShell, NS_ERROR_FAILURE);
+
+  nsCOMPtr<nsIAccessible> accessible;
+  aEvent->GetAccessible(getter_AddRefs(accessible));
+  if (!accessible)
+    return NS_OK;
+
+  if (eventType == nsIAccessibleEvent::EVENT_TEXT_CARET_MOVED ||
+      eventType == nsIAccessibleEvent::EVENT_FOCUS) {
+    UpdateSystemCaret();
+  }
+ 
+  PRInt32 childID = GetChildIDFor(accessible); // get the id for the accessible
+  if (!childID)
+    return NS_OK; // Can't fire an event without a child ID
+
+  // See if we're in a scrollable area with its own window
+  nsCOMPtr<nsIAccessible> newAccessible;
+  if (eventType == nsIAccessibleEvent::EVENT_ASYNCH_HIDE ||
+      eventType == nsIAccessibleEvent::EVENT_DOM_DESTROY) {
+    // Don't use frame from current accessible when we're hiding that
+    // accessible.
+    accessible->GetParent(getter_AddRefs(newAccessible));
+  } else {
+    newAccessible = accessible;
+  }
+
+  HWND hWnd = GetHWNDFor(newAccessible);
+  NS_ENSURE_TRUE(hWnd, NS_ERROR_FAILURE);
+
+  // Gecko uses two windows for every scrollable area. One window contains
+  // scrollbars and the child window contains only the client area.
+  // Details of the 2 window system:
+  // * Scrollbar window: caret drawing window & return value for WindowFromAccessibleObject()
+  // * Client area window: text drawing window & MSAA event window
+
+  // Fire MSAA event for client area window.
+  NotifyWinEvent(winEvent, hWnd, OBJID_CLIENT, childID);
+
+  return NS_OK;
+}
+
+//------- Helper methods ---------
+
+PRInt32 nsAccessibleWrap::GetChildIDFor(nsIAccessible* aAccessible)
+{
+  // A child ID of the window is required, when we use NotifyWinEvent,
+  // so that the 3rd party application can call back and get the IAccessible
+  // the event occured on.
+
+  void *uniqueID = nsnull;
+  nsCOMPtr<nsIAccessNode> accessNode(do_QueryInterface(aAccessible));
+  if (!accessNode) {
+    return 0;
+  }
+  accessNode->GetUniqueID(&uniqueID);
+
+  // Yes, this means we're only compatibible with 32 bit
+  // MSAA is only available for 32 bit windows, so it's okay
+  return - NS_PTR_TO_INT32(uniqueID);
+}
+
+HWND
+nsAccessibleWrap::GetHWNDFor(nsIAccessible *aAccessible)
+{
+  nsCOMPtr<nsIAccessNode> accessNode(do_QueryInterface(aAccessible));
+  nsCOMPtr<nsPIAccessNode> privateAccessNode(do_QueryInterface(accessNode));
+  if (!privateAccessNode)
+    return 0;
+
+  HWND hWnd = 0;
+
+  nsIFrame *frame = privateAccessNode->GetFrame();
+  if (frame) {
+    nsIWidget *window = frame->GetWindow();
+    PRBool isVisible;
+    window->IsVisible(isVisible);
+    if (isVisible) {
+      // Short explanation:
+      // If HWND for frame is inside a hidden window, fire the event on the
+      // containing document's visible window.
+      //
+      // Long explanation:
+      // This is really just to fix combo boxes with JAWS. Window-Eyes already
+      // worked with combo boxes because they use the value change event in
+      // the closed combo box case. JAWS will only pay attention to the focus
+      // events on the list items. The JAWS developers haven't fixed that, so
+      // we'll use the focus events to make JAWS work. However, JAWS is
+      // ignoring events on a hidden window. So, in order to fix the bug where
+      // JAWS doesn't echo the current option as it changes in a closed
+      // combo box, we need to use an ensure that we never fire an event with
+      // an HWND for a hidden window.
+      hWnd = (HWND)frame->GetWindow()->GetNativeData(NS_NATIVE_WINDOW);
+    }
+  }
+
+  if (!hWnd) {
+    void* handle = nsnull;
+    nsCOMPtr<nsIAccessibleDocument> accessibleDoc;
+    accessNode->GetAccessibleDocument(getter_AddRefs(accessibleDoc));
+    if (!accessibleDoc)
+      return 0;
+
+    accessibleDoc->GetWindowHandle(&handle);
+    hWnd = (HWND)handle;
+  }
+
+  return hWnd;
 }
 
 IDispatch *nsAccessibleWrap::NativeAccessible(nsIAccessible *aXPAccessible)
@@ -1805,27 +1847,39 @@ IDispatch *nsAccessibleWrap::NativeAccessible(nsIAccessible *aXPAccessible)
   return static_cast<IDispatch*>(msaaAccessible);
 }
 
-void
-nsAccessibleWrap::UnattachIEnumVariant()
-{
-  if (mEnumVARIANTPosition > 0)
-    mEnumVARIANTPosition = kIEnumVariantDisconnected;
-}
 
-nsAccessible*
-nsAccessibleWrap::GetXPAccessibleFor(const VARIANT& aVarChild)
+void nsAccessibleWrap::GetXPAccessibleFor(const VARIANT& aVarChild, nsIAccessible **aXPAccessible)
 {
-  if (IsDefunct())
-    return nsnull;
+  *aXPAccessible = nsnull;
+  if (!mWeakShell)
+    return; // Fail, we don't want to do anything after we've shut down
 
   // if its us real easy - this seems to always be the case
-  if (aVarChild.lVal == CHILDID_SELF)
-    return this;
-
-  if (nsAccUtils::MustPrune(this))
-    return nsnull;
-
-  return GetChildAt(aVarChild.lVal);
+  if (aVarChild.lVal == CHILDID_SELF) {
+    *aXPAccessible = static_cast<nsIAccessible*>(this);
+  }
+  else if (MustPrune(this)) {
+    return;
+  }
+  else {
+    // XXX It is rare to use a VARIANT with a child num
+    // so optimizing this is not a priority
+    // We can come back it do it later, if there are perf problems
+    // with a specific assistive technology
+    nsCOMPtr<nsIAccessible> xpAccessible, nextAccessible;
+    GetFirstChild(getter_AddRefs(xpAccessible));
+    for (PRInt32 index = 0; xpAccessible; index ++) {
+      if (!xpAccessible)
+        break; // Failed
+      if (aVarChild.lVal == index) {
+        *aXPAccessible = xpAccessible;
+        break;
+      }
+      nextAccessible = xpAccessible;
+      nextAccessible->GetNextSibling(getter_AddRefs(xpAccessible));
+    }
+  }
+  NS_IF_ADDREF(*aXPAccessible);
 }
 
 void nsAccessibleWrap::UpdateSystemCaret()
@@ -1845,7 +1899,7 @@ void nsAccessibleWrap::UpdateSystemCaret()
   }
 
   nsIWidget *widget;
-  nsIntRect caretRect = caretAccessible->GetCaretRect(&widget);
+  nsRect caretRect = caretAccessible->GetCaretRect(&widget);        
   HWND caretWnd; 
   if (caretRect.IsEmpty() || !(caretWnd = (HWND)widget->GetNativeData(NS_NATIVE_WINDOW))) {
     return;
@@ -1861,24 +1915,4 @@ void nsAccessibleWrap::UpdateSystemCaret()
     ::SetCaretPos(caretRect.x - windowRect.left, caretRect.y - windowRect.top);
     ::DeleteObject(caretBitMap);
   }
-}
-
-ITypeInfo*
-nsAccessibleWrap::GetTI(LCID lcid)
-{
-  if (mTypeInfo)
-    return mTypeInfo;
-
-  ITypeLib *typeLib = NULL;
-  HRESULT hr = LoadRegTypeLib(LIBID_Accessibility, 1, 0, lcid, &typeLib);
-  if (FAILED(hr))
-    return NULL;
-
-  hr = typeLib->GetTypeInfoOfGuid(IID_IAccessible, &mTypeInfo);
-  typeLib->Release();
-
-  if (FAILED(hr))
-    return NULL;
-
-  return mTypeInfo;
 }

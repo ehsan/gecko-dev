@@ -81,8 +81,7 @@ NS_IMETHODIMP_(nsrefcnt) EmptyEnumeratorImpl::Release(void)
     return 1;
 }
 
-NS_IMPL_QUERY_INTERFACE3(EmptyEnumeratorImpl, nsISimpleEnumerator,
-                         nsIUTF8StringEnumerator, nsIStringEnumerator)
+NS_IMPL_QUERY_INTERFACE1(EmptyEnumeratorImpl, nsISimpleEnumerator)
 
 // nsISimpleEnumerator interface
 NS_IMETHODIMP EmptyEnumeratorImpl::HasMoreElements(PRBool* aResult)

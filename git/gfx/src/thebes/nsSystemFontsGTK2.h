@@ -39,8 +39,7 @@
 #ifndef _NS_SYSTEMFONTSGTK2_H_
 #define _NS_SYSTEMFONTSGTK2_H_
 
-#include "gfxFont.h"
-typedef struct _GtkWidget GtkWidget;
+#include <gfxFont.h>
 
 class nsSystemFontsGTK2
 {

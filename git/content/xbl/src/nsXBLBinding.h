@@ -41,12 +41,11 @@
 
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
-#include "nsINodeList.h"
+#include "nsIDOMNodeList.h"
 #include "nsIStyleRuleProcessor.h"
 #include "nsClassHashtable.h"
 #include "nsTArray.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsISupportsImpl.h"
 
 class nsXBLPrototypeBinding;
 class nsIContent;
@@ -78,7 +77,24 @@ public:
    *    which are queued to fire their constructors.
    */
 
-  NS_INLINE_DECL_REFCOUNTING(nsXBLBinding)
+  nsrefcnt AddRef()
+  {
+    ++mRefCnt;
+    NS_LOG_ADDREF(this, mRefCnt, "nsXBLBinding", sizeof(nsXBLBinding));
+    return mRefCnt;
+  }
+
+  nsrefcnt Release()
+  {
+    --mRefCnt;
+    NS_LOG_RELEASE(this, mRefCnt, "nsXBLBinding");
+    if (mRefCnt == 0) {
+      mRefCnt = 1;
+      delete this;
+      return 0;
+    }
+    return mRefCnt;
+  }
 
   NS_DECL_CYCLE_COLLECTION_NATIVE_CLASS(nsXBLBinding)
 
@@ -100,11 +116,10 @@ public:
   PRBool HasStyleSheets() const;
   PRBool InheritsStyle() const;
   PRBool ImplementsInterface(REFNSIID aIID) const;
+  PRBool ShouldBuildChildFrames() const;
 
   void GenerateAnonymousContent();
   void InstallAnonymousContent(nsIContent* aAnonParent, nsIContent* aElement);
-  static void UninstallAnonymousContent(nsIDocument* aDocument,
-                                        nsIContent* aAnonParent);
   void InstallEventHandlers();
   nsresult InstallImplementation();
 
@@ -127,9 +142,7 @@ public:
 
   nsInsertionPointList* GetExistingInsertionPointsFor(nsIContent* aParent);
 
-  // XXXbz this aIndex has nothing to do with an index into the child
-  // list of the insertion parent or anything.
-  nsIContent* GetInsertionPoint(const nsIContent* aChild, PRUint32* aIndex);
+  nsIContent* GetInsertionPoint(nsIContent* aChild, PRUint32* aIndex);
 
   nsIContent* GetSingleInsertionPoint(PRUint32* aIndex,
                                       PRBool* aMultipleInsertionPoints);
@@ -141,7 +154,7 @@ public:
 
   void WalkRules(nsIStyleRuleProcessor::EnumFunc aFunc, void* aData);
 
-  nsINodeList* GetAnonymousNodes();
+  already_AddRefed<nsIDOMNodeList> GetAnonymousNodes();
 
   static nsresult DoInitJSClass(JSContext *cx, JSObject *global, JSObject *obj,
                                 const nsAFlatCString& aClassName,
@@ -156,6 +169,7 @@ public:
 // MEMBER VARIABLES
 protected:
 
+  nsAutoRefCnt mRefCnt;
   nsXBLPrototypeBinding* mPrototypeBinding; // Weak, but we're holding a ref to the docinfo
   nsCOMPtr<nsIContent> mContent; // Strong. Our anonymous content stays around with us.
   nsRefPtr<nsXBLBinding> mNextBinding; // Strong. The derived binding owns the base class bindings.

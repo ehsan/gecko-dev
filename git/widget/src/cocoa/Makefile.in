@@ -51,12 +51,41 @@ XPIDL_MODULE	= widget_cocoa
 GRE_MODULE	= 1
 LIBXUL_LIBRARY = 1
 
+REQUIRES = xpcom \
+		  gfx \
+		  string \
+		  uconv \
+		  dom \
+		  plugin \
+		  content \
+		  layout \
+		  view \
+		  necko \
+		  locale \
+		  pref \
+		  intl \
+		  exthandler \
+		  appshell \
+                  lcms \
+		  thebes \
+		  js \
+		  xpconnect \
+		  imglib2 \
+		  $(NULL)
 
+ifdef MOZ_ENABLE_GLITZ
+REQUIRES += glitz glitzagl
+endif
+
+ifdef ACCESSIBILITY
+REQUIRES += accessibility
+endif
 
 EXPORTS = \
 		mozView.h \
 		nsChangeObserver.h \
-		nsCocoaUtils.h \
+		nsIMenu.h \
+		nsIMenuItem.h \
 		$(NULL)
 
 CMMSRCS = \
@@ -66,8 +95,6 @@ CMMSRCS = \
 		nsMenuBarX.mm \
 		nsMenuItemX.mm \
 		nsMenuItemIconX.mm \
-		nsMenuUtilsX.mm \
-		nsMenuGroupOwnerX.mm \
 		nsFilePicker.mm \
 		nsDragService.mm \
 		nsToolkit.mm \
@@ -85,18 +112,11 @@ CMMSRCS = \
 		nsLookAndFeel.mm \
 		nsNativeThemeCocoa.mm \
 		nsDeviceContextSpecX.mm \
-		nsPrintDialogX.mm \
 		nsPrintOptionsX.mm \
 		nsPrintSettingsX.mm \
+		nsPrintSessionX.mm \
 		nsIdleServiceX.mm \
-		nsCocoaTextInputHandler.mm \
-		nsMacDockSupport.mm \
-		nsStandaloneNativeMenu.mm \
 		$(NULL)
-
-ifeq (x86_64,$(TARGET_CPU))
-CMMSRCS += ComplexTextInputPanel.mm
-endif
 
 XPIDLSRCS	+= \
 		nsPIWidgetCocoa.idl \
@@ -110,7 +130,7 @@ EXTRA_DSO_LDOPTS += \
 		$(call EXPAND_LIBNAME_PATH,gkgfx,$(DEPTH)/gfx/src) \
 		$(MOZ_COMPONENT_LIBS) \
 		-lthebes \
-		$(QCMS_LIBS) \
+		$(LCMS_LIBS) \
 		$(NULL)
 
 include $(topsrcdir)/config/rules.mk
@@ -130,6 +150,8 @@ $(NIB_DEST):
 $(NIB_DEST)/%: $(srcdir)/resources/MainMenu.nib/% $(NIB_DEST)
 	$(INSTALL) $< $(NIB_DEST)
 
+RESOURCE = libwidget.rsrc
+
 # for objdir builds, symlink the cursors dir
 ABS_topsrcdir   := $(shell cd $(topsrcdir); pwd)
 ifneq ($(ABS_topsrcdir),$(MOZ_BUILD_ROOT))
@@ -139,6 +161,14 @@ endif
 
 export::
 	$(INSTALL) $(srcdir)/cursors $(DIST)/bin/res
+
+$(RESOURCE): nsMacWidget.r
+	/Developer/Tools/Rez -i /Developer/Headers/FlatCarbon -useDF $< -o $@
+
+GARBAGE += $(RESOURCE)
+
+libs:: $(RESOURCE)
+	$(INSTALL) $(IFLAGS1) $^ $(DIST)/bin
 
 LOCAL_INCLUDES	= \
 	$(TK_CFLAGS) \

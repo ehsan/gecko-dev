@@ -40,47 +40,24 @@
 #define _nsOuterDocAccessible_H_
 
 #include "nsAccessibleWrap.h"
+#include "nsIAccessible.h"
 
-/**
- * Used for <browser>, <frame>, <iframe>, <page> or editor> elements.
- * 
- * In these variable names, "outer" relates to the nsOuterDocAccessible as
- * opposed to the nsDocAccessibleWrap which is "inner". The outer node is
- * a something like tags listed above, whereas the inner node corresponds to
- * the inner document root.
- */
+class nsIWeakReference;
 
 class nsOuterDocAccessible : public nsAccessibleWrap
 {
-public:
-  nsOuterDocAccessible(nsIContent *aContent, nsIWeakReference *aShell);
-
   NS_DECL_ISUPPORTS_INHERITED
 
-  // nsIAccessible
-  NS_IMETHOD GetNumActions(PRUint8 *aNumActions);
-  NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
-  NS_IMETHOD GetActionDescription(PRUint8 aIndex, nsAString& aDescription);
-  NS_IMETHOD DoAction(PRUint8 aIndex);
+  public:
+    nsOuterDocAccessible(nsIDOMNode* aNode, 
+                         nsIWeakReference* aShell);
 
-  // nsAccessNode
-  virtual void Shutdown();
-
-  // nsAccessible
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
-  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
-  virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
-  virtual nsresult GetChildAtPoint(PRInt32 aX, PRInt32 aY,
-                                   PRBool aDeepestChild,
-                                   nsIAccessible **aChild);
-
-  virtual void InvalidateChildren();
-  virtual PRBool AppendChild(nsAccessible *aAccessible);
-  virtual PRBool RemoveChild(nsAccessible *aAccessible);
-
-protected:
-  // nsAccessible
-  virtual void CacheChildren();
+    NS_IMETHOD GetRole(PRUint32 *aRole);
+    NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
+    NS_IMETHOD GetChildAtPoint(PRInt32 aX, PRInt32 aY,
+                               nsIAccessible **aAccessible);
+    void CacheChildren();
+    nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
 };
 
 #endif  

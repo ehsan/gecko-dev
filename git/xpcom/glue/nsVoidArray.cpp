@@ -376,52 +376,6 @@ nsVoidArray::~nsVoidArray()
     free(reinterpret_cast<char*>(mImpl));
 }
 
-PRBool nsVoidArray::SetCount(PRInt32 aNewCount)
-{
-  NS_ASSERTION(aNewCount >= 0,"SetCount(negative index)");
-  if (aNewCount < 0)
-    return PR_FALSE;
-
-  if (aNewCount == 0)
-  {
-    Clear();
-    return PR_TRUE;
-  }
-
-  if (PRUint32(aNewCount) > PRUint32(GetArraySize()))
-  {
-    PRInt32 oldCount = Count();
-    PRInt32 growDelta = aNewCount - oldCount;
-
-    // frees old mImpl IF this succeeds
-    if (!GrowArrayBy(growDelta))
-      return PR_FALSE;
-  }
-
-  if (aNewCount > mImpl->mCount)
-  {
-    // Make sure that new entries added to the array by this
-    // SetCount are cleared to 0.  Some users of this assume that.
-    // This code means we don't have to memset when we allocate an array.
-    memset(&mImpl->mArray[mImpl->mCount], 0,
-           (aNewCount - mImpl->mCount) * sizeof(mImpl->mArray[0]));
-  }
-
-  mImpl->mCount = aNewCount;
-
-#if DEBUG_VOIDARRAY
-  if (mImpl->mCount > mMaxCount &&
-      mImpl->mCount < (PRInt32)(sizeof(MaxElements)/sizeof(MaxElements[0])))
-  {
-    MaxElements[mImpl->mCount]++;
-    MaxElements[mMaxCount]--;
-    mMaxCount = mImpl->mCount;
-  }
-#endif
-
-  return PR_TRUE;
-}
-
 PRInt32 nsVoidArray::IndexOf(void* aPossibleElement) const
 {
   if (mImpl)
@@ -693,7 +647,7 @@ struct VoidArrayComparatorContext {
   void* mData;
 };
 
-static int
+PR_STATIC_CALLBACK(int)
 VoidArrayComparator(const void* aElement1, const void* aElement2, void* aData)
 {
   VoidArrayComparatorContext* ctx = static_cast<VoidArrayComparatorContext*>(aData);
@@ -778,14 +732,6 @@ nsStringArray::~nsStringArray(void)
 nsStringArray& 
 nsStringArray::operator=(const nsStringArray& other)
 {
-  if (this == &other)
-  {
-    return *this;
-  }
-
-  // Free our strings
-  Clear();
-  
   // Copy the pointers
   nsVoidArray::operator=(other);
 
@@ -907,7 +853,7 @@ nsStringArray::Clear(void)
   nsVoidArray::Clear();
 }
 
-static int
+PR_STATIC_CALLBACK(int)
 CompareString(const nsString* aString1, const nsString* aString2, void*)
 {
 #ifdef MOZILLA_INTERNAL_API
@@ -983,6 +929,46 @@ nsCStringArray::nsCStringArray(void)
 {
 }
 
+// Parses a given string using the delimiter passed in and appends items
+// parsed to the array.
+PRBool
+nsCStringArray::ParseString(const char* string, const char* delimiter)
+{
+  if (string && *string && delimiter && *delimiter) {
+    char *rest = strdup(string);
+    if (!rest)
+      return PR_FALSE;
+    char *newStr = rest;
+    char *token = NS_strtok(delimiter, &newStr);
+
+    PRInt32 count = Count();
+    while (token) {
+      if (*token) {
+        /* calling AppendElement(void*) to avoid extra nsCString copy */
+        nsCString *cstring = new nsCString(token);
+        if (cstring && !AppendElement(cstring)) {
+          // AppendElement failed, release and null cstring so we fall
+          // through to the case below.
+          delete cstring;
+          cstring = nsnull;
+        }
+        if (!cstring) {
+          // We've run out of memory. Remove all newly appended elements from
+          // our array so we don't leave ourselves in a partially added state.
+          // When we return, the array will be precisely as it was when this
+          // function was called.
+          RemoveElementsAt(count, Count() - count);
+          free(rest);
+          return PR_FALSE;
+        }
+      }
+      token = NS_strtok(delimiter, &newStr);
+    }
+    free(rest);
+  }
+  return PR_TRUE;
+}
+
 nsCStringArray::nsCStringArray(PRInt32 aCount)
   : nsVoidArray(aCount)
 {
@@ -996,14 +982,6 @@ nsCStringArray::~nsCStringArray(void)
 nsCStringArray& 
 nsCStringArray::operator=(const nsCStringArray& other)
 {
-  if (this == &other)
-  {
-    return *this;
-  }
-
-  // Free our strings
-  Clear();
-  
   // Copy the pointers
   nsVoidArray::operator=(other);
 
@@ -1159,7 +1137,7 @@ nsCStringArray::Clear(void)
   nsVoidArray::Clear();
 }
 
-static int
+PR_STATIC_CALLBACK(int)
 CompareCString(const nsCString* aCString1, const nsCString* aCString2, void*)
 {
 #ifdef MOZILLA_INTERNAL_API
@@ -1184,7 +1162,7 @@ CompareCString(const nsCString* aCString1, const nsCString* aCString2, void*)
 }
 
 #ifdef MOZILLA_INTERNAL_API
-static int
+PR_STATIC_CALLBACK(int)
 CompareCStringIgnoreCase(const nsCString* aCString1, const nsCString* aCString2, void*)
 {
   return Compare(*aCString1, *aCString2, nsCaseInsensitiveCStringComparator());

@@ -54,7 +54,7 @@ class nsGridRowGroupLayout : public nsGridRowLayout
 {
 public:
 
-  friend already_AddRefed<nsIBoxLayout> NS_NewGridRowGroupLayout();
+  friend nsresult NS_NewGridRowGroupLayout(nsIPresShell* aPresShell, nsIBoxLayout** aNewLayout);
 
   virtual nsGridRowGroupLayout* CastToRowGroupLayout() { return this; }
   virtual nsSize GetMinSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState);
@@ -68,7 +68,7 @@ public:
   virtual Type GetType() { return eRowGroup; }
 
 protected:
-  nsGridRowGroupLayout();
+  nsGridRowGroupLayout(nsIPresShell* aShell);
   virtual ~nsGridRowGroupLayout();
 
   virtual void ChildAddedOrRemoved(nsIBox* aBox, nsBoxLayoutState& aState);

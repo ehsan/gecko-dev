@@ -41,6 +41,7 @@
 #include "nsParserCIID.h"
 #include "nsIParser.h"
 #include "nsIXMLContentSink.h"
+#include "nsIPresShell.h"
 #include "nsPresContext.h" 
 #include "nsIContent.h"
 #include "nsIContentViewerContainer.h"
@@ -48,6 +49,8 @@
 #include "nsIDocShell.h"
 #include "nsIMarkupDocumentViewer.h"
 #include "nsHTMLParts.h"
+#include "nsHTMLStyleSheet.h"
+#include "nsIHTMLCSSStyleSheet.h"
 #include "nsIComponentManager.h"
 #include "nsIDOMComment.h"
 #include "nsIDOMElement.h"
@@ -84,15 +87,12 @@
 #include "nsIScriptGlobalObjectOwner.h"
 #include "nsIJSContextStack.h"
 #include "nsContentCreatorFunctions.h"
-#include "nsContentPolicyUtils.h"
-#include "nsContentErrors.h"
 #include "nsIDOMUserDataHandler.h"
 #include "nsEventDispatcher.h"
 #include "nsNodeUtils.h"
 #include "nsIConsoleService.h"
 #include "nsIScriptError.h"
-#include "nsIHTMLDocument.h"
-#include "nsGenericElement.h"
+
 
 // ==================================================================
 // =
@@ -117,61 +117,22 @@ NS_NewDOMDocument(nsIDOMDocument** aInstancePtrResult,
 
   *aInstancePtrResult = nsnull;
 
-  nsCOMPtr<nsIDocument> d;
-  PRBool isHTML = PR_FALSE;
-  PRBool isXHTML = PR_FALSE;
-  if (aDoctype) {
-    nsAutoString publicId;
-    aDoctype->GetPublicId(publicId);
-    if (publicId.EqualsLiteral("-//W3C//DTD HTML 4.01//EN") ||
-        publicId.EqualsLiteral("-//W3C//DTD HTML 4.01 Frameset//EN") ||
-        publicId.EqualsLiteral("-//W3C//DTD HTML 4.01 Transitional//EN") ||
-        publicId.EqualsLiteral("-//W3C//DTD HTML 4.0//EN") ||
-        publicId.EqualsLiteral("-//W3C//DTD HTML 4.0 Frameset//EN") ||
-        publicId.EqualsLiteral("-//W3C//DTD HTML 4.0 Transitional//EN")) {
-      rv = NS_NewHTMLDocument(getter_AddRefs(d));
-      isHTML = PR_TRUE;
-    } else if (publicId.EqualsLiteral("-//W3C//DTD XHTML 1.0 Strict//EN") ||
-               publicId.EqualsLiteral("-//W3C//DTD XHTML 1.0 Transitional//EN") ||
-               publicId.EqualsLiteral("-//W3C//DTD XHTML 1.0 Frameset//EN")) {
-      rv = NS_NewHTMLDocument(getter_AddRefs(d));
-      isHTML = PR_TRUE;
-      isXHTML = PR_TRUE;
-    }
-#ifdef MOZ_SVG
-    else if (publicId.EqualsLiteral("-//W3C//DTD SVG 1.1//EN")) {
-      rv = NS_NewSVGDocument(getter_AddRefs(d));
-    }
-#endif
-    // XXX Add support for XUL documents.
-    else {
-      rv = NS_NewXMLDocument(getter_AddRefs(d));
-    }
-  } else {
-    rv = NS_NewXMLDocument(getter_AddRefs(d));
-  }
+  nsRefPtr<nsXMLDocument> doc = new nsXMLDocument();
+  if (!doc)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  rv = doc->Init();
 
   if (NS_FAILED(rv)) {
     return rv;
   }
 
-  if (isHTML) {
-    nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(d);
-    NS_ASSERTION(htmlDoc, "HTML Document doesn't implement nsIHTMLDocument?");
-    htmlDoc->SetCompatibilityMode(eCompatibility_FullStandards);
-    htmlDoc->SetIsXHTML(isXHTML);
-  }
-  nsDocument* doc = static_cast<nsDocument*>(d.get());
   doc->SetLoadedAsData(aLoadedAsData);
   doc->nsDocument::SetDocumentURI(aDocumentURI);
   // Must set the principal first, since SetBaseURI checks it.
   doc->SetPrincipal(aPrincipal);
   doc->SetBaseURI(aBaseURI);
 
-  // XMLDocuments and documents "created in memory" get to be UTF-8 by default,
-  // unlike the legacy HTML mess
-  doc->SetDocumentCharacterSet(NS_LITERAL_CSTRING("UTF-8"));
-  
   if (aDoctype) {
     nsCOMPtr<nsIDOMNode> tmpNode;
     rv = doc->AppendChild(aDoctype, getter_AddRefs(tmpNode));
@@ -233,15 +194,14 @@ nsXMLDocument::~nsXMLDocument()
   mLoopingForSyncLoad = PR_FALSE;
 }
 
-DOMCI_NODE_DATA(XMLDocument, nsXMLDocument)
-
 // QueryInterface implementation for nsXMLDocument
 NS_INTERFACE_TABLE_HEAD(nsXMLDocument)
-  NS_DOCUMENT_INTERFACE_TABLE_BEGIN(nsXMLDocument)
-    NS_INTERFACE_TABLE_ENTRY(nsXMLDocument, nsIDOMXMLDocument)
-  NS_OFFSET_AND_INTERFACE_TABLE_END
-  NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(XMLDocument)
+  NS_INTERFACE_TABLE_INHERITED3(nsXMLDocument,
+                                nsIInterfaceRequestor,
+                                nsIChannelEventSink,
+                                nsIDOMXMLDocument)
+  NS_INTERFACE_TABLE_TO_MAP_SEGUE
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(XMLDocument)
 NS_INTERFACE_MAP_END_INHERITING(nsDocument)
 
 
@@ -275,6 +235,48 @@ nsXMLDocument::ResetToURI(nsIURI *aURI, nsILoadGroup *aLoadGroup,
   }
 
   nsDocument::ResetToURI(aURI, aLoadGroup, aPrincipal);
+}
+
+/////////////////////////////////////////////////////
+// nsIInterfaceRequestor methods:
+//
+NS_IMETHODIMP
+nsXMLDocument::GetInterface(const nsIID& aIID, void** aSink)
+{
+  return QueryInterface(aIID, aSink);
+}
+
+// nsIChannelEventSink
+NS_IMETHODIMP
+nsXMLDocument::OnChannelRedirect(nsIChannel *aOldChannel,
+                                 nsIChannel *aNewChannel,
+                                 PRUint32 aFlags)
+{
+  NS_PRECONDITION(aNewChannel, "Redirecting to null channel?");
+
+  nsCOMPtr<nsIURI> newLocation;
+  nsresult rv = aNewChannel->GetURI(getter_AddRefs(newLocation)); // The redirected URI
+  if (NS_FAILED(rv)) 
+    return rv;
+
+  nsIScriptSecurityManager *secMan = nsContentUtils::GetSecurityManager();
+
+  nsCOMPtr<nsIURI> oldURI;
+  rv = aOldChannel->GetURI(getter_AddRefs(oldURI));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsIURI> newURI;
+  rv = aNewChannel->GetURI(getter_AddRefs(newURI));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = nsContentUtils::GetSecurityManager()->
+    CheckSameOriginURI(oldURI, newURI, PR_TRUE);
+
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -315,23 +317,9 @@ nsXMLDocument::SetAsync(PRBool aAsync)
   return NS_OK;
 }
 
-static void
-ReportUseOfDeprecatedMethod(nsIDocument *aDoc, const char* aWarning)
-{
-  nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
-                                  aWarning,
-                                  nsnull, 0,
-                                  aDoc->GetDocumentURI(),
-                                  EmptyString(), 0, 0,
-                                  nsIScriptError::warningFlag,
-                                  "DOM3 Load");
-}
-
 NS_IMETHODIMP
 nsXMLDocument::Load(const nsAString& aUrl, PRBool *aReturn)
 {
-  ReportUseOfDeprecatedMethod(this, "UseOfDOM3LoadMethodWarning");
-
   NS_ENSURE_ARG_POINTER(aReturn);
   *aReturn = PR_FALSE;
 
@@ -342,7 +330,7 @@ nsXMLDocument::Load(const nsAString& aUrl, PRBool *aReturn)
   nsCAutoString charset;
 
   if (callingDoc) {
-    baseURI = callingDoc->GetDocBaseURI();
+    baseURI = callingDoc->GetBaseURI();
     charset = callingDoc->GetDocumentCharacterSet();
   }
 
@@ -353,6 +341,10 @@ nsXMLDocument::Load(const nsAString& aUrl, PRBool *aReturn)
     return rv;
   }
 
+  nsCOMPtr<nsIPrincipal> principal = NodePrincipal();
+  nsCOMPtr<nsIURI> codebase;
+  principal->GetURI(getter_AddRefs(codebase));
+
   // Check to see whether the current document is allowed to load this URI.
   // It's important to use the current document's principal for this check so
   // that we don't end up in a case where code with elevated privileges is
@@ -361,26 +353,9 @@ nsXMLDocument::Load(const nsAString& aUrl, PRBool *aReturn)
   // Enforce same-origin even for chrome loaders to avoid someone accidentally
   // using a document that content has a reference to and turn that into a
   // chrome document.
-  nsCOMPtr<nsIPrincipal> principal = NodePrincipal();
-  if (!nsContentUtils::IsSystemPrincipal(principal)) {
+  if (codebase) {
     rv = principal->CheckMayLoad(uri, PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
-
-    PRInt16 shouldLoad = nsIContentPolicy::ACCEPT;
-    rv = NS_CheckContentLoadPolicy(nsIContentPolicy::TYPE_XMLHTTPREQUEST,
-                                   uri,
-                                   principal,
-                                   callingDoc ? callingDoc.get() :
-                                     static_cast<nsIDocument*>(this),
-                                   NS_LITERAL_CSTRING("application/xml"),
-                                   nsnull,
-                                   &shouldLoad,
-                                   nsContentUtils::GetContentPolicy(),
-                                   nsContentUtils::GetSecurityManager());
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (NS_CP_REJECTED(shouldLoad)) {
-      return NS_ERROR_CONTENT_BLOCKED;
-    }
   } else {
     // We're called from chrome, check to make sure the URI we're
     // about to load is also chrome.
@@ -436,13 +411,11 @@ nsXMLDocument::Load(const nsAString& aUrl, PRBool *aReturn)
   mListenerManager = elm;
 
   // Create a channel
-  nsCOMPtr<nsIInterfaceRequestor> req = nsContentUtils::GetSameOriginChecker();
-  NS_ENSURE_TRUE(req, NS_ERROR_OUT_OF_MEMORY);  
 
   nsCOMPtr<nsIChannel> channel;
   // nsIRequest::LOAD_BACKGROUND prevents throbber from becoming active,
   // which in turn keeps STOP button from becoming active  
-  rv = NS_NewChannel(getter_AddRefs(channel), uri, nsnull, loadGroup, req, 
+  rv = NS_NewChannel(getter_AddRefs(channel), uri, nsnull, loadGroup, this, 
                      nsIRequest::LOAD_BACKGROUND);
   if (NS_FAILED(rv)) {
     return rv;
@@ -478,7 +451,7 @@ nsXMLDocument::Load(const nsAString& aUrl, PRBool *aReturn)
     }
 
     // We set return to true unless there was a parsing error
-    nsCOMPtr<nsIDOMNode> node = do_QueryInterface(GetRootElement());
+    nsCOMPtr<nsIDOMNode> node = do_QueryInterface(GetRootContent());
     if (node) {
       nsAutoString name, ns;      
       if (NS_SUCCEEDED(node->GetLocalName(name)) &&
@@ -569,11 +542,7 @@ nsXMLDocument::EndLoad()
   mChannelIsPending = PR_FALSE;
   mLoopingForSyncLoad = PR_FALSE;
 
-  mSynchronousDOMContentLoaded = (mLoadedAsData || mLoadedAsInteractiveData);
-  nsDocument::EndLoad();
-  if (mSynchronousDOMContentLoaded) {
-    mSynchronousDOMContentLoaded = PR_FALSE;
-    nsDocument::SetReadyStateInternal(nsIDocument::READYSTATE_COMPLETE);
+  if (mLoadedAsData || mLoadedAsInteractiveData) {
     // Generate a document load event for the case when an XML
     // document was loaded as pure data without any presentation
     // attached to it.
@@ -581,6 +550,15 @@ nsXMLDocument::EndLoad()
     nsEventDispatcher::Dispatch(static_cast<nsIDocument*>(this), nsnull,
                                 &event);
   }    
+  nsDocument::EndLoad();  
+}
+
+// nsIDOMNode interface
+
+NS_IMETHODIMP    
+nsXMLDocument::CloneNode(PRBool aDeep, nsIDOMNode** aReturn)
+{
+  return nsNodeUtils::CloneNodeImpl(this, aDeep, aReturn);
 }
  
 // nsIDOMDocument interface
@@ -591,13 +569,19 @@ nsXMLDocument::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
   NS_ASSERTION(aNodeInfo->NodeInfoManager() == mNodeInfoManager,
                "Can't import this document into another document!");
 
-  nsRefPtr<nsXMLDocument> clone = new nsXMLDocument();
-  NS_ENSURE_TRUE(clone, NS_ERROR_OUT_OF_MEMORY);
-  nsresult rv = CloneDocHelper(clone);
+  PRBool hasHadScriptObject = PR_TRUE;
+  nsIScriptGlobalObject* scriptObject =
+    GetScriptHandlingObject(hasHadScriptObject);
+  NS_ENSURE_STATE(scriptObject || !hasHadScriptObject);
+  nsCOMPtr<nsIDOMDocument> newDoc;
+  nsresult rv = NS_NewDOMDocument(getter_AddRefs(newDoc), EmptyString(),
+                                  EmptyString(), nsnull,
+                                  nsIDocument::GetDocumentURI(),
+                                  nsIDocument::GetBaseURI(), NodePrincipal(),
+                                  PR_TRUE);
   NS_ENSURE_SUCCESS(rv, rv);
+  nsCOMPtr<nsIDocument> document = do_QueryInterface(newDoc);
+  document->SetScriptHandlingObject(scriptObject);
 
-  // State from nsXMLDocument
-  clone->mAsync = mAsync;
-
-  return CallQueryInterface(clone.get(), aResult);
+  return CallQueryInterface(newDoc, aResult);
 }

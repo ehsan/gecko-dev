@@ -53,77 +53,12 @@
 #include "nsHashtable.h"
 #include "nsIObjectInputStream.h"
 #include "nsIObjectOutputStream.h"
-#include "nsIPrefBranch2.h"
+#include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
 #include "nsIClassInfoImpl.h"
 #include "nsDOMError.h"
-#include "nsIContentSecurityPolicy.h"
 
 #include "nsPrincipal.h"
-
-class nsCodeBasePrefObserver : nsIObserver
-{
-public:
-  nsCodeBasePrefObserver()
-  {
-    NS_ASSERTION(!sObserverInstalled, "Shouldn't recreate observer\n");
-  }
-  ~nsCodeBasePrefObserver()
-  {
-    sObserverInstalled = PR_FALSE;
-  }
-
-  void Init()
-  {
-    nsCOMPtr<nsIPrefBranch2> prefBranch =
-      do_GetService(NS_PREFSERVICE_CONTRACTID);
-    if (prefBranch) {
-      if (NS_FAILED(prefBranch->GetBoolPref(PrefName(), &sPrefValue))) {
-        sPrefValue = PR_FALSE;
-      }
-      if (NS_SUCCEEDED(prefBranch->AddObserver(PrefName(), this, PR_FALSE))) {
-        sObserverInstalled = PR_TRUE;
-      }
-    }
-  }
-
-  NS_DECL_ISUPPORTS
-
-  NS_IMETHOD Observe(nsISupports* aSubject,
-                     const char* aTopic,
-                     const PRUnichar* aData)
-  {
-    NS_ASSERTION(!strcmp(aTopic,  NS_PREFBRANCH_PREFCHANGE_TOPIC_ID),
-                 "Wrong topic!");
-    NS_ASSERTION(!strcmp(NS_ConvertUTF16toUTF8(aData).get(), PrefName()),
-                 "Wrong pref!");
-
-    nsCOMPtr<nsIPrefBranch> prefBranch(do_QueryInterface(aSubject));
-    if (!prefBranch ||
-        NS_FAILED(prefBranch->GetBoolPref(PrefName(), &sPrefValue))) {
-      sPrefValue = PR_FALSE;
-    }
-    return NS_OK;
-  }
-
-  const char* PrefName()
-  {
-    static const char pref[] = "signed.applets.codebase_principal_support";
-    return pref;
-  }
-
-  static PRBool PrefValue() { return sPrefValue; }
-  static PRBool Installed() { return sObserverInstalled; }
-
-
-protected:
-  static PRBool sPrefValue;
-  static PRBool sObserverInstalled;
-};
-
-PRBool nsCodeBasePrefObserver::sPrefValue = PR_FALSE;
-PRBool nsCodeBasePrefObserver::sObserverInstalled = PR_FALSE;
-NS_IMPL_ISUPPORTS1(nsCodeBasePrefObserver, nsIObserver)
 
 static PRBool URIIsImmutable(nsIURI* aURI)
 {
@@ -140,8 +75,6 @@ PRInt32 nsPrincipal::sCapabilitiesOrdinal = 0;
 const char nsPrincipal::sInvalid[] = "Invalid";
 
 
-NS_IMPL_CLASSINFO(nsPrincipal, NULL, nsIClassInfo::MAIN_THREAD_ONLY,
-                  NS_PRINCIPAL_CID)
 NS_IMPL_QUERY_INTERFACE2_CI(nsPrincipal,
                             nsIPrincipal,
                             nsISerializable)
@@ -166,7 +99,7 @@ nsPrincipal::Release()
   nsrefcnt count = PR_AtomicDecrement((PRInt32 *)&mJSPrincipals.refcount);
   NS_LOG_RELEASE(this, count, "nsPrincipal");
   if (count == 0) {
-    delete this;
+    NS_DELETEXPCOM(this);
   }
 
   return count;
@@ -180,13 +113,6 @@ nsPrincipal::nsPrincipal()
     mCodebaseImmutable(PR_FALSE),
     mDomainImmutable(PR_FALSE)
 {
-  if (!nsCodeBasePrefObserver::Installed()) {
-    nsRefPtr<nsCodeBasePrefObserver> obs = new nsCodeBasePrefObserver();
-    if (obs)
-      obs->Init();
-    NS_WARN_IF_FALSE(nsCodeBasePrefObserver::Installed(),
-                     "Installing nsCodeBasePrefObserver failed!");
-  }
 }
 
 nsresult
@@ -365,7 +291,8 @@ nsPrincipal::Equals(nsIPrincipal *aOther, PRBool *aResult)
     // Codebases are equal if they have the same origin.
     *aResult =
       NS_SUCCEEDED(nsScriptSecurityManager::CheckSameOriginPrincipal(this,
-                                                                     aOther));
+                                                                     aOther,
+                                                                     PR_FALSE));
     return NS_OK;
   }
 
@@ -383,7 +310,7 @@ static PRBool
 URIIsLocalFile(nsIURI *aURI)
 {
   PRBool isFile;
-  nsCOMPtr<nsINetUtil> util = do_GetNetUtil();
+  nsCOMPtr<nsINetUtil> util = do_GetIOService();
 
   return util && NS_SUCCEEDED(util->ProtocolHasFlags(aURI,
                                 nsIProtocolHandler::URI_IS_LOCAL_FILE,
@@ -499,15 +426,21 @@ nsPrincipal::CanEnableCapability(const char *capability, PRInt16 *result)
     // schemes are special and may be able to get extra capabilities
     // even with the pref disabled.
 
-    if (!nsCodeBasePrefObserver::PrefValue()) {
-      PRBool mightEnable = PR_FALSE;
-      nsresult rv = mCodebase->SchemeIs("file", &mightEnable);
+    static const char pref[] = "signed.applets.codebase_principal_support";
+    nsCOMPtr<nsIPrefBranch> prefBranch =
+      do_GetService(NS_PREFSERVICE_CONTRACTID);
+    if (prefBranch) {
+      PRBool mightEnable;
+      nsresult rv = prefBranch->GetBoolPref(pref, &mightEnable);
       if (NS_FAILED(rv) || !mightEnable) {
-        rv = mCodebase->SchemeIs("resource", &mightEnable);
+        rv = mCodebase->SchemeIs("file", &mightEnable);
         if (NS_FAILED(rv) || !mightEnable) {
-          *result = nsIPrincipal::ENABLE_DENIED;
+          rv = mCodebase->SchemeIs("resource", &mightEnable);
+          if (NS_FAILED(rv) || !mightEnable) {
+            *result = nsIPrincipal::ENABLE_DENIED;
 
-          return NS_OK;
+            return NS_OK;
+          }
         }
       }
     }
@@ -777,25 +710,6 @@ nsPrincipal::GetCertificate(nsISupports** aCertificate)
 }
 
 NS_IMETHODIMP
-nsPrincipal::GetCsp(nsIContentSecurityPolicy** aCsp)
-{
-  NS_IF_ADDREF(*aCsp = mCSP);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsPrincipal::SetCsp(nsIContentSecurityPolicy* aCsp)
-{
-  // If CSP was already set, it should not be destroyed!  Instead, it should
-  // get set anew when a new principal is created.
-  if (mCSP)
-    return NS_ERROR_ALREADY_INITIALIZED;
-
-  mCSP = aCsp;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsPrincipal::GetHashValue(PRUint32* aValue)
 {
   NS_PRECONDITION(mCert || mCodebase, "Need a cert or codebase");
@@ -805,7 +719,9 @@ nsPrincipal::GetHashValue(PRUint32* aValue)
     *aValue = nsCRT::HashCode(mCert->fingerprint.get());
   }
   else {
-    *aValue = nsScriptSecurityManager::HashPrincipalByOrigin(this);
+    nsCAutoString str;
+    mCodebase->GetSpec(str);
+    *aValue = nsCRT::HashCode(str.get());
   }
 
   return NS_OK;
@@ -930,7 +846,7 @@ struct CapabilityList
   nsCString* denied;
 };
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 AppendCapability(nsHashKey *aKey, void *aData, void *capListPtr)
 {
   CapabilityList* capList = (CapabilityList*)capListPtr;
@@ -1057,17 +973,13 @@ nsPrincipal::GetPreferences(char** aPrefName, char** aID,
   return NS_OK;
 }
 
-static nsresult
+PR_STATIC_CALLBACK(nsresult)
 ReadAnnotationEntry(nsIObjectInputStream* aStream, nsHashKey** aKey,
                     void** aData)
 {
   nsresult rv;
   nsCStringKey* key = new nsCStringKey(aStream, &rv);
-  if (!key)
-    return NS_ERROR_OUT_OF_MEMORY;
-
   if (NS_FAILED(rv)) {
-    delete key;
     return rv;
   }
 
@@ -1083,7 +995,7 @@ ReadAnnotationEntry(nsIObjectInputStream* aStream, nsHashKey** aKey,
   return NS_OK;
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 FreeAnnotationEntry(nsIObjectInputStream* aStream, nsHashKey* aKey,
                     void* aData)
 {
@@ -1175,7 +1087,7 @@ nsPrincipal::Read(nsIObjectInputStream* aStream)
   return NS_OK;
 }
 
-static nsresult
+PR_STATIC_CALLBACK(nsresult)
 WriteScalarValue(nsIObjectOutputStream* aStream, void* aData)
 {
   PRUint32 value = NS_PTR_TO_INT32(aData);

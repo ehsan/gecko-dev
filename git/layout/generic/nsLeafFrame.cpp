@@ -41,13 +41,12 @@
 #include "nsLeafFrame.h"
 #include "nsHTMLContainerFrame.h"
 #include "nsHTMLParts.h"
+#include "nsIPresShell.h"
 #include "nsPresContext.h"
 
 nsLeafFrame::~nsLeafFrame()
 {
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(nsLeafFrame)
 
 /* virtual */ nscoord
 nsLeafFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)

@@ -70,7 +70,6 @@
 #include "nsIHttpChannelInternal.h"
 #include "nsIHttpHeaderVisitor.h"
 #include "nsIChannelEventSink.h" 
-#include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsIInterfaceRequestor.h" 
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIDNSService.h" 
@@ -88,8 +87,6 @@
 #include "prtime.h"
 
 #include "nsInt64.h"
-
-namespace TestProtocols {
 
 #if defined(PR_LOGGING)
 //
@@ -240,14 +237,12 @@ TestChannelEventSink::~TestChannelEventSink()
 NS_IMPL_ISUPPORTS1(TestChannelEventSink, nsIChannelEventSink)
 
 NS_IMETHODIMP
-TestChannelEventSink::AsyncOnChannelRedirect(nsIChannel *channel,
-                                             nsIChannel *newChannel,
-                                             PRUint32 flags,
-                                             nsIAsyncVerifyRedirectCallback *callback)
+TestChannelEventSink::OnChannelRedirect(nsIChannel *channel,
+                                        nsIChannel *newChannel,
+                                        PRUint32 flags)
 {
     LOG(("\n+++ TestChannelEventSink::OnChannelRedirect (with flags %x) +++\n",
          flags));
-    callback->OnRedirectVerifyCallback(NS_OK);
     return NS_OK;
 }
 
@@ -785,10 +780,6 @@ nsresult LoadURLFromConsole()
         StartLoadingURL(buffer);
     return NS_OK;
 }
-
-} // namespace
-
-using namespace TestProtocols;
 
 int
 main(int argc, char* argv[])

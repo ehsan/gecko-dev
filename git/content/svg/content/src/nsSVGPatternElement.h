@@ -45,10 +45,9 @@
 #include "nsIDOMSVGPatternElement.h"
 #include "nsIDOMSVGUnitTypes.h"
 #include "nsSVGLength2.h"
+#include "nsStubMutationObserver.h"
 #include "nsSVGEnum.h"
 #include "nsSVGString.h"
-#include "nsSVGViewBox.h"
-#include "nsSVGPreserveAspectRatio.h"
 
 //--------------------- Patterns ------------------------
 
@@ -58,14 +57,16 @@ class nsSVGPatternElement : public nsSVGPatternElementBase,
                             public nsIDOMSVGURIReference,
                             public nsIDOMSVGFitToViewBox,
                             public nsIDOMSVGPatternElement,
-                            public nsIDOMSVGUnitTypes
+                            public nsIDOMSVGUnitTypes,
+                            public nsStubMutationObserver
 {
   friend class nsSVGPatternFrame;
 
 protected:
   friend nsresult NS_NewSVGPatternElement(nsIContent **aResult,
-                                          already_AddRefed<nsINodeInfo> aNodeInfo);
-  nsSVGPatternElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+                                         nsINodeInfo *aNodeInfo);
+  nsSVGPatternElement(nsINodeInfo* aNodeInfo);
+  nsresult Init();
 
 public:
   // interfaces:
@@ -80,28 +81,29 @@ public:
   // FitToViewbox
   NS_DECL_NSIDOMSVGFITTOVIEWBOX
 
+  // Mutation Observer
+  NS_DECL_NSIMUTATIONOBSERVER_CHARACTERDATACHANGED
+  NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED
+  NS_DECL_NSIMUTATIONOBSERVER_CONTENTAPPENDED
+  NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
+  NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
+
   NS_FORWARD_NSIDOMNODE(nsSVGElement::)
   NS_FORWARD_NSIDOMELEMENT(nsSVGElement::)
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGElement::)
 
   // nsIContent interface
-  NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* name) const;
+  NS_IMETHODIMP_(PRBool) IsAttributeMapped(const nsIAtom* name) const;
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
 
-  virtual nsresult BeforeSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                                 const nsAString* aValue, PRBool aNotify);
+  void PushUpdate();
 
   virtual LengthAttributesInfo GetLengthInfo();
   virtual EnumAttributesInfo GetEnumInfo();
-  virtual nsSVGViewBox *GetViewBox();
-  virtual nsSVGPreserveAspectRatio *GetPreserveAspectRatio();
   virtual StringAttributesInfo GetStringInfo();
-
-  virtual void DidAnimateTransform();
 
   // nsIDOMSVGPatternElement values
   enum { X, Y, WIDTH, HEIGHT };
@@ -120,11 +122,8 @@ protected:
   static StringInfo sStringInfo[1];
 
   // nsIDOMSVGFitToViewbox properties
-  nsSVGViewBox mViewBox;
-  nsSVGPreserveAspectRatio mPreserveAspectRatio;
-
-  // helper
-  nsresult CreateTransformList();
+  nsCOMPtr<nsIDOMSVGAnimatedRect> mViewBox;
+  nsCOMPtr<nsIDOMSVGAnimatedPreserveAspectRatio> mPreserveAspectRatio;
 };
 
 #endif

@@ -40,6 +40,7 @@
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsRuleData.h"
 
 // use the same protection as ancient code did 
@@ -50,7 +51,7 @@ class nsHTMLTableColElement : public nsGenericHTMLElement,
                               public nsIDOMHTMLTableColElement
 {
 public:
-  nsHTMLTableColElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLTableColElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLTableColElement();
 
   // nsISupports
@@ -76,15 +77,13 @@ public:
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-
-  virtual nsXPCClassInfo* GetClassInfo();
 };
 
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(TableCol)
 
 
-nsHTMLTableColElement::nsHTMLTableColElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLTableColElement::nsHTMLTableColElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -98,14 +97,11 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLTableColElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLTableColElement, nsGenericElement) 
 
 
-DOMCI_NODE_DATA(HTMLTableColElement, nsHTMLTableColElement)
-
 // QueryInterface implementation for nsHTMLTableColElement
-NS_INTERFACE_TABLE_HEAD(nsHTMLTableColElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLTableColElement,
-                                   nsIDOMHTMLTableColElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLTableColElement,
-                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLTableColElement,
+                                    nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED1(nsHTMLTableColElement,
+                                nsIDOMHTMLTableColElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLTableColElement)
 
 NS_IMPL_ELEMENT_CLONE(nsHTMLTableColElement)

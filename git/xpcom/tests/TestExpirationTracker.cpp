@@ -15,7 +15,7 @@
  *
  * The Original Code is ExpirationTracker tests.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
@@ -50,8 +50,6 @@
 #include "nsILocalFile.h"
 #include "prinrval.h"
 #include "nsThreadUtils.h"
-
-namespace TestExpirationTracker {
 
 struct Object {
   Object() : mExpired(PR_FALSE) { Touch(); }
@@ -89,8 +87,7 @@ public:
 
   void LogAction(Object* aObj, const char* aAction) {
     if (logging) {
-      printf("%d %p(%d): %s\n", PR_IntervalNow(),
-             static_cast<void*>(aObj), aObj->mLastUsed, aAction);
+      printf("%d %p(%d): %s\n", PR_IntervalNow(), aObj, aObj->mLastUsed, aAction);
     }
   }
 
@@ -212,10 +209,6 @@ static const struct Test {
   DECL_TEST(test_random8),
   { nsnull, nsnull }
 };
-
-}
-
-using namespace TestExpirationTracker;
 
 int main(int argc, char **argv) {
   int count = 1;

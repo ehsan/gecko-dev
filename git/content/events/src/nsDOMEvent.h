@@ -45,13 +45,13 @@
 #include "nsCOMPtr.h"
 #include "nsIDOMEventTarget.h"
 #include "nsPIDOMWindow.h"
+#include "nsPresContext.h"
 #include "nsPoint.h"
 #include "nsGUIEvent.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsAutoPtr.h"
 
 class nsIContent;
-class nsPresContext;
+class nsIScrollableView;
  
 class nsDOMEvent : public nsIDOMEvent,
                    public nsIDOMNSEvent,
@@ -59,7 +59,7 @@ class nsDOMEvent : public nsIDOMEvent,
 {
 public:
 
-  // Note: this enum must be kept in sync with sEventNames in nsDOMEvent.cpp
+  // Note: this enum must be kept in sync with mEventNames in nsDOMEvent.cpp
   enum nsDOMEvents {
     eDOMEvents_mousedown=0,
     eDOMEvents_mouseup,
@@ -67,7 +67,6 @@ public:
     eDOMEvents_dblclick,
     eDOMEvents_mouseover,
     eDOMEvents_mouseout,
-    eDOMEvents_MozMouseHittest,
     eDOMEvents_mousemove,
     eDOMEvents_contextmenu,
     eDOMEvents_keydown,
@@ -76,11 +75,8 @@ public:
     eDOMEvents_focus,
     eDOMEvents_blur,
     eDOMEvents_load,
-    eDOMEvents_popstate,
     eDOMEvents_beforeunload,
     eDOMEvents_unload,
-    eDOMEvents_hashchange,
-    eDOMEvents_readystatechange,
     eDOMEvents_abort,
     eDOMEvents_error,
     eDOMEvents_submit,
@@ -88,6 +84,7 @@ public:
     eDOMEvents_change,
     eDOMEvents_select,
     eDOMEvents_input,
+    eDOMEvents_paint,
     eDOMEvents_text,
     eDOMEvents_compositionstart,
     eDOMEvents_compositionend,
@@ -106,9 +103,6 @@ public:
     eDOMEvents_draggesture,
     eDOMEvents_drag,
     eDOMEvents_dragend,
-    eDOMEvents_dragstart,
-    eDOMEvents_dragleave,
-    eDOMEvents_drop,
     eDOMEvents_resize,
     eDOMEvents_scroll,
     eDOMEvents_overflow,
@@ -127,64 +121,21 @@ public:
     eDOMEvents_pageshow,
     eDOMEvents_pagehide,
     eDOMEvents_DOMMouseScroll,
-    eDOMEvents_MozMousePixelScroll,
     eDOMEvents_offline,
     eDOMEvents_online,
     eDOMEvents_copy,
     eDOMEvents_cut,
-    eDOMEvents_paste,
+    eDOMEvents_paste
 #ifdef MOZ_SVG
+   ,
     eDOMEvents_SVGLoad,
     eDOMEvents_SVGUnload,
     eDOMEvents_SVGAbort,
     eDOMEvents_SVGError,
     eDOMEvents_SVGResize,
     eDOMEvents_SVGScroll,
-    eDOMEvents_SVGZoom,
+    eDOMEvents_SVGZoom
 #endif // MOZ_SVG
-#ifdef MOZ_SMIL
-    eDOMEvents_beginEvent,
-    eDOMEvents_endEvent,
-    eDOMEvents_repeatEvent,
-#endif // MOZ_SMIL
-#ifdef MOZ_MEDIA
-    eDOMEvents_loadstart,
-    eDOMEvents_progress,
-    eDOMEvents_suspend,
-    eDOMEvents_emptied,
-    eDOMEvents_stalled,
-    eDOMEvents_play,
-    eDOMEvents_pause,
-    eDOMEvents_loadedmetadata,
-    eDOMEvents_loadeddata,
-    eDOMEvents_waiting,
-    eDOMEvents_playing,
-    eDOMEvents_canplay,
-    eDOMEvents_canplaythrough,
-    eDOMEvents_seeking,
-    eDOMEvents_seeked,
-    eDOMEvents_timeupdate,
-    eDOMEvents_ended,
-    eDOMEvents_ratechange,
-    eDOMEvents_durationchange,
-    eDOMEvents_volumechange,
-#endif
-    eDOMEvents_afterpaint,
-    eDOMEvents_beforepaint,
-    eDOMEvents_MozSwipeGesture,
-    eDOMEvents_MozMagnifyGestureStart,
-    eDOMEvents_MozMagnifyGestureUpdate,
-    eDOMEvents_MozMagnifyGesture,
-    eDOMEvents_MozRotateGestureStart,
-    eDOMEvents_MozRotateGestureUpdate,
-    eDOMEvents_MozRotateGesture,
-    eDOMEvents_MozTapGesture,
-    eDOMEvents_MozPressTapGesture,
-    eDOMEvents_MozTouchDown,
-    eDOMEvents_MozTouchMove,
-    eDOMEvents_MozTouchUp,
-    eDOMEvents_MozScrolledAreaChanged,
-    eDOMEvents_transitionend
   };
 
   nsDOMEvent(nsPresContext* aPresContext, nsEvent* aEvent);
@@ -202,12 +153,12 @@ public:
   // nsIPrivateDOMEvent interface
   NS_IMETHOD    DuplicatePrivateData();
   NS_IMETHOD    SetTarget(nsIDOMEventTarget* aTarget);
-  NS_IMETHOD_(PRBool)    IsDispatchStopped();
-  NS_IMETHOD_(nsEvent*)    GetInternalNSEvent();
+  NS_IMETHOD    SetCurrentTarget(nsIDOMEventTarget* aCurrentTarget);
+  NS_IMETHOD    SetOriginalTarget(nsIDOMEventTarget* aOriginalTarget);
+  NS_IMETHOD    IsDispatchStopped(PRBool* aIsDispatchStopped);
+  NS_IMETHOD    GetInternalNSEvent(nsEvent** aNSEvent);
+  NS_IMETHOD    HasOriginalTarget(PRBool* aResult);
   NS_IMETHOD    SetTrusted(PRBool aTrusted);
-
-  virtual void Serialize(IPC::Message* aMsg, PRBool aSerializeInterfaceType);
-  virtual PRBool Deserialize(const IPC::Message* aMsg, void** aIter);
 
   static PopupControlState GetEventPopupControlState(nsEvent *aEvent);
 
@@ -215,19 +166,17 @@ public:
 
   static void Shutdown();
 
-  static const char* GetEventName(PRUint32 aEventType);
 protected:
 
   // Internal helper functions
   nsresult SetEventType(const nsAString& aEventTypeArg);
-  already_AddRefed<nsIContent> GetTargetFromFrame();
-  nsresult ReportWrongPropertyAccessWarning(const char* aPropertyName);
+  static const char* GetEventName(PRUint32 aEventType);
+  already_AddRefed<nsIDOMEventTarget> GetTargetFromFrame();
 
   nsEvent*                    mEvent;
-  nsRefPtr<nsPresContext>     mPresContext;
+  nsCOMPtr<nsPresContext>     mPresContext;
   nsCOMPtr<nsIDOMEventTarget> mTmpRealOriginalTarget;
-  nsIDOMEventTarget*          mExplicitOriginalTarget;
-  nsString                    mCachedType;
+  nsCOMPtr<nsIDOMEventTarget> mExplicitOriginalTarget;
   PRPackedBool                mEventIsInternal;
   PRPackedBool                mPrivateDataDuplicated;
 };

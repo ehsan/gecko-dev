@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -42,272 +42,33 @@
 /*
  * JS locking stubs.
  */
+#include "jsstddef.h"
 #include <stdlib.h>
 #include <string.h>
 #include "jspubtd.h"
 #include "jsutil.h" /* Added by JSIFY */
 #include "jstypes.h"
-#include "jsstdint.h"
 #include "jsbit.h"
 #include "jscntxt.h"
 #include "jsdtoa.h"
 #include "jsgc.h"
+#include "jsfun.h"      /* for VALUE_IS_FUNCTION used by *_WRITE_BARRIER */
 #include "jslock.h"
 #include "jsscope.h"
 #include "jsstr.h"
 
-using namespace js;
-
 #define ReadWord(W) (W)
-
-#if !defined(__GNUC__)
-# define __asm__ asm
-# define __volatile__ volatile
-#endif
-
-/* Implement NativeCompareAndSwap. */
-
-#if defined(_MSC_VER) && defined(_M_IX86)
-#pragma warning( disable : 4035 )
-JS_BEGIN_EXTERN_C
-extern long __cdecl
-_InterlockedCompareExchange(long *volatile dest, long exchange, long comp);
-JS_END_EXTERN_C
-#pragma intrinsic(_InterlockedCompareExchange)
-
-JS_STATIC_ASSERT(sizeof(jsword) == sizeof(long));
-
-static JS_ALWAYS_INLINE int
-NativeCompareAndSwapHelper(jsword *w, jsword ov, jsword nv)
-{
-    _InterlockedCompareExchange((long*) w, nv, ov);
-    __asm {
-        sete al
-    }
-}
-
-static JS_ALWAYS_INLINE int
-NativeCompareAndSwap(jsword *w, jsword ov, jsword nv)
-{
-    return (NativeCompareAndSwapHelper(w, ov, nv) & 1);
-}
-
-#elif defined(_MSC_VER) && (defined(_M_AMD64) || defined(_M_X64))
-JS_BEGIN_EXTERN_C
-extern long long __cdecl
-_InterlockedCompareExchange64(long long *volatile dest, long long exchange, long long comp);
-JS_END_EXTERN_C
-#pragma intrinsic(_InterlockedCompareExchange64)
-
-static JS_ALWAYS_INLINE int
-NativeCompareAndSwap(jsword *w, jsword ov, jsword nv)
-{
-    return _InterlockedCompareExchange64(w, nv, ov) == ov;
-}
-
-#elif defined(XP_MACOSX) || defined(DARWIN)
-
-#include <libkern/OSAtomic.h>
-
-static JS_ALWAYS_INLINE int
-NativeCompareAndSwap(jsword *w, jsword ov, jsword nv)
-{
-    /* Details on these functions available in the manpage for atomic */
-    return OSAtomicCompareAndSwapPtrBarrier(reinterpret_cast<void *>(ov),
-                                            reinterpret_cast<void *>(nv),
-                                            reinterpret_cast<void **>(w));
-}
-
-#elif defined(__i386) && (defined(__GNUC__) || defined(__SUNPRO_CC))
-
-/* Note: This fails on 386 cpus, cmpxchgl is a >= 486 instruction */
-static JS_ALWAYS_INLINE int
-NativeCompareAndSwap(jsword *w, jsword ov, jsword nv)
-{
-    unsigned int res;
-
-    __asm__ __volatile__ (
-                          "lock\n"
-                          "cmpxchgl %2, (%1)\n"
-                          "sete %%al\n"
-                          "andl $1, %%eax\n"
-                          : "=a" (res)
-#ifdef __SUNPRO_CC
-/* Different code for Sun Studio because of a bug of SS12U1 */
-                          : "c" (w), "d" (nv), "a" (ov)
-#else
-                          : "r" (w), "r" (nv), "a" (ov)
-#endif
-                          : "cc", "memory");
-    return (int)res;
-}
-#elif defined(__x86_64) && (defined(__GNUC__) || defined(__SUNPRO_CC))
-
-static JS_ALWAYS_INLINE int
-NativeCompareAndSwap(jsword *w, jsword ov, jsword nv)
-{
-    unsigned int res;
-
-    __asm__ __volatile__ (
-                          "lock\n"
-                          "cmpxchgq %2, (%1)\n"
-                          "sete %%al\n"
-                          "movzbl %%al, %%eax\n"
-                          : "=a" (res)
-                          : "r" (w), "r" (nv), "a" (ov)
-                          : "cc", "memory");
-    return (int)res;
-}
-
-#elif defined(__sparc)
-#if defined(__GNUC__)
-
-static JS_ALWAYS_INLINE int
-NativeCompareAndSwap(jsword *w, jsword ov, jsword nv)
-{
-    unsigned int res;
-
-    __asm__ __volatile__ (
-                  "membar #StoreLoad | #LoadLoad\n"
-#if JS_BITS_PER_WORD == 32
-                  "cas [%1],%2,%3\n"
-#else
-                  "casx [%1],%2,%3\n"
-#endif
-                  "membar #StoreLoad | #LoadLoad\n"
-                  "cmp %2,%3\n"
-                  "be,a 1f\n"
-                  "mov 1,%0\n"
-                  "mov 0,%0\n"
-                  "1:"
-                  : "=r" (res)
-                  : "r" (w), "r" (ov), "r" (nv));
-    return (int)res;
-}
-
-#elif defined(__SUNPRO_CC)
-
-/* Implementation in lock_sparc*.il */
-extern "C" int
-NativeCompareAndSwap(jsword *w, jsword ov, jsword nv);
-
-#endif
-
-#elif defined(AIX)
-
-#include <sys/atomic_op.h>
-
-static JS_ALWAYS_INLINE int
-NativeCompareAndSwap(jsword *w, jsword ov, jsword nv)
-{
-    int res;
-    JS_STATIC_ASSERT(sizeof(jsword) == sizeof(long));
-
-    res = compare_and_swaplp((atomic_l)w, &ov, nv);
-    if (res)
-        __asm__("isync");
-    return res;
-}
-
-#elif defined(USE_ARM_KUSER)
-
-/* See https://bugzilla.mozilla.org/show_bug.cgi?id=429387 for a
- * description of this ABI; this is a function provided at a fixed
- * location by the kernel in the memory space of each process.
- */
-typedef int (__kernel_cmpxchg_t)(int oldval, int newval, volatile int *ptr);
-#define __kernel_cmpxchg (*(__kernel_cmpxchg_t *)0xffff0fc0)
-
-JS_STATIC_ASSERT(sizeof(jsword) == sizeof(int));
-
-static JS_ALWAYS_INLINE int
-NativeCompareAndSwap(jsword *w, jsword ov, jsword nv)
-{
-    volatile int *vp = (volatile int *) w;
-    PRInt32 failed = 1;
-
-    /* Loop until a __kernel_cmpxchg succeeds. See bug 446169 */
-    do {
-        failed = __kernel_cmpxchg(ov, nv, vp);
-    } while (failed && *vp == ov);
-    return !failed;
-}
-
-#elif JS_HAS_NATIVE_COMPARE_AND_SWAP
-
-#error "JS_HAS_NATIVE_COMPARE_AND_SWAP should be 0 if your platform lacks a compare-and-swap instruction."
-
-#endif /* arch-tests */
-
-#if JS_HAS_NATIVE_COMPARE_AND_SWAP
-
-JSBool
-js_CompareAndSwap(jsword *w, jsword ov, jsword nv)
-{
-    return !!NativeCompareAndSwap(w, ov, nv);
-}
-
-#elif defined(NSPR_LOCK)
-
-# ifdef __GNUC__
-# warning "js_CompareAndSwap is implemented using NSPR lock"
-# endif
-
-JSBool
-js_CompareAndSwap(jsword *w, jsword ov, jsword nv)
-{
-    int result;
-    static PRLock *CompareAndSwapLock = JS_NEW_LOCK();
-
-    JS_ACQUIRE_LOCK(CompareAndSwapLock);
-    result = (*w == ov);
-    if (result)
-        *w = nv;
-    JS_RELEASE_LOCK(CompareAndSwapLock);
-    return result;
-}
-
-#else /* !defined(NSPR_LOCK) */
-
-#error "NSPR_LOCK should be on when the platform lacks native compare-and-swap."
-
-#endif
-
-void
-js_AtomicSetMask(jsword *w, jsword mask)
-{
-    jsword ov, nv;
-
-    do {
-        ov = *w;
-        nv = ov | mask;
-    } while (!js_CompareAndSwap(w, ov, nv));
-}
 
 #ifndef NSPR_LOCK
 
-struct JSFatLock {
-    int         susp;
-    PRLock      *slock;
-    PRCondVar   *svar;
-    JSFatLock   *next;
-    JSFatLock   **prevp;
-};
-
-typedef struct JSFatLockTable {
-    JSFatLock   *free;
-    JSFatLock   *taken;
-} JSFatLockTable;
-
-#define GLOBAL_LOCK_INDEX(id)   (((uint32)(jsuword)(id)>>2) & global_locks_mask)
-
-static void
-js_Dequeue(JSThinLock *);
+#include <memory.h>
 
 static PRLock **global_locks;
 static uint32 global_lock_count = 1;
 static uint32 global_locks_log2 = 0;
 static uint32 global_locks_mask = 0;
+
+#define GLOBAL_LOCK_INDEX(id)   (((uint32)(id) >> 2) & global_locks_mask)
 
 static void
 js_LockGlobal(void *id)
@@ -323,6 +84,124 @@ js_UnlockGlobal(void *id)
     PR_Unlock(global_locks[i]);
 }
 
+/* Exclude Alpha NT. */
+#if defined(_WIN32) && defined(_M_IX86)
+#pragma warning( disable : 4035 )
+JS_BEGIN_EXTERN_C
+extern long __cdecl
+_InterlockedCompareExchange(long *volatile dest, long exchange, long comp);
+JS_END_EXTERN_C
+#pragma intrinsic(_InterlockedCompareExchange)
+
+static JS_INLINE int
+js_CompareAndSwapHelper(jsword *w, jsword ov, jsword nv)
+{
+    _InterlockedCompareExchange(w, nv, ov);
+    __asm {
+        sete al
+    }
+}
+
+static JS_INLINE int
+js_CompareAndSwap(jsword *w, jsword ov, jsword nv)
+{
+    return (js_CompareAndSwapHelper(w, ov, nv) & 1);
+}
+
+#elif defined(XP_MACOSX) || defined(DARWIN)
+
+#include <libkern/OSAtomic.h>
+
+static JS_INLINE int
+js_CompareAndSwap(jsword *w, jsword ov, jsword nv)
+{
+    /* Details on these functions available in the manpage for atomic */
+#if JS_BYTES_PER_WORD == 8 && JS_BYTES_PER_LONG != 8
+    return OSAtomicCompareAndSwap64Barrier(ov, nv, (int64_t*) w);
+#else
+    return OSAtomicCompareAndSwap32Barrier(ov, nv, (int32_t*) w);
+#endif
+}
+
+#elif defined(__GNUC__) && defined(__i386__)
+
+/* Note: This fails on 386 cpus, cmpxchgl is a >= 486 instruction */
+static JS_INLINE int
+js_CompareAndSwap(jsword *w, jsword ov, jsword nv)
+{
+    unsigned int res;
+
+    __asm__ __volatile__ (
+                          "lock\n"
+                          "cmpxchgl %2, (%1)\n"
+                          "sete %%al\n"
+                          "andl $1, %%eax\n"
+                          : "=a" (res)
+                          : "r" (w), "r" (nv), "a" (ov)
+                          : "cc", "memory");
+    return (int)res;
+}
+
+#elif defined(SOLARIS) && defined(sparc) && defined(ULTRA_SPARC)
+
+static JS_INLINE int
+js_CompareAndSwap(jsword *w, jsword ov, jsword nv)
+{
+#if defined(__GNUC__)
+    unsigned int res;
+    JS_ASSERT(ov != nv);
+    asm volatile ("\
+stbar\n\
+cas [%1],%2,%3\n\
+cmp %2,%3\n\
+be,a 1f\n\
+mov 1,%0\n\
+mov 0,%0\n\
+1:"
+                  : "=r" (res)
+                  : "r" (w), "r" (ov), "r" (nv));
+    return (int)res;
+#else /* !__GNUC__ */
+    extern int compare_and_swap(jsword*, jsword, jsword);
+    JS_ASSERT(ov != nv);
+    return compare_and_swap(w, ov, nv);
+#endif
+}
+
+#elif defined(AIX)
+
+#include <sys/atomic_op.h>
+
+static JS_INLINE int
+js_CompareAndSwap(jsword *w, jsword ov, jsword nv)
+{
+    return !_check_lock((atomic_p)w, ov, nv);
+}
+
+#elif defined(USE_ARM_KUSER)
+
+/* See https://bugzilla.mozilla.org/show_bug.cgi?id=429387 for a
+ * description of this ABI; this is a function provided at a fixed
+ * location by the kernel in the memory space of each process.
+ */
+typedef int (__kernel_cmpxchg_t)(int oldval, int newval, volatile int *ptr);
+#define __kernel_cmpxchg (*(__kernel_cmpxchg_t *)0xffff0fc0)
+
+JS_STATIC_ASSERT(sizeof(jsword) == sizeof(int));
+
+static JS_INLINE int
+js_CompareAndSwap(jsword *w, jsword ov, jsword nv)
+{
+    volatile int *vp = (volatile int*)w;
+    return !__kernel_cmpxchg(ov, nv, vp);
+}
+
+#else
+
+#error "Define NSPR_LOCK if your platform lacks a compare-and-swap instruction."
+
+#endif /* arch-tests */
+
 #endif /* !NSPR_LOCK */
 
 void
@@ -332,7 +211,7 @@ js_InitLock(JSThinLock *tl)
     tl->owner = 0;
     tl->fat = (JSFatLock*)JS_NEW_LOCK();
 #else
-    PodZero(tl);
+    memset(tl, 0, sizeof(JSThinLock));
 #endif
 }
 
@@ -349,12 +228,16 @@ js_FinishLock(JSThinLock *tl)
 #endif
 }
 
+#ifndef NSPR_LOCK
+static void js_Dequeue(JSThinLock *);
+#endif
+
 #ifdef DEBUG_SCOPE_COUNT
 
 #include <stdio.h>
 #include "jsdhash.h"
 
-static FILE *logfp = NULL;
+static FILE *logfp;
 static JSDHashTable logtbl;
 
 typedef struct logentry {
@@ -365,7 +248,7 @@ typedef struct logentry {
 } logentry;
 
 static void
-logit(JSTitle *title, char op, const char *file, int line)
+logit(JSScope *scope, char op, const char *file, int line)
 {
     logentry *entry;
 
@@ -375,78 +258,60 @@ logit(JSTitle *title, char op, const char *file, int line)
             return;
         setvbuf(logfp, NULL, _IONBF, 0);
     }
-    fprintf(logfp, "%p %d %c %s %d\n", title, title->u.count, op, file, line);
+    fprintf(logfp, "%p %c %s %d\n", scope, op, file, line);
 
     if (!logtbl.entryStore &&
         !JS_DHashTableInit(&logtbl, JS_DHashGetStubOps(), NULL,
                            sizeof(logentry), 100)) {
         return;
     }
-    entry = (logentry *) JS_DHashTableOperate(&logtbl, title, JS_DHASH_ADD);
+    entry = (logentry *) JS_DHashTableOperate(&logtbl, scope, JS_DHASH_ADD);
     if (!entry)
         return;
-    entry->stub.key = title;
+    entry->stub.key = scope;
     entry->op = op;
     entry->file = file;
     entry->line = line;
 }
 
 void
-js_unlog_title(JSTitle *title)
+js_unlog_scope(JSScope *scope)
 {
     if (!logtbl.entryStore)
         return;
-    (void) JS_DHashTableOperate(&logtbl, title, JS_DHASH_REMOVE);
+    (void) JS_DHashTableOperate(&logtbl, scope, JS_DHASH_REMOVE);
 }
 
-# define LOGIT(title,op) logit(title, op, __FILE__, __LINE__)
+# define LOGIT(scope,op) logit(scope, op, __FILE__, __LINE__)
 
 #else
 
-# define LOGIT(title, op) /* nothing */
+# define LOGIT(scope,op) /* nothing */
 
 #endif /* DEBUG_SCOPE_COUNT */
 
 /*
- * Return true if we would deadlock waiting in ClaimTitle on
- * rt->titleSharingDone until ownercx finishes its request and shares a title.
+ * Return true if scope's ownercx, or the ownercx of a single-threaded scope
+ * for which ownercx is waiting to become multi-threaded and shared, is cx.
+ * That condition implies deadlock in ClaimScope if cx's thread were to wait
+ * to share scope.
  *
  * (i) rt->gcLock held
  */
-static bool
-WillDeadlock(JSContext *ownercx, JSThread *thread)
+static JSBool
+WillDeadlock(JSTitle *title, JSContext *cx)
 {
-    JS_ASSERT(CURRENT_THREAD_IS_ME(thread));
-    JS_ASSERT(ownercx->thread != thread);
+    JSContext *ownercx;
 
-     for (;;) {
-        JS_ASSERT(ownercx->thread);
-        JS_ASSERT(ownercx->thread->requestContext);
-        JSTitle *title = ownercx->thread->titleToShare;
-        if (!title || !title->ownercx) {
-            /*
-             * ownercx->thread doesn't wait or has just been notified that the
-             * title became shared.
-             */
-            return false;
-        }
-
-        /*
-         * ownercx->thread is waiting in ClaimTitle for a context from some
-         * thread to finish its request. If that thread is the current thread,
-         * we would deadlock. Otherwise we must recursively check if that
-         * thread waits for the current thread.
-         */
-        if (title->ownercx->thread == thread) {
-            JS_RUNTIME_METER(ownercx->runtime, deadlocksAvoided);
-            return true;
-        }
+    do {
         ownercx = title->ownercx;
-     }
+        if (ownercx == cx) {
+            JS_RUNTIME_METER(cx->runtime, deadlocksAvoided);
+            return JS_TRUE;
+        }
+    } while (ownercx && (title = ownercx->titleToShare) != NULL);
+    return JS_FALSE;
 }
-
-static void
-FinishSharingTitle(JSContext *cx, JSTitle *title);
 
 /*
  * Make title multi-threaded, i.e. share its ownership among contexts in rt
@@ -473,44 +338,51 @@ ShareTitle(JSContext *cx, JSTitle *title)
         title->u.link = NULL;       /* null u.link for sanity ASAP */
         JS_NOTIFY_ALL_CONDVAR(rt->titleSharingDone);
     }
-    FinishSharingTitle(cx, title);
+    js_InitLock(&title->lock);
+    title->u.count = 0;
+    js_FinishSharingTitle(cx, title);
 }
 
 /*
- * FinishSharingTitle is the tail part of ShareTitle, split out to become a
- * subroutine of js_ShareWaitingTitles too. The bulk of the work here involves
- * making mutable strings in the title's object's slots be immutable. We have
- * to do this because such strings will soon be available to multiple threads,
- * so their buffers can't be realloc'd any longer in js_ConcatStrings, and
- * their members can't be modified by js_ConcatStrings, JSString::undepend, or
- * MinimizeDependentStrings.
+ * js_FinishSharingTitle is the tail part of ShareTitle, split out to become a
+ * subroutine of JS_EndRequest too.  The bulk of the work here involves making
+ * mutable strings in the title's object's slots be immutable.  We have to do
+ * this because such strings will soon be available to multiple threads, so
+ * their buffers can't be realloc'd any longer in js_ConcatStrings, and their
+ * members can't be modified by js_ConcatStrings, js_MinimizeDependentStrings,
+ * or js_UndependString.
  *
- * The last bit of work done by this function nulls title->ownercx and updates
- * rt->sharedTitles.
+ * The last bit of work done by js_FinishSharingTitle nulls title->ownercx and
+ * updates rt->sharedTitles.
  */
-static void
-FinishSharingTitle(JSContext *cx, JSTitle *title)
-{
-    js_InitLock(&title->lock);
-    title->u.count = 0;     /* NULL may not pun as 0 */
 
-    JSScope *scope = TITLE_TO_SCOPE(title);
-    JSObject *obj = scope->object;
-    if (obj) {
-        uint32 nslots = scope->freeslot;
-        JS_ASSERT(nslots >= JSSLOT_START(obj->getClass()));
-        for (uint32 i = JSSLOT_START(obj->getClass()); i != nslots; ++i) {
-            Value v = obj->getSlot(i);
-            if (v.isString() &&
-                !js_MakeStringImmutable(cx, v.toString())) {
-                /*
-                 * FIXME bug 363059: The following error recovery changes
-                 * runtime execution semantics, arbitrarily and silently
-                 * ignoring errors except out-of-memory, which should have been
-                 * reported through JS_ReportOutOfMemory at this point.
-                 */
-                obj->setSlot(i, UndefinedValue());
-            }
+void
+js_FinishSharingTitle(JSContext *cx, JSTitle *title)
+{
+    JSObjectMap *map;
+    JSScope *scope;
+    JSObject *obj;
+    uint32 nslots, i;
+    jsval v;
+
+    map = TITLE_TO_MAP(title);
+    if (!MAP_IS_NATIVE(map))
+        return;
+    scope = (JSScope *)map;
+
+    obj = scope->object;
+    nslots = scope->map.freeslot;
+    for (i = 0; i != nslots; ++i) {
+        v = STOBJ_GET_SLOT(obj, i);
+        if (JSVAL_IS_STRING(v) &&
+            !js_MakeStringImmutable(cx, JSVAL_TO_STRING(v))) {
+            /*
+             * FIXME bug 363059: The following error recovery changes runtime
+             * execution semantics, arbitrarily and silently ignoring errors
+             * except out-of-memory, which should have been reported through
+             * JS_ReportOutOfMemory at this point.
+             */
+            STOBJ_SET_SLOT(obj, i, JSVAL_VOID);
         }
     }
 
@@ -529,67 +401,62 @@ FinishSharingTitle(JSContext *cx, JSTitle *title)
 static JSBool
 ClaimTitle(JSTitle *title, JSContext *cx)
 {
-    JSRuntime *rt = cx->runtime;
-    JS_ASSERT_IF(!cx->thread->requestContext,
-                 cx->thread == rt->gcThread && rt->gcRunning);
+    JSRuntime *rt;
+    JSContext *ownercx;
+    jsrefcount saveDepth;
+    PRStatus stat;
 
+    rt = cx->runtime;
     JS_RUNTIME_METER(rt, claimAttempts);
-    AutoLockGC lock(rt);
+    JS_LOCK_GC(rt);
 
     /* Reload in case ownercx went away while we blocked on the lock. */
-    while (JSContext *ownercx = title->ownercx) {
+    while ((ownercx = title->ownercx) != NULL) {
         /*
          * Avoid selflock if ownercx is dead, or is not running a request, or
-         * has the same thread as cx, or cx->thread runs the GC (in which case
-         * all other requests must be suspended), or ownercx->thread runs a GC
-         * and the GC waits for all requests to finish. Set title->ownercx to
-         * cx so that the matching JS_UNLOCK_SCOPE or JS_UNLOCK_OBJ macro call
-         * will take the fast path around the corresponding js_UnlockTitle or
-         * js_UnlockObj function call.
+         * has the same thread as cx.  Set title->ownercx to cx so that the
+         * matching JS_UNLOCK_SCOPE or JS_UNLOCK_OBJ macro call will take the
+         * fast path around the corresponding js_UnlockTitle or js_UnlockObj
+         * function call.
          *
          * If title->u.link is non-null, title has already been inserted on
          * the rt->titleSharingTodo list, because another thread's context
          * already wanted to lock title while ownercx was running a request.
-         * That context must still be in request and cannot be dead. Moreover,
-         * the GC can not run at this moment as it must wait until all the
-         * titles are shared and the threads that want to lock them finish
-         * their requests. Thus we can claim the title if its thread matches
-         * ours.
+         * We can't claim any title whose u.link is non-null at this point,
+         * even if ownercx->requestDepth is 0 (see below where we suspend our
+         * request before waiting on rt->titleSharingDone).
          */
-        bool canClaim;
-        if (title->u.link) {
-            JS_ASSERT(js_ValidContextPointer(rt, ownercx));
-            JS_ASSERT(ownercx->thread->requestContext);
-            JS_ASSERT(!rt->gcRunning);
-            canClaim = (ownercx->thread == cx->thread);
-        } else {
-            canClaim = (!js_ValidContextPointer(rt, ownercx) ||
-                        !ownercx->thread ||
-                        !ownercx->thread->requestContext ||
-                        cx->thread == ownercx->thread  ||
-                        cx->thread == rt->gcThread ||
-                        ownercx->thread->gcWaiting);
-        }
-        if (canClaim) {
+        if (!title->u.link &&
+            (!js_ValidContextPointer(rt, ownercx) ||
+             !ownercx->requestDepth ||
+             ownercx->thread == cx->thread)) {
+            JS_ASSERT(title->u.count == 0);
             title->ownercx = cx;
+            JS_UNLOCK_GC(rt);
             JS_RUNTIME_METER(rt, claimedTitles);
             return JS_TRUE;
         }
 
         /*
-         * Avoid deadlock if title's owner thread is waiting on a title that
-         * the current thread owns, by revoking title's ownership. This
-         * approach to deadlock avoidance works because the engine never nests
-         * title locks.
+         * Avoid deadlock if title's owner context is waiting on a title that
+         * we own, by revoking title's ownership.  This approach to deadlock
+         * avoidance works because the engine never nests title locks.
          *
-         * If cx->thread could hold locks on ownercx->thread->titleToShare, or
-         * if ownercx->thread could hold locks on title, we would need to keep
-         * reentrancy counts for all such "flyweight" (ownercx != NULL) locks,
-         * so that control would unwind properly once these locks became
-         * "thin" or "fat". The engine promotes a title from exclusive to
-         * shared access only when locking, never when holding or unlocking.
+         * If cx could hold locks on ownercx->titleToShare, or if ownercx could
+         * hold locks on title, we would need to keep reentrancy counts for all
+         * such "flyweight" (ownercx != NULL) locks, so that control would
+         * unwind properly once these locks became "thin" or "fat".  The engine
+         * promotes a title from exclusive to shared access only when locking,
+         * never when holding or unlocking.
+         *
+         * Avoid deadlock before any of this title/context cycle detection if
+         * cx is on the active GC's thread, because in that case, no requests
+         * will run until the GC completes.  Any title wanted by the GC (from
+         * a finalizer) that can't be claimed must become shared.
          */
-        if (WillDeadlock(ownercx, cx->thread)) {
+        if (rt->gcThread == cx->thread ||
+            (ownercx->titleToShare &&
+             WillDeadlock(ownercx->titleToShare, cx))) {
             ShareTitle(cx, title);
             break;
         }
@@ -602,51 +469,70 @@ ClaimTitle(JSTitle *title, JSContext *cx)
         if (!title->u.link) {
             title->u.link = rt->titleSharingTodo;
             rt->titleSharingTodo = title;
+            js_HoldObjectMap(cx, TITLE_TO_MAP(title));
+        }
+
+        /*
+         * Inline JS_SuspendRequest before we wait on rt->titleSharingDone,
+         * saving and clearing cx->requestDepth so we don't deadlock if the
+         * GC needs to run on ownercx.
+         *
+         * Unlike JS_SuspendRequest and JS_EndRequest, we must take care not
+         * to decrement rt->requestCount if cx is active on the GC's thread,
+         * because the GC has already reduced rt->requestCount to exclude all
+         * such such contexts.
+         */
+        saveDepth = cx->requestDepth;
+        if (saveDepth) {
+            cx->requestDepth = 0;
+            if (rt->gcThread != cx->thread) {
+                JS_ASSERT(rt->requestCount > 0);
+                rt->requestCount--;
+                if (rt->requestCount == 0)
+                    JS_NOTIFY_REQUEST_DONE(rt);
+            }
         }
 
         /*
          * We know that some other thread's context owns title, which is now
          * linked onto rt->titleSharingTodo, awaiting the end of that other
-         * thread's request. So it is safe to wait on rt->titleSharingDone.
-         * But before waiting, we force the operation callback for that other
-         * thread so it can quickly suspend.
+         * thread's request.  So it is safe to wait on rt->titleSharingDone.
          */
-        JS_THREAD_DATA(ownercx)->triggerOperationCallback();
-
-        JS_ASSERT(!cx->thread->titleToShare);
-        cx->thread->titleToShare = title;
-#ifdef DEBUG
-        PRStatus stat =
-#endif
-            PR_WaitCondVar(rt->titleSharingDone, PR_INTERVAL_NO_TIMEOUT);
+        cx->titleToShare = title;
+        stat = PR_WaitCondVar(rt->titleSharingDone, PR_INTERVAL_NO_TIMEOUT);
         JS_ASSERT(stat != PR_FAILURE);
-        cx->thread->titleToShare = NULL;
-    }
-    return JS_FALSE;
-}
 
-void
-js_ShareWaitingTitles(JSContext *cx)
-{
-    JSTitle *title, **todop;
-    bool shared;
-
-    /* See whether cx has any single-threaded titles to start sharing. */
-    todop = &cx->runtime->titleSharingTodo;
-    shared = false;
-    while ((title = *todop) != NO_TITLE_SHARING_TODO) {
-        if (title->ownercx->thread != cx->thread) {
-            todop = &title->u.link;
-            continue;
+        /*
+         * Inline JS_ResumeRequest after waiting on rt->titleSharingDone,
+         * restoring cx->requestDepth.  Same note as above for the inlined,
+         * specialized JS_SuspendRequest code: beware rt->gcThread.
+         */
+        if (saveDepth) {
+            if (rt->gcThread != cx->thread) {
+                while (rt->gcLevel > 0)
+                    JS_AWAIT_GC_DONE(rt);
+                rt->requestCount++;
+            }
+            cx->requestDepth = saveDepth;
         }
-        *todop = title->u.link;
-        title->u.link = NULL;           /* null u.link for sanity ASAP */
 
-        FinishSharingTitle(cx, title);  /* set ownercx = NULL */
-        shared = true;
+        /*
+         * Don't clear cx->titleToShare until after we're through waiting on
+         * all condition variables protected by rt->gcLock -- that includes
+         * rt->titleSharingDone *and* rt->gcDone (hidden in JS_AWAIT_GC_DONE,
+         * in the inlined JS_ResumeRequest code immediately above).
+         *
+         * Otherwise, the GC could easily deadlock with another thread that
+         * owns a title wanted by a finalizer.  By keeping cx->titleToShare
+         * set till here, we ensure that such deadlocks are detected, which
+         * results in the finalized object's title being shared (it must, of
+         * course, have other, live objects sharing it).
+         */
+        cx->titleToShare = NULL;
     }
-    if (shared)
-        JS_NOTIFY_ALL_CONDVAR(cx->runtime->titleSharingDone);
+
+    JS_UNLOCK_GC(rt);
+    return JS_FALSE;
 }
 
 /* Exported to js.c, which calls it via OBJ_GET_* and JSVAL_IS_* macros. */
@@ -661,16 +547,27 @@ js_GetSlotThreadSafe(JSContext *cx, JSObject *obj, uint32 slot)
     jsword me;
 #endif
 
-    OBJ_CHECK_SLOT(obj, slot);
+    /*
+     * We handle non-native objects via JSObjectOps.getRequiredSlot, treating
+     * all slots starting from 0 as required slots.  A property definition or
+     * some prior arrangement must have allocated slot.
+     *
+     * Note once again (see jspubtd.h, before JSGetRequiredSlotOp's typedef)
+     * the crucial distinction between a |required slot number| that's passed
+     * to the get/setRequiredSlot JSObjectOps, and a |reserved slot index|
+     * passed to the JS_Get/SetReservedSlot APIs.
+     */
+    if (!OBJ_IS_NATIVE(obj))
+        return OBJ_GET_REQUIRED_SLOT(cx, obj, slot);
 
     /*
      * Native object locking is inlined here to optimize the single-threaded
      * and contention-free multi-threaded cases.
      */
-    scope = obj->scope();
+    scope = OBJ_SCOPE(obj);
     title = &scope->title;
     JS_ASSERT(title->ownercx != cx);
-    JS_ASSERT(slot < scope->freeslot);
+    JS_ASSERT(slot < obj->map->freeslot);
 
     /*
      * Avoid locking if called from the GC.  Also avoid locking an object
@@ -679,43 +576,43 @@ js_GetSlotThreadSafe(JSContext *cx, JSObject *obj, uint32 slot)
      * an earlier request.
      */
     if (CX_THREAD_IS_RUNNING_GC(cx) ||
-        scope->sealed() ||
+        (SCOPE_IS_SEALED(scope) && scope->object == obj) ||
         (title->ownercx && ClaimTitle(title, cx))) {
-        return Jsvalify(obj->getSlot(slot));
+        return STOBJ_GET_SLOT(obj, slot);
     }
 
 #ifndef NSPR_LOCK
     tl = &title->lock;
     me = CX_THINLOCK_ID(cx);
     JS_ASSERT(CURRENT_THREAD_IS_ME(me));
-    if (NativeCompareAndSwap(&tl->owner, 0, me)) {
+    if (js_CompareAndSwap(&tl->owner, 0, me)) {
         /*
          * Got the lock with one compare-and-swap.  Even so, someone else may
          * have mutated obj so it now has its own scope and lock, which would
          * require either a restart from the top of this routine, or a thin
          * lock release followed by fat lock acquisition.
          */
-        if (scope == obj->scope()) {
-            v = Jsvalify(obj->getSlot(slot));
-            if (!NativeCompareAndSwap(&tl->owner, me, 0)) {
+        if (scope == OBJ_SCOPE(obj)) {
+            v = STOBJ_GET_SLOT(obj, slot);
+            if (!js_CompareAndSwap(&tl->owner, me, 0)) {
                 /* Assert that scope locks never revert to flyweight. */
                 JS_ASSERT(title->ownercx != cx);
-                LOGIT(title, '1');
+                LOGIT(scope, '1');
                 title->u.count = 1;
                 js_UnlockObj(cx, obj);
             }
             return v;
         }
-        if (!NativeCompareAndSwap(&tl->owner, me, 0))
+        if (!js_CompareAndSwap(&tl->owner, me, 0))
             js_Dequeue(tl);
     }
     else if (Thin_RemoveWait(ReadWord(tl->owner)) == me) {
-        return Jsvalify(obj->getSlot(slot));
+        return STOBJ_GET_SLOT(obj, slot);
     }
 #endif
 
     js_LockObj(cx, obj);
-    v = Jsvalify(obj->getSlot(slot));
+    v = STOBJ_GET_SLOT(obj, slot);
 
     /*
      * Test whether cx took ownership of obj's scope during js_LockObj.
@@ -726,7 +623,7 @@ js_GetSlotThreadSafe(JSContext *cx, JSObject *obj, uint32 slot)
      * object's scope (whose lock was not flyweight, else we wouldn't be here
      * in the first place!).
      */
-    title = &obj->scope()->title;
+    title = &OBJ_SCOPE(obj)->title;
     if (title->ownercx != cx)
         js_UnlockTitle(cx, title);
     return v;
@@ -742,8 +639,6 @@ js_SetSlotThreadSafe(JSContext *cx, JSObject *obj, uint32 slot, jsval v)
     jsword me;
 #endif
 
-    OBJ_CHECK_SLOT(obj, slot);
-
     /* Any string stored in a thread-safe object must be immutable. */
     if (JSVAL_IS_STRING(v) &&
         !js_MakeStringImmutable(cx, JSVAL_TO_STRING(v))) {
@@ -752,13 +647,22 @@ js_SetSlotThreadSafe(JSContext *cx, JSObject *obj, uint32 slot, jsval v)
     }
 
     /*
+     * We handle non-native objects via JSObjectOps.setRequiredSlot, as above
+     * for the Get case.
+     */
+    if (!OBJ_IS_NATIVE(obj)) {
+        OBJ_SET_REQUIRED_SLOT(cx, obj, slot, v);
+        return;
+    }
+
+    /*
      * Native object locking is inlined here to optimize the single-threaded
      * and contention-free multi-threaded cases.
      */
-    scope = obj->scope();
+    scope = OBJ_SCOPE(obj);
     title = &scope->title;
     JS_ASSERT(title->ownercx != cx);
-    JS_ASSERT(slot < scope->freeslot);
+    JS_ASSERT(slot < obj->map->freeslot);
 
     /*
      * Avoid locking if called from the GC.  Also avoid locking an object
@@ -767,9 +671,9 @@ js_SetSlotThreadSafe(JSContext *cx, JSObject *obj, uint32 slot, jsval v)
      * an earlier request.
      */
     if (CX_THREAD_IS_RUNNING_GC(cx) ||
-        scope->sealed() ||
+        (SCOPE_IS_SEALED(scope) && scope->object == obj) ||
         (title->ownercx && ClaimTitle(title, cx))) {
-        obj->lockedSetSlot(slot, Valueify(v));
+        LOCKED_OBJ_WRITE_BARRIER(cx, obj, slot, v);
         return;
     }
 
@@ -777,33 +681,34 @@ js_SetSlotThreadSafe(JSContext *cx, JSObject *obj, uint32 slot, jsval v)
     tl = &title->lock;
     me = CX_THINLOCK_ID(cx);
     JS_ASSERT(CURRENT_THREAD_IS_ME(me));
-    if (NativeCompareAndSwap(&tl->owner, 0, me)) {
-        if (scope == obj->scope()) {
-            obj->lockedSetSlot(slot, Valueify(v));
-            if (!NativeCompareAndSwap(&tl->owner, me, 0)) {
+    if (js_CompareAndSwap(&tl->owner, 0, me)) {
+        if (scope == OBJ_SCOPE(obj)) {
+            LOCKED_OBJ_WRITE_BARRIER(cx, obj, slot, v);
+            if (!js_CompareAndSwap(&tl->owner, me, 0)) {
                 /* Assert that scope locks never revert to flyweight. */
                 JS_ASSERT(title->ownercx != cx);
-                LOGIT(title, '1');
+                LOGIT(scope, '1');
                 title->u.count = 1;
                 js_UnlockObj(cx, obj);
             }
             return;
         }
-        if (!NativeCompareAndSwap(&tl->owner, me, 0))
+        if (!js_CompareAndSwap(&tl->owner, me, 0))
             js_Dequeue(tl);
-    } else if (Thin_RemoveWait(ReadWord(tl->owner)) == me) {
-        obj->lockedSetSlot(slot, Valueify(v));
+    }
+    else if (Thin_RemoveWait(ReadWord(tl->owner)) == me) {
+        LOCKED_OBJ_WRITE_BARRIER(cx, obj, slot, v);
         return;
     }
 #endif
 
     js_LockObj(cx, obj);
-    obj->lockedSetSlot(slot, Valueify(v));
+    LOCKED_OBJ_WRITE_BARRIER(cx, obj, slot, v);
 
     /*
      * Same drill as above, in js_GetSlotThreadSafe.
      */
-    title = &obj->scope()->title;
+    title = &OBJ_SCOPE(obj)->title;
     if (title->ownercx != cx)
         js_UnlockTitle(cx, title);
 }
@@ -813,7 +718,7 @@ js_SetSlotThreadSafe(JSContext *cx, JSObject *obj, uint32 slot, jsval v)
 static JSFatLock *
 NewFatlock()
 {
-    JSFatLock *fl = (JSFatLock *)js_malloc(sizeof(JSFatLock)); /* for now */
+    JSFatLock *fl = (JSFatLock *)malloc(sizeof(JSFatLock)); /* for now */
     if (!fl) return NULL;
     fl->susp = 0;
     fl->next = NULL;
@@ -828,7 +733,7 @@ DestroyFatlock(JSFatLock *fl)
 {
     PR_DestroyLock(fl->slock);
     PR_DestroyCondVar(fl->svar);
-    js_free(fl);
+    free(fl);
 }
 
 static JSFatLock *
@@ -922,7 +827,7 @@ js_SetupLocks(int listc, int globc)
     global_locks_log2 = JS_CeilingLog2(globc);
     global_locks_mask = JS_BITMASK(global_locks_log2);
     global_lock_count = JS_BIT(global_locks_log2);
-    global_locks = (PRLock **) js_malloc(global_lock_count * sizeof(PRLock*));
+    global_locks = (PRLock **) malloc(global_lock_count * sizeof(PRLock*));
     if (!global_locks)
         return JS_FALSE;
     for (i = 0; i < global_lock_count; i++) {
@@ -933,7 +838,7 @@ js_SetupLocks(int listc, int globc)
             return JS_FALSE;
         }
     }
-    fl_list_table = (JSFatLockTable *) js_malloc(i * sizeof(JSFatLockTable));
+    fl_list_table = (JSFatLockTable *) malloc(i * sizeof(JSFatLockTable));
     if (!fl_list_table) {
         js_CleanupLocks();
         return JS_FALSE;
@@ -955,7 +860,7 @@ js_CleanupLocks()
     if (global_locks) {
         for (i = 0; i < global_lock_count; i++)
             PR_DestroyLock(global_locks[i]);
-        js_free(global_locks);
+        free(global_locks);
         global_locks = NULL;
         global_lock_count = 1;
         global_locks_log2 = 0;
@@ -968,30 +873,14 @@ js_CleanupLocks()
             DeleteListOfFatlocks(fl_list_table[i].taken);
             fl_list_table[i].taken = NULL;
         }
-        js_free(fl_list_table);
+        free(fl_list_table);
         fl_list_table = NULL;
         fl_list_table_len = 0;
     }
 #endif /* !NSPR_LOCK */
 }
 
-#ifdef NSPR_LOCK
-
-static JS_ALWAYS_INLINE void
-ThinLock(JSThinLock *tl, jsword me)
-{
-    JS_ACQUIRE_LOCK((JSLock *) tl->fat);
-    tl->owner = me;
-}
-
-static JS_ALWAYS_INLINE void
-ThinUnlock(JSThinLock *tl, jsword /*me*/)
-{
-    tl->owner = 0;
-    JS_RELEASE_LOCK((JSLock *) tl->fat);
-}
-
-#else
+#ifndef NSPR_LOCK
 
 /*
  * Fast locking and unlocking is implemented by delaying the allocation of a
@@ -1081,13 +970,13 @@ js_Enqueue(JSThinLock *tl, jsword me)
     for (;;) {
         o = ReadWord(tl->owner);
         n = Thin_SetWait(o);
-        if (o != 0 && NativeCompareAndSwap(&tl->owner, o, n)) {
+        if (o != 0 && js_CompareAndSwap(&tl->owner, o, n)) {
             if (js_SuspendThread(tl))
                 me = Thin_RemoveWait(me);
             else
                 me = Thin_SetWait(me);
         }
-        else if (NativeCompareAndSwap(&tl->owner, 0, me)) {
+        else if (js_CompareAndSwap(&tl->owner, 0, me)) {
             js_UnlockGlobal(tl);
             return;
         }
@@ -1103,16 +992,16 @@ js_Dequeue(JSThinLock *tl)
     o = ReadWord(tl->owner);
     JS_ASSERT(Thin_GetWait(o) != 0);
     JS_ASSERT(tl->fat != NULL);
-    if (!NativeCompareAndSwap(&tl->owner, o, 0)) /* release it */
+    if (!js_CompareAndSwap(&tl->owner, o, 0)) /* release it */
         JS_ASSERT(0);
     js_ResumeThread(tl);
 }
 
-static JS_ALWAYS_INLINE void
-ThinLock(JSThinLock *tl, jsword me)
+JS_INLINE void
+js_Lock(JSThinLock *tl, jsword me)
 {
     JS_ASSERT(CURRENT_THREAD_IS_ME(me));
-    if (NativeCompareAndSwap(&tl->owner, 0, me))
+    if (js_CompareAndSwap(&tl->owner, 0, me))
         return;
     if (Thin_RemoveWait(ReadWord(tl->owner)) != me)
         js_Enqueue(tl, me);
@@ -1122,16 +1011,16 @@ ThinLock(JSThinLock *tl, jsword me)
 #endif
 }
 
-static JS_ALWAYS_INLINE void
-ThinUnlock(JSThinLock *tl, jsword me)
+JS_INLINE void
+js_Unlock(JSThinLock *tl, jsword me)
 {
     JS_ASSERT(CURRENT_THREAD_IS_ME(me));
 
     /*
-     * Since we can race with the NativeCompareAndSwap in js_Enqueue, we need
+     * Since we can race with the CompareAndSwap in js_Enqueue, we need
      * to use a C_A_S here as well -- Arjan van de Ven 30/1/08
      */
-    if (NativeCompareAndSwap(&tl->owner, me, 0))
+    if (js_CompareAndSwap(&tl->owner, me, 0))
         return;
 
     JS_ASSERT(Thin_GetWait(tl->owner));
@@ -1146,18 +1035,6 @@ ThinUnlock(JSThinLock *tl, jsword me)
 #endif /* !NSPR_LOCK */
 
 void
-js_Lock(JSContext *cx, JSThinLock *tl)
-{
-    ThinLock(tl, CX_THINLOCK_ID(cx));
-}
-
-void
-js_Unlock(JSContext *cx, JSThinLock *tl)
-{
-    ThinUnlock(tl, CX_THINLOCK_ID(cx));
-}
-
-void
 js_LockRuntime(JSRuntime *rt)
 {
     PR_Lock(rt->rtLock);
@@ -1170,7 +1047,7 @@ void
 js_UnlockRuntime(JSRuntime *rt)
 {
 #ifdef DEBUG
-    rt->rtLockOwner = NULL;
+    rt->rtLockOwner = 0;
 #endif
     PR_Unlock(rt->rtLock);
 }
@@ -1192,7 +1069,8 @@ js_LockTitle(JSContext *cx, JSTitle *title)
         LOGIT(scope, '+');
         title->u.count++;
     } else {
-        ThinLock(&title->lock, me);
+        JSThinLock *tl = &title->lock;
+        JS_LOCK0(tl, me);
         JS_ASSERT(title->u.count == 0);
         LOGIT(scope, '1');
         title->u.count = 1;
@@ -1238,9 +1116,11 @@ js_UnlockTitle(JSContext *cx, JSTitle *title)
         JS_ASSERT(0);   /* unbalanced unlock */
         return;
     }
-    LOGIT(title, '-');
-    if (--title->u.count == 0)
-        ThinUnlock(&title->lock, me);
+    LOGIT(scope, '-');
+    if (--title->u.count == 0) {
+        JSThinLock *tl = &title->lock;
+        JS_UNLOCK0(tl, me);
+    }
 }
 
 /*
@@ -1248,18 +1128,20 @@ js_UnlockTitle(JSContext *cx, JSTitle *title)
  * dropped the last reference to oldtitle.
  */
 void
-js_DropAllEmptyScopeLocks(JSContext *cx, JSScope *scope)
+js_TransferTitle(JSContext *cx, JSTitle *oldtitle, JSTitle *newtitle)
 {
-    JS_ASSERT(!CX_OWNS_SCOPE_TITLE(cx,scope));
-    JS_ASSERT(scope->isSharedEmpty());
-    JS_ASSERT(JS_IS_TITLE_LOCKED(cx, &scope->title));
+    jsword me;
+    JSThinLock *tl;
+
+    JS_ASSERT(JS_IS_TITLE_LOCKED(cx, newtitle));
 
     /*
-     * Shared empty scope cannot be sealed so we do not need to deal with
-     * cx->lockedSealedTitle.
+     * If the last reference to oldtitle went away, newtitle needs no lock
+     * state update.
      */
-    JS_ASSERT(!scope->sealed());
-    JS_ASSERT(cx->lockedSealedTitle != &scope->title);
+    if (!oldtitle)
+        return;
+    JS_ASSERT(JS_IS_TITLE_LOCKED(cx, oldtitle));
 
     /*
      * Special case in js_LockTitle and js_UnlockTitle for the GC calling
@@ -1271,14 +1153,47 @@ js_DropAllEmptyScopeLocks(JSContext *cx, JSScope *scope)
         return;
 
     /*
-     * The title cannot be owned at this point by another cx on this or
-     * another thread as that would imply a missing JS_LOCK_OBJ call.
+     * Special case in js_LockObj and js_UnlockTitle for locking the sealed
+     * scope of an object that owns that scope (the prototype or mutated obj
+     * for which OBJ_SCOPE(obj)->object == obj), and unlocking it.
      */
-    JS_ASSERT(!scope->title.ownercx);
+    JS_ASSERT(cx->lockedSealedTitle != newtitle);
+    if (cx->lockedSealedTitle == oldtitle) {
+        JS_ASSERT(newtitle->ownercx == cx ||
+                  (!newtitle->ownercx && newtitle->u.count == 1));
+        cx->lockedSealedTitle = NULL;
+        return;
+    }
 
-    LOGIT(&scope->title, '0');
-    scope->title.u.count = 0;
-    ThinUnlock(&scope->title.lock, CX_THINLOCK_ID(cx));
+    /*
+     * If oldtitle is single-threaded, there's nothing to do.
+     */
+    if (oldtitle->ownercx) {
+        JS_ASSERT(oldtitle->ownercx == cx);
+        JS_ASSERT(newtitle->ownercx == cx ||
+                  (!newtitle->ownercx && newtitle->u.count == 1));
+        return;
+    }
+
+    /*
+     * We transfer oldtitle->u.count only if newtitle is not single-threaded.
+     * Flow unwinds from here through some number of JS_UNLOCK_TITLE and/or
+     * JS_UNLOCK_OBJ macro calls, which will decrement newtitle->u.count only
+     * if they find newtitle->ownercx != cx.
+     */
+    if (newtitle->ownercx != cx) {
+        JS_ASSERT(!newtitle->ownercx);
+        newtitle->u.count = oldtitle->u.count;
+    }
+
+    /*
+     * Reset oldtitle's lock state so that it is completely unlocked.
+     */
+    LOGIT(oldscope, '0');
+    oldtitle->u.count = 0;
+    tl = &oldtitle->lock;
+    me = CX_THINLOCK_ID(cx);
+    JS_UNLOCK0(tl, me);
 }
 
 void
@@ -1287,7 +1202,7 @@ js_LockObj(JSContext *cx, JSObject *obj)
     JSScope *scope;
     JSTitle *title;
 
-    JS_ASSERT(obj->isNative());
+    JS_ASSERT(OBJ_IS_NATIVE(obj));
 
     /*
      * We must test whether the GC is calling and return without mutating any
@@ -1298,9 +1213,10 @@ js_LockObj(JSContext *cx, JSObject *obj)
         return;
 
     for (;;) {
-        scope = obj->scope();
+        scope = OBJ_SCOPE(obj);
         title = &scope->title;
-        if (scope->sealed() && !cx->lockedSealedTitle) {
+        if (SCOPE_IS_SEALED(scope) && scope->object == obj &&
+            !cx->lockedSealedTitle) {
             cx->lockedSealedTitle = title;
             return;
         }
@@ -1308,7 +1224,7 @@ js_LockObj(JSContext *cx, JSObject *obj)
         js_LockTitle(cx, title);
 
         /* If obj still has this scope, we're done. */
-        if (scope == obj->scope())
+        if (scope == OBJ_SCOPE(obj))
             return;
 
         /* Lost a race with a mutator; retry with obj's new scope. */
@@ -1319,8 +1235,8 @@ js_LockObj(JSContext *cx, JSObject *obj)
 void
 js_UnlockObj(JSContext *cx, JSObject *obj)
 {
-    JS_ASSERT(obj->isNative());
-    js_UnlockTitle(cx, &obj->scope()->title);
+    JS_ASSERT(OBJ_IS_NATIVE(obj));
+    js_UnlockTitle(cx, &OBJ_SCOPE(obj)->title);
 }
 
 void
@@ -1328,7 +1244,7 @@ js_InitTitle(JSContext *cx, JSTitle *title)
 {
 #ifdef JS_THREADSAFE
     title->ownercx = cx;
-    js_InitLock(&title->lock);
+    memset(&title->lock, 0, sizeof title->lock);
 
     /*
      * Set u.link = NULL, not u.count = 0, in case the target architecture's
@@ -1346,10 +1262,6 @@ js_InitTitle(JSContext *cx, JSTitle *title)
 void
 js_FinishTitle(JSContext *cx, JSTitle *title)
 {
-#ifdef DEBUG_SCOPE_COUNT
-    js_unlog_title(title);
-#endif
-
 #ifdef JS_THREADSAFE
     /* Title must be single-threaded at this point, so set ownercx. */
     JS_ASSERT(title->u.count == 0);
@@ -1369,7 +1281,9 @@ js_IsRuntimeLocked(JSRuntime *rt)
 JSBool
 js_IsObjLocked(JSContext *cx, JSObject *obj)
 {
-    return js_IsTitleLocked(cx, &obj->scope()->title);
+    JSScope *scope = OBJ_SCOPE(obj);
+
+    return MAP_IS_NATIVE(&scope->map) && js_IsTitleLocked(cx, &scope->title);
 }
 
 JSBool
@@ -1384,14 +1298,13 @@ js_IsTitleLocked(JSContext *cx, JSTitle *title)
         return JS_TRUE;
 
     /*
-     * General case: the title is either exclusively owned by some context, or
-     * it has a thin or fat lock to cope with shared (concurrent) ownership.
-     *
-     * js_LockTitle(cx, title) must set ownercx to cx when claiming the title
-     * from another context on the same thread.
+     * General case: the title is either exclusively owned (by cx), or it has
+     * a thin or fat lock to cope with shared (concurrent) ownership.
      */
-    if (title->ownercx)
-        return title->ownercx == cx;
+    if (title->ownercx) {
+        JS_ASSERT(title->ownercx == cx || title->ownercx->thread == cx->thread);
+        return JS_TRUE;
+    }
     return js_CurrentThreadId() ==
            ((JSThread *)Thin_RemoveWait(ReadWord(title->lock.owner)))->id;
 }
@@ -1403,7 +1316,7 @@ js_SetScopeInfo(JSScope *scope, const char *file, int line)
     JSTitle *title = &scope->title;
     if (!title->ownercx) {
         jsrefcount count = title->u.count;
-        JS_ASSERT_IF(!scope->sealed(), count > 0);
+        JS_ASSERT_IF(!SCOPE_IS_SEALED(scope), count > 0);
         JS_ASSERT(count <= 4);
         title->file[count - 1] = file;
         title->line[count - 1] = line;

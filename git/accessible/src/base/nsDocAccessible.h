@@ -39,11 +39,9 @@
 #ifndef _nsDocAccessible_H_
 #define _nsDocAccessible_H_
 
-#include "nsIAccessibleDocument.h"
-
 #include "nsHyperTextAccessibleWrap.h"
-#include "nsEventShell.h"
-
+#include "nsIAccessibleDocument.h"
+#include "nsPIAccessibleDocument.h"
 #include "nsIDocument.h"
 #include "nsIDocumentObserver.h"
 #include "nsIEditor.h"
@@ -58,177 +56,94 @@ class nsIScrollableView;
 
 const PRUint32 kDefaultCacheSize = 256;
 
-#define NS_DOCACCESSIBLE_IMPL_CID                       \
-{  /* 5641921c-a093-4292-9dca-0b51813db57d */           \
-  0x5641921c,                                           \
-  0xa093,                                               \
-  0x4292,                                               \
-  { 0x9d, 0xca, 0x0b, 0x51, 0x81, 0x3d, 0xb5, 0x7d }    \
-}
-
 class nsDocAccessible : public nsHyperTextAccessibleWrap,
                         public nsIAccessibleDocument,
+                        public nsPIAccessibleDocument,
                         public nsIDocumentObserver,
                         public nsIObserver,
                         public nsIScrollPositionListener,
                         public nsSupportsWeakReference
 {  
   NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsDocAccessible, nsAccessible)
-
   NS_DECL_NSIACCESSIBLEDOCUMENT
-  NS_DECLARE_STATIC_IID_ACCESSOR(NS_DOCACCESSIBLE_IMPL_CID)
-
+  NS_DECL_NSPIACCESSIBLEDOCUMENT
   NS_DECL_NSIOBSERVER
 
-public:
-  nsDocAccessible(nsIDocument *aDocument, nsIContent *aRootContent,
-                  nsIWeakReference* aShell);
-  virtual ~nsDocAccessible();
+  public:
+    nsDocAccessible(nsIDOMNode *aNode, nsIWeakReference* aShell);
+    virtual ~nsDocAccessible();
 
-  // nsIAccessible
-  NS_IMETHOD GetName(nsAString& aName);
-  NS_IMETHOD GetDescription(nsAString& aDescription);
-  NS_IMETHOD GetAttributes(nsIPersistentProperties **aAttributes);
-  NS_IMETHOD GetFocusedChild(nsIAccessible **aFocusedChild);
-  NS_IMETHOD TakeFocus(void);
+    NS_IMETHOD GetRole(PRUint32 *aRole);
+    NS_IMETHOD SetRoleMapEntry(nsRoleMapEntry* aRoleMapEntry);
+    NS_IMETHOD GetName(nsAString& aName);
+    NS_IMETHOD GetDescription(nsAString& aDescription);
+    NS_IMETHOD GetARIAState(PRUint32 *aState);
+    NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
+    NS_IMETHOD GetAttributes(nsIPersistentProperties **aAttributes);
+    NS_IMETHOD GetFocusedChild(nsIAccessible **aFocusedChild);
+    NS_IMETHOD GetParent(nsIAccessible **aParent);
+    NS_IMETHOD TakeFocus(void);
 
-  // nsIScrollPositionListener
-  virtual void ScrollPositionWillChange(nscoord aX, nscoord aY) {}
-  virtual void ScrollPositionDidChange(nscoord aX, nscoord aY);
+    // ----- nsIScrollPositionListener ---------------------------
+    NS_IMETHOD ScrollPositionWillChange(nsIScrollableView *aView, nscoord aX, nscoord aY);
+    NS_IMETHOD ScrollPositionDidChange(nsIScrollableView *aView, nscoord aX, nscoord aY);
 
-  // nsIDocumentObserver
-  NS_DECL_NSIDOCUMENTOBSERVER
+    // nsIDocumentObserver
+    NS_DECL_NSIDOCUMENTOBSERVER
 
-  // nsAccessNode
-  virtual PRBool Init();
-  virtual void Shutdown();
-  virtual nsIFrame* GetFrame();
-  virtual PRBool IsDefunct();
-  virtual nsINode* GetNode() const { return mDocument; }
+    static void FlushEventsCallback(nsITimer *aTimer, void *aClosure);
 
-  // nsAccessible
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
-  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
-  virtual nsresult GetARIAState(PRUint32 *aState, PRUint32 *aExtraState);
+    // nsIAccessNode
+    NS_IMETHOD Shutdown();
+    NS_IMETHOD Init();
 
-  virtual void SetRoleMapEntry(nsRoleMapEntry* aRoleMapEntry);
+    // nsPIAccessNode
+    NS_IMETHOD_(nsIFrame *) GetFrame(void);
 
-#ifdef DEBUG_ACCDOCMGR
-  virtual nsresult HandleAccEvent(nsAccEvent *aAccEvent);
-#endif
+    // nsIAccessibleText
+    NS_IMETHOD GetAssociatedEditor(nsIEditor **aEditor);
 
-  // nsIAccessibleText
-  NS_IMETHOD GetAssociatedEditor(nsIEditor **aEditor);
+    /**
+      * Non-virtual method to fire a delayed event after a 0 length timeout
+      *
+      * @param aEvent - the nsIAccessibleEvent event type
+      * @param aDOMNode - DOM node the accesible event should be fired for
+      * @param aAllowDupes - eAllowDupes: more than one event of the same type is allowed. 
+      *                      eCoalesceFromSameSubtree: if two events are in the same subtree,
+      *                                                only the event on ancestor is used
+      *                      eRemoveDupes (default): events of the same type are discarded
+      *                                              (the last one is used)
+      *
+      * @param aIsAsynch - set to PR_TRUE if this is not being called from code
+      *                    synchronous with a DOM event
+      */
+    nsresult FireDelayedToolkitEvent(PRUint32 aEvent, nsIDOMNode *aDOMNode,
+                                     nsAccEvent::EEventRule aAllowDupes = nsAccEvent::eRemoveDupes,
+                                     PRBool aIsAsynch = PR_FALSE);
 
-  // nsDocAccessible
+    /**
+     * Fire accessible event in timeout.
+     *
+     * @param aEvent - the event to fire
+     */
+    nsresult FireDelayedAccessibleEvent(nsIAccessibleEvent *aEvent);
 
-  /**
-   * Return true if associated DOM document was loaded and isn't unloading.
-   */
-  PRBool IsContentLoaded() const
-  {
-    return mDocument && mDocument->IsVisible() &&
-      (mDocument->IsShowing() || mIsLoaded);
-  }
+    void ShutdownChildDocuments(nsIDocShellTreeItem *aStart);
 
-  /**
-   * Marks as loaded, used for error pages as workaround since they do not
-   * receive pageshow event and as consequence nsIDocument::IsShowing() returns
-   * false.
-   */
-  void MarkAsLoaded() { mIsLoaded = PR_TRUE; }
-
-  /**
-   * Non-virtual method to fire a delayed event after a 0 length timeout.
-   *
-   * @param aEventType   [in] the nsIAccessibleEvent event type
-   * @param aDOMNode     [in] DOM node the accesible event should be fired for
-   * @param aAllowDupes  [in] rule to process an event (see EEventRule constants)
-   * @param aIsAsynch    [in] set to PR_TRUE if this is not being called from
-   *                      code synchronous with a DOM event
-   */
-  nsresult FireDelayedAccessibleEvent(PRUint32 aEventType, nsINode *aNode,
-                                      nsAccEvent::EEventRule aAllowDupes = nsAccEvent::eRemoveDupes,
-                                      PRBool aIsAsynch = PR_FALSE,
-                                      EIsFromUserInput aIsFromUserInput = eAutoDetect);
-
-  /**
-   * Fire accessible event after timeout.
-   *
-   * @param aEvent  [in] the event to fire
-   */
-  nsresult FireDelayedAccessibleEvent(nsAccEvent *aEvent);
-
-  /**
-   * Find the accessible object in the accessibility cache that corresponds to
-   * the given node or the first ancestor of it that has an accessible object
-   * associated with it. Clear that accessible object's parent's cache of
-   * accessible children and remove the accessible object and any descendants
-   * from the accessible cache. Fires proper events. New accessible objects will
-   * be created and cached again on demand.
-   *
-   * @param aContent  [in] the child that is changing
-   * @param aEvent    [in] the event from nsIAccessibleEvent that caused
-   *                   the change.
-   */
-  void InvalidateCacheSubtree(nsIContent *aContent, PRUint32 aEvent);
-
-  /**
-   * Return the cached accessible by the given unique ID if it's in subtree of
-   * this document accessible or the document accessible itself, otherwise null.
-   *
-   * @note   the unique ID matches with the uniqueID attribute on nsIAccessNode
-   *
-   * @param  aUniqueID  [in] the unique ID used to cache the node.
-   *
-   * @return the accessible object
-   */
-  nsAccessible* GetCachedAccessible(void *aUniqueID);
-
-  /**
-   * Cache the accessible.
-   *
-   * @param  aUniquID     [in] the unique identifier of accessible
-   * @param  aAccessible  [in] accessible to cache
-   *
-   * @return true if accessible being cached, otherwise false
-   */
-  PRBool CacheAccessible(void *aUniqueID, nsAccessible *aAccessible);
-
-  /**
-   * Remove the given accessible from document cache.
-   */
-  void RemoveAccessNodeFromCache(nsAccessible *aAccessible);
-
-  /**
-   * Process the event when the queue of pending events is untwisted. Fire
-   * accessible events as result of the processing.
-   */
-  void ProcessPendingEvent(nsAccEvent* aEvent);
-
-protected:
-
+  protected:
     virtual void GetBoundsRect(nsRect& aRect, nsIFrame** aRelativeFrame);
     virtual nsresult AddEventListeners();
     virtual nsresult RemoveEventListeners();
     void AddScrollListener();
     void RemoveScrollListener();
 
-  /**
-   * Invalidate parent-child relations for any cached accessible in the DOM
-   * subtree. Accessible objects aren't destroyed.
-   *
-   * @param aStartNode  [in] the root of the subrtee to invalidate accessible
-   *                      child/parent refs in
-   */
-  void InvalidateChildrenInSubtree(nsINode *aStartNode);
-
-  /**
-   * Traverse through DOM tree and shutdown accessible objects.
-   */
-  void RefreshNodes(nsINode *aStartNode);
-
+    /**
+     * For any accessibles in this subtree, invalidate their knowledge of
+     * their children. Only weak refrences are destroyed, not accessibles.
+     * @param aStartNode  The root of the subrtee to invalidate accessible child refs in
+     */
+    void InvalidateChildrenInSubtree(nsIDOMNode *aStartNode);
+    void RefreshNodes(nsIDOMNode *aStartNode);
     static void ScrollTimerCallback(nsITimer *aTimer, void *aClosure);
 
     /**
@@ -261,83 +176,54 @@ protected:
                                     CharacterDataChangeInfo* aInfo,
                                     PRBool aIsInserted);
 
-  /**
-   * Create a text change event for a changed node.
-   *
-   * @param  aContainerAccessible  [in] the parent accessible for the node
-   * @param  aChangeNode           [in] the node that is being inserted or
-   *                                 removed, or shown/hidden
-   * @param  aAccessible           [in] the accessible for that node, or nsnull
-   *                                 if none exists
-   * @param  aIsInserting          [in] is aChangeNode being created or shown
-   *                                 (vs. removed or hidden)
-   * @param  aIsAsync              [in] whether casual change is async
-   * @param  aIsFromUserInput      [in] the event is known to be from user input
-   */
-  already_AddRefed<nsAccEvent>
-    CreateTextChangeEventForNode(nsAccessible *aContainerAccessible,
-                                 nsIContent *aChangeNode,
-                                 nsAccessible *aAccessible,
+    /**
+     * Create a text change event for a changed node
+     * @param aContainerAccessible, the first accessible in the container
+     * @param aChangeNode, the node that is being inserted or removed, or shown/hidden
+     * @param aAccessibleForChangeNode, the accessible for that node, or nsnull if none exists
+     * @param aIsInserting, is aChangeNode being created or shown (vs. removed or hidden)
+     */
+    already_AddRefed<nsIAccessibleTextChangeEvent>
+    CreateTextChangeEventForNode(nsIAccessible *aContainerAccessible,
+                                 nsIDOMNode *aChangeNode,
+                                 nsIAccessible *aAccessibleForNode,
                                  PRBool aIsInserting,
-                                 PRBool aIsAsynch,
-                                 EIsFromUserInput aIsFromUserInput = eAutoDetect);
+                                 PRBool aIsAsynch);
 
-  /**
-   * Used to define should the event be fired on a delay.
-   */
-  enum EEventFiringType {
-    eNormalEvent,
-    eDelayedEvent
-  };
+    /**
+     * Fire show/hide events for either the current node if it has an accessible,
+     * or the first-line accessible descendants of the given node.
+     *
+     * @param aDOMNode               the given node
+     * @param aEventType             event type to fire an event
+     * @param aAvoidOnThisNode       Call with PR_TRUE the first time to prevent event firing on root node for change
+     * @param aDelay                 whether to fire the event on a delay
+     * @param aForceIsFromUserInput  the event is known to be from user input
+     */
+    nsresult FireShowHideEvents(nsIDOMNode *aDOMNode, PRBool aAvoidOnThisNode, PRUint32 aEventType,
+                                PRBool aDelay, PRBool aForceIsFromUserInput);
 
-  /**
-   * Fire show/hide events for either the current node if it has an accessible,
-   * or the first-line accessible descendants of the given node.
-   *
-   * @param  aDOMNode          [in] the given node
-   * @param  aAvoidOnThisNode  [in] call with PR_TRUE the first time to
-   *                             prevent event firing on root node for change
-   * @param  aEventType        [in] event type to fire an event
-   * @param  aDelayedOrNormal  [in] whether to fire the event on a delay
-   * @param  aIsAsyncChange    [in] whether casual change is async
-   * @param  aIsFromUserInput  [in] the event is known to be from user input
-   */
-  nsresult FireShowHideEvents(nsINode *aDOMNode, PRBool aAvoidOnThisNode,
-                              PRUint32 aEventType,
-                              EEventFiringType aDelayedOrNormal,
-                              PRBool aIsAsyncChange,
-                              EIsFromUserInput aIsFromUserInput = eAutoDetect);
+    /**
+     * If the given accessible object is a ROLE_ENTRY, fire a value change event for it
+     */
+    void FireValueChangeForTextFields(nsIAccessible *aPossibleTextFieldAccessible);
 
-  /**
-   * Fire a value change event for the the given accessible if it is a text
-   * field (has a ROLE_ENTRY).
-   */
-  void FireValueChangeForTextFields(nsAccessible *aAccessible);
-
-  /**
-   * Cache of accessibles within this document accessible.
-   */
-  nsAccessibleHashtable mAccessibleCache;
-
+    nsAccessNodeHashtable mAccessNodeCache;
     void *mWnd;
     nsCOMPtr<nsIDocument> mDocument;
     nsCOMPtr<nsITimer> mScrollWatchTimer;
+    nsCOMPtr<nsITimer> mFireEventTimer;
     PRUint16 mScrollPositionChangedTicks; // Used for tracking scroll events
+    PRPackedBool mIsContentLoaded;
+    PRPackedBool mIsLoadCompleteFired;
+    nsCOMArray<nsIAccessibleEvent> mEventsToFire;
 
 protected:
-
-  nsRefPtr<nsAccEventQueue> mEventQueue;
-
-  /**
-   * Specifies if the document was loaded, used for error pages only.
-   */
-  PRPackedBool mIsLoaded;
-
+    PRBool mIsAnchor;
+    PRBool mIsAnchorJumped;
+    PRBool mInFlushPendingEvents;
     static PRUint32 gLastFocusedAccessiblesState;
     static nsIAtom *gLastFocusedFrameType;
 };
-
-NS_DEFINE_STATIC_IID_ACCESSOR(nsDocAccessible,
-                              NS_DOCACCESSIBLE_IMPL_CID)
 
 #endif  

@@ -22,7 +22,6 @@
  *
  * Contributor(s):
  *   Stuart Parmenter <pavlov@netscape.com>
- *   Bobby Holley <bobbyholley@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -41,20 +40,17 @@
 #ifndef nsJPEGDecoder_h__
 #define nsJPEGDecoder_h__
 
-#include "RasterImage.h"
-/* On Windows systems, RasterImage.h brings in 'windows.h', which defines INT32.
- * But the jpeg decoder has its own definition of INT32. To avoid build issues,
- * we need to undefine the version from 'windows.h'. */
-#undef INT32
-
 #include "imgIDecoder.h"
 
-#include "nsAutoPtr.h"
+#include "nsCOMPtr.h"
 
+#include "imgIContainer.h"
+#include "gfxIImageFrame.h"
 #include "imgIDecoderObserver.h"
+#include "imgILoad.h"
 #include "nsIInputStream.h"
 #include "nsIPipe.h"
-#include "qcms.h"
+#include "lcms.h"
 
 extern "C" {
 #include "jpeglib.h"
@@ -86,12 +82,6 @@ typedef enum {
     JPEG_ERROR    
 } jstate;
 
-namespace mozilla {
-namespace imagelib {
-class RasterImage;
-} // namespace imagelib
-} // namespace mozilla
-
 class nsJPEGDecoder : public imgIDecoder
 {
 public:
@@ -101,22 +91,23 @@ public:
   nsJPEGDecoder();
   virtual ~nsJPEGDecoder();
 
-  void NotifyDone(PRBool aSuccess);
+  nsresult  ProcessData(const char *data, PRUint32 count, PRUint32 *writeCount);
 
 protected:
-  nsresult OutputScanlines(PRBool* suspend);
+  PRBool OutputScanlines();
 
 public:
-  nsRefPtr<mozilla::imagelib::RasterImage> mImage;
-  nsCOMPtr<imgIDecoderObserver> mObserver;
+  nsCOMPtr<imgIContainer> mImage;
+  nsCOMPtr<imgILoad> mImageLoad;
+  nsCOMPtr<gfxIImageFrame> mFrame;
 
-  PRUint32 mFlags;
-  PRUint8 *mImageData;
+  nsCOMPtr<imgIDecoderObserver> mObserver;
 
   struct jpeg_decompress_struct mInfo;
   struct jpeg_source_mgr mSourceMgr;
   decoder_error_mgr mErr;
   jstate mState;
+  nsresult mError;
 
   PRUint32 mBytesToSkip;
 
@@ -131,11 +122,10 @@ public:
   JOCTET  *mProfile;
   PRUint32 mProfileLength;
 
-  qcms_profile *mInProfile;
-  qcms_transform *mTransform;
+  cmsHPROFILE mInProfile;
+  cmsHTRANSFORM mTransform;
 
   PRPackedBool mReading;
-  PRPackedBool mNotifiedDone;
 };
 
 #endif // nsJPEGDecoder_h__

@@ -38,7 +38,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "gfxImageSurface.h"
 #include "nsCocoaUtils.h"
 #include "nsMenuBarX.h"
 #include "nsCocoaWindow.h"
@@ -48,8 +47,6 @@
 #include "nsIXULWindow.h"
 #include "nsIBaseWindow.h"
 #include "nsIServiceManager.h"
-#include "nsMenuUtilsX.h"
-#include "nsToolkit.h"
 
 float nsCocoaUtils::MenuBarScreenHeight()
 {
@@ -64,12 +61,14 @@ float nsCocoaUtils::MenuBarScreenHeight()
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(0.0);
 }
 
+
 float nsCocoaUtils::FlippedScreenY(float y)
 {
   return MenuBarScreenHeight() - y;
 }
 
-NSRect nsCocoaUtils::GeckoRectToCocoaRect(const nsIntRect &geckoRect)
+
+NSRect nsCocoaUtils::GeckoRectToCocoaRect(const nsRect &geckoRect)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
@@ -83,31 +82,28 @@ NSRect nsCocoaUtils::GeckoRectToCocoaRect(const nsIntRect &geckoRect)
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NSMakeRect(0.0, 0.0, 0.0, 0.0));
 }
 
-nsIntRect nsCocoaUtils::CocoaRectToGeckoRect(const NSRect &cocoaRect)
+
+nsRect nsCocoaUtils::CocoaRectToGeckoRect(const NSRect &cocoaRect)
 {
   // We only need to change the Y coordinate by starting with the primary screen
   // height and subtracting both the cocoa y origin and the height of the
   // cocoa rect.
-  nsIntRect rect;
-  rect.x = NSToIntRound(cocoaRect.origin.x);
-  rect.y = NSToIntRound(FlippedScreenY(cocoaRect.origin.y + cocoaRect.size.height));
-  rect.width = NSToIntRound(cocoaRect.origin.x + cocoaRect.size.width) - rect.x;
-  rect.height = NSToIntRound(FlippedScreenY(cocoaRect.origin.y)) - rect.y;
-  return rect;
+  return nsRect((nscoord)cocoaRect.origin.x,
+                (nscoord)(MenuBarScreenHeight() - (cocoaRect.origin.y + cocoaRect.size.height)),
+                (nscoord)cocoaRect.size.width,
+                (nscoord)cocoaRect.size.height);
 }
+
 
 NSPoint nsCocoaUtils::ScreenLocationForEvent(NSEvent* anEvent)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
-  // Don't trust mouse locations of mouse move events, see bug 443178.
-  if (!anEvent || [anEvent type] == NSMouseMoved)
-    return [NSEvent mouseLocation];
-
   return [[anEvent window] convertBaseToScreen:[anEvent locationInWindow]];
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NSMakePoint(0.0, 0.0));
 }
+
 
 BOOL nsCocoaUtils::IsEventOverWindow(NSEvent* anEvent, NSWindow* aWindow)
 {
@@ -118,6 +114,7 @@ BOOL nsCocoaUtils::IsEventOverWindow(NSEvent* anEvent, NSWindow* aWindow)
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NO);
 }
 
+
 NSPoint nsCocoaUtils::EventLocationForWindow(NSEvent* anEvent, NSWindow* aWindow)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
@@ -127,36 +124,31 @@ NSPoint nsCocoaUtils::EventLocationForWindow(NSEvent* anEvent, NSWindow* aWindow
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NSMakePoint(0.0, 0.0));
 }
 
-void nsCocoaUtils::HideOSChromeOnScreen(PRBool aShouldHide, NSScreen* aScreen)
+
+NSWindow* nsCocoaUtils::FindWindowUnderPoint(NSPoint aPoint)
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
-  // Keep track of how many hiding requests have been made, so that they can
-  // be nested.
-  static int sMenuBarHiddenCount = 0, sDockHiddenCount = 0;
+  int windowCount;
+  NSCountWindows(&windowCount);
+  int* windowList = (int*)malloc(sizeof(int) * windowCount);
+  if (!windowList)
+    return nil;
+  // The list we get back here is in order from front to back.
+  NSWindowList(windowCount, windowList);
 
-  // Always hide the Dock, since it's not necessarily on the primary screen.
-  sDockHiddenCount += aShouldHide ? 1 : -1;
-  NS_ASSERTION(sMenuBarHiddenCount >= 0, "Unbalanced HideMenuAndDockForWindow calls");
-
-  // Only hide the menu bar if the window is on the same screen.
-  // The menu bar is always on the first screen in the screen list.
-  if (aScreen == [[NSScreen screens] objectAtIndex:0]) {
-    sMenuBarHiddenCount += aShouldHide ? 1 : -1;
-    NS_ASSERTION(sDockHiddenCount >= 0, "Unbalanced HideMenuAndDockForWindow calls");
+  for (int i = 0; i < windowCount; i++) {
+    NSWindow* currentWindow = [NSApp windowWithWindowNumber:windowList[i]];
+    if (currentWindow && NSPointInRect(aPoint, [currentWindow frame])) {
+      free(windowList);
+      return currentWindow;
+    }
   }
 
-  // TODO This should be upgraded to use [NSApplication setPresentationOptions:]
-  // when support for 10.5 is dropped.
-  if (sMenuBarHiddenCount > 0) {
-    ::SetSystemUIMode(kUIModeAllHidden, 0);
-  } else if (sDockHiddenCount > 0) {
-    ::SetSystemUIMode(kUIModeContentHidden, 0);
-  } else {
-    ::SetSystemUIMode(kUIModeNormal, 0);
-  }
+  free(windowList);
+  return nil;
 
-  NS_OBJC_END_TRY_ABORT_BLOCK;
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
 
@@ -192,13 +184,14 @@ nsIWidget* nsCocoaUtils::GetHiddenWindowWidget()
   return hiddenWindowWidget;
 }
 
+
 void nsCocoaUtils::PrepareForNativeAppModalDialog()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
   // Don't do anything if this is embedding. We'll assume that if there is no hidden
   // window we shouldn't do anything, and that should cover the embedding case.
-  nsMenuBarX* hiddenWindowMenuBar = nsMenuUtilsX::GetHiddenWindowMenuBar();
+  nsIMenuBar* hiddenWindowMenuBar = MenuHelpersX::GetHiddenWindowMenuBar();
   if (!hiddenWindowMenuBar)
     return;
 
@@ -219,7 +212,7 @@ void nsCocoaUtils::PrepareForNativeAppModalDialog()
   [firstMenuItem release];
   
   // Add standard edit menu
-  [newMenuBar addItem:nsMenuUtilsX::GetStandardEditMenuItem()];
+  [newMenuBar addItem:MenuHelpersX::GetStandardEditMenuItem()];
   
   // Show the new menu bar
   [NSApp setMainMenu:newMenuBar];
@@ -228,13 +221,14 @@ void nsCocoaUtils::PrepareForNativeAppModalDialog()
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
+
 void nsCocoaUtils::CleanUpAfterNativeAppModalDialog()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
   // Don't do anything if this is embedding. We'll assume that if there is no hidden
   // window we shouldn't do anything, and that should cover the embedding case.
-  nsMenuBarX* hiddenWindowMenuBar = nsMenuUtilsX::GetHiddenWindowMenuBar();
+  nsIMenuBar* hiddenWindowMenuBar = MenuHelpersX::GetHiddenWindowMenuBar();
   if (!hiddenWindowMenuBar)
     return;
 
@@ -246,84 +240,3 @@ void nsCocoaUtils::CleanUpAfterNativeAppModalDialog()
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
-
-nsresult nsCocoaUtils::CreateCGImageFromSurface(gfxImageSurface *aFrame, CGImageRef *aResult)
-{
-
-  PRInt32 width = aFrame->Width();
-  PRInt32 stride = aFrame->Stride();
-  PRInt32 height = aFrame->Height();
-  if ((stride % 4 != 0) || (height < 1) || (width < 1)) {
-    return NS_ERROR_FAILURE;
-  }
-
-  // Create a CGImageRef with the bits from the image, taking into account
-  // the alpha ordering and endianness of the machine so we don't have to
-  // touch the bits ourselves.
-  CGDataProviderRef dataProvider = ::CGDataProviderCreateWithData(NULL,
-                                                                  aFrame->Data(),
-                                                                  stride * height,
-                                                                  NULL);
-  CGColorSpaceRef colorSpace = ::CGColorSpaceCreateWithName(kCGColorSpaceGenericRGB);
-  *aResult = ::CGImageCreate(width,
-                             height,
-                             8,
-                             32,
-                             stride,
-                             colorSpace,
-                             kCGBitmapByteOrder32Host | kCGImageAlphaFirst,
-                             dataProvider,
-                             NULL,
-                             0,
-                             kCGRenderingIntentDefault);
-  ::CGColorSpaceRelease(colorSpace);
-  ::CGDataProviderRelease(dataProvider);
-  return *aResult ? NS_OK : NS_ERROR_FAILURE;
-}
-
-nsresult nsCocoaUtils::CreateNSImageFromCGImage(CGImageRef aInputImage, NSImage **aResult)
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
-
-  PRInt32 width = ::CGImageGetWidth(aInputImage);
-  PRInt32 height = ::CGImageGetHeight(aInputImage);
-  NSRect imageRect = ::NSMakeRect(0.0, 0.0, width, height);
-
-  // Create a new image to receive the Quartz image data.
-  *aResult = [[NSImage alloc] initWithSize:imageRect.size];
-
-  [*aResult lockFocus];
-
-  // Get the Quartz context and draw.
-  CGContextRef imageContext = (CGContextRef)[[NSGraphicsContext currentContext] graphicsPort];
-  ::CGContextDrawImage(imageContext, *(CGRect*)&imageRect, aInputImage);
-
-  [*aResult unlockFocus];
-  return NS_OK;
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
-}
-
-nsresult nsCocoaUtils::CreateNSImageFromImageContainer(imgIContainer *aImage, PRUint32 aWhichFrame, NSImage **aResult)
-{
-  nsRefPtr<gfxImageSurface> frame;
-  nsresult rv = aImage->CopyFrame(aWhichFrame,
-                                  imgIContainer::FLAG_SYNC_DECODE,
-                                  getter_AddRefs(frame));
-  if (NS_FAILED(rv) || !frame) {
-    return NS_ERROR_FAILURE;
-  }
-  CGImageRef imageRef = NULL;
-  rv = nsCocoaUtils::CreateCGImageFromSurface(frame, &imageRef);
-  if (NS_FAILED(rv) || !imageRef) {
-    return NS_ERROR_FAILURE;
-  }
-
-  rv = nsCocoaUtils::CreateNSImageFromCGImage(imageRef, aResult);
-  if (NS_FAILED(rv) || !aResult) {
-    return NS_ERROR_FAILURE;
-  }
-  ::CGImageRelease(imageRef);
-  return NS_OK;
-}
-

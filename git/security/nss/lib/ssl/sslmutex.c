@@ -33,11 +33,11 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/* $Id: sslmutex.c,v 1.25 2010/04/03 18:27:33 nelson%bolyard.com Exp $ */
+/* $Id: sslmutex.c,v 1.20 2006/06/07 18:36:26 nelson%bolyard.com Exp $ */
 
 #include "seccomon.h"
 /* This ifdef should match the one in sslsnce.c */
-#if defined(XP_UNIX) || defined(XP_WIN32) || defined (XP_OS2) || defined(XP_BEOS)
+#if (defined(XP_UNIX) || defined(XP_WIN32) || defined (XP_OS2) || defined(XP_BEOS)) && !defined(_WIN32_WCE)
 
 #include "sslmutex.h"
 #include "prerr.h"
@@ -89,7 +89,7 @@ static SECStatus single_process_sslMutex_Lock(sslMutex* pMutex)
     return SECSuccess;
 }
 
-#if defined(LINUX) || defined(AIX) || defined(BEOS) || defined(BSDI) || (defined(NETBSD) && __NetBSD_Version__ < 500000000) || defined(OPENBSD)
+#if defined(LINUX) || defined(AIX) || defined(VMS) || defined(BEOS) || defined(BSDI) || defined(NETBSD) || defined(OPENBSD)
 
 #include <unistd.h>
 #include <fcntl.h>
@@ -141,7 +141,6 @@ sslMutex_Init(sslMutex *pMutex, int shared)
 
     err = pipe(pMutex->u.pipeStr.mPipes);
     if (err) {
-	nss_MD_unix_map_default_error(errno);
 	return err;
     }
 #if NONBLOCKING_POSTS
@@ -211,7 +210,7 @@ sslMutex_Unlock(sslMutex *pMutex)
 	return SECFailure;
     }
     /* Do Memory Barrier here. */
-    newValue = PR_ATOMIC_DECREMENT(&pMutex->u.pipeStr.nWaiters);
+    newValue = PR_AtomicDecrement(&pMutex->u.pipeStr.nWaiters);
     if (newValue > 0) {
 	int  cc;
 	char c  = 1;
@@ -241,7 +240,7 @@ sslMutex_Lock(sslMutex *pMutex)
 	PORT_SetError(PR_INVALID_ARGUMENT_ERROR);
 	return SECFailure;
     }
-    newValue = PR_ATOMIC_INCREMENT(&pMutex->u.pipeStr.nWaiters);
+    newValue = PR_AtomicIncrement(&pMutex->u.pipeStr.nWaiters);
     /* Do Memory Barrier here. */
     if (newValue > 1) {
 	int   cc;

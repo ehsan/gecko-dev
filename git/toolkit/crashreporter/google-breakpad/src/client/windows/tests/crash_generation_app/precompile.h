@@ -77,7 +77,6 @@
 #include <cassert>
 #include <list>
 
-#include "client/windows/common/ipc_protocol.h"
 #include "client/windows/crash_generation/client_info.h"
 #include "client/windows/crash_generation/crash_generation_client.h"
 #include "client/windows/crash_generation/crash_generation_server.h"

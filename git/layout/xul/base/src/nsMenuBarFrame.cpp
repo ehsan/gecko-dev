@@ -53,6 +53,8 @@
 #include "nsMenuPopupFrame.h"
 #include "nsGUIEvent.h"
 #include "nsUnicharUtils.h"
+#include "nsICaret.h"
+#include "nsIFocusController.h"
 #include "nsIDOMWindowInternal.h"
 #include "nsIDOMDocument.h"
 #include "nsPIDOMWindow.h"
@@ -76,8 +78,6 @@ NS_NewMenuBarFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsMenuBarFrame (aPresShell, aContext);
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(nsMenuBarFrame)
 
 //
 // nsMenuBarFrame cntr
@@ -249,7 +249,7 @@ nsMenuBarFrame::FindMenuWithShortcut(nsIDOMKeyEvent* aKeyEvent)
         PRUint32 ch = UTF16CharEnumerator::NextChar(&start, end);
         PRUint32 index = accessKeys.IndexOf(ch);
         if (index != accessKeys.NoIndex &&
-            (foundIndex == accessKeys.NoIndex || index < foundIndex)) {
+            (foundIndex == kNotFound || index < foundIndex)) {
           foundMenu = currFrame;
           foundIndex = index;
         }
@@ -340,8 +340,7 @@ public:
     if (mOldMenu && mNewMenu) {
       menubar = static_cast<nsMenuBarFrame *>
         (pm->GetFrameOfTypeForContent(mMenuBar, nsGkAtoms::menuBarFrame, PR_FALSE));
-      if (menubar)
-        menubar->SetStayActive(PR_TRUE);
+      menubar->SetStayActive(PR_TRUE);
     }
 
     if (mOldMenu) {
@@ -453,7 +452,7 @@ nsMenuBarFrame::RemoveKeyboardNavigator()
 }
 
 void
-nsMenuBarFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsMenuBarFrame::Destroy()
 {
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
   if (pm)
@@ -468,5 +467,5 @@ nsMenuBarFrame::DestroyFrom(nsIFrame* aDestructRoot)
 
   NS_IF_RELEASE(mMenuBarListener);
 
-  nsBoxFrame::DestroyFrom(aDestructRoot);
+  nsBoxFrame::Destroy();
 }

@@ -247,16 +247,9 @@ function plNextPage() {
 
 function plRecordTime(time) {
   var pageName = pages[pageIndex].url.spec;
-  var i = pageIndex
-  if (i < pages.length-1) {
-    i++;
-  } else {
-    i = 0;
-  }
-  var nextName = pages[i].url.spec;
   report.recordTime(pageIndex, time);
   if (noisy) {
-    dumpLine("Cycle " + (cycle+1) + ": loaded " + pageName + " (next: " + nextName + ")");
+    dumpLine("Cycle " + (cycle+1) + ": loaded " + pageName);
   }
 }
 

@@ -116,7 +116,7 @@ _arc_segments_needed (double	      angle,
     major_axis = _cairo_matrix_transformed_circle_major_axis (ctm, radius);
     max_angle = _arc_max_angle_for_tolerance_normalized (tolerance / major_axis);
 
-    return ceil (fabs (angle) / max_angle);
+    return (int) ceil (angle / max_angle);
 }
 
 /* We want to draw a single spline approximating a circular arc radius
@@ -181,15 +181,13 @@ _cairo_arc_in_direction (cairo_t	  *cr,
 			 double		   angle_max,
 			 cairo_direction_t dir)
 {
-    if (cairo_status (cr))
-        return;
-
     while (angle_max - angle_min > 4 * M_PI)
 	angle_max -= 2 * M_PI;
 
     /* Recurse if drawing arc larger than pi */
     if (angle_max - angle_min > M_PI) {
 	double angle_mid = angle_min + (angle_max - angle_min) / 2.0;
+	/* XXX: Something tells me this block could be condensed. */
 	if (dir == CAIRO_DIRECTION_FORWARD) {
 	    _cairo_arc_in_direction (cr, xc, yc, radius,
 				     angle_min, angle_mid,
@@ -207,7 +205,7 @@ _cairo_arc_in_direction (cairo_t	  *cr,
 				     angle_min, angle_mid,
 				     dir);
 	}
-    } else if (angle_max != angle_min) {
+    } else {
 	cairo_matrix_t ctm;
 	int i, segments;
 	double angle, angle_step;

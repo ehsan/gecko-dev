@@ -72,7 +72,7 @@ function run_test() {
   add_uri_to_history(uri3);
   do_check_true(gh.isVisited(uri3));
 
-  // check if a nonexistent uri is visited
+  // check if a non-existant uri is visited
   var uri4 = uri("http://foobarcheese.com");
   do_check_false(gh.isVisited(uri4));
 
@@ -88,18 +88,8 @@ function run_test() {
     "view-source:http://www.google.com/"];
 
   for each (var currentURL in urlsToIgnore) {
-    try {
-      var cantAddUri = uri(currentURL);
-    }
-    catch(e) {
-      // nsIIOService.newURI() can throw if e.g. our app knows about imap://
-      // but the account is not set up and so the URL is invalid for us.
-      // Note this in the log but ignore as it's not the subject of this test.
-      print("Exception thrown for '" + currentURL + "', ignored.");
-    }
-    if (cantAddUri) {
-      add_uri_to_history(cantAddUri);
-      do_check_false(gh.isVisited(cantAddUri));
-    }
+    var cantAddUri = uri(currentURL);
+    add_uri_to_history(cantAddUri);
+    do_check_false(gh.isVisited(cantAddUri));
   }
 }

@@ -134,10 +134,7 @@ nsUrlClassifierStreamUpdater::FetchUpdate(nsIURI *aUpdateUrl,
                                           const nsACString & aServerMAC)
 {
   nsresult rv;
-  PRUint32 loadFlags = nsIChannel::INHIBIT_CACHING |
-                       nsIChannel::LOAD_BYPASS_CACHE;
-  rv = NS_NewChannel(getter_AddRefs(mChannel), aUpdateUrl, nsnull, nsnull, this,
-                     loadFlags);
+  rv = NS_NewChannel(getter_AddRefs(mChannel), aUpdateUrl, nsnull, nsnull, this);
   NS_ENSURE_SUCCESS(rv, rv);
 
   mBeganStream = PR_FALSE;
@@ -145,14 +142,6 @@ nsUrlClassifierStreamUpdater::FetchUpdate(nsIURI *aUpdateUrl,
   if (!aRequestBody.IsEmpty()) {
     rv = AddRequestBody(aRequestBody);
     NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  // Set the appropriate content type for file/data URIs, for unit testing
-  // purposes.
-  PRBool match;
-  if ((NS_SUCCEEDED(aUpdateUrl->SchemeIs("file", &match)) && match) ||
-      (NS_SUCCEEDED(aUpdateUrl->SchemeIs("data", &match)) && match)) {
-    mChannel->SetContentType(NS_LITERAL_CSTRING("application/vnd.google.safebrowsing-update"));
   }
 
   // Make the request
@@ -212,7 +201,7 @@ nsUrlClassifierStreamUpdater::DownloadUpdates(
     // downloads.  quit-application is the same event that the download
     // manager listens for and uses to cancel pending downloads.
     nsCOMPtr<nsIObserverService> observerService =
-      mozilla::services::GetObserverService();
+        do_GetService("@mozilla.org/observer-service;1");
     if (!observerService)
       return NS_ERROR_FAILURE;
 
@@ -258,9 +247,8 @@ nsUrlClassifierStreamUpdater::UpdateUrlRequested(const nsACString &aUrl,
   if (!update)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  // Allow data: and file: urls for unit testing purposes, otherwise assume http
-  if (StringBeginsWith(aUrl, NS_LITERAL_CSTRING("data:")) ||
-      StringBeginsWith(aUrl, NS_LITERAL_CSTRING("file:"))) {
+  // Allow data: urls for unit testing purposes, otherwise assume http
+  if (StringBeginsWith(aUrl, NS_LITERAL_CSTRING("data:"))) {
     update->mUrl = aUrl;
   } else {
     update->mUrl = NS_LITERAL_CSTRING("http://") + aUrl;
@@ -274,11 +262,10 @@ nsUrlClassifierStreamUpdater::UpdateUrlRequested(const nsACString &aUrl,
 NS_IMETHODIMP
 nsUrlClassifierStreamUpdater::RekeyRequested()
 {
+  nsresult rv;
   nsCOMPtr<nsIObserverService> observerService =
-    mozilla::services::GetObserverService();
-
-  if (!observerService)
-    return NS_ERROR_FAILURE;
+    do_GetService("@mozilla.org/observer-service;1", &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   return observerService->NotifyObservers(static_cast<nsIUrlClassifierStreamUpdater*>(this),
                                           "url-classifier-rekey-requested",

@@ -46,8 +46,7 @@
 
 /* ::::: autocomplete ::::: */
 
-/* .padded is used by autocomplete widgets that don't have an icon. Gross. -dwh */
-textbox:not(.padded) {
+textbox {
   cursor: default;
   padding: 0;
 }
@@ -58,8 +57,12 @@ textbox[enablehistory="true"] {
   background-color: transparent;
 }
 
-textbox[nomatch="true"][highlightnonmatches="true"] {
-  color: red;
+/* Used by autocomplete widgets that don't have an icon. Gross. -dwh */
+textbox.padded {
+  padding-top: 1px;
+  padding-bottom: 1px;
+  -moz-padding-start: 2px;
+  -moz-padding-end: 0px;
 }
 
 .autocomplete-textbox-container {
@@ -70,11 +73,8 @@ textbox[enablehistory="true"] > .autocomplete-textbox-container {
   -moz-appearance: menulist-textfield;
 }
 
-textbox:not(.padded) .textbox-input-box {
-  margin: 0 3px;
-}
-
 .textbox-input-box {
+  margin: 0 3px;
   -moz-box-align: center;
 }
 
@@ -137,8 +137,7 @@ treechildren.autocomplete-treebody::-moz-tree-cell-text(selected) {
 /* ::::: richlistbox autocomplete ::::: */
 
 .autocomplete-richlistbox {
-  -moz-appearance: none;
-  margin: 1px;
+  margin: 0;
   background-color: transparent;
 }
 
@@ -149,11 +148,8 @@ treechildren.autocomplete-treebody::-moz-tree-cell-text(selected) {
 
 .autocomplete-richlistitem {
   padding: 1px 2px;
+  border-bottom: 1px solid ThreeDLightShadow;
   color: MenuText;
-}
-
-.autocomplete-richlistitem:not(:first-child) {
-  border-top: 1px solid ThreeDLightShadow;
 }
 
 .ac-site-icon {

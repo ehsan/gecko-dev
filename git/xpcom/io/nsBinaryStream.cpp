@@ -56,6 +56,7 @@
 #include "nsIStreamBufferAccess.h"
 #include "nsMemory.h"
 #include "prlong.h"
+#include "nsGenericFactory.h"
 #include "nsString.h"
 #include "nsISerializable.h"
 #include "nsIClassInfo.h"
@@ -474,7 +475,6 @@ nsBinaryInputStream::ReadBoolean(PRBool* aBoolean)
 {
     PRUint8 byteResult;
     nsresult rv = Read8(&byteResult);
-    if (NS_FAILED(rv)) return rv;
     *aBoolean = !!byteResult;
     return rv;
 }

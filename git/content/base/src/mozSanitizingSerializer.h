@@ -65,7 +65,8 @@ class mozSanitizingHTMLSerializer : public nsIContentSerializer,
 public:
   mozSanitizingHTMLSerializer();
   virtual ~mozSanitizingHTMLSerializer();
-  static PRBool ReleaseProperties(nsHashKey* key, void* data, void* closure);
+  static PRBool PR_CALLBACK ReleaseProperties(nsHashKey* key, void* data,
+                                              void* closure);
 
   NS_DECL_ISUPPORTS
 
@@ -73,33 +74,35 @@ public:
   NS_IMETHOD Init(PRUint32 flags, PRUint32 dummy, const char* aCharSet, 
                   PRBool aIsCopying, PRBool aIsWholeDocument);
 
-  NS_IMETHOD AppendText(nsIContent* aText, PRInt32 aStartOffset,
+  NS_IMETHOD AppendText(nsIDOMText* aText, PRInt32 aStartOffset,
                         PRInt32 aEndOffset, nsAString& aStr);
-  NS_IMETHOD AppendCDATASection(nsIContent* aCDATASection,
+  NS_IMETHOD AppendCDATASection(nsIDOMCDATASection* aCDATASection,
                                 PRInt32 aStartOffset, PRInt32 aEndOffset,
                                 nsAString& aStr)
                       { return NS_OK; }
-  NS_IMETHOD AppendProcessingInstruction(nsIContent* aPI,
+  NS_IMETHOD AppendProcessingInstruction(nsIDOMProcessingInstruction* aPI,
                                          PRInt32 aStartOffset,
                                          PRInt32 aEndOffset,
                                          nsAString& aStr)
                       { return NS_OK; }
-  NS_IMETHOD AppendComment(nsIContent* aComment, PRInt32 aStartOffset,
+  NS_IMETHOD AppendComment(nsIDOMComment* aComment, PRInt32 aStartOffset,
                            PRInt32 aEndOffset, nsAString& aStr)
                       { return NS_OK; }
-  NS_IMETHOD AppendDoctype(nsIContent *aDoctype, nsAString& aStr)
+  NS_IMETHOD AppendDoctype(nsIDOMDocumentType *aDoctype, nsAString& aStr)
                       { return NS_OK; }
-  NS_IMETHOD AppendElementStart(nsIContent *aElement,
-                                nsIContent *aOriginalElement,
+  NS_IMETHOD AppendElementStart(nsIDOMElement *aElement,
+                                nsIDOMElement *aOriginalElement,
                                 nsAString& aStr); 
-  NS_IMETHOD AppendElementEnd(nsIContent *aElement, nsAString& aStr);
+  NS_IMETHOD AppendElementEnd(nsIDOMElement *aElement, nsAString& aStr);
   NS_IMETHOD Flush(nsAString& aStr);
 
-  NS_IMETHOD AppendDocumentStart(nsIDocument *aDocument,
+  NS_IMETHOD AppendDocumentStart(nsIDOMDocument *aDocument,
                                  nsAString& aStr);
 
   // nsIContentSink
-  NS_IMETHOD WillParse(void) { return NS_OK; }
+  NS_IMETHOD WillTokenize(void) { return NS_OK; }
+  NS_IMETHOD WillBuildModel(void) { return NS_OK; }
+  NS_IMETHOD DidBuildModel(void) { return NS_OK; }
   NS_IMETHOD WillInterrupt(void) { return NS_OK; }
   NS_IMETHOD WillResume(void) { return NS_OK; }
   NS_IMETHOD SetParser(nsIParser* aParser) { return NS_OK; }
@@ -121,6 +124,7 @@ public:
   NS_IMETHOD_(PRBool) IsFormOnStack() { return PR_FALSE; }
   NS_IMETHOD BeginContext(PRInt32 aPosition) { return NS_OK; }
   NS_IMETHOD EndContext(PRInt32 aPosition) { return NS_OK; }
+  NS_IMETHOD WillProcessTokens(void) { return NS_OK; }
   NS_IMETHOD DidProcessTokens(void) { return NS_OK; }
   NS_IMETHOD WillProcessAToken(void) { return NS_OK; }
   NS_IMETHOD DidProcessAToken(void) { return NS_OK; }

@@ -46,7 +46,6 @@
 #include "nsCOMPtr.h"
 #include "nsCRT.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsIDTD.h"
 
 class nsIDocument;
 class nsIURI;
@@ -91,25 +90,24 @@ public:
   NS_DECL_NSIEXPATSINK
 
   // nsIContentSink
-  NS_IMETHOD WillParse(void);
-  NS_IMETHOD WillBuildModel(nsDTDMode aDTDMode);
-  NS_IMETHOD DidBuildModel(PRBool aTerminated);
+  NS_IMETHOD WillTokenize(void);
+  NS_IMETHOD WillBuildModel(void);
+  NS_IMETHOD DidBuildModel(void);
   NS_IMETHOD WillInterrupt(void);
   NS_IMETHOD WillResume(void);
   NS_IMETHOD SetParser(nsIParser* aParser);  
   virtual void FlushPendingNotifications(mozFlushType aType);
   NS_IMETHOD SetDocumentCharset(nsACString& aCharset);
   virtual nsISupports *GetTarget();
-  virtual PRBool IsScriptExecuting();
 
   // nsITransformObserver
   NS_IMETHOD OnDocumentCreated(nsIDocument *aResultDocument);
   NS_IMETHOD OnTransformDone(nsresult aResult, nsIDocument *aResultDocument);
 
   // nsICSSLoaderObserver
-  NS_IMETHOD StyleSheetLoaded(nsCSSStyleSheet* aSheet, PRBool aWasAlternate,
+  NS_IMETHOD StyleSheetLoaded(nsICSSStyleSheet* aSheet, PRBool aWasAlternate,
                               nsresult aStatus);
-  static PRBool ParsePIData(const nsString &aData, nsString &aHref,
+  static void ParsePIData(const nsString &aData, nsString &aHref,
                           nsString &aTitle, nsString &aMedia,
                           PRBool &aIsAlternate);
 
@@ -133,17 +131,15 @@ protected:
   virtual PRBool SetDocElement(PRInt32 aNameSpaceID, 
                                nsIAtom *aTagName,
                                nsIContent *aContent);
-  virtual PRBool NotifyForDocElement() { return PR_TRUE; }
   virtual nsresult CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
                                  nsINodeInfo* aNodeInfo, PRUint32 aLineNumber,
-                                 nsIContent** aResult, PRBool* aAppendContent,
-                                 PRUint32 aFromParser);
+                                 nsIContent** aResult, PRBool* aAppendContent);
 
   // aParent is allowed to be null here if this is the root content
   // being closed
   virtual nsresult CloseElement(nsIContent* aContent);
 
-  virtual nsresult FlushText(PRBool aReleaseTextNode = PR_TRUE);
+  virtual nsresult FlushText();
 
   nsresult AddContentAsLeaf(nsIContent *aContent);
 
@@ -152,6 +148,8 @@ protected:
   nsresult PushContent(nsIContent *aContent);
   void PopContent();
   PRBool HaveNotifiedForCurrentContent() const;
+
+  nsresult ProcessBASETag(nsIContent* aContent);
 
   nsresult FlushTags();
 
@@ -194,19 +192,22 @@ protected:
 
   XMLContentSinkState mState;
 
+  nsString mTitleText; 
+  
   PRInt32 mTextLength;
   PRInt32 mTextSize;
   
   PRInt32 mNotifyLevel;
-  nsCOMPtr<nsIContent> mLastTextNode;
-  PRInt32 mLastTextNodeSize;
 
   PRUint8 mConstrainSize : 1;
   PRUint8 mPrettyPrintXML : 1;
   PRUint8 mPrettyPrintHasSpecialRoot : 1;
   PRUint8 mPrettyPrintHasFactoredElements : 1;
+  PRUint8 mHasProcessedBase : 1;
+  PRUint8 mAllowAutoXLinks : 1;
   PRUint8 mPrettyPrinting : 1;  // True if we called PrettyPrint() and it
                                 // decided we should in fact prettyprint.
+  PRUint8 unused : 1;  // bits available if someone needs one
   
   nsTArray<StackNode>              mContentStack;
 

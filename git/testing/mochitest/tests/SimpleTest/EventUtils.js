@@ -8,10 +8,9 @@
  */
 
 /**
- * Send a mouse event to the node aTarget (aTarget can be an id, or an
- * actual node) . The "event" passed in to aEvent is just a JavaScript
- * object with the properties set that the real mouse event object should
- * have. This includes the type of the mouse event.
+ * Send a mouse event to the node with id aTarget. The "event" passed in to
+ * aEvent is just a JavaScript object with the properties set that the real
+ * mouse event object should have. This includes the type of the mouse event.
  * E.g. to send an click event to the node with id 'node' you might do this:
  *
  * sendMouseEvent({type:'click'}, 'node');
@@ -23,10 +22,6 @@ function sendMouseEvent(aEvent, aTarget, aWindow) {
 
   if (!aWindow) {
     aWindow = window;
-  }
-
-  if (!(aTarget instanceof Element)) {
-    aTarget = aWindow.document.getElementById(aTarget);
   }
 
   // For events to trigger the UA's default actions they need to be "trusted"
@@ -57,7 +52,7 @@ function sendMouseEvent(aEvent, aTarget, aWindow) {
                        ctrlKeyArg, altKeyArg, shiftKeyArg, metaKeyArg,
                        buttonArg, relatedTargetArg);
 
-  aTarget.dispatchEvent(event);
+  aWindow.document.getElementById(aTarget).dispatchEvent(event);
 }
 
 /**
@@ -139,22 +134,20 @@ function __doEventDispatch(aTarget, aCharCode, aKeyCode, aHasShift) {
                      aKeyCode, 0);
   var accepted = $(aTarget).dispatchEvent(event);
 
-  // Preventing the default keydown action also prevents the default
-  // keypress action.
-  event = document.createEvent("KeyEvents");
-  if (aCharCode) {
-    event.initKeyEvent("keypress", true, true, document.defaultView,
-                       false, false, aHasShift, false,
-                       0, aCharCode);
-  } else {
-    event.initKeyEvent("keypress", true, true, document.defaultView,
-                       false, false, aHasShift, false,
-                       aKeyCode, 0);
+  // Cancelling keydown cancels keypress too
+  if (accepted) {
+    event = document.createEvent("KeyEvents");
+    if (aCharCode) {
+      event.initKeyEvent("keypress", true, true, document.defaultView,
+                         false, false, aHasShift, false,
+                         0, aCharCode);
+    } else {
+      event.initKeyEvent("keypress", true, true, document.defaultView,
+                         false, false, aHasShift, false,
+                         aKeyCode, 0);
+    }
+    accepted = $(aTarget).dispatchEvent(event);
   }
-  if (!accepted) {
-    event.preventDefault();
-  }
-  accepted = $(aTarget).dispatchEvent(event);
 
   // Always send keyup
   var event = document.createEvent("KeyEvents");
@@ -194,7 +187,7 @@ function _parseModifiers(aEvent)
  * aOffsetY. This allows mouse clicks to be simulated by calling this method.
  *
  * aEvent is an object which may contain the properties:
- *   shiftKey, ctrlKey, altKey, metaKey, accessKey, clickCount, button, type
+ *   shiftKey, ctrlKey, altKey, metaKey, accessKey, type
  *
  * If the type is specified, an mouse event of that type is fired. Otherwise,
  * a mousedown followed by a mouse up is performed.
@@ -215,73 +208,16 @@ function synthesizeMouse(aTarget, aOffsetX, aOffsetY, aEvent, aWindow)
     var clickCount = aEvent.clickCount || 1;
     var modifiers = _parseModifiers(aEvent);
 
-    var rect = aTarget.getBoundingClientRect();
-
-    var left = rect.left + aOffsetX;
-    var top = rect.top + aOffsetY;
+    var left = aTarget.boxObject.x;
+    var top = aTarget.boxObject.y;
 
     if (aEvent.type) {
-      utils.sendMouseEvent(aEvent.type, left, top, button, clickCount, modifiers);
+      utils.sendMouseEvent(aEvent.type, left + aOffsetX, top + aOffsetY, button, clickCount, modifiers);
     }
     else {
-      utils.sendMouseEvent("mousedown", left, top, button, clickCount, modifiers);
-      utils.sendMouseEvent("mouseup", left, top, button, clickCount, modifiers);
+      utils.sendMouseEvent("mousedown", left + aOffsetX, top + aOffsetY, button, clickCount, modifiers);
+      utils.sendMouseEvent("mouseup", left + aOffsetX, top + aOffsetY, button, clickCount, modifiers);
     }
-  }
-}
-
-/**
- * Synthesize a mouse scroll event on a target. The actual client point is determined
- * by taking the aTarget's client box and offseting it by aOffsetX and
- * aOffsetY.
- *
- * aEvent is an object which may contain the properties:
- *   shiftKey, ctrlKey, altKey, metaKey, accessKey, button, type, axis, delta, hasPixels
- *
- * If the type is specified, a mouse scroll event of that type is fired. Otherwise,
- * "DOMMouseScroll" is used.
- *
- * If the axis is specified, it must be one of "horizontal" or "vertical". If not specified,
- * "vertical" is used.
- *
- * 'delta' is the amount to scroll by (can be positive or negative). It must
- * be specified.
- *
- * 'hasPixels' specifies whether kHasPixels should be set in the scrollFlags.
- *
- * aWindow is optional, and defaults to the current window object.
- */
-function synthesizeMouseScroll(aTarget, aOffsetX, aOffsetY, aEvent, aWindow)
-{
-  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-
-  if (!aWindow)
-    aWindow = window;
-
-  var utils = aWindow.QueryInterface(Components.interfaces.nsIInterfaceRequestor).
-                      getInterface(Components.interfaces.nsIDOMWindowUtils);
-  if (utils) {
-    // See nsMouseScrollFlags in nsGUIEvent.h
-    const kIsVertical = 0x02;
-    const kIsHorizontal = 0x04;
-    const kHasPixels = 0x08;
-
-    var button = aEvent.button || 0;
-    var modifiers = _parseModifiers(aEvent);
-
-    var rect = aTarget.getBoundingClientRect();
-
-    var left = rect.left;
-    var top = rect.top;
-
-    var type = aEvent.type || "DOMMouseScroll";
-    var axis = aEvent.axis || "vertical";
-    var scrollFlags = (axis == "horizontal") ? kIsHorizontal : kIsVertical;
-    if (aEvent.hasPixels) {
-      scrollFlags |= kHasPixels;
-    }
-    utils.sendMouseScrollEvent(type, left + aOffsetX, top + aOffsetY, button,
-                               scrollFlags, aEvent.delta, modifiers);
   }
 }
 
@@ -322,10 +258,8 @@ function synthesizeKey(aKey, aEvent, aWindow)
       utils.sendKeyEvent(aEvent.type, keyCode, charCode, modifiers);
     }
     else {
-      var keyDownDefaultHappened =
-          utils.sendKeyEvent("keydown", keyCode, charCode, modifiers);
-      utils.sendKeyEvent("keypress", keyCode, charCode, modifiers,
-                         !keyDownDefaultHappened);
+      utils.sendKeyEvent("keydown", keyCode, charCode, modifiers);
+      utils.sendKeyEvent("keypress", keyCode, charCode, modifiers);
       utils.sendKeyEvent("keyup", keyCode, charCode, modifiers);
     }
   }
@@ -419,405 +353,4 @@ function synthesizeKeyExpectEvent(key, aEvent, aExpectedTarget, aExpectedEvent,
   var eventHandler = _expectEvent(aExpectedTarget, aExpectedEvent, aTestName);
   synthesizeKey(key, aEvent, aWindow);
   _checkExpectedEvent(aExpectedTarget, aExpectedEvent, eventHandler, aTestName);
-}
-
-/**
- * Emulate a dragstart event.
- *  element - element to fire the dragstart event on
- *  expectedDragData - the data you expect the data transfer to contain afterwards
- *                      This data is in the format:
- *                         [ [ {type: value, data: value, test: function}, ... ], ... ]
- *                     can be null
- *  aWindow - optional; defaults to the current window object.
- *  x - optional; initial x coordinate
- *  y - optional; initial y coordinate
- * Returns null if data matches.
- * Returns the event.dataTransfer if data does not match
- *
- * eqTest is an optional function if comparison can't be done with x == y;
- *   function (actualData, expectedData) {return boolean}
- *   @param actualData from dataTransfer
- *   @param expectedData from expectedDragData
- * see bug 462172 for example of use
- *
- */
-function synthesizeDragStart(element, expectedDragData, aWindow, x, y)
-{
-  if (!aWindow)
-    aWindow = window;
-  x = x || 2;
-  y = y || 2;
-  const step = 9;
-
-  var result = "trapDrag was not called";
-  var trapDrag = function(event) {
-    try {
-      var dataTransfer = event.dataTransfer;
-      result = null;
-      if (!dataTransfer)
-        throw "no dataTransfer";
-      if (expectedDragData == null ||
-          dataTransfer.mozItemCount != expectedDragData.length)
-        throw dataTransfer;
-      for (var i = 0; i < dataTransfer.mozItemCount; i++) {
-        var dtTypes = dataTransfer.mozTypesAt(i);
-        if (dtTypes.length != expectedDragData[i].length)
-          throw dataTransfer;
-        for (var j = 0; j < dtTypes.length; j++) {
-          if (dtTypes[j] != expectedDragData[i][j].type)
-            throw dataTransfer;
-          var dtData = dataTransfer.mozGetDataAt(dtTypes[j],i);
-          if (expectedDragData[i][j].eqTest) {
-            if (!expectedDragData[i][j].eqTest(dtData, expectedDragData[i][j].data))
-              throw dataTransfer;
-          }
-          else if (expectedDragData[i][j].data != dtData)
-            throw dataTransfer;
-        }
-      }
-    } catch(ex) {
-      result = ex;
-    }
-    event.preventDefault();
-    event.stopPropagation();
-  }
-  aWindow.addEventListener("dragstart", trapDrag, false);
-  synthesizeMouse(element, x, y, { type: "mousedown" }, aWindow);
-  x += step; y += step;
-  synthesizeMouse(element, x, y, { type: "mousemove" }, aWindow);
-  x += step; y += step;
-  synthesizeMouse(element, x, y, { type: "mousemove" }, aWindow);
-  aWindow.removeEventListener("dragstart", trapDrag, false);
-  synthesizeMouse(element, x, y, { type: "mouseup" }, aWindow);
-  return result;
-}
-
-/**
- * Emulate a drop by emulating a dragstart and firing events dragenter, dragover, and drop.
- *  srcElement - the element to use to start the drag, usually the same as destElement
- *               but if destElement isn't suitable to start a drag on pass a suitable
- *               element for srcElement
- *  destElement - the element to fire the dragover, dragleave and drop events
- *  dragData - the data to supply for the data transfer
- *                     This data is in the format:
- *                       [ [ {type: value, data: value}, ...], ... ]
- *  dropEffect - the drop effect to set during the dragstart event, or 'move' if null
- *  aWindow - optional; defaults to the current window object.
- *
- * Returns the drop effect that was desired.
- */
-function synthesizeDrop(srcElement, destElement, dragData, dropEffect, aWindow)
-{
-  if (!aWindow)
-    aWindow = window;
-
-  var dataTransfer;
-  var trapDrag = function(event) {
-    dataTransfer = event.dataTransfer;
-    for (var i = 0; i < dragData.length; i++) {
-      var item = dragData[i];
-      for (var j = 0; j < item.length; j++) {
-        dataTransfer.mozSetDataAt(item[j].type, item[j].data, i);
-      }
-    }
-    dataTransfer.dropEffect = dropEffect || "move";
-    event.preventDefault();
-    event.stopPropagation();
-  }
-
-  // need to use real mouse action
-  aWindow.addEventListener("dragstart", trapDrag, true);
-  synthesizeMouse(srcElement, 2, 2, { type: "mousedown" }, aWindow);
-  synthesizeMouse(srcElement, 11, 11, { type: "mousemove" }, aWindow);
-  synthesizeMouse(srcElement, 20, 20, { type: "mousemove" }, aWindow);
-  aWindow.removeEventListener("dragstart", trapDrag, true);
-
-  event = aWindow.document.createEvent("DragEvents");
-  event.initDragEvent("dragenter", true, true, aWindow, 0, 0, 0, 0, 0, false, false, false, false, 0, null, dataTransfer);
-  destElement.dispatchEvent(event);
-
-  var event = aWindow.document.createEvent("DragEvents");
-  event.initDragEvent("dragover", true, true, aWindow, 0, 0, 0, 0, 0, false, false, false, false, 0, null, dataTransfer);
-  if (destElement.dispatchEvent(event)) {
-    synthesizeMouse(destElement, 20, 20, { type: "mouseup" }, aWindow);
-    return "none";
-  }
-
-  if (dataTransfer.dropEffect != "none") {
-    event = aWindow.document.createEvent("DragEvents");
-    event.initDragEvent("drop", true, true, aWindow, 0, 0, 0, 0, 0, false, false, false, false, 0, null, dataTransfer);
-    destElement.dispatchEvent(event);
-  }
-  synthesizeMouse(destElement, 20, 20, { type: "mouseup" }, aWindow);
-
-  return dataTransfer.dropEffect;
-}
-
-function disableNonTestMouseEvents(aDisable)
-{
-  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-
-  var utils =
-    window.QueryInterface(Components.interfaces.nsIInterfaceRequestor).
-           getInterface(Components.interfaces.nsIDOMWindowUtils);
-  if (utils)
-    utils.disableNonTestMouseEvents(aDisable);
-}
-
-function _getDOMWindowUtils(aWindow)
-{
-  if (!aWindow) {
-    aWindow = window;
-  }
-  return aWindow.QueryInterface(Components.interfaces.nsIInterfaceRequestor).
-                 getInterface(Components.interfaces.nsIDOMWindowUtils);
-}
-
-/**
- * Synthesize a composition event.
- *
- * @param aIsCompositionStart  If true, this synthesize compositionstart event.
- *                             Otherwise, compositionend event.
- * @param aWindow              Optional (If null, current |window| will be used)
- */
-function synthesizeComposition(aIsCompositionStart, aWindow)
-{
-  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-
-  var utils = _getDOMWindowUtils(aWindow);
-  if (!utils) {
-    return;
-  }
-
-  utils.sendCompositionEvent(aIsCompositionStart ?
-                               "compositionstart" : "compositionend");
-}
-
-/**
- * Synthesize a text event.
- *
- * @param aEvent   The text event's information, this has |composition|
- *                 and |caret| members.  |composition| has |string| and
- *                 |clauses| members.  |clauses| must be array object.  Each
- *                 object has |length| and |attr|.  And |caret| has |start| and
- *                 |length|.  See the following tree image.
- *
- *                 aEvent
- *                   +-- composition
- *                   |     +-- string
- *                   |     +-- clauses[]
- *                   |           +-- length
- *                   |           +-- attr
- *                   +-- caret
- *                         +-- start
- *                         +-- length
- *
- *                 Set the composition string to |composition.string|.  Set its
- *                 clauses information to the |clauses| array.
- *
- *                 When it's composing, set the each clauses' length to the
- *                 |composition.clauses[n].length|.  The sum of the all length
- *                 values must be same as the length of |composition.string|.
- *                 Set nsIDOMWindowUtils.COMPOSITION_ATTR_* to the
- *                 |composition.clauses[n].attr|.
- *
- *                 When it's not composing, set 0 to the
- *                 |composition.clauses[0].length| and
- *                 |composition.clauses[0].attr|.
- *
- *                 Set caret position to the |caret.start|. It's offset from
- *                 the start of the composition string.  Set caret length to
- *                 |caret.length|.  If it's larger than 0, it should be wide
- *                 caret.  However, current nsEditor doesn't support wide
- *                 caret, therefore, you should always set 0 now.
- *
- * @param aWindow  Optional (If null, current |window| will be used)
- */
-function synthesizeText(aEvent, aWindow)
-{
-  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-
-  var utils = _getDOMWindowUtils(aWindow);
-  if (!utils) {
-    return;
-  }
-
-  if (!aEvent.composition || !aEvent.composition.clauses ||
-      !aEvent.composition.clauses[0]) {
-    return;
-  }
-
-  var firstClauseLength = aEvent.composition.clauses[0].length;
-  var firstClauseAttr   = aEvent.composition.clauses[0].attr;
-  var secondClauseLength = 0;
-  var secondClauseAttr = 0;
-  var thirdClauseLength = 0;
-  var thirdClauseAttr = 0;
-  if (aEvent.composition.clauses[1]) {
-    secondClauseLength = aEvent.composition.clauses[1].length;
-    secondClauseAttr   = aEvent.composition.clauses[1].attr;
-    if (aEvent.composition.clauses[2]) {
-      thirdClauseLength = aEvent.composition.clauses[2].length;
-      thirdClauseAttr   = aEvent.composition.clauses[2].attr;
-    }
-  }
-
-  var caretStart = -1;
-  var caretLength = 0;
-  if (aEvent.caret) {
-    caretStart = aEvent.caret.start;
-    caretLength = aEvent.caret.length;
-  }
-
-  utils.sendTextEvent(aEvent.composition.string,
-                      firstClauseLength, firstClauseAttr,
-                      secondClauseLength, secondClauseAttr,
-                      thirdClauseLength, thirdClauseAttr,
-                      caretStart, caretLength);
-}
-
-/**
- * Synthesize a query selected text event.
- *
- * @param aWindow  Optional (If null, current |window| will be used)
- * @return         An nsIQueryContentEventResult object.  If this failed,
- *                 the result might be null.
- */
-function synthesizeQuerySelectedText(aWindow)
-{
-  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-
-  var utils = _getDOMWindowUtils(aWindow);
-  if (!utils) {
-    return nsnull;
-  }
-  return utils.sendQueryContentEvent(utils.QUERY_SELECTED_TEXT, 0, 0, 0, 0);
-}
-
-/**
- * Synthesize a query text content event.
- *
- * @param aOffset  The character offset.  0 means the first character in the
- *                 selection root.
- * @param aLength  The length of getting text.  If the length is too long,
- *                 the extra length is ignored.
- * @param aWindow  Optional (If null, current |window| will be used)
- * @return         An nsIQueryContentEventResult object.  If this failed,
- *                 the result might be null.
- */
-function synthesizeQueryTextContent(aOffset, aLength, aWindow)
-{
-  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-
-  var utils = _getDOMWindowUtils(aWindow);
-  if (!utils) {
-    return nsnull;
-  }
-  return utils.sendQueryContentEvent(utils.QUERY_TEXT_CONTENT,
-                                     aOffset, aLength, 0, 0);
-}
-
-/**
- * Synthesize a query caret rect event.
- *
- * @param aOffset  The caret offset.  0 means left side of the first character
- *                 in the selection root.
- * @param aWindow  Optional (If null, current |window| will be used)
- * @return         An nsIQueryContentEventResult object.  If this failed,
- *                 the result might be null.
- */
-function synthesizeQueryCaretRect(aOffset, aWindow)
-{
-  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-
-  var utils = _getDOMWindowUtils(aWindow);
-  if (!utils) {
-    return nsnull;
-  }
-  return utils.sendQueryContentEvent(utils.QUERY_CARET_RECT,
-                                     aOffset, 0, 0, 0);
-}
-
-/**
- * Synthesize a query text rect event.
- *
- * @param aOffset  The character offset.  0 means the first character in the
- *                 selection root.
- * @param aLength  The length of the text.  If the length is too long,
- *                 the extra length is ignored.
- * @param aWindow  Optional (If null, current |window| will be used)
- * @return         An nsIQueryContentEventResult object.  If this failed,
- *                 the result might be null.
- */
-function synthesizeQueryTextRect(aOffset, aLength, aWindow)
-{
-  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-
-  var utils = _getDOMWindowUtils(aWindow);
-  if (!utils) {
-    return nsnull;
-  }
-  return utils.sendQueryContentEvent(utils.QUERY_TEXT_RECT,
-                                     aOffset, aLength, 0, 0);
-}
-
-/**
- * Synthesize a query editor rect event.
- *
- * @param aWindow  Optional (If null, current |window| will be used)
- * @return         An nsIQueryContentEventResult object.  If this failed,
- *                 the result might be null.
- */
-function synthesizeQueryEditorRect(aWindow)
-{
-  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-
-  var utils = _getDOMWindowUtils(aWindow);
-  if (!utils) {
-    return nsnull;
-  }
-  return utils.sendQueryContentEvent(utils.QUERY_EDITOR_RECT, 0, 0, 0, 0);
-}
-
-/**
- * Synthesize a character at point event.
- *
- * @param aX, aY   The offset in the client area of the DOM window.
- * @param aWindow  Optional (If null, current |window| will be used)
- * @return         An nsIQueryContentEventResult object.  If this failed,
- *                 the result might be null.
- */
-function synthesizeCharAtPoint(aX, aY, aWindow)
-{
-  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-
-  var utils = _getDOMWindowUtils(aWindow);
-  if (!utils) {
-    return nsnull;
-  }
-  return utils.sendQueryContentEvent(utils.QUERY_CHARACTER_AT_POINT,
-                                     0, 0, aX, aY);
-}
-
-/**
- * Synthesize a selection set event.
- *
- * @param aOffset  The character offset.  0 means the first character in the
- *                 selection root.
- * @param aLength  The length of the text.  If the length is too long,
- *                 the extra length is ignored.
- * @param aReverse If true, the selection is from |aOffset + aLength| to
- *                 |aOffset|.  Otherwise, from |aOffset| to |aOffset + aLength|.
- * @param aWindow  Optional (If null, current |window| will be used)
- * @return         True, if succeeded.  Otherwise false.
- */
-function synthesizeSelectionSet(aOffset, aLength, aReverse, aWindow)
-{
-  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-
-  var utils = _getDOMWindowUtils(aWindow);
-  if (!utils) {
-    return false;
-  }
-  return utils.sendSelectionSetEvent(aOffset, aLength, aReverse);
 }

@@ -44,9 +44,6 @@
 #include "nsIContent.h"
 #include "nsIPresShell.h"
 #include "nsIDocument.h"
-#include "mozilla/dom/Element.h"
-
-using namespace mozilla::dom;
 
 //----------------------------------------------------------------------
 // Implementation
@@ -75,29 +72,31 @@ nsDOMSVGZoomEvent::nsDOMSVGZoomEvent(nsPresContext* aPresContext,
   if (mPresContext && (presShell = mPresContext->GetPresShell())) {
     nsIDocument *doc = presShell->GetDocument();
     if (doc) {
-      Element *rootElement = doc->GetRootElement();
-      if (rootElement) {
+      nsIContent *rootContent = doc->GetRootContent();
+      if (rootContent) {
         // If the root element isn't an SVG 'svg' element this QI will fail
         // (e.g. if this event was created by calling createEvent on a
         // non-SVGDocument). In these circumstances the "New" and "Previous"
         // properties will be left null which is probably what we want.
-        nsCOMPtr<nsIDOMSVGSVGElement> svgElement = do_QueryInterface(rootElement);
+        nsCOMPtr<nsIDOMSVGSVGElement> svgElement = do_QueryInterface(rootContent);
         if (svgElement) {
+          svgElement->GetCurrentScale(&mNewScale);
+          float x, y;
+          nsCOMPtr<nsIDOMSVGPoint> currentTranslate;
+          svgElement->GetCurrentTranslate(getter_AddRefs(currentTranslate));
+          currentTranslate->GetX(&x);
+          currentTranslate->GetY(&y);
+          NS_NewSVGReadonlyPoint(getter_AddRefs(mNewTranslate), x, y);
+
           nsSVGSVGElement *SVGSVGElement =
-            static_cast<nsSVGSVGElement*>(rootElement);
-  
-          mNewScale = SVGSVGElement->GetCurrentScale();
+            static_cast<nsSVGSVGElement*>(rootContent);
           mPreviousScale = SVGSVGElement->GetPreviousScale();
-
-          const nsSVGTranslatePoint& translate =
-            SVGSVGElement->GetCurrentTranslate();
-          NS_NewSVGReadonlyPoint(getter_AddRefs(mNewTranslate),
-                                 translate.GetX(), translate.GetY());
-
-          const nsSVGTranslatePoint& prevTranslate =
-            SVGSVGElement->GetPreviousTranslate();
           NS_NewSVGReadonlyPoint(getter_AddRefs(mPreviousTranslate),
-                                 prevTranslate.GetX(), prevTranslate.GetY());
+                                 SVGSVGElement->GetPreviousTranslate_x(),
+                                 SVGSVGElement->GetPreviousTranslate_y());
+          // Important: we call RecordCurrentST() here to make sure that
+          // scripts that create an SVGZoomEvent won't get our "Previous" data
+          SVGSVGElement->RecordCurrentScaleTranslate();
         }
       }
     }
@@ -108,15 +107,14 @@ nsDOMSVGZoomEvent::nsDOMSVGZoomEvent(nsPresContext* aPresContext,
 //----------------------------------------------------------------------
 // nsISupports methods:
 
-NS_IMPL_ADDREF_INHERITED(nsDOMSVGZoomEvent, nsDOMUIEvent)
-NS_IMPL_RELEASE_INHERITED(nsDOMSVGZoomEvent, nsDOMUIEvent)
-
-DOMCI_DATA(SVGZoomEvent, nsDOMSVGZoomEvent)
+NS_IMPL_ADDREF_INHERITED(nsDOMSVGZoomEvent, nsDOMEvent)
+NS_IMPL_RELEASE_INHERITED(nsDOMSVGZoomEvent, nsDOMEvent)
 
 NS_INTERFACE_MAP_BEGIN(nsDOMSVGZoomEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGZoomEvent)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGZoomEvent)
-NS_INTERFACE_MAP_END_INHERITING(nsDOMUIEvent)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsIDOMUIEvent,nsIDOMSVGZoomEvent)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGZoomEvent)
+NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
 
 
 //----------------------------------------------------------------------

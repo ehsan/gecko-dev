@@ -43,11 +43,12 @@
 #include "nsXBLPrototypeResources.h"
 #include "nsXBLPrototypeHandler.h"
 #include "nsXBLProtoImplMethod.h"
+#include "nsICSSStyleSheet.h"
 #include "nsICSSLoaderObserver.h"
 #include "nsWeakReference.h"
 #include "nsIContent.h"
 #include "nsHashtable.h"
-#include "nsXBLDocumentInfo.h"
+#include "nsIXBLDocumentInfo.h"
 #include "nsCOMArray.h"
 #include "nsXBLProtoImpl.h"
 
@@ -59,7 +60,6 @@ class nsIXBLService;
 class nsFixedSizeAllocator;
 class nsXBLProtoImplField;
 class nsXBLBinding;
-class nsCSSStyleSheet;
 
 // *********************************************************************/
 // The XBLPrototypeBinding class
@@ -74,14 +74,9 @@ public:
   void SetBindingElement(nsIContent* aElement);
 
   nsIURI* BindingURI() const { return mBindingURI; }
-  nsIURI* AlternateBindingURI() const { return mAlternateBindingURI; }
   nsIURI* DocURI() const { return mXBLDocInfoWeak->DocumentURI(); }
 
-  // Checks if aURI refers to this binding by comparing to both possible
-  // binding URIs.
-  PRBool CompareBindingURI(nsIURI* aURI) const;
-
-  PRBool GetAllowScripts();
+  nsresult GetAllowScripts(PRBool* aResult);
 
   nsresult BindingAttached(nsIContent* aBoundElement);
   nsresult BindingDetached(nsIContent* aBoundElement);
@@ -140,8 +135,7 @@ public:
   void SetBasePrototype(nsXBLPrototypeBinding* aBinding);
   nsXBLPrototypeBinding* GetBasePrototype() { return mBaseBinding; }
 
-  nsXBLDocumentInfo* XBLDocumentInfo() const { return mXBLDocInfoWeak; }
-  PRBool IsChrome() { return mXBLDocInfoWeak->IsChrome(); }
+  nsIXBLDocumentInfo* XBLDocumentInfo() const { return mXBLDocInfoWeak; }
   
   PRBool HasBasePrototype() { return mHasBaseProto; }
   void SetHasBasePrototype(PRBool aHasBase) { mHasBaseProto = aHasBase; }
@@ -149,23 +143,20 @@ public:
   void SetInitialAttributes(nsIContent* aBoundElement, nsIContent* aAnonymousContent);
 
   nsIStyleRuleProcessor* GetRuleProcessor();
-  nsXBLPrototypeResources::sheet_array_type* GetStyleSheets();
+  nsCOMArray<nsICSSStyleSheet>* GetStyleSheets();
 
   PRBool HasInsertionPoints() { return mInsertionPointTable != nsnull; }
   
   PRBool HasStyleSheets() {
-    return mResources && mResources->mStyleSheetList.Length() > 0;
+    return mResources && mResources->mStyleSheetList.Count() > 0;
   }
 
   nsresult FlushSkinSheets();
 
   void InstantiateInsertionPoints(nsXBLBinding* aBinding);
 
-  // XXXbz this aIndex has nothing to do with an index into the child
-  // list of the insertion parent or anything.
   nsIContent* GetInsertionPoint(nsIContent* aBoundElement,
-                                nsIContent* aCopyRoot,
-                                const nsIContent *aChild,
+                                nsIContent* aCopyRoot, nsIContent *aChild,
                                 PRUint32* aIndex);
 
   nsIContent* GetSingleInsertionPoint(nsIContent* aBoundElement,
@@ -176,6 +167,8 @@ public:
   void SetBaseTag(PRInt32 aNamespaceID, nsIAtom* aTag);
 
   PRBool ImplementsInterface(REFNSIID aIID) const;
+
+  PRBool ShouldBuildChildFrames() const;
 
   nsresult AddResourceListener(nsIContent* aBoundElement);
 
@@ -200,9 +193,8 @@ public:
   // this with the Initialize() method, which must be called after the
   // binding's handlers, properties, etc are all set.
   nsresult Init(const nsACString& aRef,
-                nsXBLDocumentInfo* aInfo,
-                nsIContent* aElement,
-                PRBool aFirstBinding = PR_FALSE);
+                nsIXBLDocumentInfo* aInfo,
+                nsIContent* aElement);
 
   void Traverse(nsCycleCollectionTraversalCallback &cb) const;
   void UnlinkJSObjects();
@@ -263,7 +255,6 @@ protected:
 // MEMBER VARIABLES
 protected:
   nsCOMPtr<nsIURI> mBindingURI;
-  nsCOMPtr<nsIURI> mAlternateBindingURI; // Alternate id-less URI that is only non-null on the first binding.
   nsCOMPtr<nsIContent> mBinding; // Strong. We own a ref to our content element in the binding doc.
   nsAutoPtr<nsXBLPrototypeHandler> mPrototypeHandler; // Strong. DocInfo owns us, and we own the handlers.
   
@@ -277,7 +268,7 @@ protected:
  
   nsXBLPrototypeResources* mResources; // If we have any resources, this will be non-null.
                                       
-  nsXBLDocumentInfo* mXBLDocInfoWeak; // A pointer back to our doc info.  Weak, since it owns us.
+  nsIXBLDocumentInfo* mXBLDocInfoWeak; // A pointer back to our doc info.  Weak, since it owns us.
 
   nsObjectHashtable* mAttributeTable; // A table for attribute containers. Namespace IDs are used as
                                       // keys in the table. Containers are nsObjectHashtables.

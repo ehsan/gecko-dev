@@ -23,7 +23,6 @@
  * Contributor(s):
  *   Bradley Baetz <bbaetz@student.usyd.edu.au>
  *   Malcolm Smith <malsmith@cs.rmit.edu.au>
- *   Taras Glek <tglek@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -49,7 +48,6 @@
 #include "nsCOMPtr.h"
 #include "prio.h" // for read/write flags, permissions, etc.
 
-#include "nsCRT.h"
 #include "nsIURI.h"
 #include "nsIInputStream.h"
 #include "nsIOutputStream.h"
@@ -63,7 +61,6 @@
 #include "nsIIOService.h"
 #include "nsIServiceManager.h"
 #include "nsIChannel.h"
-#include "nsChannelProperties.h"
 #include "nsIInputStreamChannel.h"
 #include "nsITransport.h"
 #include "nsIStreamTransportService.h"
@@ -77,7 +74,6 @@
 #include "nsIStringStream.h"
 #include "nsILocalFile.h"
 #include "nsIFileStreams.h"
-#include "nsIFileURL.h"
 #include "nsIProtocolProxyService.h"
 #include "nsIProxyInfo.h"
 #include "nsIFileStreams.h"
@@ -89,7 +85,6 @@
 #include "nsInterfaceRequestorAgg.h"
 #include "nsInt64.h"
 #include "nsINetUtil.h"
-#include "nsIURIWithPrincipal.h"
 #include "nsIAuthPrompt.h"
 #include "nsIAuthPrompt2.h"
 #include "nsIAuthPromptAdapterFactory.h"
@@ -98,50 +93,14 @@
 #include "nsINestedURI.h"
 #include "nsIMutable.h"
 #include "nsIPropertyBag2.h"
-#include "nsIWritablePropertyBag2.h"
 #include "nsIIDNService.h"
-#include "nsIChannelEventSink.h"
-#include "nsIChannelPolicy.h"
-#include "mozilla/Services.h"
 
-#ifdef MOZILLA_INTERNAL_API
-
-inline already_AddRefed<nsIIOService>
-do_GetIOService(nsresult* error = 0)
-{
-    already_AddRefed<nsIIOService> ret = mozilla::services::GetIOService();
-    if (error)
-        *error = ret.get() ? NS_OK : NS_ERROR_FAILURE;
-    return ret;
-}
-
-inline already_AddRefed<nsINetUtil>
-do_GetNetUtil(nsresult *error = 0) 
-{
-    nsCOMPtr<nsIIOService> io = mozilla::services::GetIOService();
-    already_AddRefed<nsINetUtil> ret = nsnull;
-    if (io)
-        CallQueryInterface(io, &ret.mRawPtr);
-
-    if (error)
-        *error = ret.get() ? NS_OK : NS_ERROR_FAILURE;
-    return ret;
-}
-#else
 // Helper, to simplify getting the I/O service.
 inline const nsGetServiceByContractIDWithError
 do_GetIOService(nsresult* error = 0)
 {
     return nsGetServiceByContractIDWithError(NS_IOSERVICE_CONTRACTID, error);
 }
-
-// An alias to do_GetIOService
-inline const nsGetServiceByContractIDWithError
-do_GetNetUtil(nsresult* error = 0)
-{
-    return do_GetIOService(error);
-}
-#endif
 
 // private little helper function... don't call this directly!
 inline nsresult
@@ -203,20 +162,19 @@ NS_NewFileURI(nsIURI* *result,
 }
 
 inline nsresult
-NS_NewChannel(nsIChannel           **result,
+NS_NewChannel(nsIChannel           **result, 
               nsIURI                *uri,
               nsIIOService          *ioService = nsnull,    // pass in nsIIOService to optimize callers
               nsILoadGroup          *loadGroup = nsnull,
               nsIInterfaceRequestor *callbacks = nsnull,
-              PRUint32               loadFlags = nsIRequest::LOAD_NORMAL,
-              nsIChannelPolicy      *channelPolicy = nsnull)
+              PRUint32               loadFlags = nsIRequest::LOAD_NORMAL)
 {
     nsresult rv;
     nsCOMPtr<nsIIOService> grip;
     rv = net_EnsureIOService(&ioService, grip);
     if (ioService) {
-        nsCOMPtr<nsIChannel> chan;
-        rv = ioService->NewChannelFromURI(uri, getter_AddRefs(chan));
+        nsIChannel *chan;
+        rv = ioService->NewChannelFromURI(uri, &chan);
         if (NS_SUCCEEDED(rv)) {
             if (loadGroup)
                 rv |= chan->SetLoadGroup(loadGroup);
@@ -224,31 +182,13 @@ NS_NewChannel(nsIChannel           **result,
                 rv |= chan->SetNotificationCallbacks(callbacks);
             if (loadFlags != nsIRequest::LOAD_NORMAL)
                 rv |= chan->SetLoadFlags(loadFlags);
-            if (channelPolicy) {
-                nsCOMPtr<nsIWritablePropertyBag2> props = do_QueryInterface(chan, &rv);
-                if (props) {
-                    props->SetPropertyAsInterface(NS_CHANNEL_PROP_CHANNEL_POLICY,
-                                                  channelPolicy);
-                }
-            }
             if (NS_SUCCEEDED(rv))
-                chan.forget(result);
+                *result = chan;
+            else
+                NS_RELEASE(chan);
         }
     }
     return rv;
-}
-
-// For now, works only with JARChannel.  Future: with all channels that may
-// have Content-Disposition header (JAR, nsIHttpChannel, and nsIMultiPartChannel).
-inline nsresult
-NS_GetContentDisposition(nsIRequest     *channel,
-                         nsACString     &result)
-{
-    nsCOMPtr<nsIPropertyBag2> props(do_QueryInterface(channel));
-    if (props)
-        return props->GetPropertyAsACString(NS_CHANNEL_PROP_CONTENT_DISPOSITION,
-                                            result);
-    return NS_ERROR_NOT_AVAILABLE;
 }
 
 // Use this function with CAUTION. It creates a stream that blocks when you
@@ -511,16 +451,13 @@ NS_NewAsyncStreamCopier(nsIAsyncStreamCopier **result,
                         nsIEventTarget        *target,
                         PRBool                 sourceBuffered = PR_TRUE,
                         PRBool                 sinkBuffered = PR_TRUE,
-                        PRUint32               chunkSize = 0,
-                        PRBool                 closeSource = PR_TRUE,
-                        PRBool                 closeSink = PR_TRUE)
+                        PRUint32               chunkSize = 0)
 {
     nsresult rv;
     nsCOMPtr<nsIAsyncStreamCopier> copier =
         do_CreateInstance(NS_ASYNCSTREAMCOPIER_CONTRACTID, &rv);
     if (NS_SUCCEEDED(rv)) {
-        rv = copier->Init(source, sink, target, sourceBuffered, sinkBuffered,
-                          chunkSize, closeSource, closeSink);
+        rv = copier->Init(source, sink, target, sourceBuffered, sinkBuffered, chunkSize);
         if (NS_SUCCEEDED(rv)) {
             *result = nsnull;
             copier.swap(*result);
@@ -793,46 +730,6 @@ NS_GetURLSpecFromFile(nsIFile      *file,
 }
 
 /**
- * Converts the nsIFile to the corresponding URL string.
- * Should only be called on files which are not directories,
- * is otherwise identical to NS_GetURLSpecFromFile, but is
- * usually more efficient.
- * Warning: this restriction may not be enforced at runtime!
- */
-inline nsresult
-NS_GetURLSpecFromActualFile(nsIFile      *file,
-                            nsACString   &url,
-                            nsIIOService *ioService = nsnull)
-{
-    nsresult rv;
-    nsCOMPtr<nsIFileProtocolHandler> fileHandler;
-    rv = NS_GetFileProtocolHandler(getter_AddRefs(fileHandler), ioService);
-    if (NS_SUCCEEDED(rv))
-        rv = fileHandler->GetURLSpecFromActualFile(file, url);
-    return rv;
-}
-
-/**
- * Converts the nsIFile to the corresponding URL string.
- * Should only be called on files which are directories,
- * is otherwise identical to NS_GetURLSpecFromFile, but is
- * usually more efficient.
- * Warning: this restriction may not be enforced at runtime!
- */
-inline nsresult
-NS_GetURLSpecFromDir(nsIFile      *file,
-                     nsACString   &url,
-                     nsIIOService *ioService = nsnull)
-{
-    nsresult rv;
-    nsCOMPtr<nsIFileProtocolHandler> fileHandler;
-    rv = NS_GetFileProtocolHandler(getter_AddRefs(fileHandler), ioService);
-    if (NS_SUCCEEDED(rv))
-        rv = fileHandler->GetURLSpecFromDir(file, url);
-    return rv;
-}
-
-/**
  * Obtains the referrer for a given channel.  This first tries to obtain the
  * referrer from the property docshell.internalReferrer, and if that doesn't
  * work and the channel is an nsIHTTPChannel, we check it's referrer property.
@@ -912,7 +809,7 @@ NS_ParseContentType(const nsACString &rawContentType,
 {
     // contentCharset is left untouched if not present in rawContentType
     nsresult rv;
-    nsCOMPtr<nsINetUtil> util = do_GetNetUtil(&rv);
+    nsCOMPtr<nsINetUtil> util = do_GetIOService(&rv);
     NS_ENSURE_SUCCESS(rv, rv);
     nsCString charset;
     PRBool hadCharset;
@@ -932,7 +829,7 @@ NS_ExtractCharsetFromContentType(const nsACString &rawContentType,
 {
     // contentCharset is left untouched if not present in rawContentType
     nsresult rv;
-    nsCOMPtr<nsINetUtil> util = do_GetNetUtil(&rv);
+    nsCOMPtr<nsINetUtil> util = do_GetIOService(&rv);
     NS_ENSURE_SUCCESS(rv, rv);
 
     return util->ExtractCharsetFromContentType(rawContentType,
@@ -1143,33 +1040,6 @@ NS_NewPostDataStream(nsIInputStream  **result,
 
     NS_ADDREF(*result = stream);
     return NS_OK;
-}
-
-inline nsresult
-NS_ReadInputStreamToString(nsIInputStream *aInputStream, 
-                           nsACString &aDest,
-                           PRUint32 aCount)
-{
-    nsresult rv;
-
-    aDest.SetLength(aCount);
-    if (aDest.Length() != aCount)
-        return NS_ERROR_OUT_OF_MEMORY;
-    char * p = aDest.BeginWriting();
-    PRUint32 bytesRead;
-    PRUint32 totalRead = 0;
-    while (1) {
-        rv = aInputStream->Read(p + totalRead, aCount - totalRead, &bytesRead);
-        if (!NS_SUCCEEDED(rv)) 
-            return rv;
-        totalRead += bytesRead;
-        if (totalRead == aCount)
-            break;
-        // if Read reads 0 bytes, we've hit EOF 
-        if (bytesRead == 0)
-            return NS_ERROR_UNEXPECTED;
-    }
-    return rv; 
 }
 
 inline nsresult
@@ -1467,13 +1337,7 @@ NS_EnsureSafeToReturn(nsIURI* uri, nsIURI** result)
         return NS_OK;
     }
 
-    nsresult rv = uri->Clone(result);
-    if (NS_SUCCEEDED(rv) && !*result) {
-        NS_ERROR("nsIURI.clone contract was violated");
-        return NS_ERROR_UNEXPECTED;
-    }
-
-    return rv;
+    return uri->Clone(result);
 }
 
 /**
@@ -1498,11 +1362,10 @@ NS_TryToMakeImmutable(nsIURI* uri,
                       nsresult* outRv = nsnull)
 {
     nsresult rv;
-    nsCOMPtr<nsINetUtil> util = do_GetNetUtil(&rv);
-
+    nsCOMPtr<nsINetUtil> util = do_GetIOService(&rv);
     nsIURI* result = nsnull;
     if (NS_SUCCEEDED(rv)) {
-        NS_ASSERTION(util, "do_GetNetUtil lied");
+        NS_ASSERTION(util, "do_GetIOService lied");
         rv = util->ToImmutableURI(uri, &result);
     }
 
@@ -1527,7 +1390,7 @@ NS_URIChainHasFlags(nsIURI   *uri,
                     PRBool   *result)
 {
     nsresult rv;
-    nsCOMPtr<nsINetUtil> util = do_GetNetUtil(&rv);
+    nsCOMPtr<nsINetUtil> util = do_GetIOService(&rv);
     NS_ENSURE_SUCCESS(rv, rv);
 
     return util->URIChainHasFlags(uri, flags, result);
@@ -1576,176 +1439,6 @@ NS_GetFinalChannelURI(nsIChannel* channel, nsIURI** uri)
     }
     
     return channel->GetOriginalURI(uri);
-}
-
-// NS_SecurityHashURI must return the same hash value for any two URIs that
-// compare equal according to NS_SecurityCompareURIs.  Unfortunately, in the
-// case of files, it's not clear we can do anything better than returning
-// the schemeHash, so hashing files degenerates to storing them in a list.
-inline PRUint32
-NS_SecurityHashURI(nsIURI* aURI)
-{
-    nsCOMPtr<nsIURI> baseURI = NS_GetInnermostURI(aURI);
-
-    nsCAutoString scheme;
-    PRUint32 schemeHash = 0;
-    if (NS_SUCCEEDED(baseURI->GetScheme(scheme)))
-        schemeHash = nsCRT::HashCode(scheme.get());
-
-    // TODO figure out how to hash file:// URIs
-    if (scheme.EqualsLiteral("file"))
-        return schemeHash; // sad face
-
-    if (scheme.EqualsLiteral("imap") ||
-        scheme.EqualsLiteral("mailbox") ||
-        scheme.EqualsLiteral("news"))
-    {
-        nsCAutoString spec;
-        PRUint32 specHash = baseURI->GetSpec(spec);
-        if (NS_SUCCEEDED(specHash))
-            specHash = nsCRT::HashCode(spec.get());
-        return specHash;
-    }
-
-    nsCAutoString host;
-    PRUint32 hostHash = 0;
-    if (NS_SUCCEEDED(baseURI->GetHost(host)))
-        hostHash = nsCRT::HashCode(host.get());
-
-    // XOR to combine hash values
-    return schemeHash ^ hostHash ^ NS_GetRealPort(baseURI);
-}
-
-inline PRBool
-NS_SecurityCompareURIs(nsIURI* aSourceURI,
-                       nsIURI* aTargetURI,
-                       PRBool aStrictFileOriginPolicy)
-{
-    // Note that this is not an Equals() test on purpose -- for URIs that don't
-    // support host/port, we want equality to basically be object identity, for
-    // security purposes.  Otherwise, for example, two javascript: URIs that
-    // are otherwise unrelated could end up "same origin", which would be
-    // unfortunate.
-    if (aSourceURI && aSourceURI == aTargetURI)
-    {
-        return PR_TRUE;
-    }
-
-    if (!aTargetURI || !aSourceURI)
-    {
-        return PR_FALSE;
-    }
-
-    // If either URI is a nested URI, get the base URI
-    nsCOMPtr<nsIURI> sourceBaseURI = NS_GetInnermostURI(aSourceURI);
-    nsCOMPtr<nsIURI> targetBaseURI = NS_GetInnermostURI(aTargetURI);
-
-    // If either uri is an nsIURIWithPrincipal
-    nsCOMPtr<nsIURIWithPrincipal> uriPrinc = do_QueryInterface(sourceBaseURI);
-    if (uriPrinc) {
-        uriPrinc->GetPrincipalUri(getter_AddRefs(sourceBaseURI));
-    }
-
-    uriPrinc = do_QueryInterface(targetBaseURI);
-    if (uriPrinc) {
-        uriPrinc->GetPrincipalUri(getter_AddRefs(targetBaseURI));
-    }
-
-    if (!sourceBaseURI || !targetBaseURI)
-        return PR_FALSE;
-
-    // Compare schemes
-    nsCAutoString targetScheme;
-    PRBool sameScheme = PR_FALSE;
-    if (NS_FAILED( targetBaseURI->GetScheme(targetScheme) ) ||
-        NS_FAILED( sourceBaseURI->SchemeIs(targetScheme.get(), &sameScheme) ) ||
-        !sameScheme)
-    {
-        // Not same-origin if schemes differ
-        return PR_FALSE;
-    }
-
-    // special handling for file: URIs
-    if (targetScheme.EqualsLiteral("file"))
-    {
-        // in traditional unsafe behavior all files are the same origin
-        if (!aStrictFileOriginPolicy)
-            return PR_TRUE;
-
-        nsCOMPtr<nsIFileURL> sourceFileURL(do_QueryInterface(sourceBaseURI));
-        nsCOMPtr<nsIFileURL> targetFileURL(do_QueryInterface(targetBaseURI));
-
-        if (!sourceFileURL || !targetFileURL)
-            return PR_FALSE;
-
-        nsCOMPtr<nsIFile> sourceFile, targetFile;
-
-        sourceFileURL->GetFile(getter_AddRefs(sourceFile));
-        targetFileURL->GetFile(getter_AddRefs(targetFile));
-
-        if (!sourceFile || !targetFile)
-            return PR_FALSE;
-
-        // Otherwise they had better match
-        PRBool filesAreEqual = PR_FALSE;
-        nsresult rv = sourceFile->Equals(targetFile, &filesAreEqual);
-        return NS_SUCCEEDED(rv) && filesAreEqual;
-    }
-
-    // Special handling for mailnews schemes
-    if (targetScheme.EqualsLiteral("imap") ||
-        targetScheme.EqualsLiteral("mailbox") ||
-        targetScheme.EqualsLiteral("news"))
-    {
-        // Each message is a distinct trust domain; use the
-        // whole spec for comparison
-        nsCAutoString targetSpec;
-        nsCAutoString sourceSpec;
-        return ( NS_SUCCEEDED( targetBaseURI->GetSpec(targetSpec) ) &&
-                 NS_SUCCEEDED( sourceBaseURI->GetSpec(sourceSpec) ) &&
-                 targetSpec.Equals(sourceSpec) );
-    }
-
-    // Compare hosts
-    nsCAutoString targetHost;
-    nsCAutoString sourceHost;
-    if (NS_FAILED( targetBaseURI->GetAsciiHost(targetHost) ) ||
-        NS_FAILED( sourceBaseURI->GetAsciiHost(sourceHost) ))
-    {
-        return PR_FALSE;
-    }
-
-#ifdef MOZILLA_INTERNAL_API
-    if (!targetHost.Equals(sourceHost, nsCaseInsensitiveCStringComparator() ))
-#else
-    if (!targetHost.Equals(sourceHost, CaseInsensitiveCompare))
-#endif
-    {
-        return PR_FALSE;
-    }
-
-    return NS_GetRealPort(targetBaseURI) == NS_GetRealPort(sourceBaseURI);
-}
-
-inline PRBool
-NS_IsInternalSameURIRedirect(nsIChannel *aOldChannel,
-                             nsIChannel *aNewChannel,
-                             PRUint32 aFlags)
-{
-  if (!(aFlags & nsIChannelEventSink::REDIRECT_INTERNAL)) {
-    return PR_FALSE;
-  }
-
-  nsCOMPtr<nsIURI> oldURI, newURI;
-  aOldChannel->GetURI(getter_AddRefs(oldURI));
-  aNewChannel->GetURI(getter_AddRefs(newURI));
-
-  if (!oldURI || !newURI) {
-    return PR_FALSE;
-  }
-
-  PRBool res;
-  return NS_SUCCEEDED(oldURI->Equals(newURI, &res)) && res;
 }
 
 #endif // !nsNetUtil_h__

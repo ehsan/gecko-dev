@@ -38,19 +38,16 @@
 #ifndef nsIView_h___
 #define nsIView_h___
 
-#include "nsISupports.h"
 #include "nsCoord.h"
 #include "nsRect.h"
 #include "nsPoint.h"
-#include "nsNativeWidget.h"
 #include "nsIWidget.h"
-#include "nsWidgetInitData.h"
 
 class nsIViewManager;
+class nsIScrollableView;
 class nsViewManager;
 class nsView;
 class nsWeakView;
-class nsIWidget;
 
 // Enumerated type to indicate the visibility of a layer.
 // hide - the layer is not shown.
@@ -62,9 +59,10 @@ enum nsViewVisibility {
 };
 
 // IID for the nsIView interface
+// 1377A30E-99E6-42FA-9A2E-EEEC6B31B7B6
 #define NS_IVIEW_IID    \
-  { 0xfb9900df, 0x5956, 0x4175, \
-    { 0x83, 0xba, 0x05, 0x74, 0x31, 0x96, 0x61, 0xee } }
+{ 0x1377ae0e, 0x99e6, 0x42fa, \
+{ 0x9a, 0x2e, 0xee, 0xec, 0x6b, 0x31, 0xb7, 0xb6 } }
 
 // Public view flags are defined in this file
 #define NS_VIEW_FLAGS_PUBLIC              0x00FF
@@ -84,6 +82,10 @@ enum nsViewVisibility {
 // displayed above z-index:auto views if this view 
 // is z-index:auto also
 #define NS_VIEW_FLAG_TOPMOST              0x0010
+
+// If set, the view disowns the widget and leaves it up
+// to other code to destroy it.
+#define NS_VIEW_DISOWNS_WIDGET             0x0020
 
 struct nsViewZIndex {
   PRBool mIsAuto;
@@ -115,6 +117,12 @@ public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_IVIEW_IID)
 
   /**
+   * See if this view is scrollable.
+   * @result an nsIScrollableView* if the view is scrollable, or nsnull if not.
+   */
+  virtual nsIScrollableView* ToScrollableView() { return nsnull; }
+
+  /**
    * Find the view for the given widget, if there is one.
    * @return the view the widget belongs to, or null if the widget doesn't
    * belong to any view.
@@ -144,8 +152,7 @@ public:
 
   /**
    * Called to get the position of a view.
-   * The specified coordinates are relative to the parent view's origin, but
-   * are in appunits of this.
+   * The specified coordinates are in the parent view's coordinate space.
    * This is the (0, 0) origin of the coordinate space established by this view.
    * @param x out parameter for x position
    * @param y out parameter for y position
@@ -157,17 +164,10 @@ public:
                  "root views should always have explicit position of (0,0)");
     return nsPoint(mPosX, mPosY);
   }
-
-  /**
-   * Set the position of a view. This does not cause any invalidation. It
-   * does reposition any widgets in this view or its descendants.
-   */
-  virtual void SetPosition(nscoord aX, nscoord aY) = 0;
   
   /**
    * Called to get the dimensions and position of the view's bounds.
-   * The view's bounds (x,y) are relative to the origin of the parent view, but
-   * are in appunits of this.
+   * The view's bounds (x,y) are in the coordinate space of the parent view.
    * The view's bounds (x,y) might not be the same as the view's position,
    * if the view has content above or to the left of its origin.
    * @param aBounds out parameter for bounds
@@ -178,11 +178,6 @@ public:
    * Get the offset between the coordinate systems of |this| and aOther.
    * Adding the return value to a point in the coordinate system of |this|
    * will transform the point to the coordinate system of aOther.
-   *
-   * The offset is expressed in appunits of |this|. So if you are getting the
-   * offset between views in different documents that might have different
-   * appunits per devpixel ratios you need to be careful how you use the
-   * result.
    *
    * If aOther is null, this will return the offset of |this| from the
    * root of the viewmanager tree.
@@ -195,14 +190,12 @@ public:
   nsPoint GetOffsetTo(const nsIView* aOther) const;
 
   /**
-   * Get the offset between the origin of |this| and the origin of aWidget.
-   * Adding the return value to a point in the coordinate system of |this|
-   * will transform the point to the coordinate system of aWidget.
-   *
-   * The offset is expressed in appunits of |this|.
+   * Get the screen position of the view.
+   * @return the pixel position of the top-left of the view in screen
+   * coordinates.
    */
-  nsPoint GetOffsetToWidget(nsIWidget* aWidget) const;
-
+  nsIntPoint GetScreenPosition() const;
+  
   /**
    * Called to query the visibility state of a view.
    * @result current visibility state
@@ -266,7 +259,7 @@ public:
    * Get the nearest widget in this view or a parent of this view and
    * the offset from the widget's origin to this view's origin
    * @param aOffset the offset from this view's origin to the widget's origin
-   * (usually positive) expressed in appunits of this.
+   * (usually positive)
    * @return the widget closest to this view; can be null because some view trees
    * don't have widgets at all (e.g., printing), but if any view in the view tree
    * has a widget, then it's safe to assume this will not return null
@@ -301,26 +294,6 @@ public:
                         nsIWidget* aParentWidget = nsnull);
 
   /**
-   * Attach/detach a top level widget from this view. When attached, the view
-   * updates the widget's device context and allows the view to begin receiving
-   * gecko events. The underlying base window associated with the widget will
-   * continues to receive events it expects.
-   *
-   * An attached widget will not be destroyed when the view is destroyed,
-   * allowing the recycling of a single top level widget over multiple views.
-   *
-   * @param aWidget The widget to attach to / detach from.
-   */
-  nsresult AttachToTopLevelWidget(nsIWidget* aWidget);
-  nsresult DetachFromTopLevelWidget();
-
-  /**
-   * Returns a flag indicating whether the view owns it's widget
-   * or is attached to an existing top level widget.
-   */
-  PRBool IsAttachedToTopLevel() const { return mWidgetIsTopLevel; }
-
-  /**
    * In 4.0, the "cutout" nature of a view is queryable.
    * If we believe that all cutout view have a native widget, this
    * could be a replacement.
@@ -335,15 +308,12 @@ public:
   PRBool HasWidget() const { return mWindow != nsnull; }
 
   /**
-   * Make aWidget direct its events to this view.
-   * The caller must call DetachWidgetEventHandler before this view
-   * is destroyed.
+   * If called, will make the view disown the widget and leave it up
+   * to other code to destroy it.
    */
-  EVENT_CALLBACK AttachWidgetEventHandler(nsIWidget* aWidget);
-  /**
-   * Stop aWidget directing its events to this view.
-   */
-  void DetachWidgetEventHandler(nsIWidget* aWidget);
+  void DisownWidget() {
+    mVFlags |= NS_VIEW_DISOWNS_WIDGET;
+  }
 
 #ifdef DEBUG
   /**
@@ -363,17 +333,6 @@ public:
   virtual PRBool ExternalIsRoot() const;
 
   void SetDeletionObserver(nsWeakView* aDeletionObserver);
-
-  nsIntRect CalcWidgetBounds(nsWindowType aType);
-
-  PRBool IsEffectivelyVisible();
-
-  // This is an app unit offset to add when converting view coordinates to
-  // widget coordinates.  It is the offset in view coordinates from widget
-  // origin (unlike views, widgets can't extend above or to the left of their
-  // origin) to view origin expressed in appunits of this.
-  nsPoint ViewToWidgetOffset() const { return mViewToWidgetOffset; }
-
 protected:
   friend class nsWeakView;
   nsViewManager     *mViewManager;
@@ -384,16 +343,11 @@ protected:
   void              *mClientData;
   PRInt32           mZIndex;
   nsViewVisibility  mVis;
-  // position relative our parent view origin but in our appunits
   nscoord           mPosX, mPosY;
-  // relative to parent, but in our appunits
-  nsRect            mDimBounds;
-  // in our appunits
-  nsPoint           mViewToWidgetOffset;
+  nsRect            mDimBounds; // relative to parent
   float             mOpacity;
   PRUint32          mVFlags;
   nsWeakView*       mDeletionObserver;
-  PRBool            mWidgetIsTopLevel;
 
   virtual ~nsIView() {}
 };

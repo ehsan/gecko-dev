@@ -1,7 +1,7 @@
 function test() {
   waitForExplicitFinish();
 
-  // Setup a phony handler to ensure the app pane will be populated.
+  // setup a phony hander to ensure the app pane will be populated.
   var handler = Cc["@mozilla.org/uriloader/web-handler-app;1"].
                 createInstance(Ci.nsIWebHandlerApp);
   handler.name = "App pane alive test";
@@ -16,36 +16,28 @@ function test() {
               getService(Ci.nsIHandlerService);
   hserv.store(info);
 
-  function observer(win, topic, data) {
-    if (topic != "app-handler-pane-loaded")
-      return;
-
-    Services.obs.removeObserver(observer, "app-handler-pane-loaded");
-    runTest(win);
-  }
-  Services.obs.addObserver(observer, "app-handler-pane-loaded", false);
-
   openDialog("chrome://browser/content/preferences/preferences.xul", "Preferences",
              "chrome,titlebar,toolbar,centerscreen,dialog=no", "paneApplications");
+  setTimeout(runTest, 1000);
 }
 
-function runTest(win) {
-  var sel = win.document.documentElement.getAttribute("lastSelected");
-  ok(sel == "paneApplications", "Specified pane was opened");
+function runTest() {
+  var wm = Cc["@mozilla.org/appshell/window-mediator;1"].
+           getService(Ci.nsIWindowMediator);
+  var win = wm.getMostRecentWindow("Browser:Preferences");
+  ok(win, "Pref window opened");
 
-  var rbox = win.document.getElementById("handlersView");
-  ok(rbox, "handlersView is present");
+  if (win) {
+    var sel = win.document.documentElement.getAttribute("lastSelected");
+    ok(sel == "paneApplications", "Specified pane was opened");
 
-  var items = rbox && rbox.getElementsByTagName("richlistitem");
-  ok(items && items.length > 0, "App handler list populated");
+    var rbox = win.document.getElementById("handlersView");
+    ok(rbox, "handlersView is present");
 
-  var handlerAdded = false;
-  for (let i = 0; i < items.length; i++) {
-    if (items[i].type == "apppanetest")
-      handlerAdded = true;
+    var items = rbox && rbox.getElementsByTagName("richlistitem");
+    ok(items && items.length > 0, "App handler list populated");
+
+    win.close();
   }
-  ok(handlerAdded, "apppanetest protocol handler was successfully added");
-
-  win.close();
   finish();
 }

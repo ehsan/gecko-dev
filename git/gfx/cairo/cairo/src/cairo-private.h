@@ -48,8 +48,7 @@ struct _cairo {
     cairo_user_data_array_t user_data;
 
     cairo_gstate_t *gstate;
-    cairo_gstate_t  gstate_tail[2];
-    cairo_gstate_t *gstate_freelist;
+    cairo_gstate_t  gstate_tail[1];
 
     cairo_path_fixed_t path[1];
 };

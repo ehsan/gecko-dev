@@ -39,6 +39,7 @@
 #include "nsIDOMEventTarget.h"
 #include "nsGenericHTMLElement.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsIForm.h"
 #include "nsIFormControl.h"
 
@@ -47,7 +48,7 @@ class nsHTMLFieldSetElement : public nsGenericHTMLFormElement,
                               public nsIDOMHTMLFieldSetElement
 {
 public:
-  nsHTMLFieldSetElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLFieldSetElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLFieldSetElement();
 
   // nsISupports
@@ -66,12 +67,11 @@ public:
   NS_DECL_NSIDOMHTMLFIELDSETELEMENT
 
   // nsIFormControl
-  NS_IMETHOD_(PRUint32) GetType() const { return NS_FORM_FIELDSET; }
+  NS_IMETHOD_(PRInt32) GetType() const { return NS_FORM_FIELDSET; }
   NS_IMETHOD Reset();
-  NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission,
+  NS_IMETHOD SubmitNamesValues(nsIFormSubmission* aFormSubmission,
                                nsIContent* aSubmitElement);
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-  virtual nsXPCClassInfo* GetClassInfo();
 };
 
 // construction, destruction
@@ -80,7 +80,7 @@ public:
 NS_IMPL_NS_NEW_HTML_ELEMENT(FieldSet)
 
 
-nsHTMLFieldSetElement::nsHTMLFieldSetElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLFieldSetElement::nsHTMLFieldSetElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLFormElement(aNodeInfo)
 {
 }
@@ -94,14 +94,12 @@ nsHTMLFieldSetElement::~nsHTMLFieldSetElement()
 NS_IMPL_ADDREF_INHERITED(nsHTMLFieldSetElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLFieldSetElement, nsGenericElement)
 
-DOMCI_NODE_DATA(HTMLFieldSetElement, nsHTMLFieldSetElement)
 
 // QueryInterface implementation for nsHTMLFieldSetElement
-NS_INTERFACE_TABLE_HEAD(nsHTMLFieldSetElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLFieldSetElement,
-                                   nsIDOMHTMLFieldSetElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLFieldSetElement,
-                                               nsGenericHTMLFormElement)
+NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLFieldSetElement,
+                                     nsGenericHTMLFormElement)
+  NS_INTERFACE_TABLE_INHERITED1(nsHTMLFieldSetElement,
+                                nsIDOMHTMLFieldSetElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLFieldSetElement)
 
 
@@ -128,7 +126,7 @@ nsHTMLFieldSetElement::Reset()
 }
 
 NS_IMETHODIMP
-nsHTMLFieldSetElement::SubmitNamesValues(nsFormSubmission* aFormSubmission,
+nsHTMLFieldSetElement::SubmitNamesValues(nsIFormSubmission* aFormSubmission,
                                          nsIContent* aSubmitElement)
 {
   return NS_OK;

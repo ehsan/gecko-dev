@@ -38,22 +38,22 @@
 #ifndef nsFileControlFrame_h___
 #define nsFileControlFrame_h___
 
-#include "nsBlockFrame.h"
+#include "nsAreaFrame.h"
 #include "nsIFormControlFrame.h"
 #include "nsIDOMMouseListener.h"
 #include "nsIAnonymousContentCreator.h"
-#include "nsICapturePicker.h"
 #include "nsCOMPtr.h"
 
 #include "nsTextControlFrame.h"
 typedef   nsTextControlFrame nsNewFrame;
 
-class nsFileControlFrame : public nsBlockFrame,
+class nsFileControlFrame : public nsAreaFrame,
                            public nsIFormControlFrame,
                            public nsIAnonymousContentCreator
 {
 public:
   nsFileControlFrame(nsStyleContext* aContext);
+  virtual ~nsFileControlFrame();
 
   NS_IMETHOD Init(nsIContent* aContent,
                   nsIFrame*   aParent,
@@ -63,9 +63,8 @@ public:
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists);
 
-  NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
-
+  NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
+  
   // nsIFormControlFrame
   virtual nsresult SetFormProperty(nsIAtom* aName, const nsAString& aValue);
   virtual nsresult GetFormProperty(nsIAtom* aName, nsAString& aValue) const;
@@ -78,7 +77,7 @@ public:
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus);
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
 
 #ifdef NS_DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
@@ -93,31 +92,10 @@ public:
 
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
-  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements);
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
-
-  // create and destroy the static UploadLastDir object for remembering
-  // which directory was last used on a site-by-site basis
-  static void InitUploadLastDir();
-  static void DestroyUploadLastDir();
-
-  /**
-   * This methods return the file filter mask requested by the HTML5 accept
-   * attribute. If the accept attribute isn't present or the value isn't valid,
-   * the returned value will be 0.
-   *
-   * See:
-   * http://dev.w3.org/html5/spec/forms.html#attr-input-accept
-   *
-   * @return the file picker filter mask or 0 if there is no filter.
-   */
-  PRInt32 GetFileFilterFromAccept() const;
-
-  typedef PRBool (*AcceptAttrCallback)(const nsAString&, void*);
-  void ParseAcceptAttribute(AcceptAttrCallback aCallback, void* aClosure) const;
 
 protected:
   class MouseListener;
@@ -138,33 +116,21 @@ protected:
     // and textfield.
     NS_IMETHOD MouseDown(nsIDOMEvent* aMouseEvent) { return NS_OK; }
     NS_IMETHOD MouseUp(nsIDOMEvent* aMouseEvent) { return NS_OK; }
-    NS_IMETHOD MouseClick(nsIDOMEvent* aMouseEvent) = 0;
+    NS_IMETHOD MouseClick(nsIDOMEvent* aMouseEvent);
     NS_IMETHOD MouseDblClick(nsIDOMEvent* aMouseEvent) { return NS_OK; }
     NS_IMETHOD MouseOver(nsIDOMEvent* aMouseEvent) { return NS_OK; }
     NS_IMETHOD MouseOut(nsIDOMEvent* aMouseEvent) { return NS_OK; }
     NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent) { return NS_OK; }
 
-  protected:
+  private:
     nsFileControlFrame* mFrame;
   };
   
-  class CaptureMouseListener: public MouseListener {
-  public:
-    CaptureMouseListener(nsFileControlFrame* aFrame) : MouseListener(aFrame),
-                                                       mMode(0) {};
-    NS_IMETHOD MouseClick(nsIDOMEvent* aMouseEvent);
-    PRUint32 mMode;
-  };
-  
-  class BrowseMouseListener: public MouseListener {
-  public:
-    BrowseMouseListener(nsFileControlFrame* aFrame) : MouseListener(aFrame) {};
-     NS_IMETHOD MouseClick(nsIDOMEvent* aMouseEvent);
-  };
-  
+  nsresult MouseClick(nsIDOMEvent* aMouseEvent);
+
   virtual PRBool IsFrameOfType(PRUint32 aFlags) const
   {
-    return nsBlockFrame::IsFrameOfType(aFlags &
+    return nsAreaFrame::IsFrameOfType(aFlags &
       ~(nsIFrame::eReplaced | nsIFrame::eReplacedContainsBlock));
   }
 
@@ -185,18 +151,16 @@ protected:
    * @see nsFileControlFrame::CreateAnonymousContent
    */
   nsCOMPtr<nsIContent> mBrowse;
-
   /**
-   * The capture button input.
-   * @see nsFileControlFrame::CreateAnonymousContent
+   * The current value, stored during those rare in-between periods where the
+   * file frame is there but the input frame is not.
    */
-  nsCOMPtr<nsIContent> mCapture;
+  nsString*           mCachedState;
 
   /**
    * Our mouse listener.  This makes sure we don't get used after destruction.
    */
-  nsRefPtr<BrowseMouseListener> mMouseListener;
-  nsRefPtr<CaptureMouseListener> mCaptureMouseListener;
+  nsRefPtr<MouseListener> mMouseListener;
 
 private:
   /**
@@ -220,7 +184,10 @@ private:
    *        or SYNC_BOTH)
    */
   void SyncAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
-                PRInt32 aWhichControls);
+                PRBool aWhichControls);
+
+  NS_IMETHOD_(nsrefcnt) AddRef() { return 1; }
+  NS_IMETHOD_(nsrefcnt) Release() { return 1; }
 };
 
 #endif

@@ -90,6 +90,7 @@ tab[selected="true"] {
   -moz-border-radius-bottomright: 3px;
   padding-top: 4px;
   padding-bottom: 6px;
+  -moz-user-focus: normal;
 }
 
 tab + tab {
@@ -98,6 +99,11 @@ tab + tab {
 
 .tab-text {
   margin: 0 !important;
+}
+
+tab:focus > .tab-middle {
+  /* Don't specify the outline-color, we should always use initial value. */
+  outline: 1px dotted;
 }
 
 /* ::::: tab-bottom ::::::::::

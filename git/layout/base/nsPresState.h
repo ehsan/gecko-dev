@@ -44,6 +44,8 @@
 #define nsPresState_h_
 
 #include "prtypes.h"
+#include "nsStringFwd.h"
+#include "nsInterfaceHashtable.h"
 #include "nsPoint.h"
 #include "nsAutoPtr.h"
 #include "nsRect.h"
@@ -51,61 +53,32 @@
 class nsPresState
 {
 public:
-  nsPresState()
-    : mContentData(nsnull)
-    , mScrollState(0, 0)
-    , mDisabledSet(PR_FALSE)
-    , mDisabled(PR_FALSE)
-  {}
+  NS_HIDDEN_(nsresult) Init();
 
-  void SetScrollState(const nsPoint& aState)
-  {
-    mScrollState = aState;
-  }
+  NS_HIDDEN_(nsresult) GetStatePropertyAsSupports(const nsAString& aName,
+                                                  nsISupports** aResult);
 
-  nsPoint GetScrollState()
-  {
-    return mScrollState;
-  }
+  NS_HIDDEN_(nsresult) SetStatePropertyAsSupports(const nsAString& aName,
+                                                  nsISupports* aValue);
 
-  void ClearNonScrollState()
-  {
-    mContentData = nsnull;
-    mDisabledSet = PR_FALSE;
-  }
+  NS_HIDDEN_(nsresult) GetStateProperty(const nsAString& aProperty,
+                                        nsAString& aResult);
 
-  PRBool GetDisabled()
-  {
-    return mDisabled;
-  }
+  NS_HIDDEN_(nsresult) SetStateProperty(const nsAString& aProperty,
+                                        const nsAString& aValue);
 
-  void SetDisabled(PRBool aDisabled)
-  {
-    mDisabled = aDisabled;
-    mDisabledSet = PR_TRUE;
-  }
+  NS_HIDDEN_(nsresult) RemoveStateProperty(const nsAString& aProperty);
 
-  PRBool IsDisabledSet()
-  {
-    return mDisabledSet;
-  }
+  NS_HIDDEN_(nsresult) SetScrollState(const nsRect& aState);
 
-  nsISupports* GetStateProperty()
-  {
-    return mContentData;
-  }
-
-  void SetStateProperty(nsISupports *aProperty)
-  {
-    mContentData = aProperty;
-  }
+  nsRect GetScrollState();
 
 // MEMBER VARIABLES
 protected:
-  nsCOMPtr<nsISupports> mContentData;
-  nsPoint mScrollState;
-  PRPackedBool mDisabledSet;
-  PRPackedBool mDisabled;
+  nsInterfaceHashtable<nsStringHashKey,nsISupports> mPropertyTable;
+  nsAutoPtr<nsRect> mScrollState;
 };
+
+NS_HIDDEN_(nsresult) NS_NewPresState(nsPresState **aState);
 
 #endif /* nsPresState_h_ */

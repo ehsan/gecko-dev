@@ -40,6 +40,7 @@
 #include "nsSVGPathSeg.h"
 #include "nsSVGValue.h"
 #include "nsWeakReference.h"
+#include "nsVoidArray.h"
 #include "nsCOMArray.h"
 #include "nsDOMError.h"
 #include "nsSVGPathDataParser.h"
@@ -115,14 +116,12 @@ nsSVGPathSegList::~nsSVGPathSegList()
 NS_IMPL_ADDREF(nsSVGPathSegList)
 NS_IMPL_RELEASE(nsSVGPathSegList)
 
-DOMCI_DATA(SVGPathSegList, nsSVGPathSegList)
-
 NS_INTERFACE_MAP_BEGIN(nsSVGPathSegList)
   NS_INTERFACE_MAP_ENTRY(nsISVGValue)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGPathSegList)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_INTERFACE_MAP_ENTRY(nsISVGValueObserver)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGPathSegList)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGPathSegList)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsISVGValue)
 NS_INTERFACE_MAP_END
 
@@ -132,10 +131,12 @@ NS_INTERFACE_MAP_END
 NS_IMETHODIMP
 nsSVGPathSegList::SetValueString(const nsAString& aValue)
 {
+  nsresult rv;
+  
   WillModify();
   ReleaseSegments(PR_FALSE);
   nsSVGPathDataParserToDOM parser(&mSegments);
-  nsresult rv = parser.Parse(aValue);
+  rv = parser.Parse(aValue);
 
   PRInt32 count = mSegments.Count();
   for (PRInt32 i=0; i<count; ++i) {
@@ -242,17 +243,12 @@ NS_IMETHODIMP nsSVGPathSegList::ReplaceItem(nsIDOMSVGPathSeg *newItem,
 {
   NS_ENSURE_NATIVE_PATH_SEG(newItem, _retval);
 
-  // immediately remove the new item from its current list
-  nsSVGPathSeg* newItemSeg = static_cast<nsSVGPathSeg*>(newItem);
-  RemoveFromCurrentList(newItemSeg);
-
   if (index >= static_cast<PRUint32>(mSegments.Count())) {
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
 
-  // NOTE: the new item can never be the item we will be replacing now that we removed it from its current list beforehand
-  InsertElementAt(newItemSeg, index);
-  RemoveFromCurrentList(static_cast<nsSVGPathSeg*>(mSegments.ObjectAt(index+1)));
+  InsertElementAt(static_cast<nsSVGPathSeg*>(newItem), index);
+  RemoveElementAt(index+1);
   NS_ADDREF(*_retval = newItem);
 
   return NS_OK;
@@ -376,6 +372,7 @@ nsSVGPathSegList::RemoveFromCurrentList(nsSVGPathSeg* aSeg)
     if (ix != -1) { 
       otherSegList->RemoveElementAt(ix); 
     }
+    aSeg->SetCurrentList(nsnull);
   }
 }
 

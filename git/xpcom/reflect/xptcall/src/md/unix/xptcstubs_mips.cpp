@@ -39,7 +39,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "xptcprivate.h"
-#include "xptiprivate.h"
 
 /*
  * This is for MIPS O32 ABI
@@ -55,6 +54,7 @@ PrepareAndDispatch(nsXPTCStubBase* self, PRUint32 methodIndex, PRUint32* args)
 
     nsXPTCMiniVariant paramBuffer[PARAM_BUFFER_COUNT];
     nsXPTCMiniVariant* dispatchParams = NULL;
+    nsIInterfaceInfo* iface_info = NULL;
     const nsXPTMethodInfo* info;
     PRUint8 paramCount;
     PRUint8 i;
@@ -62,8 +62,11 @@ PrepareAndDispatch(nsXPTCStubBase* self, PRUint32 methodIndex, PRUint32* args)
 
     NS_ASSERTION(self,"no self");
 
-    self->mEntry->GetMethodInfo(PRUint16(methodIndex), &info);
-    NS_ASSERTION(info,"no method info");
+    self->GetInterfaceInfo(&iface_info);
+    NS_ASSERTION(iface_info,"no interface info");
+
+    iface_info->GetMethodInfo(PRUint16(methodIndex), &info);
+    NS_ASSERTION(info,"no interface info");
 
     paramCount = info->GetParamCount();
 
@@ -87,6 +90,8 @@ PrepareAndDispatch(nsXPTCStubBase* self, PRUint32 methodIndex, PRUint32* args)
             continue;
         }
 
+        dp->val.p = (void*) *ap;
+
         switch(type)
         {
         case nsXPTType::T_I64   :
@@ -101,29 +106,12 @@ PrepareAndDispatch(nsXPTCStubBase* self, PRUint32 methodIndex, PRUint32* args)
             if ((PRWord)ap & 4) ap++;
             dp->val.d   = *((double*) ap);  ap++;
             break;
-#ifdef IS_LITTLE_ENDIAN
-        default:
-            dp->val.p = (void*) *ap;
-            break;
-#else
-        case nsXPTType::T_I8    : dp->val.i8  = (PRInt8)   *ap; break;
-        case nsXPTType::T_I16   : dp->val.i16 = (PRInt16)  *ap; break;
-        case nsXPTType::T_I32   : dp->val.i32 = (PRInt32)  *ap; break;
-        case nsXPTType::T_U8    : dp->val.u8  = (PRUint8)  *ap; break;
-        case nsXPTType::T_U16   : dp->val.u16 = (PRUint16) *ap; break;
-        case nsXPTType::T_U32   : dp->val.u32 = (PRUint32) *ap; break;
-        case nsXPTType::T_BOOL  : dp->val.b   = (PRBool)   *ap; break;
-        case nsXPTType::T_CHAR  : dp->val.c   = (char)     *ap; break;
-        case nsXPTType::T_WCHAR : dp->val.wc  = (wchar_t)  *ap; break;
-        case nsXPTType::T_FLOAT : dp->val.f   = *(float *)  ap; break;
-        default:
-            NS_ASSERTION(0, "bad type");
-            break;
-#endif
         }
     }
 
-    result = self->mOuter->CallMethod((PRUint16)methodIndex, info, dispatchParams);
+    result = self->CallMethod((PRUint16)methodIndex, info, dispatchParams);
+
+    NS_RELEASE(iface_info);
 
     if(dispatchParams != paramBuffer)
         delete [] dispatchParams;
@@ -136,7 +124,7 @@ PrepareAndDispatch(nsXPTCStubBase* self, PRUint32 methodIndex, PRUint32* args)
 #define SENTINEL_ENTRY(n) \
 nsresult nsXPTCStubBase::Sentinel##n() \
 { \
-    NS_ERROR("nsXPTCStubBase::Sentinel called"); \
+    NS_ASSERTION(0,"nsXPTCStubBase::Sentinel called"); \
     return NS_ERROR_NOT_IMPLEMENTED; \
 }
 

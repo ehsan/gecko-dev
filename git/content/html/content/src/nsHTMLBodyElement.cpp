@@ -47,6 +47,8 @@
 #include "nsIDocument.h"
 #include "nsIHTMLDocument.h"
 #include "nsHTMLStyleSheet.h"
+#include "nsIHTMLCSSStyleSheet.h"
+#include "nsICSSStyleRule.h"
 #include "nsIContentViewer.h"
 #include "nsIMarkupDocumentViewer.h"
 #include "nsMappedAttributes.h"
@@ -69,9 +71,9 @@ public:
   NS_DECL_ISUPPORTS
 
   // nsIStyleRule interface
-  virtual void MapRuleInfoInto(nsRuleData* aRuleData);
+  NS_IMETHOD MapRuleInfoInto(nsRuleData* aRuleData);
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
+  NS_IMETHOD List(FILE* out = stdout, PRInt32 aIndent = 0) const;
 #endif
 
   nsHTMLBodyElement*  mPart;  // not ref-counted, cleared by content 
@@ -83,7 +85,7 @@ class nsHTMLBodyElement : public nsGenericHTMLElement,
                           public nsIDOMHTMLBodyElement
 {
 public:
-  nsHTMLBodyElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLBodyElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLBodyElement();
 
   // nsISupports
@@ -112,7 +114,6 @@ public:
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
   virtual already_AddRefed<nsIEditor> GetAssociatedEditor();
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-  virtual nsXPCClassInfo* GetClassInfo();
 private:
   nsresult GetColorHelper(nsIAtom* aAtom, nsAString& aColor);
 
@@ -133,11 +134,11 @@ BodyRule::~BodyRule()
 
 NS_IMPL_ISUPPORTS1(BodyRule, nsIStyleRule)
 
-/* virtual */ void
+NS_IMETHODIMP
 BodyRule::MapRuleInfoInto(nsRuleData* aData)
 {
   if (!aData || !(aData->mSIDs & NS_STYLE_INHERIT_BIT(Margin)) || !aData->mMarginData || !mPart)
-    return; // We only care about margins.
+    return NS_OK; // We only care about margins.
 
   PRInt32 bodyMarginWidth  = -1;
   PRInt32 bodyMarginHeight = -1;
@@ -262,12 +263,14 @@ BodyRule::MapRuleInfoInto(nsRuleData* aData)
       }
     }
   }
+  return NS_OK;
 }
 
 #ifdef DEBUG
-/* virtual */ void
+NS_IMETHODIMP
 BodyRule::List(FILE* out, PRInt32 aIndent) const
 {
+  return NS_OK;
 }
 #endif
 
@@ -277,7 +280,7 @@ BodyRule::List(FILE* out, PRInt32 aIndent) const
 NS_IMPL_NS_NEW_HTML_ELEMENT(Body)
 
 
-nsHTMLBodyElement::nsHTMLBodyElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLBodyElement::nsHTMLBodyElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo),
     mContentStyleRule(nsnull)
 {
@@ -295,25 +298,143 @@ nsHTMLBodyElement::~nsHTMLBodyElement()
 NS_IMPL_ADDREF_INHERITED(nsHTMLBodyElement, nsGenericElement) 
 NS_IMPL_RELEASE_INHERITED(nsHTMLBodyElement, nsGenericElement) 
 
-DOMCI_NODE_DATA(HTMLBodyElement, nsHTMLBodyElement)
-
 // QueryInterface implementation for nsHTMLBodyElement
-NS_INTERFACE_TABLE_HEAD(nsHTMLBodyElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLBodyElement, nsIDOMHTMLBodyElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLBodyElement,
-                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLBodyElement, nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED1(nsHTMLBodyElement, nsIDOMHTMLBodyElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLBodyElement)
+
 
 NS_IMPL_ELEMENT_CLONE(nsHTMLBodyElement)
 
 
 NS_IMPL_URI_ATTR(nsHTMLBodyElement, Background, background)
 
-NS_IMPL_STRING_ATTR(nsHTMLBodyElement, VLink, vlink)
-NS_IMPL_STRING_ATTR(nsHTMLBodyElement, ALink, alink)
-NS_IMPL_STRING_ATTR(nsHTMLBodyElement, Link, link)
-NS_IMPL_STRING_ATTR(nsHTMLBodyElement, Text, text)
-NS_IMPL_STRING_ATTR(nsHTMLBodyElement, BgColor, bgcolor)
+static nscolor
+GetDefaultColor(nsPresContext* aContext, nsIAtom* aAtom)
+{
+  if (aAtom == nsGkAtoms::vlink) {
+    return aContext->DefaultVisitedLinkColor();
+  } else if (aAtom == nsGkAtoms::alink) {
+    return aContext->DefaultActiveLinkColor();
+  } else if (aAtom == nsGkAtoms::link) {
+    return aContext->DefaultLinkColor();
+  } else if (aAtom == nsGkAtoms::text) {
+    return aContext->DefaultColor();
+  } 
+  NS_ERROR("Unhandled nsGkAtoms::attribute");
+  return NS_RGBA(0,0,0,0);
+}
+
+nsresult
+nsHTMLBodyElement::GetColorHelper(nsIAtom* aAtom, nsAString& aColor)
+{
+  aColor.Truncate();
+  nsAutoString color;
+  nscolor attrColor; 
+  if (!GetAttr(kNameSpaceID_None, aAtom, color)) {
+    nsPresContext *presContext = GetPresContext();
+    if (presContext) {
+      NS_RGBToHex(GetDefaultColor(presContext, aAtom), aColor);
+    }
+  } else if (NS_ColorNameToRGB(color, &attrColor)) {
+    NS_RGBToHex(attrColor, aColor);
+  } else {
+    aColor.Assign(color);
+  }
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsHTMLBodyElement::GetVLink(nsAString& aColor)
+{
+  return GetColorHelper(nsGkAtoms::vlink, aColor);
+}
+
+NS_IMETHODIMP
+nsHTMLBodyElement::SetVLink(const nsAString& aColor)
+{
+  return SetAttr(kNameSpaceID_None, nsGkAtoms::vlink, aColor,
+                 PR_TRUE);
+}
+
+NS_IMETHODIMP
+nsHTMLBodyElement::GetALink(nsAString& aColor)
+{
+  return GetColorHelper(nsGkAtoms::alink, aColor);
+}
+
+NS_IMETHODIMP
+nsHTMLBodyElement::SetALink(const nsAString& aColor)
+{
+  return SetAttr(kNameSpaceID_None, nsGkAtoms::alink, aColor,
+                 PR_TRUE);
+}
+
+NS_IMETHODIMP
+nsHTMLBodyElement::GetLink(nsAString& aColor)
+{
+  return GetColorHelper(nsGkAtoms::link, aColor);
+}
+
+NS_IMETHODIMP
+nsHTMLBodyElement::SetLink(const nsAString& aColor)
+{
+  return SetAttr(kNameSpaceID_None, nsGkAtoms::link, aColor,
+                 PR_TRUE);
+}
+
+// XXX Should text check the body frame's style struct for color,
+// like we do for bgColor?
+NS_IMETHODIMP
+nsHTMLBodyElement::GetText(nsAString& aColor)
+{
+  return GetColorHelper(nsGkAtoms::text, aColor);
+}
+
+NS_IMETHODIMP
+nsHTMLBodyElement::SetText(const nsAString& aColor)
+{
+  return SetAttr(kNameSpaceID_None, nsGkAtoms::text, aColor,
+                 PR_TRUE);
+}
+
+NS_IMETHODIMP 
+nsHTMLBodyElement::GetBgColor(nsAString& aBgColor)
+{
+  aBgColor.Truncate();
+
+  nsAutoString attr;
+  nscolor bgcolor;
+
+  // If we don't have an attribute, find the actual color used for
+  // (generally from the user agent style sheet) for compatibility
+  if (!GetAttr(kNameSpaceID_None, nsGkAtoms::bgcolor, attr)) {
+    // Make sure the style is up-to-date, since we need it
+    nsIFrame* frame = GetPrimaryFrame(Flush_Style);
+    
+    if (frame) {
+      bgcolor = frame->GetStyleBackground()->mBackgroundColor;
+      NS_RGBToHex(bgcolor, aBgColor);
+    }
+  }
+  else if (NS_ColorNameToRGB(attr, &bgcolor)) {
+    // If we have a color name which we can convert to an nscolor,
+    // then we should use the hex value instead of the color name.
+    NS_RGBToHex(bgcolor, aBgColor);
+  }
+  else {
+    // Otherwise, just assign whatever the attribute value is.
+    aBgColor.Assign(attr);
+  }
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP 
+nsHTMLBodyElement::SetBgColor(const nsAString& aBgColor)
+{
+  return SetAttr(kNameSpaceID_None, nsGkAtoms::bgcolor, aBgColor, PR_TRUE); 
+}
 
 PRBool
 nsHTMLBodyElement::ParseAttribute(PRInt32 aNamespaceID,
@@ -327,7 +448,7 @@ nsHTMLBodyElement::ParseAttribute(PRInt32 aNamespaceID,
         aAttribute == nsGkAtoms::link ||
         aAttribute == nsGkAtoms::alink ||
         aAttribute == nsGkAtoms::vlink) {
-      return aResult.ParseColor(aValue);
+      return aResult.ParseColor(aValue, GetOwnerDoc());
     }
     if (aAttribute == nsGkAtoms::marginwidth ||
         aAttribute == nsGkAtoms::marginheight ||

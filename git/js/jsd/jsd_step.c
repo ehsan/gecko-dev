@@ -76,7 +76,7 @@ _interpreterTrace(JSDContext* jsdc, JSContext *cx, JSStackFrame *fp,
     if(script)
     {
         JSD_LOCK_SCRIPTS(jsdc);
-        jsdscript = jsd_FindOrCreateJSDScript(jsdc, cx, script, fp);
+        jsdscript = jsd_FindJSDScript(jsdc, script);
         JSD_UNLOCK_SCRIPTS(jsdc);
         if(jsdscript)
             funName = JSD_GetScriptFunctionName(jsdc, jsdscript);
@@ -119,10 +119,12 @@ _callHook(JSDContext *jsdc, JSContext *cx, JSStackFrame *fp, JSBool before,
     if (!jsdc || !jsdc->inited)
         return JS_FALSE;
 
-    if (!hook && !(jsdc->flags & JSD_COLLECT_PROFILE_DATA))
+    if (!hook && !(jsdc->flags & JSD_COLLECT_PROFILE_DATA) &&
+        jsdc->flags & JSD_DISABLE_OBJECT_TRACE)
     {
-        /* no hook to call, no profile data needs to be collected,
-         * so there is nothing to do here.
+        /* no hook to call, no profile data needs to be collected, and
+         * the client has object tracing disabled, so there is nothing
+         * to do here.
          */
         return hookresult;
     }
@@ -134,7 +136,7 @@ _callHook(JSDContext *jsdc, JSContext *cx, JSStackFrame *fp, JSBool before,
     if (jsscript)
     {
         JSD_LOCK_SCRIPTS(jsdc);
-        jsdscript = jsd_FindOrCreateJSDScript(jsdc, cx, jsscript, fp);
+        jsdscript = jsd_FindJSDScript(jsdc, jsscript);
         JSD_UNLOCK_SCRIPTS(jsdc);
     
         if (jsdscript)
@@ -264,7 +266,7 @@ _callHook(JSDContext *jsdc, JSContext *cx, JSStackFrame *fp, JSBool before,
 
 }
 
-void *
+void * JS_DLL_CALLBACK
 jsd_FunctionCallHook(JSContext *cx, JSStackFrame *fp, JSBool before,
                      JSBool *ok, void *closure)
 {
@@ -290,7 +292,7 @@ jsd_FunctionCallHook(JSContext *cx, JSStackFrame *fp, JSBool before,
     return NULL;
 }
 
-void *
+void * JS_DLL_CALLBACK
 jsd_TopLevelCallHook(JSContext *cx, JSStackFrame *fp, JSBool before,
                      JSBool *ok, void *closure)
 {

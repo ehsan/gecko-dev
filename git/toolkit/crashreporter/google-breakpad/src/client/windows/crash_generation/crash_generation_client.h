@@ -27,19 +27,13 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef CLIENT_WINDOWS_CRASH_GENERATION_CRASH_GENERATION_CLIENT_H_
-#define CLIENT_WINDOWS_CRASH_GENERATION_CRASH_GENERATION_CLIENT_H_
+#ifndef CLIENT_WINDOWS_CRASH_GENERATION_CRASH_GENERATION_CLIENT_H__
+#define CLIENT_WINDOWS_CRASH_GENERATION_CRASH_GENERATION_CLIENT_H__
 
-#include <windows.h>
-#include <dbghelp.h>
 #include <string>
-#include <utility>
 #include "client/windows/common/ipc_protocol.h"
-#include "processor/scoped_ptr.h"
 
 namespace google_breakpad {
-
-struct CustomClientInfo;
 
 // Abstraction of client-side implementation of out of process
 // crash generation.
@@ -63,8 +57,7 @@ struct CustomClientInfo;
 class CrashGenerationClient {
  public:
   CrashGenerationClient(const wchar_t* pipe_name,
-                        MINIDUMP_TYPE dump_type,
-                        const CustomClientInfo* custom_info);
+                        MINIDUMP_TYPE dump_type);
 
   ~CrashGenerationClient();
 
@@ -72,9 +65,6 @@ class CrashGenerationClient {
   //
   // Returns true if the registration is successful; false otherwise.
   bool Register();
-
-  bool RequestDump(EXCEPTION_POINTERS* ex_info,
-                   MDRawAssertionInfo* assert_info);
 
   // Requests the crash server to generate a dump with the given
   // exception information.
@@ -123,9 +113,6 @@ class CrashGenerationClient {
   // Pipe name to use to talk to server.
   std::wstring pipe_name_;
 
-  // Custom client information
-  CustomClientInfo custom_info_;
-
   // Type of dump to generate.
   MINIDUMP_TYPE dump_type_;
 
@@ -159,4 +146,4 @@ class CrashGenerationClient {
 
 }  // namespace google_breakpad
 
-#endif  // CLIENT_WINDOWS_CRASH_GENERATION_CRASH_GENERATION_CLIENT_H_
+#endif  // CLIENT_WINDOWS_CRASH_GENERATION_CRASH_GENERATION_CLIENT_H__

@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -43,59 +43,109 @@
  * JS regular expression interface.
  */
 #include <stddef.h>
-#include "jsprvtd.h"
+#include "jspubtd.h"
 #include "jsstr.h"
 
 #ifdef JS_THREADSAFE
 #include "jsdhash.h"
 #endif
 
-extern js::Class js_RegExpClass;
+JS_BEGIN_EXTERN_C
 
-static inline bool
-VALUE_IS_REGEXP(JSContext *cx, js::Value v)
-{
-    return !v.isPrimitive() && v.toObject().isRegExp();
-}
+struct JSRegExpStatics {
+    JSString    *input;         /* input string to match (perl $_, GC root) */
+    JSBool      multiline;      /* whether input contains newlines (perl $*) */
+    uint16      parenCount;     /* number of valid elements in parens[] */
+    uint16      moreLength;     /* number of allocated elements in moreParens */
+    JSSubString parens[9];      /* last set of parens matched (perl $1, $2) */
+    JSSubString *moreParens;    /* null or realloc'd vector for $10, etc. */
+    JSSubString lastMatch;      /* last string matched (perl $&) */
+    JSSubString lastParen;      /* last paren matched (perl $+) */
+    JSSubString leftContext;    /* input to left of last match (perl $`) */
+    JSSubString rightContext;   /* input to right of last match (perl $') */
+};
 
-inline const js::Value &
-JSObject::getRegExpLastIndex() const
-{
-    JS_ASSERT(isRegExp());
-    return fslots[JSSLOT_REGEXP_LAST_INDEX];
-}
+/*
+ * This struct holds a bitmap representation of a class from a regexp.
+ * There's a list of these referenced by the classList field in the JSRegExp
+ * struct below. The initial state has startIndex set to the offset in the
+ * original regexp source of the beginning of the class contents. The first
+ * use of the class converts the source representation into a bitmap.
+ *
+ */
+typedef struct RECharSet {
+    JSPackedBool    converted;
+    JSPackedBool    sense;
+    uint16          length;
+    union {
+        uint8       *bits;
+        struct {
+            size_t  startIndex;
+            size_t  length;
+        } src;
+    } u;
+} RECharSet;
 
-inline void
-JSObject::setRegExpLastIndex(const js::Value &v)
-{
-    JS_ASSERT(isRegExp());
-    fslots[JSSLOT_REGEXP_LAST_INDEX] = v;
-}
+/*
+ * This macro is safe because moreParens is guaranteed to be allocated and big
+ * enough to hold parenCount, or else be null when parenCount is 0.
+ */
+#define REGEXP_PAREN_SUBSTRING(res, num)                                      \
+    (((jsuint)(num) < (jsuint)(res)->parenCount)                              \
+     ? ((jsuint)(num) < 9)                                                    \
+       ? &(res)->parens[num]                                                  \
+       : &(res)->moreParens[(num) - 9]                                        \
+     : &js_EmptySubString)
 
-inline void
-JSObject::setRegExpLastIndex(jsdouble d)
-{
-    JS_ASSERT(isRegExp());
-    fslots[JSSLOT_REGEXP_LAST_INDEX] = js::NumberValue(d);
-}
+typedef struct RENode RENode;
 
-inline void
-JSObject::zeroRegExpLastIndex()
-{
-    JS_ASSERT(isRegExp());
-    fslots[JSSLOT_REGEXP_LAST_INDEX].setInt32(0);
-}
+struct JSRegExp {
+    jsrefcount   nrefs;         /* reference count */
+    uint16       flags;         /* flags, see jsapi.h's JSREG_* defines */
+    size_t       parenCount;    /* number of parenthesized submatches */
+    size_t       classCount;    /* count [...] bitmaps */
+    RECharSet    *classList;    /* list of [...] bitmaps */
+    JSString     *source;       /* locked source string, sans // */
+    jsbytecode   program[1];    /* regular expression bytecode */
+};
 
-namespace js { class AutoStringRooter; }
+extern JSRegExp *
+js_NewRegExp(JSContext *cx, JSTokenStream *ts,
+             JSString *str, uintN flags, JSBool flat);
 
-inline bool
-JSObject::isRegExp() const
-{
-    return getClass() == &js_RegExpClass;
-}
+extern JSRegExp *
+js_NewRegExpOpt(JSContext *cx, JSString *str, JSString *opt, JSBool flat);
 
-extern JS_FRIEND_API(JSBool)
-js_ObjectIsRegExp(JSObject *obj);
+#define HOLD_REGEXP(cx, re) JS_ATOMIC_INCREMENT(&(re)->nrefs)
+#define DROP_REGEXP(cx, re) js_DestroyRegExp(cx, re)
+
+extern void
+js_DestroyRegExp(JSContext *cx, JSRegExp *re);
+
+/*
+ * Execute re on input str at *indexp, returning null in *rval on mismatch.
+ * On match, return true if test is true, otherwise return an array object.
+ * Update *indexp and cx->regExpStatics always on match.
+ */
+extern JSBool
+js_ExecuteRegExp(JSContext *cx, JSRegExp *re, JSString *str, size_t *indexp,
+                 JSBool test, jsval *rval);
+
+/*
+ * These two add and remove GC roots, respectively, so their calls must be
+ * well-ordered.
+ */
+extern JSBool
+js_InitRegExpStatics(JSContext *cx, JSRegExpStatics *res);
+
+extern void
+js_FreeRegExpStatics(JSContext *cx, JSRegExpStatics *res);
+
+#define JSVAL_IS_REGEXP(cx, v)                                                \
+    (JSVAL_IS_OBJECT(v) && JSVAL_TO_OBJECT(v) &&                              \
+     OBJ_GET_CLASS(cx, JSVAL_TO_OBJECT(v)) == &js_RegExpClass)
+
+extern JSClass js_RegExpClass;
 
 extern JSObject *
 js_InitRegExpClass(JSContext *cx, JSObject *obj);
@@ -104,23 +154,30 @@ js_InitRegExpClass(JSContext *cx, JSObject *obj);
  * Export js_regexp_toString to the decompiler.
  */
 extern JSBool
-js_regexp_toString(JSContext *cx, JSObject *obj, js::Value *vp);
-
-extern JS_FRIEND_API(JSObject *) JS_FASTCALL
-js_CloneRegExpObject(JSContext *cx, JSObject *obj, JSObject *proto);
+js_regexp_toString(JSContext *cx, JSObject *obj, jsval *vp);
 
 /*
- * Move data from |cx|'s regexp statics to |statics| and root the input string in |tvr| if it's
- * available.
+ * Create, serialize/deserialize, or clone a RegExp object.
  */
-extern JS_FRIEND_API(void)
-js_SaveAndClearRegExpStatics(JSContext *cx, js::RegExpStatics *res, js::AutoStringRooter *tvr);
-
-/* Move the data from |statics| into |cx|. */
-extern JS_FRIEND_API(void)
-js_RestoreRegExpStatics(JSContext *cx, js::RegExpStatics *res);
+extern JSObject *
+js_NewRegExpObject(JSContext *cx, JSTokenStream *ts,
+                   jschar *chars, size_t length, uintN flags);
 
 extern JSBool
-js_XDRRegExpObject(JSXDRState *xdr, JSObject **objp);
+js_XDRRegExp(JSXDRState *xdr, JSObject **objp);
+
+extern JSObject *
+js_CloneRegExpObject(JSContext *cx, JSObject *obj, JSObject *parent);
+
+/*
+ * Get and set the per-object (clone or clone-parent) lastIndex slot.
+ */
+extern JSBool
+js_GetLastIndex(JSContext *cx, JSObject *obj, jsdouble *lastIndex);
+
+extern JSBool
+js_SetLastIndex(JSContext *cx, JSObject *obj, jsdouble lastIndex);
+
+JS_END_EXTERN_C
 
 #endif /* jsregexp_h___ */

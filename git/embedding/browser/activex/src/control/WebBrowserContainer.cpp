@@ -256,7 +256,7 @@ NS_IMETHODIMP CWebBrowserContainer::OnStateChange(nsIWebProgress* aWebProgress, 
         VARIANT_BOOL bEnableForward = VARIANT_FALSE;
         PRBool aCanGoForward = PR_FALSE;
         webNav->GetCanGoForward(&aCanGoForward);
-        if (aCanGoForward)
+        if (aCanGoForward == PR_TRUE)
         {
             bEnableForward = VARIANT_TRUE;
         }
@@ -266,7 +266,7 @@ NS_IMETHODIMP CWebBrowserContainer::OnStateChange(nsIWebProgress* aWebProgress, 
         VARIANT_BOOL bEnableBack = VARIANT_FALSE;
         PRBool aCanGoBack = PR_FALSE;
         webNav->GetCanGoBack(&aCanGoBack);
-        if (aCanGoBack)
+        if (aCanGoBack == PR_TRUE)
         {
             bEnableBack = VARIANT_TRUE;
         }
@@ -368,7 +368,7 @@ NS_IMETHODIMP CWebBrowserContainer::OnStartURIOpen(nsIURI *pURI, PRBool *aAbortO
     }
 
     //NOTE:  The IE control fires a DownloadBegin after the first BeforeNavigate.
-    //      It then fires a DownloadComplete after the engine has made its
+    //      It then fires a DownloadComplete after the engine has made it's
     //      initial connection to the server.  It then fires a second
     //      DownloadBegin/DownloadComplete pair around the loading of
     //      everything on the page.  These events get fired out of

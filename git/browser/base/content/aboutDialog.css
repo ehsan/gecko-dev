@@ -7,15 +7,10 @@
 }
 
 #modes {
-  min-height: 400px;
+  min-height: 380px;
 }
 
 #clientBox {
-  /* Add a min-width equal to chrome://branding/content/about.png's
-   * width, to maintain the dialog layout on OS X where the dialog is
-   * align="end" to right-align the button.
-   */
-  min-width: 300px;
   background-image: url("chrome://branding/content/about.png");
   background-repeat: no-repeat;
   background-color: #FFFFFF;
@@ -25,10 +20,9 @@
 
 #brandName {
   font-weight: bold; font-size: larger;
-}
+} 
 
 #userAgent {
-  direction: ltr;
   margin-top: 10px;
   -moz-margin-end: 13px;
   margin-bottom: 0;
@@ -96,11 +90,4 @@ button[dlgtype="extra2"] {
 
 button[dlgtype="accept"] {
   -moz-margin-end: 13px;
-}
-
-.text-link,
-.text-link:focus {
-  margin: 0px;
-  padding: 0px;
-  border: 0px;
 }

@@ -135,7 +135,7 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
   if ((self = [super init])) {
     mGeckoAccessible = geckoAccessible;
     mIsExpired = NO;
-    geckoAccessible->GetRole(&mRole);
+    geckoAccessible->GetFinalRole(&mRole);
     
     // Check for OS X "role skew"; the role constants in nsIAccessible.idl need to match the ones
     // in nsRoleMap.h.
@@ -293,17 +293,22 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
 {
   if (mIsExpired)
     return nil;
-
+  
   // Convert from cocoa's coordinate system to gecko's. According to the docs
   // the point we're given is guaranteed to be bottom-left screen coordinates.
   nsPoint geckoPoint;
   ConvertCocoaToGeckoPoint (point, geckoPoint);
 
-  nsCOMPtr<nsIAccessible> deepestFoundChild;
-  mGeckoAccessible->GetDeepestChildAtPoint((PRInt32)geckoPoint.x,
-                                           (PRInt32)geckoPoint.y,
-                                           getter_AddRefs(deepestFoundChild));
+  // start iterating as deep down as we can on this point, with the current accessible as the root.
+  // as soon as GetChildAtPoint() returns null, or can't descend further (without getting the same accessible again)
+  // we stop.
+  nsCOMPtr<nsIAccessible> deepestFoundChild, newChild(mGeckoAccessible);
+  do {
+    deepestFoundChild = newChild;
+    deepestFoundChild->GetChildAtPoint((PRInt32)geckoPoint.x, (PRInt32)geckoPoint.y, getter_AddRefs(newChild));
+  } while (newChild && newChild.get() != deepestFoundChild.get());
   
+
   // if we found something, return its native accessible.
   if (deepestFoundChild) {
     mozAccessible *nativeChild = GetNativeFromGeckoAccessible(deepestFoundChild);
@@ -468,8 +473,7 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
 - (NSString*)role
 {
 #ifdef DEBUG_A11Y
-  NS_ASSERTION(nsAccUtils::IsTextInterfaceSupportCorrect(mGeckoAccessible),
-               "Does not support nsIAccessibleText when it should");
+  NS_ASSERTION(nsAccessible::IsTextInterfaceSupportCorrect(mGeckoAccessible), "Does not support nsIAccessibleText when it should");
 #endif
   return AXRoles[mRole];
 }
@@ -549,14 +553,14 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
 - (BOOL)isFocused
 {
   PRUint32 state = 0;
-  mGeckoAccessible->GetState (&state, nsnull);
+  mGeckoAccessible->GetFinalState (&state, nsnull);
   return (state & nsIAccessibleStates::STATE_FOCUSED) != 0;
 }
 
 - (BOOL)canBeFocused
 {
   PRUint32 state = 0;
-  mGeckoAccessible->GetState (&state, nsnull);
+  mGeckoAccessible->GetFinalState (&state, nsnull);
   return (state & nsIAccessibleStates::STATE_FOCUSABLE) != 0;
 }
 
@@ -569,7 +573,7 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
 - (BOOL)isEnabled
 {
   PRUint32 state = 0;
-  mGeckoAccessible->GetState (&state, nsnull);
+  mGeckoAccessible->GetFinalState (&state, nsnull);
   return (state & nsIAccessibleStates::STATE_UNAVAILABLE) == 0;
 }
 

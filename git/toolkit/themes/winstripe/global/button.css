@@ -55,7 +55,6 @@ button {
   -moz-border-left-colors: transparent ThreeDHighlight ThreeDLightShadow;
   background-color: ThreeDFace;
   color: ButtonText;
-  text-shadow: none;
 }
 
 .button-box {
@@ -80,7 +79,7 @@ button:focus {
   -moz-border-left-colors: ThreeDDarkShadow ThreeDHighlight transparent;
 }
 
-button:-moz-focusring > .button-box {
+button:focus > .button-box {
   border: 1px dotted ThreeDDarkShadow;
 }
 
@@ -104,9 +103,9 @@ button[checked="true"] {
   -moz-border-left-colors: ThreeDDarkShadow ThreeDShadow transparent;
 }
 
-button:hover:active > .button-box:-moz-system-metric(windows-classic),
-button[open="true"] > .button-box:-moz-system-metric(windows-classic),
-button[checked="true"] > .button-box:-moz-system-metric(windows-classic) {
+button:hover:active > .button-box:not(:-moz-system-metric(windows-default-theme)),
+button[open="true"] > .button-box:not(:-moz-system-metric(windows-default-theme)),
+button[checked="true"] > .button-box:not(:-moz-system-metric(windows-default-theme)) {
   padding-top: 2px;
   padding-bottom: 1px;
   -moz-padding-start: 4px;
@@ -121,11 +120,6 @@ button[disabled="true"] {
   -moz-border-bottom-colors: transparent ThreeDDarkShadow ThreeDShadow !important;
   -moz-border-left-colors: transparent ThreeDHighlight ThreeDLightShadow !important;
   color: GrayText;
-}
-
-button[disabled="true"]:-moz-system-metric(windows-classic) {
-  color: ThreeDShadow;
-  text-shadow: 1px 1px ThreeDHighlight;
 }
 
 button[disabled="true"] > .button-box {
@@ -144,20 +138,14 @@ button[type="menu-button"] {
   border: none;
 }
 
-.button-menubutton-button {
-  -moz-appearance: none;
-  background-color: transparent;
-  border: none;
-}
-
 .button-menu-dropmarker,
 .button-menubutton-dropmarker {
   -moz-appearance: none !important;
   margin: 1px;
   background-color: transparent !important;
   border: none !important;
-  width: 11px;
-  height: 11px;
+  min-width:11px;
+  min-height:11px;
 }
 
 .button-menubutton-dropmarker[open="true"] {
@@ -186,5 +174,7 @@ button[type="disclosure"] {
 }
 
 button[type="disclosure"][open="true"] {
-  list-style-image: url("chrome://global/skin/tree/twisty-open.png");
+  list-style-image: url("chrome://global/skin/tree/twisty-open.png"); 
 }
+
+

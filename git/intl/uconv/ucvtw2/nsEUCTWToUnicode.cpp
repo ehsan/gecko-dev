@@ -78,7 +78,7 @@ static const uRange g_EUCTWRanges[] = {
 //----------------------------------------------------------------------
 // Class nsEUCTWToUnicode [implementation]
 
-nsresult
+NS_METHOD
 nsEUCTWToUnicodeConstructor(nsISupports *aOuter, REFNSIID aIID,
                                 void **aResult)
 {

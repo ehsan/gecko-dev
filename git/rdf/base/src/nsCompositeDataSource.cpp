@@ -71,7 +71,7 @@
 #include "nsIRDFObserver.h"
 #include "nsIRDFRemoteDataSource.h"
 #include "nsFixedSizeAllocator.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsCOMArray.h"
 #include "nsArrayEnumerator.h"
 #include "nsXPIDLString.h"
@@ -175,7 +175,7 @@ protected:
     nsISimpleEnumerator* mCurrent;
     nsIRDFNode*  mResult;
     PRInt32      mNext;
-    nsAutoTArray<nsCOMPtr<nsIRDFNode>, 8>  mAlreadyReturned;
+    nsAutoVoidArray  mAlreadyReturned;
     PRPackedBool mAllowNegativeAssertions;
     PRPackedBool mCoalesceDuplicateArcs;
 };
@@ -197,6 +197,15 @@ CompositeEnumeratorImpl::CompositeEnumeratorImpl(CompositeDataSourceImpl* aCompo
 
 CompositeEnumeratorImpl::~CompositeEnumeratorImpl(void)
 {
+	if (mCoalesceDuplicateArcs == PR_TRUE)
+	{
+		for (PRInt32 i = mAlreadyReturned.Count() - 1; i >= 0; --i)
+		{
+			nsIRDFNode *node = (nsIRDFNode *) mAlreadyReturned[i];
+			NS_RELEASE(node);
+		}
+	}
+
 	NS_IF_RELEASE(mCurrent);
 	NS_IF_RELEASE(mResult);
 	NS_RELEASE(mCompositeDataSource);
@@ -266,7 +275,7 @@ CompositeEnumeratorImpl::HasMoreElements(PRBool* aResult)
             rv = result->QueryInterface(NS_GET_IID(nsIRDFNode), (void**) &mResult);
             if (NS_FAILED(rv)) return rv;
 
-            if (mAllowNegativeAssertions)
+            if (mAllowNegativeAssertions == PR_TRUE)
             {
                 // See if any previous data source negates this
                 PRBool hasNegation = PR_FALSE;
@@ -290,12 +299,12 @@ CompositeEnumeratorImpl::HasMoreElements(PRBool* aResult)
                 }
             }
 
-            if (mCoalesceDuplicateArcs)
+            if (mCoalesceDuplicateArcs == PR_TRUE)
             {
                 // Now see if we've returned it once already.
                 // XXX N.B. performance here...may want to hash if things get large?
                 PRBool alreadyReturned = PR_FALSE;
-                for (i = mAlreadyReturned.Length() - 1; i >= 0; --i)
+                for (i = mAlreadyReturned.Count() - 1; i >= 0; --i)
                 {
                     if (mAlreadyReturned[i] == mResult)
                     {
@@ -303,7 +312,7 @@ CompositeEnumeratorImpl::HasMoreElements(PRBool* aResult)
                         break;
                     }
                 }
-                if (alreadyReturned)
+                if (alreadyReturned == PR_TRUE)
                 {
                     NS_RELEASE(mResult);
                     continue;
@@ -320,9 +329,10 @@ CompositeEnumeratorImpl::HasMoreElements(PRBool* aResult)
             // optional. This could get to be pretty expensive (this
             // implementation turns iteration into O(n^2)).
 
-            if (mCoalesceDuplicateArcs)
+            if (mCoalesceDuplicateArcs == PR_TRUE)
             {
                 mAlreadyReturned.AppendElement(mResult);
+                NS_ADDREF(mResult);
             }
 
             return NS_OK;
@@ -686,7 +696,7 @@ CompositeDataSourceImpl::GetSource(nsIRDFResource* property,
                                    PRBool tv,
                                    nsIRDFResource** source)
 {
-	if (!mAllowNegativeAssertions && !tv)
+	if ((mAllowNegativeAssertions == PR_FALSE) && (tv == PR_FALSE))
 		return(NS_RDF_NO_VALUE);
 
     PRInt32 count = mDataSources.Count();
@@ -698,7 +708,7 @@ CompositeDataSourceImpl::GetSource(nsIRDFResource* property,
         if (rv == NS_RDF_NO_VALUE)
             continue;
 
-        if (!mAllowNegativeAssertions) return(NS_OK);
+        if (mAllowNegativeAssertions == PR_FALSE)	return(NS_OK);
 
         // okay, found it. make sure we don't have the opposite
         // asserted in a more local data source
@@ -729,7 +739,7 @@ CompositeDataSourceImpl::GetSources(nsIRDFResource* aProperty,
     if (! aResult)
         return NS_ERROR_NULL_POINTER;
 
-    if (! mAllowNegativeAssertions && ! aTruthValue)
+    if ((mAllowNegativeAssertions == PR_FALSE) && (aTruthValue == PR_FALSE))
         return(NS_RDF_NO_VALUE);
 
     *aResult = CompositeAssertionEnumeratorImpl::Create(mAllocator,
@@ -763,7 +773,7 @@ CompositeDataSourceImpl::GetTarget(nsIRDFResource* aSource,
     if (! aResult)
         return NS_ERROR_NULL_POINTER;
 
-    if (! mAllowNegativeAssertions && ! aTruthValue)
+    if ((mAllowNegativeAssertions == PR_FALSE) && (aTruthValue == PR_FALSE))
         return(NS_RDF_NO_VALUE);
 
     PRInt32 count = mDataSources.Count();
@@ -778,7 +788,7 @@ CompositeDataSourceImpl::GetTarget(nsIRDFResource* aSource,
             // okay, found it. make sure we don't have the opposite
             // asserted in an earlier data source
 
-            if (mAllowNegativeAssertions) {
+            if (mAllowNegativeAssertions == PR_TRUE) {
                 if (HasAssertionN(count-1, aSource, aProperty, *aResult, !aTruthValue)) {
                     // whoops, it's been negated.
                     NS_RELEASE(*aResult);
@@ -835,7 +845,7 @@ CompositeDataSourceImpl::GetTargets(nsIRDFResource* aSource,
     if (! aResult)
         return NS_ERROR_NULL_POINTER;
 
-    if (! mAllowNegativeAssertions && ! aTruthValue)
+    if ((mAllowNegativeAssertions == PR_FALSE) && (aTruthValue == PR_FALSE))
         return(NS_RDF_NO_VALUE);
 
     *aResult =
@@ -870,7 +880,7 @@ CompositeDataSourceImpl::Assert(nsIRDFResource* aSource,
     if (! aTarget)
         return NS_ERROR_NULL_POINTER;
 
-    if (! mAllowNegativeAssertions && ! aTruthValue)
+    if ((mAllowNegativeAssertions == PR_FALSE) && (aTruthValue == PR_FALSE))
         return(NS_RDF_ASSERTION_REJECTED);
 
     nsresult rv;
@@ -1066,7 +1076,7 @@ CompositeDataSourceImpl::HasAssertion(nsIRDFResource* aSource,
     if (! aResult)
         return NS_ERROR_NULL_POINTER;
 
-    if (! mAllowNegativeAssertions && ! aTruthValue)
+    if ((mAllowNegativeAssertions == PR_FALSE) && (aTruthValue == PR_FALSE))
     {
         *aResult = PR_FALSE;
         return(NS_OK);
@@ -1085,7 +1095,7 @@ CompositeDataSourceImpl::HasAssertion(nsIRDFResource* aSource,
         if (*aResult)
             return NS_OK;
 
-        if (mAllowNegativeAssertions)
+        if (mAllowNegativeAssertions == PR_TRUE)
         {
             PRBool hasNegation;
             rv = datasource->HasAssertion(aSource, aProperty, aTarget, !aTruthValue, &hasNegation);
@@ -1138,7 +1148,7 @@ CompositeDataSourceImpl::HasArcIn(nsIRDFNode *aNode, nsIRDFResource *aArc, PRBoo
     for (PRInt32 i = 0; i < count; ++i) {
         rv = mDataSources[i]->HasArcIn(aNode, aArc, result);
         if (NS_FAILED(rv)) return rv;
-        if (*result)
+        if (*result == PR_TRUE)
             return NS_OK;
     }
     return NS_OK;
@@ -1153,7 +1163,7 @@ CompositeDataSourceImpl::HasArcOut(nsIRDFResource *aSource, nsIRDFResource *aArc
     for (PRInt32 i = 0; i < count; ++i) {
         rv = mDataSources[i]->HasArcOut(aSource, aArc, result);
         if (NS_FAILED(rv)) return rv;
-        if (*result)
+        if (*result == PR_TRUE)
             return NS_OK;
     }
     return NS_OK;
@@ -1235,8 +1245,7 @@ CompositeDataSourceImpl::GetAllCmds(nsIRDFResource* source,
         if (NS_SUCCEEDED(rv))
         {
             PRBool	hasMore = PR_FALSE;
-            while(NS_SUCCEEDED(rv = dsCmds->HasMoreElements(&hasMore)) &&
-                  hasMore)
+            while(NS_SUCCEEDED(rv = dsCmds->HasMoreElements(&hasMore)) && (hasMore == PR_TRUE))
             {
                 nsCOMPtr<nsISupports>	item;
                 if (NS_SUCCEEDED(rv = dsCmds->GetNext(getter_AddRefs(item))))
@@ -1398,7 +1407,7 @@ CompositeDataSourceImpl::OnAssert(nsIRDFDataSource* aDataSource,
     // datasource that coughed up the assertion.
 	nsresult	rv = NS_OK;
 
-	if (mAllowNegativeAssertions)
+	if (mAllowNegativeAssertions == PR_TRUE)
 	{   
 		PRBool hasAssertion;
 		rv = HasAssertion(aSource, aProperty, aTarget, PR_TRUE, &hasAssertion);
@@ -1429,7 +1438,7 @@ CompositeDataSourceImpl::OnUnassert(nsIRDFDataSource* aDataSource,
     // datasource that coughed up the assertion.
     nsresult rv;
 
-	if (mAllowNegativeAssertions)
+	if (mAllowNegativeAssertions == PR_TRUE)
 	{   
 		PRBool hasAssertion;
 		rv = HasAssertion(aSource, aProperty, aTarget, PR_TRUE, &hasAssertion);

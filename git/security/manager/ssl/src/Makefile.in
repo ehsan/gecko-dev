@@ -54,6 +54,8 @@ META_COMPONENT	= crypto
 GRE_MODULE	= 1
 LIBXUL_LIBRARY	= 1
 
+PACKAGE_FILE = pipnss.pkg
+
 CPPSRCS = 				\
 	nsNSSCleaner.cpp                \
 	nsCertOverrideService.cpp   \
@@ -110,6 +112,27 @@ endif
 
 CSRCS += md4.c
 
+REQUIRES	= nspr \
+		  xpcom \
+		  string \
+		  necko \
+		  uriloader \
+		  pref \
+		  docshell \
+		  caps \
+		  dom \
+		  intl \
+		  locale \
+		  profile \
+		  windowwatcher \
+		  js \
+		  widget \
+		  layout \
+		  content \
+		  xpconnect \
+		  unicharutil \
+		  pipboot \
+		  $(NULL)
 
 EXTRA_DEPS = $(NSS_DEP_LIBS)
 

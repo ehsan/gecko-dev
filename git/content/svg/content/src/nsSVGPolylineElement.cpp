@@ -46,8 +46,8 @@ class nsSVGPolylineElement : public nsSVGPolylineElementBase,
 {
 protected:
   friend nsresult NS_NewSVGPolylineElement(nsIContent **aResult,
-                                           already_AddRefed<nsINodeInfo> aNodeInfo);
-  nsSVGPolylineElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+                                           nsINodeInfo *aNodeInfo);
+  nsSVGPolylineElement(nsINodeInfo* aNodeInfo);
 
 public:
   // interfaces:
@@ -62,7 +62,6 @@ public:
 
   // nsIContent interface
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-  virtual nsXPCClassInfo* GetClassInfo();
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(Polyline)
@@ -73,18 +72,18 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(Polyline)
 NS_IMPL_ADDREF_INHERITED(nsSVGPolylineElement,nsSVGPolylineElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGPolylineElement,nsSVGPolylineElementBase)
 
-DOMCI_NODE_DATA(SVGPolylineElement, nsSVGPolylineElement)
-
-NS_INTERFACE_TABLE_HEAD(nsSVGPolylineElement)
-  NS_NODE_INTERFACE_TABLE4(nsSVGPolylineElement, nsIDOMNode, nsIDOMElement,
-                           nsIDOMSVGElement, nsIDOMSVGPolylineElement)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGPolylineElement)
+NS_INTERFACE_MAP_BEGIN(nsSVGPolylineElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMNode)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGPolylineElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGPolylineElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGPolylineElementBase)
 
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGPolylineElement::nsSVGPolylineElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsSVGPolylineElement::nsSVGPolylineElement(nsINodeInfo* aNodeInfo)
   : nsSVGPolylineElementBase(aNodeInfo)
 {
 

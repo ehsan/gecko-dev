@@ -52,26 +52,6 @@ IMETextTxn::IMETextTxn()
 {
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(IMETextTxn)
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(IMETextTxn, EditTxn)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mElement)
-  // mRangeList can't lead to cycles
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(IMETextTxn, EditTxn)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mElement)
-  // mRangeList can't lead to cycles
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(IMETextTxn)
-  if (aIID.Equals(IMETextTxn::GetCID())) {
-    *aInstancePtr = (void*)(IMETextTxn*)this;
-    NS_ADDREF_THIS();
-    return NS_OK;
-  } else
-NS_INTERFACE_MAP_END_INHERITING(EditTxn)
-
 NS_IMETHODIMP IMETextTxn::Init(nsIDOMCharacterData     *aElement,
                                PRUint32                 aOffset,
                                PRUint32                 aReplaceLength,
@@ -81,7 +61,8 @@ NS_IMETHODIMP IMETextTxn::Init(nsIDOMCharacterData     *aElement,
 {
   NS_ASSERTION(aElement, "illegal value- null ptr- aElement");
   NS_ASSERTION(aTextRangeList, "illegal value- null ptr - aTextRangeList");
-  NS_ENSURE_TRUE(aElement && aTextRangeList, NS_ERROR_NULL_POINTER);
+  if (!aElement || !aTextRangeList)
+     return NS_ERROR_NULL_POINTER;
   mElement = do_QueryInterface(aElement);
   mOffset = aOffset;
   mReplaceLength = aReplaceLength;
@@ -100,7 +81,7 @@ NS_IMETHODIMP IMETextTxn::DoTransaction(void)
 #endif
 
   nsCOMPtr<nsISelectionController> selCon = do_QueryReferent(mSelConWeak);
-  NS_ENSURE_TRUE(selCon, NS_ERROR_NOT_INITIALIZED);
+  if (!selCon) return NS_ERROR_NOT_INITIALIZED;
 
   // advance caret: This requires the presentation shell to get the selection.
   nsresult result;
@@ -123,7 +104,7 @@ NS_IMETHODIMP IMETextTxn::UndoTransaction(void)
 #endif
 
   nsCOMPtr<nsISelectionController> selCon = do_QueryReferent(mSelConWeak);
-  NS_ENSURE_TRUE(selCon, NS_ERROR_NOT_INITIALIZED);
+  if (!selCon) return NS_ERROR_NOT_INITIALIZED;
 
   nsresult result = mElement->DeleteData(mOffset, mStringToInsert.Length());
   if (NS_SUCCEEDED(result))
@@ -142,7 +123,8 @@ NS_IMETHODIMP IMETextTxn::Merge(nsITransaction *aTransaction, PRBool *aDidMerge)
 {
   NS_ASSERTION(aDidMerge, "illegal vaule- null ptr- aDidMerge");
   NS_ASSERTION(aTransaction, "illegal vaule- null ptr- aTransaction");
-  NS_ENSURE_TRUE(aDidMerge && aTransaction, NS_ERROR_NULL_POINTER);
+  if (!aDidMerge || !aTransaction)
+    return NS_ERROR_NULL_POINTER;
     
 #ifdef DEBUG_IMETXN
   printf("Merge IME Text element = %p\n", mElement.get());
@@ -194,6 +176,22 @@ NS_IMETHODIMP IMETextTxn::GetTxnDescription(nsAString& aString)
   return NS_OK;
 }
 
+/* ============= nsISupports implementation ====================== */
+
+NS_IMETHODIMP
+IMETextTxn::QueryInterface(REFNSIID aIID, void** aInstancePtr)
+{
+  if (nsnull == aInstancePtr) {
+    return NS_ERROR_NULL_POINTER;
+  }
+  if (aIID.Equals(IMETextTxn::GetCID())) {
+    *aInstancePtr = (void*)(IMETextTxn*)this;
+    NS_ADDREF_THIS();
+    return NS_OK;
+  }
+  return (EditTxn::QueryInterface(aIID, aInstancePtr));
+}
+
 /* ============ protected methods ================== */
 static SelectionType TextRangeToSelection(int aTextRangeType)
 {
@@ -216,7 +214,8 @@ static SelectionType TextRangeToSelection(int aTextRangeType)
 NS_IMETHODIMP IMETextTxn::GetData(nsString& aResult,nsIPrivateTextRangeList** aTextRangeList)
 {
   NS_ASSERTION(aTextRangeList, "illegal value- null ptr- aTextRangeList");
-  NS_ENSURE_TRUE(aTextRangeList, NS_ERROR_NULL_POINTER);
+  if (!aTextRangeList)
+    return NS_ERROR_NULL_POINTER;
   aResult = mStringToInsert;
   *aTextRangeList = mRangeList;
   return NS_OK;
@@ -264,12 +263,14 @@ NS_IMETHODIMP IMETextTxn::CollapseTextSelection(void)
     // run through the text range list, if any
     //
     nsCOMPtr<nsISelectionController> selCon = do_QueryReferent(mSelConWeak);
-    NS_ENSURE_TRUE(selCon, NS_ERROR_NOT_INITIALIZED);
+    if (!selCon) return NS_ERROR_NOT_INITIALIZED;
 
     PRUint16      textRangeListLength,selectionStart,selectionEnd,
                   textRangeType;
     
-    textRangeListLength = mRangeList->GetLength();
+    result = mRangeList->GetLength(&textRangeListLength);
+    if(NS_FAILED(result))
+        return result;
     nsCOMPtr<nsISelection> selection;
     result = selCon->GetSelection(nsISelectionController::SELECTION_NORMAL, getter_AddRefs(selection));
     if(NS_SUCCEEDED(result))
@@ -294,9 +295,9 @@ NS_IMETHODIMP IMETextTxn::CollapseTextSelection(void)
         PRBool setCaret=PR_FALSE;
         for(i=0;i<textRangeListLength;i++)
         {
-          textRange = mRangeList->Item(i);
-          NS_ASSERTION(textRange, "cannot get item");
-          if(!textRange)
+          result = mRangeList->Item(i, getter_AddRefs(textRange));
+          NS_ASSERTION(NS_SUCCEEDED(result), "cannot get item");
+          if(NS_FAILED(result))
                break;
 
           result = textRange->GetRangeType(&textRangeType);
@@ -315,8 +316,6 @@ NS_IMETHODIMP IMETextTxn::CollapseTextSelection(void)
 
           if(nsIPrivateTextRange::TEXTRANGE_CARETPOSITION == textRangeType)
           {
-             NS_ASSERTION(selectionStart == selectionEnd,
-                          "nsEditor doesn't support wide caret");
              // Set the caret....
              result = selection->Collapse(mElement,
                       mOffset+selectionStart);
@@ -340,38 +339,21 @@ NS_IMETHODIMP IMETextTxn::CollapseTextSelection(void)
              if(NS_FAILED(result))
                 break;
 
-             result = newRange->SetStart(mElement,mOffset+selectionStart);
+             newRange->SetStart(mElement,mOffset+selectionStart);
              NS_ASSERTION(NS_SUCCEEDED(result), "Cannot SetStart");
              if(NS_FAILED(result))
                 break;
 
-             result = newRange->SetEnd(mElement,mOffset+selectionEnd);
+             newRange->SetEnd(mElement,mOffset+selectionEnd);
              NS_ASSERTION(NS_SUCCEEDED(result), "Cannot SetEnd");
              if(NS_FAILED(result))
                 break;
 
-             result = imeSel->AddRange(newRange);
+             imeSel->AddRange(newRange);
              NS_ASSERTION(NS_SUCCEEDED(result), "Cannot AddRange");
              if(NS_FAILED(result))
                 break;
 
-             nsCOMPtr<nsISelectionPrivate> imeSelPriv(
-                                             do_QueryInterface(imeSel));
-             if (imeSelPriv) {
-               nsTextRangeStyle textRangeStyle;
-               result = textRange->GetRangeStyle(&textRangeStyle);
-               NS_ASSERTION(NS_SUCCEEDED(result),
-                            "nsIPrivateTextRange::GetRangeStyle failed");
-               if (NS_FAILED(result))
-                 break;
-               result = imeSelPriv->SetTextRangeStyle(newRange, textRangeStyle);
-               NS_ASSERTION(NS_SUCCEEDED(result),
-                 "nsISelectionPrivate::SetTextRangeStyle failed");
-               if (NS_FAILED(result))
-                 break;
-             } else {
-               NS_WARNING("IME selection doesn't have nsISelectionPrivate");
-             }
           } // if GetRangeEnd
         } // for textRangeListLength
         if(! setCaret) {

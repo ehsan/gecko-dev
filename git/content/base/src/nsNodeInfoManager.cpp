@@ -53,7 +53,6 @@
 #include "nsComponentManagerUtils.h"
 #include "nsLayoutStatics.h"
 #include "nsBindingManager.h"
-#include "nsHashKeys.h"
 
 #ifdef MOZ_LOGGING
 // so we can get logging even in release builds
@@ -73,10 +72,8 @@ nsNodeInfoManager::GetNodeInfoInnerHashValue(const void *key)
   const nsINodeInfo::nsNodeInfoInner *node =
     reinterpret_cast<const nsINodeInfo::nsNodeInfoInner *>(key);
 
-  if (node->mName) {
-    return HashString(nsAtomString(node->mName));
-  }
-  return HashString(*(node->mNameString));
+  // Is this an acceptable hash value?
+  return (PLHashNumber(NS_PTR_TO_INT32(node->mName)) & 0xffff) >> 8;
 }
 
 
@@ -90,21 +87,9 @@ nsNodeInfoManager::NodeInfoInnerKeyCompare(const void *key1, const void *key2)
   const nsINodeInfo::nsNodeInfoInner *node2 =
     reinterpret_cast<const nsINodeInfo::nsNodeInfoInner *>(key2);
 
-  if (node1->mPrefix != node2->mPrefix ||
-      node1->mNamespaceID != node2->mNamespaceID) {
-    return 0;
-  }
-
-  if (node1->mName) {
-    if (node2->mName) {
-      return (node1->mName == node2->mName);
-    }
-    return (node1->mName->Equals(*(node2->mNameString)));
-  }
-  if (node2->mName) {
-    return (node2->mName->Equals(*(node1->mNameString)));
-  }
-  return (node1->mNameString->Equals(*(node2->mNameString)));
+  return (node1->mName == node2->mName &&
+          node1->mPrefix == node2->mPrefix &&
+          node1->mNamespaceID == node2->mNamespaceID);
 }
 
 
@@ -152,6 +137,32 @@ nsNodeInfoManager::~nsNodeInfoManager()
   nsLayoutStatics::Release();
 }
 
+
+nsrefcnt
+nsNodeInfoManager::AddRef()
+{
+  NS_PRECONDITION(PRInt32(mRefCnt) >= 0, "illegal refcnt");
+
+  nsrefcnt count = PR_AtomicIncrement((PRInt32*)&mRefCnt);
+  NS_LOG_ADDREF(this, count, "nsNodeInfoManager", sizeof(*this));
+
+  return count;
+}
+
+nsrefcnt
+nsNodeInfoManager::Release()
+{
+  NS_PRECONDITION(0 != mRefCnt, "dup release");
+
+  nsrefcnt count = PR_AtomicDecrement((PRInt32 *)&mRefCnt);
+  NS_LOG_RELEASE(this, count, "nsNodeInfoManager");
+  if (count == 0) {
+    mRefCnt = 1; /* stabilize */
+    delete this;
+  }
+
+  return count;
+}
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsNodeInfoManager)
 NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(nsNodeInfoManager, AddRef)
@@ -203,11 +214,11 @@ nsNodeInfoManager::DropDocumentReference()
 }
 
 
-already_AddRefed<nsINodeInfo>
+nsresult
 nsNodeInfoManager::GetNodeInfo(nsIAtom *aName, nsIAtom *aPrefix,
-                               PRInt32 aNamespaceID)
+                               PRInt32 aNamespaceID, nsINodeInfo** aNodeInfo)
 {
-  NS_ENSURE_TRUE(aName, nsnull);
+  NS_ENSURE_ARG_POINTER(aName);
   NS_ASSERTION(!aName->Equals(EmptyString()),
                "Don't pass an empty string to GetNodeInfo, fix caller.");
 
@@ -216,61 +227,26 @@ nsNodeInfoManager::GetNodeInfo(nsIAtom *aName, nsIAtom *aPrefix,
   void *node = PL_HashTableLookup(mNodeInfoHash, &tmpKey);
 
   if (node) {
-    nsINodeInfo* nodeInfo = static_cast<nsINodeInfo *>(node);
+    *aNodeInfo = static_cast<nsINodeInfo *>(node);
 
-    NS_ADDREF(nodeInfo);
-
-    return nodeInfo;
-  }
-
-  nsRefPtr<nsNodeInfo> newNodeInfo = nsNodeInfo::Create();
-  NS_ENSURE_TRUE(newNodeInfo, nsnull);
-  
-  nsresult rv = newNodeInfo->Init(aName, aPrefix, aNamespaceID, this);
-  NS_ENSURE_SUCCESS(rv, nsnull);
-
-  PLHashEntry *he;
-  he = PL_HashTableAdd(mNodeInfoHash, &newNodeInfo->mInner, newNodeInfo);
-  NS_ENSURE_TRUE(he, nsnull);
-
-  nsNodeInfo *nodeInfo = nsnull;
-  newNodeInfo.swap(nodeInfo);
-
-  return nodeInfo;
-}
-
-
-nsresult
-nsNodeInfoManager::GetNodeInfo(const nsAString& aName, nsIAtom *aPrefix,
-                               PRInt32 aNamespaceID, nsINodeInfo** aNodeInfo)
-{
-  NS_ASSERTION(!aName.IsEmpty(),
-               "Don't pass an empty string to GetNodeInfo, fix caller.");
-
-  nsINodeInfo::nsNodeInfoInner tmpKey(aName, aPrefix, aNamespaceID);
-
-  void *node = PL_HashTableLookup(mNodeInfoHash, &tmpKey);
-
-  if (node) {
-    nsINodeInfo* nodeInfo = static_cast<nsINodeInfo *>(node);
-
-    NS_ADDREF(*aNodeInfo = nodeInfo);
+    NS_ADDREF(*aNodeInfo);
 
     return NS_OK;
   }
 
-  nsRefPtr<nsNodeInfo> newNodeInfo = nsNodeInfo::Create();
-  NS_ENSURE_TRUE(newNodeInfo, nsnull);
-  
-  nsCOMPtr<nsIAtom> nameAtom = do_GetAtom(aName);
-  nsresult rv = newNodeInfo->Init(nameAtom, aPrefix, aNamespaceID, this);
+  nsNodeInfo *newNodeInfo = nsNodeInfo::Create();
+  NS_ENSURE_TRUE(newNodeInfo, NS_ERROR_OUT_OF_MEMORY);
+
+  NS_ADDREF(newNodeInfo);
+
+  nsresult rv = newNodeInfo->Init(aName, aPrefix, aNamespaceID, this);
   NS_ENSURE_SUCCESS(rv, rv);
 
   PLHashEntry *he;
   he = PL_HashTableAdd(mNodeInfoHash, &newNodeInfo->mInner, newNodeInfo);
-  NS_ENSURE_TRUE(he, NS_ERROR_FAILURE);
+  NS_ENSURE_TRUE(he, NS_ERROR_OUT_OF_MEMORY);
 
-  newNodeInfo.forget(aNodeInfo);
+  *aNodeInfo = newNodeInfo;
 
   return NS_OK;
 }
@@ -278,10 +254,43 @@ nsNodeInfoManager::GetNodeInfo(const nsAString& aName, nsIAtom *aPrefix,
 
 nsresult
 nsNodeInfoManager::GetNodeInfo(const nsAString& aName, nsIAtom *aPrefix,
+                               PRInt32 aNamespaceID, nsINodeInfo** aNodeInfo)
+{
+  nsCOMPtr<nsIAtom> name = do_GetAtom(aName);
+  return nsNodeInfoManager::GetNodeInfo(name, aPrefix, aNamespaceID,
+                                        aNodeInfo);
+}
+
+
+nsresult
+nsNodeInfoManager::GetNodeInfo(const nsAString& aQualifiedName,
                                const nsAString& aNamespaceURI,
                                nsINodeInfo** aNodeInfo)
 {
-  nsCOMPtr<nsIAtom> nameAtom = do_GetAtom(aName);
+  NS_ENSURE_ARG(!aQualifiedName.IsEmpty());
+
+  nsAString::const_iterator start, end;
+  aQualifiedName.BeginReading(start);
+  aQualifiedName.EndReading(end);
+
+  nsCOMPtr<nsIAtom> prefixAtom;
+
+  nsAString::const_iterator iter(start);
+
+  if (FindCharInReadable(':', iter, end)) {
+    prefixAtom = do_GetAtom(Substring(start, iter));
+    NS_ENSURE_TRUE(prefixAtom, NS_ERROR_OUT_OF_MEMORY);
+
+    start = ++iter; // step over the ':'
+
+    if (iter == end) {
+      // No data after the ':'.
+
+      return NS_ERROR_INVALID_ARG;
+    }
+  }
+
+  nsCOMPtr<nsIAtom> nameAtom = do_GetAtom(Substring(start, end));
   NS_ENSURE_TRUE(nameAtom, NS_ERROR_OUT_OF_MEMORY);
 
   PRInt32 nsid = kNameSpaceID_None;
@@ -292,15 +301,15 @@ nsNodeInfoManager::GetNodeInfo(const nsAString& aName, nsIAtom *aPrefix,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  *aNodeInfo = GetNodeInfo(nameAtom, aPrefix, nsid).get();
-  return *aNodeInfo ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
+  return GetNodeInfo(nameAtom, prefixAtom, nsid, aNodeInfo);
 }
 
 already_AddRefed<nsINodeInfo>
 nsNodeInfoManager::GetTextNodeInfo()
 {
   if (!mTextNodeInfo) {
-    mTextNodeInfo = GetNodeInfo(nsGkAtoms::textTagName, nsnull, kNameSpaceID_None).get();
+    GetNodeInfo(nsGkAtoms::textTagName, nsnull, kNameSpaceID_None,
+                &mTextNodeInfo);
   }
   else {
     NS_ADDREF(mTextNodeInfo);
@@ -313,7 +322,8 @@ already_AddRefed<nsINodeInfo>
 nsNodeInfoManager::GetCommentNodeInfo()
 {
   if (!mCommentNodeInfo) {
-    mCommentNodeInfo = GetNodeInfo(nsGkAtoms::commentTagName, nsnull, kNameSpaceID_None).get();
+    GetNodeInfo(nsGkAtoms::commentTagName, nsnull, kNameSpaceID_None,
+                &mCommentNodeInfo);
   }
   else {
     NS_ADDREF(mCommentNodeInfo);
@@ -326,7 +336,8 @@ already_AddRefed<nsINodeInfo>
 nsNodeInfoManager::GetDocumentNodeInfo()
 {
   if (!mDocumentNodeInfo) {
-    mDocumentNodeInfo = GetNodeInfo(nsGkAtoms::documentNodeName, nsnull, kNameSpaceID_None).get();
+    GetNodeInfo(nsGkAtoms::documentNodeName, nsnull, kNameSpaceID_None,
+                &mDocumentNodeInfo);
   }
   else {
     NS_ADDREF(mDocumentNodeInfo);

@@ -38,10 +38,10 @@
 #ifndef nsEditRules_h__
 #define nsEditRules_h__
 
-// FB45AC36-E8F1-44ae-8FB7-466E1BE119B0
 #define NS_IEDITRULES_IID \
-{ 0xfb45ac36, 0xe8f1, 0x44ae, \
-  { 0x8f, 0xb7, 0x46, 0x6e, 0x1b, 0xe1, 0x19, 0xb0 } }
+{ /* a6cf911d-15b3-11d2-932e-00805f8add32 */ \
+0xa6cf911d, 0x15b3, 0x11d2, \
+{0x93, 0x2e, 0x00, 0x80, 0x5f, 0x8a, 0xdd, 0x32} }
 
 class nsPlaintextEditor;
 class nsISelection;
@@ -72,12 +72,13 @@ public:
 //Interfaces for addref and release and queryinterface
 //NOTE: Use   NS_DECL_ISUPPORTS_INHERITED in any class inherited from nsIEditRules
 
-  NS_IMETHOD Init(nsPlaintextEditor *aEditor)=0;
-  NS_IMETHOD DetachEditor()=0;
+  NS_IMETHOD Init(nsPlaintextEditor *aEditor, PRUint32 aFlags)=0;
   NS_IMETHOD BeforeEdit(PRInt32 action, nsIEditor::EDirection aDirection)=0;
   NS_IMETHOD AfterEdit(PRInt32 action, nsIEditor::EDirection aDirection)=0;
   NS_IMETHOD WillDoAction(nsISelection *aSelection, nsRulesInfo *aInfo, PRBool *aCancel, PRBool *aHandled)=0;
   NS_IMETHOD DidDoAction(nsISelection *aSelection, nsRulesInfo *aInfo, nsresult aResult)=0;
+  NS_IMETHOD GetFlags(PRUint32 *aFlags)=0;
+  NS_IMETHOD SetFlags(PRUint32 aFlags)=0;
   NS_IMETHOD DocumentIsEmpty(PRBool *aDocumentIsEmpty)=0;
 };
 

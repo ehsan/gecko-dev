@@ -63,12 +63,12 @@ public:
   //NS_DECL_NSIPRIVATEDOMEEVENT
   NS_IMETHOD DuplicatePrivateData();
   NS_IMETHOD SetTarget(nsIDOMEventTarget *aTarget);
-  NS_IMETHOD_(nsEvent*) GetInternalNSEvent();
-  NS_IMETHOD_(PRBool ) IsDispatchStopped();
+  NS_IMETHOD SetCurrentTarget(nsIDOMEventTarget *aTarget);
+  NS_IMETHOD SetOriginalTarget(nsIDOMEventTarget *aTarget);
+  NS_IMETHOD GetInternalNSEvent(nsEvent** aNSEvent);
+  NS_IMETHOD IsDispatchStopped(PRBool *aIsDispatchPrevented);
+  NS_IMETHOD HasOriginalTarget(PRBool *aResult);
   NS_IMETHOD SetTrusted(PRBool aResult);
-  virtual void Serialize(IPC::Message* aMsg,
-                         PRBool aSerializeInterfaceType);
-  virtual PRBool Deserialize(const IPC::Message* aMsg, void** aIter);
 
   NS_DECL_NSIDOMEVENT
 

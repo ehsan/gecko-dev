@@ -42,24 +42,33 @@
 
 #include "nsICSSDeclaration.h"
 #include "nsIDOMCSS2Properties.h"
-#include "nsCOMPtr.h"
 
-class nsCSSParser;
+class nsCSSDeclaration;
+class nsICSSParser;
+class nsICSSLoader;
 class nsIURI;
 class nsIPrincipal;
-class nsIDocument;
 
-namespace mozilla {
-namespace css {
-class Declaration;
-class Loader;
-}
-}
-
-class nsDOMCSSDeclaration : public nsICSSDeclaration,
-                            public nsIDOMCSS2Properties
+class CSS2PropertiesTearoff : public nsIDOMNSCSS2Properties
 {
 public:
+  NS_DECL_ISUPPORTS_INHERITED
+
+  NS_DECL_NSIDOMCSS2PROPERTIES
+  NS_DECL_NSIDOMNSCSS2PROPERTIES
+
+  CSS2PropertiesTearoff(nsICSSDeclaration *aOuter);
+  virtual ~CSS2PropertiesTearoff();
+
+private:
+  nsICSSDeclaration* mOuter;
+};
+
+class nsDOMCSSDeclaration : public nsICSSDeclaration
+{
+public:
+  nsDOMCSSDeclaration();
+
   // Only implement QueryInterface; subclasses have the responsibility
   // of implementing AddRef/Release.
   NS_IMETHOD QueryInterface(REFNSIID aIID, void** aInstancePtr);
@@ -82,41 +91,41 @@ public:
                          const nsAString & value, const nsAString & priority);
   NS_IMETHOD GetLength(PRUint32 *aLength);
   NS_IMETHOD Item(PRUint32 index, nsAString & _retval);
-  NS_IMETHOD GetParentRule(nsIDOMCSSRule * *aParentRule) = 0;
+  NS_IMETHOD GetParentRule(nsIDOMCSSRule * *aParentRule) = 0; 
 
-  // We implement this as a shim which forwards to GetPropertyValue
-  // and SetPropertyValue; subclasses need not.
-  NS_DECL_NSIDOMCSS2PROPERTIES
-
+  virtual void DropReference() = 0;
 protected:
-  // This method can return null regardless of the value of aAllocate;
-  // however, a null return should only be considered a failure
-  // if aAllocate is true.
-  virtual mozilla::css::Declaration* GetCSSDeclaration(PRBool aAllocate) = 0;
-  virtual nsresult SetCSSDeclaration(mozilla::css::Declaration* aDecl) = 0;
-  // Document that we must call BeginUpdate/EndUpdate on around the
-  // calls to SetCSSDeclaration and the style rule mutation that leads
-  // to it.
-  virtual nsIDocument* DocToUpdate() = 0;
-
+  // Always fills in the out parameter, even on failure, and if the out
+  // parameter is null the nsresult will be the correct thing to
+  // propagate.
+  virtual nsresult GetCSSDeclaration(nsCSSDeclaration **aDecl,
+                                     PRBool aAllocate) = 0;
+  virtual nsresult DeclarationChanged() = 0;
+  
   // This will only fail if it can't get a parser or a principal.
   // This means it can return NS_OK without aURI or aCSSLoader being
   // initialized.
   virtual nsresult GetCSSParsingEnvironment(nsIURI** aSheetURI,
                                             nsIURI** aBaseURI,
                                             nsIPrincipal** aSheetPrincipal,
-                                            mozilla::css::Loader** aCSSLoader) = 0;
+                                            nsICSSLoader** aCSSLoader,
+                                            nsICSSParser** aCSSParser) = 0;
 
   nsresult ParsePropertyValue(const nsCSSProperty aPropID,
-                              const nsAString& aPropValue,
-                              PRBool aIsImportant);
+                              const nsAString& aPropValue);
+  nsresult ParseDeclaration(const nsAString& aDecl,
+                            PRBool aParseOnlyOneDecl, PRBool aClearOldDecl);
 
   // Prop-id based version of RemoveProperty.  Note that this does not
   // return the old value; it just does a straight removal.
   nsresult RemoveProperty(const nsCSSProperty aPropID);
-
+  
+  
 protected:
   virtual ~nsDOMCSSDeclaration();
+
+private:
+  CSS2PropertiesTearoff mInner;
 };
 
 #endif // nsDOMCSSDeclaration_h___

@@ -44,6 +44,7 @@
 #include "nsCOMPtr.h"
 #include "nsCOMArray.h"
 #include "nsString.h"
+#include "nsVoidArray.h"
 #include "nsAutoPtr.h"
 
 // Interfaces needed
@@ -56,7 +57,7 @@
 #include "nsIEnumerator.h"
 #include "nsIHistoryEntry.h"
 #include "nsRect.h"
-#include "nsISupportsArray.h"
+#include "nsSupportsArray.h"
 #include "nsIMutationObserver.h"
 #include "nsExpirationTracker.h"
 #include "nsDocShellEditorData.h"
@@ -96,10 +97,9 @@ private:
   nsCOMPtr<nsIInputStream>        mPostData;
   nsCOMPtr<nsILayoutHistoryState> mLayoutHistoryState;
   nsCOMArray<nsISHEntry>          mChildren;
-  PRUint32                        mLoadType;
+  PRUint32                        mLoadType;  
   PRUint32                        mID;
   PRUint32                        mPageIdentifier;
-  PRInt64                         mDocIdentifier;
   PRInt32                         mScrollPositionX;
   PRInt32                         mScrollPositionY;
   PRPackedBool                    mIsFrameNavigation;
@@ -110,13 +110,12 @@ private:
   nsCOMPtr<nsISupports>           mCacheKey;
   nsISHEntry *                    mParent;  // weak reference
   nsCOMPtr<nsISupports>           mWindowState;
-  nsIntRect                       mViewerBounds;
+  nsRect                          mViewerBounds;
   nsCOMArray<nsIDocShellTreeItem> mChildShells;
   nsCOMPtr<nsISupportsArray>      mRefreshURIList;
   nsCOMPtr<nsISupports>           mOwner;
   nsExpirationState               mExpirationState;
   nsAutoPtr<nsDocShellEditorData> mEditorData;
-  nsString                        mStateData;
 };
 
 #endif /* nsSHEntry_h */

@@ -40,57 +40,41 @@
 #include "nscore.h"
 #include "jsapi.h"
 
-class nsIPrincipal;
+class XPCNativeWrapper
+{
+public:
+  static PRBool AttachNewConstructorObject(XPCCallContext &ccx,
+                                           JSObject *aGlobalObject);
 
-namespace XPCNativeWrapper {
+  static JSObject *GetNewOrUsed(JSContext *cx, XPCWrappedNative *wrapper);
 
-namespace internal {
-extern js::Class NW_NoCall_Class;
-extern js::Class NW_Call_Class;
-}
+  static PRBool IsNativeWrapperClass(JSClass *clazz)
+  {
+    return clazz == &sXPC_NW_JSClass.base;
+  }
 
-PRBool
-AttachNewConstructorObject(XPCCallContext &ccx, JSObject *aGlobalObject);
+  static PRBool IsNativeWrapper(JSObject *obj)
+  {
+    return STOBJ_GET_CLASS(obj) == &sXPC_NW_JSClass.base;
+  }
 
-JSObject *
-GetNewOrUsed(JSContext *cx, XPCWrappedNative *wrapper,
-             JSObject *scope, nsIPrincipal *aObjectPrincipal);
+  static XPCWrappedNative *GetWrappedNative(JSObject *obj)
+  {
+    return (XPCWrappedNative *)xpc_GetJSPrivate(obj);
+  }
+
+  static JSClass *GetJSClass()
+  {
+    return &sXPC_NW_JSClass.base;
+  }
+
+  static void ClearWrappedNativeScopes(JSContext* cx,
+                                       XPCWrappedNative* wrapper);
+
+protected:
+  static JSExtendedClass sXPC_NW_JSClass;
+};
+
 JSBool
-CreateExplicitWrapper(JSContext *cx, XPCWrappedNative *wrapper, jsval *rval);
-
-inline PRBool
-IsNativeWrapperClass(js::Class *clazz)
-{
-  return clazz == &internal::NW_NoCall_Class ||
-         clazz == &internal::NW_Call_Class;
-}
-
-inline PRBool
-IsNativeWrapper(JSObject *obj)
-{
-  return IsNativeWrapperClass(obj->getClass());
-}
-
-JSBool
-GetWrappedNative(JSContext *cx, JSObject *obj,
-                 XPCWrappedNative **aWrappedNative);
-
-// NB: Use the following carefully.
-inline XPCWrappedNative *
-SafeGetWrappedNative(JSObject *obj)
-{
-  return static_cast<XPCWrappedNative *>(xpc_GetJSPrivate(obj));
-}
-
-inline JSClass *
-GetJSClass(bool call)
-{
-  return call
-    ? js::Jsvalify(&internal::NW_Call_Class)
-    : js::Jsvalify(&internal::NW_NoCall_Class);
-}
-
-void
-ClearWrappedNativeScopes(JSContext* cx, XPCWrappedNative* wrapper);
-
-}
+XPC_XOW_WrapObject(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
+                   jsval *rval);

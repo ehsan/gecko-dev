@@ -52,7 +52,7 @@ class nsGenConImageContent : public nsXMLElement,
                              public nsImageLoadingContent
 {
 public:
-  nsGenConImageContent(already_AddRefed<nsINodeInfo> aNodeInfo)
+  nsGenConImageContent(nsINodeInfo* aNodeInfo)
     : nsXMLElement(aNodeInfo)
   {
   }
@@ -77,7 +77,7 @@ NS_IMPL_ISUPPORTS_INHERITED3(nsGenConImageContent, nsXMLElement,
                              nsIImageLoadingContent, imgIContainerObserver, imgIDecoderObserver)
 
 nsresult
-NS_NewGenConImageContent(nsIContent** aResult, already_AddRefed<nsINodeInfo> aNodeInfo,
+NS_NewGenConImageContent(nsIContent** aResult, nsINodeInfo* aNodeInfo,
                          imgIRequest* aImageRequest)
 {
   NS_PRECONDITION(aImageRequest, "Must have request!");
@@ -102,7 +102,7 @@ nsGenConImageContent::IntrinsicState() const
   PRInt32 state = nsXMLElement::IntrinsicState();
 
   PRInt32 imageState = nsImageLoadingContent::ImageState();
-  if (imageState & (NS_EVENT_STATE_BROKEN | NS_EVENT_STATE_USERDISABLED)) {
+  if (imageState & NS_EVENT_STATE_BROKEN) {
     // We should never be in an error state; if the image fails to load, we
     // just go to the suppressed state.
     imageState |= NS_EVENT_STATE_SUPPRESSED;

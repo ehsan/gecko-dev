@@ -164,21 +164,6 @@ PK11_CheckUserPassword(PK11SlotInfo *slot, const char *pw)
 	len = PORT_Strlen(pw);
     }
 
-    /*
-     * If the token does't need a login, don't try to relogin beause the
-     * effect is undefined. It's not clear what it means to check a non-empty
-     * password with such a token, so treat that as an error.
-     */
-    if (!slot->needLogin) {
-        if (len == 0) {
-            rv = SECSuccess;
-        } else {
-            PORT_SetError(SEC_ERROR_BAD_PASSWORD);
-            rv = SECFailure;
-        }
-        return rv;
-    }
-
     /* force a logout */
     PK11_EnterSlotMonitor(slot);
     PK11_GETTAB(slot)->C_Logout(slot->session);
@@ -494,17 +479,14 @@ PK11_ChangePW(PK11SlotInfo *slot, const char *oldpw, const char *newpw)
 {
     CK_RV crv;
     SECStatus rv = SECFailure;
-    int newLen = 0;
-    int oldLen = 0;
+    int newLen;
+    int oldLen;
     CK_SESSION_HANDLE rwsession;
 
-    /* use NULL values to trigger the protected authentication path */
-    if (!slot->protectedAuthPath) {
-	if (newpw == NULL) newpw = "";
-	if (oldpw == NULL) oldpw = "";
-    }
-    if (newpw) newLen = PORT_Strlen(newpw);
-    if (oldpw) oldLen = PORT_Strlen(oldpw);
+    if (newpw == NULL) newpw = "";
+    if (oldpw == NULL) oldpw = "";
+    newLen = PORT_Strlen(newpw);
+    oldLen = PORT_Strlen(oldpw);
 
     /* get a rwsession */
     rwsession = PK11_GetRWSession(slot);
@@ -648,7 +630,7 @@ PK11_DoPassword(PK11SlotInfo *slot, PRBool loadCerts, void *wincx)
 void PK11_LogoutAll(void)
 {
     SECMODListLock *lock = SECMOD_GetDefaultModuleListLock();
-    SECMODModuleList *modList;
+    SECMODModuleList *modList = SECMOD_GetDefaultModuleList();
     SECMODModuleList *mlp = NULL;
     int i;
 
@@ -658,7 +640,6 @@ void PK11_LogoutAll(void)
     }
 
     SECMOD_GetReadLock(lock);
-    modList = SECMOD_GetDefaultModuleList();
     /* find the number of entries */
     for (mlp = modList; mlp != NULL; mlp = mlp->next) {
 	for (i=0; i < mlp->module->slotCount; i++) {

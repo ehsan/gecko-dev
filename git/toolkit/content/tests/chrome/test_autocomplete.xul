@@ -18,6 +18,8 @@
 <script class="testbody" type="application/javascript">
 <![CDATA[
 
+var gDone = false;
+
 SimpleTest.waitForExplicitFinish();
 
 function keyCaretTest()

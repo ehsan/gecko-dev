@@ -23,22 +23,12 @@ function testtag_tree(treeid, treerowinfoid, seltype, columnstype, testid)
 {
   netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
 
-  // Stop keystrokes that aren't handled by the tree from leaking out and
-  // scrolling the main Mochitests window!
-  function preventDefault(event) {
-    event.preventDefault();
-  }
-  document.addEventListener("keypress", preventDefault, false);
-
   var multiple = (seltype == "multiple");
+  var editable = false;
 
   var tree = document.getElementById(treeid);
   var treerowinfo = document.getElementById(treerowinfoid);
-  var rowInfo;
-  if (testid =="tree view")
-    rowInfo = getCustomTreeViewCellInfo();
-  else
-    rowInfo = convertDOMtoTreeRowInfo(treerowinfo, 0, { value: -1 });
+  var rowInfo = convertDOMtoTreeRowInfo(treerowinfo, 0, { value: -1 });
   var columnInfo = (columnstype == "simple") ? columns_simpletree : columns_hiertree;
 
   is(tree.view.selection.currentColumn, null, testid + " initial currentColumn");
@@ -59,28 +49,16 @@ function testtag_tree(treeid, treerowinfoid, seltype, columnstype, testid)
 
   testtag_tree_TreeView(tree, testid, rowInfo);
 
-  is(tree.editable, false, "tree should not be editable");
+  is(tree.editable, editable, "editable");
   // currently, the editable flag means that tree editing cannot be invoked
   // by the user. However, editing can still be started with a script.
   is(tree.editingRow, -1, testid + " initial editingRow");
   is(tree.editingColumn, null, testid + " initial editingColumn");
 
-  testtag_tree_UI_editing(tree, testid, rowInfo);
-
-  is(tree.editable, false, "tree should not be editable after testtag_tree_UI_editing");
-  // currently, the editable flag means that tree editing cannot be invoked
-  // by the user. However, editing can still be started with a script.
-  is(tree.editingRow, -1, testid + " initial editingRow (continued)");
-  is(tree.editingColumn, null, testid + " initial editingColumn (continued)");
+  testtag_tree_UI_editing(tree, testid);
 
   var ecolumn = tree.columns[0];
-  ok(!tree.startEditing(1, ecolumn), "non-editable trees shouldn't start editing");
-  is(tree.editingRow, -1, testid + " failed startEditing shouldn't set editingRow");
-  is(tree.editingColumn, null, testid + " failed startEditing shouldn't set editingColumn");  
-  
-  tree.editable = true;
-
-  ok(tree.startEditing(1, ecolumn), "startEditing should have returned true");
+  tree.startEditing(1, ecolumn);
   is(tree.editingRow, 1, testid + " startEditing editingRow");
   is(tree.editingColumn, ecolumn, testid + " startEditing editingColumn");
   is(tree.getAttribute("editing"), "true", testid + " startEditing editing attribute");
@@ -106,22 +84,14 @@ function testtag_tree(treeid, treerowinfoid, seltype, columnstype, testid)
   tree.stopEditing(true);
   is(tree.view.getCellText(1, ecolumn), "Changed Value", testid + "edit cell accept");
 
-  // this cell can be edited, but stopEditing(false) means don't accept the change.
+  // this cell cannot be edited
   tree.startEditing(1, ecolumn);
   inputField.value = "Second Value";
   tree.stopEditing(false);
   is(tree.view.getCellText(1, ecolumn), "Changed Value", testid + "edit cell no accept");
 
-  tree.editable = false;
-
   // do the sorting tests last as it will cause the rows to rearrange
-  // skip them for the custom tree view
-  if (testid !="tree view")
-    testtag_tree_TreeView_rows_sort(tree, testid, rowInfo);
-
-  testtag_tree_mousescroll(tree);
-
-  document.removeEventListener("keypress", preventDefault, false);
+  testtag_tree_TreeView_rows_sort(tree, testid, rowInfo);
 
   SimpleTest.finish();
 }
@@ -596,67 +566,23 @@ function testtag_tree_TreeSelection_UI(tree, testid, multiple)
     testtag_tree_TreeSelection_State(tree, testid + "mouse on row", 1, [1], 0,
                                      tree.selType == "cell" ? tree.columns[1] : null);
   }
-
-  // restore the scroll position to the start of the page
-  synthesizeKey("VK_HOME", {});
 }
 
-function testtag_tree_UI_editing(tree, testid, rowInfo)
+function testtag_tree_UI_editing(tree, testid)
 {
   testid += " editing UI ";
 
   // check editing UI
-  var ecolumn = tree.columns[0];
-  var rowIndex = 2;
+  var ecolumn = tree.columns[1];
   var inputField = tree.inputField;
-
-  // temporary make the tree editable to test mouse double click
-  var wasEditable = tree.editable;
-  if (!wasEditable)
-    tree.editable = true;
-
-  // if this is a container save its current open status
-  var row = rowInfo.rows[rowIndex];
-  var wasOpen = null;
-  if (tree.view.isContainer(row))
-    wasOpen = tree.view.isContainerOpen(row);
-
-  // Test whether a keystroke can enter text entry, and another can exit.
-  if (tree.selType == "cell")
-  {
-    tree.stopEditing(false);
-    ok(!tree.editingColumn, "Should not be editing tree cell now");
-    tree.view.selection.currentColumn = ecolumn;
-    tree.currentIndex = rowIndex;
-
-    const isMac = (navigator.platform.indexOf("Mac") >= 0);
-    const StartEditingKey = isMac ? "VK_ENTER" : "VK_F2";
-    synthesizeKey(StartEditingKey, {});
-    is(tree.editingColumn, ecolumn, "Should be editing tree cell now");
-    synthesizeKey("VK_ESCAPE", {});
-    ok(!tree.editingColumn, "Should not be editing tree cell now");
-    is(tree.currentIndex, rowIndex, "Current index should not have changed");
-    is(tree.view.selection.currentColumn, ecolumn, "Current column should not have changed");
-  }
-
-  mouseDblClickOnCell(tree, rowIndex, ecolumn, testid + "edit on double click");
-  is(tree.editingColumn, ecolumn, testid + "editing column");
-  is(tree.editingRow, rowIndex, testid + "editing row");
-
-  // ensure that we don't expand an expandable container on edit
-  if (wasOpen != null)
-    is(tree.view.isContainerOpen(row), wasOpen, testid + "opened container node on edit");
-
-  // ensure to restore editable attribute
-  if (!wasEditable)
-    tree.editable = false;
+  tree.startEditing(0, ecolumn);
 
   var ci = tree.currentIndex;
 
   // cursor navigation should not change the selection while editing
   var testKey = function(key) {
     synthesizeKeyExpectEvent(key, {}, tree, "!select", "key " + key + " with editing");
-    is(tree.editingRow == rowIndex && tree.editingColumn == ecolumn && tree.currentIndex == ci,
+    is(tree.editingRow == 0 && tree.editingColumn == ecolumn && tree.currentIndex == ci,
                   true, testid + "key " + key + " while editing");
   }
 
@@ -673,8 +599,23 @@ function testtag_tree_UI_editing(tree, testid, rowInfo)
   // tree.stopEditing(true);
   // is(tree.view.getCellText(0, ecolumn), "b", testid + "edit cell");
 
-  // Restore initial state.
-  tree.stopEditing(false);
+  if (1) // XXXndeakin disable these tests for now
+    return;
+
+  tree.startEditing(0, ecolumn);
+  inputField.value = "Value for Return";
+  synthesizeKey("VK_RETURN", {});
+  is(tree.view.getCellText(0, ecolumn), "Value for Return", testid + "edit cell return");
+
+  tree.startEditing(0, ecolumn);
+  inputField.value = "Value for Enter";
+  synthesizeKey("VK_ENTER", {});
+  is(tree.view.getCellText(0, ecolumn), "Value for Enter", testid + "edit cell enter");
+
+  tree.startEditing(0, ecolumn);
+  inputField.value = "Value for Escape";
+  synthesizeKey("VK_ESCAPE", {});
+  is(tree.view.getCellText(0, ecolumn), "Value for Enter", testid + "edit cell escape");
 }
 
 function testtag_tree_TreeSelection_UI_cell(tree, testid, rowInfo)
@@ -848,9 +789,6 @@ function testtag_tree_TreeSelection_UI_cell(tree, testid, rowInfo)
     testtag_tree_TreeSelection_State(tree, testid + "key up unselectable cell",
                                      3, [3], 3, secondcolumn);
   }
-
-  // restore the scroll position to the start of the page
-  synthesizeKey("VK_HOME", {});
 }
 
 function testtag_tree_TreeView(tree, testid, rowInfo)
@@ -988,9 +926,8 @@ function testtag_tree_TreeView_rows(tree, testid, rowInfo, startRow)
 function testtag_tree_TreeView_rows_sort(tree, testid, rowInfo)
 {
   // check if cycleHeader sorts the columns
-  var columnIndex = 0;
   var view = tree.view;
-  var column = tree.columns[columnIndex];
+  var column = tree.columns[0];
   var columnElement = column.element;
   var sortkey = columnElement.getAttribute("sort");
   if (sortkey) {
@@ -1007,44 +944,6 @@ function testtag_tree_TreeView_rows_sort(tree, testid, rowInfo)
     is(columnElement.getAttribute("sortDirection"), "", "cycleHeader column sortDirection natural");
     // XXXndeakin content view isSorted needs to be tested
   }
-
-  // Check that clicking on column header sorts the column.
-  var columns = getSortedColumnArray(tree);
-  is(columnElement.getAttribute("sortDirection"), "",
-     "cycleHeader column sortDirection");
-
-  // Click once on column header and check sorting has cycled once.
-  mouseClickOnColumnHeader(columns, columnIndex, 0, 1);
-  is(columnElement.getAttribute("sortDirection"), "ascending",
-     "single click cycleHeader column sortDirection ascending");
-
-  // Now simulate a double click.
-  mouseClickOnColumnHeader(columns, columnIndex, 0, 2);
-  if (navigator.platform.indexOf("Win") == 0) {
-    // Windows cycles only once on double click.
-    is(columnElement.getAttribute("sortDirection"), "descending",
-       "double click cycleHeader column sortDirection descending");
-    // 1 single clicks should restore natural sorting.
-    mouseClickOnColumnHeader(columns, columnIndex, 0, 1);
-  }
-
-  // Check we have gone back to natural sorting.
-  is(columnElement.getAttribute("sortDirection"), "",
-     "cycleHeader column sortDirection");
-
-  columnElement.setAttribute("sorthints", "twostate");
-  view.cycleHeader(column);
-  is(tree.getAttribute("sortDirection"), "ascending", "cycleHeader sortDirection ascending twostate");
-  view.cycleHeader(column);
-  is(tree.getAttribute("sortDirection"), "descending", "cycleHeader sortDirection ascending twostate");
-  view.cycleHeader(column);
-  is(tree.getAttribute("sortDirection"), "ascending", "cycleHeader sortDirection ascending twostate again");
-  columnElement.removeAttribute("sorthints");
-  view.cycleHeader(column);
-  view.cycleHeader(column);
-
-  is(columnElement.getAttribute("sortDirection"), "",
-     "cycleHeader column sortDirection reset");
 }
 
 // checks if the current and selected rows are correct
@@ -1151,43 +1050,8 @@ function testtag_tree_column_reorder()
   checkColumns(tree, reference, "drag to itself");
   is(document.treecolDragging, null, "drag to itself completed");
 
-  // XXX roc should this be here???
   SimpleTest.finish();
-}
 
-function testtag_tree_mousescroll(aTree)
-{
-  /* Scroll event kinds, see test_mousescroll.xul */
-  const kinds = [
-    { eventType: "DOMMouseScroll", hasPixels: false, shouldScrollDOM: true, shouldScrollNative: true },
-    { eventType: "DOMMouseScroll", hasPixels: true, shouldScrollDOM: true, shouldScrollNative: false },
-    { eventType: "MozMousePixelScroll", hasPixels: false, shouldScrollDOM: false, shouldScrollNative: true }
-  ];
-  function helper(aStart, aDelta, aKind)
-  {
-    aTree.treeBoxObject.scrollToRow(aStart);
-    synthesizeMouseScroll(aTree.body, 1, 1,
-                          {axis:"vertical", delta:aDelta, type:aKind.eventType,
-                           hasPixels:aKind.hasPixels});
-    var expected = aKind.shouldScrollDOM ? aStart + aDelta : aStart;
-    is(aTree.treeBoxObject.getFirstVisibleRow(), expected, "mouse-scroll vertical starting " + aStart + " delta " + aDelta
-       + " eventType " + aKind.eventType + " hasPixels " + aKind.hasPixels);
-
-    aTree.treeBoxObject.scrollToRow(aStart);
-    // Check that horizontal scrolling has no effect
-    synthesizeMouseScroll(aTree.body, 1, 1,
-                          {axis:"horizontal", delta:aDelta, type:aKind.eventType,
-                           hasPixels:aKind.hasPixels});  
-    is(aTree.treeBoxObject.getFirstVisibleRow(), aStart, "mouse-scroll horizontal starting " + aStart + " delta " + aDelta
-       + " eventType " + aKind.eventType + " hasPixels " + aKind.hasPixels);
-  }
-  
-  kinds.forEach(function(aKind) {
-    helper(2, -1, aKind);
-    helper(2, 1, aKind);
-    helper(2, -2, aKind);
-    helper(2, 2, aKind);
-  });
 }
 
 function synthesizeColumnDrag(aTree, aMouseDownColumnNumber, aMouseUpColumnNumber, aAfter)
@@ -1201,7 +1065,7 @@ function synthesizeColumnDrag(aTree, aMouseDownColumnNumber, aMouseUpColumnNumbe
   // avoid the extra hit test space given to the splitter
   var columnWidth = down.boxObject.width;
   var splitterHitWidth = columnWidth / 2;
-  synthesizeMouse(down, splitterHitWidth, 3, { type: "mousedown"});
+  synthesizeMouse(down, splitterHitWidth, 0, { type: "mousedown"});
 
   var offsetX = 0;
   if (aAfter) {
@@ -1211,17 +1075,17 @@ function synthesizeColumnDrag(aTree, aMouseDownColumnNumber, aMouseUpColumnNumbe
   if (aMouseUpColumnNumber > aMouseDownColumnNumber) {
     for (var i = aMouseDownColumnNumber; i <= aMouseUpColumnNumber; i++) {
       var move = columns[i].element;
-      synthesizeMouse(move, offsetX, 3, { type: "mousemove"});
+      synthesizeMouse(move, offsetX, 0, { type: "mousemove"});
     }
   }
   else {
     for (var i = aMouseDownColumnNumber; i >= aMouseUpColumnNumber; i--) {
       var move = columns[i].element;
-      synthesizeMouse(move, offsetX, 3, { type: "mousemove"});
+      synthesizeMouse(move, offsetX, 0, { type: "mousemove"});
     }
   }
 
-  synthesizeMouse(up, offsetX, 3, { type: "mouseup"});
+  synthesizeMouse(up, offsetX, 0, { type: "mouseup"});
 }
 
 function arrayMove(aArray, aFrom, aTo, aAfter)
@@ -1267,38 +1131,9 @@ function checkColumns(aTree, aReference, aMessage)
 function mouseOnCell(tree, row, column, testname)
 {
   var x = {}, y = {}, width = {}, height = {};
-  tree.boxObject.getCoordsForCellItem(row, column, "text", x, y, width, height);
+  tree.boxObject.getCoordsForCellItem(row, column, "cell", x, y, width, height);
 
-  synthesizeMouseExpectEvent(tree.body, x.value, y.value, {}, tree, "select", testname);
-}
-
-function mouseClickOnColumnHeader(aColumns, aColumnIndex, aButton, aClickCount)
-{
-  var columnHeader = aColumns[aColumnIndex].element;
-  var columnHeaderRect = columnHeader.getBoundingClientRect();
-  var columnWidth = columnHeaderRect.right - columnHeaderRect.left;
-  // For multiple click we send separate click events, with increasing
-  // clickCount.  This simulates the common behavior of multiple clicks.
-  for (var i = 1; i <= aClickCount; i++) {
-    // Target the middle of the column header.
-    synthesizeMouse(columnHeader, columnWidth / 2, 3,
-                    { button: aButton,
-                      clickCount: i }, null);
-  }
-}
-
-function mouseDblClickOnCell(tree, row, column, testname)
-{
-  // select the row we will edit
-  var selection = tree.view.selection;
-  selection.select(row);
-  tree.treeBoxObject.ensureRowIsVisible(row);
-
-  // get cell coordinates
-  var x = {}, y = {}, width = {}, height = {};
-  tree.treeBoxObject.getCoordsForCellItem(row, column, "text", x, y, width, height);
-
-  synthesizeMouse(tree.body, x.value, y.value, { clickCount: 2 }, null);
+  synthesizeMouseExpectEvent(tree.body, x.value + 2, y.value + 2, {}, tree, "select", testname);
 }
 
 function compareArrays(arr1, arr2)

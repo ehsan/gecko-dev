@@ -42,6 +42,7 @@
 #include "txCore.h"
 #include "txStack.h"
 #include "txXMLUtils.h"
+#include "nsVoidArray.h"
 #include "txIXPathContext.h"
 #include "txVariableMap.h"
 #include "nsTHashtable.h"
@@ -59,8 +60,7 @@ class txIOutputHandlerFactory;
 class txLoadedDocumentEntry : public nsStringHashKey
 {
 public:
-    txLoadedDocumentEntry(KeyTypePointer aStr) : nsStringHashKey(aStr),
-                                                 mLoadResult(NS_OK)
+    txLoadedDocumentEntry(KeyTypePointer aStr) : nsStringHashKey(aStr)
     {
     }
     txLoadedDocumentEntry(const txLoadedDocumentEntry& aToCopy)
@@ -74,16 +74,8 @@ public:
             txXPathNodeUtils::release(mDocument);
         }
     }
-    PRBool LoadingFailed()
-    {
-        NS_ASSERTION(NS_SUCCEEDED(mLoadResult) || !mDocument,
-                     "Load failed but we still got a document?");
-
-        return NS_FAILED(mLoadResult);
-    }
 
     nsAutoPtr<txXPathNode> mDocument;
-    nsresult mLoadResult;
 };
 
 class txLoadedDocumentsHash : public nsTHashtable<txLoadedDocumentEntry>

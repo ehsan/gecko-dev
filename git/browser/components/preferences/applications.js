@@ -111,17 +111,7 @@ const PREF_AUDIO_FEED_SELECTED_READER = "browser.audioFeeds.handler.default";
 // identifying the "use plugin" action, so we use this constant instead.
 const kActionUsePlugin = 5;
 
-/*
-#ifdef MOZ_WIDGET_GTK2
-*/
-const ICON_URL_APP      = "moz-icon://dummy.exe?size=16";
-/*
-#else
-*/
 const ICON_URL_APP      = "chrome://browser/skin/preferences/application.png";
-/*
-#endif
-*/
 
 // For CSS. Can be one of "ask", "save", "plugin" or "feed". If absent, the icon URL
 // was set by us to a custom handler icon and CSS should not try to override it.
@@ -130,28 +120,45 @@ const APP_ICON_ATTR_NAME = "appHandlerIcon";
 //****************************************************************************//
 // Utilities
 
-function getFileDisplayName(file) {
+function getDisplayNameForFile(aFile) {
+/*
 #ifdef XP_WIN
-  if (file instanceof Ci.nsILocalFileWin) {
+*/
+  if (aFile instanceof Ci.nsILocalFileWin) {
     try {
-      return file.getVersionInfoField("FileDescription");
-    } catch (e) {}
+      return aFile.getVersionInfoField("FileDescription"); 
+    }
+    catch(ex) {
+      // fall through to the file name
+    }
   }
+/*
 #endif
 #ifdef XP_MACOSX
-  if (file instanceof Ci.nsILocalFileMac) {
+*/
+  if (aFile instanceof Ci.nsILocalFileMac) {
     try {
-      return file.bundleDisplayName;
-    } catch (e) {}
+      return aFile.bundleDisplayName;
+    }
+    catch(ex) {
+      // fall through to the file name
+    }
   }
+/*
 #endif
-  return file.leafName;
+*/
+
+  return Cc["@mozilla.org/network/io-service;1"].
+         getService(Ci.nsIIOService).
+         newFileURI(aFile).
+         QueryInterface(Ci.nsIURL).
+         fileName;
 }
 
 function getLocalHandlerApp(aFile) {
   var localHandlerApp = Cc["@mozilla.org/uriloader/local-handler-app;1"].
                         createInstance(Ci.nsILocalHandlerApp);
-  localHandlerApp.name = getFileDisplayName(aFile);
+  localHandlerApp.name = getDisplayNameForFile(aFile);
   localHandlerApp.executable = aFile;
 
   return localHandlerApp;
@@ -531,7 +538,8 @@ FeedHandlerInfo.prototype = {
 
   _shellSvc:
 #ifdef HAVE_SHELL_SERVICE
-    getShellService(),
+    Cc["@mozilla.org/browser/shell-service;1"].
+    getService(Ci.nsIShellService),
 #else
     null,
 #endif
@@ -644,7 +652,7 @@ FeedHandlerInfo.prototype = {
     }
 
     // Add the registered web handlers.  There can be any number of these.
-    var webHandlers = this._converterSvc.getContentHandlers(this.type);
+    var webHandlers = this._converterSvc.getContentHandlers(this.type, {});
     for each (let webHandler in webHandlers)
       this._possibleApplicationHandlers.appendElement(webHandler, false);
 
@@ -662,14 +670,14 @@ FeedHandlerInfo.prototype = {
       defaultFeedReader = this._shellSvc.defaultFeedReader;
     }
     catch(ex) {
-      // no default reader or _shellSvc is null
+      // no default reader
     }
 #endif
 
     if (defaultFeedReader) {
       let handlerApp = Cc["@mozilla.org/uriloader/local-handler-app;1"].
                        createInstance(Ci.nsIHandlerApp);
-      handlerApp.name = getFileDisplayName(defaultFeedReader);
+      handlerApp.name = getDisplayNameForFile(defaultFeedReader);
       handlerApp.QueryInterface(Ci.nsILocalHandlerApp);
       handlerApp.executable = defaultFeedReader;
 
@@ -689,7 +697,7 @@ FeedHandlerInfo.prototype = {
         return true;
     }
     catch(ex) {
-      // no default reader or _shellSvc is null
+      // no default reader
     }
 #endif
 
@@ -975,10 +983,6 @@ var gApplicationsPane = {
       self._rebuildVisibleTypes();
       self._sortVisibleTypes();
       self._rebuildView();
-
-      // Notify observers that the UI is now ready
-      Cc["@mozilla.org/observer-service;1"].getService(Ci.nsIObserverService).
-      notifyObservers(window, "app-handler-pane-loaded", null);
     }
     setTimeout(_delayedPaneLoad, 0, this);
   },
@@ -1264,7 +1268,7 @@ var gApplicationsPane = {
         var preferredApp = aHandlerInfo.preferredApplicationHandler;
         var name;
         if (preferredApp instanceof Ci.nsILocalHandlerApp)
-          name = getFileDisplayName(preferredApp.executable);
+          name = getDisplayNameForFile(preferredApp.executable);
         else
           name = preferredApp.name;
         return this._prefsBundle.getFormattedString("useApp", [name]);
@@ -1447,7 +1451,7 @@ var gApplicationsPane = {
       menuItem.setAttribute("action", Ci.nsIHandlerInfo.useHelperApp);
       let label;
       if (possibleApp instanceof Ci.nsILocalHandlerApp)
-        label = getFileDisplayName(possibleApp.executable);
+        label = getDisplayNameForFile(possibleApp.executable);
       else
         label = possibleApp.name;
       label = this._prefsBundle.getFormattedString("useApp", [label]);
@@ -1595,7 +1599,36 @@ var gApplicationsPane = {
    * Filter the list when the user enters a filter term into the filter field.
    */
   filter: function() {
+    if (this._filter.value == "") {
+      this.clearFilter();
+      return;
+    }
+
     this._rebuildView();
+
+    document.getElementById("clearFilter").disabled = false;
+  },
+
+  _filterTimeout: null,
+
+  onFilterInput: function() {
+    if (this._filterTimeout)
+      clearTimeout(this._filterTimeout);
+   
+    this._filterTimeout = setTimeout("gApplicationsPane.filter()", 500);
+  },
+
+  onFilterKeyPress: function(aEvent) {
+    if (aEvent.keyCode == KeyEvent.DOM_VK_ESCAPE)
+      this.clearFilter();
+  },
+  
+  clearFilter: function() {
+    this._filter.value = "";
+    this._rebuildView();
+
+    this._filter.focus();
+    document.getElementById("clearFilter").disabled = true;
   },
 
   focusFilterBox: function() {
@@ -1717,7 +1750,9 @@ var gApplicationsPane = {
                       "chrome,modal,centerscreen,titlebar,dialog=yes",
                       params);
 
-    if (this.isValidHandlerApp(params.handlerApp)) {
+    if (params.handlerApp && 
+        params.handlerApp.executable && 
+        params.handlerApp.executable.isFile()) {
       handlerApp = params.handlerApp;
 
       // Add the app to the type's list of possible handlers.
@@ -1735,7 +1770,7 @@ var gApplicationsPane = {
         this._isValidHandlerExecutable(fp.file)) {
       handlerApp = Cc["@mozilla.org/uriloader/local-handler-app;1"].
                    createInstance(Ci.nsILocalHandlerApp);
-      handlerApp.name = getFileDisplayName(fp.file);
+      handlerApp.name = getDisplayNameForFile(fp.file);
       handlerApp.executable = fp.file;
 
       // Add the app to the type's list of possible handlers.
@@ -1856,7 +1891,7 @@ var gApplicationsPane = {
     // they'll only visit URLs derived from that template (i.e. with %s
     // in the template replaced by the URL of the content being handled).
 
-    if (/^https?/.test(uri.scheme) && this._prefSvc.getBoolPref("browser.chrome.favicons"))
+    if (/^https?/.test(uri.scheme))
       return uri.prePath + "/favicon.ico";
 
     return "";

@@ -41,7 +41,7 @@ void  nsBig5Prober::Reset(void)
 {
   mCodingSM->Reset(); 
   mState = eDetecting;
-  mDistributionAnalyser.Reset(mIsPreferredLanguage);
+  mDistributionAnalyser.Reset();
 }
 
 nsProbingState nsBig5Prober::HandleData(const char* aBuf, PRUint32 aLen)

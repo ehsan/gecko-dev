@@ -39,6 +39,7 @@
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsMappedAttributes.h"
 #include "nsRuleData.h"
 
@@ -46,7 +47,7 @@ class nsHTMLBRElement : public nsGenericHTMLElement,
                         public nsIDOMHTMLBRElement
 {
 public:
-  nsHTMLBRElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLBRElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLBRElement();
 
   // nsISupports
@@ -71,14 +72,13 @@ public:
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
   virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-  virtual nsXPCClassInfo* GetClassInfo();
 };
 
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(BR)
 
 
-nsHTMLBRElement::nsHTMLBRElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLBRElement::nsHTMLBRElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -91,13 +91,9 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLBRElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLBRElement, nsGenericElement) 
 
 
-DOMCI_NODE_DATA(HTMLBRElement, nsHTMLBRElement)
-
 // QueryInterface implementation for nsHTMLBRElement
-NS_INTERFACE_TABLE_HEAD(nsHTMLBRElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLBRElement, nsIDOMHTMLBRElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLBRElement,
-                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLBRElement, nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED1(nsHTMLBRElement, nsIDOMHTMLBRElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLBRElement)
 
 
@@ -121,7 +117,7 @@ nsHTMLBRElement::ParseAttribute(PRInt32 aNamespaceID,
                                 nsAttrValue& aResult)
 {
   if (aAttribute == nsGkAtoms::clear && aNamespaceID == kNameSpaceID_None) {
-    return aResult.ParseEnumValue(aValue, kClearTable, PR_FALSE);
+    return aResult.ParseEnumValue(aValue, kClearTable);
   }
 
   return nsGenericHTMLElement::ParseAttribute(aNamespaceID, aAttribute, aValue,

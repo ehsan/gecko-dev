@@ -42,15 +42,10 @@ CC			= gcc
 CCC			= g++
 RANLIB			= ranlib
 
-CPU_ARCH		= $(OS_TEST)
-ifeq ($(CPU_ARCH),i386)
+ifeq ($(OS_TEST),alpha)
+CPU_ARCH		= alpha
+else
 CPU_ARCH		= x86
-endif
-ifeq ($(CPU_ARCH),pc98)
-CPU_ARCH		= x86
-endif
-ifeq ($(CPU_ARCH),amd64)
-CPU_ARCH		= x86_64
 endif
 
 OS_CFLAGS		= $(DSO_CFLAGS) -ansi -Wall -Wno-switch -DFREEBSD -DHAVE_STRERROR -DHAVE_BSD_FLOCK
@@ -70,7 +65,7 @@ endif
 
 ARCH			= freebsd
 
-MOZ_OBJFORMAT		:= $(shell test -x /usr/bin/objformat && /usr/bin/objformat || echo elf)
+MOZ_OBJFORMAT		:= $(shell test -x /usr/bin/objformat && /usr/bin/objformat || echo aout)
 
 ifeq ($(MOZ_OBJFORMAT),elf)
 DLL_SUFFIX		= so

@@ -54,12 +54,15 @@ class nsSVGFilterElement : public nsSVGFilterElementBase,
                            public nsIDOMSVGUnitTypes
 {
   friend class nsSVGFilterFrame;
-  friend class nsAutoFilterInstance;
 
 protected:
   friend nsresult NS_NewSVGFilterElement(nsIContent **aResult,
-                                         already_AddRefed<nsINodeInfo> aNodeInfo);
-  nsSVGFilterElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+                                         nsINodeInfo *aNodeInfo);
+  nsSVGFilterElement(nsINodeInfo* aNodeInfo);
+
+  // nsISVGValue interface:
+  NS_IMETHOD SetValueString(const nsAString &aValue) { return NS_OK; }
+  NS_IMETHOD GetValueString(nsAString& aValue) { return NS_ERROR_NOT_IMPLEMENTED; }
 
 public:
   // interfaces:
@@ -80,16 +83,16 @@ public:
   // Invalidate users of this filter
   void Invalidate();
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
+
+  virtual PRBool ParseAttribute(PRInt32 aNameSpaceID, nsIAtom* aName,
+                                const nsAString& aValue,
+                                nsAttrValue& aResult);
 
   virtual LengthAttributesInfo GetLengthInfo();
   virtual IntegerAttributesInfo GetIntegerInfo();
   virtual EnumAttributesInfo GetEnumInfo();
   virtual StringAttributesInfo GetStringInfo();
-
-  virtual void DidAnimateLength(PRUint8 aAttrEnum);
-  virtual void DidAnimateEnum(PRUint8 aAttrEnum);
 
   enum { X, Y, WIDTH, HEIGHT };
   nsSVGLength2 mLengthAttributes[4];

@@ -2,18 +2,13 @@ tree[type="places"] {
   -moz-binding: url("chrome://browser/content/places/tree.xml#places-tree");
 }
 
-.bookmarks-toolbar-customize,
-toolbarpaletteitem #PlacesToolbarItems {
-  display: none;
+hbox[type="places"] {
+  -moz-binding: url("chrome://browser/content/places/toolbar.xml#places-bar");
+  overflow: hidden;
 }
 
-toolbarpaletteitem .bookmarks-toolbar-customize {
-  display: -moz-box;
-}
-
-.toolbar-drop-indicator {
-  position: relative;
-  z-index: 1;
+menupopup[type="places"] {
+  -moz-binding: url("chrome://browser/content/places/menu.xml#places-menupopup");
 }
 
 menupopup[placespopup="true"] {

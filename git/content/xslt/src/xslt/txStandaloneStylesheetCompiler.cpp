@@ -64,8 +64,7 @@ class txDriver : public txACompileObserver
                           const XML_Char *aSystemId,
                           const XML_Char *aPublicId);
 
-    TX_DECL_ACOMPILEOBSERVER
-    NS_INLINE_DECL_REFCOUNTING(txDriver)
+    TX_DECL_ACOMPILEOBSERVER;
 
     nsRefPtr<txStylesheetCompiler> mCompiler;
   protected:
@@ -74,6 +73,7 @@ class txDriver : public txACompileObserver
     // keep track of the nsresult returned by the handlers, expat forgets them
     nsresult mRV;
     XML_Parser mExpatParser;
+    nsAutoRefCnt mRefCnt;
 };
 
 nsresult
@@ -119,7 +119,7 @@ TX_CompileStylesheetPath(const txParsedURL& aURL, txStylesheet** aResult)
 // shortcut macro for redirection into txDriver method calls
 #define TX_DRIVER(_userData) static_cast<txDriver*>(_userData)
 
-static void
+PR_STATIC_CALLBACK(void)
 startElement(void *aUserData, const XML_Char *aName, const XML_Char **aAtts)
 {
     if (!aUserData) {
@@ -129,7 +129,7 @@ startElement(void *aUserData, const XML_Char *aName, const XML_Char **aAtts)
     TX_DRIVER(aUserData)->StartElement(aName, aAtts);
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 endElement(void *aUserData, const XML_Char* aName)
 {
     if (!aUserData) {
@@ -139,7 +139,7 @@ endElement(void *aUserData, const XML_Char* aName)
     TX_DRIVER(aUserData)->EndElement(aName);
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 charData(void* aUserData, const XML_Char* aChars, int aLength)
 {
     if (!aUserData) {
@@ -149,7 +149,7 @@ charData(void* aUserData, const XML_Char* aChars, int aLength)
     TX_DRIVER(aUserData)->CharacterData(aChars, aLength);
 }
 
-static int
+PR_STATIC_CALLBACK(int)
 externalEntityRefHandler(XML_Parser aParser,
                          const XML_Char *aContext,
                          const XML_Char *aBase,
@@ -337,6 +337,23 @@ txDriver::createErrorString()
 /**
  * txACompileObserver implementation
  */
+
+nsrefcnt
+txDriver::AddRef()
+{
+    return ++mRefCnt;
+}
+
+nsrefcnt
+txDriver::Release()
+{
+    if (--mRefCnt == 0) {
+        mRefCnt = 1; //stabilize
+        delete this;
+        return 0;
+    }
+    return mRefCnt;
+}
 
 void
 txDriver::onDoneCompiling(txStylesheetCompiler* aCompiler, nsresult aResult,

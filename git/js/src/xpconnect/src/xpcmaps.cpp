@@ -49,13 +49,13 @@
 // Note this is returning the bit pattern of the first part of the nsID, not
 // the pointer to the nsID.
 
-static JSDHashNumber
+static JSDHashNumber JS_DLL_CALLBACK
 HashIIDPtrKey(JSDHashTable *table, const void *key)
 {
     return *((JSHashNumber*)key);
 }
 
-static JSBool
+static JSBool JS_DLL_CALLBACK
 MatchIIDPtrKey(JSDHashTable *table,
             const JSDHashEntryHdr *entry,
             const void *key)
@@ -64,7 +64,7 @@ MatchIIDPtrKey(JSDHashTable *table,
                 Equals(*((const nsID*)((JSDHashEntryStub*)entry)->key));
 }
 
-static JSDHashNumber
+static JSDHashNumber JS_DLL_CALLBACK
 HashNativeKey(JSDHashTable *table, const void *key)
 {
     XPCNativeSetKey* Key = (XPCNativeSetKey*) key;
@@ -118,6 +118,33 @@ HashNativeKey(JSDHashTable *table, const void *key)
     }
 
     return h;
+}
+
+/***************************************************************************/
+// implement JSContext2XPCContextMap...
+
+// static
+JSContext2XPCContextMap*
+JSContext2XPCContextMap::newMap(int size)
+{
+    JSContext2XPCContextMap* map = new JSContext2XPCContextMap(size);
+    if(map && map->mTable)
+        return map;
+    delete map;
+    return nsnull;
+}
+
+
+JSContext2XPCContextMap::JSContext2XPCContextMap(int size)
+{
+    mTable = JS_NewDHashTable(JS_DHashGetStubOps(), nsnull,
+                              sizeof(Entry), size);
+}
+
+JSContext2XPCContextMap::~JSContext2XPCContextMap()
+{
+    if(mTable)
+        JS_DHashTableDestroy(mTable);
 }
 
 /***************************************************************************/
@@ -300,7 +327,7 @@ ClassInfo2WrappedNativeProtoMap::~ClassInfo2WrappedNativeProtoMap()
 /***************************************************************************/
 // implement NativeSetMap...
 
-JSBool
+JSBool JS_DLL_CALLBACK
 NativeSetMap::Entry::Match(JSDHashTable *table,
                            const JSDHashEntryHdr *entry,
                            const void *key)
@@ -415,7 +442,7 @@ NativeSetMap::~NativeSetMap()
 /***************************************************************************/
 // implement IID2ThisTranslatorMap...
 
-JSBool
+JSBool JS_DLL_CALLBACK
 IID2ThisTranslatorMap::Entry::Match(JSDHashTable *table,
                                     const JSDHashEntryHdr *entry,
                                     const void *key)
@@ -423,7 +450,7 @@ IID2ThisTranslatorMap::Entry::Match(JSDHashTable *table,
     return ((const nsID*)key)->Equals(((Entry*)entry)->key);
 }
 
-void
+void JS_DLL_CALLBACK
 IID2ThisTranslatorMap::Entry::Clear(JSDHashTable *table, JSDHashEntryHdr *entry)
 {
     NS_IF_RELEASE(((Entry*)entry)->value);
@@ -465,7 +492,7 @@ IID2ThisTranslatorMap::~IID2ThisTranslatorMap()
 
 /***************************************************************************/
 
-JSDHashNumber
+JSDHashNumber JS_DLL_CALLBACK
 XPCNativeScriptableSharedMap::Entry::Hash(JSDHashTable *table, const void *key)
 {
     JSDHashNumber h;
@@ -474,9 +501,7 @@ XPCNativeScriptableSharedMap::Entry::Hash(JSDHashTable *table, const void *key)
     XPCNativeScriptableShared* obj =
         (XPCNativeScriptableShared*) key;
 
-    // hash together the flags and the classname string, ignore the interfaces
-    // bitmap since it's very rare that it's different when flags and classname
-    // are the same.
+    // hash together the flags and the classname string
 
     h = (JSDHashNumber) obj->GetFlags();
     for (s = (const unsigned char*) obj->GetJSClass()->name; *s != '\0'; s++)
@@ -484,7 +509,7 @@ XPCNativeScriptableSharedMap::Entry::Hash(JSDHashTable *table, const void *key)
     return h;
 }
 
-JSBool
+JSBool JS_DLL_CALLBACK
 XPCNativeScriptableSharedMap::Entry::Match(JSDHashTable *table,
                                          const JSDHashEntryHdr *entry,
                                          const void *key)
@@ -495,10 +520,9 @@ XPCNativeScriptableSharedMap::Entry::Match(JSDHashTable *table,
     XPCNativeScriptableShared* obj2 =
         (XPCNativeScriptableShared*) key;
 
-    // match the flags, the classname string and the interfaces bitmap
+    // match the flags and the classname string
 
-    if(obj1->GetFlags() != obj2->GetFlags() ||
-       obj1->GetInterfacesBitmap() != obj2->GetInterfacesBitmap())
+    if(obj1->GetFlags() != obj2->GetFlags())
         return JS_FALSE;
 
     const char* name1 = obj1->GetJSClass()->name;
@@ -548,13 +572,13 @@ JSBool
 XPCNativeScriptableSharedMap::GetNewOrUsed(JSUint32 flags,
                                            char* name,
                                            JSBool isGlobal,
-                                           PRUint32 interfacesBitmap,
                                            XPCNativeScriptableInfo* si)
 {
     NS_PRECONDITION(name,"bad param");
     NS_PRECONDITION(si,"bad param");
 
-    XPCNativeScriptableShared key(flags, name, interfacesBitmap);
+    XPCNativeScriptableShared key(flags, name);
+
     Entry* entry = (Entry*)
         JS_DHashTableOperate(mTable, &key, JS_DHASH_ADD);
     if(!entry)
@@ -565,8 +589,7 @@ XPCNativeScriptableSharedMap::GetNewOrUsed(JSUint32 flags,
     if(!shared)
     {
         entry->key = shared =
-            new XPCNativeScriptableShared(flags, key.TransferNameOwnership(),
-                                          interfacesBitmap);
+            new XPCNativeScriptableShared(flags, key.TransferNameOwnership());
         if(!shared)
             return JS_FALSE;
         shared->PopulateJSClass(isGlobal);

@@ -54,20 +54,8 @@ DIRS		= \
 		cache \
 		protocol \
 		system \
-        $(NULL)
-
-ifdef MOZ_IPC
-DIRS 		+= \
-	        ipc  \
-	        $(NULL)
-endif
-
-ifdef NECKO_WIFI
-DIRS 		+= wifi
-endif
-
-DIRS		+= \
 		build \
+		resources \
 		locales \
 		$(NULL)
 

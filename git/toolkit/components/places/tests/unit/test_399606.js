@@ -62,11 +62,10 @@ var observer = {
     confirm_results();
   },
   onTitleChanged: function(aURI, aPageTitle) {},
-  onBeforeDeleteURI: function(aURI) {},
   onDeleteURI: function(aURI) {},
   onClearHistory: function() {},
   onPageChanged: function(aURI, aWhat, aValue) {},
-  onDeleteVisits: function() {},
+  onPageExpired: function(aURI, aVisitTime, aWholeEntry) {},
   QueryInterface: function(iid) {
     if (iid.equals(Ci.nsINavHistoryObserver) ||
         iid.equals(Ci.nsISupports)) {
@@ -85,7 +84,7 @@ function run_test() {
   ghist.addURI(testURI, false, true, null);
   ghist.addURI(testURI, false, true, testURI);
   // lazy message timer is 3000, see LAZY_MESSAGE_TIMEOUT
-  do_timeout(3500, confirm_results);
+  do_timeout(3500, "confirm_results();");
 }
 
 function confirm_results() {

@@ -42,8 +42,6 @@
 #include "nsSVGElement.h"
 #include "nsDOMError.h"
 
-class nsSVGOrientType;
-
 class nsSVGAngle
 {
   friend class DOMSVGAngle;
@@ -53,9 +51,8 @@ public:
             float aValue = 0,
             PRUint8 aUnitType = nsIDOMSVGAngle::SVG_ANGLETYPE_UNSPECIFIED) {
     mAnimVal = mBaseVal = aValue;
-    mAnimValUnit = mBaseValUnit = aUnitType;
+    mSpecifiedUnitType = aUnitType;
     mAttrEnum = aAttrEnum;
-    mIsAnimated = PR_FALSE;
   }
 
   nsresult SetBaseValueString(const nsAString& aValue,
@@ -65,49 +62,38 @@ public:
   void GetAnimValueString(nsAString& aValue);
 
   float GetBaseValue() const
-    { return mBaseVal * GetDegreesPerUnit(mBaseValUnit); }
+    { return mBaseVal / GetUnitScaleFactor(); }
   float GetAnimValue() const
-    { return mAnimVal * GetDegreesPerUnit(mAnimValUnit); }
+    { return mAnimVal / GetUnitScaleFactor(); }
 
   void SetBaseValue(float aValue, nsSVGElement *aSVGElement);
-  void SetAnimValue(float aValue, PRUint8 aUnit, nsSVGElement *aSVGElement);
 
-  PRUint8 GetBaseValueUnit() const { return mBaseValUnit; }
-  PRUint8 GetAnimValueUnit() const { return mAnimValUnit; }
-  float GetBaseValInSpecifiedUnits() const { return mBaseVal; }
+  PRUint8 GetSpecifiedUnitType() const { return mSpecifiedUnitType; }
   float GetAnimValInSpecifiedUnits() const { return mAnimVal; }
+  float GetBaseValInSpecifiedUnits() const { return mBaseVal; }
 
   static nsresult ToDOMSVGAngle(nsIDOMSVGAngle **aResult);
   nsresult ToDOMAnimatedAngle(nsIDOMSVGAnimatedAngle **aResult,
                               nsSVGElement* aSVGElement);
-#ifdef MOZ_SMIL
-  // Returns a new nsISMILAttr object that the caller must delete
-  nsISMILAttr* ToSMILAttr(nsSVGElement* aSVGElement);
-#endif // MOZ_SMIL
-
-  static float GetDegreesPerUnit(PRUint8 aUnit);
 
 private:
   
   float mAnimVal;
   float mBaseVal;
-  PRUint8 mAnimValUnit;
-  PRUint8 mBaseValUnit;
+  PRUint8 mSpecifiedUnitType;
   PRUint8 mAttrEnum; // element specified tracking for attribute
-  PRPackedBool mIsAnimated;
   
+  float GetUnitScaleFactor() const;
   void SetBaseValueInSpecifiedUnits(float aValue, nsSVGElement *aSVGElement);
-  nsresult NewValueSpecifiedUnits(PRUint16 aUnitType, float aValue,
-                                  nsSVGElement *aSVGElement);
-  nsresult ConvertToSpecifiedUnits(PRUint16 aUnitType, nsSVGElement *aSVGElement);
+  void NewValueSpecifiedUnits(PRUint16 aUnitType, float aValue,
+                              nsSVGElement *aSVGElement);
+  void ConvertToSpecifiedUnits(PRUint16 aUnitType, nsSVGElement *aSVGElement);
   nsresult ToDOMBaseVal(nsIDOMSVGAngle **aResult, nsSVGElement* aSVGElement);
   nsresult ToDOMAnimVal(nsIDOMSVGAngle **aResult, nsSVGElement* aSVGElement);
 
-public:
   struct DOMBaseVal : public nsIDOMSVGAngle
   {
-    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-    NS_DECL_CYCLE_COLLECTION_CLASS(DOMBaseVal)
+    NS_DECL_ISUPPORTS
 
     DOMBaseVal(nsSVGAngle* aVal, nsSVGElement *aSVGElement)
       : mVal(aVal), mSVGElement(aSVGElement) {}
@@ -116,7 +102,7 @@ public:
     nsRefPtr<nsSVGElement> mSVGElement;
     
     NS_IMETHOD GetUnitType(PRUint16* aResult)
-      { *aResult = mVal->mBaseValUnit; return NS_OK; }
+      { *aResult = mVal->mSpecifiedUnitType; return NS_OK; }
 
     NS_IMETHOD GetValue(float* aResult)
       { *aResult = mVal->GetBaseValue(); return NS_OK; }
@@ -136,17 +122,17 @@ public:
 
     NS_IMETHOD NewValueSpecifiedUnits(PRUint16 unitType,
                                       float valueInSpecifiedUnits)
-      { return mVal->NewValueSpecifiedUnits(unitType, valueInSpecifiedUnits,
-                                     mSVGElement); }
+      { mVal->NewValueSpecifiedUnits(unitType, valueInSpecifiedUnits,
+                                     mSVGElement); 
+        return NS_OK; }
 
     NS_IMETHOD ConvertToSpecifiedUnits(PRUint16 unitType)
-      { return mVal->ConvertToSpecifiedUnits(unitType, mSVGElement); }
+      { mVal->ConvertToSpecifiedUnits(unitType, mSVGElement); return NS_OK; }
   };
 
   struct DOMAnimVal : public nsIDOMSVGAngle
   {
-    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-    NS_DECL_CYCLE_COLLECTION_CLASS(DOMAnimVal)
+    NS_DECL_ISUPPORTS
 
     DOMAnimVal(nsSVGAngle* aVal, nsSVGElement *aSVGElement)
       : mVal(aVal), mSVGElement(aSVGElement) {}
@@ -155,7 +141,7 @@ public:
     nsRefPtr<nsSVGElement> mSVGElement;
     
     NS_IMETHOD GetUnitType(PRUint16* aResult)
-      { *aResult = mVal->mAnimValUnit; return NS_OK; }
+      { *aResult = mVal->mSpecifiedUnitType; return NS_OK; }
 
     NS_IMETHOD GetValue(float* aResult)
       { *aResult = mVal->GetAnimValue(); return NS_OK; }
@@ -182,8 +168,7 @@ public:
 
   struct DOMAnimatedAngle : public nsIDOMSVGAnimatedAngle
   {
-    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-    NS_DECL_CYCLE_COLLECTION_CLASS(DOMAnimatedAngle)
+    NS_DECL_ISUPPORTS
 
     DOMAnimatedAngle(nsSVGAngle* aVal, nsSVGElement *aSVGElement)
       : mVal(aVal), mSVGElement(aSVGElement) {}
@@ -197,41 +182,6 @@ public:
     NS_IMETHOD GetAnimVal(nsIDOMSVGAngle **aAnimVal)
       { return mVal->ToDOMAnimVal(aAnimVal, mSVGElement); }
   };
-
-#ifdef MOZ_SMIL
-  // We do not currently implemente a SMILAngle struct because in SVG 1.1 the
-  // only *animatable* attribute that takes an <angle> is 'orient', on the
-  // 'marker' element, and 'orient' must be special cased since it can also
-  // take the value 'auto', making it a more complex type.
-
-  struct SMILOrient : public nsISMILAttr
-  {
-  public:
-    SMILOrient(nsSVGOrientType* aOrientType,
-               nsSVGAngle* aAngle,
-               nsSVGElement* aSVGElement)
-      : mOrientType(aOrientType)
-      , mAngle(aAngle)
-      , mSVGElement(aSVGElement)
-    {}
-
-    // These will stay alive because a nsISMILAttr only lives as long
-    // as the Compositing step, and DOM elements don't get a chance to
-    // die during that.
-    nsSVGOrientType* mOrientType;
-    nsSVGAngle* mAngle;
-    nsSVGElement* mSVGElement;
-
-    // nsISMILAttr methods
-    virtual nsresult ValueFromString(const nsAString& aStr,
-                                     const nsISMILAnimationElement* aSrcElement,
-                                     nsSMILValue& aValue,
-                                     PRBool& aPreventCachingOfSandwich) const;
-    virtual nsSMILValue GetBaseValue() const;
-    virtual void ClearAnimValue();
-    virtual nsresult SetAnimValue(const nsSMILValue& aValue);
-  };
-#endif // MOZ_SMIL
 };
 
 nsresult

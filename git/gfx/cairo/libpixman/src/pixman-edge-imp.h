@@ -20,11 +20,11 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef rasterize_span
+#ifndef rasterizeSpan
 #endif
 
 static void
-RASTERIZE_EDGES (pixman_image_t  *image,
+rasterizeEdges (pixman_image_t  *image,
 		pixman_edge_t	*l,
 		pixman_edge_t	*r,
 		pixman_fixed_t		t,
@@ -49,14 +49,10 @@ RASTERIZE_EDGES (pixman_image_t  *image,
 	rx = r->x;
 #if N_BITS == 1
 	/* For the non-antialiased case, round the coordinates up, in effect
-	 * sampling just slightly to the left of the pixel. This is so that
-	 * when the sample point lies exactly on the line, we round towards
-	 * north-west.
-	 *
-	 * (The AA case does a similar  adjustment in RENDER_SAMPLES_X)
-	 */
-	lx += X_FRAC_FIRST(1) - pixman_fixed_e;
-	rx += X_FRAC_FIRST(1) - pixman_fixed_e;
+	 * sampling the center of the pixel. (The AA case does a similar 
+	 * adjustment in RenderSamplesX) */
+	lx += X_FRAC_FIRST(1);
+	rx += X_FRAC_FIRST(1);
 #endif
 	/* clip X */
 	if (lx < 0)
@@ -82,77 +78,53 @@ RASTERIZE_EDGES (pixman_image_t  *image,
 
 #if N_BITS == 1
 	    {
-
-#define LEFT_MASK(x)							\
-		(((x) & 0x1f) ?						\
-		 SCREEN_SHIFT_RIGHT (0xffffffff, (x) & 0x1f) : 0)
-#define RIGHT_MASK(x)							\
-		(((32 - (x)) & 0x1f) ?					\
-		 SCREEN_SHIFT_LEFT (0xffffffff, (32 - (x)) & 0x1f) : 0)
-		
-#define MASK_BITS(x,w,l,n,r) {						\
-		    n = (w);						\
-		    r = RIGHT_MASK ((x) + n);				\
-		    l = LEFT_MASK (x);					\
-		    if (l) {						\
-			n -= 32 - ((x) & 0x1f);				\
-			if (n < 0) {					\
-			    n = 0;					\
-			    l &= r;					\
-			    r = 0;					\
-			}						\
-		    }							\
-		    n >>= 5;						\
-		}
-		
 		uint32_t  *a = line;
 		uint32_t  startmask;
 		uint32_t  endmask;
 		int	    nmiddle;
 		int	    width = rxi - lxi;
 		int	    x = lxi;
-		
-		a += x >> 5;
-		x &= 0x1f;
-		
-		MASK_BITS (x, width, startmask, nmiddle, endmask);
 
-		if (startmask) {
-		    WRITE(image, a, READ(image, a) | startmask);
-		    a++;
-		}
-		while (nmiddle--)
-		    WRITE(image, a++, 0xffffffff);
-		if (endmask)
-		    WRITE(image, a, READ(image, a) | endmask);
+		a += x >> FB_SHIFT;
+		x &= FB_MASK;
+
+		FbMaskBits (x, width, startmask, nmiddle, endmask);
+		    if (startmask) {
+			WRITE(image, a, READ(image, a) | startmask);
+			a++;
+		    }
+		    while (nmiddle--)
+			WRITE(image, a++, FB_ALLONES);
+		    if (endmask)
+			WRITE(image, a, READ(image, a) | endmask);
 	    }
 #else
 	    {
-		DEFINE_ALPHA(line,lxi);
+		DefineAlpha(line,lxi);
 		int	    lxs;
 		int     rxs;
 
 		/* Sample coverage for edge pixels */
-		lxs = RENDER_SAMPLES_X (lx, N_BITS);
-		rxs = RENDER_SAMPLES_X (rx, N_BITS);
+		lxs = RenderSamplesX (lx, N_BITS);
+		rxs = RenderSamplesX (rx, N_BITS);
 
 		/* Add coverage across row */
 		if (lxi == rxi)
 		{
-		    ADD_ALPHA (rxs - lxs);
+		    AddAlpha (rxs - lxs);
 		}
 		else
 		{
 		    int	xi;
 
-		    ADD_ALPHA (N_X_FRAC(N_BITS) - lxs);
-		    STEP_ALPHA;
+		    AddAlpha (N_X_FRAC(N_BITS) - lxs);
+		    StepAlpha;
 		    for (xi = lxi + 1; xi < rxi; xi++)
 		    {
-			ADD_ALPHA (N_X_FRAC(N_BITS));
-			STEP_ALPHA;
+			AddAlpha (N_X_FRAC(N_BITS));
+			StepAlpha;
 		    }
-		    ADD_ALPHA (rxs);
+		    AddAlpha (rxs);
 		}
 	    }
 #endif
@@ -164,19 +136,19 @@ RASTERIZE_EDGES (pixman_image_t  *image,
 #if N_BITS > 1
 	if (pixman_fixed_frac (y) != Y_FRAC_LAST(N_BITS))
 	{
-	    RENDER_EDGE_STEP_SMALL (l);
-	    RENDER_EDGE_STEP_SMALL (r);
+	    RenderEdgeStepSmall (l);
+	    RenderEdgeStepSmall (r);
 	    y += STEP_Y_SMALL(N_BITS);
 	}
 	else
 #endif
 	{
-	    RENDER_EDGE_STEP_BIG (l);
-	    RENDER_EDGE_STEP_BIG (r);
+	    RenderEdgeStepBig (l);
+	    RenderEdgeStepBig (r);
 	    y += STEP_Y_BIG(N_BITS);
 	    line += stride;
 	}
     }
 }
 
-#undef rasterize_span
+#undef rasterizeSpan

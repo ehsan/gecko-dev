@@ -41,11 +41,11 @@
 #include "nsIMemory.h"
 
 /** NS_NewPipe2 reimplemented, because it's not exported by XPCOM */
-nsresult TP_NewPipe2(nsIAsyncInputStream** input,
+nsresult NS_NewPipe2(nsIAsyncInputStream** input,
                      nsIAsyncOutputStream** output,
                      PRBool nonBlockingInput,
                      PRBool nonBlockingOutput,
-                     PRUint32 segmentSize,
+                     size_t segmentSize,
                      PRUint32 segmentCount,
                      nsIMemory* segmentAlloc)
 {
@@ -113,14 +113,14 @@ nsresult BackwardsAllocator::Init(PRUint32 count, size_t size)
 {
   if (mMemory)
   {
-    fail("allocator already initialized!");
+    printf("FAIL allocator already initialized!\n");
     return NS_ERROR_ALREADY_INITIALIZED;
   }
 
   mMemory = new PRUint8[count * size + count];
   if (!mMemory)
   {
-    fail("failed to allocate mMemory!");
+    printf("FAIL failed to allocate mMemory!\n");
     return NS_ERROR_OUT_OF_MEMORY;
   }
   memset(mMemory, 0, count * size + count);
@@ -183,12 +183,12 @@ NS_IMETHODIMP BackwardsAllocator::IsLowMemory(PRBool* retval)
 nsresult TestBackwardsAllocator()
 {
   const PRUint32 SEGMENT_COUNT = 10;
-  const PRUint32 SEGMENT_SIZE = 10;
+  const size_t SEGMENT_SIZE = 10;
 
   nsRefPtr<BackwardsAllocator> allocator = new BackwardsAllocator();
   if (!allocator)
   {
-    fail("Allocation of BackwardsAllocator failed!");
+    printf("Allocation of BackwardsAllocator failed!\n");
     return NS_ERROR_OUT_OF_MEMORY;
   }
   nsresult rv = allocator->Init(SEGMENT_COUNT, SEGMENT_SIZE);
@@ -197,14 +197,14 @@ nsresult TestBackwardsAllocator()
 
   nsCOMPtr<nsIAsyncInputStream> input;
   nsCOMPtr<nsIAsyncOutputStream> output;
-  rv = TP_NewPipe2(getter_AddRefs(input),
+  rv = NS_NewPipe2(getter_AddRefs(input),
                    getter_AddRefs(output),
                    PR_FALSE,
                    PR_FALSE,
                    SEGMENT_SIZE, SEGMENT_COUNT, allocator); 
   if (NS_FAILED(rv))
   {
-    fail("TP_NewPipe2 failed: %x", rv);
+    printf("FAIL NS_NewPipe2 failed: %x\n", rv);
     return rv;
   }
 
@@ -222,7 +222,7 @@ nsresult TestBackwardsAllocator()
     "9123456789"; // not just a memset, to ensure the allocator works correctly
   if (sizeof(written) < BUFFER_LENGTH)
   {
-    fail("test error with string size");
+    printf("FAIL test error with string size\n");
     return NS_ERROR_FAILURE;
   }
 
@@ -230,8 +230,8 @@ nsresult TestBackwardsAllocator()
   rv = output->Write(written, BUFFER_LENGTH, &writeCount);
   if (NS_FAILED(rv) || writeCount != BUFFER_LENGTH)
   {
-    fail("writing %d bytes (wrote %d bytes) to output failed: %x",
-         BUFFER_LENGTH, writeCount, rv);
+    printf("FAIL writing %d bytes (wrote %d bytes) to output failed: %x\n",
+           BUFFER_LENGTH, writeCount, rv);
     return rv;
   }
 
@@ -240,18 +240,18 @@ nsresult TestBackwardsAllocator()
   rv = input->Read(read, BUFFER_LENGTH, &readCount);
   if (NS_FAILED(rv) || readCount != BUFFER_LENGTH)
   {
-    fail("reading %d bytes (got %d bytes) from input failed: %x",
-         BUFFER_LENGTH, readCount,  rv);
+    printf("FAIL reading %d bytes (got %d bytes) from input failed: %x\n",
+           BUFFER_LENGTH, readCount,  rv);
     return rv;
   }
 
   if (0 != memcmp(written, read, BUFFER_LENGTH))
   {
-    fail("didn't read the written data correctly!");
+    printf("FAIL didn't read the written data correctly!\n");
     return NS_ERROR_FAILURE;
   }
 
-  passed("TestBackwardsAllocator");
+  printf("TestBackwardsAllocator PASSED!\n");
   return NS_OK;
 }
 

@@ -86,7 +86,7 @@ nsSSLStatus::GetCipherName(char** _result)
   if (!mHaveKeyLengthAndCipher)
     return NS_ERROR_NOT_AVAILABLE;
 
-  *_result = ToNewCString(mCipherName);
+  *_result = PL_strdup(mCipherName.get());
 
   return NS_OK;
 }
@@ -255,7 +255,6 @@ nsSSLStatus::nsSSLStatus()
 , mHaveKeyLengthAndCipher(PR_FALSE)
 , mHaveCertErrorBits(PR_FALSE)
 {
-  mCipherName = "";
 }
 
 NS_IMPL_THREADSAFE_ISUPPORTS3(nsSSLStatus, nsISSLStatus, nsISerializable, nsIClassInfo)

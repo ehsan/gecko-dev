@@ -68,19 +68,19 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(Mask)
 NS_IMPL_ADDREF_INHERITED(nsSVGMaskElement,nsSVGMaskElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGMaskElement,nsSVGMaskElementBase)
 
-DOMCI_NODE_DATA(SVGMaskElement, nsSVGMaskElement)
-
-NS_INTERFACE_TABLE_HEAD(nsSVGMaskElement)
-  NS_NODE_INTERFACE_TABLE5(nsSVGMaskElement, nsIDOMNode, nsIDOMElement,
-                           nsIDOMSVGElement, nsIDOMSVGMaskElement,
-                           nsIDOMSVGUnitTypes)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGMaskElement)
+NS_INTERFACE_MAP_BEGIN(nsSVGMaskElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMNode)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGMaskElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGUnitTypes)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGMaskElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGMaskElementBase)
 
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGMaskElement::nsSVGMaskElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsSVGMaskElement::nsSVGMaskElement(nsINodeInfo* aNodeInfo)
   : nsSVGMaskElementBase(aNodeInfo)
 {
 }

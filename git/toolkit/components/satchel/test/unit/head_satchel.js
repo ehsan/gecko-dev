@@ -34,34 +34,45 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-
+ 
 const Ci = Components.interfaces;
 const Cc = Components.classes;
-
-const CURRENT_SCHEMA = 3;
-const PR_HOURS = 60 * 60 * 1000000;
-
-do_get_profile();
-
 var dirSvc = Cc["@mozilla.org/file/directory_service;1"].
              getService(Ci.nsIProperties);
 
-function getDBVersion(dbfile) {
-    var ss = Cc["@mozilla.org/storage/service;1"].
-             getService(Ci.mozIStorageService);
-    var dbConnection = ss.openDatabase(dbfile);
-    var version = dbConnection.schemaVersion;
-    dbConnection.close();
-
-    return version;
+var dirSvc = Cc["@mozilla.org/file/directory_service;1"].
+             getService(Ci.nsIProperties);
+var profileDir = null;
+try {
+  profileDir = dirSvc.get("ProfD", Ci.nsIFile);
+} catch (e) { }
+if (!profileDir) {
+  // Register our own provider for the profile directory.
+  // It will simply return the current directory.
+  var provider = {
+    getFile: function(prop, persistent) {
+      persistent.value = true;
+      if (prop == "ProfD") {
+        return dirSvc.get("CurProcD", Ci.nsILocalFile);
+      }
+      print("*** Throwing trying to get " + prop);
+      throw Cr.NS_ERROR_FAILURE;
+    },
+    QueryInterface: function(iid) {
+      if (iid.equals(Ci.nsIDirectoryProvider) ||
+          iid.equals(Ci.nsISupports)) {
+        return this;
+      }
+      throw Cr.NS_ERROR_NO_INTERFACE;
+    }
+  };
+  dirSvc.QueryInterface(Ci.nsIDirectoryService).registerProvider(provider);
 }
 
-const isGUID = /[A-Za-z0-9\+\/]{16}/;
-
-function getGUIDforID(conn, id) {
-    var stmt = conn.createStatement("SELECT guid from moz_formhistory WHERE id = " + id);
-    stmt.executeStep();
-    var guid = stmt.getString(0);
-    stmt.finalize();
-    return guid;
+function cleanUpFormHist() {
+  var formhistFile = dirSvc.get("ProfD", Ci.nsIFile);
+  formhistFile.append("formhistory.dat");
+  if (formhistFile.exists())
+    formhistFile.remove();
 }
+cleanUpFormHist();

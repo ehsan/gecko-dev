@@ -47,6 +47,7 @@
 #include "nsIDownloadManagerUI.h"
 
 #define PREF_BDM_SHOWWHENSTARTING "browser.download.manager.showWhenStarting"
+#define PREF_BDM_USEWINDOW "browser.download.manager.useWindow"
 #define PREF_BDM_FOCUSWHENSTARTING "browser.download.manager.focusWhenStarting"
 
 class nsDownloadProxy : public nsITransfer
@@ -82,7 +83,11 @@ public:
     if (branch)
       branch->GetBoolPref(PREF_BDM_SHOWWHENSTARTING, &showDM);
 
-    if (showDM) {
+    PRBool useWindow = PR_TRUE;
+    if (branch)
+      branch->GetBoolPref(PREF_BDM_USEWINDOW, &useWindow);
+    
+    if (showDM && useWindow) {
       PRUint32 id;
       mInner->GetId(&id);
 
@@ -94,12 +99,12 @@ public:
       rv = dmui->GetVisible(&visible);
       NS_ENSURE_SUCCESS(rv, rv);
 
-      PRBool focusWhenStarting = PR_TRUE;
+      PRBool focus = PR_TRUE;
       if (branch)
-        (void)branch->GetBoolPref(PREF_BDM_FOCUSWHENSTARTING, &focusWhenStarting);
+        (void)branch->GetBoolPref(PREF_BDM_FOCUSWHENSTARTING, &focus);
 
-      if (visible && !focusWhenStarting)
-        return NS_OK;
+      if (visible && !focus)
+        return dmui->GetAttention();
 
       return dmui->Show(nsnull, id, nsIDownloadManagerUI::REASON_NEW_DOWNLOAD);
     }

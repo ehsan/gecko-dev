@@ -37,6 +37,7 @@
 
 #include "nsPrefetchService.h"
 #include "nsICacheSession.h"
+#include "nsIOfflineCacheSession.h"
 #include "nsICacheService.h"
 #include "nsIServiceManager.h"
 #include "nsICategoryManager.h"
@@ -60,7 +61,6 @@
 #include "prtime.h"
 #include "prlog.h"
 #include "plstr.h"
-#include "nsIAsyncVerifyRedirectCallback.h"
 
 #if defined(PR_LOGGING)
 //
@@ -104,7 +104,9 @@ class nsPrefetchQueueEnumerator : public nsISimpleEnumerator
 public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSISIMPLEENUMERATOR
-    nsPrefetchQueueEnumerator(nsPrefetchService *aService);
+    nsPrefetchQueueEnumerator(nsPrefetchService *aService,
+                              PRBool aIncludeNormal,
+                              PRBool aIncludeOffline);
     ~nsPrefetchQueueEnumerator();
 
 private:
@@ -112,14 +114,20 @@ private:
 
     nsRefPtr<nsPrefetchService> mService;
     nsRefPtr<nsPrefetchNode> mCurrent;
+    PRBool mIncludeNormal;
+    PRBool mIncludeOffline;
     PRBool mStarted;
 };
 
 //-----------------------------------------------------------------------------
 // nsPrefetchQueueEnumerator <public>
 //-----------------------------------------------------------------------------
-nsPrefetchQueueEnumerator::nsPrefetchQueueEnumerator(nsPrefetchService *aService)
+nsPrefetchQueueEnumerator::nsPrefetchQueueEnumerator(nsPrefetchService *aService,
+                                                     PRBool aIncludeNormal,
+                                                     PRBool aIncludeOffline)
     : mService(aService)
+    , mIncludeNormal(aIncludeNormal)
+    , mIncludeOffline(aIncludeOffline)
     , mStarted(PR_FALSE)
 {
     Increment();
@@ -158,28 +166,29 @@ nsPrefetchQueueEnumerator::GetNext(nsISupports **aItem)
 void
 nsPrefetchQueueEnumerator::Increment()
 {
-  if (!mStarted) {
-    // If the service is currently serving a request, it won't be in
-    // the pending queue, so we return it first.  If it isn't, we'll
-    // just start with the pending queue.
-    mStarted = PR_TRUE;
-    mCurrent = mService->GetCurrentNode();
-    if (!mCurrent)
-      mCurrent = mService->GetQueueHead();
-    return;
-  }
-
-  if (mCurrent) {
-    if (mCurrent == mService->GetCurrentNode()) {
-      // If we just returned the node being processed by the service,
-      // start with the pending queue
-      mCurrent = mService->GetQueueHead();
-    }
-    else {
-      // Otherwise just advance to the next item in the queue
-      mCurrent = mCurrent->mNext;
-    }
-  }
+    do {
+        if (!mStarted) {
+            // If the service is currently serving a request, it won't be
+            // in the pending queue, so we return it first.  If it isn't,
+            // we'll just start with the pending queue.
+            mStarted = PR_TRUE;
+            mCurrent = mService->GetCurrentNode();
+            if (!mCurrent)
+                mCurrent = mService->GetQueueHead();
+        }
+        else if (mCurrent) {
+            if (mCurrent == mService->GetCurrentNode()) {
+                // If we just returned the node being processed by the service,
+                // start with the pending queue
+                mCurrent = mService->GetQueueHead();
+            }
+            else {
+                // Otherwise just advance to the next item in the queue
+                mCurrent = mCurrent->mNext;
+            }
+        }
+    } while (mCurrent && mIncludeOffline != mCurrent->mOffline &&
+             mIncludeNormal == mCurrent->mOffline);
 }
 
 //-----------------------------------------------------------------------------
@@ -195,10 +204,12 @@ NS_IMPL_ISUPPORTS1(nsPrefetchQueueEnumerator, nsISimpleEnumerator)
 nsPrefetchNode::nsPrefetchNode(nsPrefetchService *aService,
                                nsIURI *aURI,
                                nsIURI *aReferrerURI,
-                               nsIDOMNode *aSource)
+                               nsIDOMNode *aSource,
+                               PRBool aOffline)
     : mNext(nsnull)
     , mURI(aURI)
     , mReferrerURI(aReferrerURI)
+    , mOffline(aOffline)
     , mService(aService)
     , mChannel(nsnull)
     , mState(nsIDOMLoadStatus::UNINITIALIZED)
@@ -224,8 +235,19 @@ nsPrefetchNode::OpenChannel()
         httpChannel->SetReferrer(mReferrerURI);
         httpChannel->SetRequestHeader(
             NS_LITERAL_CSTRING("X-Moz"),
+            mOffline ?
+            NS_LITERAL_CSTRING("offline-resource") :
             NS_LITERAL_CSTRING("prefetch"),
             PR_FALSE);
+    }
+
+    if (mOffline) {
+        nsCOMPtr<nsICachingChannel> cachingChannel =
+            do_QueryInterface(mChannel);
+        if (cachingChannel) {
+            rv = cachingChannel->SetCacheForOfflineUse(PR_TRUE);
+            NS_ENSURE_SUCCESS(rv, rv);
+        }
     }
 
     rv = mChannel->AsyncOpen(this, nsnull);
@@ -272,33 +294,39 @@ nsPrefetchNode::OnStartRequest(nsIRequest *aRequest,
         do_QueryInterface(aRequest, &rv);
     if (NS_FAILED(rv)) return rv;
 
-    // no need to prefetch a document that is already in the cache
-    PRBool fromCache;
-    if (NS_SUCCEEDED(cachingChannel->IsFromCache(&fromCache)) &&
-        fromCache) {
-        LOG(("document is already in the cache; canceling prefetch\n"));
-        return NS_BINDING_ABORTED;
-    }
-
-    //
-    // no need to prefetch a document that must be requested fresh each
-    // and every time.
-    //
-    nsCOMPtr<nsISupports> cacheToken;
-    cachingChannel->GetCacheToken(getter_AddRefs(cacheToken));
-    if (!cacheToken)
-        return NS_ERROR_ABORT; // bail, no cache entry
-
-    nsCOMPtr<nsICacheEntryInfo> entryInfo =
-        do_QueryInterface(cacheToken, &rv);
+    PRBool cacheForOfflineUse;
+    rv = cachingChannel->GetCacheForOfflineUse(&cacheForOfflineUse);
     if (NS_FAILED(rv)) return rv;
 
-    PRUint32 expTime;
-    if (NS_SUCCEEDED(entryInfo->GetExpirationTime(&expTime))) {
-        if (NowInSeconds() >= expTime) {
-            LOG(("document cannot be reused from cache; "
-                 "canceling prefetch\n"));
+    if (!cacheForOfflineUse) {
+        // no need to prefetch a document that is already in the cache
+        PRBool fromCache;
+        if (NS_SUCCEEDED(cachingChannel->IsFromCache(&fromCache)) &&
+            fromCache) {
+            LOG(("document is already in the cache; canceling prefetch\n"));
             return NS_BINDING_ABORTED;
+        }
+
+        //
+        // no need to prefetch a document that must be requested fresh each
+        // and every time.
+        //
+        nsCOMPtr<nsISupports> cacheToken;
+        cachingChannel->GetCacheToken(getter_AddRefs(cacheToken));
+        if (!cacheToken)
+            return NS_ERROR_ABORT; // bail, no cache entry
+
+        nsCOMPtr<nsICacheEntryInfo> entryInfo =
+            do_QueryInterface(cacheToken, &rv);
+        if (NS_FAILED(rv)) return rv;
+
+        PRUint32 expTime;
+        if (NS_SUCCEEDED(entryInfo->GetExpirationTime(&expTime))) {
+            if (NowInSeconds() >= expTime) {
+                LOG(("document cannot be reused from cache; "
+                     "canceling prefetch\n"));
+                return NS_BINDING_ABORTED;
+            }
         }
     }
 
@@ -364,25 +392,33 @@ nsPrefetchNode::GetInterface(const nsIID &aIID, void **aResult)
 //-----------------------------------------------------------------------------
 
 NS_IMETHODIMP
-nsPrefetchNode::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
-                                       nsIChannel *aNewChannel,
-                                       PRUint32 aFlags,
-                                       nsIAsyncVerifyRedirectCallback *callback)
+nsPrefetchNode::OnChannelRedirect(nsIChannel *aOldChannel,
+                                  nsIChannel *aNewChannel,
+                                  PRUint32 aFlags)
 {
     nsCOMPtr<nsIURI> newURI;
     nsresult rv = aNewChannel->GetURI(getter_AddRefs(newURI));
     if (NS_FAILED(rv))
         return rv;
 
+    PRBool offline;
     nsCOMPtr<nsICachingChannel> oldCachingChannel =
         do_QueryInterface(aOldChannel);
+    if (NS_SUCCEEDED(oldCachingChannel->GetCacheForOfflineUse(&offline)) &&
+        offline) {
+        nsCOMPtr<nsICachingChannel> newCachingChannel =
+            do_QueryInterface(aOldChannel);
+        if (newCachingChannel)
+            newCachingChannel->SetCacheForOfflineUse(PR_TRUE);
+    }
 
     PRBool match;
     rv = newURI->SchemeIs("http", &match); 
     if (NS_FAILED(rv) || !match) {
-        rv = newURI->SchemeIs("https", &match); 
-        if (NS_FAILED(rv) || !match) {
-            LOG(("rejected: URL is not of type http/https\n"));
+        if (!offline ||
+            NS_FAILED(newURI->SchemeIs("https", &match)) ||
+            !match) {
+            LOG(("rejected: URL is not of type http\n"));
             return NS_ERROR_ABORT;
         }
     }
@@ -392,12 +428,13 @@ nsPrefetchNode::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
     NS_ENSURE_STATE(httpChannel);
 
     httpChannel->SetRequestHeader(NS_LITERAL_CSTRING("X-Moz"),
-                                  NS_LITERAL_CSTRING("prefetch"),
+                                  offline ?
+                                      NS_LITERAL_CSTRING("offline-resource") :
+                                      NS_LITERAL_CSTRING("prefetch"),
                                   PR_FALSE);
 
     mChannel = aNewChannel;
 
-    callback->OnRedirectVerifyCallback(NS_OK);
     return NS_OK;
 }
 
@@ -412,6 +449,7 @@ nsPrefetchService::nsPrefetchService()
     , mStopCount(0)
     , mHaveProcessed(PR_FALSE)
     , mDisabled(PR_TRUE)
+    , mFetchedOffline(PR_FALSE)
 {
 }
 
@@ -419,7 +457,7 @@ nsPrefetchService::~nsPrefetchService()
 {
     // cannot reach destructor if prefetch in progress (listener owns reference
     // to this service)
-    EmptyQueue();
+    EmptyQueue(PR_TRUE);
 }
 
 nsresult
@@ -444,13 +482,12 @@ nsPrefetchService::Init()
     }
 
     // Observe xpcom-shutdown event
-    nsCOMPtr<nsIObserverService> observerService =
-      mozilla::services::GetObserverService();
-    if (!observerService)
-      return NS_ERROR_FAILURE;
+    nsCOMPtr<nsIObserverService> observerServ(
+            do_GetService("@mozilla.org/observer-service;1", &rv));
+    if (NS_FAILED(rv)) return rv;
 
-    rv = observerService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_TRUE);
-    NS_ENSURE_SUCCESS(rv, rv);
+    rv = observerServ->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_TRUE);
+    if (NS_FAILED(rv)) return rv;
 
     if (!mDisabled)
         AddProgressListener();
@@ -468,6 +505,18 @@ nsPrefetchService::ProcessNextURI()
 
     do {
         rv = DequeueNode(getter_AddRefs(mCurrentNode));
+        if (rv == NS_ERROR_NOT_AVAILABLE && mFetchedOffline) {
+            // done loading stuff, go ahead and evict unowned entries from
+            // the offline cache
+            mFetchedOffline = PR_FALSE;
+
+            nsCOMPtr<nsIOfflineCacheSession> session;
+            rv = GetOfflineCacheSession(getter_AddRefs(session));
+            if (NS_FAILED(rv)) break;
+
+            session->EvictUnownedEntries();
+            break;
+        }
 
         if (NS_FAILED(rv)) break;
 
@@ -483,6 +532,8 @@ nsPrefetchService::ProcessNextURI()
         // if opening the channel fails, then just skip to the next uri
         //
         rv = mCurrentNode->OpenChannel();
+        if (NS_SUCCEEDED(rv) && mCurrentNode->mOffline)
+            mFetchedOffline = PR_TRUE;
     }
     while (NS_FAILED(rv));
 }
@@ -490,25 +541,33 @@ nsPrefetchService::ProcessNextURI()
 void
 nsPrefetchService::NotifyLoadRequested(nsPrefetchNode *node)
 {
+    nsresult rv;
+
     nsCOMPtr<nsIObserverService> observerService =
-      mozilla::services::GetObserverService();
-    if (!observerService)
-      return;
+        do_GetService("@mozilla.org/observer-service;1", &rv);
+    if (NS_FAILED(rv)) return;
+
+    const char *topic = node->mOffline ? "offline-load-requested" :
+                                         "prefetch-load-requested";
 
     observerService->NotifyObservers(static_cast<nsIDOMLoadStatus*>(node),
-                                     "prefetch-load-requested", nsnull);
+                                     topic, nsnull);
 }
 
 void
 nsPrefetchService::NotifyLoadCompleted(nsPrefetchNode *node)
 {
+    nsresult rv;
+
     nsCOMPtr<nsIObserverService> observerService =
-      mozilla::services::GetObserverService();
-    if (!observerService)
-      return;
+        do_GetService("@mozilla.org/observer-service;1", &rv);
+    if (NS_FAILED(rv)) return;
+
+    const char *topic = node->mOffline ? "offline-load-completed" :
+                                         "prefetch-load-completed";
 
     observerService->NotifyObservers(static_cast<nsIDOMLoadStatus*>(node),
-                                     "prefetch-load-completed", nsnull);
+                                     topic, nsnull);
 }
 
 //-----------------------------------------------------------------------------
@@ -556,10 +615,11 @@ nsresult
 nsPrefetchService::EnqueueURI(nsIURI *aURI,
                               nsIURI *aReferrerURI,
                               nsIDOMNode *aSource,
+                              PRBool aOffline,
                               nsPrefetchNode **aNode)
 {
     nsPrefetchNode *node = new nsPrefetchNode(this, aURI, aReferrerURI,
-                                              aSource);
+                                              aSource, aOffline);
     if (!node)
         return NS_ERROR_OUT_OF_MEMORY;
 
@@ -586,12 +646,50 @@ nsPrefetchService::DequeueNode(nsPrefetchNode **node)
 }
 
 void
-nsPrefetchService::EmptyQueue()
+nsPrefetchService::EmptyQueue(PRBool includeOffline)
 {
-    do {
-        nsRefPtr<nsPrefetchNode> node;
-        DequeueNode(getter_AddRefs(node));
-    } while (mQueueHead);
+    nsPrefetchNode *prev = 0;
+    nsPrefetchNode *node = mQueueHead;
+
+    while (node) {
+        nsPrefetchNode *next = node->mNext;
+        if (includeOffline || !node->mOffline) {
+            if (prev)
+                prev->mNext = next;
+            else
+                mQueueHead = next;
+            NS_RELEASE(node);
+        }
+        else
+            prev = node;
+
+        node = next;
+    }
+}
+
+nsresult
+nsPrefetchService::GetOfflineCacheSession(nsIOfflineCacheSession **aSession)
+{
+    if (!mOfflineCacheSession) {
+        nsresult rv;
+        nsCOMPtr<nsICacheService> serv =
+            do_GetService(NS_CACHESERVICE_CONTRACTID,
+                          &rv);
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        nsCOMPtr<nsICacheSession> session;
+        rv = serv->CreateSession("HTTP-offline",
+                                 nsICache::STORE_OFFLINE,
+                                 nsICache::STREAM_BASED,
+                                 getter_AddRefs(session));
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        mOfflineCacheSession = do_QueryInterface(session, &rv);
+        NS_ENSURE_SUCCESS(rv, rv);
+    }
+
+    NS_ADDREF(*aSession = mOfflineCacheSession);
+    return NS_OK;
 }
 
 void
@@ -627,9 +725,14 @@ nsPrefetchService::StopPrefetching()
     if (!mCurrentNode)
         return;
 
+    // if it's an offline prefetch, requeue it for when prefetching starts
+    // again
+    if (mCurrentNode->mOffline)
+        EnqueueNode(mCurrentNode);
+
     mCurrentNode->CancelChannel(NS_BINDING_ABORTED);
     mCurrentNode = nsnull;
-    EmptyQueue();
+    EmptyQueue(PR_FALSE);
 }
 
 //-----------------------------------------------------------------------------
@@ -650,7 +753,8 @@ nsresult
 nsPrefetchService::Prefetch(nsIURI *aURI,
                             nsIURI *aReferrerURI,
                             nsIDOMNode *aSource,
-                            PRBool aExplicit)
+                            PRBool aExplicit,
+                            PRBool aOffline)
 {
     nsresult rv;
 
@@ -684,9 +788,13 @@ nsPrefetchService::Prefetch(nsIURI *aURI,
     PRBool match;
     rv = aURI->SchemeIs("http", &match); 
     if (NS_FAILED(rv) || !match) {
-        rv = aURI->SchemeIs("https", &match); 
+        if (aOffline) {
+            // Offline https urls can be prefetched
+            rv = aURI->SchemeIs("https", &match);
+        }
+
         if (NS_FAILED(rv) || !match) {
-            LOG(("rejected: URL is not of type http/https\n"));
+            LOG(("rejected: URL is not of type http\n"));
             return NS_ERROR_ABORT;
         }
     }
@@ -696,9 +804,13 @@ nsPrefetchService::Prefetch(nsIURI *aURI,
     //
     rv = aReferrerURI->SchemeIs("http", &match);
     if (NS_FAILED(rv) || !match) {
-        rv = aReferrerURI->SchemeIs("https", &match);
+        if (aOffline) {
+            // Offline https urls can be prefetched
+            rv = aURI->SchemeIs("https", &match);
+        }
+
         if (NS_FAILED(rv) || !match) {
-            LOG(("rejected: referrer URL is neither http nor https\n"));
+            LOG(("rejected: referrer URL is not of type http\n"));
             return NS_ERROR_ABORT;
         }
     }
@@ -722,8 +834,12 @@ nsPrefetchService::Prefetch(nsIURI *aURI,
     if (mCurrentNode) {
         PRBool equals;
         if (NS_SUCCEEDED(mCurrentNode->mURI->Equals(aURI, &equals)) && equals) {
-            LOG(("rejected: URL is already being prefetched\n"));
-            return NS_ERROR_ABORT;
+            // We may still need to put it on the queue if the channel
+            // isn't fetching to the offline cache
+            if (!aOffline || mCurrentNode->mOffline) {
+                LOG(("rejected: URL is already being prefetched\n"));
+                return NS_ERROR_ABORT;
+            }
         }
     }
 
@@ -734,13 +850,17 @@ nsPrefetchService::Prefetch(nsIURI *aURI,
     for (; node; node = node->mNext) {
         PRBool equals;
         if (NS_SUCCEEDED(node->mURI->Equals(aURI, &equals)) && equals) {
+            if (aOffline) {
+                // make sure the node is placed in the offline cache
+                node->mOffline = PR_TRUE;
+            }
             LOG(("rejected: URL is already on prefetch queue\n"));
             return NS_ERROR_ABORT;
         }
     }
 
     nsRefPtr<nsPrefetchNode> enqueuedNode;
-    rv = EnqueueURI(aURI, aReferrerURI, aSource,
+    rv = EnqueueURI(aURI, aReferrerURI, aSource, aOffline,
                     getter_AddRefs(enqueuedNode));
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -759,7 +879,7 @@ nsPrefetchService::PrefetchURI(nsIURI *aURI,
                                nsIDOMNode *aSource,
                                PRBool aExplicit)
 {
-    return Prefetch(aURI, aReferrerURI, aSource, aExplicit);
+    return Prefetch(aURI, aReferrerURI, aSource, aExplicit, PR_FALSE);
 }
 
 NS_IMETHODIMP
@@ -768,7 +888,7 @@ nsPrefetchService::PrefetchURIForOfflineUse(nsIURI *aURI,
                                             nsIDOMNode *aSource,
                                             PRBool aExplicit)
 {
-    return NS_ERROR_NOT_IMPLEMENTED;
+    return Prefetch(aURI, aReferrerURI, aSource, aExplicit, PR_TRUE);
 }
 
 NS_IMETHODIMP
@@ -776,10 +896,9 @@ nsPrefetchService::EnumerateQueue(PRBool aIncludeNormalItems,
                                   PRBool aIncludeOfflineItems,
                                   nsISimpleEnumerator **aEnumerator)
 {
-    NS_ENSURE_TRUE(aIncludeNormalItems && !aIncludeOfflineItems,
-                   NS_ERROR_NOT_IMPLEMENTED);
-
-    *aEnumerator = new nsPrefetchQueueEnumerator(this);
+    *aEnumerator = new nsPrefetchQueueEnumerator(this,
+                                                 aIncludeNormalItems,
+                                                 aIncludeOfflineItems);
     if (!*aEnumerator) return NS_ERROR_OUT_OF_MEMORY;
 
     NS_ADDREF(*aEnumerator);
@@ -944,7 +1063,6 @@ nsPrefetchService::Observe(nsISupports     *aSubject,
 
     if (!strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) {
         StopPrefetching();
-        EmptyQueue();
         mDisabled = PR_TRUE;
     }
     else if (!strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID)) {
@@ -962,7 +1080,6 @@ nsPrefetchService::Observe(nsISupports     *aSubject,
             if (!mDisabled) {
                 LOG(("disabling prefetching\n"));
                 StopPrefetching();
-                EmptyQueue();
                 mDisabled = PR_TRUE;
                 RemoveProgressListener();
             }

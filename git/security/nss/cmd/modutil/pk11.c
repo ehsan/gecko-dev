@@ -293,16 +293,16 @@ AddModule(char *moduleName, char *libFile, char *cipherString,
 	char* errtxt=NULL;
 	PRInt32 copied = 0;
 	if (PR_GetErrorTextLength()) {
-	    errtxt = PR_Malloc(PR_GetErrorTextLength() + 1);
+	    errtxt = PR_Malloc(PR_GetErrorTextLength());
 	    copied = PR_GetErrorText(errtxt);
 	}
 	if (copied && errtxt) {
-	    PR_fprintf(PR_STDERR, errStrings[ADD_MODULE_FAILED_ERR], 
+	    PR_fprintf(PR_STDERR, errStrings[ADD_MODULE_FAILED_STATUS_ERR], 
 		       moduleName, errtxt);
 	    PR_Free(errtxt);
 	} else {
 	    PR_fprintf(PR_STDERR, errStrings[ADD_MODULE_FAILED_ERR], 
-		       moduleName, SECU_Strerror(PORT_GetError()));
+		       moduleName);
 	}
 	return ADD_MODULE_FAILED_ERR;
     } else {
@@ -682,6 +682,8 @@ ChangePW(char *tokenName, char *pwFile, char *newpwFile)
 	PR_fprintf(PR_STDERR, errStrings[NO_SUCH_TOKEN_ERR], tokenName);
 	return NO_SUCH_TOKEN_ERR;
     }
+
+    PK11_SetPasswordFunc(SECU_GetModulePassword);
 
     /* Get old password */
     if(! PK11_NeedUserInit(slot)) {

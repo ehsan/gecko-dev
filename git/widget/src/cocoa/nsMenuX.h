@@ -39,98 +39,126 @@
 #ifndef nsMenuX_h_
 #define nsMenuX_h_
 
+#include "nsCOMPtr.h"
+#include "nsAutoPtr.h"
+#include "nsIMenu.h"
+#include "nsChangeObserver.h"
+#include "nsMenuBarX.h"
+
+#import <Carbon/Carbon.h>
 #import <Cocoa/Cocoa.h>
 
-#include "nsMenuBaseX.h"
-#include "nsMenuBarX.h"
-#include "nsMenuGroupOwnerX.h"
-#include "nsCOMPtr.h"
-#include "nsChangeObserver.h"
-#include "nsAutoPtr.h"
 
+class nsIMenuBar;
 class nsMenuX;
 class nsMenuItemIconX;
-class nsMenuItemX;
-class nsIWidget;
 
-// MenuDelegate is used to receive Cocoa notifications for setting
-// up carbon events. Protocol is defined as of 10.6 SDK.
-#if defined(MAC_OS_X_VERSION_10_6) && (MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_6)
-@interface MenuDelegate : NSObject < NSMenuDelegate >
-#else
+
+// MenuDelegate is used to receive Cocoa notifications for
+// setting up carbon events
 @interface MenuDelegate : NSObject
-#endif
 {
   nsMenuX* mGeckoMenu; // weak ref
+  EventHandlerRef mEventHandler;
+  BOOL mHaveInstalledCarbonEvents;
 }
 - (id)initWithGeckoMenu:(nsMenuX*)geckoMenu;
 @end
 
-// Once instantiated, this object lives until its DOM node or its parent window is destroyed.
-// Do not hold references to this, they can become invalid any time the DOM node can be destroyed.
-class nsMenuX : public nsMenuObjectX,
+
+class nsMenuX : public nsIMenu,
                 public nsChangeObserver
 {
 public:
-  nsMenuX();
-  virtual ~nsMenuX();
+    nsMenuX();
+    virtual ~nsMenuX();
 
-  // If > 0, the OS is indexing all the app's menus (triggered by opening
-  // Help menu on Leopard and higher).  There are some things that are
-  // unsafe to do while this is happening.
-  static PRInt32 sIndexingMenuLevel;
+    // If > 0, the OS is indexing all the app's menus (triggered by opening
+    // Help menu on Leopard and higher).  There are some things that are
+    // unsafe to do while this is happening.
+    static PRInt32 sIndexingMenuLevel;
 
-  NS_DECL_CHANGEOBSERVER
+    NS_DECL_ISUPPORTS
+    NS_DECL_CHANGEOBSERVER
 
-  // nsMenuObjectX
-  void*             NativeData()     {return (void*)mNativeMenu;}
-  nsMenuObjectTypeX MenuObjectType() {return eSubmenuObjectType;}
+    id GetNativeMenuItem();
 
-  // nsMenuX
-  nsresult       Create(nsMenuObjectX* aParent, nsMenuGroupOwnerX* aMenuGroupOwner, nsIContent* aNode);
-  PRUint32       GetItemCount();
-  nsMenuObjectX* GetItemAt(PRUint32 aPos);
-  nsresult       GetVisibleItemCount(PRUint32 &aCount);
-  nsMenuObjectX* GetVisibleItemAt(PRUint32 aPos);
-  nsEventStatus  MenuOpened();
-  void           MenuClosed();
-  void           SetRebuild(PRBool aMenuEvent);
-  NSMenuItem*    NativeMenuItem();
+    // nsIMenu Methods
+    NS_IMETHOD Create(nsISupports * aParent, const nsAString &aLabel, const nsAString &aAccessKey, 
+                      nsMenuBarX* aMenuBar, nsIContent* aNode);
+    NS_IMETHOD GetParent(nsISupports *&aParent);
+    NS_IMETHOD GetLabel(nsString &aText);
+    NS_IMETHOD SetLabel(const nsAString &aText);
+    NS_IMETHOD GetAccessKey(nsString &aText);
+    NS_IMETHOD SetAccessKey(const nsAString &aText);
+    NS_IMETHOD AddItem(nsISupports* aText);
+    NS_IMETHOD GetItemCount(PRUint32 &aCount);
+    NS_IMETHOD GetItemAt(const PRUint32 aPos, nsISupports *& aMenuItem);
+    NS_IMETHOD GetVisibleItemCount(PRUint32 &aCount);
+    NS_IMETHOD GetVisibleItemAt(const PRUint32 aPos, nsISupports *& aMenuItem);
+    NS_IMETHOD InsertItemAt(const PRUint32 aPos, nsISupports * aMenuItem);
+    NS_IMETHOD RemoveItem(const PRUint32 aPos);
+    NS_IMETHOD RemoveAll();
+    NS_IMETHOD GetNativeData(void** aData);
+    NS_IMETHOD SetNativeData(void* aData);
+    NS_IMETHOD GetMenuContent(nsIContent ** aMenuNode);
+    NS_IMETHOD SetEnabled(PRBool aIsEnabled);
+    NS_IMETHOD GetEnabled(PRBool* aIsEnabled);
 
-  static PRBool  IsXULHelpMenu(nsIContent* aMenuContent);
+    NS_IMETHOD ChangeNativeEnabledStatusForMenuItem(nsIMenuItem* aMenuItem, PRBool aEnabled);
+    NS_IMETHOD GetMenuRefAndItemIndexForMenuItem(nsISupports* aMenuItem,
+                                                 void**       aMenuRef,
+                                                 PRUint16*    aMenuItemIndex);
+    NS_IMETHOD SetupIcon();
+    nsEventStatus MenuSelected(const nsMenuEvent & aMenuEvent); 
+    void MenuDeselected(const nsMenuEvent & aMenuEvent); 
+    void MenuConstruct(const nsMenuEvent & aMenuEvent, nsIWidget * aParentWindow, void * aMenuNode);
+    void MenuDestruct(const nsMenuEvent & aMenuEvent);
+    void SetRebuild(PRBool aMenuEvent);
 
 protected:
-  void           MenuConstruct();
-  nsresult       RemoveAll();
-  nsresult       SetEnabled(PRBool aIsEnabled);
-  nsresult       GetEnabled(PRBool* aIsEnabled);
-  nsresult       SetupIcon();
-  void           GetMenuPopupContent(nsIContent** aResult);
-  PRBool         OnOpen();
-  PRBool         OnClose();
-  nsresult       AddMenuItem(nsMenuItemX* aMenuItem);
-  nsresult       AddMenu(nsMenuX* aMenu);
-  void           LoadMenuItem(nsIContent* inMenuItemContent);  
-  void           LoadSubMenu(nsIContent* inMenuContent);
-  GeckoNSMenu*   CreateMenuWithGeckoString(nsString& menuTitle);
+    // Determines how many menus are visible among the siblings that are before me.
+    // It doesn't matter if I am visible.
+    nsresult CountVisibleBefore(PRUint32* outVisibleBefore);
 
-  nsTArray< nsAutoPtr<nsMenuObjectX> > mMenuObjectsArray;
-  nsString                  mLabel;
-  PRUint32                  mVisibleItemsCount; // cache
-  nsMenuObjectX*            mParent; // [weak]
-  nsMenuGroupOwnerX*        mMenuGroupOwner; // [weak]
-  // The icon object should never outlive its creating nsMenuX object.
-  nsRefPtr<nsMenuItemIconX> mIcon;
-  GeckoNSMenu*              mNativeMenu; // [strong]
-  MenuDelegate*             mMenuDelegate; // [strong]
-  // nsMenuX objects should always have a valid native menu item.
-  NSMenuItem*               mNativeMenuItem; // [strong]
-  PRPackedBool              mIsEnabled;
-  PRPackedBool              mDestroyHandlerCalled;
-  PRPackedBool              mNeedsRebuild;
-  PRPackedBool              mConstructed;
-  PRPackedBool              mVisible;
-  PRPackedBool              mXBLAttached;
+    // fetch the content node associated with the menupopup item
+    void GetMenuPopupContent(nsIContent** aResult);
+    
+    // fire handlers for oncreate/ondestroy
+    PRBool OnDestroy();
+    PRBool OnCreate();
+    PRBool OnDestroyed();
+    PRBool OnCreated();
+
+    nsresult AddMenuItem(nsIMenuItem * aMenuItem);
+    nsresult AddMenu(nsIMenu * aMenu);
+
+    void LoadMenuItem(nsIContent* inMenuItemContent);  
+    void LoadSubMenu(nsIContent* inMenuContent);
+
+    GeckoNSMenu* CreateMenuWithGeckoString(nsString& menuTitle);
+
+protected:
+    nsString                    mLabel;
+    nsCOMArray<nsISupports>     mMenuItemsArray;
+    PRUint32                    mVisibleItemsCount;     // caching number of visible items in mMenuItemsArray
+
+    nsISupports*                mParent;                // weak, my parent owns me
+    nsMenuBarX*                 mMenuBar;               // weak ref, it will outlive us
+    nsCOMPtr<nsIContent>        mMenuContent;           // the |menu| tag, strong ref
+    nsRefPtr<nsMenuItemIconX>   mIcon;
+
+    // Mac specific
+    PRInt16                     mMacMenuID;
+    GeckoNSMenu*                mMacMenu;               // strong ref, we own it
+    MenuDelegate*               mMenuDelegate;          // strong ref, we keep this around to get events for us
+    NSMenuItem*                 mNativeMenuItem;        // strong ref, we own
+    PRPackedBool                mIsEnabled;
+    PRPackedBool                mDestroyHandlerCalled;
+    PRPackedBool                mNeedsRebuild;
+    PRPackedBool                mConstructed;
+    PRPackedBool                mVisible;               // are we visible to the user?
+    PRPackedBool                mXBLAttached;
 };
 
 #endif // nsMenuX_h_

@@ -54,6 +54,7 @@ EXPORTS		=				\
 		nsDependentString.h		\
 		nsDependentSubstring.h		\
 		nsLiteralString.h		\
+		nsObsoleteAString.h		\
 		nsPrintfCString.h		\
 		nsPromiseFlatString.h		\
 		nsReadableUtils.h		\
@@ -63,8 +64,10 @@ EXPORTS		=				\
 		nsStringIterator.h		\
 		nsSubstring.h			\
 		nsSubstringTuple.h		\
+		nsTAString.h			\
 		nsTDependentString.h		\
 		nsTDependentSubstring.h		\
+		nsTObsoleteAString.h		\
 		nsTPromiseFlatString.h		\
 		nsTString.h			\
 		nsTSubstring.h			\
