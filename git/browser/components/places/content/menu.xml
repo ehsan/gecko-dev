@@ -53,8 +53,7 @@
         <xul:vbox class="menupopup-drop-indicator-bar" hidden="true">
           <xul:image class="menupopup-drop-indicator" mousethrough="always"/>
         </xul:vbox>
-        <xul:arrowscrollbox class="popup-internal-box" flex="1" orient="vertical"
-                            smoothscroll="false">
+        <xul:arrowscrollbox class="popup-internal-box" flex="1" orient="vertical">
           <children/>
         </xul:arrowscrollbox>
       </xul:hbox>
@@ -624,7 +623,8 @@
         <parameter name="aParentPopup"/>
         <parameter name="aBefore"/>
         <body><![CDATA[
-          let element = PlacesUIUtils.createMenuItemForNode(aChild);
+          var element = PlacesUIUtils.createMenuItemForNode(aChild);
+
           if (aBefore)
             aParentPopup.insertBefore(element, aBefore);
           else {
@@ -641,28 +641,6 @@
 
           if (aParentPopup._endMarker != -1)
             aParentPopup._endMarker++;
-
-#ifdef XP_MACOSX
-          // Bug 529062:
-          // We rely on the menu* bindings, but those aren't never applied
-          // in native mac menus, for elements which are added to the document
-          // through appendChild / insertBefore.
-          if (this.parentNode.parentNode.localName != "menubar")
-            return;
-
-          function applyBinding(elm) {
-            // getPropertyCSSValue is semi-deprecared, but there's no
-            // alternative for parsing css_uri values reliably.
-            let elmBindingURI = window.getComputedStyle(element, "")
-                                      .getPropertyCSSValue("-moz-binding");
-            if (elmBindingURI.primitiveType == CSSPrimitiveValue.CSS_URI)
-              document.addBinding(elm, elmBindingURI.getStringValue());
-          }
-
-          applyBinding(element);
-          if (element.localName == "menu")
-            applyBinding(element.firstChild);
-#endif
         ]]></body>
       </method>
 

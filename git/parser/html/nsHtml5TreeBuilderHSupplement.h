@@ -45,7 +45,6 @@
     PRInt32                                mHandlesUsed;
     nsTArray<nsAutoArrayPtr<nsIContent*> > mOldHandles;
     nsRefPtr<nsHtml5SpeculativeLoader>     mSpeculativeLoader;
-    PRBool                                 mCurrentHtmlScriptIsAsyncOrDefer;
 #ifdef DEBUG
     PRBool                                 mActive;
 #endif
@@ -64,23 +63,19 @@
 
     ~nsHtml5TreeBuilder();
     
-    PRBool IsDiscretionaryFlushSafe();
-
     PRBool HasScript();
     
     void SetOpSink(nsAHtml5TreeOpSink* aOpSink) {
       mOpSink = aOpSink;
-    }
-
-    void ClearOps() {
-      mOpQueue.Clear();
     }
     
     void SetSpeculativeLoaderWithDocument(nsIDocument* aDocument);
 
     void DropSpeculativeLoader();
 
-    PRBool Flush();
+    void Flush();
+    
+    void MaybeFlush();
     
     void SetDocumentCharset(nsACString& aCharset);
 
@@ -88,7 +83,7 @@
 
     void NeedsCharsetSwitchTo(const nsACString& aEncoding);
 
-    void AddSnapshotToScript(nsAHtml5TreeBuilderState* aSnapshot, PRInt32 aLine);
+    void AddSnapshotToScript(nsAHtml5TreeBuilderState* aSnapshot);
 
     inline void Dispatch(nsIRunnable* aEvent) {
       if (NS_FAILED(NS_DispatchToMainThread(aEvent))) {

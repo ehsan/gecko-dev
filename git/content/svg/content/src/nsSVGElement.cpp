@@ -726,10 +726,8 @@ nsSVGElement::WalkContentStyleRules(nsRuleWalker* aRuleWalker)
   if (!mContentStyleRule)
     UpdateContentStyleRule();
 
-  if (mContentStyleRule) {
-    mContentStyleRule->RuleMatched();
+  if (mContentStyleRule)  
     aRuleWalker->Forward(mContentStyleRule);
-  }
 
   return NS_OK;
 }

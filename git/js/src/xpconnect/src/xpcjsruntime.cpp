@@ -444,8 +444,7 @@ void XPCJSRuntime::UnrootContextGlobals()
     {
         NS_ASSERTION(!JS_HAS_OPTION(acx, JSOPTION_UNROOTED_GLOBAL),
                      "unrooted global should be set only during CC");
-        if(XPCPerThreadData::IsMainThreadContext(acx) &&
-           nsXPConnect::GetXPConnect()->GetRequestDepth(acx) == 0)
+        if(nsXPConnect::GetXPConnect()->GetRequestDepth(acx) == 0)
         {
             JS_ClearNewbornRoots(acx);
             if(acx->globalObject)
@@ -766,12 +765,6 @@ JSBool XPCJSRuntime::GCCallback(JSContext *cx, JSGCStatus status)
             default:
                 break;
         }
-    }
-
-    nsTArray<JSGCCallback> callbacks(self->extraGCCallbacks);
-    for (PRInt32 i = 0; i < callbacks.Length(); ++i) {
-        if (!callbacks[i](cx, status))
-            return JS_FALSE;
     }
 
     return JS_TRUE;
@@ -1326,21 +1319,4 @@ XPCRootSetElem::RemoveFromRootSet(JSRuntime* rt)
     mSelfp = nsnull;
     mNext = nsnull;
 #endif
-}
-
-void
-XPCJSRuntime::AddGCCallback(JSGCCallback cb)
-{
-    NS_ASSERTION(cb, "null callback");
-    extraGCCallbacks.AppendElement(cb);
-}
-
-void
-XPCJSRuntime::RemoveGCCallback(JSGCCallback cb)
-{
-    NS_ASSERTION(cb, "null callback");
-    PRBool found = extraGCCallbacks.RemoveElement(cb);
-    if (!found) {
-        NS_ERROR("Removing a callback which was never added.");
-    }
 }

@@ -121,9 +121,12 @@ protected:
   NS_IMETHOD PopState();
 
   /**
-   * Make treewalker traverse by frame tree if necessary.
+   * Change current state so that its frame is changed to next frame.
+   *
+   * @param  aTryFirstChild  [in] points whether we should move to child or
+   *                         sibling frame
    */
-  void WalkFrames();
+  void UpdateFrame(PRBool aTryFirstChild);
 
   /**
    * Change current state so that its node is changed to next node.

@@ -530,6 +530,9 @@ gfxPlatformGtk::InitDisplayCaps()
     if (gfxPlatform::sDPI <= 0) {
         // Fall back to something sane
         gfxPlatform::sDPI = 96;
+    } else {
+        // Minimum DPI is 96
+        gfxPlatform::sDPI = PR_MAX(sDPI, 96);
     }
 }
 

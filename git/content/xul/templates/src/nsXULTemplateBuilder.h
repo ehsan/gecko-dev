@@ -212,7 +212,8 @@ public:
      * Determine the member variable from inside an action body. It will be
      * the value of the uri attribute on a node.
      */
-    already_AddRefed<nsIAtom> DetermineMemberVariable(nsIContent* aElement);
+    nsresult
+    DetermineMemberVariable(nsIContent* aActionElement, nsIAtom** aMemberVariable);
 
     /**
      * Compile a simple query. A simple query is one that doesn't have a

@@ -55,9 +55,6 @@ class gfxAtsuiFontGroup;
 
 class MacOSFontEntry;
 
-#define kLiGothicBadCharUnicode  0x775B // ATSUI failure on 10.6 (bug 532346)
-#define kLiGothicBadCharGlyph    3774   // the expected glyph for this char
-
 class gfxAtsuiFont : public gfxFont {
 public:
 

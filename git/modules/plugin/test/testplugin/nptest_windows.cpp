@@ -39,6 +39,8 @@
 
  using namespace std;
 
+#pragma comment(lib, "msimg32.lib")
+
 void SetSubclass(HWND hWnd, InstanceData* instanceData);
 void ClearSubclass(HWND hWnd);
 LRESULT CALLBACK PluginWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
@@ -472,7 +474,7 @@ void
 ClearSubclass(HWND hWnd)
 {
   if (GetProp(hWnd, "MozillaWndProc")) {
-    ::SetWindowLong(hWnd, GWL_WNDPROC, (long)GetProp(hWnd, "MozillaWndProc"));
+    ::SetWindowLongPtr(hWnd, GWLP_WNDPROC, (LONG_PTR)GetProp(hWnd, "MozillaWndProc"));
     RemoveProp(hWnd, "MozillaWndProc");
     RemoveProp(hWnd, "InstanceData");
   }
@@ -483,7 +485,7 @@ SetSubclass(HWND hWnd, InstanceData* instanceData)
 {
   // Subclass the plugin window so we can handle our own windows events.
   SetProp(hWnd, "InstanceData", (HANDLE)instanceData);
-  WNDPROC origProc = (WNDPROC)::SetWindowLong(hWnd, GWL_WNDPROC, (long)PluginWndProc);
+  WNDPROC origProc = (WNDPROC)::SetWindowLongPtr(hWnd, GWLP_WNDPROC, (LONG_PTR)PluginWndProc);
   SetProp(hWnd, "MozillaWndProc", (HANDLE)origProc);
 }
 

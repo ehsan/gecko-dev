@@ -172,36 +172,29 @@ const NetUtil = {
     },
 
     /**
-     * Constructs a new URI for the given spec, character set, and base URI, or
-     * an nsIFile.
+     * Constructs a new URI for the given spec, character set, and base URI.
      *
-     * @param aTarget
-     *        The string spec for the desired URI or an nsIFile.
+     * @param aSpec
+     *        The spec for the desired URI.
      * @param aOriginCharset [optional]
-     *        The character set for the URI.  Only used if aTarget is not an
-     *        nsIFile.
+     *        The character set for the URI.
      * @param aBaseURI [optional]
-     *        The base URI for the spec.  Only used if aTarget is not an
-     *        nsIFile.
+     *        The base URI for the spec.
      *
      * @return an nsIURI object.
      */
-    newURI: function NetUtil_newURI(aTarget, aOriginCharset, aBaseURI)
+    newURI: function NetUtil_newURI(aSpec, aOriginCharset, aBaseURI)
     {
-        if (!aTarget) {
+        if (!aSpec) {
             let exception = new Components.Exception(
-                "Must have a non-null string spec or nsIFile object",
+                "Must have a non-null spec",
                 Cr.NS_ERROR_INVALID_ARG,
                 Components.stack.caller
             );
             throw exception;
         }
 
-        if (aTarget instanceof Ci.nsIFile) {
-            return this.ioService.newFileURI(aTarget);
-        }
-
-        return this.ioService.newURI(aTarget, aOriginCharset, aBaseURI);
+        return this.ioService.newURI(aSpec, aOriginCharset, aBaseURI);
     },
 
     /**

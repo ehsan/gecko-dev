@@ -100,13 +100,13 @@ WebGLContext::SetCanvasElement(nsICanvasElement* aParentCanvas)
     LogMessage("Canvas 3D: creating PBuffer...");
 
     if (!forceSoftware) {
-#if defined(USE_EGL)
+#if defined(WINCE)
         mGLPbuffer = new nsGLPbufferEGL();
-#elif defined(USE_WGL)
+#elif defined(XP_WIN)
         mGLPbuffer = new nsGLPbufferWGL();
-#elif defined(USE_GLX)
+#elif defined(XP_UNIX) && defined(MOZ_X11)
         mGLPbuffer = new nsGLPbufferGLX();
-#elif defined(USE_CGL)
+#elif defined(XP_MACOSX)
         mGLPbuffer = new nsGLPbufferCGL();
 #else
         mGLPbuffer = nsnull;
@@ -253,20 +253,14 @@ WebGLContext::Render(gfxContext *ctx, gfxPattern::GraphicsFilter f)
         nsRefPtr<gfxASurface> surf = mGLPbuffer->ThebesSurface();
         if (!surf)
             return NS_OK;
+
         // XXX we can optimize this on win32 at least, by creating an upside-down
         // DIB.
         nsRefPtr<gfxPattern> pat = new gfxPattern(surf);
-
-#if defined(USE_EGL) && defined(MOZ_X11)
-        if (getenv("IMAGE")) {
-#endif
         gfxMatrix m;
         m.Translate(gfxPoint(0.0, mGLPbuffer->Height()));
         m.Scale(1.0, -1.0);
         pat->SetMatrix(m);
-#if defined(USE_EGL) && defined(MOZ_X11)
-        }
-#endif
 
         // XXX I don't want to use PixelSnapped here, but layout doesn't guarantee
         // pixel alignment for this stuff!

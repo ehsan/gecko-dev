@@ -70,11 +70,11 @@ pref("extensions.hideInstallButton", true);
 
 // Preferences for the Get Add-ons pane
 pref("extensions.getAddons.showPane", true);
-pref("extensions.getAddons.browseAddons", "https://addons.mozilla.org/%LOCALE%/%APP%");
+pref("extensions.getAddons.browseAddons", "https://%LOCALE%.add-ons.mozilla.com/%LOCALE%/%APP%");
 pref("extensions.getAddons.maxResults", 5);
-pref("extensions.getAddons.recommended.browseURL", "https://addons.mozilla.org/%LOCALE%/%APP%/recommended");
+pref("extensions.getAddons.recommended.browseURL", "https://%LOCALE%.add-ons.mozilla.com/%LOCALE%/%APP%/recommended");
 pref("extensions.getAddons.recommended.url", "https://services.addons.mozilla.org/%LOCALE%/%APP%/api/%API_VERSION%/list/featured/all/10/%OS%/%VERSION%");
-pref("extensions.getAddons.search.browseURL", "https://addons.mozilla.org/%LOCALE%/%APP%/search?q=%TERMS%");
+pref("extensions.getAddons.search.browseURL", "https://%LOCALE%.add-ons.mozilla.com/%LOCALE%/%APP%/search?q=%TERMS%");
 pref("extensions.getAddons.search.url", "https://services.addons.mozilla.org/%LOCALE%/%APP%/api/%API_VERSION%/search/%TERMS%/all/10/%OS%/%VERSION%");
 
 // Blocklist preferences
@@ -87,7 +87,7 @@ pref("extensions.blocklist.url", "https://addons.mozilla.org/blocklist/3/%APP_ID
 pref("extensions.blocklist.detailsURL", "https://www.mozilla.com/%LOCALE%/blocklist/");
 
 // Dictionary download preference
-pref("browser.dictionaries.download.url", "https://addons.mozilla.org/%LOCALE%/%APP%/dictionaries/");
+pref("browser.dictionaries.download.url", "https://%LOCALE%.add-ons.mozilla.com/%LOCALE%/firefox/%VERSION%/dictionaries/");
 
 // Update Timer Manager preferences
 // Interval: When all registered timers should be checked (in milliseconds)
@@ -279,7 +279,7 @@ pref("browser.download.manager.scanWhenDone", true);
 pref("browser.download.manager.resumeOnWakeDelay", 10000);
 
 // search engines URL
-pref("browser.search.searchEnginesURL",      "https://addons.mozilla.org/%LOCALE%/%APP%/search-engines/");
+pref("browser.search.searchEnginesURL",      "https://%LOCALE%.add-ons.mozilla.com/%LOCALE%/firefox/%VERSION%/search-engines/");
 
 // pointer to the default engine name
 pref("browser.search.defaultenginename",      "chrome://browser-region/locale/region.properties");
@@ -311,13 +311,8 @@ pref("browser.microsummary.updateGenerators", true);
 pref("browser.search.suggest.enabled", true);
 
 pref("browser.sessionhistory.max_entries", 50);
-#ifndef WINCE
 pref("browser.history_expire_days", 180);
 pref("browser.history_expire_days_min", 90);
-#else
-pref("browser.history_expire_days", 90);
-pref("browser.history_expire_days_min", 45);
-#endif
 pref("browser.history_expire_sites", 40000);
 
 // handle links targeting new windows
@@ -711,8 +706,8 @@ pref("browser.safebrowsing.provider.0.reportMalwareURL", "http://{moz:locale}.ma
 pref("browser.safebrowsing.provider.0.reportMalwareErrorURL", "http://{moz:locale}.malware-error.mozilla.com/?hl={moz:locale}");
 
 // FAQ URLs
-pref("browser.safebrowsing.warning.infoURL", "http://www.mozilla.com/%LOCALE%/%APP%/phishing-protection/");
-pref("browser.geolocation.warning.infoURL", "http://www.mozilla.com/%LOCALE%/%APP%/geolocation/");
+pref("browser.safebrowsing.warning.infoURL", "http://%LOCALE%.www.mozilla.com/%LOCALE%/firefox/phishing-protection/");
+pref("browser.geolocation.warning.infoURL", "http://%LOCALE%.www.mozilla.com/%LOCALE%/firefox/geolocation/");
 
 // Name of the about: page contributed by safebrowsing to handle display of error
 // pages on phishing/malware hits.  (bug 399233)
@@ -902,9 +897,6 @@ pref("toolbar.customization.usesheet", true);
 #else
 pref("toolbar.customization.usesheet", false);
 #endif
-
-pref("dom.ipc.plugins.enabled", false);
-pref("dom.ipc.tabs.enabled", false);
 
 #ifdef XP_WIN
 #ifndef WINCE

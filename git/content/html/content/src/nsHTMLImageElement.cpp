@@ -148,8 +148,6 @@ public:
   virtual PRInt32 IntrinsicState() const;
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  nsresult CopyInnerTo(nsGenericElement* aDest) const;
-
   void MaybeLoadImage();
 protected:
   nsPoint GetXY();
@@ -660,11 +658,4 @@ nsHTMLImageElement::GetNaturalWidth(PRInt32* aNaturalWidth)
   return NS_OK;
 }
 
-nsresult
-nsHTMLImageElement::CopyInnerTo(nsGenericElement* aDest) const
-{
-  if (aDest->GetOwnerDoc()->IsStaticDocument()) {
-    CreateStaticImageClone(static_cast<nsHTMLImageElement*>(aDest));
-  }
-  return nsGenericHTMLElement::CopyInnerTo(aDest);
-}
+

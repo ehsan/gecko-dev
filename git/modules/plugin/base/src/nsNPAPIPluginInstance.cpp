@@ -57,9 +57,6 @@
 
 #include "nsJSNPRuntime.h"
 
-using namespace mozilla::plugins::parent;
-using mozilla::TimeStamp;
-
 static NS_DEFINE_IID(kIPluginStreamListenerIID, NS_IPLUGINSTREAMLISTENER_IID);
 
 // nsPluginStreamToFile
@@ -256,7 +253,7 @@ nsresult nsNPAPIPluginStreamListener::CleanUpStream(NPReason reason)
   if (mStreamCleanedUp)
     return NS_OK;
 
-  if (!mInst || !mInst->IsRunning())
+  if (!mInst || !mInst->IsStarted())
     return rv;
 
   PluginDestructionGuard guard(mInst);
@@ -270,9 +267,7 @@ nsresult nsNPAPIPluginStreamListener::CleanUpStream(NPReason reason)
   mInst->GetNPP(&npp);
 
   if (mStreamStarted && callbacks->destroystream) {
-    NPPAutoPusher nppPusher(npp);
-
-    PluginLibrary* lib = nsnull;
+    PRLibrary* lib = nsnull;
     lib = mInst->mLibrary;
     NPError error;
     NS_TRY_SAFE_CALL_RETURN(error, (*callbacks->destroystream)(npp, &mNPStream, reason), lib, mInst);
@@ -298,7 +293,7 @@ nsresult nsNPAPIPluginStreamListener::CleanUpStream(NPReason reason)
 
 void nsNPAPIPluginStreamListener::CallURLNotify(NPReason reason)
 {
-  if (!mCallNotify || !mInst || !mInst->IsRunning())
+  if (!mCallNotify || !mInst || !mInst->IsStarted())
     return;
 
   PluginDestructionGuard guard(mInst);
@@ -337,7 +332,7 @@ nsNPAPIPluginStreamListener::OnStartBinding(nsIPluginStreamInfo* pluginInfo)
   mInst->GetCallbacks(&callbacks);
   mInst->GetNPP(&npp);
 
-  if (!callbacks || !mInst->IsRunning())
+  if (!callbacks || !mInst->IsStarted())
     return NS_ERROR_FAILURE;
 
   PRBool seekable;
@@ -360,8 +355,6 @@ nsNPAPIPluginStreamListener::OnStartBinding(nsIPluginStreamInfo* pluginInfo)
   }
 
   mStreamInfo = pluginInfo;
-
-  NPPAutoPusher nppPusher(npp);
 
   NS_TRY_SAFE_CALL_RETURN(error, (*callbacks->newstream)(npp, (char*)contentType, &mNPStream, seekable, &streamType), mInst->mLibrary, mInst);
 
@@ -480,7 +473,7 @@ nsNPAPIPluginStreamListener::OnDataAvailable(nsIPluginStreamInfo* pluginInfo,
                                           nsIInputStream* input,
                                           PRUint32 length)
 {
-  if (!mInst || !mInst->IsRunning())
+  if (!mInst || !mInst->IsStarted())
     return NS_ERROR_FAILURE;
 
   PluginDestructionGuard guard(mInst);
@@ -504,13 +497,12 @@ nsNPAPIPluginStreamListener::OnDataAvailable(nsIPluginStreamInfo* pluginInfo,
     PRUint32 contentLength;
     pluginInfo->GetLength(&contentLength);
 
-    mStreamBufferSize = NS_MAX(length, contentLength);
+    mStreamBufferSize = PR_MAX(length, contentLength);
 
     // Limit the size of the initial buffer to MAX_PLUGIN_NECKO_BUFFER
     // (16k). This buffer will grow if needed, as in the case where
     // we're getting data faster than the plugin can process it.
-    mStreamBufferSize = NS_MIN(mStreamBufferSize,
-                               PRUint32(MAX_PLUGIN_NECKO_BUFFER));
+    mStreamBufferSize = PR_MIN(mStreamBufferSize, MAX_PLUGIN_NECKO_BUFFER);
 
     mStreamBuffer = (char*) PR_Malloc(mStreamBufferSize);
     if (!mStreamBuffer)
@@ -565,7 +557,7 @@ nsNPAPIPluginStreamListener::OnDataAvailable(nsIPluginStreamInfo* pluginInfo,
       }
 
       PRUint32 bytesToRead =
-        NS_MIN(length, mStreamBufferSize - mStreamBufferByteCount);
+        PR_MIN(length, mStreamBufferSize - mStreamBufferByteCount);
 
       PRUint32 amountRead = 0;
       rv = input->Read(mStreamBuffer + mStreamBufferByteCount, bytesToRead,
@@ -603,8 +595,6 @@ nsNPAPIPluginStreamListener::OnDataAvailable(nsIPluginStreamInfo* pluginInfo,
     while (mStreamBufferByteCount > 0) {
       PRInt32 numtowrite;
       if (callbacks->writeready) {
-        NPPAutoPusher nppPusher(npp);
-
         NS_TRY_SAFE_CALL_RETURN(numtowrite, (*callbacks->writeready)(npp, &mNPStream), mInst->mLibrary, mInst);
         NPP_PLUGIN_LOG(PLUGIN_LOG_NOISY,
                        ("NPP WriteReady called: this=%p, npp=%p, "
@@ -644,14 +634,12 @@ nsNPAPIPluginStreamListener::OnDataAvailable(nsIPluginStreamInfo* pluginInfo,
           break;
         }
 
-        numtowrite = NS_MIN(numtowrite, mStreamBufferByteCount);
+        numtowrite = PR_MIN(numtowrite, mStreamBufferByteCount);
       } else {
         // if WriteReady is not supported by the plugin, just write
         // the whole buffer
         numtowrite = mStreamBufferByteCount;
       }
-
-      NPPAutoPusher nppPusher(npp);
 
       PRInt32 writeCount = 0; // bytes consumed by plugin instance
       NS_TRY_SAFE_CALL_RETURN(writeCount, (*callbacks->write)(npp, &mNPStream, streamPosition, numtowrite, ptrStreamBuffer), mInst->mLibrary, mInst);
@@ -672,7 +660,7 @@ nsNPAPIPluginStreamListener::OnDataAvailable(nsIPluginStreamInfo* pluginInfo,
         NS_ASSERTION(writeCount <= mStreamBufferByteCount,
                      "Plugin read past the end of the available data!");
 
-        writeCount = NS_MIN(writeCount, mStreamBufferByteCount);
+        writeCount = PR_MIN(writeCount, mStreamBufferByteCount);
         mStreamBufferByteCount -= writeCount;
 
         streamPosition += writeCount;
@@ -745,7 +733,7 @@ NS_IMETHODIMP
 nsNPAPIPluginStreamListener::OnFileAvailable(nsIPluginStreamInfo* pluginInfo, 
                                              const char* fileName)
 {
-  if (!mInst || !mInst->IsRunning())
+  if (!mInst || !mInst->IsStarted())
     return NS_ERROR_FAILURE;
 
   PluginDestructionGuard guard(mInst);
@@ -758,7 +746,7 @@ nsNPAPIPluginStreamListener::OnFileAvailable(nsIPluginStreamInfo* pluginInfo,
   NPP npp;
   mInst->GetNPP(&npp);
 
-  PluginLibrary* lib = nsnull;
+  PRLibrary* lib = nsnull;
   lib = mInst->mLibrary;
 
   NS_TRY_SAFE_CALL_VOID((*callbacks->asfile)(npp, &mNPStream, fileName), lib, mInst);
@@ -788,7 +776,7 @@ nsNPAPIPluginStreamListener::OnStopBinding(nsIPluginStreamInfo* pluginInfo,
     }
   }
 
-  if (!mInst || !mInst->IsRunning())
+  if (!mInst || !mInst->IsStarted())
     return NS_ERROR_FAILURE;
 
   // check if the stream is of seekable type and later its destruction
@@ -878,7 +866,7 @@ nsInstanceStream::~nsInstanceStream()
 NS_IMPL_ISUPPORTS1(nsNPAPIPluginInstance, nsIPluginInstance)
 
 nsNPAPIPluginInstance::nsNPAPIPluginInstance(NPPluginFuncs* callbacks,
-                                             PluginLibrary* aLibrary)
+                                       PRLibrary* aLibrary)
   : mCallbacks(callbacks),
 #ifdef XP_MACOSX
 #ifdef NP_NO_QUICKDRAW
@@ -890,7 +878,7 @@ nsNPAPIPluginInstance::nsNPAPIPluginInstance(NPPluginFuncs* callbacks,
     mWindowless(PR_FALSE),
     mWindowlessLocal(PR_FALSE),
     mTransparent(PR_FALSE),
-    mRunning(PR_FALSE),
+    mStarted(PR_FALSE),
     mCached(PR_FALSE),
     mWantsAllNetworkStreams(PR_FALSE),
     mInPluginInitCall(PR_FALSE),
@@ -928,15 +916,9 @@ nsNPAPIPluginInstance::~nsNPAPIPluginInstance(void)
 }
 
 PRBool
-nsNPAPIPluginInstance::IsRunning()
+nsNPAPIPluginInstance::IsStarted(void)
 {
-  return mRunning;
-}
-
-TimeStamp
-nsNPAPIPluginInstance::LastStopTime()
-{
-  return mStopTime;
+  return mStarted;
 }
 
 NS_IMETHODIMP nsNPAPIPluginInstance::Initialize(nsIPluginInstanceOwner* aOwner, const char* aMIMEType)
@@ -955,17 +937,17 @@ NS_IMETHODIMP nsNPAPIPluginInstance::Initialize(nsIPluginInstanceOwner* aOwner, 
   return InitializePlugin();
 }
 
-NS_IMETHODIMP nsNPAPIPluginInstance::Start()
+NS_IMETHODIMP nsNPAPIPluginInstance::Start(void)
 {
   PLUGIN_LOG(PLUGIN_LOG_NORMAL, ("nsNPAPIPluginInstance::Start this=%p\n",this));
 
-  if (mRunning)
+  if (mStarted)
     return NS_OK;
 
   return InitializePlugin();
 }
 
-NS_IMETHODIMP nsNPAPIPluginInstance::Stop()
+NS_IMETHODIMP nsNPAPIPluginInstance::Stop(void)
 {
   PLUGIN_LOG(PLUGIN_LOG_NORMAL, ("nsNPAPIPluginInstance::Stop this=%p\n",this));
 
@@ -980,7 +962,7 @@ NS_IMETHODIMP nsNPAPIPluginInstance::Stop()
     }
   }
 
-  if (!mRunning) {
+  if (!mStarted) {
     return NS_OK;
   }
 
@@ -994,11 +976,10 @@ NS_IMETHODIMP nsNPAPIPluginInstance::Stop()
     return NS_OK;
   }
 
-  // Make sure we lock while we're writing to mRunning after we've
+  // Make sure we lock while we're writing to mStarted after we've
   // started as other threads might be checking that inside a lock.
   EnterAsyncPluginThreadCallLock();
-  mRunning = PR_FALSE;
-  mStopTime = TimeStamp::Now();
+  mStarted = PR_FALSE;
   ExitAsyncPluginThreadCallLock();
 
   OnPluginDestroy(&mNPP);
@@ -1136,6 +1117,8 @@ nsNPAPIPluginInstance::InitializePlugin()
     }
   }
 
+  NS_ENSURE_TRUE(mCallbacks->newp, NS_ERROR_FAILURE);
+  
   // XXX Note that the NPPluginType_* enums were crafted to be
   // backward compatible...
   
@@ -1196,22 +1179,15 @@ nsNPAPIPluginInstance::InitializePlugin()
     }
   }
 
-  // Mark this instance as running before calling NPP_New because the plugin may
+  // Mark this instance as started before calling NPP_New because the plugin may
   // call other NPAPI functions, like NPN_GetURLNotify, that assume this is set
   // before returning. If the plugin returns failure, we'll clear it out below.
-  mRunning = PR_TRUE;
+  mStarted = PR_TRUE;
 
   PRBool oldVal = mInPluginInitCall;
   mInPluginInitCall = PR_TRUE;
 
-  // Need this on the stack before calling NPP_New otherwise some callbacks that
-  // the plugin may make could fail (NPN_HasProperty, for example).
-  NPPAutoPusher autopush(&mNPP);
-  nsresult newResult = mLibrary->NPP_New((char*)mimetype, &mNPP, (PRUint16)mode, count, (char**)names, (char**)values, NULL, &error);
-  if (NS_FAILED(newResult)) {
-    mRunning = PR_FALSE;
-    return newResult;
-  }
+  NS_TRY_SAFE_CALL_RETURN(error, (*mCallbacks->newp)((char*)mimetype, &mNPP, (PRUint16)mode, count, (char**)names, (char**)values, NULL), mLibrary,this);
 
   mInPluginInitCall = oldVal;
 
@@ -1220,7 +1196,7 @@ nsNPAPIPluginInstance::InitializePlugin()
   this, &mNPP, mimetype, mode, count, error));
 
   if (error != NPERR_NO_ERROR) {
-    mRunning = PR_FALSE;
+    mStarted = PR_FALSE;
     return NS_ERROR_FAILURE;
   }
   
@@ -1230,7 +1206,7 @@ nsNPAPIPluginInstance::InitializePlugin()
 NS_IMETHODIMP nsNPAPIPluginInstance::SetWindow(NPWindow* window)
 {
   // NPAPI plugins don't want a SetWindow(NULL).
-  if (!window || !mRunning)
+  if (!window || !mStarted)
     return NS_OK;
 
 #if defined(MOZ_WIDGET_GTK2)
@@ -1252,8 +1228,6 @@ NS_IMETHODIMP nsNPAPIPluginInstance::SetWindow(NPWindow* window)
 
     PRBool oldVal = mInPluginInitCall;
     mInPluginInitCall = PR_TRUE;
-
-    NPPAutoPusher nppPusher(&mNPP);
 
     NPError error;
     NS_TRY_SAFE_CALL_RETURN(error, (*mCallbacks->setwindow)(&mNPP, (NPWindow*)window), mLibrary, this);
@@ -1362,7 +1336,7 @@ NS_IMETHODIMP nsNPAPIPluginInstance::Print(NPPrint* platformPrint)
 
 NS_IMETHODIMP nsNPAPIPluginInstance::HandleEvent(void* event, PRBool* handled)
 {
-  if (!mRunning)
+  if (!mStarted)
     return NS_OK;
 
   if (!event)
@@ -1401,7 +1375,7 @@ NS_IMETHODIMP nsNPAPIPluginInstance::GetValueFromPlugin(NPPVariable variable, vo
   }
 #endif
   nsresult  res = NS_OK;
-  if (mCallbacks->getvalue && mRunning) {
+  if (mCallbacks->getvalue && mStarted) {
     PluginDestructionGuard guard(this);
 
     NS_TRY_SAFE_CALL_RETURN(res, (*mCallbacks->getvalue)(&mNPP, variable, value), mLibrary, this);
@@ -1560,13 +1534,6 @@ nsNPAPIPluginInstance::DefineJavaProperties()
   return NS_OK;
 }
 
-nsresult
-nsNPAPIPluginInstance::SetCached(PRBool aCache)
-{
-  mCached = aCache;
-  return NS_OK;
-}
-
 NS_IMETHODIMP
 nsNPAPIPluginInstance::ShouldCache(PRBool* shouldCache)
 {
@@ -1661,7 +1628,7 @@ nsNPAPIPluginInstance::GetPluginAPIVersion(PRUint16* version)
 nsresult
 nsNPAPIPluginInstance::PrivateModeStateChanged()
 {
-  if (!mRunning)
+  if (!mStarted)
     return NS_OK;
   
   PLUGIN_LOG(PLUGIN_LOG_NORMAL, ("nsNPAPIPluginInstance informing plugin of private mode state change this=%p\n",this));

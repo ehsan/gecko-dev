@@ -410,7 +410,7 @@ nsCSSCompressedDataBlock::StorageFor(nsCSSProperty aProperty) const
     return nsnull;
 }
 
-already_AddRefed<nsCSSCompressedDataBlock>
+nsCSSCompressedDataBlock*
 nsCSSCompressedDataBlock::Clone() const
 {
     const char *cursor = Block(), *cursor_end = BlockEnd();
@@ -489,8 +489,6 @@ nsCSSCompressedDataBlock::Clone() const
     result->mBlockEnd = result_cursor;
     result->mStyleBits = mStyleBits;
     NS_ASSERTION(result->DataSize() == DataSize(), "wrong size");
-
-    result->AddRef();
     return result;
 }
 
@@ -546,15 +544,13 @@ nsCSSCompressedDataBlock::Destroy()
     delete this;
 }
 
-/* static */ already_AddRefed<nsCSSCompressedDataBlock>
+/* static */ nsCSSCompressedDataBlock*
 nsCSSCompressedDataBlock::CreateEmptyBlock()
 {
     nsCSSCompressedDataBlock *result = new(0) nsCSSCompressedDataBlock();
     if (!result)
         return nsnull;
     result->mBlockEnd = result->Block();
-
-    result->AddRef();
     return result;
 }
 
@@ -588,22 +584,10 @@ nsCSSExpandedDataBlock::kOffsetTable[eCSSProperty_COUNT_no_shorthands] = {
 };
 
 void
-nsCSSExpandedDataBlock::DoExpand(nsRefPtr<nsCSSCompressedDataBlock> *aBlock,
+nsCSSExpandedDataBlock::DoExpand(nsCSSCompressedDataBlock *aBlock,
                                  PRBool aImportant)
 {
-    NS_PRECONDITION(*aBlock, "unexpected null block");
-
-    if (!(*aBlock)->IsMutable()) {
-        // FIXME (maybe): We really don't need to clone the block
-        // itself, just all the data inside it.
-        *aBlock = (*aBlock)->Clone();
-        if (!aBlock) {
-            // Not much we can do; just lose the properties.
-            NS_WARNING("out of memory");
-            return;
-        }
-        NS_ABORT_IF_FALSE((*aBlock)->IsMutable(), "we just cloned it");
-    }
+    NS_PRECONDITION(aBlock, "unexpected null block");
 
     /*
      * Save needless copying and allocation by copying the memory
@@ -611,8 +595,8 @@ nsCSSExpandedDataBlock::DoExpand(nsRefPtr<nsCSSCompressedDataBlock> *aBlock,
      * then, to avoid destructors, deleting the compressed block by
      * calling |delete| instead of using its |Destroy| method.
      */
-    const char* cursor = (*aBlock)->Block();
-    const char* cursor_end = (*aBlock)->BlockEnd();
+    const char* cursor = aBlock->Block();
+    const char* cursor_end = aBlock->BlockEnd();
     while (cursor < cursor_end) {
         nsCSSProperty iProp = PropertyAtCursor(cursor);
         NS_ASSERTION(0 <= iProp && iProp < eCSSProperty_COUNT_no_shorthands,
@@ -679,21 +663,21 @@ nsCSSExpandedDataBlock::DoExpand(nsRefPtr<nsCSSCompressedDataBlock> *aBlock,
     }
     NS_ASSERTION(cursor == cursor_end, "inconsistent data");
 
-    NS_ASSERTION((*aBlock)->mRefCnt == 1, "unexpected reference count");
-    delete aBlock->forget().get();
+    delete aBlock;
 }
 
 void
-nsCSSExpandedDataBlock::Expand(
-                          nsRefPtr<nsCSSCompressedDataBlock> *aNormalBlock,
-                          nsRefPtr<nsCSSCompressedDataBlock> *aImportantBlock)
+nsCSSExpandedDataBlock::Expand(nsCSSCompressedDataBlock **aNormalBlock,
+                               nsCSSCompressedDataBlock **aImportantBlock)
 {
     NS_PRECONDITION(*aNormalBlock, "unexpected null block");
     AssertInitialState();
 
-    DoExpand(aNormalBlock, PR_FALSE);
+    DoExpand(*aNormalBlock, PR_FALSE);
+    *aNormalBlock = nsnull;
     if (*aImportantBlock) {
-        DoExpand(aImportantBlock, PR_TRUE);
+        DoExpand(*aImportantBlock, PR_TRUE);
+        *aImportantBlock = nsnull;
     }
 }
 
@@ -765,7 +749,7 @@ void
 nsCSSExpandedDataBlock::Compress(nsCSSCompressedDataBlock **aNormalBlock,
                                  nsCSSCompressedDataBlock **aImportantBlock)
 {
-    nsRefPtr<nsCSSCompressedDataBlock> result_normal, result_important;
+    nsCSSCompressedDataBlock *result_normal, *result_important;
     char *cursor_normal, *cursor_important;
 
     ComputeSizeResult size = ComputeSize();
@@ -781,6 +765,7 @@ nsCSSExpandedDataBlock::Compress(nsCSSCompressedDataBlock **aNormalBlock,
     if (size.important != 0) {
         result_important = new(size.important) nsCSSCompressedDataBlock();
         if (!result_important) {
+            delete result_normal;
             *aNormalBlock = nsnull;
             *aImportantBlock = nsnull;
             return;
@@ -876,8 +861,8 @@ nsCSSExpandedDataBlock::Compress(nsCSSCompressedDataBlock **aNormalBlock,
 
     ClearSets();
     AssertInitialState();
-    result_normal.forget(aNormalBlock);
-    result_important.forget(aImportantBlock);
+    *aNormalBlock = result_normal;
+    *aImportantBlock = result_important;
 }
 
 void

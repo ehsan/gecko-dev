@@ -76,10 +76,12 @@ public:
 
   // nsIScriptElement
   virtual void GetScriptType(nsAString& type);
+  virtual already_AddRefed<nsIURI> GetScriptURI();
   virtual void GetScriptText(nsAString& text);
   virtual void GetScriptCharset(nsAString& charset);
-  virtual void FreezeUriAsyncDefer();
-  
+  virtual PRBool GetScriptDeferred();
+  virtual PRBool GetScriptAsync();
+
   // nsScriptElement
   virtual PRBool HasScriptContent();
 
@@ -174,7 +176,8 @@ nsSVGScriptElement::GetType(nsAString & aType)
 NS_IMETHODIMP
 nsSVGScriptElement::SetType(const nsAString & aType)
 {
-  return SetAttr(kNameSpaceID_None, nsGkAtoms::type, aType, PR_TRUE); 
+  NS_ERROR("write me!");
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 //----------------------------------------------------------------------
@@ -196,6 +199,22 @@ nsSVGScriptElement::GetScriptType(nsAString& type)
   GetType(type);
 }
 
+// variation of this code in nsHTMLScriptElement - check if changes
+// need to be transfered when modifying
+
+already_AddRefed<nsIURI>
+nsSVGScriptElement::GetScriptURI()
+{
+  nsIURI *uri = nsnull;
+  nsAutoString src;
+  mStringAttributes[HREF].GetAnimValue(src, this);
+  if (!src.IsEmpty()) {
+    nsCOMPtr<nsIURI> baseURI = GetBaseURI();
+    NS_NewURI(&uri, src, nsnull, baseURI);
+  }
+  return uri;
+}
+
 void
 nsSVGScriptElement::GetScriptText(nsAString& text)
 {
@@ -208,24 +227,16 @@ nsSVGScriptElement::GetScriptCharset(nsAString& charset)
   charset.Truncate();
 }
 
-void
-nsSVGScriptElement::FreezeUriAsyncDefer()
+PRBool
+nsSVGScriptElement::GetScriptDeferred()
 {
-  if (mFrozen) {
-    return;
-  }
+  return PR_FALSE;
+}
 
-  // variation of this code in nsHTMLScriptElement - check if changes
-  // need to be transfered when modifying
-  nsAutoString src;
-  mStringAttributes[HREF].GetAnimValue(src, this);
-  // preserving bug 528444 here due to being unsure how to fix correctly
-  if (!src.IsEmpty()) {
-    nsCOMPtr<nsIURI> baseURI = GetBaseURI();
-    NS_NewURI(getter_AddRefs(mUri), src, nsnull, baseURI);
-  }
-  
-  mFrozen = PR_TRUE;
+PRBool
+nsSVGScriptElement::GetScriptAsync()
+{
+  return PR_FALSE;
 }
 
 //----------------------------------------------------------------------
@@ -234,10 +245,9 @@ nsSVGScriptElement::FreezeUriAsyncDefer()
 PRBool
 nsSVGScriptElement::HasScriptContent()
 {
-  nsAutoString src;
-  mStringAttributes[HREF].GetAnimValue(src, this);
-  // preserving bug 528444 here due to being unsure how to fix correctly
-  return (mFrozen ? !!mUri : !src.IsEmpty()) ||
+  nsAutoString str;
+  mStringAttributes[HREF].GetAnimValue(str, this);
+  return !str.IsEmpty() ||
          nsContentUtils::HasNonEmptyTextContent(this);
 }
 
@@ -268,14 +278,7 @@ nsresult
 nsSVGScriptElement::DoneAddingChildren(PRBool aHaveNotified)
 {
   mDoneAddingChildren = PR_TRUE;
-  nsresult rv = MaybeProcessScript();
-  if (!mIsEvaluated) {
-    // Need to thaw the script uri here to allow another script to cause
-    // execution later.
-    mFrozen = PR_FALSE;
-    mUri = nsnull;
-  }
-  return rv;
+  return MaybeProcessScript();
 }
 
 nsresult

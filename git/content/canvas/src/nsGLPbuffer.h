@@ -48,35 +48,21 @@
 #include "gfxASurface.h"
 #include "gfxImageSurface.h"
 
-#ifdef USE_EGL
-typedef int EGLint;
-typedef unsigned int EGLBoolean;
-typedef unsigned int EGLenum;
-typedef void *EGLConfig;
-typedef void *EGLContext;
-typedef void *EGLDisplay;
-typedef void *EGLSurface;
-typedef void *EGLClientBuffer;
-#endif
-
-#ifdef XP_WIN
-#include "gfxWindowsSurface.h"
-#endif
-
-#ifdef MOZ_X11
-#include "gfxXlibSurface.h"
-#endif
-
-#if defined(WINCE) && defined(CAIRO_HAS_DDRAW_SURFACE)
+#if defined(WINCE)
+#include <egl/egl.h>
 #include "gfxDDrawSurface.h"
 #endif
 
-#ifdef USE_GLX
+#if defined(XP_WIN)
+#include "gfxWindowsSurface.h"
+#endif
+
+#if defined(XP_UNIX) && defined(MOZ_X11)
 #define GLX_GLXEXT_LEGACY
 #include "GL/glx.h"
 #endif
 
-#ifdef USE_CGL
+#ifdef XP_MACOSX
 #include "gfxQuartzImageSurface.h"
 #include <OpenGL/CGLTypes.h>
 #endif
@@ -140,7 +126,7 @@ protected:
     PrivateOSMesaContext mMesaContext;
 };
 
-#ifdef USE_CGL
+#ifdef XP_MACOSX
 class nsGLPbufferCGL :
     public nsGLPbuffer
 {
@@ -175,7 +161,7 @@ protected:
 };
 #endif
 
-#ifdef USE_GLX
+#if defined(XP_UNIX) && defined(MOZ_X11)
 class nsGLPbufferGLX :
     public nsGLPbuffer
 {
@@ -202,7 +188,7 @@ protected:
 };
 #endif
 
-#ifdef USE_EGL
+#if defined(WINCE)
 class nsGLPbufferEGL :
     public nsGLPbuffer
 {
@@ -225,18 +211,12 @@ protected:
     EGLSurface mSurface;
     EGLContext mContext;
 
-#if defined(XP_WIN)
     nsRefPtr<gfxImageSurface> mThebesSurface;
     nsRefPtr<gfxWindowsSurface> mWindowsSurface;
-#elif defined(MOZ_X11)
-    nsRefPtr<gfxImageSurface> mThebesSurface;
-    nsRefPtr<gfxXlibSurface> mXlibSurface;
-    Visual *mVisual;
-#endif
 };
 #endif
 
-#ifdef USE_WGL
+#if defined(XP_WIN) && !defined(WINCE)
 class nsGLPbufferWGL :
     public nsGLPbuffer
 {

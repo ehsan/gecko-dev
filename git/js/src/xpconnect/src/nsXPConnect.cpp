@@ -1063,14 +1063,11 @@ nsXPConnect::InitClasses(JSContext * aJSContext, JSObject * aGlobalJSObj)
     if(!nsXPCComponents::AttachNewComponentsObject(ccx, scope, aGlobalJSObj))
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
-    if(XPCPerThreadData::IsMainThread(ccx))
-    {
-        if (!XPCNativeWrapper::AttachNewConstructorObject(ccx, aGlobalJSObj))
-            return UnexpectedFailure(NS_ERROR_FAILURE);
+    if (!XPCNativeWrapper::AttachNewConstructorObject(ccx, aGlobalJSObj))
+        return UnexpectedFailure(NS_ERROR_FAILURE);
 
-        if (!XPCSafeJSObjectWrapper::AttachNewConstructorObject(ccx, aGlobalJSObj))
-            return UnexpectedFailure(NS_ERROR_FAILURE);
-    }
+    if (!XPC_SJOW_AttachNewConstructorObject(ccx, aGlobalJSObj))
+        return UnexpectedFailure(NS_ERROR_FAILURE);
 
     return NS_OK;
 }
@@ -1201,14 +1198,11 @@ nsXPConnect::InitClassesWithNewWrappedGlobal(JSContext * aJSContext,
         if(!nsXPCComponents::AttachNewComponentsObject(ccx, scope, globalJSObj))
             return UnexpectedFailure(NS_ERROR_FAILURE);
 
-        if(XPCPerThreadData::IsMainThread(ccx))
-        {
-            if(!XPCNativeWrapper::AttachNewConstructorObject(ccx, globalJSObj))
-                return UnexpectedFailure(NS_ERROR_FAILURE);
+        if(!XPCNativeWrapper::AttachNewConstructorObject(ccx, globalJSObj))
+            return UnexpectedFailure(NS_ERROR_FAILURE);
 
-            if(!XPCSafeJSObjectWrapper::AttachNewConstructorObject(ccx, globalJSObj))
-                return UnexpectedFailure(NS_ERROR_FAILURE);
-        }
+        if(!XPC_SJOW_AttachNewConstructorObject(ccx, globalJSObj))
+            return UnexpectedFailure(NS_ERROR_FAILURE);
     }
 
     NS_ADDREF(*_retval = holder);
@@ -2049,7 +2043,7 @@ nsXPConnect::GetXOWForObject(JSContext * aJSContext,
                              jsval * rval)
 {
     *rval = OBJECT_TO_JSVAL(aWrappedObj);
-    return XPCCrossOriginWrapper::WrapObject(aJSContext, aParent, rval)
+    return XPC_XOW_WrapObject(aJSContext, aParent, rval)
            ? NS_OK : NS_ERROR_FAILURE;
 }
 
@@ -2060,7 +2054,7 @@ nsXPConnect::GetCOWForObject(JSContext * aJSContext,
                              jsval * rval)
 {
     *rval = OBJECT_TO_JSVAL(aWrappedObj);
-    return ChromeObjectWrapper::WrapObject(aJSContext, aParent, *rval, rval)
+    return XPC_COW_WrapObject(aJSContext, aParent, *rval, rval)
            ? NS_OK : NS_ERROR_FAILURE;
 }
 
@@ -2458,8 +2452,7 @@ nsXPConnect::GetWrapperForObject(JSContext* aJSContext,
 
     JSBool sameOrigin;
     JSBool sameScope = xpc_SameScope(objectscope, xpcscope, &sameOrigin);
-    JSBool forceXOW =
-        XPCCrossOriginWrapper::ClassNeedsXOW(STOBJ_GET_CLASS(aObject)->name);
+    JSBool forceXOW = XPC_XOW_ClassNeedsXOW(STOBJ_GET_CLASS(aObject)->name);
 
     // We can do nothing if:
     // - We're wrapping a system object
@@ -2492,7 +2485,7 @@ nsXPConnect::GetWrapperForObject(JSContext* aJSContext,
     else if(aFilenameFlags & JSFILENAME_SYSTEM)
     {
         jsval val = OBJECT_TO_JSVAL(aObject);
-        if(XPCSafeJSObjectWrapper::WrapObject(aJSContext, nsnull, val, &val))
+        if(XPC_SJOW_Construct(aJSContext, nsnull, 1, &val, &val))
             wrappedObj = JSVAL_TO_OBJECT(val);
     }
     else
@@ -2503,7 +2496,7 @@ nsXPConnect::GetWrapperForObject(JSContext* aJSContext,
             return NS_OK;
 
         jsval val = OBJECT_TO_JSVAL(aObject);
-        if(XPCCrossOriginWrapper::WrapObject(aJSContext, aScope, &val, wrapper))
+        if(XPC_XOW_WrapObject(aJSContext, aScope, &val, wrapper))
             wrappedObj = JSVAL_TO_OBJECT(val);
     }
 
@@ -2512,7 +2505,7 @@ nsXPConnect::GetWrapperForObject(JSContext* aJSContext,
 
     *_retval = OBJECT_TO_JSVAL(wrappedObj);
     if(wrapper && wrapper->NeedsChromeWrapper() &&
-       !SystemOnlyWrapper::WrapObject(aJSContext, aScope, *_retval, _retval))
+       !XPC_SOW_WrapObject(aJSContext, aScope, *_retval, _retval))
         return NS_ERROR_FAILURE;
     return NS_OK;
 }
@@ -2551,20 +2544,6 @@ nsXPConnect::GetBackstagePass(nsIXPCScriptable **bsp)
     }
     NS_ADDREF(*bsp = mBackstagePass);
     return NS_OK;
-}
-
-/* [noscript, notxpcom] void registerGCCallback(in JSGCCallback func); */
-NS_IMETHODIMP_(void)
-nsXPConnect::RegisterGCCallback(JSGCCallback func)
-{
-    mRuntime->AddGCCallback(func);
-}
-
-/* [noscript, notxpcom] void unregisterGCCallback(in JSGCCallback func); */
-NS_IMETHODIMP_(void)
-nsXPConnect::UnregisterGCCallback(JSGCCallback func)
-{
-    mRuntime->RemoveGCCallback(func);
 }
 
 //  nsIJSContextStack and nsIThreadJSContextStack implementations
@@ -2712,12 +2691,6 @@ nsXPConnect::GetPrincipal(JSObject* obj, PRBool allowShortCircuit) const
     }
 
     return nsnull;
-}
-
-NS_IMETHODIMP_(JSClass *)
-nsXPConnect::GetNativeWrapperClass()
-{
-    return XPCNativeWrapper::GetJSClass();
 }
 
 /* These are here to be callable from a debugger */

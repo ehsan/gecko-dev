@@ -1075,24 +1075,7 @@ nsFocusManager::SetFocusInner(nsIContent* aNewContent, PRInt32 aFlags,
 
   // if the element is in the active window, frame switching is allowed and
   // the content is in a visible window, fire blur and focus events.
-  PRBool sendFocusEvent =
-    isElementInActiveWindow && allowFrameSwitch && IsWindowVisible(newWindow);
-
-  // When the following conditions are true:
-  //  * an element has focus
-  //  * isn't called by trusted event (i.e., called by untrusted event or by js)
-  //  * the focus is moved to another document's element
-  // we need to check the permission.
-  if (sendFocusEvent && mFocusedContent &&
-      mFocusedContent->GetOwnerDoc() != aNewContent->GetOwnerDoc()) {
-    // If the caller cannot access the current focused node, the caller should
-    // not be able to steal focus from it. E.g., When the current focused node
-    // is in chrome, any web contents should not be able to steal the focus.
-    nsCOMPtr<nsIDOMNode> domNode(do_QueryInterface(mFocusedContent));
-    sendFocusEvent = nsContentUtils::CanCallerAccess(domNode);
-  }
-
-  if (sendFocusEvent) {
+  if (isElementInActiveWindow && allowFrameSwitch && IsWindowVisible(newWindow)) {
     // return if blurring fails or the focus changes during the blur
     if (mFocusedWindow) {
       // if the focus is being moved to another element in the same document,
@@ -1126,10 +1109,10 @@ nsFocusManager::SetFocusInner(nsIContent* aNewContent, PRInt32 aFlags,
           aFocusChanged, PR_FALSE);
   }
   else {
-    // otherwise, for inactive windows and when the caller cannot steal the
-    // focus, update the node in the window, and  raise the window if desired.
+    // otherwise, for inactive windows, update the node in the window, and
+    // raise the window if desired.
     if (allowFrameSwitch)
-      AdjustWindowFocus(newWindow, PR_TRUE);
+      AdjustWindowFocus(newWindow);
 
     // set the focus node and method as needed
     PRUint32 focusMethod = aFocusChanged ? aFlags & FOCUSMETHOD_MASK :
@@ -1218,8 +1201,7 @@ nsFocusManager::GetCommonAncestor(nsPIDOMWindow* aWindow1,
 }
 
 void
-nsFocusManager::AdjustWindowFocus(nsPIDOMWindow* aWindow,
-                                  PRBool aCheckPermission)
+nsFocusManager::AdjustWindowFocus(nsPIDOMWindow* aWindow)
 {
   PRBool isVisible = IsWindowVisible(aWindow);
 
@@ -1243,12 +1225,6 @@ nsFocusManager::AdjustWindowFocus(nsPIDOMWindow* aWindow,
       // likely moved up and out from a hidden tab to the browser window, or a
       // similar such arrangement. Stop adjusting the current nodes.
       if (IsWindowVisible(window) != isVisible)
-        break;
-
-      // When aCheckPermission is true, we should check whether the caller can
-      // access the window or not.  If it cannot access, we should stop the
-      // adjusting.
-      if (aCheckPermission && !nsContentUtils::CanCallerAccess(window))
         break;
 
       window->SetFocusedNode(frameContent);
@@ -1552,7 +1528,7 @@ nsFocusManager::Focus(nsPIDOMWindow* aWindow,
   // focus can be traversed from the top level down to the newly focused
   // window.
   if (aIsNewDocument)
-    AdjustWindowFocus(aWindow, PR_FALSE);
+    AdjustWindowFocus(aWindow);
 
   // indicate that the window has taken focus.
   if (aWindow->TakeFocus(PR_TRUE, focusMethod))

@@ -101,8 +101,6 @@ _TEST_FILES = \
 		test_plugin_focus.html \
 		test_plugin_mouse_coords.html \
 		test_plugin_position.xhtml \
-		test_selection_expanding.html \
-		selection_expanding_xbl.xml \
 		test_selection_underline.html \
 		file_BrokenImageReference.png \
 		file_Dolske.png \
@@ -114,13 +112,5 @@ _TEST_FILES = \
 # disabled temporarily
 #		test_bug488417.html \
 
-_CHROME_FILES = \
-		test_bug514732-2.xul \
-		file_bug514732_window.xul \
-		$(NULL)
-
 libs:: $(_TEST_FILES)
 	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
-
-libs:: $(_CHROME_FILES)
-	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/chrome/$(relativesrcdir)

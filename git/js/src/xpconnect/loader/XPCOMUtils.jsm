@@ -115,7 +115,7 @@ var XPCOMUtils = {
    * that object, it checks if the given iid is listed in the |interfaces|
    * param, and if it is, returns |this| (the object it was called on).
    */
-  generateQI: function XPCU_generateQI(interfaces) {
+  generateQI: function(interfaces) {
     /* Note that Ci[Ci.x] == Ci.x for all x */
     return makeQI([Ci[i].name for each (i in interfaces) if (Ci[i])]);
   },
@@ -124,9 +124,7 @@ var XPCOMUtils = {
    * Generate the NSGetModule function (along with the module definition).
    * See the parameters to generateModule.
    */
-  generateNSGetModule: function XPCU_generateNSGetModule(componentsArray,
-                                                         postRegister,
-                                                         preUnregister) {
+  generateNSGetModule: function(componentsArray, postRegister, preUnregister) {
     return function NSGetModule(compMgr, fileSpec) {
       return XPCOMUtils.generateModule(componentsArray,
                                        postRegister,
@@ -146,8 +144,7 @@ var XPCOMUtils = {
    *                      signature 'preUnregister(nsIComponentManager,
    *                                               nsIFile, componentsArray)'
    */
-  generateModule: function XPCU_generateModule(componentsArray, postRegister,
-                                               preUnregister) {
+  generateModule: function(componentsArray, postRegister, preUnregister) {
     let classes = [];
     for each (let component in componentsArray) {
       classes.push({
@@ -284,7 +281,7 @@ var XPCOMUtils = {
   /**
    * Returns an nsIFactory for |component|.
    */
-  _getFactory: function XPCOMUtils__getFactory(component) {
+  _getFactory: function(component) {
     var factory = component.prototype._xpcom_factory;
     if (!factory) {
       factory = {

@@ -264,7 +264,13 @@ var ctrlTab = {
     if (aPreview == this.showAllButton)
       return;
 
-    aPreview._tab = aTab;
+    if ((aPreview._tab || null) != aTab) {
+      if (aPreview._tab)
+        aPreview._tab.removeEventListener("DOMAttrModified", this, false);
+      aPreview._tab = aTab;
+      if (aTab)
+        aTab.addEventListener("DOMAttrModified", this, false);
+    }
 
     if (aPreview.firstChild)
       aPreview.removeChild(aPreview.firstChild);
@@ -499,8 +505,8 @@ var ctrlTab = {
 
   handleEvent: function ctrlTab_handleEvent(event) {
     switch (event.type) {
-      case "TabAttrModified":
-        // tab attribute modified (e.g. label, crop, busy, image, selected)
+      case "DOMAttrModified":
+        // tab attribute modified (e.g. label, crop, busy, image)
         for (let i = this.previews.length - 1; i >= 0; i--) {
           if (this.previews[i]._tab && this.previews[i]._tab == event.target) {
             this.updatePreview(this.previews[i], event.target);
@@ -535,7 +541,6 @@ var ctrlTab = {
 
     var tabContainer = gBrowser.tabContainer;
     tabContainer[toggleEventListener]("TabOpen", this, false);
-    tabContainer[toggleEventListener]("TabAttrModified", this, false);
     tabContainer[toggleEventListener]("TabSelect", this, false);
     tabContainer[toggleEventListener]("TabClose", this, false);
 
@@ -585,7 +590,6 @@ var allTabs = {
     }, this);
 
     gBrowser.tabContainer.addEventListener("TabOpen", this, false);
-    gBrowser.tabContainer.addEventListener("TabAttrModified", this, false);
     gBrowser.tabContainer.addEventListener("TabMove", this, false);
     gBrowser.tabContainer.addEventListener("TabClose", this, false);
   },
@@ -595,7 +599,6 @@ var allTabs = {
       return;
 
     gBrowser.tabContainer.removeEventListener("TabOpen", this, false);
-    gBrowser.tabContainer.removeEventListener("TabAttrModified", this, false);
     gBrowser.tabContainer.removeEventListener("TabMove", this, false);
     gBrowser.tabContainer.removeEventListener("TabClose", this, false);
 
@@ -658,11 +661,13 @@ var allTabs = {
       }
       if (matches < filter.length) {
         preview.hidden = true;
+        tab.removeEventListener("DOMAttrModified", this, false);
       }
       else {
         this._visible++;
         this._updatePreview(preview);
         preview.hidden = false;
+        tab.addEventListener("DOMAttrModified", this, false);
       }
     }, this);
 
@@ -700,6 +705,10 @@ var allTabs = {
   },
 
   suspendGUI: function allTabs_suspendGUI() {
+    Array.forEach(this.container.childNodes, function (preview) {
+      preview._tab.removeEventListener("DOMAttrModified", this, false);
+    }, this);
+
     this.filterField.removeAttribute("emptytext");
     this.filterField.value = "";
     this._currentFilter = null;
@@ -713,11 +722,9 @@ var allTabs = {
 
   handleEvent: function allTabs_handleEvent(event) {
     switch (event.type) {
-      case "TabAttrModified":
+      case "DOMAttrModified":
         // tab attribute modified (e.g. label, crop, busy, image)
-        let preview = this._getPreview(event.target);
-        if (!preview.hidden)
-          this._updatePreview(preview);
+        this._updatePreview(this._getPreview(event.target));
         break;
       case "TabOpen":
         if (this.isOpen)
@@ -825,6 +832,7 @@ var allTabs = {
 
   _removePreview: function allTabs_removePreview(aPreview) {
     var updateUI = (this.isOpen && !aPreview.hidden);
+    aPreview._tab.removeEventListener("DOMAttrModified", this, false);
     aPreview._tab = null;
     this.container.removeChild(aPreview);
     if (updateUI) {

@@ -48,9 +48,15 @@ class nsAHtml5TreeOpSink {
   
     /**
      * Flush the operations from the tree operations from the argument
-     * queue into this sink unconditionally.
+     * queue if flushing is not expensive.
      */
-    virtual void MoveOpsFrom(nsTArray<nsHtml5TreeOperation>& aOpQueue) = 0;
+    virtual void MaybeFlush(nsTArray<nsHtml5TreeOperation>& aOpQueue) = 0;
+
+    /**
+     * Flush the operations from the tree operations from the argument
+     * queue unconditionally.
+     */
+    virtual void ForcedFlush(nsTArray<nsHtml5TreeOperation>& aOpQueue) = 0;
     
 };
 

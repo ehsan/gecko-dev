@@ -76,7 +76,7 @@ function test() {
     }
 
     is(newWindow.gBrowser.selectedTab.hasAttribute("busy"), true);
-    is(newWindow.gBrowser.getIcon(), iconURLSpec);
+    is(newWindow.gBrowser.selectedTab.linkedBrowser.mIconURL,iconURLSpec);
     newWindow.close();
     finish();
   }

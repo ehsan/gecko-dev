@@ -141,9 +141,9 @@ var PrintUtils = {
       // this tells us whether we should continue on with PP or 
       // wait for the callback via the observer
       if (!notifyOnOpen.value.valueOf() || this._webProgressPP.value == null)
-        this.enterPrintPreview(aWindow);
+        this.enterPrintPreview();
     } catch (e) {
-      this.enterPrintPreview(aWindow);
+      this.enterPrintPreview();
     }
   },
 
@@ -152,14 +152,6 @@ var PrintUtils = {
     var contentWindow = aWindow || window.content;
     return contentWindow.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
                         .getInterface(Components.interfaces.nsIWebBrowserPrint);
-  },
-
-  getPrintPreview: function() {
-    if (this._printPreviewTab) {
-      var docShell = getPPBrowser().getBrowserForTab(this._printPreviewTab).docShell;
-      return docShell.printPreview;
-    }
-    return null;
   },
 
   ////////////////////////////////////////
@@ -227,9 +219,6 @@ var PrintUtils = {
     }
   },
 
-  _originalTab: null,
-  _printPreviewTab: null,
-
   enterPrintPreview: function ()
   {
     gFocusedElement = document.commandDispatcher.focusedElement;
@@ -240,29 +229,11 @@ var PrintUtils = {
       ZoomManager.reset();
     }
 
-    var webBrowserPrint;
-    var printSettings  = this.getPrintSettings();
-    var tabbrowser = getPPBrowser();
-    var contentWindow = null;
-    if (tabbrowser) {
-      if (this._printPreviewTab) {
-        contentWindow =
-          tabbrowser.getBrowserForTab(this._printPreviewTab).contentWindow;
-      } else {
-        this._originalTab = tabbrowser.mCurrentTab;
-        contentWindow = window.content
-        this._printPreviewTab = tabbrowser.loadOneTab("about:blank", null, null,
-                                                      null, true, false);
-      }
-    }
-
+    var webBrowserPrint = this.getWebBrowserPrint();
+    var printSettings   = this.getPrintSettings();
     try {
-      webBrowserPrint = this.getPrintPreview();
-      webBrowserPrint.printPreview(printSettings, contentWindow,
-                                   this._webProgressPP.value);
+      webBrowserPrint.printPreview(printSettings, null, this._webProgressPP.value);
     } catch (e) {
-      this._printPreviewTab = null;
-      this._originalTab = null;
       if (typeof ZoomManager == "object")
         ZoomManager.zoom = this._originalZoomValue;
       // Pressing cancel is expressed as an NS_ERROR_ABORT return value,
@@ -278,9 +249,6 @@ var PrintUtils = {
       var browser = getPPBrowser();
       if (browser)
         browser.collapsed = false;
-
-      tabbrowser.getBrowserForTab(this._printPreviewTab).contentWindow.focus();
-      tabbrowser.selectedTab = this._printPreviewTab;
       return;
     }
 
@@ -306,8 +274,7 @@ var PrintUtils = {
     // disable chrome shortcuts...
     window.addEventListener("keypress", this.onKeyPressPP, true);
 
-    tabbrowser.getBrowserForTab(this._printPreviewTab).contentWindow.focus();
-    tabbrowser.selectedTab = this._printPreviewTab;
+    window.content.focus();
 
     // on Enter PP Call back
     if (this._onEnterPP) {
@@ -326,15 +293,6 @@ var PrintUtils = {
 
     var webBrowserPrint = this.getWebBrowserPrint();
     webBrowserPrint.exitPrintPreview();
-
-    var tabbrowser = getPPBrowser();
-    if (tabbrowser) {
-      tabbrowser.removeTab(this._printPreviewTab);
-      tabbrowser.selectedTab = this._originalTab;
-      this._originalTab = null;
-      this._printPreviewTab = null;
-    }
-
     if (typeof ZoomManager == "object")
       ZoomManager.zoom = this._originalZoomValue;
 

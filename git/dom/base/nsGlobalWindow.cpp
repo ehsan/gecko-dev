@@ -419,7 +419,6 @@ public:
   NPError ShowNativeContextMenu(NPMenu* menu, void* event);
   NPBool ConvertPoint(double sourceX, double sourceY, NPCoordinateSpace sourceSpace,
                       double *destX, double *destY, NPCoordinateSpace destSpace);
-  void SendIdleEvent();
 
   NS_DECL_CYCLE_COLLECTION_CLASS(nsDummyJavaPluginOwner)
 
@@ -562,11 +561,6 @@ NS_IMETHODIMP
 nsDummyJavaPluginOwner::SetEventModel(PRInt32 eventModel)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-void
-nsDummyJavaPluginOwner::SendIdleEvent()
-{
 }
 
 /**
@@ -7736,18 +7730,12 @@ nsGlobalWindow::SetTimeoutOrInterval(nsIScriptTimeoutHandler *aHandler,
   }
 
   PRUint32 nestingLevel = sNestingLevel + 1;
-  if (interval < DOM_MIN_TIMEOUT_VALUE) {
-    if (aIsInterval || nestingLevel >= DOM_CLAMP_TIMEOUT_NESTING_LEVEL) {
-      // Don't allow timeouts less than DOM_MIN_TIMEOUT_VALUE from
-      // now...
+  if (interval < DOM_MIN_TIMEOUT_VALUE &&
+      (aIsInterval || nestingLevel >= DOM_CLAMP_TIMEOUT_NESTING_LEVEL)) {
+    // Don't allow timeouts less than DOM_MIN_TIMEOUT_VALUE from
+    // now...
 
-      interval = DOM_MIN_TIMEOUT_VALUE;
-    }
-    else if (interval < 0) {
-      // Clamp negative intervals to 0.
-
-      interval = 0;
-    }
+    interval = DOM_MIN_TIMEOUT_VALUE;
   }
 
   NS_ASSERTION(interval >= 0, "DOM_MIN_TIMEOUT_VALUE lies");

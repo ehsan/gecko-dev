@@ -51,7 +51,6 @@
 #include "nsIPrincipal.h"
 
 #include "nsContentUtils.h"
-#include "mozAutoDocUpdate.h"
 
 
 nsDOMCSSDeclaration::~nsDOMCSSDeclaration()
@@ -264,13 +263,6 @@ nsDOMCSSDeclaration::ParsePropertyValue(const nsCSSProperty aPropID,
     return result;
   }
 
-  // For nsDOMCSSAttributeDeclaration, DeclarationChanged will lead to
-  // Attribute setting code, which leads in turn to BeginUpdate.  We
-  // need to start the update now so that the old rule doesn't get used
-  // between when we mutate the declaration and when we set the new
-  // rule (see stack in bug 209575).
-  mozAutoDocConditionalContentUpdateBatch autoUpdate(DocToUpdate(), PR_TRUE);
-
   PRBool changed;
   result = cssParser->ParseProperty(aPropID, aPropValue, sheetURI, baseURI,
                                     sheetPrincipal, decl, &changed);
@@ -311,13 +303,6 @@ nsDOMCSSDeclaration::ParseDeclaration(const nsAString& aDecl,
     return result;
   }
 
-  // For nsDOMCSSAttributeDeclaration, DeclarationChanged will lead to
-  // Attribute setting code, which leads in turn to BeginUpdate.  We
-  // need to start the update now so that the old rule doesn't get used
-  // between when we mutate the declaration and when we set the new
-  // rule (see stack in bug 209575).
-  mozAutoDocConditionalContentUpdateBatch autoUpdate(DocToUpdate(), PR_TRUE);
-
   PRBool changed;
   result = cssParser->ParseAndAppendDeclaration(aDecl, sheetURI, baseURI,
                                                 sheetPrincipal, decl,
@@ -344,13 +329,6 @@ nsDOMCSSDeclaration::RemoveProperty(const nsCSSProperty aPropID)
   if (!decl) {
     return rv;
   }
-
-  // For nsDOMCSSAttributeDeclaration, DeclarationChanged will lead to
-  // Attribute setting code, which leads in turn to BeginUpdate.  We
-  // need to start the update now so that the old rule doesn't get used
-  // between when we mutate the declaration and when we set the new
-  // rule (see stack in bug 209575).
-  mozAutoDocConditionalContentUpdateBatch autoUpdate(DocToUpdate(), PR_TRUE);
 
   rv = decl->RemoveProperty(aPropID);
 

@@ -49,6 +49,7 @@
 #include "nsRuleData.h"
 #include "nsSMILKeySpline.h"
 #include "gfxColor.h"
+#include "nsCSSPseudoElements.h"
 #include "nsCSSPropertySet.h"
 #include "nsStyleAnimation.h"
 #include "nsCSSDataBlock.h"
@@ -358,20 +359,12 @@ nsTransitionManager::StyleContextChanged(nsIContent *aElement,
                       aNewStyleContext->HasPseudoElementData(),
                   "pseudo type mismatch");
 
-  // NOTE: Things in this function (and ConsiderStartingTransition)
-  // should never call PeekStyleData because we don't preserve gotten
-  // structs across reframes.
-
   // Return sooner (before the startedAny check below) for the most
   // common case: no transitions specified.
   const nsStyleDisplay *disp = aNewStyleContext->GetStyleDisplay();
-  const nsStyleDisplay *oldDisp = aOldStyleContext->GetStyleDisplay();
   if (disp->mTransitionPropertyCount == 1 &&
-      oldDisp->mTransitionPropertyCount == 1 &&
       disp->mTransitions[0].GetDelay() == 0.0f &&
-      disp->mTransitions[0].GetDuration() == 0.0f &&
-      oldDisp->mTransitions[0].GetProperty() ==
-        disp->mTransitions[0].GetProperty()) {
+      disp->mTransitions[0].GetDuration() == 0.0f) {
     return nsnull;
   }      
 
@@ -380,10 +373,9 @@ nsTransitionManager::StyleContextChanged(nsIContent *aElement,
     return nsnull;
   }
   
-  nsCSSPseudoElements::Type pseudoType = aNewStyleContext->GetPseudoType();
-  if (pseudoType != nsCSSPseudoElements::ePseudo_NotPseudoElement &&
-      pseudoType != nsCSSPseudoElements::ePseudo_before &&
-      pseudoType != nsCSSPseudoElements::ePseudo_after) {
+  nsIAtom *pseudo = aNewStyleContext->GetPseudo();
+  if (pseudo && (pseudo != nsCSSPseudoElements::before &&
+                 pseudo != nsCSSPseudoElements::after)) {
     return nsnull;
   }
   if (aNewStyleContext->GetParent() &&
@@ -400,17 +392,18 @@ nsTransitionManager::StyleContextChanged(nsIContent *aElement,
   // ones (tracked using |whichStarted|).
   PRBool startedAny = PR_FALSE;
   nsCSSPropertySet whichStarted;
-  ElementTransitions *et =
-    GetElementTransitions(aElement, pseudoType, PR_FALSE);
+  ElementTransitions *et = nsnull;
   for (PRUint32 i = disp->mTransitionPropertyCount; i-- != 0; ) {
     const nsTransition& t = disp->mTransitions[i];
     // Check delay and duration first, since they default to zero, and
     // when they're both zero, we can ignore the transition.
     if (t.GetDelay() != 0.0f || t.GetDuration() != 0.0f) {
+      et = GetElementTransitions(aElement,
+                                 aNewStyleContext->GetPseudo(),
+                                 PR_FALSE);
+
       // We might have something to transition.  See if any of the
       // properties in question changed and are animatable.
-      // FIXME: Would be good to find a way to share code between this
-      // interpretation of transition-property and the one below.
       nsCSSProperty property = t.GetProperty();
       if (property == eCSSPropertyExtra_no_properties ||
           property == eCSSProperty_UNKNOWN) {
@@ -434,51 +427,6 @@ nsTransitionManager::StyleContextChanged(nsIContent *aElement,
                                    aOldStyleContext, aNewStyleContext,
                                    &startedAny, &whichStarted);
       }
-    }
-  }
-
-  // Stop any transitions for properties that are no longer in
-  // 'transition-property'.
-  if (et && disp->mTransitions[0].GetProperty() !=
-            eCSSPropertyExtra_all_properties) {
-    nsCSSPropertySet allTransitionProperties;
-    for (PRUint32 i = disp->mTransitionPropertyCount; i-- != 0; ) {
-      const nsTransition& t = disp->mTransitions[i];
-      // FIXME: Would be good to find a way to share code between this
-      // interpretation of transition-property and the one above.
-      nsCSSProperty property = t.GetProperty();
-      if (property == eCSSPropertyExtra_no_properties ||
-          property == eCSSProperty_UNKNOWN) {
-        // Nothing to do, but need to exclude this from cases below.
-      } else if (property == eCSSPropertyExtra_all_properties) {
-        for (nsCSSProperty p = nsCSSProperty(0); 
-             p < eCSSProperty_COUNT_no_shorthands;
-             p = nsCSSProperty(p + 1)) {
-          allTransitionProperties.AddProperty(p);
-        }
-      } else if (nsCSSProps::IsShorthand(property)) {
-        CSSPROPS_FOR_SHORTHAND_SUBPROPERTIES(subprop, property) {
-          allTransitionProperties.AddProperty(*subprop);
-        }
-      } else {
-        allTransitionProperties.AddProperty(property);
-      }
-    }
-
-    nsTArray<ElementPropertyTransition> &pts = et->mPropertyTransitions;
-    PRUint32 i = pts.Length();
-    NS_ABORT_IF_FALSE(i != 0, "empty transitions list?");
-    do {
-      --i;
-      ElementPropertyTransition &pt = pts[i];
-      if (!allTransitionProperties.HasProperty(pt.mProperty)) {
-        pts.RemoveElementAt(i);
-      }
-    } while (i != 0);
-
-    if (pts.IsEmpty()) {
-      et->Destroy();
-      et = nsnull;
     }
   }
 
@@ -551,6 +499,11 @@ nsTransitionManager::ConsiderStartingTransition(nsCSSProperty aProperty,
 
   ElementPropertyTransition pt;
   nsStyleAnimation::Value dummyValue;
+  // FIXME (Bug 522595): This call on the old style context gets
+  // incorrect style data since we don't quite enforce style rule
+  // immutability:  we didn't need to worry about callers calling
+  // GetStyleData rather than PeekStyleData after a style rule becomes
+  // "old" before transitions existed.
   PRBool shouldAnimate =
     nsStyleAnimation::ExtractComputedValue(aProperty, aOldStyleContext,
                                            pt.mStartValue) &&
@@ -591,7 +544,7 @@ nsTransitionManager::ConsiderStartingTransition(nsCSSProperty aProperty,
         // |aElementTransitions| is now a dangling pointer!
         aElementTransitions = nsnull;
       }
-      // WalkTransitionRule already called RestyleForAnimation.
+      presContext->PresShell()->RestyleForAnimation(aElement);
     }
     return;
   }
@@ -613,7 +566,9 @@ nsTransitionManager::ConsiderStartingTransition(nsCSSProperty aProperty,
       // If we got a style change that changed the value to the endpoint
       // of the currently running transition, we don't want to interrupt
       // its timing function.
-      // WalkTransitionRule already called RestyleForAnimation.
+      // But don't forget to restyle with animation so we show the
+      // current transition.
+      presContext->PresShell()->RestyleForAnimation(aElement);
       return;
     }
 
@@ -659,7 +614,7 @@ nsTransitionManager::ConsiderStartingTransition(nsCSSProperty aProperty,
 
   if (!aElementTransitions) {
     aElementTransitions =
-      GetElementTransitions(aElement, aNewStyleContext->GetPseudoType(),
+      GetElementTransitions(aElement, aNewStyleContext->GetPseudo(),
                             PR_TRUE);
     if (!aElementTransitions) {
       NS_WARNING("allocating ElementTransitions failed");
@@ -693,17 +648,16 @@ nsTransitionManager::ConsiderStartingTransition(nsCSSProperty aProperty,
 
 ElementTransitions*
 nsTransitionManager::GetElementTransitions(nsIContent *aElement,
-                                           nsCSSPseudoElements::Type aPseudoType,
+                                           nsIAtom *aPseudo,
                                            PRBool aCreateIfNeeded)
 {
   nsIAtom *propName;
-  if (aPseudoType == nsCSSPseudoElements::ePseudo_before) {
+  if (aPseudo == nsCSSPseudoElements::before) {
     propName = nsGkAtoms::transitionsOfBeforeProperty;
-  } else if (aPseudoType == nsCSSPseudoElements::ePseudo_after) {
+  } else if (aPseudo == nsCSSPseudoElements::after) {
     propName = nsGkAtoms::transitionsOfAfterProperty;
   } else {
-    NS_ASSERTION(aPseudoType == nsCSSPseudoElements::ePseudo_NotPseudoElement ||
-		 !aCreateIfNeeded,
+    NS_ASSERTION(!aPseudo || !aCreateIfNeeded,
                  "should never try to create transitions for pseudo "
                  "other than :before or :after");
     propName = nsGkAtoms::transitionsProperty;
@@ -757,29 +711,23 @@ NS_IMPL_QUERY_INTERFACE1(nsTransitionManager, nsIStyleRuleProcessor)
 
 nsresult
 nsTransitionManager::WalkTransitionRule(RuleProcessorData* aData,
-                                        nsCSSPseudoElements::Type aPseudoType)
+                                        nsIAtom *aPseudo)
 {
-  if (!aData->mContent) {
-    return NS_OK;
-  }
-
-  ElementTransitions *et =
-    GetElementTransitions(aData->mContent, aPseudoType, PR_FALSE);
-  if (!et) {
-    return NS_OK;
-  }
-
   if (!aData->mPresContext->IsProcessingAnimationStyleChange()) {
     // If we're processing a normal style change rather than one from
     // animation, don't add the transition rule.  This allows us to
     // compute the new style value rather than having the transition
     // override it, so that we can start transitioning differently.
 
-    // We need to immediately restyle with animation
-    // after doing this.
-    if (et) {
-      mPresContext->PresShell()->RestyleForAnimation(aData->mContent);
-    }
+    // In most cases, we need to immediately restyle with animation
+    // after doing this.  However, ConsiderStartingTransition takes care
+    // of that for us.
+    return NS_OK;
+  }
+
+  ElementTransitions *et =
+    GetElementTransitions(aData->mContent, aPseudo, PR_FALSE);
+  if (!et) {
     return NS_OK;
   }
 
@@ -798,46 +746,34 @@ nsTransitionManager::RulesMatching(ElementRuleProcessorData* aData)
 {
   NS_ABORT_IF_FALSE(aData->mPresContext == mPresContext,
                     "pres context mismatch");
-  return WalkTransitionRule(aData,
-			    nsCSSPseudoElements::ePseudo_NotPseudoElement);
+  return WalkTransitionRule(aData, nsnull);
 }
 
 NS_IMETHODIMP
-nsTransitionManager::RulesMatching(PseudoElementRuleProcessorData* aData)
+nsTransitionManager::RulesMatching(PseudoRuleProcessorData* aData)
 {
   NS_ABORT_IF_FALSE(aData->mPresContext == mPresContext,
                     "pres context mismatch");
-
   // Note:  If we're the only thing keeping a pseudo-element frame alive
   // (per ProbePseudoStyleContext), we still want to keep it alive, so
   // this is ok.
-  return WalkTransitionRule(aData, aData->mPseudoType);
+  return WalkTransitionRule(aData, aData->mPseudoTag);
 }
 
 NS_IMETHODIMP
-nsTransitionManager::RulesMatching(AnonBoxRuleProcessorData* aData)
+nsTransitionManager::HasStateDependentStyle(StateRuleProcessorData* aData,
+                                            nsReStyleHint* aResult)
 {
+  *aResult = nsReStyleHint(0);
   return NS_OK;
 }
 
-#ifdef MOZ_XUL
 NS_IMETHODIMP
-nsTransitionManager::RulesMatching(XULTreeRuleProcessorData* aData)
+nsTransitionManager::HasAttributeDependentStyle(AttributeRuleProcessorData* aData,
+                                                nsReStyleHint* aResult)
 {
+  *aResult = nsReStyleHint(0);
   return NS_OK;
-}
-#endif
-
-nsReStyleHint
-nsTransitionManager::HasStateDependentStyle(StateRuleProcessorData* aData)
-{
-  return nsReStyleHint(0);
-}
-
-nsReStyleHint
-nsTransitionManager::HasAttributeDependentStyle(AttributeRuleProcessorData* aData)
-{
-  return nsReStyleHint(0);
 }
 
 NS_IMETHODIMP

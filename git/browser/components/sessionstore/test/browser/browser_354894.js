@@ -105,9 +105,7 @@
  * notifications. The latter won't.
  */
 
-function browserWindowsCount(expected, msg) {
-  if (typeof expected == "number")
-    expected = [expected, expected];
+function browserWindowsCount() {
   let count = 0;
   let e = Cc["@mozilla.org/appshell/window-mediator;1"]
             .getService(Ci.nsIWindowMediator)
@@ -116,16 +114,11 @@ function browserWindowsCount(expected, msg) {
     if (!e.getNext().closed)
       ++count;
   }
-  is(count, expected[0], msg + " (nsIWindowMediator)");
-  let state = Cc["@mozilla.org/browser/sessionstore;1"]
-                .getService(Ci.nsISessionStore)
-                .getBrowserState();
-  info(state);
-  is(JSON.parse(state).windows.length, expected[1], msg + " (getBrowserState)");
+  return count;
 }
 
 function test() {
-  browserWindowsCount(1, "Only one browser window should be open initially");
+  is(browserWindowsCount(), 1, "Only one browser window should be open initially");
 
   waitForExplicitFinish();
 
@@ -443,20 +436,7 @@ function test() {
         newWin.BrowserTryToCloseWindow();
         newWin2.BrowserTryToCloseWindow();
 
-        browserWindowsCount([0, 1], "browser windows while running testOpenCloseRestoreFromPopup");
-
         newWin = undoCloseWindow(0);
-        newWin.addEventListener("load", function () {
-          info(["testOpenCloseRestoreFromPopup: newWin loaded", newWin.closed, newWin.document]);
-          var ds = newWin.delayedStartup;
-          newWin.delayedStartup = function () {
-            info(["testOpenCloseRestoreFromPopup: newWin delayedStartup", newWin.closed, newWin.document]);
-            ds.apply(newWin, arguments);
-          };
-        }, false);
-        newWin.addEventListener("unload", function () {
-          info("testOpenCloseRestoreFromPopup: newWin unloaded");
-        }, false);
 
         newWin2 = openDialog(location, "_blank", CHROME_FEATURES);
         newWin2.addEventListener("load", function() {
@@ -467,20 +447,9 @@ function test() {
             is(TEST_URLS.indexOf(newWin2.gBrowser.browsers[0].currentURI.spec), -1,
                "Did not restore, as undoCloseWindow() was last called (2)");
 
-            browserWindowsCount([2, 3], "browser windows while running testOpenCloseRestoreFromPopup");
-
-            info([newWin.closed, newWin.__SSi, newWin.__SS_restoreID, newWin.__SS_dyingCache]);
-            info(newWin2.__SSi);
-
             // Cleanup
             newWin.close();
             newWin2.close();
-
-            info([newWin.closed, newWin.__SSi, newWin.__SS_restoreID, newWin.__SS_dyingCache]);
-
-            browserWindowsCount([0, 1], "browser windows while running testOpenCloseRestoreFromPopup");
-
-            info([newWin.closed, newWin.__SSi, newWin.__SS_restoreID, newWin.__SS_dyingCache]);
 
             // Next please
             executeSoon(nextFn);
@@ -542,35 +511,34 @@ function test() {
   setupTestsuite();
   if (navigator.platform.match(/Mac/)) {
     // Mac tests
-    testMacNotifications(function () {
-      testNotificationCount(function () {
-        cleanupTestsuite();
-        browserWindowsCount(1, "Only one browser window should be open eventually");
-        finish();
-      });
-    });
+    testMacNotifications(
+      function() testNotificationCount(
+        function() {
+          cleanupTestsuite();
+          is(browserWindowsCount(), 1, "Only one browser window should be open eventually");
+          finish();
+        }
+      )
+    );
   }
   else {
     // Non-Mac Tests
-    testOpenCloseNormal(function () {
-      browserWindowsCount([0, 1], "browser windows after testOpenCloseNormal");
-      testOpenClosePrivateBrowsing(function () {
-        browserWindowsCount([0, 1], "browser windows after testOpenClosePrivateBrowsing");
-        testOpenCloseWindowAndPopup(function () {
-          browserWindowsCount([0, 1], "browser windows after testOpenCloseWindowAndPopup");
-          testOpenCloseOnlyPopup(function () {
-            browserWindowsCount([0, 1], "browser windows after testOpenCloseOnlyPopup");
-            testOpenCloseRestoreFromPopup(function () {
-              browserWindowsCount([0, 1], "browser windows after testOpenCloseRestoreFromPopup");
-              testNotificationCount(function () {
-                cleanupTestsuite();
-                browserWindowsCount(1, "browser windows after testNotificationCount");
-                finish();
-              });
-            });
-          });
-        });
-      });
-    });
+    testOpenCloseNormal(
+      function() testOpenClosePrivateBrowsing(
+        function() testOpenCloseWindowAndPopup(
+          function() testOpenCloseOnlyPopup(
+            function() testOpenCloseRestoreFromPopup (
+              function() testNotificationCount(
+                function() {
+                  cleanupTestsuite();
+                  is(browserWindowsCount(), 1, "Only one browser window should be open eventually");
+                  finish();
+                }
+              )
+            )
+          )
+        )
+      )
+    );
   }
 }

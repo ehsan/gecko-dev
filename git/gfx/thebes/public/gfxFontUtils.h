@@ -476,19 +476,9 @@ public:
     ReadCMAPTableFormat4(PRUint8 *aBuf, PRUint32 aLength, 
                          gfxSparseBitSet& aCharacterMap);
 
-    static PRUint32
-    FindPreferredSubtable(PRUint8 *aBuf, PRUint32 aBufLength,
-                          PRUint32 *aTableOffset, PRBool *aSymbolEncoding);
-
     static nsresult
     ReadCMAP(PRUint8 *aBuf, PRUint32 aBufLength, gfxSparseBitSet& aCharacterMap,
              PRPackedBool& aUnicodeFont, PRPackedBool& aSymbolFont);
-
-    static PRUint32
-    MapCharToGlyphFormat4(const PRUint8 *aBuf, PRUnichar aCh);
-
-    static PRUint32
-    MapCharToGlyph(PRUint8 *aBuf, PRUint32 aBufLength, PRUnichar aCh);
 
 #ifdef XP_WIN
 
@@ -542,8 +532,10 @@ public:
                    PRUint32 aPlatformCode, PRUint32 aScriptCode,
                    PRUint32 aLangCode, nsAString& dest);
 
-    static inline bool IsJoinCauser(PRUint32 ch) {
-        return (ch == 0x200D);
+    static inline bool IsJoiner(PRUint32 ch) {
+        return (ch == 0x200C ||
+                ch == 0x200D ||
+                ch == 0x2060);
     }
 
     static inline bool IsInvalid(PRUint32 ch) {

@@ -541,6 +541,11 @@ protected:
   virtual ~nsFrame();
 
   /**
+   * @return PR_FALSE if this frame definitely has no borders at all
+   */                 
+  PRBool HasBorder() const;
+
+  /**
    * To be called by |BuildDisplayLists| of this class or derived classes to add
    * a translucent overlay if this frame's content is selected.
    * @param aContentType an nsISelectionDisplay DISPLAY_ constant identifying

@@ -244,24 +244,9 @@ nsAuthSSPI::Init(const char *serviceName,
     SEC_WCHAR *package;
 
     package = (SEC_WCHAR *) pTypeName[(int)mPackage];
-
-    if (mPackage == PACKAGE_TYPE_NTLM) {
-        // (bug 535193) For NTLM, just use the uri host, do not do canonical host lookups.
-        // The incoming serviceName is in the format: "protocol@hostname", SSPI expects
-        // "<service class>/<hostname>", so swap the '@' for a '/'.
-        mServiceName.Assign(serviceName);
-        PRInt32 index = mServiceName.FindChar('@');
-        if (index == kNotFound)
-            return NS_ERROR_UNEXPECTED;
-        mServiceName.Replace(index, 1, '/');
-    }
-    else {
-        // Kerberos requires the canonical host, MakeSN takes care of this through a
-        // DNS lookup.
-        rv = MakeSN(serviceName, mServiceName);
-        if (NS_FAILED(rv))
-            return rv;
-    }
+    rv = MakeSN(serviceName, mServiceName);
+    if (NS_FAILED(rv))
+        return rv;
 
     mServiceFlags = serviceFlags;
 
@@ -285,16 +270,18 @@ nsAuthSSPI::Init(const char *serviceName,
     // returns false for identityInvalid. Use default credentials in this case by passing
     // null for pai.
     if (username && password) {
-        // Keep a copy of these strings for the duration
-        mUsername.Assign(username);
-        mPassword.Assign(password);
-        mDomain.Assign(domain);
-        ai.Domain = reinterpret_cast<unsigned short*>(mDomain.BeginWriting());
-        ai.DomainLength = mDomain.Length();
-        ai.User = reinterpret_cast<unsigned short*>(mUsername.BeginWriting());
-        ai.UserLength = mUsername.Length();
-        ai.Password = reinterpret_cast<unsigned short*>(mPassword.BeginWriting());
-        ai.PasswordLength = mPassword.Length();
+        if (domain) {
+            ai.Domain = const_cast<unsigned short*>(domain);
+            ai.DomainLength = wcslen(domain);
+        }
+        else {
+            ai.Domain = NULL;
+            ai.DomainLength = 0;
+        }
+        ai.User = const_cast<unsigned short*>(username);
+        ai.UserLength = wcslen(username);
+        ai.Password = const_cast<unsigned short*>(password);
+        ai.PasswordLength = wcslen(password);
         ai.Flags = SEC_WINNT_AUTH_IDENTITY_UNICODE;
         pai = &ai;
     }
@@ -329,11 +316,6 @@ nsAuthSSPI::GetNextToken(const void *inToken,
     SecBuffer ib, ob;
 
     LOG(("entering nsAuthSSPI::GetNextToken()\n"));
-
-    if (!mCred.dwLower && !mCred.dwUpper) {
-        LOG(("nsAuthSSPI::GetNextToken(), not initialized. exiting."));
-        return NS_ERROR_NOT_INITIALIZED;
-    }
 
     if (mServiceFlags & REQ_DELEGATE)
         ctxReq |= ISC_REQ_DELEGATE;

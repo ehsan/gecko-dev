@@ -372,20 +372,6 @@ static nsIEditor* GetHTMLEditor(nsPresContext* aPresContext)
   return editor;
 }
 
-static nsIContent* GetRootForContentSubtree(nsIContent* aContent)
-{
-  NS_ENSURE_TRUE(aContent, nsnull);
-  nsIContent* stop = aContent->GetBindingParent();
-  while (aContent) {
-    nsIContent* parent = aContent->GetParent();
-    if (parent == stop) {
-      break;
-    }
-    aContent = parent;
-  }
-  return aContent;
-}
-
 nsIContent*
 nsINode::GetSelectionRootContent(nsIPresShell* aPresShell)
 {
@@ -411,14 +397,8 @@ nsINode::GetSelectionRootContent(nsIPresShell* aPresShell)
     if (editor) {
       // This node is in HTML editor.
       nsIDocument* doc = GetCurrentDoc();
-      if (!doc || doc->HasFlag(NODE_IS_EDITABLE) ||
-          !HasFlag(NODE_IS_EDITABLE)) {
-        nsIContent* editorRoot = GetEditorRootContent(editor);
-        NS_ENSURE_TRUE(editorRoot, nsnull);
-        return nsContentUtils::IsInSameAnonymousTree(this, editorRoot) ?
-                 editorRoot :
-                 GetRootForContentSubtree(static_cast<nsIContent*>(this));
-      }
+      if (!doc || doc->HasFlag(NODE_IS_EDITABLE) || !HasFlag(NODE_IS_EDITABLE))
+        return GetEditorRootContent(editor);
       // If the current document is not editable, but current content is
       // editable, we should assume that the child of the nearest non-editable
       // ancestor is selection root.
@@ -433,22 +413,14 @@ nsINode::GetSelectionRootContent(nsIPresShell* aPresShell)
 
   nsCOMPtr<nsFrameSelection> fs = aPresShell->FrameSelection();
   nsIContent* content = fs->GetLimiter();
-  if (!content) {
-    content = fs->GetAncestorLimiter();
-    if (!content) {
-      nsIDocument* doc = aPresShell->GetDocument();
-      NS_ENSURE_TRUE(doc, nsnull);
-      content = doc->GetRootContent();
-      if (!content)
-        return nsnull;
-    }
-  }
-
-  // This node might be in another subtree, if so, we should find this subtree's
-  // root.  Otherwise, we can return the content simply.
-  NS_ENSURE_TRUE(content, nsnull);
-  return nsContentUtils::IsInSameAnonymousTree(this, content) ?
-           content : GetRootForContentSubtree(static_cast<nsIContent*>(this));
+  if (content)
+    return content;
+  content = fs->GetAncestorLimiter();
+  if (content)
+    return content;
+  nsIDocument* doc = aPresShell->GetDocument();
+  NS_ENSURE_TRUE(doc, nsnull);
+  return doc->GetRootContent();
 }
 
 nsINodeList*
@@ -1160,7 +1132,9 @@ nsIFrame*
 nsGenericElement::GetStyledFrame()
 {
   nsIFrame *frame = GetPrimaryFrame(Flush_Layout);
-  return frame ? nsLayoutUtils::GetStyleFrame(frame) : nsnull;
+
+  return (frame && frame->GetType() == nsGkAtoms::tableOuterFrame) ?
+    frame->GetFirstChild(nsnull) : frame;
 }
 
 void
@@ -4460,7 +4434,8 @@ nsGenericElement::SetAttrAndNotify(PRInt32 aNamespaceID,
       MOZ_AUTO_DOC_UPDATE(document, UPDATE_CONTENT_STATE, aNotify);
       document->ContentStatesChanged(this, nsnull, stateMask);
     }
-    nsNodeUtils::AttributeChanged(this, aNamespaceID, aName, modType);
+    nsNodeUtils::AttributeChanged(this, aNamespaceID, aName, modType,
+                                  stateMask);
   }
 
   if (aNamespaceID == kNameSpaceID_XMLEvents && 
@@ -4721,7 +4696,8 @@ nsGenericElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
       document->ContentStatesChanged(this, nsnull, stateMask);
     }
     nsNodeUtils::AttributeChanged(this, aNameSpaceID, aName,
-                                  nsIDOMMutationEvent::REMOVAL);
+                                  nsIDOMMutationEvent::REMOVAL,
+                                  stateMask);
   }
 
   rv = AfterSetAttr(aNameSpaceID, aName, nsnull, aNotify);
@@ -5168,8 +5144,6 @@ nsGenericElement::GetLinkTarget(nsAString& aTarget)
 }
 
 // NOTE: The aPresContext pointer is NOT addrefed.
-// *aSelectorList might be null even if NS_OK is returned; this
-// happens when all the selectors were pseudo-element selectors.
 static nsresult
 ParseSelectorList(nsINode* aNode,
                   const nsAString& aSelectorString,
@@ -5185,27 +5159,12 @@ ParseSelectorList(nsINode* aNode,
   nsresult rv = doc->CSSLoader()->GetParserFor(nsnull, getter_AddRefs(parser));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCSSSelectorList* selectorList;
   rv = parser->ParseSelectorString(aSelectorString,
                                    doc->GetDocumentURI(),
                                    0, // XXXbz get the right line number!
-                                   &selectorList);
+                                   aSelectorList);
   doc->CSSLoader()->RecycleParser(parser);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  // Filter out pseudo-element selectors from selectorList
-  nsCSSSelectorList** slot = &selectorList;
-  do {
-    nsCSSSelectorList* cur = *slot;
-    if (cur->mSelectors->IsPseudoElement()) {
-      *slot = cur->mNext;
-      cur->mNext = nsnull;
-      delete cur;
-    } else {
-      slot = &cur->mNext;
-    }
-  } while (*slot);
-  *aSelectorList = selectorList;
 
   // It's not strictly necessary to have a prescontext here, but it's
   // a bit of an optimization for various stuff.

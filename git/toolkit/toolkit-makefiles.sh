@@ -48,11 +48,6 @@ MAKEFILES_db="
 "
 
 MAKEFILES_dom="
-  ipc/Makefile
-  ipc/chromium/Makefile
-  ipc/glue/Makefile
-  ipc/ipdl/Makefile
-  ipc/testshell/Makefile
   dom/Makefile
   dom/public/coreEvents/Makefile
   dom/interfaces/base/Makefile
@@ -85,8 +80,6 @@ MAKEFILES_dom="
   dom/src/storage/Makefile
   dom/src/threads/Makefile
   dom/locales/Makefile
-  dom/plugins/Makefile
-  dom/ipc/Makefile
 "
 
 MAKEFILES_editor="

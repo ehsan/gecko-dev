@@ -464,6 +464,7 @@ nsCSSColumn::~nsCSSColumn(void)
   MOZ_COUNT_DTOR(nsCSSColumn);
 }
 
+#ifdef MOZ_SVG
 // --- nsCSSSVG -----------------
 
 nsCSSSVG::nsCSSSVG(void) : mStrokeDasharray(nsnull)
@@ -476,3 +477,5 @@ nsCSSSVG::~nsCSSSVG(void)
   MOZ_COUNT_DTOR(nsCSSSVG);
   delete mStrokeDasharray;
 }
+
+#endif // MOZ_SVG

@@ -89,18 +89,13 @@ public:
   // nsIStyleRuleProcessor api
   NS_IMETHOD RulesMatching(ElementRuleProcessorData* aData);
 
-  NS_IMETHOD RulesMatching(PseudoElementRuleProcessorData* aData);
+  NS_IMETHOD RulesMatching(PseudoRuleProcessorData* aData);
 
-  NS_IMETHOD RulesMatching(AnonBoxRuleProcessorData* aData);
+  NS_IMETHOD HasStateDependentStyle(StateRuleProcessorData* aData,
+                                    nsReStyleHint* aResult);
 
-#ifdef MOZ_XUL
-  NS_IMETHOD RulesMatching(XULTreeRuleProcessorData* aData);
-#endif
-
-  virtual nsReStyleHint HasStateDependentStyle(StateRuleProcessorData* aData);
-
-  virtual nsReStyleHint
-    HasAttributeDependentStyle(AttributeRuleProcessorData* aData);
+  NS_IMETHOD HasAttributeDependentStyle(AttributeRuleProcessorData* aData,
+                                        nsReStyleHint* aResult);
   NS_IMETHOD MediumFeaturesChanged(nsPresContext* aPresContext,
                                   PRBool* aResult);
 
@@ -144,44 +139,28 @@ NS_IMETHODIMP
 HTMLCSSStyleSheetImpl::RulesMatching(ElementRuleProcessorData* aData)
 {
   nsIContent* content = aData->mContent;
-
-  // just get the one and only style rule from the content's STYLE attribute
-  nsICSSStyleRule* rule = content->GetInlineStyleRule();
-  if (rule) {
-    rule->RuleMatched();
-    aData->mRuleWalker->Forward(rule);
-  }
+  
+  if (content) {
+    // just get the one and only style rule from the content's STYLE attribute
+    nsICSSStyleRule* rule = content->GetInlineStyleRule();
+    if (rule)
+      aData->mRuleWalker->Forward(rule);
 
 #ifdef MOZ_SMIL
-  rule = content->GetSMILOverrideStyleRule();
-  if (rule) {
-    rule->RuleMatched();
-    aData->mRuleWalker->Forward(rule);
-  }
+    rule = content->GetSMILOverrideStyleRule();
+    if (rule)
+      aData->mRuleWalker->Forward(rule);
 #endif // MOZ_SMIL
+  }
 
   return NS_OK;
 }
 
 NS_IMETHODIMP
-HTMLCSSStyleSheetImpl::RulesMatching(PseudoElementRuleProcessorData* aData)
+HTMLCSSStyleSheetImpl::RulesMatching(PseudoRuleProcessorData* aData)
 {
   return NS_OK;
 }
-
-NS_IMETHODIMP
-HTMLCSSStyleSheetImpl::RulesMatching(AnonBoxRuleProcessorData* aData)
-{
-  return NS_OK;
-}
-
-#ifdef MOZ_XUL
-NS_IMETHODIMP
-HTMLCSSStyleSheetImpl::RulesMatching(XULTreeRuleProcessorData* aData)
-{
-  return NS_OK;
-}
-#endif
 
 NS_IMETHODIMP
 HTMLCSSStyleSheetImpl::Init(nsIURI* aURL, nsIDocument* aDocument)
@@ -200,17 +179,21 @@ HTMLCSSStyleSheetImpl::Init(nsIURI* aURL, nsIDocument* aDocument)
 }
 
 // Test if style is dependent on content state
-nsReStyleHint
-HTMLCSSStyleSheetImpl::HasStateDependentStyle(StateRuleProcessorData* aData)
+NS_IMETHODIMP
+HTMLCSSStyleSheetImpl::HasStateDependentStyle(StateRuleProcessorData* aData,
+                                              nsReStyleHint* aResult)
 {
-  return nsReStyleHint(0);
+  *aResult = nsReStyleHint(0);
+  return NS_OK;
 }
 
 // Test if style is dependent on attribute
-nsReStyleHint
-HTMLCSSStyleSheetImpl::HasAttributeDependentStyle(AttributeRuleProcessorData* aData)
+NS_IMETHODIMP
+HTMLCSSStyleSheetImpl::HasAttributeDependentStyle(AttributeRuleProcessorData* aData,
+                                                  nsReStyleHint* aResult)
 {
-  return nsReStyleHint(0);
+  *aResult = nsReStyleHint(0);
+  return NS_OK;
 }
 
 NS_IMETHODIMP

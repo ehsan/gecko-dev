@@ -42,12 +42,6 @@
 
 #define ALL_VERSIONS   ((unsigned long long)-1LL)
 
-// DLLs sometimes ship without a version number, particularly early
-// releases. Blocking "version <= 0" has the effect of blocking unversioned
-// DLLs (since the call to get version info fails), but not blocking
-// any versioned instance.
-#define UNVERSIONED    ((unsigned long long)0LL)
-
 // Convert the 4 (decimal) components of a DLL version number into a
 // single unsigned long long, as needed by the blocklist
 #define MAKE_VERSION(a,b,c,d)\
@@ -80,16 +74,6 @@ static DllBlockInfo sWindowsDllBlocklist[] = {
 
   // AVG 8 - Antivirus vendor AVG, old version, plugin already blocklisted
   {"avgrsstx.dll", MAKE_VERSION(8,5,0,401)},
-  
-  // calc.dll - Suspected malware
-  {"calc.dll", MAKE_VERSION(1,0,0,1)},
-
-  // hook.dll - Suspected malware
-  {"hook.dll", ALL_VERSIONS},
-  
-  // GoogleDesktopNetwork3.dll - Extremely old, unversioned instances
-  // of this DLL cause crashes
-  {"googledesktopnetwork3.dll", UNVERSIONED},
 
   // leave these two in always for tests
   { "mozdllblockingtest.dll", ALL_VERSIONS },

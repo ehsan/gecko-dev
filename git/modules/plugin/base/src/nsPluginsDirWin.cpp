@@ -239,11 +239,11 @@ nsresult nsPluginFile::LoadPlugin(PRLibrary* &outLibrary)
 
   BOOL restoreOrigDir = FALSE;
   char aOrigDir[MAX_PATH + 1];
-  DWORD dwCheck = GetCurrentDirectoryA(sizeof(aOrigDir), aOrigDir);
+  DWORD dwCheck = ::GetCurrentDirectory(sizeof(aOrigDir), aOrigDir);
   NS_ASSERTION(dwCheck <= MAX_PATH + 1, "Error in Loading plugin");
 
   if (dwCheck <= MAX_PATH + 1) {
-    restoreOrigDir = SetCurrentDirectoryA(pluginFolderPath);
+    restoreOrigDir = ::SetCurrentDirectory(pluginFolderPath);
     NS_ASSERTION(restoreOrigDir, "Error in Loading plugin");
   }
 #endif
@@ -252,7 +252,7 @@ nsresult nsPluginFile::LoadPlugin(PRLibrary* &outLibrary)
 
 #ifndef WINCE    
   if (restoreOrigDir) {
-    BOOL bCheck = SetCurrentDirectoryA(aOrigDir);
+    BOOL bCheck = ::SetCurrentDirectory(aOrigDir);
     NS_ASSERTION(bCheck, "Error in Loading plugin");
   }
 

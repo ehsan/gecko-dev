@@ -52,13 +52,11 @@
 #include "nsIInputStream.h"
 #include "nsIChannel.h"
 #include "nsTPtrArray.h"
-#include "nsCOMArray.h"
-#include "nsITimer.h"
 
 // XXX for older version of PSDK where IAsyncOperation and related stuff is not available
 // but thisdefine  should be removed when parocles config is updated
 #ifndef __IAsyncOperation_INTERFACE_DEFINED__
-// IAsyncOperation interface definition
+// IAsyncOperation inerface definition
 EXTERN_C const IID IID_IAsyncOperation;
 
 MIDL_INTERFACE("3D8B0590-F691-11d2-8EA9-006097DF5BD4")
@@ -230,9 +228,6 @@ class nsDataObj : public IDataObject,
 		virtual HRESULT GetBitmap ( const nsACString& inFlavor, FORMATETC&  FE, STGMEDIUM&  STM);
 		virtual HRESULT GetDib ( const nsACString& inFlavor, FORMATETC &, STGMEDIUM & aSTG );
 		virtual HRESULT GetMetafilePict(FORMATETC&  FE, STGMEDIUM&  STM);
-        
-        virtual HRESULT DropImage( FORMATETC& aFE, STGMEDIUM& aSTG );
-        virtual HRESULT DropFile( FORMATETC& aFE, STGMEDIUM& aSTG );
 
     virtual HRESULT GetUniformResourceLocator ( FORMATETC& aFE, STGMEDIUM& aSTG, PRBool aIsUnicode ) ;
     virtual HRESULT ExtractUniformResourceLocatorA ( FORMATETC& aFE, STGMEDIUM& aSTG ) ;
@@ -335,8 +330,6 @@ class nsDataObj : public IDataObject,
                             BOOL fCopyIn);
     IUnknown* GetCanonicalIUnknown(IUnknown *punk);
     HGLOBAL GlobalClone(HGLOBAL hglobIn);
-    static void RemoveTempFile(nsITimer* aTimer, void* aClosure);
-    nsCOMPtr<nsITimer> mTimer;
 };
 
 

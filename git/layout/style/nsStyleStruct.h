@@ -66,7 +66,6 @@
 #include "nsCSSValue.h"
 #include "nsStyleTransformMatrix.h"
 #include "nsAlgorithm.h"
-#include "imgIRequest.h"
 
 class nsIFrame;
 class imgIRequest;
@@ -84,9 +83,6 @@ class imgIContainer;
 #define NS_STYLE_HAS_TEXT_DECORATIONS     0x01000000
 // See nsStyleContext::HasPseudoElementData.
 #define NS_STYLE_HAS_PSEUDO_ELEMENT_DATA  0x02000000
-// See nsStyleContext::GetPseudoEnum
-#define NS_STYLE_CONTEXT_TYPE_MASK        0xf0000000
-#define NS_STYLE_CONTEXT_TYPE_SHIFT       28
 
 // Additional bits for nsRuleNode's mDependentBits:
 #define NS_RULE_NODE_GC_MARK              0x02000000
@@ -413,19 +409,10 @@ struct nsStyleBackground {
     };
     PRUint8 mWidthType, mHeightType;
 
-    // True if the effective image size described by this depends on
-    // the size of the corresponding frame.  Gradients depend on the
-    // frame size when their dimensions are 'auto', images don't; both
-    // types depend on the frame size when their dimensions are
-    // 'contain', 'cover', or a percentage.
-    PRBool DependsOnFrameSize(nsStyleImageType aType) const {
-      if (aType == eStyleImageType_Image) {
-        return mWidthType <= ePercentage || mHeightType <= ePercentage;
-      } else {
-        NS_ABORT_IF_FALSE(aType == eStyleImageType_Gradient,
-                          "unrecognized image type");
-        return mWidthType <= eAuto || mHeightType <= eAuto;
-      }
+    // True if the effective image size described by this depends on the size
+    // of the corresponding frame.
+    PRBool DependsOnFrameSize() const {
+      return mWidthType <= ePercentage || mHeightType <= ePercentage;
     }
 
     // Initialize nothing
@@ -457,14 +444,12 @@ struct nsStyleBackground {
 
     void SetInitialValues();
 
-    // True if the rendering of this layer might change when the size
-    // of the corresponding frame changes.  This is true for any
-    // non-solid-color background whose position or size depends on
-    // the frame size.
+    // True if the rendering of this layer might change when the size of the
+    // corresponding frame changes (if its position or size is a percentage of
+    // the frame's dimensions).
     PRBool RenderingMightDependOnFrameSize() const {
-      return (!mImage.IsEmpty() &&
-              (mPosition.DependsOnFrameSize() ||
-               mSize.DependsOnFrameSize(mImage.GetType())));
+      return !mImage.IsEmpty() &&
+             (mPosition.DependsOnFrameSize() || mSize.DependsOnFrameSize());
     }
 
     // An equality operator that compares the images using URL-equality
@@ -927,7 +912,7 @@ protected:
   PRUint8       mBorderStyle[4];  // [reset] See nsStyleConsts.h
   nscolor       mBorderColor[4];  // [reset] the colors to use for a simple border.  not used
                                   // if -moz-border-colors is specified
-private:
+
   nsCOMPtr<imgIRequest> mBorderImage; // [reset]
 
   // Cache used by callers for border-image painting
@@ -1045,17 +1030,9 @@ struct nsStyleList {
 #endif
   static PRBool ForceCompare() { return PR_FALSE; }
   
-  imgIRequest* GetListStyleImage() const { return mListStyleImage; }
-  void SetListStyleImage(imgIRequest* aReq)
-  {
-    mListStyleImage = aReq;
-  }
-
   PRUint8   mListStyleType;             // [inherited] See nsStyleConsts.h
-  PRUint8   mListStylePosition;         // [inherited]
-private:
+  PRUint8   mListStylePosition;         // [inherited] 
   nsCOMPtr<imgIRequest> mListStyleImage; // [inherited]
-public:
   nsRect        mImageRegion;           // [inherited] the rect to use within an image  
 };
 
@@ -1472,12 +1449,6 @@ struct nsStyleContentData {
   PRBool operator!=(const nsStyleContentData& aOther) const {
     return !(*this == aOther);
   }
-
-  void SetImage(imgIRequest* aRequest)
-  {
-    NS_ASSERTION(mType == eStyleContentType_Image, "Wrong type!");
-    NS_IF_ADDREF(mContent.mImage = aRequest);
-  }
 private:
   nsStyleContentData(const nsStyleContentData&); // not to be implemented
 };
@@ -1808,6 +1779,7 @@ protected:
   nscoord mTwipsPerPixel;
 };
 
+#ifdef MOZ_SVG
 enum nsStyleSVGPaintType {
   eStyleSVGPaintType_None = 1,
   eStyleSVGPaintType_Color,
@@ -1911,5 +1883,6 @@ struct nsStyleSVGReset {
 
   PRUint8          mDominantBaseline; // [reset] see nsStyleConsts.h
 };
+#endif
 
 #endif /* nsStyleStruct_h___ */

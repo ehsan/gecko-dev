@@ -866,7 +866,6 @@ public:
 
   // nsIMutationObserver
   NS_DECL_NSIMUTATIONOBSERVER_CHARACTERDATACHANGED
-  NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTEWILLCHANGE
   NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTAPPENDED
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
@@ -903,8 +902,7 @@ public:
                                                 nsDisplayList& aList,
                                                 nsIFrame* aFrame,
                                                 nsRect* aBounds,
-                                                nscolor aBackstopColor,
-                                                PRBool aForceDraw);
+                                                nscolor aBackstopColor);
 
 protected:
   virtual ~PresShell();
@@ -1028,18 +1026,6 @@ protected:
 
   // Utility method to restore the root scrollframe state
   void RestoreRootScrollPosition();
-
-  void MaybeReleaseCapturingContent()
-  {
-    nsCOMPtr<nsFrameSelection> frameSelection = FrameSelection();
-    if (frameSelection) {
-      frameSelection->SetMouseDownState(PR_FALSE);
-    }
-    if (gCaptureInfo.mContent &&
-        gCaptureInfo.mContent->GetOwnerDoc() == mDocument) {
-      SetCapturingContent(nsnull, 0);
-    }
-  }
 
   nsCOMPtr<nsICSSStyleSheet> mPrefStyleSheet; // mStyleSet owns it but we
                                               // maintain a ref, may be null
@@ -1223,6 +1209,9 @@ protected:
 
   static PRBool sDisableNonTestMouseEvents;
 
+
+  nsCOMPtr<nsIDocumentObserver> mDocumentObserverForNonDynamicContext;
+
   // false if a check should be done for key/ime events that should be
   // retargeted to the currently focused presshell
   static PRBool sDontRetargetEvents;
@@ -1246,9 +1235,6 @@ private:
                                  nsIFrame*      aTargetFrame,
                                  nsGUIEvent*    aEvent,
                                  nsEventStatus* aEventStatus);
-  // This returns the focused DOM window under our top level window.
-  //  I.e., when we are deactive, this returns the *last* focused DOM window.
-  already_AddRefed<nsPIDOMWindow> GetFocusedDOMWindowInOurWindow();
 
   /*
    * This and the next two helper methods are used to target and position the
@@ -1339,6 +1325,123 @@ public:
 
   nsRefPtr<PresShell> mPresShell;
 };
+
+class nsDocumentObserverForNonDynamicPresContext : public nsStubDocumentObserver
+{
+public:
+  nsDocumentObserverForNonDynamicPresContext(PresShell* aBaseObserver)
+  : mBaseObserver(aBaseObserver)
+  {
+    NS_ASSERTION(aBaseObserver, "Null document observer!");
+  }
+
+  NS_DECL_ISUPPORTS
+
+  virtual void BeginUpdate(nsIDocument* aDocument, nsUpdateType aUpdateType)
+  {
+    mBaseObserver->BeginUpdate(aDocument, aUpdateType);
+  }
+  virtual void EndUpdate(nsIDocument* aDocument, nsUpdateType aUpdateType)
+  {
+    mBaseObserver->EndUpdate(aDocument, aUpdateType);
+  }
+  virtual void BeginLoad(nsIDocument* aDocument)
+  {
+    mBaseObserver->BeginLoad(aDocument);
+  }
+  virtual void EndLoad(nsIDocument* aDocument)
+  {
+    mBaseObserver->EndLoad(aDocument);
+  }
+  virtual void ContentStatesChanged(nsIDocument* aDocument,
+                                    nsIContent* aContent1,
+                                    nsIContent* aContent2,
+                                    PRInt32 aStateMask)
+  {
+    if ((!aContent1 || AllowMutation(aContent1)) &&
+        (!aContent2 || AllowMutation(aContent2))) {
+      mBaseObserver->ContentStatesChanged(aDocument, aContent1, aContent2,
+                                          aStateMask);
+    }
+  }
+
+  // nsIMutationObserver
+  virtual void CharacterDataChanged(nsIDocument* aDocument,
+                                    nsIContent* aContent,
+                                    CharacterDataChangeInfo* aInfo)
+  {
+    if (AllowMutation(aContent)) {
+      mBaseObserver->CharacterDataChanged(aDocument, aContent, aInfo);
+    }
+  }
+  virtual void AttributeChanged(nsIDocument* aDocument,
+                                nsIContent* aContent,
+                                PRInt32 aNameSpaceID,
+                                nsIAtom* aAttribute,
+                                PRInt32 aModType,
+                                PRUint32 aStateMask)
+  {
+    if (AllowMutation(aContent)) {
+      mBaseObserver->AttributeChanged(aDocument, aContent, aNameSpaceID,
+                                      aAttribute, aModType, aStateMask);
+    }
+  }
+  virtual void ContentAppended(nsIDocument* aDocument,
+                               nsIContent* aContainer,
+                               PRInt32 aNewIndexInContainer)
+  {
+    if (AllowMutation(aContainer)) {
+      mBaseObserver->ContentAppended(aDocument, aContainer,
+                                     aNewIndexInContainer);
+    }
+  }
+  virtual void ContentInserted(nsIDocument* aDocument,
+                               nsIContent* aContainer,
+                               nsIContent* aChild,
+                               PRInt32 aIndexInContainer)
+  {
+    if (AllowMutation(aContainer)) {
+      mBaseObserver->ContentInserted(aDocument, aContainer, aChild,
+                                     aIndexInContainer);
+    }
+  }
+  virtual void ContentRemoved(nsIDocument* aDocument,
+                              nsIContent* aContainer,
+                              nsIContent* aChild,
+                              PRInt32 aIndexInContainer)
+  {
+    if (AllowMutation(aContainer)) {
+      mBaseObserver->ContentRemoved(aDocument, aContainer, aChild, 
+                                    aIndexInContainer);
+    }
+  }
+
+  PRBool AllowMutation(nsIContent* aContent) {
+    if(aContent && aContent->IsInDoc()) {
+       if (mBaseObserver->ObservesNativeAnonMutationsForPrint() &&
+           aContent->IsInNativeAnonymousSubtree()) {
+         return PR_TRUE;
+       }
+       // Changes to scrollbar are always ok.
+       nsIContent* root = aContent->GetCurrentDoc()->GetRootContent();
+       while (aContent && aContent->IsInNativeAnonymousSubtree()) {
+         nsIContent* parent = aContent->GetParent();
+         if (parent == root && aContent->IsXUL()) {
+           nsIAtom* tag = aContent->Tag();
+           return tag == nsGkAtoms::scrollbar || tag == nsGkAtoms::scrollcorner;
+         }
+         aContent = parent;
+       }
+    }
+    return PR_FALSE;
+  }
+protected:
+  nsRefPtr<PresShell> mBaseObserver;
+};
+
+NS_IMPL_ISUPPORTS2(nsDocumentObserverForNonDynamicPresContext,
+                   nsIDocumentObserver,
+                   nsIMutationObserver)
 
 PRBool PresShell::sDisableNonTestMouseEvents = PR_FALSE;
 PRBool PresShell::sDontRetargetEvents = PR_FALSE;
@@ -1727,8 +1830,6 @@ PresShell::Destroy()
 
   if (mHaveShutDown)
     return NS_OK;
-
-  MaybeReleaseCapturingContent();
 
   mContentToScrollTo = nsnull;
 
@@ -2416,7 +2517,14 @@ NS_IMETHODIMP
 PresShell::BeginObservingDocument()
 {
   if (mDocument && !mIsDestroying) {
-    mDocument->AddObserver(this);
+    if (mPresContext->IsDynamic()) {
+      mDocument->AddObserver(this);
+    } else {
+      mDocumentObserverForNonDynamicContext =
+        new nsDocumentObserverForNonDynamicPresContext(this);
+      NS_ENSURE_TRUE(mDocumentObserverForNonDynamicContext, NS_ERROR_OUT_OF_MEMORY);
+      mDocument->AddObserver(mDocumentObserverForNonDynamicContext);
+    }
     if (mIsDocumentGone) {
       NS_WARNING("Adding a presshell that was disconnected from the document "
                  "as a document observer?  Sounds wrong...");
@@ -2434,7 +2542,10 @@ PresShell::EndObservingDocument()
   // is gone, perhaps?  Except for printing it's NOT gone, sometimes.
   mIsDocumentGone = PR_TRUE;
   if (mDocument) {
-    mDocument->RemoveObserver(this);
+    mDocument->RemoveObserver(mDocumentObserverForNonDynamicContext ?
+                              mDocumentObserverForNonDynamicContext.get() :
+                              this);
+    mDocumentObserverForNonDynamicContext = nsnull;
   }
   return NS_OK;
 }
@@ -3495,6 +3606,10 @@ PresShell::RecreateFramesFor(nsIContent* aContent)
   if (!mDidInitialReflow) {
     // Nothing to do here.  In fact, if we proceed and aContent is the
     // root we will crash.
+    return NS_OK;
+  }
+
+  if (!mPresContext->IsDynamic()) {
     return NS_OK;
   }
 
@@ -4900,33 +5015,14 @@ PresShell::ContentStatesChanged(nsIDocument* aDocument,
   }
 }
 
-void
-PresShell::AttributeWillChange(nsIDocument* aDocument,
-                               nsIContent*  aContent,
-                               PRInt32      aNameSpaceID,
-                               nsIAtom*     aAttribute,
-                               PRInt32      aModType)
-{
-  NS_PRECONDITION(!mIsDocumentGone, "Unexpected AttributeChanged");
-  NS_PRECONDITION(aDocument == mDocument, "Unexpected aDocument");
-
-  // XXXwaterson it might be more elegant to wait until after the
-  // initial reflow to begin observing the document. That would
-  // squelch any other inappropriate notifications as well.
-  if (mDidInitialReflow) {
-    nsAutoCauseReflowNotifier crNotifier(this);
-    mFrameConstructor->AttributeWillChange(aContent, aNameSpaceID,
-                                           aAttribute, aModType);
-    VERIFY_STYLE_TREE;
-  }
-}
 
 void
 PresShell::AttributeChanged(nsIDocument* aDocument,
                             nsIContent*  aContent,
                             PRInt32      aNameSpaceID,
                             nsIAtom*     aAttribute,
-                            PRInt32      aModType)
+                            PRInt32      aModType,
+                            PRUint32     aStateMask)
 {
   NS_PRECONDITION(!mIsDocumentGone, "Unexpected AttributeChanged");
   NS_PRECONDITION(aDocument == mDocument, "Unexpected aDocument");
@@ -4937,7 +5033,7 @@ PresShell::AttributeChanged(nsIDocument* aDocument,
   if (mDidInitialReflow) {
     nsAutoCauseReflowNotifier crNotifier(this);
     mFrameConstructor->AttributeChanged(aContent, aNameSpaceID,
-                                        aAttribute, aModType);
+                                        aAttribute, aModType, aStateMask);
     VERIFY_STYLE_TREE;
   }
 }
@@ -5029,6 +5125,9 @@ PresShell::ContentRemoved(nsIDocument *aDocument,
 nsresult
 PresShell::ReconstructFrames(void)
 {
+  if (!mPresContext || !mPresContext->IsDynamic()) {
+    return NS_OK;
+  }
   nsAutoCauseReflowNotifier crNotifier(this);
   mFrameConstructor->BeginUpdate();
   nsresult rv = mFrameConstructor->ReconstructDocElementHierarchy();
@@ -5696,8 +5795,7 @@ nsresult PresShell::AddCanvasBackgroundColorItem(nsDisplayListBuilder& aBuilder,
                                                  nsDisplayList&        aList,
                                                  nsIFrame*             aFrame,
                                                  nsRect*               aBounds,
-                                                 nscolor               aBackstopColor,
-                                                 PRBool                aForceDraw)
+                                                 nscolor               aBackstopColor)
 {
   // We don't want to add an item for the canvas background color if the frame
   // (sub)tree we are painting doesn't include any canvas frames. There isn't
@@ -5705,7 +5803,7 @@ nsresult PresShell::AddCanvasBackgroundColorItem(nsDisplayListBuilder& aBuilder,
   // (sub)tree we are painting is a canvas frame that should cover us in all
   // cases (it will usually be a viewport frame when we have a canvas frame in
   // the (sub)tree).
-  if (!aForceDraw && !nsCSSRendering::IsCanvasFrame(aFrame))
+  if (!nsCSSRendering::IsCanvasFrame(aFrame))
     return NS_OK;
 
   nscolor bgcolor = NS_ComposeColors(aBackstopColor, mCanvasBackgroundColor);
@@ -5952,21 +6050,6 @@ PresShell::DisableNonTestMouseEvents(PRBool aDisable)
   return NS_OK;
 }
 
-already_AddRefed<nsPIDOMWindow>
-PresShell::GetFocusedDOMWindowInOurWindow()
-{
-  nsCOMPtr<nsPIDOMWindow> window =
-    do_QueryInterface(mDocument->GetWindow());
-  NS_ENSURE_TRUE(window, nsnull);
-
-  nsCOMPtr<nsPIDOMWindow> rootWindow = window->GetPrivateRoot();
-  NS_ENSURE_TRUE(rootWindow, nsnull);
-  nsPIDOMWindow* focusedWindow;
-  nsIContent* content =
-    nsFocusManager::GetFocusedDescendant(rootWindow, PR_TRUE, &focusedWindow);
-  return focusedWindow;
-}
-
 NS_IMETHODIMP
 PresShell::HandleEvent(nsIView         *aView,
                        nsGUIEvent*     aEvent,
@@ -6005,13 +6088,6 @@ PresShell::HandleEvent(nsIView         *aView,
       // if there is no focused frame, there isn't anything to fire a key event
       // at so just return
       nsCOMPtr<nsPIDOMWindow> piWindow = do_QueryInterface(window);
-
-      if (!piWindow) {
-        // When all our windows are deactive, we should use the last focused
-        // window under our top level window.
-        piWindow = GetFocusedDOMWindowInOurWindow();
-      }
-
       if (!piWindow)
         return NS_OK;
 
@@ -6098,8 +6174,7 @@ PresShell::HandleEvent(nsIView         *aView,
   // view that has a frame.
   if (!frame &&
       (dispatchUsingCoordinates || NS_IS_KEY_EVENT(aEvent) ||
-       NS_IS_IME_RELATED_EVENT(aEvent) ||
-       aEvent->message == NS_PLUGIN_ACTIVATE)) {
+       NS_IS_IME_EVENT(aEvent) || aEvent->message == NS_PLUGIN_ACTIVATE)) {
     nsIView* targetView = aView;
     while (targetView && !targetView->GetClientData()) {
       targetView = targetView->GetParent();
@@ -6237,7 +6312,7 @@ PresShell::HandleEvent(nsIView         *aView,
     PushCurrentEventInfo(nsnull, nsnull);
 
     // key and IME events go to the focused frame
-    if (NS_IS_KEY_EVENT(aEvent) || NS_IS_IME_RELATED_EVENT(aEvent) ||
+    if (NS_IS_KEY_EVENT(aEvent) || NS_IS_IME_EVENT(aEvent) ||
         NS_IS_CONTEXT_MENU_KEY(aEvent) || NS_IS_PLUGIN_EVENT(aEvent)) {
       nsIFocusManager* fm = nsFocusManager::GetFocusManager();
       if (!fm)
@@ -6998,8 +7073,6 @@ FreezeSubDocument(nsIDocument *aDocument, void *aData)
 void
 PresShell::Freeze()
 {
-  MaybeReleaseCapturingContent();
-
   mDocument->EnumerateFreezableElements(FreezeElement, this);
 
   if (mCaret)

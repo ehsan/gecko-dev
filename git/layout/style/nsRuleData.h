@@ -72,7 +72,10 @@ struct nsRuleData
   nsRuleDataText* mTextData;
   nsRuleDataUserInterface* mUserInterfaceData;
   nsRuleDataXUL* mXULData;
+
+#ifdef MOZ_SVG
   nsRuleDataSVG* mSVGData;
+#endif
 
   nsRuleDataColumn* mColumnData;
 
@@ -80,9 +83,13 @@ struct nsRuleData
     :mSIDs(aSIDs), mPresContext(aContext), mStyleContext(aStyleContext), mPostResolveCallback(nsnull),
      mFontData(nsnull), mDisplayData(nsnull), mMarginData(nsnull), mListData(nsnull), 
      mPositionData(nsnull), mTableData(nsnull), mColorData(nsnull), mContentData(nsnull), mTextData(nsnull),
-     mUserInterfaceData(nsnull), mXULData(nsnull), mSVGData(nsnull), mColumnData(nsnull)
+     mUserInterfaceData(nsnull), mColumnData(nsnull)
   {
     mCanStoreInRuleTree = PR_TRUE;
+    mXULData = nsnull;
+#ifdef MOZ_SVG
+    mSVGData = nsnull;
+#endif
   }
   ~nsRuleData() {}
 };

@@ -130,8 +130,6 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  nsresult CopyInnerTo(nsGenericElement* aDest) const;
-
   void StartObjectLoad() { StartObjectLoad(PR_TRUE); }
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsHTMLSharedObjectElement,
@@ -461,17 +459,4 @@ nsHTMLSharedObjectElement::DestroyContent()
 {
   RemovedFromDocument();
   nsGenericHTMLElement::DestroyContent();
-}
-
-nsresult
-nsHTMLSharedObjectElement::CopyInnerTo(nsGenericElement* aDest) const
-{
-  nsresult rv = nsGenericHTMLElement::CopyInnerTo(aDest);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (aDest->GetOwnerDoc()->IsStaticDocument()) {
-    CreateStaticClone(static_cast<nsHTMLSharedObjectElement*>(aDest));
-  }
-
-  return rv;
 }

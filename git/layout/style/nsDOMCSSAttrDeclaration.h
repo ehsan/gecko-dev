@@ -81,7 +81,6 @@ public:
 
 protected:
   virtual nsresult DeclarationChanged();
-  virtual nsIDocument* DocToUpdate();
   
   nsCOMPtr<nsIContent> mContent;
 

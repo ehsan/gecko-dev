@@ -542,10 +542,6 @@ nsresult nsPluginNativeWindowWin::SubclassAndAssociateWindow()
   if (PluginWndProc == currentWndProc)
     return NS_OK;
 
-  LONG style = GetWindowLongPtr(hWnd, GWL_STYLE);
-  style |= WS_CLIPCHILDREN;
-  SetWindowLongPtr(hWnd, GWL_STYLE, style);
-
   mPluginWinProc = SubclassWindow(hWnd, (LONG_PTR)PluginWndProc);
   if (!mPluginWinProc)
     return NS_ERROR_FAILURE;
@@ -575,10 +571,6 @@ nsresult nsPluginNativeWindowWin::UndoSubclassAndAssociateWindow()
     WNDPROC currentWndProc = (WNDPROC)::GetWindowLongPtr(hWnd, GWLP_WNDPROC);
     if (currentWndProc == PluginWndProc)
       SubclassWindow(hWnd, (LONG_PTR)mPluginWinProc);
-
-    LONG style = GetWindowLongPtr(hWnd, GWL_STYLE);
-    style &= ~WS_CLIPCHILDREN;
-    SetWindowLongPtr(hWnd, GWL_STYLE, style);
   }
 
   return NS_OK;

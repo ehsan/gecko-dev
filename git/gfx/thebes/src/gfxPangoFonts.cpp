@@ -1948,7 +1948,6 @@ gfxPangoFontGroup::UpdateFontList()
 
     mFonts[0] = NULL;
     mFontSets.Clear();
-    mUnderlineOffset = UNDERLINE_OFFSET_NOT_SET;
     mCurrGeneration = newGeneration;
 }
 

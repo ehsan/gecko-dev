@@ -186,7 +186,7 @@ using namespace mozilla::places;
 // We use a guess of the number of months considering all of them 30 days
 // long, but we split only the last 6 months.
 #define DATE_CONT_NUM(_expireDays) \
-  (ADDITIONAL_DATE_CONT_NUM + NS_MIN(6, (_expireDays/30)))
+  (ADDITIONAL_DATE_CONT_NUM + PR_MIN(6, (_expireDays/30)))
 
 // fraction of free pages in the database to force a vacuum between
 // MAX_TIME_BEFORE_VACUUM and MIN_TIME_BEFORE_VACUUM.
@@ -377,7 +377,25 @@ const char nsNavHistory::kAnnotationPreviousEncoding[] = "history/encoding";
 // USECS_PER_DAY == PR_USEC_PER_SEC * 60 * 60 * 24;
 static const PRInt64 USECS_PER_DAY = LL_INIT(20, 500654080);
 
-PLACES_FACTORY_SINGLETON_IMPLEMENTATION(nsNavHistory, gHistoryService)
+nsNavHistory *nsNavHistory::gHistoryService = nsnull;
+
+nsNavHistory *
+nsNavHistory::GetSingleton()
+{
+  if (gHistoryService) {
+    NS_ADDREF(gHistoryService);
+    return gHistoryService;
+  }
+
+  gHistoryService = new nsNavHistory();
+  if (gHistoryService) {
+    NS_ADDREF(gHistoryService);
+    if (NS_FAILED(gHistoryService->Init()))
+      NS_RELEASE(gHistoryService);
+  }
+
+  return gHistoryService;
+}
 
 // nsNavHistory::nsNavHistory
 
@@ -399,8 +417,7 @@ nsNavHistory::nsNavHistory() : mBatchLevel(0),
   mLazyTimerSet = PR_TRUE;
   mLazyTimerDeferments = 0;
 #endif
-  NS_ASSERTION(!gHistoryService,
-               "Attempting to create two instances of the service!");
+  NS_ASSERTION(! gHistoryService, "YOU ARE CREATING 2 COPIES OF THE HISTORY SERVICE. Everything will break.");
   gHistoryService = this;
 }
 
@@ -410,10 +427,8 @@ nsNavHistory::~nsNavHistory()
 {
   // remove the static reference to the service. Check to make sure its us
   // in case somebody creates an extra instance of the service.
-  NS_ASSERTION(gHistoryService == this,
-               "Deleting a non-singleton instance of the service");
-  if (gHistoryService == this)
-    gHistoryService = nsnull;
+  NS_ASSERTION(gHistoryService == this, "YOU CREATED 2 COPIES OF THE HISTORY SERVICE.");
+  gHistoryService = nsnull;
 }
 
 
@@ -2754,7 +2769,6 @@ nsNavHistory::AddVisit(nsIURI* aURI, PRTime aTime, nsIURI* aReferringURI,
   // Swallow errors here, since if we've gotten this far, it's more
   // important to notify the observers below.
   nsNavBookmarks *bs = nsNavBookmarks::GetBookmarksService();
-  NS_ENSURE_TRUE(bs, NS_ERROR_OUT_OF_MEMORY);
   (void)UpdateFrecency(pageID, bs->IsRealBookmark(pageID));
 
   // Notify observers: The hidden detection code must match that in
@@ -3136,7 +3150,6 @@ nsresult
 PlacesSQLQueryBuilder::SelectAsURI()
 {
   nsNavHistory *history = nsNavHistory::GetHistoryService();
-  NS_ENSURE_TRUE(history, NS_ERROR_OUT_OF_MEMORY);
   nsCAutoString tagsSqlFragment;
 
   switch (mQueryType) {
@@ -3291,7 +3304,6 @@ nsresult
 PlacesSQLQueryBuilder::SelectAsVisit()
 {
   nsNavHistory *history = nsNavHistory::GetHistoryService();
-  NS_ENSURE_TRUE(history, NS_ERROR_OUT_OF_MEMORY);
   nsCAutoString tagsSqlFragment;
   GetTagsSqlFragment(history->GetTagsFolder(),
                      NS_LITERAL_CSTRING("h.id"),
@@ -4200,7 +4212,7 @@ nsNavHistory::BeginUpdateBatch()
       mDBConn->BeginTransaction();
 
     ENUMERATE_OBSERVERS(mCanNotify, mCacheObservers, mObservers, nsINavHistoryObserver,
-                        OnBeginUpdateBatch());
+                        OnBeginUpdateBatch())
   }
   return NS_OK;
 }
@@ -4214,7 +4226,7 @@ nsNavHistory::EndUpdateBatch()
       mDBConn->CommitTransaction();
     mBatchHasTransaction = PR_FALSE;
     ENUMERATE_OBSERVERS(mCanNotify, mCacheObservers, mObservers, nsINavHistoryObserver,
-                        OnEndUpdateBatch());
+                        OnEndUpdateBatch())
   }
   return NS_OK;
 }
@@ -4532,7 +4544,7 @@ nsNavHistory::RemovePage(nsIURI *aURI)
 
   // Before we remove, we have to notify our observers!
   ENUMERATE_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
-                      nsINavHistoryObserver, OnBeforeDeleteURI(aURI));
+                      nsINavHistoryObserver, OnBeforeDeleteURI(aURI))
 
   nsIURI** URIs = &aURI;
   nsresult rv = RemovePages(URIs, 1, PR_FALSE);
@@ -4540,7 +4552,7 @@ nsNavHistory::RemovePage(nsIURI *aURI)
 
   // Notify our observers that the URI has been removed.
   ENUMERATE_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
-                      nsINavHistoryObserver, OnDeleteURI(aURI));
+                      nsINavHistoryObserver, OnDeleteURI(aURI))
   return NS_OK;
 }
 
@@ -5260,20 +5272,21 @@ nsNavHistory::GetPageTitle(nsIURI* aURI, nsAString& aTitle)
 
   aTitle.Truncate(0);
 
-  mozStorageStatementScoper scope(mDBGetURLPageInfo);
-  nsresult rv = BindStatementURI(mDBGetURLPageInfo, 0, aURI);
+  mozIStorageStatement *statement = DBGetURLPageInfo();
+  mozStorageStatementScoper scope(statement);
+  nsresult rv = BindStatementURI(statement, 0, aURI);
   NS_ENSURE_SUCCESS(rv, rv);
 
   PRBool hasResults = PR_FALSE;
-  rv = mDBGetURLPageInfo->ExecuteStep(&hasResults);
+  rv = statement->ExecuteStep(&hasResults);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (!hasResults) {
     aTitle.SetIsVoid(PR_TRUE);
-    return NS_OK; // Not found, return a void string.
+    return NS_OK; // not found: return void string
   }
 
-  rv = mDBGetURLPageInfo->GetString(nsNavHistory::kGetInfoIndex_Title, aTitle);
+  rv = statement->GetString(nsNavHistory::kGetInfoIndex_Title, aTitle);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
@@ -5447,7 +5460,7 @@ nsNavHistory::NotifyOnPageExpired(nsIURI *aURI, PRTime aVisitTime,
   if (aWholeEntry) {
     // Notify our observers that the URI has been removed.
     ENUMERATE_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
-                        nsINavHistoryObserver, OnDeleteURI(aURI));
+                        nsINavHistoryObserver, OnDeleteURI(aURI))
   }
 
   return NS_OK;
@@ -5465,7 +5478,6 @@ nsNavHistory::Observe(nsISupports *aSubject, const char *aTopic,
     nsCOMPtr<nsIObserverService> os =
       do_GetService("@mozilla.org/observer-service;1");
     if (os) {
-      os->RemoveObserver(this, gAutoCompleteFeedback);
       os->RemoveObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC);
       os->RemoveObserver(this, gIdleDaily);
       os->RemoveObserver(this, gXpcomShutdown);
@@ -6829,7 +6841,7 @@ nsNavHistory::VisitIdToResultNode(PRInt64 visitId,
       // by registering their own observers when they are expanded.
       return NS_OK;
   }
-  NS_ENSURE_STATE(statement);
+  NS_ENSURE_TRUE(statement, NS_ERROR_UNEXPECTED);
 
   mozStorageStatementScoper scoper(statement);
   nsresult rv = statement->BindInt64Parameter(0, visitId);
@@ -6851,7 +6863,7 @@ nsNavHistory::BookmarkIdToResultNode(PRInt64 aBookmarkId, nsNavHistoryQueryOptio
                                      nsNavHistoryResultNode** aResult)
 {
   mozIStorageStatement *stmt = GetDBBookmarkToUrlResult();
-  NS_ENSURE_STATE(stmt);
+  NS_ENSURE_TRUE(stmt, NS_ERROR_UNEXPECTED);
   mozStorageStatementScoper scoper(stmt);
   nsresult rv = stmt->BindInt64Parameter(0, aBookmarkId);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -7005,7 +7017,7 @@ nsNavHistory::SetPageTitleInternal(nsIURI* aURI, const nsAString& aTitle)
 
   // observers (have to check first if it's bookmarked)
   ENUMERATE_OBSERVERS(mCanNotify, mCacheObservers, mObservers, nsINavHistoryObserver,
-                      OnTitleChanged(aURI, aTitle));
+                      OnTitleChanged(aURI, aTitle))
 
   return NS_OK;
 }
@@ -7641,7 +7653,6 @@ nsNavHistory::CalculateFrecency(PRInt64 aPlaceId,
   // place: queries from showing up in the URL bar autocomplete results
   if (!IsQueryURI(aURL) && aPlaceId != -1) {
     nsNavBookmarks *bs = nsNavBookmarks::GetBookmarksService();
-    NS_ENSURE_TRUE(bs, NS_ERROR_OUT_OF_MEMORY);
     isBookmark = bs->IsRealBookmark(aPlaceId);
   }
 
@@ -7687,11 +7698,8 @@ nsNavHistory::FixInvalidFrecencies()
     invalidFrecencies->GetUTF8String(4, url);
 
     PRBool isBook = PR_FALSE;
-    if (!IsQueryURI(url)) {
-      nsNavBookmarks *bookmarks = nsNavBookmarks::GetBookmarksService();
-      NS_ENSURE_TRUE(bookmarks, NS_ERROR_OUT_OF_MEMORY);
-      isBook = bookmarks->IsRealBookmark(placeId);
-    }
+    if (!IsQueryURI(url))
+      isBook = nsNavBookmarks::GetBookmarksService()-> IsRealBookmark(placeId);
 
     rv = UpdateFrecencyInternal(placeId, typed, hidden, oldFrecency, isBook);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -7752,7 +7760,6 @@ nsNavHistory::AutoCompleteFeedback(PRInt32 aIndex,
     return NS_OK;
 
   mozIStorageStatement *stmt = GetDBFeedbackIncrease();
-  NS_ENSURE_STATE(stmt);
   mozStorageStatementScoper scope(stmt);
 
   nsAutoString input;
@@ -7777,7 +7784,7 @@ nsNavHistory::AutoCompleteFeedback(PRInt32 aIndex,
   return NS_OK;
 }
 
-mozIStorageStatement *
+mozIStorageStatement*
 nsNavHistory::GetDBFeedbackIncrease()
 {
   if (mDBFeedbackIncrease)

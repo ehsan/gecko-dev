@@ -85,7 +85,7 @@ public:
    *                   parsed result.
    * @param aParseResult  Outparam used for reporting parse errors. Will be set
    *                      to NS_OK if everything succeeds.
-   * @return  PR_TRUE if aAttribute is a recognized animation-related
+   * @returns PR_TRUE if aAttribute is a recognized animation-related
    *          attribute; PR_FALSE otherwise.
    */
   virtual PRBool SetAttr(nsIAtom* aAttribute, const nsAString& aValue,
@@ -139,8 +139,8 @@ public:
    * the animation function that it should no longer add its result to the
    * animation sandwich.
    *
-   * @param aIsFrozen PR_TRUE if this animation should continue to contribute
-   *                  to the animation sandwich using the most recent sample
+   * @param aIsFrozen True if this animation should continue to contribute to
+   *                  the animation sandwich using the most recent sample
    *                  parameters.
    */
   void Inactivate(PRBool aIsFrozen);
@@ -179,7 +179,7 @@ public:
    * Indicates if the animation is currently active or frozen. Inactive
    * animations will not contribute to the composed result.
    *
-   * @return  PR_TRUE if the animation is active or frozen, PR_FALSE otherwise.
+   * @return  True if the animation is active or frozen, false otherwise.
    */
   PRBool IsActiveOrFrozen() const
   {
@@ -210,8 +210,7 @@ public:
    * Note that the caller is responsible for determining if the animation target
    * has changed.
    *
-   * @return  PR_TRUE if the animation parameters have changed, PR_FALSE
-   *          otherwise.
+   * @return  True if the animation parameters have changed, false otherwise.
    */
   PRBool HasChanged() const;
 

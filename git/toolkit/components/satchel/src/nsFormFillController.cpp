@@ -1213,6 +1213,9 @@ nsFormFillController::IsEventTrusted(nsIDOMEvent *aEvent)
 
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsFormHistory, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsFormFillController)
+#ifdef MOZ_MORKREADER
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsFormHistoryImporter)
+#endif
 
 static const nsModuleComponentInfo components[] =
 {
@@ -1230,6 +1233,13 @@ static const nsModuleComponentInfo components[] =
     NS_FORMFILLCONTROLLER_CID, 
     NS_FORMHISTORYAUTOCOMPLETE_CONTRACTID,
     nsFormFillControllerConstructor },
+
+#ifdef MOZ_MORKREADER
+  { "Form History Importer",
+    NS_FORMHISTORYIMPORTER_CID,
+    NS_FORMHISTORYIMPORTER_CONTRACTID,
+    nsFormHistoryImporterConstructor },
+#endif
 };
 
 NS_IMPL_NSGETMODULE(satchel, components)

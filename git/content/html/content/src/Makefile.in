@@ -127,8 +127,6 @@ INCLUDES	+= \
 		-I$(srcdir)/../../../xbl/src \
 		-I$(srcdir)/../../../../layout/style \
 		-I$(srcdir)/../../../../layout/tables \
-		-I$(srcdir)/../../../../layout/xul/base/src \
-		-I$(srcdir)/../../../../layout/generic \
 		-I$(srcdir)/../../../../dom/base \
 		-I$(srcdir) \
 		$(NULL)

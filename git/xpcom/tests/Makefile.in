@@ -82,7 +82,6 @@ endif
 SIMPLE_PROGRAMS	:= $(CPPSRCS:.cpp=$(BIN_SUFFIX))
 
 CPP_UNIT_TESTS = \
-                 ShowSSEConfig.cpp \
                  TestAutoPtr.cpp \
                  TestCOMPtr.cpp \
                  TestCOMPtrEq.cpp \

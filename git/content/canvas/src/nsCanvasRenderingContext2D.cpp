@@ -1882,8 +1882,6 @@ CreateFontStyleRule(const nsAString& aFont,
     if (NS_FAILED(rv))
         return rv;
 
-    rule->RuleMatched();
-
     rule.forget(aResult);
     return NS_OK;
 }
@@ -1947,19 +1945,15 @@ nsCanvasRenderingContext2D::SetFont(const nsAString& font)
             return rv;
         nsCOMArray<nsIStyleRule> parentRules;
         parentRules.AppendObject(parentRule);
-        parentContext =
-            styleSet->ResolveStyleForRules(nsnull, nsnull,
-                                           nsCSSPseudoElements::ePseudo_NotPseudoElement,
-                                           nsnull, parentRules);
+        parentContext = styleSet->ResolveStyleForRules(nsnull, nsnull,
+                                                       nsnull, parentRules);
     }
 
     if (!parentContext)
         return NS_ERROR_FAILURE;
 
     nsRefPtr<nsStyleContext> sc =
-        styleSet->ResolveStyleForRules(parentContext, nsnull,
-                                       nsCSSPseudoElements::ePseudo_NotPseudoElement,
-                                       nsnull, rules);
+        styleSet->ResolveStyleForRules(parentContext, nsnull, nsnull, rules);
     if (!sc)
         return NS_ERROR_FAILURE;
     const nsStyleFont* fontStyle = sc->GetStyleFont();

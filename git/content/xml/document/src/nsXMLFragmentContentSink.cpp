@@ -609,7 +609,7 @@ nsresult
 nsXHTMLParanoidFragmentSink::AddAttributes(const PRUnichar** aAtts,
                                            nsIContent* aContent)
 {
-  nsresult rv = NS_OK;
+  nsresult rv;
 
   // use this to check for safe URIs in the few attributes that allow them
   nsIScriptSecurityManager* secMan = nsContentUtils::GetSecurityManager();

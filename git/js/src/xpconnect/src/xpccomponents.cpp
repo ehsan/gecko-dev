@@ -3416,7 +3416,6 @@ ContextHolder::ContextHolder(JSContext *aOuterCx, JSObject *aSandbox)
 {
     if(mJSContext)
     {
-        JSAutoRequest ar(mJSContext);
         JS_SetOptions(mJSContext,
                       JSOPTION_DONT_REPORT_UNCAUGHT |
                       JSOPTION_PRIVATE_IS_NSISUPPORTS);

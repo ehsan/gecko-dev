@@ -336,6 +336,7 @@ private:
   nsresult GetTransitionDelay(nsIDOMCSSValue** aValue);
   nsresult GetTransitionTimingFunction(nsIDOMCSSValue** aValue);
 
+#ifdef MOZ_SVG
   /* SVG properties */
   nsresult GetSVGPaintFor(PRBool aFill, nsIDOMCSSValue** aValue);
 
@@ -375,6 +376,7 @@ private:
   nsresult GetClipPath(nsIDOMCSSValue** aValue);
   nsresult GetFilter(nsIDOMCSSValue** aValue);
   nsresult GetMask(nsIDOMCSSValue** aValue);
+#endif // MOZ_SVG
 
   nsROCSSPrimitiveValue* GetROCSSPrimitiveValue();
   nsDOMCSSValueList* GetROCSSValueList(PRBool aCommaDelimited);

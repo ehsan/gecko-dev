@@ -247,10 +247,9 @@ private:
   nsresult FireEvent(const nsAString& aEventType);
   class Event;
   friend class Event;
-protected:
-  void CreateStaticImageClone(nsImageLoadingContent* aDest) const;
 
   /* MEMBERS */
+protected:
   nsCOMPtr<imgIRequest> mCurrentRequest;
   nsCOMPtr<imgIRequest> mPendingRequest;
   nsCOMPtr<nsIURI>      mCurrentURI;

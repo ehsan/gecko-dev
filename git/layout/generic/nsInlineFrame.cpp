@@ -1010,7 +1010,6 @@ nsFirstLineFrame::Reflow(nsPresContext* aPresContext,
   InlineReflowState irs;
   irs.mPrevFrame = nsnull;
   irs.mLineContainer = lineContainer;
-  irs.mLineLayout = aReflowState.mLineLayout;
   irs.mNextInFlow = (nsInlineFrame*) GetNextInFlow();
 
   nsresult rv;
@@ -1058,7 +1057,8 @@ nsFirstLineFrame::Reflow(nsPresContext* aPresContext,
         // of the parent frame.
         nsRefPtr<nsStyleContext> newSC;
         newSC = aPresContext->StyleSet()->
-          ResolveAnonymousBoxStyle(nsCSSAnonBoxes::mozLineFrame, parentContext);
+          ResolvePseudoStyleFor(nsnull,
+                                nsCSSAnonBoxes::mozLineFrame, parentContext);
         if (newSC) {
           // Switch to the new style context.
           SetStyleContext(newSC);

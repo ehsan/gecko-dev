@@ -573,7 +573,6 @@ public:
                                      PrefChangedFunc aCallback,
                                      void * aClosure);
   static void AddBoolPrefVarCache(const char* aPref, PRBool* aVariable);
-  static void AddIntPrefVarCache(const char* aPref, PRInt32* aVariable);
   static nsIPrefBranch *GetPrefBranch()
   {
     return sPrefBranch;
@@ -670,11 +669,6 @@ public:
    * @return the imgIContainer corresponding to the first frame of the image
    */
   static already_AddRefed<imgIContainer> GetImageFromContent(nsIImageLoadingContent* aContent, imgIRequest **aRequest = nsnull);
-
-  /**
-   * Helper method to call imgIRequest::GetStaticRequest.
-   */
-  static already_AddRefed<imgIRequest> GetStaticRequest(imgIRequest* aRequest);
 
   /**
    * Method that decides whether a content node is draggable

@@ -962,7 +962,7 @@ nsCSSRendering::IsCanvasFrame(nsIFrame* aFrame)
 }
 
 nsIFrame*
-nsCSSRendering::FindBackgroundStyleFrame(nsIFrame* aForFrame)
+nsCSSRendering::FindRootFrame(nsIFrame* aForFrame)
 {
   const nsStyleBackground* result = aForFrame->GetStyleBackground();
 
@@ -990,7 +990,7 @@ nsCSSRendering::FindBackgroundStyleFrame(nsIFrame* aForFrame)
           nsIFrame *bodyFrame = aForFrame->PresContext()->GetPresShell()->
             GetPrimaryFrameFor(bodyContent);
           if (bodyFrame) {
-            return nsLayoutUtils::GetStyleFrame(bodyFrame);
+            return bodyFrame;
           }
         }
       }
@@ -1030,7 +1030,7 @@ nsCSSRendering::FindBackgroundStyleFrame(nsIFrame* aForFrame)
 const nsStyleBackground*
 nsCSSRendering::FindRootFrameBackground(nsIFrame* aForFrame)
 {
-  return FindBackgroundStyleFrame(aForFrame)->GetStyleBackground();
+  return FindRootFrame(aForFrame)->GetStyleBackground();
 }
 
 inline PRBool

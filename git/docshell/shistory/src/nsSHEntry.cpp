@@ -594,8 +594,8 @@ nsSHEntry::AddChild(nsISHEntry * aChild, PRInt32 aOffset)
   if (aOffset < mChildren.Count()) {
     nsISHEntry* oldChild = mChildren.ObjectAt(aOffset);
     if (oldChild && oldChild != aChild) {
-      NS_WARNING("Adding child where we already have a child?  "
-                 "This will likely misbehave");
+      NS_ERROR("Adding child where we already have a child?  "
+               "This will likely misbehave");
       oldChild->SetParent(nsnull);
     }
   }
@@ -765,7 +765,8 @@ nsSHEntry::AttributeChanged(nsIDocument* aDocument,
                             nsIContent* aContent,
                             PRInt32 aNameSpaceID,
                             nsIAtom* aAttribute,
-                            PRInt32 aModType)
+                            PRInt32 aModType,
+                            PRUint32 aStateMask)
 {
   DocumentMutated();
 }

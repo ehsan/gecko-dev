@@ -1921,14 +1921,7 @@ nsWindowWatcher::SizeOpenedDocShellItem(nsIDocShellTreeItem *aDocShellItem,
   }
   if (mainWidget) {
     nsCOMPtr<nsIDeviceContext> ctx = mainWidget->GetDeviceContext();
-    /* we might be called by an extension after mainWidget::OnDestroy() */
-    if (ctx) {
-      PRInt32 unitsPerDevPixel = ctx->AppUnitsPerDevPixel();
-      if (unitsPerDevPixel) {
-        devPixelsPerCSSPixel = float(ctx->AppUnitsPerCSSPixel()) /
-                                     unitsPerDevPixel;
-      }
-    }
+    devPixelsPerCSSPixel = float(ctx->AppUnitsPerCSSPixel()) / ctx->AppUnitsPerDevPixel();
   }
 
   /* The current position and size will be unchanged if not specified

@@ -192,7 +192,6 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(.chromeclass-m
 /* ::::: All Tabs Panel ::::: */
 .allTabs-preview {
   -moz-binding: url("chrome://browser/content/browser-tabPreviews.xml#allTabs-preview");
-  vertical-align: top;
 }
 
 #allTabs-tab-close-button {

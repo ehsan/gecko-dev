@@ -227,12 +227,10 @@ public:
 protected:
 
   nsresult CommonPrint(PRBool aIsPrintPreview, nsIPrintSettings* aPrintSettings,
-                       nsIWebProgressListener* aWebProgressListener,
-                       nsIDOMDocument* aDoc);
+              nsIWebProgressListener* aWebProgressListener);
 
   nsresult DoCommonPrint(PRBool aIsPrintPreview, nsIPrintSettings* aPrintSettings,
-                         nsIWebProgressListener* aWebProgressListener,
-                         nsIDOMDocument* aDoc);
+                         nsIWebProgressListener* aWebProgressListener);
 
   void FirePrintCompletionEvent();
   static nsresult GetSeqFrameAndCountPagesInternal(nsPrintObject*  aPO,

@@ -2127,9 +2127,9 @@ nsWindow::Scroll(const nsIntPoint& aDelta,
   CheckDragStatus(ACTION_SCROLL, &hps);
 
   // Step through each rectangle to be scrolled.
-  for (BlitRectIter iter(aDelta, aDestRects); !iter.IsDone(); ++iter) {
+  for (PRUint32 i = 0; i < aDestRects.Length(); ++i) {
     nsIntRect affectedRect;
-    affectedRect.UnionRect(iter.Rect(), iter.Rect() - aDelta);
+    affectedRect.UnionRect(aDestRects[i], aDestRects[i] - aDelta);
 
     ULONG flags = SW_INVALIDATERGN;
 

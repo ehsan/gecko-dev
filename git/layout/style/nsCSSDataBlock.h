@@ -45,7 +45,6 @@
 #include "nsCSSStruct.h"
 #include "nsCSSProps.h"
 #include "nsCSSPropertySet.h"
-#include "nsAutoPtr.h"
 
 struct nsRuleData;
 
@@ -57,11 +56,6 @@ class nsCSSDeclaration;
  * property-value data for a CSS declaration block (which we misname a
  * |nsCSSDeclaration|).  Mutation is accomplished through
  * |nsCSSExpandedDataBlock| or in some cases via direct slot access.
- *
- * Mutation is forbidden when the reference count is greater than one,
- * since once a style rule has used a compressed data block, mutation of
- * that block is forbidden, and any declarations that want to mutate it
- * need to clone it first.
  */
 class nsCSSCompressedDataBlock {
 public:
@@ -125,36 +119,21 @@ public:
     /**
      * Clone this block, or return null on out-of-memory.
      */
-    already_AddRefed<nsCSSCompressedDataBlock> Clone() const;
+    nsCSSCompressedDataBlock* Clone() const;
+
+    /**
+     * Delete all the data stored in this block, and the block itself.
+     */
+    void Destroy();
 
     /**
      * Create a new nsCSSCompressedDataBlock holding no declarations.
      */
-    static already_AddRefed<nsCSSCompressedDataBlock> CreateEmptyBlock();
-
-    void AddRef() {
-        NS_ASSERTION(mRefCnt == 0 || mRefCnt == 1,
-                     "unexpected reference count");
-        ++mRefCnt;
-    }
-    void Release() {
-        NS_ASSERTION(mRefCnt == 1 || mRefCnt == 2,
-                     "unexpected reference count");
-        if (--mRefCnt == 0) {
-            Destroy();
-        }
-    }
-
-    PRBool IsMutable() const {
-        NS_ASSERTION(mRefCnt == 1 || mRefCnt == 2,
-                     "unexpected reference count");
-        return mRefCnt < 2;
-    }
+    static nsCSSCompressedDataBlock* CreateEmptyBlock();
 
 private:
     PRInt32 mStyleBits; // the structs for which we have data, according to
                         // |nsCachedStyleData::GetBitForSID|.
-    nsAutoRefCnt mRefCnt;
 
     enum { block_chars = 4 }; // put 4 chars in the definition of the class
                               // to ensure size not inflated by alignment
@@ -171,11 +150,6 @@ private:
     // |Expand|) can delete compressed data blocks.
     ~nsCSSCompressedDataBlock() { }
 
-    /**
-     * Delete all the data stored in this block, and the block itself.
-     */
-    void Destroy();
-
     char* mBlockEnd; // the byte after the last valid byte
     char mBlock_[block_chars]; // must be the last member!
 
@@ -188,7 +162,6 @@ private:
     // Direct slot access to our values.  See StorageFor above.  Can
     // return null.  Must not be called for shorthand properties.
     void* SlotForValue(nsCSSProperty aProperty) {
-      NS_ABORT_IF_FALSE(IsMutable(), "must be mutable");
       return const_cast<void*>(StorageFor(aProperty));
     }
 };
@@ -216,7 +189,9 @@ public:
     nsCSSPage mPage;
     nsCSSBreaks mBreaks;
     nsCSSXUL mXUL;
+#ifdef MOZ_SVG
     nsCSSSVG mSVG;
+#endif
     nsCSSColumn mColumn;
 
     /**
@@ -224,13 +199,13 @@ public:
      * expanded block.  The state of this expanded block must be clear
      * beforehand.
      *
-     * The compressed block passed in IS RELEASED by this method and
+     * The compressed block passed in IS DESTROYED by this method and
      * set to null, and thus cannot be used again.  (This is necessary
      * because ownership of sub-objects is transferred to the expanded
-     * block in many cases.)
+     * block.)
      */
-    void Expand(nsRefPtr<nsCSSCompressedDataBlock> *aNormalBlock,
-                nsRefPtr<nsCSSCompressedDataBlock> *aImportantBlock);
+    void Expand(nsCSSCompressedDataBlock **aNormalBlock,
+                nsCSSCompressedDataBlock **aImportantBlock);
 
     /**
      * Allocate a new compressed block and transfer all of the state
@@ -267,8 +242,7 @@ private:
     };
     ComputeSizeResult ComputeSize();
 
-    void DoExpand(nsRefPtr<nsCSSCompressedDataBlock> *aBlock,
-                  PRBool aImportant);
+    void DoExpand(nsCSSCompressedDataBlock *aBlock, PRBool aImportant);
 
 #ifdef DEBUG
     void DoAssertInitialState();

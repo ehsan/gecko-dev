@@ -268,12 +268,9 @@ public:
     THEBES_INLINE_DECL_REFCOUNTING(gfxFontFamily)
 
     gfxFontFamily(const nsAString& aName) :
-        mName(aName),
-        mOtherFamilyNamesInitialized(PR_FALSE),
-        mHasOtherFamilyNames(PR_FALSE),
-        mHasStyles(PR_FALSE),
+        mName(aName), mOtherFamilyNamesInitialized(PR_FALSE), mHasOtherFamilyNames(PR_FALSE),
         mIsSimpleFamily(PR_FALSE),
-        mIsBadUnderlineFamily(PR_FALSE)
+        mHasStyles(PR_FALSE)
         { }
 
     virtual ~gfxFontFamily() { }
@@ -306,8 +303,7 @@ public:
     // read in other family names, if any, and use functor to add each into cache
     virtual void ReadOtherFamilyNames(AddOtherFamilyNameFunctor& aOtherFamilyFunctor);
 
-    // find faces belonging to this family (platform implementations override this;
-    // should be made pure virtual once all subclasses have been updated)
+    // find faces belonging to this family (temporary, for Windows FontFamily to override)
     virtual void FindStyleVariations() { }
 
     // search for a specific face using the Postscript name
@@ -322,12 +318,14 @@ public:
             mAvailableFonts[i]->ReadCMAP();
     }
 
-    // mark this family as being in the "bad" underline offset blacklist
-    void SetBadUnderlineFamily() {
-        mIsBadUnderlineFamily = PR_TRUE;
-        if (mHasStyles) {
-            SetBadUnderlineFonts();
-        }
+    // set whether this font family is in "bad" underline offset blacklist.
+    void SetBadUnderlineFont(PRBool aIsBadUnderlineFont) {
+        PRUint32 i, numFonts = mAvailableFonts.Length();
+        // this is only used when initially setting up the family,
+        // so CheckForSimpleFamily has not yet been called and there cannot
+        // be any NULL entries in mAvailableFonts
+        for (i = 0; i < numFonts; i++)
+            mAvailableFonts[i]->mIsBadUnderlineFont = aIsBadUnderlineFont;
     }
 
     // sort available fonts to put preferred (standard) faces towards the end
@@ -348,23 +346,12 @@ protected:
                                        gfxFontEntry *aFontEntry,
                                        PRBool useFullName = PR_FALSE);
 
-    // set whether this font family is in "bad" underline offset blacklist.
-    void SetBadUnderlineFonts() {
-        PRUint32 i, numFonts = mAvailableFonts.Length();
-        for (i = 0; i < numFonts; i++) {
-            if (mAvailableFonts[i]) {
-                mAvailableFonts[i]->mIsBadUnderlineFont = PR_TRUE;
-            }
-        }
-    }
-
     nsString mName;
     nsTArray<nsRefPtr<gfxFontEntry> >  mAvailableFonts;
     PRPackedBool mOtherFamilyNamesInitialized;
     PRPackedBool mHasOtherFamilyNames;
-    PRPackedBool mHasStyles;
     PRPackedBool mIsSimpleFamily;
-    PRPackedBool mIsBadUnderlineFamily;
+    PRPackedBool mHasStyles;
 
     enum {
         // for "simple" families, the faces are stored in mAvailableFonts

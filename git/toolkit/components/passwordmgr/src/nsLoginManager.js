@@ -376,13 +376,9 @@ LoginManager.prototype = {
                     var [usernameField, passwordField, ignored] =
                         this._pwmgr._getFormFields(acForm, false);
                     if (usernameField == acInputField && passwordField) {
-                        let oldValue = passwordField.value;
                         // Clobber any existing password.
                         passwordField.value = "";
-                        let [didFillForm, foundLogins] =
-                            this._pwmgr._fillForm(acForm, true, true, null);
-                        if (!didFillForm)
-                            passwordField.value = oldValue;
+                        this._pwmgr._fillForm(acForm, true, true, null);
                     } else {
                         this._pwmgr.log("Oops, form changed before AC invoked");
                     }

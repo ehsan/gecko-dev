@@ -55,3 +55,11 @@ function getDBVersion(dbfile) {
 
     return version;
 }
+
+function cleanUpFormHist() {
+  var formhistFile = dirSvc.get("ProfD", Ci.nsIFile);
+  formhistFile.append("formhistory.dat");
+  if (formhistFile.exists())
+    formhistFile.remove(false);
+}
+cleanUpFormHist();

@@ -85,18 +85,7 @@ XPC_SOW_Iterator(JSContext *cx, JSObject *obj, JSBool keysonly);
 static JSObject *
 XPC_SOW_WrappedObject(JSContext *cx, JSObject *obj);
 
-using namespace XPCWrapper;
-
-// Throws an exception on context |cx|.
-static inline JSBool
-ThrowException(nsresult rv, JSContext *cx)
-{
-  return DoThrowException(rv, cx);
-}
-
-namespace SystemOnlyWrapper {
-
-JSExtendedClass SOWClass = {
+JSExtendedClass sXPC_SOW_JSClass = {
   // JSClass (JSExtendedClass.base) initialization
   { "SystemOnlyWrapper",
     JSCLASS_NEW_RESOLVE | JSCLASS_IS_EXTENDED |
@@ -120,31 +109,55 @@ JSExtendedClass SOWClass = {
   JSCLASS_NO_RESERVED_MEMBERS
 };
 
-JSBool
-WrapObject(JSContext *cx, JSObject *parent, jsval v, jsval *vp)
+static JSBool
+XPC_SOW_toString(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
+                 jsval *rval);
+
+// Throws an exception on context |cx|.
+static inline JSBool
+ThrowException(nsresult rv, JSContext *cx)
 {
-  // Slim wrappers don't expect to be wrapped, so morph them to fat wrappers
-  // if we're about to wrap one.
-  JSObject *innerObj = JSVAL_TO_OBJECT(v);
-  if (IS_SLIM_WRAPPER(innerObj) && !MorphSlimWrapper(cx, innerObj)) {
-    return ThrowException(NS_ERROR_FAILURE, cx);
+  return XPCWrapper::ThrowException(rv, cx);
+}
+
+// Like GetWrappedObject, but works on other types of wrappers, too.
+// TODO Move to XPCWrapper?
+static inline JSObject *
+GetWrappedJSObject(JSContext *cx, JSObject *obj)
+{
+  JSClass *clasp = STOBJ_GET_CLASS(obj);
+  if (!(clasp->flags & JSCLASS_IS_EXTENDED)) {
+    return obj;
   }
 
-  JSObject *wrapperObj =
-    JS_NewObjectWithGivenProto(cx, &SOWClass.base, NULL, parent);
-  if (!wrapperObj) {
-    return JS_FALSE;
+  JSExtendedClass *xclasp = (JSExtendedClass *)clasp;
+  if (!xclasp->wrappedObject) {
+    return obj;
   }
 
-  *vp = OBJECT_TO_JSVAL(wrapperObj);
-  JSAutoTempValueRooter tvr(cx, *vp);
+  return xclasp->wrappedObject(cx, obj);
+}
 
-  if (!JS_SetReservedSlot(cx, wrapperObj, sWrappedObjSlot, v) ||
-      !JS_SetReservedSlot(cx, wrapperObj, sFlagsSlot, JSVAL_ZERO)) {
-    return JS_FALSE;
+// Get the (possibly non-existant) SOW off of an object
+static inline
+JSObject *
+GetWrapper(JSObject *obj)
+{
+  while (STOBJ_GET_CLASS(obj) != &sXPC_SOW_JSClass.base) {
+    obj = STOBJ_GET_PROTO(obj);
+    if (!obj) {
+      break;
+    }
   }
 
-  return JS_TRUE;
+  return obj;
+}
+
+static inline
+JSObject *
+GetWrappedObject(JSContext *cx, JSObject *wrapper)
+{
+  return XPCWrapper::UnwrapGeneric(cx, &sXPC_SOW_JSClass, wrapper);
 }
 
 // If you change this code, change also nsContentUtils::CanAccessNativeAnon()!
@@ -152,7 +165,7 @@ JSBool
 AllowedToAct(JSContext *cx, jsval idval)
 {
   // TODO bug 508928: Refactor this with the XOW security checking code.
-  nsIScriptSecurityManager *ssm = GetSecurityManager();
+  nsIScriptSecurityManager *ssm = XPCWrapper::GetSecurityManager();
   if (!ssm) {
     return JS_TRUE;
   }
@@ -214,54 +227,6 @@ AllowedToAct(JSContext *cx, jsval idval)
   return JS_FALSE;
 }
 
-} // namespace SystemOnlyWrapper
-
-using namespace SystemOnlyWrapper;
-
-static JSBool
-XPC_SOW_toString(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
-                 jsval *rval);
-
-// Like GetWrappedObject, but works on other types of wrappers, too.
-// TODO Move to XPCWrapper?
-static inline JSObject *
-GetWrappedJSObject(JSContext *cx, JSObject *obj)
-{
-  JSClass *clasp = STOBJ_GET_CLASS(obj);
-  if (!(clasp->flags & JSCLASS_IS_EXTENDED)) {
-    return obj;
-  }
-
-  JSExtendedClass *xclasp = (JSExtendedClass *)clasp;
-  if (!xclasp->wrappedObject) {
-    return obj;
-  }
-
-  return xclasp->wrappedObject(cx, obj);
-}
-
-// Get the (possibly non-existant) SOW off of an object
-static inline
-JSObject *
-GetWrapper(JSObject *obj)
-{
-  while (STOBJ_GET_CLASS(obj) != &SOWClass.base) {
-    obj = STOBJ_GET_PROTO(obj);
-    if (!obj) {
-      break;
-    }
-  }
-
-  return obj;
-}
-
-static inline
-JSObject *
-GetWrappedObject(JSContext *cx, JSObject *wrapper)
-{
-  return UnwrapGeneric(cx, &SOWClass, wrapper);
-}
-
 static JSBool
 XPC_SOW_FunctionWrapper(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
                         jsval *rval)
@@ -289,7 +254,8 @@ XPC_SOW_FunctionWrapper(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
 
   JSObject *funObj = JSVAL_TO_OBJECT(argv[-2]);
   jsval funToCall;
-  if (!JS_GetReservedSlot(cx, funObj, eWrappedFunctionSlot, &funToCall)) {
+  if (!JS_GetReservedSlot(cx, funObj, XPCWrapper::eWrappedFunctionSlot,
+                          &funToCall)) {
     return JS_FALSE;
   }
 
@@ -322,7 +288,7 @@ XPC_SOW_WrapFunction(JSContext *cx, JSObject *outerObj, JSObject *funobj,
   *rval = OBJECT_TO_JSVAL(funWrapperObj);
 
   return JS_SetReservedSlot(cx, funWrapperObj,
-                            eWrappedFunctionSlot,
+                            XPCWrapper::eWrappedFunctionSlot,
                             funobjVal);
 }
 
@@ -355,7 +321,7 @@ XPC_SOW_RewrapValue(JSContext *cx, JSObject *wrapperObj, jsval *vp)
       }
 
       // It isn't ours, rewrap the wrapped function.
-      if (!JS_GetReservedSlot(cx, obj, eWrappedFunctionSlot, &v)) {
+      if (!JS_GetReservedSlot(cx, obj, XPCWrapper::eWrappedFunctionSlot, &v)) {
         return JS_FALSE;
       }
       obj = JSVAL_TO_OBJECT(v);
@@ -364,7 +330,7 @@ XPC_SOW_RewrapValue(JSContext *cx, JSObject *wrapperObj, jsval *vp)
     return XPC_SOW_WrapFunction(cx, wrapperObj, obj, vp);
   }
 
-  if (STOBJ_GET_CLASS(obj) == &SOWClass.base) {
+  if (STOBJ_GET_CLASS(obj) == &sXPC_SOW_JSClass.base) {
     // We are extra careful about content-polluted wrappers here. I don't know
     // if it's possible to reach them through objects that we wrap, but figuring
     // that out is more expensive (and harder) than simply checking and
@@ -383,16 +349,16 @@ XPC_SOW_RewrapValue(JSContext *cx, JSObject *wrapperObj, jsval *vp)
     v = *vp = OBJECT_TO_JSVAL(obj);
   }
 
-  return WrapObject(cx, STOBJ_GET_PARENT(wrapperObj), v, vp);
+  return XPC_SOW_WrapObject(cx, STOBJ_GET_PARENT(wrapperObj), v, vp);
 }
 
 static JSBool
 XPC_SOW_AddProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
-  NS_ASSERTION(STOBJ_GET_CLASS(obj) == &SOWClass.base, "Wrong object");
+  NS_ASSERTION(STOBJ_GET_CLASS(obj) == &sXPC_SOW_JSClass.base, "Wrong object");
 
   jsval resolving;
-  if (!JS_GetReservedSlot(cx, obj, sFlagsSlot, &resolving)) {
+  if (!JS_GetReservedSlot(cx, obj, XPCWrapper::sFlagsSlot, &resolving)) {
     return JS_FALSE;
   }
 
@@ -410,7 +376,7 @@ XPC_SOW_AddProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
     return JS_TRUE;
   }
 
-  return AddProperty(cx, obj, JS_TRUE, wrappedObj, id, vp);
+  return XPCWrapper::AddProperty(cx, obj, JS_TRUE, wrappedObj, id, vp);
 }
 
 static JSBool
@@ -425,7 +391,7 @@ XPC_SOW_DelProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
     return JS_FALSE;
   }
 
-  return DelProperty(cx, wrappedObj, id, vp);
+  return XPCWrapper::DelProperty(cx, wrappedObj, id, vp);
 }
 
 static JSBool
@@ -498,7 +464,7 @@ XPC_SOW_Enumerate(JSContext *cx, JSObject *obj)
     return JS_FALSE;
   }
 
-  return Enumerate(cx, obj, wrappedObj);
+  return XPCWrapper::Enumerate(cx, obj, wrappedObj);
 }
 
 static JSBool
@@ -520,8 +486,8 @@ XPC_SOW_NewResolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
 
   if (id == GetRTStringByIndex(cx, XPCJSRuntime::IDX_TO_STRING)) {
     jsval oldSlotVal;
-    if (!JS_GetReservedSlot(cx, obj, sFlagsSlot, &oldSlotVal) ||
-        !JS_SetReservedSlot(cx, obj, sFlagsSlot,
+    if (!JS_GetReservedSlot(cx, obj, XPCWrapper::sFlagsSlot, &oldSlotVal) ||
+        !JS_SetReservedSlot(cx, obj, XPCWrapper::sFlagsSlot,
                             INT_TO_JSVAL(JSVAL_TO_INT(oldSlotVal) |
                                          FLAG_RESOLVING))) {
       return JS_FALSE;
@@ -530,7 +496,7 @@ XPC_SOW_NewResolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
     JSBool ok = JS_DefineFunction(cx, obj, "toString",
                                   XPC_SOW_toString, 0, 0) != nsnull;
 
-    JS_SetReservedSlot(cx, obj, sFlagsSlot, oldSlotVal);
+    JS_SetReservedSlot(cx, obj, XPCWrapper::sFlagsSlot, oldSlotVal);
 
     if (ok) {
       *objp = obj;
@@ -539,7 +505,7 @@ XPC_SOW_NewResolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
     return ok;
   }
 
-  return NewResolve(cx, obj, JS_TRUE, wrappedObj, id, flags, objp);
+  return XPCWrapper::NewResolve(cx, obj, JS_TRUE, wrappedObj, id, flags, objp);
 }
 
 static JSBool
@@ -677,7 +643,7 @@ XPC_SOW_Iterator(JSContext *cx, JSObject *obj, JSBool keysonly)
     return nsnull;
   }
 
-  JSObject *wrapperIter = JS_NewObject(cx, &SOWClass.base, nsnull,
+  JSObject *wrapperIter = JS_NewObject(cx, &sXPC_SOW_JSClass.base, nsnull,
                                        JS_GetGlobalForObject(cx, obj));
   if (!wrapperIter) {
     return nsnull;
@@ -687,12 +653,14 @@ XPC_SOW_Iterator(JSContext *cx, JSObject *obj, JSBool keysonly)
 
   // Initialize our SOW.
   jsval v = OBJECT_TO_JSVAL(wrappedObj);
-  if (!JS_SetReservedSlot(cx, wrapperIter, sWrappedObjSlot, v) ||
-      !JS_SetReservedSlot(cx, wrapperIter, sFlagsSlot, JSVAL_ZERO)) {
+  if (!JS_SetReservedSlot(cx, wrapperIter, XPCWrapper::sWrappedObjSlot, v) ||
+      !JS_SetReservedSlot(cx, wrapperIter, XPCWrapper::sFlagsSlot,
+                          JSVAL_ZERO)) {
     return nsnull;
   }
 
-  return CreateIteratorObj(cx, wrapperIter, obj, wrappedObj, keysonly);
+  return XPCWrapper::CreateIteratorObj(cx, wrapperIter, obj, wrappedObj,
+                                       keysonly);
 }
 
 static JSObject *
@@ -729,5 +697,34 @@ XPC_SOW_toString(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
 
   XPCWrappedNative *wn =
     XPCWrappedNative::GetWrappedNativeOfJSObject(cx, wrappedObj);
-  return NativeToString(cx, wn, argc, argv, rval, JS_FALSE);
+  return XPCWrapper::NativeToString(cx, wn, argc, argv, rval, JS_FALSE);
+}
+
+JSBool
+XPC_SOW_WrapObject(JSContext *cx, JSObject *parent, jsval v,
+                   jsval *vp)
+{
+  // Slim wrappers don't expect to be wrapped, so morph them to fat wrappers
+  // if we're about to wrap one.
+  JSObject *innerObj = JSVAL_TO_OBJECT(v);
+  if (IS_SLIM_WRAPPER(innerObj) && !MorphSlimWrapper(cx, innerObj)) {
+    return ThrowException(NS_ERROR_FAILURE, cx);
+  }
+
+  JSObject *wrapperObj =
+    JS_NewObjectWithGivenProto(cx, &sXPC_SOW_JSClass.base, NULL, parent);
+  if (!wrapperObj) {
+    return JS_FALSE;
+  }
+
+  *vp = OBJECT_TO_JSVAL(wrapperObj);
+  JSAutoTempValueRooter tvr(cx, *vp);
+
+  if (!JS_SetReservedSlot(cx, wrapperObj, XPCWrapper::sWrappedObjSlot, v) ||
+      !JS_SetReservedSlot(cx, wrapperObj, XPCWrapper::sFlagsSlot,
+                          JSVAL_ZERO)) {
+    return JS_FALSE;
+  }
+
+  return JS_TRUE;
 }

@@ -66,7 +66,7 @@
 #include "nsStringStream.h"
 #include "plbase64.h"
 #include "nsPlacesTables.h"
-#include "nsPlacesMacros.h"
+#include "nsPlacesTables.h"
 #include "nsIPrefService.h"
 #include "Helpers.h"
 
@@ -145,7 +145,7 @@ private:
   bool *mFaviconsExpirationRunning;
 };
 
-PLACES_FACTORY_SINGLETON_IMPLEMENTATION(nsFaviconService, gFaviconService)
+nsFaviconService* nsFaviconService::gFaviconService;
 
 NS_IMPL_ISUPPORTS1(
   nsFaviconService
@@ -173,7 +173,7 @@ GetEffectivePageForFavicon(nsIURI *aPageURI,
 
   nsCOMPtr<nsIURI> pageURI(aPageURI);
 
-  nsNavHistory *history = nsNavHistory::GetHistoryService();
+  nsNavHistory* history = nsNavHistory::GetHistoryService();
   NS_ENSURE_TRUE(history, nsnull);
 
   PRBool canAddToHistory;
@@ -325,15 +325,14 @@ nsFaviconService::nsFaviconService() : mFaviconsExpirationRunning(false)
                                      , mOptimizedIconDimension(OPTIMIZED_FAVICON_DIMENSION)
                                      , mFailedFaviconSerial(0)
 {
-  NS_ASSERTION(!gFaviconService,
-               "Attempting to create two instances of the service!");
+  NS_ASSERTION(! gFaviconService, "ATTEMPTING TO CREATE TWO FAVICON SERVICES!");
   gFaviconService = this;
 }
 
 nsFaviconService::~nsFaviconService()
 {
-  NS_ASSERTION(gFaviconService == this,
-               "Deleting a non-singleton instance of the service");
+  NS_ASSERTION(gFaviconService == this, "Deleting a non-singleton favicon service");
+
   if (gFaviconService == this)
     gFaviconService = nsnull;
 }
@@ -622,7 +621,7 @@ nsFaviconService::UpdateBookmarkRedirectFavicon(nsIURI* aPageURI,
   NS_ENSURE_ARG_POINTER(aFaviconURI);
 
   nsNavBookmarks* bookmarks = nsNavBookmarks::GetBookmarksService();
-  NS_ENSURE_TRUE(bookmarks, NS_ERROR_OUT_OF_MEMORY);
+  NS_ENSURE_TRUE(bookmarks, NS_ERROR_UNEXPECTED);
 
   nsCOMPtr<nsIURI> bookmarkURI;
   nsresult rv = bookmarks->GetBookmarkedURIFor(aPageURI,
@@ -1227,7 +1226,7 @@ FaviconLoadListener::OnStopRequest(nsIRequest *aRequest, nsISupports *aContext,
                                  nsresult aStatusCode)
 {
   nsFaviconService *fs = nsFaviconService::GetFaviconService();
-  NS_ENSURE_TRUE(fs, NS_ERROR_OUT_OF_MEMORY);
+  NS_ENSURE_TRUE(fs, NS_ERROR_UNEXPECTED);
 
   if (NS_FAILED(aStatusCode) || mData.Length() == 0) {
     // load failed, add to failed cache
@@ -1290,7 +1289,7 @@ FaviconLoadListener::OnStopRequest(nsIRequest *aRequest, nsISupports *aContext,
       rv = cacheEntry->GetExpirationTime(&seconds);
       if (NS_SUCCEEDED(rv)) {
         // Set the expiration, but make sure we honor our cap.
-        expiration = PR_Now() + NS_MIN((PRTime)seconds * PR_USEC_PER_SEC,
+        expiration = PR_Now() + PR_MIN(seconds * PR_USEC_PER_SEC,
                                        MAX_FAVICON_EXPIRATION);
       }
     }
