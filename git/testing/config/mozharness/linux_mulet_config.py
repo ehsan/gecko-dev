@@ -2,7 +2,7 @@
 config = {
     # testsuite options
     "reftest_options": [
-        "--mulet", "--profile=%(gaia_profile)s",
+        "--desktop", "--profile=%(gaia_profile)s",
         "--appname=%(application)s", "%(test_manifest)s"
     ],
     "run_file_names": {

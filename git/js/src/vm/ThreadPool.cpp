@@ -259,8 +259,8 @@ ThreadPool::ThreadPool(JSRuntime *rt)
   : activeWorkers_(0),
     joinBarrier_(nullptr),
     job_(nullptr),
-#ifdef DEBUG
     runtime_(rt),
+#ifdef DEBUG
     stolenSlices_(0),
 #endif
     pendingSlices_(0),

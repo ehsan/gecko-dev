@@ -246,10 +246,6 @@ class Bindings
         numBlockScoped_ = numBlockScoped;
     }
 
-    void setAllLocalsAliased() {
-        numBlockScoped_ = 0;
-    }
-
     uint8_t *switchToScriptStorage(Binding *newStorage);
 
     /*

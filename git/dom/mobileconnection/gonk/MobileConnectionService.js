@@ -478,12 +478,6 @@ MobileConnectionProvider.prototype = {
     return true;
   },
 
-  /**
-   * The design of this updating function is to update the attribute in
-   * |aDestInfo| *only if* new data (e.g. aSrcInfo) contains the same attribute.
-   * Thus, for the attribute in |aDestInfo| that isn't showed in |aSrcInfo|, it
-   * should just keep the original value unchanged.
-   */
   _updateConnectionInfo: function(aDestInfo, aSrcInfo) {
     let isUpdated = false;
     for (let key in aSrcInfo) {
@@ -508,13 +502,15 @@ MobileConnectionProvider.prototype = {
     } else {
       aDestInfo.network = this._operatorInfo;
 
-      // If no new cell data is passed, we should just keep the original cell
-      // data unchanged.
-      if (aSrcInfo.cell) {
-        if (!aDestInfo.cell) {
+      if (aSrcInfo.cell == null) {
+        if (aDestInfo.cell != null) {
+          isUpdated = true;
+          aDestInfo.cell = null;
+        }
+      } else {
+        if (aDestInfo.cell == null) {
           aDestInfo.cell = new MobileCellInfo();
         }
-
         isUpdated = this._updateInfo(aDestInfo.cell, aSrcInfo.cell) || isUpdated;
       }
     }
@@ -524,12 +520,6 @@ MobileConnectionProvider.prototype = {
     return isUpdated;
   },
 
-  /**
-   * The design of this updating function is to update the attribute in
-   * |aDestInfo| *only if* new data (e.g. aSrcInfo) contains the same attribute.
-   * Thus, for the attribute in |aDestInfo| that isn't showed in |aSrcInfo|, it
-   * should just keep the original value unchanged.
-   */
   _updateInfo: function(aDestInfo, aSrcInfo) {
     let isUpdated = false;
     for (let key in aSrcInfo) {

@@ -24,20 +24,6 @@ namespace system {
 *
 ***************************************************************************/
 
-class Volume;
-
-#define DEBUG_VOLUME_OBSERVER 0
-
-#if DEBUG_VOLUME_OBSERVER
-class VolumeObserverList : public mozilla::ObserverList<Volume*>
-{
-public:
-  void Broadcast(Volume* const& aVolume);
-};
-#else
-typedef mozilla::ObserverList<Volume*> VolumeObserverList;
-#endif
-
 class Volume MOZ_FINAL
 {
 public:
@@ -80,10 +66,11 @@ public:
   void SetUnmountRequested(bool aUnmountRequested);
 
   typedef mozilla::Observer<Volume *>     EventObserver;
+  typedef mozilla::ObserverList<Volume *> EventObserverList;
 
   // NOTE: that observers must live in the IOThread.
-  static void RegisterVolumeObserver(EventObserver* aObserver, const char* aName);
-  static void UnregisterVolumeObserver(EventObserver* aObserver, const char* aName);
+  static void RegisterObserver(EventObserver* aObserver);
+  static void UnregisterObserver(EventObserver* aObserver);
 
 private:
   friend class AutoMounter;         // Calls StartXxx
@@ -130,7 +117,7 @@ private:
   bool              mIsUnmounting;
   uint32_t          mId;                // Unique ID (used by MTP)
 
-  static VolumeObserverList sEventObserverList;
+  static EventObserverList mEventObserverList;
 };
 
 } // system

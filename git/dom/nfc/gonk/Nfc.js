@@ -314,9 +314,9 @@ XPCOMUtils.defineLazyGetter(this, "gMessageManager", function () {
         case "NFC:CheckSessionToken":
           if (!SessionHelper.isValidToken(message.data.sessionToken)) {
             debug("Received invalid Session Token: " + message.data.sessionToken);
-            return NFC.NFC_GECKO_ERROR_BAD_SESSION_ID;
+            return NFC.NFC_ERROR_BAD_SESSION_ID;
           }
-          return NFC.NFC_GECKO_SUCCESS;
+          return NFC.NFC_SUCCESS;
         case "NFC:RegisterPeerReadyTarget":
           this.registerPeerReadyTarget(message.target, message.data.appId);
           return null;
@@ -513,6 +513,11 @@ Nfc.prototype = {
     let message = Cu.cloneInto(event, this);
     DEBUG && debug("Received message from NFC Service: " + JSON.stringify(message));
 
+    // mapping error code to error message
+    if (message.status !== undefined && message.status !== NFC.NFC_SUCCESS) {
+      message.errorMsg = this.getErrorMessage(message.status);
+    }
+
     switch (message.type) {
       case "InitializedNotification":
         // Do nothing.
@@ -556,7 +561,7 @@ Nfc.prototype = {
         this.notifyHCIEventTransaction(message);
         break;
      case "ConfigResponse":
-        if (!message.errorMsg) {
+        if (message.status === NFC.NFC_SUCCESS) {
           this.powerLevel = message.powerLevel;
         }
 
@@ -612,7 +617,7 @@ Nfc.prototype = {
       // Sanity check on sessionToken.
       if (!SessionHelper.isValidToken(message.data.sessionToken)) {
         debug("Invalid Session Token: " + message.data.sessionToken);
-        this.sendNfcErrorResponse(message, NFC.NFC_GECKO_ERROR_BAD_SESSION_ID);
+        this.sendNfcErrorResponse(message, NFC.NFC_ERROR_BAD_SESSION_ID);
         return null;
       }
 

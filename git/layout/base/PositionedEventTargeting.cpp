@@ -68,7 +68,6 @@ struct EventRadiusPrefs
   bool mEnabled;
   bool mRegistered;
   bool mTouchOnly;
-  bool mRepositionEventCoords;
 };
 
 static EventRadiusPrefs sMouseEventRadiusPrefs;
@@ -112,9 +111,6 @@ GetPrefsFor(EventClassID aEventClassID)
     } else {
       prefs->mTouchOnly = false;
     }
-
-    nsPrintfCString repositionPref("ui.%s.radius.reposition", prefBranch);
-    Preferences::AddBoolVarCache(&prefs->mRepositionEventCoords, repositionPref.get(), false);
   }
 
   return prefs;
@@ -364,7 +360,7 @@ GetClosest(nsIFrame* aRoot, const nsPoint& aPointRelativeToRootFrame,
 }
 
 nsIFrame*
-FindFrameTargetedByInputEvent(WidgetGUIEvent* aEvent,
+FindFrameTargetedByInputEvent(const WidgetGUIEvent* aEvent,
                               nsIFrame* aRootFrame,
                               const nsPoint& aPointRelativeToRootFrame,
                               uint32_t aFlags)
@@ -407,38 +403,7 @@ FindFrameTargetedByInputEvent(WidgetGUIEvent* aEvent,
   nsIFrame* closestClickable =
     GetClosest(aRootFrame, aPointRelativeToRootFrame, targetRect, prefs,
                restrictToDescendants, candidates);
-  if (closestClickable) {
-    target = closestClickable;
-  }
-
-  if (!target || !prefs->mRepositionEventCoords) {
-    // No repositioning required for this event
-    return target;
-  }
-
-  // Take the point relative to the root frame, make it relative to the target,
-  // clamp it to the bounds, and then make it relative to the root frame again.
-  nsPoint point = aPointRelativeToRootFrame;
-  if (nsLayoutUtils::TRANSFORM_SUCCEEDED != nsLayoutUtils::TransformPoint(aRootFrame, target, point)) {
-    return target;
-  }
-  point = target->GetRectRelativeToSelf().ClampPoint(point);
-  if (nsLayoutUtils::TRANSFORM_SUCCEEDED != nsLayoutUtils::TransformPoint(target, aRootFrame, point)) {
-    return target;
-  }
-  // Now we basically undo the operations in GetEventCoordinatesRelativeTo, to
-  // get back the (now-clamped) coordinates in the event's widget's space.
-  nsView* view = aRootFrame->GetView();
-  if (!view) {
-    return target;
-  }
-  nsIntPoint widgetPoint = nsLayoutUtils::TranslateViewToWidget(
-        aRootFrame->PresContext(), view, point, aEvent->widget);
-  if (widgetPoint.x != NS_UNCONSTRAINEDSIZE) {
-    // If that succeeded, we update the point in the event
-    aEvent->refPoint = LayoutDeviceIntPoint::FromUntyped(widgetPoint);
-  }
-  return target;
+  return closestClickable ? closestClickable : target;
 }
 
 }

@@ -343,23 +343,21 @@ InterpreterFrame::markValues(JSTracer *trc, Value *sp, jsbytecode *pc)
 {
     MOZ_ASSERT(sp >= slots());
 
-    JSScript *script = this->script();
-    size_t nfixed = script->nfixed();
-    size_t nlivefixed = script->nbodyfixed();
+    NestedScopeObject *staticScope;
 
-    if (nfixed != nlivefixed) {
-        NestedScopeObject *staticScope = script->getStaticScope(pc);
-        while (staticScope && !staticScope->is<StaticBlockObject>())
-            staticScope = staticScope->enclosingNestedScope();
+    staticScope = script()->getStaticScope(pc);
+    while (staticScope && !staticScope->is<StaticBlockObject>())
+        staticScope = staticScope->enclosingNestedScope();
 
-        if (staticScope) {
-            StaticBlockObject &blockObj = staticScope->as<StaticBlockObject>();
-            nlivefixed = blockObj.localOffset() + blockObj.numVariables();
-        }
+    size_t nfixed = script()->nfixed();
+    size_t nlivefixed;
+
+    if (staticScope) {
+        StaticBlockObject &blockObj = staticScope->as<StaticBlockObject>();
+        nlivefixed = blockObj.localOffset() + blockObj.numVariables();
+    } else {
+        nlivefixed = script()->nbodyfixed();
     }
-
-    MOZ_ASSERT(nlivefixed <= nfixed);
-    MOZ_ASSERT(nlivefixed >= script->nbodyfixed());
 
     if (nfixed == nlivefixed) {
         // All locals are live.
