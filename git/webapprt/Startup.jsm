@@ -81,6 +81,14 @@ function createBrandingFiles() {
 // It waits for XUL window and webapps registry loading.
 this.startup = function(window) {
   return Task.spawn(function () {
+    // Observe registry loading.
+    let deferredRegistry = Promise.defer();
+    function observeRegistryLoading() {
+      Services.obs.removeObserver(observeRegistryLoading, "webapps-registry-start");
+      deferredRegistry.resolve();
+    }
+    Services.obs.addObserver(observeRegistryLoading, "webapps-registry-start", false);
+
     // Observe XUL window loading.
     // For tests, it could be already loaded.
     let deferredWindowLoad = Promise.defer();
@@ -94,7 +102,7 @@ this.startup = function(window) {
     }
 
     // Wait for webapps registry loading.
-    yield DOMApplicationRegistry.registryStarted;
+    yield deferredRegistry.promise;
 
     // Install/update permissions and get the appID from the webapps registry.
     let appID = Ci.nsIScriptSecurityManager.NO_APP_ID;
