@@ -527,7 +527,8 @@ CdmaIccInfo.prototype = {
 
   // nsIDOMMozCdmaIccInfo
 
-  mdn: null
+  mdn: null,
+  min: null
 };
 
 function RadioInterfaceLayer() {
