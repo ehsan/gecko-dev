@@ -826,15 +826,13 @@ mjit::Compiler::generateMethod()
             /* :XXX: this isn't really necessary if we follow the branch. */
             frame.syncAndForgetEverything();
             Jump j = masm.jump();
-            if (!jumpAndTrace(j, PC + GET_JUMP_OFFSET(PC)))
-                return Compile_Error;
+            jumpAndTrace(j, PC + GET_JUMP_OFFSET(PC));
           }
           END_CASE(JSOP_GOTO)
 
           BEGIN_CASE(JSOP_IFEQ)
           BEGIN_CASE(JSOP_IFNE)
-            if (!jsop_ifneq(op, PC + GET_JUMP_OFFSET(PC)))
-                return Compile_Error;
+            jsop_ifneq(op, PC + GET_JUMP_OFFSET(PC));
           END_CASE(JSOP_IFNE)
 
           BEGIN_CASE(JSOP_ARGUMENTS)
@@ -937,18 +935,15 @@ mjit::Compiler::generateMethod()
                         if (result) {
                             frame.syncAndForgetEverything();
                             Jump j = masm.jump();
-                            if (!jumpAndTrace(j, target))
-                                return Compile_Error;
+                            jumpAndTrace(j, target);
                         }
                     }
                 } else {
-                    if (!emitStubCmpOp(stub, target, fused))
-                        return Compile_Error;
+                    emitStubCmpOp(stub, target, fused);
                 }
             } else {
                 /* Anything else should go through the fast path generator. */
-                if (!jsop_relational(op, stub, target, fused))
-                    return Compile_Error;
+                jsop_relational(op, stub, target, fused);
             }
 
             /* Advance PC manually. */
@@ -1194,7 +1189,7 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_LENGTH)
 
           BEGIN_CASE(JSOP_GETELEM)
-            if (!jsop_getelem(false))
+            if (!jsop_getelem())
                 return Compile_Error;
           END_CASE(JSOP_GETELEM)
 
@@ -1269,8 +1264,7 @@ mjit::Compiler::generateMethod()
 
           BEGIN_CASE(JSOP_OR)
           BEGIN_CASE(JSOP_AND)
-            if (!jsop_andor(op, PC + GET_JUMP_OFFSET(PC)))
-                return Compile_Error;
+            jsop_andor(op, PC + GET_JUMP_OFFSET(PC));
           END_CASE(JSOP_AND)
 
           BEGIN_CASE(JSOP_TABLESWITCH)
@@ -1772,7 +1766,11 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_UINT24)
 
           BEGIN_CASE(JSOP_CALLELEM)
-            jsop_getelem(true);
+            prepareStubCall(Uses(2));
+            stubCall(stubs::CallElem);
+            frame.popn(2);
+            frame.pushSynced();
+            frame.pushSynced();
           END_CASE(JSOP_CALLELEM)
 
           BEGIN_CASE(JSOP_STOP)
@@ -1968,16 +1966,17 @@ mjit::Compiler::findCallSite(const CallSite &callSite)
     return NULL;
 }
 
-bool
+void
 mjit::Compiler::jumpInScript(Jump j, jsbytecode *pc)
 {
     JS_ASSERT(pc >= script->code && uint32(pc - script->code) < script->length);
 
-    if (pc < PC) {
+    /* :TODO: OOM failure possible here. */
+
+    if (pc < PC)
         j.linkTo(jumpMap[uint32(pc - script->code)], &masm);
-        return true;
-    }
-    return branchPatches.append(BranchPatch(j, pc));
+    else
+        branchPatches.append(BranchPatch(j, pc));
 }
 
 void
@@ -2518,7 +2517,7 @@ mjit::Compiler::compareTwoValues(JSContext *cx, JSOp op, const Value &lhs, const
     return false;
 }
 
-bool
+void
 mjit::Compiler::emitStubCmpOp(BoolStub stub, jsbytecode *target, JSOp fused)
 {
     prepareStubCall(Uses(2));
@@ -2529,17 +2528,17 @@ mjit::Compiler::emitStubCmpOp(BoolStub stub, jsbytecode *target, JSOp fused)
     if (!target) {
         frame.takeReg(Registers::ReturnReg);
         frame.pushTypedPayload(JSVAL_TYPE_BOOLEAN, Registers::ReturnReg);
-        return true;
-    }
+    } else {
+        JS_ASSERT(fused == JSOP_IFEQ || fused == JSOP_IFNE);
 
-    JS_ASSERT(fused == JSOP_IFEQ || fused == JSOP_IFNE);
-    frame.syncAndForgetEverything();
-    Assembler::Condition cond = (fused == JSOP_IFEQ)
-                                ? Assembler::Zero
-                                : Assembler::NonZero;
-    Jump j = masm.branchTest32(cond, Registers::ReturnReg,
-                               Registers::ReturnReg);
-    return jumpAndTrace(j, target);
+        frame.syncAndForgetEverything();
+        Assembler::Condition cond = (fused == JSOP_IFEQ)
+                                    ? Assembler::Zero
+                                    : Assembler::NonZero;
+        Jump j = masm.branchTest32(cond, Registers::ReturnReg,
+                                   Registers::ReturnReg);
+        jumpAndTrace(j, target);
+    }
 }
 
 void
@@ -3860,7 +3859,7 @@ mjit::Compiler::iterNext()
     stubcc.rejoin(Changes(1));
 }
 
-bool
+void
 mjit::Compiler::iterMore()
 {
     FrameEntry *fe= frame.peek(-1);
@@ -3902,7 +3901,7 @@ mjit::Compiler::iterMore()
 
     stubcc.rejoin(Changes(1));
 
-    return jumpAndTrace(jFast, target, &j);
+    jumpAndTrace(jFast, target, &j);
 }
 
 void
@@ -4341,18 +4340,13 @@ mjit::Compiler::jsop_eval()
  * hopelessly corrupted. Take care to only call this before linkExits() and
  * after rejoin()s.
  */
-bool
+void
 mjit::Compiler::jumpAndTrace(Jump j, jsbytecode *target, Jump *slow)
 {
-    // XXX refactor this little bit
 #ifndef JS_TRACER
-    if (!jumpInScript(j, target))
-        return false;
-
-    if (slow) {
-        if (!stubcc.jumpInScript(*slow, target))
-            return false;
-    }
+    jumpInScript(j, target);
+    if (slow)
+        stubcc.jumpInScript(*slow, target);
 #else
     if (!addTraceHints || target >= PC || JSOp(*target) != JSOP_TRACE
 #ifdef JS_MONOIC
@@ -4360,13 +4354,10 @@ mjit::Compiler::jumpAndTrace(Jump j, jsbytecode *target, Jump *slow)
 #endif
         )
     {
-        if (!jumpInScript(j, target))
-            return false;
-        if (slow) {
-            if (!stubcc.jumpInScript(*slow, target))
-                stubcc.jumpInScript(*slow, target);
-        }
-        return true;
+        jumpInScript(j, target);
+        if (slow)
+            stubcc.jumpInScript(*slow, target);
+        return;
     }
 
 # if JS_MONOIC
@@ -4409,10 +4400,8 @@ mjit::Compiler::jumpAndTrace(Jump j, jsbytecode *target, Jump *slow)
     restoreFrameRegs(stubcc.masm);
     stubcc.masm.jump(Registers::ReturnReg);
     no.linkTo(stubcc.masm.label(), &stubcc.masm);
-    if (!stubcc.jumpInScript(stubcc.masm.jump(), target))
-        return false;
+    stubcc.jumpInScript(stubcc.masm.jump(), target);
 #endif
-    return true;
 }
 
 void
@@ -4501,15 +4490,5 @@ mjit::Compiler::constructThis()
     stubCall(stubs::CreateThis);
     frame.freeReg(protoReg);
     return true;
-}
-
-void
-mjit::Compiler::jsop_callelem_slow()
-{
-    prepareStubCall(Uses(2));
-    stubCall(stubs::CallElem);
-    frame.popn(2);
-    frame.pushSynced();
-    frame.pushSynced();
 }
 
