@@ -4471,7 +4471,7 @@ static void ForceFontUpdate()
   Preferences::SetBool(kPrefName, !fontInternalChange);
 }
 
-static PRBool ClearTypeSettingChanged()
+static PRBool CleartypeSettingChanged()
 {
   static int currentQuality = -1;
   BYTE quality = cairo_win32_get_system_text_quality();
@@ -4832,7 +4832,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       break;
 
     case WM_PAINT:
-      if (ClearTypeSettingChanged()) {
+      if (CleartypeSettingChanged()) {
         ForceFontUpdate();
         gfxFontCache *fc = gfxFontCache::GetCache();
         if (fc) {
