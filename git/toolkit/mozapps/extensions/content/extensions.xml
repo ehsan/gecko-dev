@@ -218,10 +218,11 @@
         <setter><![CDATA[
           if (val == -1) {
             this._progress.mode = "undetermined";
-            return;
+          } else {
+            this._progress.mode = "determined";
+            this._progress.max = val;
           }
-          this._progress.mode = "determined";
-          this._progress.max = val;
+          this.setAttribute("mode", this._progress.mode);
         ]]></setter>
       </property>
 
@@ -246,7 +247,7 @@
       <xul:button anonid="date-btn" class="sorter"
                   label="&sort.dateUpdated.label;"
                   tooltiptext="&sort.dateUpdated.tooltip;"
-                  oncommand="this.parentNode._handleChange('dateUpdated');"/>
+                  oncommand="this.parentNode._handleChange('updateDate');"/>
       <xul:button anonid="relevance-btn" class="sorter" hidden="true"
                   label="&sort.relevance.label;"
                   tooltiptext="&sort.relevance.tooltip;"
@@ -348,7 +349,7 @@
             this._btnName.checked = false;
           }
 
-          if (sortBy == "dateUpdated") {
+          if (sortBy == "updateDate") {
             this._btnDate.checkState = checkState;
             this._btnDate.checked = true;
           } else {
@@ -1034,11 +1035,6 @@
 
           this.setAttribute("name", aAddon.name);
 
-          if (aAddon.size)
-            this.setAttribute("size", aAddon.size);
-          else
-            this.removeAttribute("size");
-
           var iconURL = this.mAddon.iconURL;
           if (iconURL)
             this._icon.src = iconURL;
@@ -1111,13 +1107,10 @@
                                  );
           }
 
-          if (this.mAddon.updateDate) {
+          if (this.mAddon.updateDate)
             this._dateUpdated.value = formatDate(this.mAddon.updateDate);
-            this.setAttribute("dateUpdated", this.mAddon.updateDate.getTime() / 1000);
-          } else {
+          else
             this._dateUpdated.value = this._dateUpdated.getAttribute("unknown");
-            this.removeAttribute("dateUpdated");
-          }
         ]]></body>
       </method>
 

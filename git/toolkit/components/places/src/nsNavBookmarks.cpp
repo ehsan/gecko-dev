@@ -123,12 +123,14 @@ SearchBookmarkForKeyword(nsTrimInt64HashKey::KeyType aKey,
 
 nsNavBookmarks::nsNavBookmarks() : mItemCount(0)
                                  , mRoot(0)
-                                 , mBookmarksRoot(0)
-                                 , mTagRoot(0)
-                                 , mToolbarFolder(0)
+                                 , mMenuRoot(0)
+                                 , mTagsRoot(0)
+                                 , mUnfiledRoot(0)
+                                 , mToolbarRoot(0)
                                  , mCanNotify(false)
                                  , mCacheObservers("bookmark-observers")
                                  , mShuttingDown(false)
+                                 , mBatching(false)
 {
   NS_ASSERTION(!gBookmarksService,
                "Attempting to create two instances of the service!");
@@ -161,10 +163,14 @@ nsNavBookmarks::Init()
   mDBConn = history->GetStorageConnection();
   NS_ENSURE_STATE(mDBConn);
 
-  // TODO: we could consider roots changes as schema changes, and init them
-  // only if the database has been created/updated, history.databaseStatus
-  // can tell us that.
-  nsresult rv = InitRoots();
+  // Get our read-only cloned connection.
+  nsresult rv = mDBConn->Clone(PR_TRUE, getter_AddRefs(mDBReadOnlyConn));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  PRUint16 dbStatus;
+  rv = history->GetDatabaseStatus(&dbStatus);
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = InitRoots(dbStatus != nsINavHistoryService::DATABASE_STATUS_OK);
   NS_ENSURE_SUCCESS(rv, rv);
 
   mCanNotify = true;
@@ -196,7 +202,7 @@ nsNavBookmarks::InitTables(mozIStorageConnection* aDBConn)
   PRBool exists;
   nsresult rv = aDBConn->TableExists(NS_LITERAL_CSTRING("moz_bookmarks"), &exists);
   NS_ENSURE_SUCCESS(rv, rv);
-  if (! exists) {
+  if (!exists) {
     rv = aDBConn->ExecuteSimpleSQL(CREATE_MOZ_BOOKMARKS);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -215,9 +221,12 @@ nsNavBookmarks::InitTables(mozIStorageConnection* aDBConn)
     // last modified bookmark title for tags container's children.
     rv = aDBConn->ExecuteSimpleSQL(CREATE_IDX_MOZ_BOOKMARKS_PLACELASTMODIFIED);
     NS_ENSURE_SUCCESS(rv, rv);
+
+    // Selecting by guid needs to be fast.
+    rv = aDBConn->ExecuteSimpleSQL(CREATE_IDX_MOZ_BOOKMARKS_GUID);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  // moz_bookmarks_roots
   rv = aDBConn->TableExists(NS_LITERAL_CSTRING("moz_bookmarks_roots"), &exists);
   NS_ENSURE_SUCCESS(rv, rv);
   if (!exists) {
@@ -225,10 +234,9 @@ nsNavBookmarks::InitTables(mozIStorageConnection* aDBConn)
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  // moz_keywords
   rv = aDBConn->TableExists(NS_LITERAL_CSTRING("moz_keywords"), &exists);
   NS_ENSURE_SUCCESS(rv, rv);
-  if (! exists) {
+  if (!exists) {
     rv = aDBConn->ExecuteSimpleSQL(CREATE_MOZ_KEYWORDS);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -249,35 +257,23 @@ nsNavBookmarks::GetStatement(const nsCOMPtr<mozIStorageStatement>& aStmt)
 
   // Double ordering covers possible lastModified ties, that could happen when
   // importing, syncing or due to extensions.
+  // Note: not using a JOIN is cheaper in this case.
   RETURN_IF_STMT(mDBFindURIBookmarks, NS_LITERAL_CSTRING(
     "SELECT b.id "
     "FROM moz_bookmarks b "
-    "WHERE b.type = :item_type AND b.fk = ( "
-      "SELECT id FROM moz_places_temp "
-      "WHERE url = :page_url "
-      "UNION "
-      "SELECT id FROM moz_places "
-      "WHERE url = :page_url "
-      "LIMIT 1 "
-    ") "
+    "WHERE b.fk = (SELECT id FROM moz_places WHERE url = :page_url) "
     "ORDER BY b.lastModified DESC, b.id DESC "));
 
   // Select all children of a given folder, sorted by position.
-  // This is a LEFT OUTER JOIN with moz_places since folders does not have
-  // a reference into that table.
+  // This is a LEFT JOIN because not all bookmarks types have a place.
   // We construct a result where the first columns exactly match those returned
   // by mDBGetURLPageInfo, and additionally contains columns for position,
   // item_child, and folder_child from moz_bookmarks.
   RETURN_IF_STMT(mDBGetChildren, NS_LITERAL_CSTRING(
-    "SELECT IFNULL(h_t.id, h.id), IFNULL(h_t.url, h.url), "
-           "COALESCE(b.title, h_t.title, h.title), "
-           "IFNULL(h_t.rev_host, h.rev_host), "
-           "IFNULL(h_t.visit_count, h.visit_count), "
-           "IFNULL(h_t.last_visit_date, h.last_visit_date), "
-           "f.url, null, b.id, b.dateAdded, b.lastModified, b.parent, null, "
-           "b.position, b.type, b.fk, b.folder_type "
+    "SELECT h.id, h.url, IFNULL(b.title, h.title), h.rev_host, h.visit_count, "
+           "h.last_visit_date, f.url, null, b.id, b.dateAdded, b.lastModified, "
+           "b.parent, null, b.position, b.type, b.fk, b.folder_type "
     "FROM moz_bookmarks b "
-    "LEFT JOIN moz_places_temp h_t ON b.fk = h_t.id "
     "LEFT JOIN moz_places h ON b.fk = h.id "
     "LEFT JOIN moz_favicons f ON h.favicon_id = f.id "
     "WHERE b.parent = :parent "
@@ -294,13 +290,12 @@ nsNavBookmarks::GetStatement(const nsCOMPtr<mozIStorageStatement>& aStmt)
     "WHERE parent = :parent AND position = :item_index"));
 
   // Get bookmark/folder/separator properties.
+  // This is a LEFT JOIN because not all bookmarks types have a place.
   RETURN_IF_STMT(mDBGetItemProperties, NS_LITERAL_CSTRING(
-    "SELECT b.id, "
-           "IFNULL((SELECT url FROM moz_places_temp WHERE id = b.fk), "
-                  "(SELECT url FROM moz_places WHERE id = b.fk)), "
-           "b.title, b.position, b.fk, b.parent, b.type, b.folder_type, "
-           "b.dateAdded, b.lastModified "
+    "SELECT b.id, h.url, b.title, b.position, b.fk, b.parent, b.type, "
+           "b.folder_type, b.dateAdded, b.lastModified "
     "FROM moz_bookmarks b "
+    "LEFT JOIN moz_places h ON h.id = b.fk "
     "WHERE b.id = :item_id"));
 
   RETURN_IF_STMT(mDBGetItemIdForGUID, NS_LITERAL_CSTRING(
@@ -311,9 +306,10 @@ nsNavBookmarks::GetStatement(const nsCOMPtr<mozIStorageStatement>& aStmt)
   RETURN_IF_STMT(mDBInsertBookmark, NS_LITERAL_CSTRING(
     "INSERT INTO moz_bookmarks "
       "(id, fk, type, parent, position, title, folder_type, "
-       "dateAdded, lastModified) "
+       "dateAdded, lastModified, guid) "
     "VALUES (:item_id, :page_id, :item_type, :parent, :item_index, "
-            ":item_title, :folder_type, :date_added, :last_modified)"));
+            ":item_title, :folder_type, :date_added, :last_modified, "
+            "GENERATE_GUID())"));
 
   // Just select position since it's just an int32 and may be faster.
   // We don't actually care about the data, just whether there is any.
@@ -321,12 +317,9 @@ nsNavBookmarks::GetStatement(const nsCOMPtr<mozIStorageStatement>& aStmt)
     "SELECT 1 FROM moz_bookmarks WHERE fk = :page_id"));
 
   RETURN_IF_STMT(mDBIsURIBookmarkedInDatabase, NS_LITERAL_CSTRING(
-    "SELECT 1 FROM moz_bookmarks WHERE fk = ("
-      "SELECT id FROM moz_places_temp WHERE url = :page_url "
-      "UNION ALL "
-      "SELECT id FROM moz_places WHERE url = :page_url "
-      "LIMIT 1"
-    ")"));
+    "SELECT 1 FROM moz_bookmarks b "
+    "JOIN moz_places h ON b.fk = h.id "
+    "WHERE h.url = :page_url"));
 
   // Checks to make sure a place id is a bookmark, and isn't a livemark.
   RETURN_IF_STMT(mDBIsRealBookmark, NS_LITERAL_CSTRING(
@@ -339,8 +332,7 @@ nsNavBookmarks::GetStatement(const nsCOMPtr<mozIStorageStatement>& aStmt)
         "FROM moz_items_annos a "
         "JOIN moz_anno_attributes n ON a.anno_attribute_id = n.id "
         "WHERE n.name = :anno_name"
-      ") "
-    "LIMIT 1"));
+      ") "));
 
   RETURN_IF_STMT(mDBGetLastBookmarkID, NS_LITERAL_CSTRING(
     "SELECT id "
@@ -361,24 +353,17 @@ nsNavBookmarks::GetStatement(const nsCOMPtr<mozIStorageStatement>& aStmt)
   RETURN_IF_STMT(mDBSetItemIndex, NS_LITERAL_CSTRING(
     "UPDATE moz_bookmarks SET position = :item_index WHERE id = :item_id"));
 
-  // Get keyword text for bookmarked URI.
   RETURN_IF_STMT(mDBGetKeywordForURI, NS_LITERAL_CSTRING(
     "SELECT k.keyword "
-    "FROM ( "
-      "SELECT id FROM moz_places_temp "
-      "WHERE url = :page_url "
-      "UNION ALL "
-      "SELECT id FROM moz_places "
-      "WHERE url = :page_url "
-      "LIMIT 1 "
-    ") AS h "
+    "FROM moz_places h "
     "JOIN moz_bookmarks b ON b.fk = h.id "
-    "JOIN moz_keywords k ON k.id = b.keyword_id"));
+    "JOIN moz_keywords k ON k.id = b.keyword_id "
+    "WHERE h.url = :page_url "));
 
   RETURN_IF_STMT(mDBAdjustPosition, NS_LITERAL_CSTRING(
     "UPDATE moz_bookmarks SET position = position + :delta "
     "WHERE parent = :parent "
-      "AND position >= :from_index AND position <= :to_index"));
+      "AND position BETWEEN :from_index AND :to_index"));
 
   RETURN_IF_STMT(mDBRemoveItem, NS_LITERAL_CSTRING(
     "DELETE FROM moz_bookmarks WHERE id = :item_id"));
@@ -420,14 +405,6 @@ nsNavBookmarks::GetStatement(const nsCOMPtr<mozIStorageStatement>& aStmt)
   // For most cases these levels of redirects should be fine though, it's hard
   // to hit a page that is 4 or 5 levels of redirects below a bookmarked page.
   //
-  // Moreover this query does not mix-up all possible cases of disk and temp
-  // tables.  This is because we expect a redirects chain to be completely on
-  // disk or completely in memory.  We never bring back visits from disk to
-  // memory, we sync visits on a timer (the chained visits have narrow times),
-  // or on bookmarks changes.  The likely possiblity that we break a chain in
-  // the middle is so much smaller than the perf and readability hit we would
-  // get making complete crossing joins.
-  //
   // As a bonus the query also checks first if place_id is already a bookmark,
   // so you don't have to check that apart.
 
@@ -440,31 +417,13 @@ nsNavBookmarks::GetStatement(const nsCOMPtr<mozIStorageStatement>& aStmt)
                     nsINavHistoryService::TRANSITION_REDIRECT_TEMPORARY);
 
   RETURN_IF_STMT(mDBFindRedirectedBookmark, NS_LITERAL_CSTRING(
-    "SELECT IFNULL( "
-      "(SELECT url FROM moz_places_temp WHERE id = :page_id), "
+    "SELECT "
       "(SELECT url FROM moz_places WHERE id = :page_id) "
-    ") "
     "FROM moz_bookmarks b "
     "WHERE b.fk = :page_id "
     "UNION ALL " // Not directly bookmarked.
-    "SELECT IFNULL( "
-      "(SELECT url FROM moz_places_temp WHERE id = " COALESCE_PLACEID "), "
+    "SELECT "
       "(SELECT url FROM moz_places WHERE id = " COALESCE_PLACEID ") "
-    ") "
-    "FROM moz_historyvisits_temp self "
-    "JOIN moz_bookmarks b ON b.fk = " COALESCE_PLACEID
-    "LEFT JOIN moz_historyvisits_temp parent ON parent.id = self.from_visit "
-    "LEFT JOIN moz_historyvisits_temp grandparent ON parent.from_visit = grandparent.id "
-      "AND parent.visit_type IN (") + redirectsFragment + NS_LITERAL_CSTRING(") "
-    "LEFT JOIN moz_historyvisits_temp greatgrandparent ON grandparent.from_visit = greatgrandparent.id "
-      "AND grandparent.visit_type IN (") + redirectsFragment + NS_LITERAL_CSTRING(") "
-    "WHERE self.visit_type IN (") + redirectsFragment + NS_LITERAL_CSTRING(") "
-      "AND self.place_id = :page_id "
-    "UNION ALL " // Not in the temp table.
-    "SELECT IFNULL( "
-      "(SELECT url FROM moz_places_temp WHERE id = " COALESCE_PLACEID "), "
-      "(SELECT url FROM moz_places WHERE id = " COALESCE_PLACEID ") "
-    ") "
     "FROM moz_historyvisits self "
     "JOIN moz_bookmarks b ON b.fk = " COALESCE_PLACEID
     "LEFT JOIN moz_historyvisits parent ON parent.id = self.from_visit "
@@ -516,215 +475,144 @@ nsNavBookmarks::FinalizeStatements() {
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
+  // Since we are shutting down, close the read-only connection.
+  (void)mDBReadOnlyConn->AsyncClose(nsnull);
+
+#ifdef DEBUG
+  // Sanity check that all bookmarks have guids.
+  nsCOMPtr<mozIStorageStatement> stmt;
+  nsresult rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
+    "SELECT * "
+    "FROM moz_bookmarks "
+    "WHERE guid IS NULL "
+  ), getter_AddRefs(stmt));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  PRBool haveNullGuids;
+  rv = stmt->ExecuteStep(&haveNullGuids);
+  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ASSERTION(!haveNullGuids,
+               "Someone added a bookmark without adding a GUID!");
+#endif
+
   return NS_OK;
 }
 
 
-// nsNavBookmarks::InitRoots
-//
-//    This locates and creates if necessary the root items in the bookmarks
-//    folder hierarchy. These items are stored in a special roots table that
-//    maps short predefined names to folder IDs.
-//
-//    Normally, these folders will exist already and we will save their IDs
-//    which are exposed through the bookmark service interface.
-//
-//    If the root does not exist, a folder is created for it and the ID is
-//    saved in the root table. No user-visible name is given to these folders
-//    and they have no parent or other attributes.
-//
-//    These attributes are set when the default_places.html file is imported.
-//    It defines the hierarchy, and has special attributes that tell us when
-//    a folder is one of our well-known roots. We then insert the root in the
-//    defined point in the hierarchy and set its attributes from this.
-//
-//    This should be called as the last part of the init process so that
-//    all of the statements are set up and the service is ready to use.
-
 nsresult
-nsNavBookmarks::InitRoots()
+nsNavBookmarks::InitRoots(bool aForceCreate)
 {
-  mozStorageTransaction transaction(mDBConn, PR_FALSE);
-
-  nsCOMPtr<mozIStorageStatement> getRootStatement;
-  nsresult rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
-      "SELECT folder_id FROM moz_bookmarks_roots WHERE root_name = :root_name"),
-    getter_AddRefs(getRootStatement));
+  nsCOMPtr<mozIStorageStatement> stmt;
+  nsresult rv = mDBReadOnlyConn->CreateStatement(NS_LITERAL_CSTRING(
+    "SELECT root_name, folder_id FROM moz_bookmarks_roots"
+  ), getter_AddRefs(stmt));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  PRBool createdPlacesRoot = PR_FALSE;
-  rv = CreateRoot(getRootStatement, NS_LITERAL_CSTRING("places"),
-                  &mRoot, 0, &createdPlacesRoot);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = CreateRoot(getRootStatement, NS_LITERAL_CSTRING("menu"),
-                  &mBookmarksRoot, mRoot, nsnull);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  PRBool createdToolbarFolder;
-  rv = CreateRoot(getRootStatement, NS_LITERAL_CSTRING("toolbar"),
-                  &mToolbarFolder, mRoot, &createdToolbarFolder);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Once toolbar was not a root, we may need to move over the items and
-  // delete the custom folder
-  if (!createdPlacesRoot && createdToolbarFolder) {
-    nsAnnotationService* annosvc = nsAnnotationService::GetAnnotationService();
-    NS_ENSURE_TRUE(annosvc, NS_ERROR_OUT_OF_MEMORY);
-
-    nsTArray<PRInt64> folders;
-    rv = annosvc->GetItemsWithAnnotationTArray(BOOKMARKS_TOOLBAR_FOLDER_ANNO,
-                                               &folders);
+  PRBool hasResult;
+  while (NS_SUCCEEDED(stmt->ExecuteStep(&hasResult)) && hasResult) {
+    nsCAutoString rootName;
+    rv = stmt->GetUTF8String(0, rootName);
     NS_ENSURE_SUCCESS(rv, rv);
-    if (folders.Length() > 0) {
-      nsCOMPtr<mozIStorageStatement> moveItems;
-      rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
-        "UPDATE moz_bookmarks SET parent = :new_parent "
-        "WHERE parent = :old_parent"
-      ), getter_AddRefs(moveItems));
-      NS_ENSURE_SUCCESS(rv, rv);
-      rv = moveItems->BindInt64ByName(NS_LITERAL_CSTRING("new_parent"),
-                                      mToolbarFolder);
-      NS_ENSURE_SUCCESS(rv, rv);
-      rv = moveItems->BindInt64ByName(NS_LITERAL_CSTRING("old_parent"),
-                                      folders[0]);
-      NS_ENSURE_SUCCESS(rv, rv);
-      rv = moveItems->Execute();
-      NS_ENSURE_SUCCESS(rv, rv);
-      rv = RemoveFolder(folders[0]);
-      NS_ENSURE_SUCCESS(rv, rv);
+    PRInt64 rootId;
+    rv = stmt->GetInt64(1, &rootId);
+    NS_ENSURE_SUCCESS(rv, rv);
+    NS_ABORT_IF_FALSE(rootId != 0, "Root id is 0, that is an invalid value.");
+
+    if (rootName.EqualsLiteral("places")) {
+      mRoot = rootId;
+    }
+    else if (rootName.EqualsLiteral("menu")) {
+      mMenuRoot = rootId;
+    }
+    else if (rootName.EqualsLiteral("toolbar")) {
+      mToolbarRoot = rootId;
+    }
+    else if (rootName.EqualsLiteral("tags")) {
+      mTagsRoot = rootId;
+    }
+    else if (rootName.EqualsLiteral("unfiled")) {
+      mUnfiledRoot = rootId;
     }
   }
 
-  rv = CreateRoot(getRootStatement, NS_LITERAL_CSTRING("tags"),
-                  &mTagRoot, mRoot, nsnull);
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (aForceCreate) {
+    nsNavHistory* history = nsNavHistory::GetHistoryService();
+    NS_ENSURE_TRUE(history, NS_ERROR_OUT_OF_MEMORY);
+    nsIStringBundle* bundle = history->GetBundle();
+    NS_ENSURE_TRUE(bundle, NS_ERROR_OUT_OF_MEMORY);
 
-  rv = CreateRoot(getRootStatement, NS_LITERAL_CSTRING("unfiled"),
-                  &mUnfiledRoot, mRoot, nsnull);
-  NS_ENSURE_SUCCESS(rv, rv);
+    mozStorageTransaction transaction(mDBConn, PR_FALSE);
 
-  // Set titles for special folders
-  // We cannot rely on createdPlacesRoot due to Fx3beta->final migration path
-  PRUint16 databaseStatus = nsINavHistoryService::DATABASE_STATUS_OK;
-  nsNavHistory* history = nsNavHistory::GetHistoryService();
-  NS_ENSURE_TRUE(history, NS_ERROR_OUT_OF_MEMORY);
-  rv = history->GetDatabaseStatus(&databaseStatus);
-  if (NS_FAILED(rv) ||
-      databaseStatus != nsINavHistoryService::DATABASE_STATUS_OK) {
-    rv = InitDefaults();
+    rv = CreateRoot(NS_LITERAL_CSTRING("places"), &mRoot, 0,
+                    nsnull, nsnull);
     NS_ENSURE_SUCCESS(rv, rv);
-  }
 
-  rv = transaction.Commit();
-  NS_ENSURE_SUCCESS(rv, rv);
+    rv = CreateRoot(NS_LITERAL_CSTRING("menu"), &mMenuRoot, mRoot, bundle,
+                    NS_LITERAL_STRING("BookmarksMenuFolderTitle").get());
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = CreateRoot(NS_LITERAL_CSTRING("toolbar"), &mToolbarRoot, mRoot, bundle,
+                    NS_LITERAL_STRING("BookmarksToolbarFolderTitle").get());
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = CreateRoot(NS_LITERAL_CSTRING("tags"), &mTagsRoot, mRoot, bundle,
+                    NS_LITERAL_STRING("TagsFolderTitle").get());
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = CreateRoot(NS_LITERAL_CSTRING("unfiled"), &mUnfiledRoot, mRoot, bundle,
+                    NS_LITERAL_STRING("UnsortedBookmarksFolderTitle").get());
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = transaction.Commit();
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    if (!mBatching) {
+      ForceWALCheckpoint(mDBConn);
+    }
+  }
 
   return NS_OK;
 }
 
 
-// nsNavBookmarks::InitDefaults
-//
-// Initializes default bookmarks and containers.
-// Pulls from places.propertes for l10n.
-// Replaces the old default_places.html file.
 nsresult
-nsNavBookmarks::InitDefaults()
+nsNavBookmarks::CreateRoot(const nsCString& name,
+                           PRInt64* _itemId,
+                           PRInt64 aParentId,
+                           nsIStringBundle* aBundle,
+                           const PRUnichar* aTitleStringId)
 {
-  nsNavHistory* history = nsNavHistory::GetHistoryService();
-  NS_ENSURE_TRUE(history, NS_ERROR_OUT_OF_MEMORY);
-  nsIStringBundle* bundle = history->GetBundle();
-  NS_ENSURE_TRUE(bundle, NS_ERROR_OUT_OF_MEMORY);
+  nsresult rv;
 
-  // Bookmarks Menu
-  nsXPIDLString bookmarksTitle;
-  nsresult rv = bundle->GetStringFromName(
-    NS_LITERAL_STRING("BookmarksMenuFolderTitle").get(),
-    getter_Copies(bookmarksTitle));
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = SetItemTitle(mBookmarksRoot, NS_ConvertUTF16toUTF8(bookmarksTitle));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Bookmarks Toolbar
-  nsXPIDLString toolbarTitle;
-  rv = bundle->GetStringFromName(
-    NS_LITERAL_STRING("BookmarksToolbarFolderTitle").get(),
-    getter_Copies(toolbarTitle));
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = SetItemTitle(mToolbarFolder, NS_ConvertUTF16toUTF8(toolbarTitle));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Unsorted Bookmarks
-  nsXPIDLString unfiledTitle;
-  rv = bundle->GetStringFromName(
-    NS_LITERAL_STRING("UnsortedBookmarksFolderTitle").get(),
-    getter_Copies(unfiledTitle));
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = SetItemTitle(mUnfiledRoot, NS_ConvertUTF16toUTF8(unfiledTitle));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Tags
-  nsXPIDLString tagsTitle;
-  rv = bundle->GetStringFromName(
-    NS_LITERAL_STRING("TagsFolderTitle").get(),
-    getter_Copies(tagsTitle));
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = SetItemTitle(mTagRoot, NS_ConvertUTF16toUTF8(tagsTitle));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
-}
-
-
-// nsNavBookmarks::CreateRoot
-//
-//    This gets or creates a root folder of the given type. aWasCreated
-//    (optional) is true if the folder had to be created, false if we just used
-//    an old one. The statement that gets a folder ID from a root name is
-//    passed in so the DB only needs to parse the statement once, and we don't
-//    have to have a global for this. Creation is less optimized because it
-//    happens rarely.
-
-nsresult
-nsNavBookmarks::CreateRoot(mozIStorageStatement* aGetRootStatement,
-                           const nsCString& name, PRInt64* aID,
-                           PRInt64 aParentID, PRBool* aWasCreated)
-{
-  NS_ENSURE_STATE(aGetRootStatement);
-  mozStorageStatementScoper scoper(aGetRootStatement);
-  PRBool hasResult = PR_FALSE;
-  nsresult rv = aGetRootStatement->BindUTF8StringByName(NS_LITERAL_CSTRING("root_name"), name);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = aGetRootStatement->ExecuteStep(&hasResult);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (hasResult) {
-    if (aWasCreated)
-      *aWasCreated = PR_FALSE;
-    rv = aGetRootStatement->GetInt64(0, aID);
+  if (*_itemId == 0) {
+    // The root does not exist.  Create a new untitled folder for it.
+    rv = CreateFolder(aParentId, EmptyCString(), DEFAULT_INDEX, _itemId);
     NS_ENSURE_SUCCESS(rv, rv);
-    NS_ASSERTION(*aID != 0, "Root is 0 for some reason, folders can't have 0 ID");
-    return NS_OK;
+
+    // Create a entry  in moz_bookmarks_roots to link the folder to the root.
+    nsCOMPtr<mozIStorageStatement> stmt;
+    rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
+      "INSERT INTO moz_bookmarks_roots (root_name, folder_id) "
+      "VALUES (:root_name, :item_id)"
+    ), getter_AddRefs(stmt));
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = stmt->BindUTF8StringByName(NS_LITERAL_CSTRING("root_name"), name);
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = stmt->BindInt64ByName(NS_LITERAL_CSTRING("item_id"), *_itemId);
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = stmt->Execute();
+    NS_ENSURE_SUCCESS(rv, rv);
   }
-  if (aWasCreated)
-    *aWasCreated = PR_TRUE;
 
-  // create folder with no name or attributes
-  nsCOMPtr<mozIStorageStatement> insertStatement;
-  rv = CreateFolder(aParentID, EmptyCString(), nsINavBookmarksService::DEFAULT_INDEX, aID);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // save root ID
-  rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
-    "INSERT INTO moz_bookmarks_roots (root_name, folder_id) "
-    "VALUES (:root_name, :item_id)"
-  ), getter_AddRefs(insertStatement));
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = insertStatement->BindUTF8StringByName(NS_LITERAL_CSTRING("root_name"), name);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = insertStatement->BindInt64ByName(NS_LITERAL_CSTRING("item_id"), *aID);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = insertStatement->Execute();
-  NS_ENSURE_SUCCESS(rv, rv);
+  // Now set the title on the root.  Notice we do this regardless, to take in
+  // could title changes when schema changes.
+  if (aTitleStringId) {
+    nsXPIDLString title;
+    rv = aBundle->GetStringFromName(aTitleStringId, getter_Copies(title));
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = SetItemTitle(*_itemId, NS_ConvertUTF16toUTF8(title));
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
 
   return NS_OK;
 }
@@ -808,7 +696,7 @@ nsNavBookmarks::GetPlacesRoot(PRInt64* aRoot)
 NS_IMETHODIMP
 nsNavBookmarks::GetBookmarksMenuFolder(PRInt64* aRoot)
 {
-  *aRoot = mBookmarksRoot;
+  *aRoot = mMenuRoot;
   return NS_OK;
 }
 
@@ -816,7 +704,7 @@ nsNavBookmarks::GetBookmarksMenuFolder(PRInt64* aRoot)
 NS_IMETHODIMP
 nsNavBookmarks::GetToolbarFolder(PRInt64* aFolderId)
 {
-  *aFolderId = mToolbarFolder;
+  *aFolderId = mToolbarRoot;
   return NS_OK;
 }
 
@@ -824,7 +712,7 @@ nsNavBookmarks::GetToolbarFolder(PRInt64* aFolderId)
 NS_IMETHODIMP
 nsNavBookmarks::GetTagsFolder(PRInt64* aRoot)
 {
-  *aRoot = mTagRoot;
+  *aRoot = mTagsRoot;
   return NS_OK;
 }
 
@@ -984,32 +872,16 @@ nsNavBookmarks::InsertBookmark(PRInt64 aFolder,
   rv = aURI->GetSpec(url);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // prevent place: queries from showing up in the URL bar autocomplete results
-  PRBool isBookmark = !IsQueryURI(url);
-
-  if (isBookmark) {
-    // if it is a livemark item (the parent is a livemark), 
-    // we pass in false for isBookmark.  otherwise, unvisited livemark 
-    // items will appear in URL autocomplete before we visit them.
-    PRBool parentIsLivemark;
-    nsCOMPtr<nsILivemarkService> lms = 
-      do_GetService(NS_LIVEMARKSERVICE_CONTRACTID, &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = lms->IsLivemark(aFolder, &parentIsLivemark);
-    NS_ENSURE_SUCCESS(rv, rv);
- 
-    isBookmark = !parentIsLivemark;
-  }
-  
-  // when we created the moz_place entry for the new bookmark 
-  // (a side effect of calling GetUrlIdFor()) frecency -1;
-  // now we re-calculate the frecency for this moz_place entry. 
-  rv = history->UpdateFrecency(childID, isBookmark);
+  // Re-calculate the frecency for this moz_place entry since it was set to -1.
+  rv = history->UpdateFrecency(childID);
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = transaction.Commit();
   NS_ENSURE_SUCCESS(rv, rv);
+
+  if (!mBatching) {
+    ForceWALCheckpoint(mDBConn);
+  }
 
   NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
                    nsINavBookmarkObserver,
@@ -1022,7 +894,7 @@ nsNavBookmarks::InsertBookmark(PRInt64 aFolder,
   PRInt64 grandParentId;
   rv = GetFolderIdForItem(aFolder, &grandParentId);
   NS_ENSURE_SUCCESS(rv, rv);
-  if (grandParentId == mTagRoot) {
+  if (grandParentId == mTagsRoot) {
     // query for all bookmarks for that URI, notify for each
     nsTArray<PRInt64> bookmarks;
     rv = GetBookmarkIdsForURITArray(aURI, bookmarks);
@@ -1117,13 +989,14 @@ nsNavBookmarks::RemoveItem(PRInt64 aItemId)
   rv = transaction.Commit();
   NS_ENSURE_SUCCESS(rv, rv);
 
+  if (!mBatching) {
+    ForceWALCheckpoint(mDBConn);
+  }
+
   if (itemType == TYPE_BOOKMARK) {
-    // UpdateFrecency needs to know whether placeId is still bookmarked.
-    // Although we removed aItemId, placeId may still be bookmarked elsewhere;
-    // IsRealBookmark will know.
     nsNavHistory* history = nsNavHistory::GetHistoryService();
     NS_ENSURE_TRUE(history, NS_ERROR_OUT_OF_MEMORY);
-    rv = history->UpdateFrecency(placeId, IsRealBookmark(placeId));
+    rv = history->UpdateFrecency(placeId);
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = UpdateKeywordsHashForRemovedBookmark(aItemId);
@@ -1141,7 +1014,7 @@ nsNavBookmarks::RemoveItem(PRInt64 aItemId)
     PRInt64 grandParentId;
     rv = GetFolderIdForItem(folderId, &grandParentId);
     NS_ENSURE_SUCCESS(rv, rv);
-    if (grandParentId == mTagRoot) {
+    if (grandParentId == mTagsRoot) {
       nsCOMPtr<nsIURI> uri;
       rv = NS_NewURI(getter_AddRefs(uri), spec);
       NS_ENSURE_SUCCESS(rv, rv);
@@ -1276,6 +1149,10 @@ nsNavBookmarks::CreateContainerWithID(PRInt64 aItemId,
 
   rv = transaction.Commit();
   NS_ENSURE_SUCCESS(rv, rv);
+
+  if (!mBatching) {
+    ForceWALCheckpoint(mDBConn);
+  }
 
   NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
                    nsINavBookmarkObserver,
@@ -1494,8 +1371,12 @@ nsNavBookmarks::RemoveFolder(PRInt64 aFolderId)
   rv = transaction.Commit();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (aFolderId == mToolbarFolder) {
-    mToolbarFolder = 0;
+  if (!mBatching) {
+    ForceWALCheckpoint(mDBConn);
+  }
+
+  if (aFolderId == mToolbarRoot) {
+    mToolbarRoot = 0;
   }
 
   NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
@@ -1690,13 +1571,9 @@ nsNavBookmarks::RemoveFolderChildren(PRInt64 aFolderId)
     folderChildrenInfo child = folderChildrenArray[i];
     if (child.itemType == TYPE_BOOKMARK) {
       PRInt64 placeId = child.placeId;
-
-      // UpdateFrecency needs to know whether placeId is still bookmarked.
-      // Although we removed a child of aFolderId that bookmarked it, it may
-      // still be bookmarked elsewhere; IsRealBookmark will know.
       nsNavHistory* history = nsNavHistory::GetHistoryService();
       NS_ENSURE_TRUE(history, NS_ERROR_OUT_OF_MEMORY);
-      rv = history->UpdateFrecency(placeId, IsRealBookmark(placeId));
+      rv = history->UpdateFrecency(placeId);
       NS_ENSURE_SUCCESS(rv, rv);
 
       rv = UpdateKeywordsHashForRemovedBookmark(child.itemId);
@@ -1706,6 +1583,10 @@ nsNavBookmarks::RemoveFolderChildren(PRInt64 aFolderId)
 
   rv = transaction.Commit();
   NS_ENSURE_SUCCESS(rv, rv);
+
+  if (!mBatching) {
+    ForceWALCheckpoint(mDBConn);
+  }
 
   // Call observers in reverse order to serve children before their parent.
   for (PRInt32 i = folderChildrenArray.Length() - 1; i >= 0 ; i--) {
@@ -1721,7 +1602,7 @@ nsNavBookmarks::RemoveFolderChildren(PRInt64 aFolderId)
       // bookmark-folder result nodes which contain a bookmark for the removed
       // bookmark's url.
 
-      if (child.grandParentId == mTagRoot) {
+      if (child.grandParentId == mTagsRoot) {
         nsCOMPtr<nsIURI> uri;
         rv = NS_NewURI(getter_AddRefs(uri), child.url);
         NS_ENSURE_SUCCESS(rv, rv);
@@ -2567,20 +2448,12 @@ nsNavBookmarks::ChangeBookmarkURI(PRInt64 aBookmarkId, nsIURI* aNewURI)
   rv = transaction.Commit();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Upon changing the URI for a bookmark, update the frecency for the new place.
-  // UpdateFrecency needs to know whether placeId is bookmarked (as opposed
-  // to a livemark item).  Bookmarking it is exactly what we did above.
-  rv = history->UpdateFrecency(placeId, PR_TRUE /* isBookmarked */);
+  rv = history->UpdateFrecency(placeId);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Upon changing the URI for a bookmark, update the frecency for the old place.
-  // UpdateFrecency again needs to know whether oldPlaceId is bookmarked.  It may
-  // no longer be, so we need to figure out whether it still is.  Our strategy
-  // is: find all bookmarks corresponding to oldPlaceId that are not livemark
-  // items, i.e., whose parents are not livemarks.  If any such bookmarks exist,
-  // oldPlaceId is still bookmarked.
-
-  rv = history->UpdateFrecency(oldPlaceId, IsRealBookmark(oldPlaceId));
+  // Upon changing the URI for a bookmark, update the frecency for the old
+  // place as well.
+  rv = history->UpdateFrecency(oldPlaceId);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCAutoString spec;
@@ -2631,8 +2504,6 @@ nsNavBookmarks::GetBookmarkIdsForURITArray(nsIURI* aURI,
 
   DECLARE_AND_ASSIGN_SCOPED_LAZY_STMT(stmt, mDBFindURIBookmarks);
   nsresult rv = URIBinder::Bind(stmt, NS_LITERAL_CSTRING("page_url"), aURI);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = stmt->BindInt32ByName(NS_LITERAL_CSTRING("item_type"), TYPE_BOOKMARK);
   NS_ENSURE_SUCCESS(rv, rv);
 
   PRBool more;
@@ -2968,6 +2839,8 @@ nsNavBookmarks::RunInBatchMode(nsINavHistoryBatchCallback* aCallback,
                                nsISupports* aUserData) {
   NS_ENSURE_ARG(aCallback);
 
+  mBatching = true;
+
   // Just forward the request to history.  History service must exist for
   // bookmarks to work and we are observing it, thus batch notifications will be
   // forwarded to bookmarks observers.
@@ -3010,6 +2883,11 @@ nsNavBookmarks::OnBeginUpdateBatch()
 NS_IMETHODIMP
 nsNavBookmarks::OnEndUpdateBatch()
 {
+  if (mBatching) {
+    mBatching = false;
+    ForceWALCheckpoint(mDBConn);
+  }
+
   NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
                    nsINavBookmarkObserver, OnEndUpdateBatch());
   return NS_OK;

@@ -807,7 +807,8 @@ CSSParserImpl::InitScanner(nsIUnicharInputStream* aInput, nsIURI* aSheetURI,
 {
   NS_ASSERTION(! mScannerInited, "already have scanner");
 
-  mScanner.Init(aInput, nsnull, 0, aSheetURI, aLineNumber);
+  mScanner.Init(aInput, nsnull, 0, aSheetURI, aLineNumber, mSheet,
+                mChildLoader);
 #ifdef DEBUG
   mScannerInited = PR_TRUE;
 #endif
@@ -827,7 +828,8 @@ CSSParserImpl::InitScanner(const nsSubstring& aString, nsIURI* aSheetURI,
   // the stream until we're done parsing.
   NS_ASSERTION(! mScannerInited, "already have scanner");
 
-  mScanner.Init(nsnull, aString.BeginReading(), aString.Length(), aSheetURI, aLineNumber);
+  mScanner.Init(nsnull, aString.BeginReading(), aString.Length(), aSheetURI,
+                aLineNumber, mSheet, mChildLoader);
 
 #ifdef DEBUG
   mScannerInited = PR_TRUE;
@@ -4653,15 +4655,16 @@ CSSParserImpl::SetValueToURL(nsCSSValue& aValue, const nsString& aURL)
   nsCOMPtr<nsIURI> uri;
   NS_NewURI(getter_AddRefs(uri), aURL, nsnull, mBaseURI);
 
-  nsStringBuffer* buffer = nsCSSValue::BufferFromString(aURL);
+  nsRefPtr<nsStringBuffer> buffer(nsCSSValue::BufferFromString(aURL));
   if (NS_UNLIKELY(!buffer)) {
     mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
     return PR_FALSE;
   }
+
+  // Note: urlVal retains its own reference to |buffer|.
   nsCSSValue::URL *urlVal =
     new nsCSSValue::URL(uri, buffer, mSheetURI, mSheetPrincipal);
 
-  buffer->Release();
   if (NS_UNLIKELY(!urlVal)) {
     mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
     return PR_FALSE;

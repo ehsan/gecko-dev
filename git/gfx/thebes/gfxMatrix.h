@@ -202,6 +202,13 @@ public:
     }
 
     /**
+     * Returns true if the matrix only has an integer translation.
+     */
+    PRBool HasOnlyIntegerTranslation() const {
+        return !HasNonIntegerTranslation();
+    }
+
+    /**
      * Returns true if the matrix has any transform other
      * than a translation or a -1 y scale (y axis flip)
      */
@@ -264,6 +271,15 @@ public:
      * converted to single precision are set to those integers.
      */
     void NudgeToIntegers(void);
+
+    /**
+     * Returns true if matrix is multiple of 90 degrees rotation with flipping,
+     * scaling and translation.
+     */
+    PRBool PreservesAxisAlignedRectangles() const {
+        return ((FuzzyEqual(xx, 0.0) && FuzzyEqual(yy, 0.0))
+            || (FuzzyEqual(xy, 0.0) && FuzzyEqual(yx, 0.0)));
+    }
 
 private:
     static PRBool FuzzyEqual(gfxFloat aV1, gfxFloat aV2) {
