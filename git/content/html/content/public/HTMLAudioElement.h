@@ -17,7 +17,8 @@ namespace mozilla {
 namespace dom {
 
 class HTMLAudioElement : public HTMLMediaElement,
-                         public nsIDOMHTMLAudioElement
+                         public nsIDOMHTMLAudioElement,
+                         public nsIJSNativeInitializer
 {
 public:
   HTMLAudioElement(already_AddRefed<nsINodeInfo> aNodeInfo);
@@ -42,8 +43,14 @@ public:
   // nsIDOMHTMLAudioElement
   NS_DECL_NSIDOMHTMLAUDIOELEMENT
 
+  // nsIJSNativeInitializer
+  NS_IMETHOD Initialize(nsISupports* aOwner, JSContext* aContext,
+                        JSObject* aObj, uint32_t argc, jsval* argv);
+
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
   virtual nsresult SetAcceptHeader(nsIHttpChannel* aChannel);
+
+  virtual nsXPCClassInfo* GetClassInfo();
 
   virtual nsIDOMNode* AsDOMNode() { return this; }
 

@@ -6,7 +6,6 @@
 #include "mozilla/Mutex.h"
 #include "mozilla/Attributes.h"
 #include "nsStreamUtils.h"
-#include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsIPipe.h"
 #include "nsIEventTarget.h"
@@ -46,9 +45,10 @@ private:
         bool val;
         nsresult rv = mTarget->IsOnCurrentThread(&val);
         if (NS_FAILED(rv) || !val) {
-            nsCOMPtr<nsIInputStreamCallback> event =
-                NS_NewInputStreamReadyEvent(mCallback, mTarget);
-            mCallback = nullptr;
+            nsCOMPtr<nsIInputStreamCallback> event;
+            NS_NewInputStreamReadyEvent(getter_AddRefs(event), mCallback,
+                                        mTarget);
+            mCallback = 0;
             if (event) {
                 rv = event->OnInputStreamReady(nullptr);
                 if (NS_FAILED(rv)) {
@@ -124,9 +124,10 @@ private:
         bool val;
         nsresult rv = mTarget->IsOnCurrentThread(&val);
         if (NS_FAILED(rv) || !val) {
-            nsCOMPtr<nsIOutputStreamCallback> event =
-                NS_NewOutputStreamReadyEvent(mCallback, mTarget);
-            mCallback = nullptr;
+            nsCOMPtr<nsIOutputStreamCallback> event;
+            NS_NewOutputStreamReadyEvent(getter_AddRefs(event), mCallback,
+                                         mTarget);
+            mCallback = 0;
             if (event) {
                 rv = event->OnOutputStreamReady(nullptr);
                 if (NS_FAILED(rv)) {
@@ -174,26 +175,32 @@ NS_IMPL_THREADSAFE_ISUPPORTS2(nsOutputStreamReadyEvent, nsIRunnable,
 
 //-----------------------------------------------------------------------------
 
-already_AddRefed<nsIInputStreamCallback>
-NS_NewInputStreamReadyEvent(nsIInputStreamCallback *callback,
+nsresult
+NS_NewInputStreamReadyEvent(nsIInputStreamCallback **event,
+                            nsIInputStreamCallback *callback,
                             nsIEventTarget *target)
 {
     NS_ASSERTION(callback, "null callback");
     NS_ASSERTION(target, "null target");
-    nsRefPtr<nsInputStreamReadyEvent> ev =
-        new nsInputStreamReadyEvent(callback, target);
-    return ev.forget();
+    nsInputStreamReadyEvent *ev = new nsInputStreamReadyEvent(callback, target);
+    if (!ev)
+        return NS_ERROR_OUT_OF_MEMORY;
+    NS_ADDREF(*event = ev);
+    return NS_OK;
 }
 
-already_AddRefed<nsIOutputStreamCallback>
-NS_NewOutputStreamReadyEvent(nsIOutputStreamCallback *callback,
+nsresult
+NS_NewOutputStreamReadyEvent(nsIOutputStreamCallback **event,
+                             nsIOutputStreamCallback *callback,
                              nsIEventTarget *target)
 {
     NS_ASSERTION(callback, "null callback");
     NS_ASSERTION(target, "null target");
-    nsRefPtr<nsOutputStreamReadyEvent> ev =
-        new nsOutputStreamReadyEvent(callback, target);
-    return ev.forget();
+    nsOutputStreamReadyEvent *ev = new nsOutputStreamReadyEvent(callback, target);
+    if (!ev)
+        return NS_ERROR_OUT_OF_MEMORY;
+    NS_ADDREF(*event = ev);
+    return NS_OK;
 }
 
 //-----------------------------------------------------------------------------

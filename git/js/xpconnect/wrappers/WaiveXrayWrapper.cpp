@@ -70,17 +70,19 @@ WaiveXrayWrapper::get(JSContext *cx, JS::Handle<JSObject*> wrapper,
 }
 
 bool
-WaiveXrayWrapper::call(JSContext *cx, JS::Handle<JSObject*> wrapper, const JS::CallArgs &args)
+WaiveXrayWrapper::call(JSContext *cx, JS::Handle<JSObject*> wrapper, unsigned argc,
+                      js::Value *vp)
 {
-    return CrossCompartmentWrapper::call(cx, wrapper, args) &&
-           WrapperFactory::WaiveXrayAndWrap(cx, args.rval().address());
+    return CrossCompartmentWrapper::call(cx, wrapper, argc, vp) &&
+           WrapperFactory::WaiveXrayAndWrap(cx, vp);
 }
 
 bool
-WaiveXrayWrapper::construct(JSContext *cx, JS::Handle<JSObject*> wrapper, const JS::CallArgs &args)
+WaiveXrayWrapper::construct(JSContext *cx, JS::Handle<JSObject*> wrapper,
+                              unsigned argc, js::Value *argv, JS::MutableHandle<JS::Value> rval)
 {
-    return CrossCompartmentWrapper::construct(cx, wrapper, args) &&
-           WrapperFactory::WaiveXrayAndWrap(cx, args.rval().address());
+    return CrossCompartmentWrapper::construct(cx, wrapper, argc, argv, rval) &&
+           WrapperFactory::WaiveXrayAndWrap(cx, rval.address());
 }
 
 // NB: This is important as the other side of a handshake with FieldGetter. See

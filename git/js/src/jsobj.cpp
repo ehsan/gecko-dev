@@ -327,16 +327,16 @@ js::GetOwnPropertyDescriptor(JSContext *cx, HandleObject obj, HandleId id, Mutab
 }
 
 bool
-js::GetFirstArgumentAsObject(JSContext *cx, const CallArgs &args, const char *method,
+js::GetFirstArgumentAsObject(JSContext *cx, unsigned argc, Value *vp, const char *method,
                              MutableHandleObject objp)
 {
-    if (args.length() == 0) {
+    if (argc == 0) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_MORE_ARGS_NEEDED,
                              method, "0", "s");
         return false;
     }
 
-    HandleValue v = args.handleAt(0);
+    RootedValue v(cx, vp[2]);
     if (!v.isObject()) {
         char *bytes = DecompileValueGenerator(cx, JSDVG_SEARCH_STACK, v, NullPtr());
         if (!bytes)

@@ -467,10 +467,11 @@ CrossCompartmentWrapper::iterate(JSContext *cx, HandleObject wrapper, unsigned f
 }
 
 bool
-CrossCompartmentWrapper::call(JSContext *cx, HandleObject wrapper, const CallArgs &args)
+CrossCompartmentWrapper::call(JSContext *cx, HandleObject wrapper, unsigned argc, Value *vp)
 {
     RootedObject wrapped(cx, wrappedObject(wrapper));
 
+    CallArgs args = CallArgsFromVp(argc, vp);
     {
         AutoCompartment call(cx, wrapped);
 
@@ -483,7 +484,7 @@ CrossCompartmentWrapper::call(JSContext *cx, HandleObject wrapper, const CallArg
                 return false;
         }
 
-        if (!Wrapper::call(cx, wrapper, args))
+        if (!Wrapper::call(cx, wrapper, argc, vp))
             return false;
     }
 
@@ -491,20 +492,23 @@ CrossCompartmentWrapper::call(JSContext *cx, HandleObject wrapper, const CallArg
 }
 
 bool
-CrossCompartmentWrapper::construct(JSContext *cx, HandleObject wrapper, const CallArgs &args)
+CrossCompartmentWrapper::construct(JSContext *cx, HandleObject wrapper, unsigned argc, Value *argv,
+                                   MutableHandleValue rval)
 {
     RootedObject wrapped(cx, wrappedObject(wrapper));
     {
         AutoCompartment call(cx, wrapped);
 
-        for (size_t n = 0; n < args.length(); ++n) {
-            if (!cx->compartment->wrap(cx, args.handleAt(n)))
+        for (size_t n = 0; n < argc; ++n) {
+            RootedValue arg(cx, argv[n]);
+            if (!cx->compartment->wrap(cx, &arg))
                 return false;
+            argv[n] = arg;
         }
-        if (!Wrapper::construct(cx, wrapper, args))
+        if (!Wrapper::construct(cx, wrapper, argc, argv, rval))
             return false;
     }
-    return cx->compartment->wrap(cx, args.rval());
+    return cx->compartment->wrap(cx, rval);
 }
 
 bool
@@ -784,14 +788,15 @@ DeadObjectProxy::enumerate(JSContext *cx, HandleObject wrapper, AutoIdVector &pr
 }
 
 bool
-DeadObjectProxy::call(JSContext *cx, HandleObject wrapper, const CallArgs &args)
+DeadObjectProxy::call(JSContext *cx, HandleObject wrapper, unsigned argc, Value *vp)
 {
     JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_DEAD_OBJECT);
     return false;
 }
 
 bool
-DeadObjectProxy::construct(JSContext *cx, HandleObject wrapper, const CallArgs &args)
+DeadObjectProxy::construct(JSContext *cx, HandleObject wrapper, unsigned argc,
+                           Value *vp, MutableHandleValue rval)
 {
     JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_DEAD_OBJECT);
     return false;

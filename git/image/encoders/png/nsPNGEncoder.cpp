@@ -709,7 +709,9 @@ nsPNGEncoder::NotifyListener()
        mFinished)) {
     nsCOMPtr<nsIInputStreamCallback> callback;
     if (mCallbackTarget) {
-      callback = NS_NewInputStreamReadyEvent(mCallback, mCallbackTarget);
+      NS_NewInputStreamReadyEvent(getter_AddRefs(callback),
+                                  mCallback,
+                                  mCallbackTarget);
     } else {
       callback = mCallback;
     }

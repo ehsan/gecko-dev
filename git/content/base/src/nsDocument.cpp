@@ -4142,8 +4142,8 @@ nsDocument::SetScriptGlobalObject(nsIScriptGlobalObject *aScriptGlobalObject)
 nsIScriptGlobalObject*
 nsDocument::GetScriptHandlingObjectInternal() const
 {
-  MOZ_ASSERT(!mScriptGlobalObject,
-             "Do not call this when mScriptGlobalObject is set!");
+  NS_ASSERTION(!mScriptGlobalObject,
+               "Do not call this when mScriptGlobalObject is set!");
 
   nsCOMPtr<nsIScriptGlobalObject> scriptHandlingObject =
     do_QueryReferent(mScriptObject);
@@ -4175,7 +4175,7 @@ nsDocument::SetScriptHandlingObject(nsIScriptGlobalObject* aScriptObject)
 nsPIDOMWindow *
 nsDocument::GetWindowInternal() const
 {
-  MOZ_ASSERT(!mWindow, "This should not be called when mWindow is not null!");
+  NS_ASSERTION(!mWindow, "This should not be called when mWindow is not null!");
 
   nsCOMPtr<nsPIDOMWindow> win(do_QueryInterface(GetScriptGlobalObject()));
 
@@ -4189,8 +4189,8 @@ nsDocument::GetWindowInternal() const
 nsPIDOMWindow *
 nsDocument::GetInnerWindowInternal()
 {
-  MOZ_ASSERT(mRemovedFromDocShell,
-             "This document should have been removed from docshell!");
+  NS_ASSERTION(mRemovedFromDocShell,
+               "This document should have been removed from docshell!");
 
   nsCOMPtr<nsPIDOMWindow> win(do_QueryInterface(GetScriptGlobalObject()));
 

@@ -441,7 +441,7 @@ public:
 
   void SetHeight(uint32_t aValue, ErrorResult& aRv)
   {
-    SetUnsignedIntAttr(nsGkAtoms::height, aValue, aRv);
+    aRv = nsGenericHTMLElement::SetUnsignedIntAttr(nsGkAtoms::height, aValue);
   }
 
   bool Indeterminate() const
@@ -533,9 +533,11 @@ public:
     SetHTMLBoolAttr(nsGkAtoms::required, aValue, aRv);
   }
 
-  uint32_t Size() const
+  uint32_t Size()
   {
-    return GetUnsignedIntAttr(nsGkAtoms::size, DEFAULT_COLS);
+    uint32_t value;
+    GetUnsignedIntAttr(nsGkAtoms::size, DEFAULT_COLS, &value);
+    return value;
   }
 
   void SetSize(uint32_t aValue, ErrorResult& aRv)
@@ -545,7 +547,7 @@ public:
       return;
     }
 
-    SetUnsignedIntAttr(nsGkAtoms::size, aValue, aRv);
+    SetHTMLUnsignedIntAttr(nsGkAtoms::size, aValue, aRv);
   }
 
   // XPCOM GetSrc() is OK
@@ -591,17 +593,17 @@ public:
 
   void SetWidth(uint32_t aValue, ErrorResult& aRv)
   {
-    SetUnsignedIntAttr(nsGkAtoms::width, aValue, aRv);
+    aRv = nsGenericHTMLElement::SetUnsignedIntAttr(nsGkAtoms::width, aValue);
   }
 
-  void StepUp(int32_t aN, ErrorResult& aRv)
+  void StepUp(const Optional< int32_t >& n, ErrorResult& aRv)
   {
-    aRv = ApplyStep(aN);
+    aRv = ApplyStep(n.WasPassed() ? n.Value() : 1);
   }
 
-  void StepDown(int32_t aN, ErrorResult& aRv)
+  void StepDown(const Optional< int32_t >& n, ErrorResult& aRv)
   {
-    aRv = ApplyStep(-aN);
+    aRv = ApplyStep(n.WasPassed() ? -n.Value() : -1);
   }
 
   void GetValidationMessage(nsAString& aValidationMessage, ErrorResult& aRv);

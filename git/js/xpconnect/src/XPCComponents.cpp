@@ -3055,7 +3055,7 @@ xpc::IsSandboxPrototypeProxy(JSObject *obj)
 
 bool
 xpc::SandboxCallableProxyHandler::call(JSContext *cx, JS::Handle<JSObject*> proxy,
-                                       const JS::CallArgs &args)
+                                       unsigned argc, Value *vp)
 {
     // We forward the call to our underlying callable.
 
@@ -3099,13 +3099,14 @@ xpc::SandboxCallableProxyHandler::call(JSContext *cx, JS::Handle<JSObject*> prox
     // if the sandboxPrototype is an Xray Wrapper, which lets us appropriately
     // remap |this|.
     JS::Value thisVal =
-      WrapperFactory::IsXrayWrapper(sandboxProxy) ? args.computeThis(cx) : args.thisv();
+      WrapperFactory::IsXrayWrapper(sandboxProxy) ? JS_THIS(cx, vp)
+                                                  : JS_THIS_VALUE(cx, vp);
     if (thisVal == ObjectValue(*sandboxGlobal)) {
         thisVal = ObjectValue(*js::GetProxyTargetObject(sandboxProxy));
     }
 
-    return JS::Call(cx, thisVal, js::GetProxyPrivate(proxy), args.length(), args.array(),
-                    args.rval().address());
+    return JS::Call(cx, thisVal, js::GetProxyPrivate(proxy), argc,
+                    JS_ARGV(cx, vp), vp);
 }
 
 xpc::SandboxCallableProxyHandler xpc::sandboxCallableProxyHandler;
