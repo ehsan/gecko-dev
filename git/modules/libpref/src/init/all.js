@@ -353,10 +353,6 @@ pref("nglayout.enable_drag_images", true);
 // enable/disable paint flashing --- useful for debugging
 pref("nglayout.debug.paint_flashing", false);
 
-// enable/disable widget update area flashing --- only supported with 
-// BasicLayers (other layer managers always update the entire widget area)
-pref("nglayout.debug.widget_update_flashing", false);
-
 // scrollbar snapping region
 // 0 - off
 // 1 and higher - slider thickness multiple
@@ -1629,6 +1625,8 @@ pref("dom.ipc.plugins.parentTimeoutSecs", 0);
 // Disable oopp for standard java. They run their own process isolation (which
 // conflicts with our implementation, at least on Windows).
 pref("dom.ipc.plugins.java.enabled", false);
+
+pref("dom.ipc.plugins.flash.subprocess.crashreporter.enabled", true);
 
 #ifndef ANDROID
 #ifndef XP_MACOSX

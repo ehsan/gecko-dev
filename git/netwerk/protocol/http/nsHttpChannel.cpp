@@ -881,8 +881,11 @@ nsresult
 nsHttpChannel::CallOnStartRequest()
 {
     mTracingEnabled = false;
+    bool shouldSniff = mResponseHead && (mResponseHead->ContentType().IsEmpty() ||
+        ((mResponseHead->ContentType().EqualsLiteral(APPLICATION_OCTET_STREAM) &&
+        (mLoadFlags & LOAD_TREAT_APPLICATION_OCTET_STREAM_AS_UNKNOWN))));
 
-    if (mResponseHead && mResponseHead->ContentType().IsEmpty()) {
+    if (shouldSniff) {
         NS_ASSERTION(mConnectionInfo, "Should have connection info here");
         if (!mContentTypeHint.IsEmpty())
             mResponseHead->SetContentType(mContentTypeHint);
@@ -5519,6 +5522,11 @@ nsHttpChannel::OnCacheEntryAvailableInternal(nsICacheEntryDescriptor *entry,
                 }
                 return NS_ERROR_DOCUMENT_NOT_CACHED;
             }
+            if (mCanceled)
+                // If the request was canceled then don't continue without using
+                // the cache entry. See bug #764337
+                return rv;
+
             // proceed without using the cache
         }
 
