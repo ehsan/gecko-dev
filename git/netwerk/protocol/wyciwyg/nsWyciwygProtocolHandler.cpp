@@ -38,6 +38,37 @@ nsWyciwygProtocolHandler::~nsWyciwygProtocolHandler()
   LOG(("Deleting nsWyciwygProtocolHandler [this=%p]\n", this));
 }
 
+nsresult
+nsWyciwygProtocolHandler::Init()
+{
+  nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
+  if (obs) {
+    obs->AddObserver(this, "webapps-clear-data", true);
+  }
+  return NS_OK;
+}
+
+static void
+EvictCacheSession(uint32_t aAppId,
+                  bool aInBrowser,
+                  bool aPrivateBrowsing)
+{
+  nsAutoCString clientId;
+  nsWyciwygProtocolHandler::GetCacheSessionName(aAppId, aInBrowser,
+                                                aPrivateBrowsing,
+                                                clientId);
+  nsCOMPtr<nsICacheService> serv =
+      do_GetService(NS_CACHESERVICE_CONTRACTID);
+  nsCOMPtr<nsICacheSession> session;
+  nsresult rv = serv->CreateSession(clientId.get(),
+                                    nsICache::STORE_ANYWHERE,
+                                    nsICache::STREAM_BASED,
+                                    getter_AddRefs(session));
+  if (NS_SUCCEEDED(rv) && session) {
+    session->EvictEntries();
+  }
+}
+
 void
 nsWyciwygProtocolHandler::GetCacheSessionName(uint32_t aAppId,
                                               bool aInBrowser,
@@ -59,8 +90,42 @@ nsWyciwygProtocolHandler::GetCacheSessionName(uint32_t aAppId,
   aSessionName.AppendInt(aInBrowser);
 }
 
-NS_IMPL_ISUPPORTS1(nsWyciwygProtocolHandler,
-                   nsIProtocolHandler)
+NS_IMETHODIMP
+nsWyciwygProtocolHandler::Observe(nsISupports *subject,
+                                  const char *topic,
+                                  const PRUnichar *data)
+{
+  if (strcmp(topic, "webapps-clear-data") == 0) {
+    nsCOMPtr<mozIApplicationClearPrivateDataParams> params =
+        do_QueryInterface(subject);
+    if (!params) {
+      NS_ERROR("'webapps-clear-data' notification's subject should be a mozIApplicationClearPrivateDataParams");
+      return NS_ERROR_UNEXPECTED;
+    }
+
+    uint32_t appId;
+    bool browserOnly;
+    nsresult rv = params->GetAppId(&appId);
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = params->GetBrowserOnly(&browserOnly);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    MOZ_ASSERT(appId != NECKO_UNKNOWN_APP_ID);
+
+    EvictCacheSession(appId, browserOnly, false);
+    EvictCacheSession(appId, browserOnly, true);
+    if (!browserOnly) {
+      EvictCacheSession(appId, true, false);
+      EvictCacheSession(appId, true, true);
+    }
+  }
+  return NS_OK;
+}
+
+NS_IMPL_ISUPPORTS3(nsWyciwygProtocolHandler,
+                   nsIProtocolHandler,
+                   nsIObserver,
+                   nsISupportsWeakReference)
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsIProtocolHandler methods:

@@ -1560,7 +1560,7 @@ ArenaLists::refillFreeList(ThreadSafeContext *cx, AllocKind thingKind)
                 cx->asJSContext()->runtime()->gcHelperThread.waitBackgroundSweepEnd();
             }
         } else {
-#ifdef JS_WORKER_THREADS
+#ifdef JS_THREADSAFE
             /*
              * If we're off the main thread, we try to allocate once and return
              * whatever value we get. First, though, we need to ensure the main
@@ -1800,9 +1800,10 @@ GCMarker::markDelayedChildren(ArenaHeader *aheader)
 bool
 GCMarker::markDelayedChildren(SliceBudget &budget)
 {
-    gcstats::MaybeAutoPhase ap;
-    if (runtime->gcIncrementalState == MARK)
-        ap.construct(runtime->gcStats, gcstats::PHASE_MARK_DELAYED);
+    gcstats::Phase phase = runtime->gcIncrementalState == MARK
+                         ? gcstats::PHASE_MARK_DELAYED
+                         : gcstats::PHASE_SWEEP_MARK_DELAYED;
+    gcstats::AutoPhase ap(runtime->gcStats, phase);
 
     JS_ASSERT(unmarkedArenaStackTop);
     do {
@@ -3176,14 +3177,10 @@ js::gc::MarkingValidator::nonIncrementalMark()
         MarkRuntime(gcmarker, true);
     }
 
-    {
-        gcstats::AutoPhase ap1(runtime->gcStats, gcstats::PHASE_MARK);
-        SliceBudget budget;
-        runtime->gcIncrementalState = MARK;
-        runtime->gcMarker.drainMarkStack(budget);
-    }
+    SliceBudget budget;
+    runtime->gcIncrementalState = MARK;
+    runtime->gcMarker.drainMarkStack(budget);
 
-    runtime->gcIncrementalState = SWEEP;
     {
         gcstats::AutoPhase ap(runtime->gcStats, gcstats::PHASE_SWEEP);
         MarkAllWeakReferences(runtime, gcstats::PHASE_SWEEP_MARK_WEAK);
@@ -4152,7 +4149,7 @@ AutoTraceSession::AutoTraceSession(JSRuntime *rt, js::HeapState heapState)
     if (rt->exclusiveThreadsPresent()) {
         // Lock the worker thread state when changing the heap state in the
         // presence of exclusive threads, to avoid racing with refillFreeList.
-#ifdef JS_WORKER_THREADS
+#ifdef JS_THREADSAFE
         AutoLockWorkerThreadState lock(*rt->workerThreadState);
         rt->heapState = heapState;
 #else
@@ -4168,7 +4165,7 @@ AutoTraceSession::~AutoTraceSession()
     JS_ASSERT(runtime->isHeapBusy());
 
     if (runtime->exclusiveThreadsPresent()) {
-#ifdef JS_WORKER_THREADS
+#ifdef JS_THREADSAFE
         AutoLockWorkerThreadState lock(*runtime->workerThreadState);
         runtime->heapState = prevState;
 
@@ -4661,8 +4658,13 @@ ShouldCleanUpEverything(JSRuntime *rt, JS::gcreason::Reason reason, JSGCInvocati
     // During shutdown, we must clean everything up, for the sake of leak
     // detection. When a runtime has no contexts, or we're doing a GC before a
     // shutdown CC, those are strong indications that we're shutting down.
+    //
+    // DEBUG_MODE_GC indicates we're discarding code because the debug mode
+    // has changed; debug mode affects the results of bytecode analysis, so
+    // we need to clear everything away.
     return reason == JS::gcreason::DESTROY_RUNTIME ||
            reason == JS::gcreason::SHUTDOWN_CC ||
+           reason == JS::gcreason::DEBUG_MODE_GC ||
            gckind == GC_SHRINK;
 }
 

@@ -50,7 +50,7 @@ BEGIN_TEST(test_cloneScript)
 }
 END_TEST(test_cloneScript)
 
-static void
+void
 DestroyPrincipals(JSPrincipals *principals)
 {
     delete principals;

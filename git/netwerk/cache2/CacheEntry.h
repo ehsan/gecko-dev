@@ -35,15 +35,19 @@ PRTimeToSeconds(PRTime t_usec)
 class nsIStorageStream;
 class nsIOutputStream;
 class nsIURI;
-class nsIThread;
 
 namespace mozilla {
 namespace net {
 
 class CacheStorageService;
 class CacheStorage;
-class CacheFileOutputStream;
-class CacheOutputCloseListener;
+
+namespace {
+class FrecencyComparator;
+class ExpirationComparator;
+class EvictionRunnable;
+class WalkRunnable;
+}
 
 class CacheEntry : public nsICacheEntry
                  , public nsIRunnable
@@ -125,45 +129,29 @@ private:
     nsRefPtr<CacheEntry> mEntry;
   };
 
-  class Callback
-  {
-  public:
-    Callback(nsICacheEntryOpenCallback *aCallback,
-             bool aReadOnly, bool aCheckOnAnyThread);
-    Callback(Callback const &aThat);
-    ~Callback();
-
-    nsCOMPtr<nsICacheEntryOpenCallback> mCallback;
-    nsCOMPtr<nsIThread> mTargetThread;
-    bool mReadOnly : 1;
-    bool mCheckOnAnyThread : 1;
-    bool mRecheckAfterWrite : 1;
-    bool mNotWanted : 1;
-
-    nsresult OnCheckThread(bool *aOnCheckThread) const;
-    nsresult OnAvailThread(bool *aOnAvailThread) const;
-  };
-
   // Since OnCacheEntryAvailable must be invoked on the main thread
   // we need a runnable for it...
   class AvailableCallbackRunnable : public nsRunnable
   {
   public:
     AvailableCallbackRunnable(CacheEntry* aEntry,
-                              Callback const &aCallback)
-      : mEntry(aEntry)
-      , mCallback(aCallback)
-    {}
+                              nsICacheEntryOpenCallback* aCallback,
+                              bool aReadOnly,
+                              bool aNotWanted)
+      : mEntry(aEntry), mCallback(aCallback)
+      , mReadOnly(aReadOnly), mNotWanted(aNotWanted) {}
 
   private:
     NS_IMETHOD Run()
     {
-      mEntry->InvokeAvailableCallback(mCallback);
+      mEntry->InvokeAvailableCallback(mCallback, mReadOnly, mNotWanted);
       return NS_OK;
     }
 
     nsRefPtr<CacheEntry> mEntry;
-    Callback mCallback;
+    nsCOMPtr<nsICacheEntryOpenCallback> mCallback;
+    bool mReadOnly : 1;
+    bool mNotWanted : 1;
   };
 
   // Since OnCacheEntryDoomed must be invoked on the main thread
@@ -196,12 +184,12 @@ private:
   bool Load(bool aTruncate, bool aPriority);
   void OnLoaded();
 
-  void RememberCallback(Callback const & aCallback);
-  void InvokeCallbacksLock();
+  void RememberCallback(nsICacheEntryOpenCallback* aCallback, bool aReadOnly);
+  bool PendingCallbacks();
   void InvokeCallbacks();
-  bool InvokeCallbacks(bool aReadOnly);
-  bool InvokeCallback(Callback & aCallback);
-  void InvokeAvailableCallback(Callback const & aCallback);
+  bool InvokeCallback(nsICacheEntryOpenCallback* aCallback, bool aReadOnly);
+  void InvokeAvailableCallback(nsICacheEntryOpenCallback* aCallback, bool aReadOnly, bool aNotWanted);
+  void InvokeCallbacksMainThread();
 
   nsresult OpenOutputStreamInternal(int64_t offset, nsIOutputStream * *_retval);
 
@@ -210,21 +198,17 @@ private:
   Handle* NewWriteHandle();
   void OnWriterClosed(Handle const* aHandle);
 
-private:
-  friend class CacheOutputCloseListener;
-  void OnOutputClosed();
-
   // Schedules a background operation on the management thread.
   // When executed on the management thread directly, the operation(s)
   // is (are) executed immediately.
   void BackgroundOp(uint32_t aOperation, bool aForceAsync = false);
 
   already_AddRefed<CacheEntry> ReopenTruncated(nsICacheEntryOpenCallback* aCallback);
-  void TransferCallbacks(CacheEntry & aFromEntry);
+  void TransferCallbacks(CacheEntry const& aFromEntry);
 
   mozilla::Mutex mLock;
 
-  nsTArray<Callback> mCallbacks;
+  nsCOMArray<nsICacheEntryOpenCallback> mCallbacks, mReadOnlyCallbacks;
   nsCOMPtr<nsICacheEntryDoomCallback> mDoomCallback;
 
   nsRefPtr<CacheFile> mFile;
@@ -248,6 +232,8 @@ private:
   bool mSecurityInfoLoaded : 1;
   // Prevents any callback invocation
   bool mPreventCallbacks : 1;
+  // Way around when having a callback that cannot be invoked on non-main thread
+  bool mHasMainThreadOnlyCallback : 1;
   // true: after load and an existing file, or after output stream has been opened.
   //       note - when opening an input stream, and this flag is false, output stream
   //       is open along ; this makes input streams on new entries behave correctly
@@ -315,24 +301,6 @@ private:
   uint32_t mDataSize; // ???
 
   mozilla::TimeStamp mLoadStart;
-
-  nsCOMPtr<nsIThread> mReleaseThread;
-};
-
-class CacheOutputCloseListener : public nsRunnable
-{
-public:
-  void OnOutputClosed();
-  virtual ~CacheOutputCloseListener();
-
-private:
-  friend class CacheEntry;
-
-  NS_DECL_NSIRUNNABLE
-  CacheOutputCloseListener(CacheEntry* aEntry);
-
-private:
-  nsRefPtr<CacheEntry> mEntry;
 };
 
 } // net

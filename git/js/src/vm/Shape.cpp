@@ -393,7 +393,6 @@ JSObject::getChildPropertyOnDictionary(ThreadSafeContext *cx, JS::HandleObject o
 JSObject::getChildProperty(ExclusiveContext *cx,
                            HandleObject obj, HandleShape parent, StackShape &child)
 {
-    StackShape::AutoRooter childRoot(cx, &child);
     RootedShape shape(cx, getChildPropertyOnDictionary(cx, obj, parent, child));
 
     if (!shape) {
@@ -413,7 +412,6 @@ JSObject::getChildProperty(ExclusiveContext *cx,
 JSObject::lookupChildProperty(ThreadSafeContext *cx,
                               HandleObject obj, HandleShape parent, StackShape &child)
 {
-    StackShape::AutoRooter childRoot(cx, &child);
     JS_ASSERT(cx->isThreadLocal(obj));
 
     RootedShape shape(cx, getChildPropertyOnDictionary(cx, obj, parent, child));

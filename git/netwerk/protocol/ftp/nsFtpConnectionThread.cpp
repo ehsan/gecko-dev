@@ -1556,12 +1556,12 @@ nsFtpState::R_pasv() {
 // nsIRequest methods:
 
 static inline
-uint32_t GetFtpTime()
+uint32_t NowInSeconds()
 {
     return uint32_t(PR_Now() / PR_USEC_PER_SEC);
 }
 
-uint32_t nsFtpState::mSessionStartTime = GetFtpTime();
+uint32_t nsFtpState::mSessionStartTime = NowInSeconds();
 
 /* Is this cache entry valid to use for reading?
  * Since we make up an expiration time for ftp, use the following rules:
@@ -1620,7 +1620,7 @@ nsFtpState::CanReadCacheEntry()
     if (NS_FAILED(rv))
         return false;
 
-    return (GetFtpTime() <= time);
+    return (NowInSeconds() <= time);
 }
 
 nsresult

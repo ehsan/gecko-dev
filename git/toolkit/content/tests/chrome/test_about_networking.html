@@ -25,14 +25,8 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=912103
 
     websocket.addEventListener("open", function() {
       dashboard.requestWebsocketConnections(function(data) {
-        var found = false;
-        for (var i = 0; i < data.websockets.length; i++) {
-          if (data.websockets[i].hostport == "mochi.test:8888") {
-            found = true;
-            break;
-          }
-        }
-        isnot(found, false, "tested websocket entry not found");
+        isnot(data.hostport.indexOf("mochi.test:8888"), -1,
+              "tested websocket entry not found");
         websocket.close();
         SimpleTest.finish();
       });

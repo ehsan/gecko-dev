@@ -16,6 +16,12 @@
 
 using mozilla::ArrayLength;
 
+template<size_t N> JSFlatString *
+NewString(JSContext *cx, const jschar (&chars)[N])
+{
+    return js_NewStringCopyN<js::CanGC>(cx, chars, N);
+}
+
 static const struct TestPair {
     uint32_t num;
     const char *expected;
@@ -107,11 +113,4 @@ BEGIN_TEST(testStringToPropertyName)
 
     return true;
 }
-
-template<size_t N> static JSFlatString *
-NewString(JSContext *cx, const jschar (&chars)[N])
-{
-    return js_NewStringCopyN<js::CanGC>(cx, chars, N);
-}
-
 END_TEST(testStringToPropertyName)

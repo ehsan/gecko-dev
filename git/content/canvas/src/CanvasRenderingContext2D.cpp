@@ -1069,9 +1069,11 @@ CanvasRenderingContext2D::GetImageBuffer(uint8_t** aImageBuffer,
   }
 
   RefPtr<DataSourceSurface> data = snapshot->GetDataSurface();
-  if (!data || data->GetSize() != IntSize(mWidth, mHeight)) {
+  if (!data) {
     return;
   }
+
+  MOZ_ASSERT(data->GetSize() == IntSize(mWidth, mHeight));
 
   *aImageBuffer = SurfaceToPackedBGRA(data);
   *aFormat = imgIEncoder::INPUT_FORMAT_HOSTARGB;
@@ -1082,17 +1084,17 @@ CanvasRenderingContext2D::GetInputStream(const char *aMimeType,
                                          const PRUnichar *aEncoderOptions,
                                          nsIInputStream **aStream)
 {
-  nsCString enccid("@mozilla.org/image/encoder;2?type=");
-  enccid += aMimeType;
-  nsCOMPtr<imgIEncoder> encoder = do_CreateInstance(enccid.get());
-  if (!encoder) {
-    return NS_ERROR_FAILURE;
-  }
-
   nsAutoArrayPtr<uint8_t> imageBuffer;
   int32_t format = 0;
   GetImageBuffer(getter_Transfers(imageBuffer), &format);
   if (!imageBuffer) {
+    return NS_ERROR_FAILURE;
+  }
+
+  nsCString enccid("@mozilla.org/image/encoder;2?type=");
+  enccid += aMimeType;
+  nsCOMPtr<imgIEncoder> encoder = do_CreateInstance(enccid.get());
+  if (!encoder) {
     return NS_ERROR_FAILURE;
   }
 

@@ -160,12 +160,12 @@ loopStart:
       }
 
       if (EventsPending())
-        goto loopStart;
+        continue;
 
       lock.Wait(waitTime);
 
       if (EventsPending())
-        goto loopStart;
+        continue;
 
     } while (!mShutdown);
 

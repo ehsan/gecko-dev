@@ -346,7 +346,7 @@ struct WorkerStructuredCloneCallbacks
     // See if this is an ImageData object.
     {
       ImageData* imageData = nullptr;
-      if (NS_SUCCEEDED(UNWRAP_OBJECT(ImageData, aObj, imageData))) {
+      if (NS_SUCCEEDED(UNWRAP_OBJECT(ImageData, aCx, aObj, imageData))) {
         // Prepare the ImageData internals.
         uint32_t width = imageData->Width();
         uint32_t height = imageData->Height();
@@ -2159,8 +2159,7 @@ WorkerPrivateParent<Derived>::WrapObject(JSContext* aCx,
 
   AssertIsOnParentThread();
 
-  JS::Rooted<JSObject*> obj(aCx, WorkerBinding::Wrap(aCx, aScope,
-                                                     ParentAsWorkerPrivate()));
+  JSObject* obj = WorkerBinding::Wrap(aCx, aScope, ParentAsWorkerPrivate());
 
   if (mRooted) {
     PreserveWrapper(this);
@@ -5260,23 +5259,16 @@ WorkerPrivate::ConnectMessagePort(JSContext* aCx, uint64_t aMessagePortSerial)
     return false;
   }
 
-  nsRefPtr<nsDOMMessageEvent> event;
-  {
-    // Bug 940779 - MessageEventInit contains unrooted JS objects, and
-    // ~nsRefPtr can GC, so make sure 'init' is no longer live before ~nsRefPtr
-    // runs (or the nsRefPtr is even created) to avoid a rooting hazard. Note
-    // that 'init' is live until its destructor runs, not just until its final
-    // use.
-    MessageEventInit init;
-    init.mBubbles = false;
-    init.mCancelable = false;
-    init.mSource = &jsPort.toObject();
+  MessageEventInit init;
+  init.mBubbles = false;
+  init.mCancelable = false;
+  init.mSource = &jsPort.toObject();
 
-    ErrorResult rv;
-    event = nsDOMMessageEvent::Constructor(globalObject, aCx,
-                                           NS_LITERAL_STRING("connect"),
-                                           init, rv);
-  }
+  ErrorResult rv;
+
+  nsRefPtr<nsDOMMessageEvent> event =
+    nsDOMMessageEvent::Constructor(globalObject, aCx,
+                                   NS_LITERAL_STRING("connect"), init, rv);
 
   event->SetTrusted(true);
 
@@ -5407,7 +5399,7 @@ GetWorkerCrossThreadDispatcher(JSContext* aCx, JS::Value aWorker)
   }
 
   WorkerPrivate* w = nullptr;
-  UNWRAP_OBJECT(Worker, &aWorker.toObject(), w);
+  UNWRAP_OBJECT(Worker, aCx, &aWorker.toObject(), w);
   MOZ_ASSERT(w);
   return w->GetCrossThreadDispatcher();
 }

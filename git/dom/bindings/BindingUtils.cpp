@@ -199,7 +199,8 @@ ErrorResult::ReportJSExceptionFromJSImplementation(JSContext* aCx)
              "Why didn't you tell us you planned to handle JS exceptions?");
 
   dom::DOMError* domError;
-  nsresult rv = UNWRAP_OBJECT(DOMError, &mJSException.toObject(), domError);
+  nsresult rv = UNWRAP_OBJECT(DOMError, aCx, &mJSException.toObject(),
+                              domError);
   if (NS_FAILED(rv)) {
     // Unwrapping really shouldn't fail here, if mExceptionHandling is set to
     // eRethrowContentExceptions then the CallSetup destructor only stores an
@@ -213,7 +214,16 @@ ErrorResult::ReportJSExceptionFromJSImplementation(JSContext* aCx)
   nsString message;
   domError->GetMessage(message);
 
-  JS_ReportError(aCx, "%hs", message.get());
+  JSErrorReport errorReport;
+  memset(&errorReport, 0, sizeof(JSErrorReport));
+  errorReport.errorNumber = JSMSG_USER_DEFINED_ERROR;
+  errorReport.ucmessage = message.get();
+  errorReport.exnType = JSEXN_ERR;
+  JS::Rooted<JSScript*> script(aCx);
+  if (JS_DescribeScriptedCaller(aCx, &script, &errorReport.lineno)) {
+    errorReport.filename = JS_GetScriptFilename(aCx, script);
+  }
+  JS_ThrowReportedError(aCx, nullptr, &errorReport);
   JS_RemoveValueRoot(aCx, &mJSException);
   
   // We no longer have a useful exception but we do want to signal that an error
@@ -1107,7 +1117,7 @@ ResolvePrototypeOrConstructor(JSContext* cx, JS::Handle<JSObject*> wrapper,
   JS::Rooted<JSObject*> global(cx, js::GetGlobalForObjectCrossCompartment(obj));
   {
     JSAutoCompartment ac(cx, global);
-    ProtoAndIfaceArray& protoAndIfaceArray = *GetProtoAndIfaceArray(global);
+    JS::Heap<JSObject*>* protoAndIfaceArray = GetProtoAndIfaceArray(global);
     JSObject* protoOrIface = protoAndIfaceArray[protoAndIfaceArrayIndex];
     if (!protoOrIface) {
       return false;
@@ -1789,13 +1799,13 @@ ReparentWrapper(JSContext* aCx, JS::Handle<JSObject*> aObjArg)
   }
 
   nsObjectLoadingContent* htmlobject;
-  nsresult rv = UNWRAP_OBJECT(HTMLObjectElement, aObj, htmlobject);
+  nsresult rv = UNWRAP_OBJECT(HTMLObjectElement, aCx, aObj, htmlobject);
   if (NS_FAILED(rv)) {
     rv = UnwrapObject<prototypes::id::HTMLEmbedElement,
-                      HTMLSharedObjectElement>(aObj, htmlobject);
+                      HTMLSharedObjectElement>(aCx, aObj, htmlobject);
     if (NS_FAILED(rv)) {
       rv = UnwrapObject<prototypes::id::HTMLAppletElement,
-                        HTMLSharedObjectElement>(aObj, htmlobject);
+                        HTMLSharedObjectElement>(aCx, aObj, htmlobject);
       if (NS_FAILED(rv)) {
         htmlobject = nullptr;
       }

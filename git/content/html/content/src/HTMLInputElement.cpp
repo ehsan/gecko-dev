@@ -993,7 +993,9 @@ UploadLastDir::FetchDirectoryAndDisplayPicker(nsIDocument* aDoc,
   nsIURI* docURI = aDoc->GetDocumentURI();
   NS_PRECONDITION(docURI, "docURI is null");
 
-  nsCOMPtr<nsILoadContext> loadContext = aDoc->GetLoadContext();
+  nsCOMPtr<nsISupports> container = aDoc->GetContainer();
+  nsCOMPtr<nsILoadContext> loadContext = do_QueryInterface(container);
+
   nsCOMPtr<nsIContentPrefCallback2> prefCallback = 
     new UploadLastDir::ContentPrefCallback(aFilePicker, aFpCallback);
 
@@ -1044,7 +1046,8 @@ UploadLastDir::StoreLastUsedDirectory(nsIDocument* aDoc, nsIFile* aDir)
     return NS_ERROR_OUT_OF_MEMORY;
   prefValue->SetAsAString(unicodePath);
 
-  nsCOMPtr<nsILoadContext> loadContext = aDoc->GetLoadContext();
+  nsCOMPtr<nsISupports> container = aDoc->GetContainer();
+  nsCOMPtr<nsILoadContext> loadContext = do_QueryInterface(container);
   return contentPrefService->Set(spec, CPS_PREF_NAME, prefValue, loadContext, nullptr);
 }
 
@@ -2058,7 +2061,7 @@ HTMLInputElement::ApplyStep(int32_t aStep)
 
   Decimal value = GetValueAsDecimal();
   if (value.isNaN()) {
-    value = 0;
+    return NS_OK;
   }
 
   Decimal minimum = GetMinimum();
@@ -2239,21 +2242,6 @@ HTMLInputElement::MozIsTextField(bool aExcludePassword)
   }
 
   return IsSingleLineTextControl(aExcludePassword);
-}
-
-HTMLInputElement*
-HTMLInputElement::GetOwnerNumberControl()
-{
-  if (IsInNativeAnonymousSubtree() &&
-      mType == NS_FORM_INPUT_TEXT &&
-      GetParent() && GetParent()->GetParent()) {
-    HTMLInputElement* grandparent =
-      HTMLInputElement::FromContentOrNull(GetParent()->GetParent());
-    if (grandparent && grandparent->mType == NS_FORM_INPUT_NUMBER) {
-      return grandparent;
-    }
-  }
-  return nullptr;
 }
 
 NS_IMETHODIMP
@@ -3236,14 +3224,6 @@ HTMLInputElement::StartRangeThumbDrag(WidgetGUIEvent* aEvent)
   nsIPresShell::SetCapturingContent(this, CAPTURE_IGNOREALLOWED |
                                           CAPTURE_RETARGETTOELEMENT);
   nsRangeFrame* rangeFrame = do_QueryFrame(GetPrimaryFrame());
-
-  // Before we change the value, record the current value so that we'll
-  // correctly send a 'change' event if appropriate. We need to do this here
-  // because the 'focus' event is handled after the 'mousedown' event that
-  // we're being called for (i.e. too late to update mFocusedValue, since we'll
-  // have changed it by then).
-  GetValueInternal(mFocusedValue);
-
   SetValueOfRangeForUserEvent(rangeFrame->GetValueAtEventPoint(aEvent));
 }
 
@@ -3391,8 +3371,7 @@ HTMLInputElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
   if (aVisitor.mEvent->message == NS_FOCUS_CONTENT ||
       aVisitor.mEvent->message == NS_BLUR_CONTENT) {
     if (aVisitor.mEvent->message == NS_FOCUS_CONTENT &&
-        MayFireChangeOnBlur() &&
-        !mIsDraggingRange) { // StartRangeThumbDrag already set mFocusedValue
+        MayFireChangeOnBlur()) {
       GetValueInternal(mFocusedValue);
     }
 

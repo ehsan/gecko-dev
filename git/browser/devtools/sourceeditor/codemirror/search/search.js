@@ -48,17 +48,8 @@
   var queryDialog;
   function doSearch(cm, rev) {
     if (!queryDialog) {
-      let doc = cm.getWrapperElement().ownerDocument;
-      let inp = doc.createElement("input");
-      let txt = doc.createTextNode(cm.l10n("findCmd.promptMessage"));
-
-      inp.type = "text";
-      inp.style.width = "10em";
-      inp.style.MozMarginStart = "1em";
-
-      queryDialog = doc.createElement("div");
-      queryDialog.appendChild(txt);
-      queryDialog.appendChild(inp);
+      queryDialog = cm.l10n('findCmd.promptMessage') +
+        ' <input type="text" style="width: 10em"/>';
     }
 
     var state = getSearchState(cm);

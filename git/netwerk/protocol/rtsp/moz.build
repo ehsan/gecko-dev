@@ -15,17 +15,11 @@ EXPORTS.mozilla.net += [
     'RtspHandler.h',
 ]
 
-UNIFIED_SOURCES += [
+SOURCES += [
     'controller/RtspController.cpp',
     'controller/RtspControllerChild.cpp',
     'controller/RtspControllerParent.cpp',
     'controller/RtspMetaData.cpp',
-    'RtspChannel.cpp',
-    'RtspHandler.cpp',
-]
-
-# Android sources
-SOURCES += [
     'rtsp/AAMRAssembler.cpp',
     'rtsp/AAVCAssembler.cpp',
     'rtsp/AH263Assembler.cpp',
@@ -40,6 +34,8 @@ SOURCES += [
     'rtsp/ARTSPConnection.cpp',
     'rtsp/ASessionDescription.cpp',
     'rtsp/RTSPSource.cpp',
+    'RtspChannel.cpp',
+    'RtspHandler.cpp',
 ]
 
 FAIL_ON_WARNINGS = True

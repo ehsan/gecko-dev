@@ -68,7 +68,8 @@ SourceSurfaceD2D::InitFromData(unsigned char *aData,
     return false;
   }
 
-  D2D1_BITMAP_PROPERTIES props = D2D1::BitmapProperties(D2DPixelFormat(aFormat));
+  D2D1_BITMAP_PROPERTIES props =
+    D2D1::BitmapProperties(D2D1::PixelFormat(DXGIFormat(aFormat), AlphaMode(aFormat)));
   hr = aRT->CreateBitmap(D2DIntSize(aSize), aData, aStride, props, byRef(mBitmap));
 
   if (FAILED(hr)) {
@@ -104,7 +105,8 @@ SourceSurfaceD2D::InitFromTexture(ID3D10Texture2D *aTexture,
   mSize = IntSize(desc.Width, desc.Height);
   mFormat = aFormat;
 
-  D2D1_BITMAP_PROPERTIES props = D2D1::BitmapProperties(D2DPixelFormat(aFormat));
+  D2D1_BITMAP_PROPERTIES props =
+    D2D1::BitmapProperties(D2D1::PixelFormat(DXGIFormat(aFormat), AlphaMode(aFormat)));
   hr = aRT->CreateSharedBitmap(IID_IDXGISurface, surf, &props, byRef(mBitmap));
 
   if (FAILED(hr)) {

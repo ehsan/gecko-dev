@@ -161,7 +161,7 @@ SVGAElement::IsAttributeMapped(const nsIAtom* name) const
 }
 
 bool
-SVGAElement::IsFocusableInternal(int32_t *aTabIndex, bool aWithMouse)
+SVGAElement::IsFocusable(int32_t *aTabIndex, bool aWithMouse)
 {
   nsCOMPtr<nsIURI> uri;
   if (IsLink(getter_AddRefs(uri))) {

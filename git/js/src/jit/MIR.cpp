@@ -2319,8 +2319,10 @@ MCompare::evaluateConstantOperands(bool *result)
     // Fold away some String equality comparisons.
     if (lhs.isString() && rhs.isString()) {
         int32_t comp = 0; // Default to equal.
-        if (left != right)
-            comp = CompareAtoms(&lhs.toString()->asAtom(), &rhs.toString()->asAtom());
+        if (left != right) {
+            if (!CompareStrings(GetIonContext()->cx, lhs.toString(), rhs.toString(), &comp))
+                return false;
+        }
         
         switch (jsop_) {
           case JSOP_LT:
@@ -2926,7 +2928,7 @@ jit::PropertyReadNeedsTypeBarrier(JSContext *propertycx,
         JSObject *obj = object->singleton() ? object->singleton() : object->proto().toObjectOrNull();
 
         while (obj) {
-            if (!obj->getClass()->isNative())
+            if (!obj->isNative())
                 break;
 
             types::TypeObjectKey *typeObj = types::TypeObjectKey::get(obj);

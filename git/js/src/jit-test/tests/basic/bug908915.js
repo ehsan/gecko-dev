@@ -1,8 +1,7 @@
 // |jit-test| error: 42
 function f(y) {}
 for each(let e in newGlobal()) {
-    if (e.name === "quit" || e.name == "readline" || e.name == "terminate" ||
-	e.name == "nestedShell")
+    if (e.name === "quit" || e.name == "readline" || e.name == "terminate")
 	continue;
     try {
         e();
@@ -14,8 +13,7 @@ for each(let e in newGlobal()) {
         y()
     }
     for each(b in []) {
-	if (b.name === "quit" || b.name == "readline" || b.name == "terminate" ||
-	    b.name == "nestedShell")
+	if (b.name === "quit" || b.name == "readline" || b.name == "terminate")
 	    continue;
         try {
             f(b)

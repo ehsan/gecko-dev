@@ -880,7 +880,7 @@ let DirectoryIterator = function DirectoryIterator(path, options) {
    * @rejects {StopIteration} If all entries have already been visited
    * or the iterator has been closed.
    */
-  this.__itmsg = Scheduler.post(
+  this._itmsg = Scheduler.post(
     "new_DirectoryIterator", [Type.path.toMsg(path), options],
     path
   );
@@ -889,17 +889,6 @@ let DirectoryIterator = function DirectoryIterator(path, options) {
 DirectoryIterator.prototype = {
   iterator: function () this,
   __iterator__: function () this,
-
-  // Once close() is called, _itmsg should reject with a
-  // StopIteration. However, we don't want to create the promise until
-  // it's needed because it might never be used. In that case, we
-  // would get a warning on the console.
-  get _itmsg() {
-    if (!this.__itmsg) {
-      this.__itmsg = Promise.reject(StopIteration);
-    }
-    return this.__itmsg;
-  },
 
   /**
    * Determine whether the directory exists.
@@ -1040,9 +1029,7 @@ DirectoryIterator.prototype = {
     let self = this;
     return this._itmsg.then(
       function withIterator(iterator) {
-        // Set __itmsg to null so that the _itmsg getter returns a
-        // rejected StopIteration promise if it's ever used.
-        self.__itmsg = null;
+        self._itmsg = Promise.reject(StopIteration);
         return Scheduler.post("DirectoryIterator_prototype_close", [iterator]);
       }
     );

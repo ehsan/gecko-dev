@@ -808,6 +808,7 @@ dnl ========================================================
 dnl = Mac OS X SDK support
 dnl ========================================================
 MACOS_SDK_DIR=
+NEXT_ROOT=
 MOZ_ARG_WITH_STRING(macos-sdk,
 [  --with-macos-sdk=dir    Location of platform SDK to use (Mac OS X only)],
     MACOS_SDK_DIR=$withval)
@@ -829,8 +830,10 @@ if test -z "${MACOS_PRIVATE_FRAMEWORKS_DEFAULTED}"; then
 fi
 
 dnl MACOS_SDK_DIR will be set to the SDK location whenever one is in use.
+dnl NEXT_ROOT will be set and exported only if it's needed.
 AC_SUBST(MACOS_SDK_DIR)
 AC_SUBST(MACOS_PRIVATE_FRAMEWORKS_DIR)
+AC_SUBST(NEXT_ROOT)
 
 if test "$MACOS_SDK_DIR"; then
   dnl Sync this section with the ones in NSPR and NSS.
@@ -3939,7 +3942,6 @@ MOZ_OPUS=1
 MOZ_WEBM=1
 MOZ_DIRECTSHOW=
 MOZ_WMF=
-MOZ_FMP4=
 MOZ_WEBRTC=1
 MOZ_PEERCONNECTION=
 MOZ_SRTP=
@@ -5272,26 +5274,6 @@ if test -n "$MOZ_WMF"; then
     AC_DEFINE(MOZ_WMF)
     MOZ_CUBEB=1
 fi;
-
-dnl ========================================================
-dnl = Built-in fragmented MP4 support.
-dnl ========================================================
-if test -n "$MOZ_WMF"; then
-    dnl Enable fragmented MP4 parser on Windows by default.
-    dnl We will also need to enable it on other platforms as we implement
-    dnl platform decoder support there too.
-    MOZ_FMP4=1
-fi
-
-MOZ_ARG_DISABLE_BOOL(fmp4,
-[  --disable-fmp4  Disable support for in built Fragmented MP4 parsing],
-    MOZ_FMP4=,
-    MOZ_FMP4=1)
-
-if test -n "$MOZ_FMP4"; then
-    AC_DEFINE(MOZ_FMP4)
-fi;
-
 
 dnl ========================================================
 dnl = Enable media plugin support
@@ -6795,11 +6777,9 @@ MOZ_ARG_ENABLE_BOOL(dmd,
     MOZ_DMD=1,
     MOZ_DMD= )
 
-dnl The two options are conflicting. Fails the configure to alert the user.
-if test "$NS_TRACE_MALLOC" -a "$MOZ_DMD"; then
-    AC_MSG_ERROR([--enable-trace-malloc and --enable-dmd are conflicting options])
+if test "$NS_TRACE_MALLOC"; then        # trace-malloc disables DMD
+    MOZ_DMD=
 fi
-
 if test "$MOZ_DMD"; then
     USE_ELF_DYNSTR_GC=
     AC_DEFINE(MOZ_DMD)
@@ -6861,11 +6841,6 @@ MOZ_ARG_ENABLE_BOOL(replace-malloc,
 [  --enable-replace-malloc   Enable ability to dynamically replace the malloc implementation],
     MOZ_REPLACE_MALLOC=1,
     MOZ_REPLACE_MALLOC= )
-
-dnl The two options are conflicting. Fails the configure to alert the user.
-if test "$NS_TRACE_MALLOC" -a "$MOZ_REPLACE_MALLOC"; then
-    AC_MSG_ERROR([--enable-trace-malloc and --enable-replace-malloc are conflicting options])
-fi
 
 if test -n "$MOZ_REPLACE_MALLOC" -a -z "$MOZ_MEMORY"; then
     dnl We don't want to enable jemalloc unconditionally because it may be a
@@ -8652,7 +8627,6 @@ AC_SUBST(MOZ_TREMOR)
 AC_SUBST(MOZ_OPUS)
 AC_SUBST(MOZ_WEBM)
 AC_SUBST(MOZ_WMF)
-AC_SUBST(MOZ_FMP4)
 AC_SUBST(MOZ_DIRECTSHOW)
 AC_SUBST(MOZ_MEDIA_PLUGINS)
 AC_SUBST(MOZ_APPLEMEDIA)

@@ -10,11 +10,7 @@
     } else {
       dialog.className = "CodeMirror-dialog CodeMirror-dialog-top";
     }
-    if (typeof template == "string") {
-      dialog.innerHTML = template;
-    } else {
-      dialog.appendChild(template);
-    }
+    dialog.innerHTML = template;
     return dialog;
   }
 

@@ -815,7 +815,7 @@ nsMathMLElement::SetIncrementScriptLevel(bool aIncrementScriptLevel,
 }
 
 bool
-nsMathMLElement::IsFocusableInternal(int32_t* aTabIndex, bool aWithMouse)
+nsMathMLElement::IsFocusable(int32_t *aTabIndex, bool aWithMouse)
 {
   nsCOMPtr<nsIURI> uri;
   if (IsLink(getter_AddRefs(uri))) {
