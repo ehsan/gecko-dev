@@ -998,8 +998,7 @@ private:
     {
       nsPurpleBufferEntry* eEnd = ArrayEnd(mEntries);
       for (nsPurpleBufferEntry* e = mEntries; e != eEnd; ++e) {
-        MOZ_ASSERT(e->mObject, "There should be no null mObject when we iterate over the purple buffer");
-        if (!(uintptr_t(e->mObject) & uintptr_t(1)) && e->mObject) {
+        if (!(uintptr_t(e->mObject) & uintptr_t(1))) {
           aVisitor.Visit(aBuffer, e);
         }
       }

@@ -4074,12 +4074,12 @@ nsFrame::ComputeSize(nsRenderingContext *aRenderingContext,
                      const LogicalSize& aMargin,
                      const LogicalSize& aBorder,
                      const LogicalSize& aPadding,
-                     ComputeSizeFlags aFlags)
+                     uint32_t aFlags)
 {
   LogicalSize result = ComputeAutoSize(aRenderingContext, aWM,
                                        aCBSize, aAvailableISize,
                                        aMargin, aBorder, aPadding,
-                                       aFlags & ComputeSizeFlags::eShrinkWrap);
+                                       aFlags & eShrinkWrap);
   LogicalSize boxSizingAdjust(aWM);
   const nsStylePosition *stylePos = StylePosition();
 
@@ -8399,7 +8399,7 @@ nsFrame::BoxReflow(nsBoxLayoutState&        aState,
                       reflowState.ComputedLogicalBorderPadding().Size(wm) -
                         reflowState.ComputedLogicalPadding().Size(wm),
                       reflowState.ComputedLogicalPadding().Size(wm),
-                      ComputeSizeFlags::eDefault).Height(wm));
+                      false).Height(wm));
       }
     }
 

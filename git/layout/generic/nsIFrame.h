@@ -1634,8 +1634,7 @@ public:
   /**
    * Bit-flags to pass to ComputeSize in |aFlags| parameter.
    */
-  enum ComputeSizeFlags {
-    eDefault =           0,
+  enum {
     /* Set if the frame is in a context where non-replaced blocks should
      * shrink-wrap (e.g., it's floating, absolutely positioned, or
      * inline-block). */
@@ -1694,7 +1693,7 @@ public:
               const mozilla::LogicalSize& aMargin,
               const mozilla::LogicalSize& aBorder,
               const mozilla::LogicalSize& aPadding,
-              ComputeSizeFlags aFlags) = 0;
+              uint32_t aFlags) = 0;
 
   /**
    * Compute a tight bounding rectangle for the frame. This is a rectangle

@@ -106,17 +106,16 @@ static bool HaveFixedSize(const nsStylePosition* aStylePosition)
   return aStylePosition->mWidth.IsCoordPercentCalcUnit() &&
          aStylePosition->mHeight.IsCoordPercentCalcUnit();
 }
-
 // use the data in the reflow state to decide if the image has a constrained size
-// (i.e. width and height that are based on the containing block size and not the image size)
+// (i.e. width and height that are based on the containing block size and not the image size) 
 // so we can avoid animated GIF related reflows
 inline bool HaveFixedSize(const nsHTMLReflowState& aReflowState)
-{
+{ 
   NS_ASSERTION(aReflowState.mStylePosition, "crappy reflowState - null stylePosition");
-  // when an image has percent css style height or width, but ComputedHeight()
-  // or ComputedWidth() of reflow state is  NS_UNCONSTRAINEDSIZE
+  // when an image has percent css style height or width, but ComputedHeight() 
+  // or ComputedWidth() of reflow state is  NS_UNCONSTRAINEDSIZE  
   // it needs to return false to cause an incremental reflow later
-  // if an image is inside table like bug 156731 simple testcase III,
+  // if an image is inside table like bug 156731 simple testcase III, 
   // during pass 1 reflow, ComputedWidth() is NS_UNCONSTRAINEDSIZE
   // in pass 2 reflow, ComputedWidth() is 0, it also needs to return false
   // see bug 156731
@@ -128,7 +127,7 @@ inline bool HaveFixedSize(const nsHTMLReflowState& aReflowState)
            (NS_UNCONSTRAINEDSIZE == aReflowState.ComputedWidth() ||
             0 == aReflowState.ComputedWidth())))
           ? false
-          : HaveFixedSize(aReflowState.mStylePosition);
+          : HaveFixedSize(aReflowState.mStylePosition); 
 }
 
 nsIFrame*
@@ -774,7 +773,7 @@ nsImageFrame::ComputeSize(nsRenderingContext *aRenderingContext,
                           const LogicalSize& aMargin,
                           const LogicalSize& aBorder,
                           const LogicalSize& aPadding,
-                          ComputeSizeFlags aFlags)
+                          uint32_t aFlags)
 {
   EnsureIntrinsicSizeAndRatio();
 

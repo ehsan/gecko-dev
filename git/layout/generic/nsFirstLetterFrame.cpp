@@ -147,7 +147,7 @@ nsFirstLetterFrame::ComputeSize(nsRenderingContext *aRenderingContext,
                                 const LogicalSize& aMargin,
                                 const LogicalSize& aBorder,
                                 const LogicalSize& aPadding,
-                                ComputeSizeFlags aFlags)
+                                uint32_t aFlags)
 {
   if (GetPrevInFlow()) {
     // We're wrapping the text *after* the first letter, so behave like an

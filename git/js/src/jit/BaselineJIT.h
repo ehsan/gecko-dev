@@ -178,10 +178,6 @@ struct BaselineScript
     // they correspond to, for use by TypeScript::BytecodeTypes.
     uint32_t bytecodeTypeMapOffset_;
 
-    // For generator scripts, we store the native code address for each yield
-    // instruction.
-    uint32_t yieldEntriesOffset_;
-
   public:
     // Do not call directly, use BaselineScript::New. This is public for cx->new_.
     BaselineScript(uint32_t prologueOffset, uint32_t epilogueOffset,
@@ -191,8 +187,7 @@ struct BaselineScript
                                uint32_t epilogueOffset, uint32_t postDebugPrologueOffset,
                                uint32_t spsPushToggleOffset, size_t icEntries,
                                size_t pcMappingIndexEntries, size_t pcMappingSize,
-                               size_t bytecodeTypeMapEntries, size_t yieldEntries);
-
+                               size_t bytecodeTypeMapEntries);
     static void Trace(JSTracer *trc, BaselineScript *script);
     static void Destroy(FreeOp *fop, BaselineScript *script);
 
@@ -273,9 +268,6 @@ struct BaselineScript
     ICEntry *icEntryList() {
         return (ICEntry *)(reinterpret_cast<uint8_t *>(this) + icEntriesOffset_);
     }
-    uint8_t **yieldEntryList() {
-        return (uint8_t **)(reinterpret_cast<uint8_t *>(this) + yieldEntriesOffset_);
-    }
     PCMappingIndexEntry *pcMappingIndexEntryList() {
         return (PCMappingIndexEntry *)(reinterpret_cast<uint8_t *>(this) + pcMappingIndexOffset_);
     }
@@ -327,8 +319,6 @@ struct BaselineScript
     void copyICEntries(JSScript *script, const ICEntry *entries, MacroAssembler &masm);
     void adoptFallbackStubs(FallbackICStubSpace *stubSpace);
 
-    void copyYieldEntries(JSScript *script, Vector<uint32_t> &yieldOffsets);
-
     PCMappingIndexEntry &pcMappingIndexEntry(size_t index);
     CompactBufferReader pcMappingReader(size_t indexEntry);
 
@@ -363,9 +353,6 @@ struct BaselineScript
 
     static size_t offsetOfFlags() {
         return offsetof(BaselineScript, flags_);
-    }
-    static size_t offsetOfYieldEntriesOffset() {
-        return offsetof(BaselineScript, yieldEntriesOffset_);
     }
 
     static void writeBarrierPre(Zone *zone, BaselineScript *script);
