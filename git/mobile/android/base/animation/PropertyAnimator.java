@@ -5,13 +5,9 @@
 
 package org.mozilla.gecko.animation;
 
-import java.util.ArrayList;
-import java.util.List;
-
-import org.mozilla.gecko.AppConstants.Versions;
-
-import android.os.Handler;
 import android.support.v4.view.ViewCompat;
+import android.os.Build;
+import android.os.Handler;
 import android.view.Choreographer;
 import android.view.View;
 import android.view.ViewGroup;
@@ -19,6 +15,9 @@ import android.view.ViewTreeObserver;
 import android.view.animation.AnimationUtils;
 import android.view.animation.DecelerateInterpolator;
 import android.view.animation.Interpolator;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class PropertyAnimator implements Runnable {
     private static final String LOGTAG = "GeckoPropertyAnimator";
@@ -164,7 +163,7 @@ public class PropertyAnimator implements Runnable {
         // in the current view tree. OnPreDrawListener seems broken
         // on pre-Honeycomb devices, start animation immediatelly
         // in this case.
-        if (Versions.feature11Plus && treeObserver != null && treeObserver.isAlive()) {
+        if (Build.VERSION.SDK_INT >= 11 && treeObserver != null && treeObserver.isAlive()) {
             treeObserver.addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
                 @Override
                 public boolean onPreDraw() {
@@ -187,6 +186,7 @@ public class PropertyAnimator implements Runnable {
         }
     }
 
+
     /**
      * Stop the animation, optionally snapping to the end position.
      * onPropertyAnimationEnd is only called when snapping to the end position.
@@ -201,11 +201,10 @@ public class PropertyAnimator implements Runnable {
 
             ViewCompat.setHasTransientState(element.view, false);
 
-            if (shouldEnableHardwareLayer(element)) {
+            if (shouldEnableHardwareLayer(element))
                 element.view.setLayerType(View.LAYER_TYPE_NONE, null);
-            } else {
+            else
                 element.view.setDrawingCacheEnabled(false);
-            }
         }
 
         mElementsList.clear();
@@ -227,23 +226,19 @@ public class PropertyAnimator implements Runnable {
     }
 
     private boolean shouldEnableHardwareLayer(ElementHolder element) {
-        if (Versions.preHC) {
+        if (!mUseHardwareLayer)
             return false;
-        }
 
-        if (!mUseHardwareLayer) {
+        if (Build.VERSION.SDK_INT < 11)
             return false;
-        }
 
-        if (!(element.view instanceof ViewGroup)) {
+        if (!(element.view instanceof ViewGroup))
             return false;
-        }
 
         if (element.property == Property.ALPHA ||
             element.property == Property.TRANSLATION_Y ||
-            element.property == Property.TRANSLATION_X) {
+            element.property == Property.TRANSLATION_X)
             return true;
-        }
 
         return false;
     }
@@ -274,11 +269,10 @@ public class PropertyAnimator implements Runnable {
 
     private static abstract class FramePoster {
         public static FramePoster create(Runnable r) {
-            if (Versions.feature16Plus) {
+            if (Build.VERSION.SDK_INT >= 16)
                 return new FramePosterPostJB(r);
-            }
-
-            return new FramePosterPreJB(r);
+            else
+                return new FramePosterPreJB(r);
         }
 
         public abstract void postFirstAnimationFrame();
@@ -290,8 +284,8 @@ public class PropertyAnimator implements Runnable {
         // Default refresh rate in ms.
         private static final int INTERVAL = 10;
 
-        private final Handler mHandler;
-        private final Runnable mRunnable;
+        private Handler mHandler;
+        private Runnable mRunnable;
 
         public FramePosterPreJB(Runnable r) {
             mHandler = new Handler();
@@ -315,8 +309,8 @@ public class PropertyAnimator implements Runnable {
     }
 
     private static class FramePosterPostJB extends FramePoster {
-        private final Choreographer mChoreographer;
-        private final Choreographer.FrameCallback mCallback;
+        private Choreographer mChoreographer;
+        private Choreographer.FrameCallback mCallback;
 
         public FramePosterPostJB(final Runnable r) {
             mChoreographer = Choreographer.getInstance();

@@ -5,22 +5,23 @@
 
 package org.mozilla.gecko.gfx;
 
-import org.json.JSONObject;
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.EventDispatcher;
 import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.GeckoEvent;
 import org.mozilla.gecko.PrefsHelper;
 import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.Tabs;
 import org.mozilla.gecko.ZoomConstraints;
+import org.mozilla.gecko.EventDispatcher;
 import org.mozilla.gecko.util.FloatUtils;
 import org.mozilla.gecko.util.GamepadUtils;
 import org.mozilla.gecko.util.GeckoEventListener;
 import org.mozilla.gecko.util.ThreadUtils;
 
+import org.json.JSONObject;
+
 import android.graphics.PointF;
 import android.graphics.RectF;
+import android.os.Build;
 import android.util.FloatMath;
 import android.util.Log;
 import android.view.GestureDetector;
@@ -293,7 +294,7 @@ class JavaPanZoomController
     /** This function MUST be called on the UI thread */
     @Override
     public boolean onKeyEvent(KeyEvent event) {
-        if (Versions.preHCMR1) {
+        if (Build.VERSION.SDK_INT <= 11) {
             return false;
         }
 
@@ -313,7 +314,7 @@ class JavaPanZoomController
     /** This function MUST be called on the UI thread */
     @Override
     public boolean onMotionEvent(MotionEvent event) {
-        if (Versions.preHCMR1) {
+        if (Build.VERSION.SDK_INT <= 11) {
             return false;
         }
 
