@@ -407,7 +407,6 @@ nsXMLEventsManager::AttributeChanged(nsIDocument* aDocument,
 void
 nsXMLEventsManager::ContentAppended(nsIDocument* aDocument,
                                     nsIContent* aContainer,
-                                    nsIContent* aFirstNewContent,
                                     PRInt32 aNewIndexInContainer)
 {
   AddListeners(aDocument);

@@ -158,10 +158,20 @@ public:
                                  const nsAString* aValue, PRBool aNotify);
 
   // nsIMutationObserver
-  NS_DECL_NSIMUTATIONOBSERVER_CHARACTERDATACHANGED
-  NS_DECL_NSIMUTATIONOBSERVER_CONTENTAPPENDED
-  NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
-  NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
+  virtual void CharacterDataChanged(nsIDocument* aDocument,
+                                    nsIContent* aContent,
+                                    CharacterDataChangeInfo* aInfo);
+  virtual void ContentAppended(nsIDocument* aDocument,
+                                nsIContent* aContainer,
+                               PRInt32 aNewIndexInContainer);
+  virtual void ContentInserted(nsIDocument* aDocument,
+                               nsIContent* aContainer,
+                               nsIContent* aChild,
+                               PRInt32 aIndexInContainer);
+  virtual void ContentRemoved(nsIDocument* aDocument,
+                              nsIContent* aContainer,
+                              nsIContent* aChild,
+                              PRInt32 aIndexInContainer);
 
   virtual void UpdateEditableState()
   {
@@ -930,8 +940,7 @@ nsHTMLTextAreaElement::CharacterDataChanged(nsIDocument* aDocument,
 void
 nsHTMLTextAreaElement::ContentAppended(nsIDocument* aDocument,
                                        nsIContent* aContainer,
-                                       nsIContent* aFirstNewContent,
-                                       PRInt32 /* unused */)
+                                       PRInt32 aNewIndexInContainer)
 {
   ContentChanged(aContainer);
 }
@@ -940,7 +949,7 @@ void
 nsHTMLTextAreaElement::ContentInserted(nsIDocument* aDocument,
                                        nsIContent* aContainer,
                                        nsIContent* aChild,
-                                       PRInt32 /* unused */)
+                                       PRInt32 aIndexInContainer)
 {
   ContentChanged(aChild);
 }

@@ -123,9 +123,11 @@ STATIC_LIBS += chromium_s
 endif
 
 ifndef WINCE
+ifdef MOZ_XPINSTALL
 STATIC_LIBS += \
 	mozreg_s \
 	$(NULL)
+endif
 endif
 
 # component libraries
@@ -146,7 +148,6 @@ COMPONENT_LIBS += \
 	txmgr \
 	chrome \
 	commandlines \
-	extensions \
 	toolkitcomps \
 	pipboot \
 	pipnss \
@@ -191,6 +192,13 @@ endif
 ifneq (,$(filter windows,$(MOZ_WIDGET_TOOLKIT)))
 COMPONENT_LIBS += \
 	windowsproxy \
+	$(NULL)
+endif
+
+ifdef MOZ_XPINSTALL
+DEFINES += -DMOZ_XPINSTALL
+COMPONENT_LIBS += \
+	xpinstall \
 	$(NULL)
 endif
 

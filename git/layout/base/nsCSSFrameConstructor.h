@@ -211,10 +211,9 @@ public:
 
   // If aAllowLazyConstruction is true then frame construction of the new
   // children can be done lazily.
-  nsresult ContentAppended(nsIContent* aContainer,
-                           nsIContent* aFirstNewContent,
-                           PRInt32     aNewIndexInContainer,
-                           PRBool      aAllowLazyConstruction);
+  nsresult ContentAppended(nsIContent*     aContainer,
+                           PRInt32         aNewIndexInContainer,
+                           PRBool          aAllowLazyConstruction);
 
   // If aAllowLazyConstruction is true then frame construction of the new child
   // can be done lazily.
