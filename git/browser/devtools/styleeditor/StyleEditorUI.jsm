@@ -760,9 +760,7 @@ StyleEditorUI.prototype = {
 
         let link = this._panelDoc.createElement("div");
         link.className = "media-rule-line theme-link";
-        if (location.line != -1) {
-          link.textContent = ":" + location.line;
-        }
+        link.textContent = ":" + location.line;
         div.appendChild(link);
 
         list.appendChild(div);

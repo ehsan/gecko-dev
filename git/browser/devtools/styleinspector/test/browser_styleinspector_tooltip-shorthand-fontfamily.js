@@ -38,11 +38,10 @@ let test = asyncTest(function*() {
 function* testRuleView(ruleView, nodeFront) {
   info("Testing font-family tooltips in the rule view");
 
-  let tooltip = ruleView.tooltips.previewTooltip;
-  let panel = tooltip.panel;
+  let panel = ruleView.previewTooltip.panel;
 
   // Check that the rule view has a tooltip and that a XUL panel has been created
-  ok(tooltip, "Tooltip instance exists");
+  ok(ruleView.previewTooltip, "Tooltip instance exists");
   ok(panel, "XUL panel exists");
 
   // Get the computed font family property inside the font rule view
@@ -54,7 +53,7 @@ function* testRuleView(ruleView, nodeFront) {
   let valueSpan = rule.querySelector(".ruleview-computed .ruleview-propertyvalue");
 
   // And verify that the tooltip gets shown on this property
-  yield assertHoverTooltipOn(tooltip, valueSpan);
+  yield assertHoverTooltipOn(ruleView.previewTooltip, valueSpan);
 
   let images = panel.getElementsByTagName("image");
   is(images.length, 1, "Tooltip contains an image");
@@ -67,12 +66,10 @@ function* testRuleView(ruleView, nodeFront) {
 function* testComputedView(computedView, nodeFront) {
   info("Testing font-family tooltips in the computed view");
 
-  let tooltip = computedView.tooltips.previewTooltip;
-  let panel = tooltip.panel;
-
+  let panel = computedView.tooltip.panel;
   let {valueSpan} = getComputedViewProperty(computedView, "font-family");
 
-  yield assertHoverTooltipOn(tooltip, valueSpan);
+  yield assertHoverTooltipOn(computedView.tooltip, valueSpan);
 
   let images = panel.getElementsByTagName("image");
   is(images.length, 1, "Tooltip contains an image");
