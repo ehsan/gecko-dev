@@ -104,8 +104,6 @@
 
 class AsyncFrameInit;
 
-static NS_DEFINE_CID(kCChildCID, NS_CHILD_CID);
-
 /******************************************************************************
  * nsSubDocumentFrame
  *****************************************************************************/
@@ -294,11 +292,6 @@ nsSubDocumentFrame::Init(nsIContent*     aContent,
   }
   nsIView* view = GetView();
 
-  if (aParent->GetStyleDisplay()->mDisplay == NS_STYLE_DISPLAY_DECK
-      && !view->HasWidget()) {
-    view->CreateWidget(kCChildCID);
-  }
-
   // Set the primary frame now so that
   // DocumentViewerImpl::FindContainerView called by ShowViewer below
   // can find it if necessary.
@@ -482,13 +475,21 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   if (NS_SUCCEEDED(rv)) {
     if (subdocRootFrame && parentAPD != subdocAPD) {
       nsDisplayZoom* zoomItem =
-        new (aBuilder) nsDisplayZoom(subdocRootFrame, &childItems,
+        new (aBuilder) nsDisplayZoom(aBuilder, subdocRootFrame, &childItems,
                                      subdocAPD, parentAPD);
       childItems.AppendToTop(zoomItem);
+    } else if (!nsContentUtils::IsChildOfSameType(presShell->GetDocument())) {
+      // We always want top level content documents to be in their own layer.
+      // If we need a zoom item then we are good because it creates a layer. If
+      // not then create our own layer.
+      nsDisplayOwnLayer* layerItem = new (aBuilder) nsDisplayOwnLayer(
+        aBuilder, subdocRootFrame ? subdocRootFrame : this, &childItems);
+      childItems.AppendToTop(layerItem);
     }
+
     // Clip children to the child root frame's rectangle
     rv = aLists.Content()->AppendNewToTop(
-        new (aBuilder) nsDisplayClip(this, this, &childItems,
+        new (aBuilder) nsDisplayClip(aBuilder, this, this, &childItems,
                                      subdocBoundsInParentUnits));
   }
   // delete childItems in case of OOM
@@ -967,7 +968,7 @@ nsSubDocumentFrame::CreateViewAndWidget(nsContentType aContentType)
 
   if (aContentType == eContentTypeContent) {
     // widget needed.
-    nsresult rv = innerView->CreateWidget(kCChildCID, nsnull, nsnull,
+    nsresult rv = innerView->CreateWidget(nsnull,
                                           PR_TRUE, PR_TRUE, aContentType);
     if (NS_FAILED(rv)) {
       NS_WARNING("Couldn't create widget for frame.");

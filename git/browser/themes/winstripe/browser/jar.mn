@@ -12,6 +12,7 @@ browser.jar:
         skin/classic/browser/aboutSyncTabs.css
 #endif
         skin/classic/browser/actionicon-tab.png
+        skin/classic/browser/appmenu-icons.png
         skin/classic/browser/appmenu-dropmarker.png
 *       skin/classic/browser/browser.css                             (browser.css)
 *       skin/classic/browser/engineManager.css                       (engineManager.css)
@@ -39,6 +40,7 @@ browser.jar:
 *       skin/classic/browser/searchbar.css                           (searchbar.css)
         skin/classic/browser/Search-addengines.png
         skin/classic/browser/section_collapsed.png
+        skin/classic/browser/section_collapsed-rtl.png
         skin/classic/browser/section_expanded.png
         skin/classic/browser/setDesktopBackground.css
         skin/classic/browser/menu-back.png                           (menu-back.png)
@@ -54,6 +56,7 @@ browser.jar:
         skin/classic/browser/feeds/videoFeedIcon.png                 (feeds/videoFeedIcon.png)
         skin/classic/browser/feeds/videoFeedIcon16.png               (feeds/videoFeedIcon16.png)
         skin/classic/browser/feeds/subscribe.css                     (feeds/subscribe.css)
+        skin/classic/browser/feeds/subscribe-ui.css                  (feeds/subscribe-ui.css)
         skin/classic/browser/places/places.css                       (places/places.css)
 *       skin/classic/browser/places/organizer.css                    (places/organizer.css)
         skin/classic/browser/places/bookmark.png                     (places/bookmark.png)
@@ -96,7 +99,6 @@ browser.jar:
         skin/classic/browser/tabview/tabview.css                    (tabview/tabview.css)
         skin/classic/browser/tabview/stack-expander.png             (tabview/stack-expander.png)
         skin/classic/browser/tabview/tabview.png                    (tabview/tabview.png)
-        skin/classic/browser/tabview/tabview-16.png                  (tabview/tabview-16.png)
 #ifdef MOZ_SERVICES_SYNC
         skin/classic/browser/sync-16-throbber.png
         skin/classic/browser/sync-16.png
@@ -126,6 +128,7 @@ browser.jar:
 #endif
         skin/classic/aero/browser/actionicon-tab.png                 (actionicon-tab.png)
         skin/classic/aero/browser/appmenu-dropmarker.png
+        skin/classic/aero/browser/appmenu-icons.png
 *       skin/classic/aero/browser/browser.css                        (browser-aero.css)
 *       skin/classic/aero/browser/engineManager.css                  (engineManager.css)
         skin/classic/aero/browser/fullscreen-video.css
@@ -152,6 +155,7 @@ browser.jar:
 *       skin/classic/aero/browser/searchbar.css                      (searchbar.css)
         skin/classic/aero/browser/Search-addengines.png
         skin/classic/aero/browser/section_collapsed.png
+        skin/classic/aero/browser/section_collapsed-rtl.png
         skin/classic/aero/browser/section_expanded.png
         skin/classic/aero/browser/setDesktopBackground.css
         skin/classic/aero/browser/menu-back.png                      (menu-back-aero.png)
@@ -211,7 +215,6 @@ browser.jar:
         skin/classic/aero/browser/tabview/tabview.css                (tabview/tabview.css)
         skin/classic/aero/browser/tabview/stack-expander.png         (tabview/stack-expander.png)
         skin/classic/aero/browser/tabview/tabview.png                (tabview/tabview.png)
-        skin/classic/aero/browser/tabview/tabview-16.png             (tabview/tabview-16.png)
 #ifdef MOZ_SERVICES_SYNC
         skin/classic/aero/browser/sync-16-throbber.png
         skin/classic/aero/browser/sync-16.png

@@ -330,6 +330,8 @@ members = [
     'nsIDOMHTMLCanvasElement.height',
     'nsIDOMHTMLCanvasElement.getContext',
     'nsIDOMHTMLCanvasElement.toDataURL',
+    'nsIDOMNSHTMLDocument.width',
+    'nsIDOMNSHTMLDocument.height',
     'nsIDOMNSHTMLDocument.domain',
     'nsIDOMNSHTMLDocument.getSelection',
     'nsIDOMNSHTMLDocument.designMode',
@@ -443,11 +445,14 @@ members = [
     '-nsICanvasRenderingContextWebGL.getFramebufferAttachmentParameter',
     '-nsICanvasRenderingContextWebGL.getRenderbufferParameter',
     '-nsICanvasRenderingContextWebGL.getProgramParameter',
-    '-nsICanvasRenderingContextWebGL.texParameterf',
-    '-nsICanvasRenderingContextWebGL.texParameteri',
     '-nsICanvasRenderingContextWebGL.getUniform',
     '-nsICanvasRenderingContextWebGL.getVertexAttrib',
     '-nsICanvasRenderingContextWebGL.getShaderParameter',
+
+    # Audio
+    'nsIDOMNotifyAudioAvailableEvent.frameBuffer',
+    'nsIDOMNotifyAudioAvailableEvent.time',
+    'nsIDOMHTMLAudioElement.mozWriteAudio',
 
     # dom/indexedDB
     'nsIIDBCursor.*',

@@ -197,8 +197,8 @@ nsXULTreeAccessible::GetRoleInternal(PRUint32 *aRole)
     cols->GetPrimaryColumn(getter_AddRefs(primaryCol));
 
   *aRole = primaryCol ?
-    nsIAccessibleRole::ROLE_OUTLINE :
-    nsIAccessibleRole::ROLE_LIST;
+    static_cast<PRUint32>(nsIAccessibleRole::ROLE_OUTLINE) :
+    static_cast<PRUint32>(nsIAccessibleRole::ROLE_LIST);
 
   return NS_OK;
 }
@@ -521,8 +521,8 @@ nsXULTreeAccessible::InvalidateCache(PRInt32 aRow, PRInt32 aCount)
     nsAccessible *accessible = mAccessibleCache.GetWeak(key);
 
     if (accessible) {
-      nsRefPtr<nsAccEvent> event =
-        new nsAccEvent(nsIAccessibleEvent::EVENT_HIDE, accessible, PR_FALSE);
+      nsRefPtr<AccEvent> event =
+        new AccEvent(nsIAccessibleEvent::EVENT_HIDE, accessible, PR_FALSE);
       nsEventShell::FireEvent(event);
 
       accessible->Shutdown();
@@ -622,8 +622,8 @@ nsXULTreeAccessible::TreeViewChanged()
   // Fire only notification destroy/create events on accessible tree to lie to
   // AT because it should be expensive to fire destroy events for each tree item
   // in cache.
-  nsRefPtr<nsAccEvent> eventDestroy =
-    new nsAccEvent(nsIAccessibleEvent::EVENT_HIDE, this, PR_FALSE);
+  nsRefPtr<AccEvent> eventDestroy =
+    new AccEvent(nsIAccessibleEvent::EVENT_HIDE, this, PR_FALSE);
   if (!eventDestroy)
     return;
 
@@ -633,8 +633,8 @@ nsXULTreeAccessible::TreeViewChanged()
 
   mTree->GetView(getter_AddRefs(mTreeView));
 
-  nsRefPtr<nsAccEvent> eventCreate =
-    new nsAccEvent(nsIAccessibleEvent::EVENT_SHOW, this, PR_FALSE);
+  nsRefPtr<AccEvent> eventCreate =
+    new AccEvent(nsIAccessibleEvent::EVENT_SHOW, this, PR_FALSE);
   if (!eventCreate)
     return;
 
@@ -989,8 +989,8 @@ nsXULTreeItemAccessibleBase::GetStateInternal(PRUint32 *aState,
     PRBool isContainerOpen;
     mTreeView->IsContainerOpen(mRow, &isContainerOpen);
     *aState |= isContainerOpen ?
-      nsIAccessibleStates::STATE_EXPANDED:
-      nsIAccessibleStates::STATE_COLLAPSED;
+      static_cast<PRUint32>(nsIAccessibleStates::STATE_EXPANDED) :
+      static_cast<PRUint32>(nsIAccessibleStates::STATE_COLLAPSED);
   }
 
   // selected state
@@ -1178,8 +1178,8 @@ nsXULTreeItemAccessible::GetRoleInternal(PRUint32 *aRole)
   columns->GetPrimaryColumn(getter_AddRefs(primaryColumn));
 
   *aRole = primaryColumn ?
-    nsIAccessibleRole::ROLE_OUTLINEITEM :
-    nsIAccessibleRole::ROLE_LISTITEM;
+    static_cast<PRUint32>(nsIAccessibleRole::ROLE_OUTLINEITEM) :
+    static_cast<PRUint32>(nsIAccessibleRole::ROLE_LISTITEM);
 
   return NS_OK;
 }

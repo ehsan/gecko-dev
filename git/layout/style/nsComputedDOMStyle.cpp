@@ -137,7 +137,7 @@ GetContainingBlockFor(nsIFrame* aFrame) {
 
 nsComputedDOMStyle::nsComputedDOMStyle()
   : mDocumentWeak(nsnull), mOuterFrame(nsnull),
-    mInnerFrame(nsnull), mPresShell(nsnull), mAppUnitsPerInch(0),
+    mInnerFrame(nsnull), mPresShell(nsnull),
     mExposeVisitedStyle(PR_FALSE)
 {
 }
@@ -239,8 +239,6 @@ nsComputedDOMStyle::Init(nsIDOMElement *aElement,
 
   nsPresContext *presCtx = aPresShell->GetPresContext();
   NS_ENSURE_TRUE(presCtx, NS_ERROR_FAILURE);
-
-  mAppUnitsPerInch = presCtx->AppUnitsPerInch();
 
   return NS_OK;
 }
@@ -2773,7 +2771,7 @@ nsComputedDOMStyle::DoGetCursor(nsIDOMCSSValue** aValue)
     }
 
     nsCOMPtr<nsIURI> uri;
-    item->mImage->GetURI(getter_AddRefs(uri));
+    item->GetImage()->GetURI(getter_AddRefs(uri));
 
     nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
     if (!val || !itemList->AppendCSSValue(val)) {
@@ -3466,7 +3464,7 @@ nsComputedDOMStyle::DoGetTop(nsIDOMCSSValue** aValue)
 nsROCSSPrimitiveValue*
 nsComputedDOMStyle::GetROCSSPrimitiveValue()
 {
-  nsROCSSPrimitiveValue *primitiveValue = new nsROCSSPrimitiveValue(mAppUnitsPerInch);
+  nsROCSSPrimitiveValue *primitiveValue = new nsROCSSPrimitiveValue();
 
   NS_ASSERTION(primitiveValue != 0, "ran out of memory");
 
@@ -3491,8 +3489,16 @@ nsComputedDOMStyle::GetOffsetWidthFor(mozilla::css::Side aSide,
 
   AssertFlushedPendingReflows();
 
+  PRUint8 position = display->mPosition;
+  if (!mOuterFrame) {
+    // GetRelativeOffset and GetAbsoluteOffset don't handle elements
+    // without frames in any sensible way.  GetStaticOffset, however,
+    // is perfect for that case.
+    position = NS_STYLE_POSITION_STATIC;
+  }
+
   nsresult rv = NS_OK;
-  switch (display->mPosition) {
+  switch (position) {
     case NS_STYLE_POSITION_STATIC:
       rv = GetStaticOffset(aSide, aValue);
       break;
@@ -3590,7 +3596,8 @@ nsComputedDOMStyle::GetRelativeOffset(mozilla::css::Side aSide,
 
   NS_ASSERTION(coord.GetUnit() == eStyleUnit_Coord ||
                coord.GetUnit() == eStyleUnit_Percent ||
-               coord.GetUnit() == eStyleUnit_Auto,
+               coord.GetUnit() == eStyleUnit_Auto ||
+               coord.IsCalcUnit(),
                "Unexpected unit");
 
   if (coord.GetUnit() == eStyleUnit_Auto) {
@@ -3797,9 +3804,8 @@ nsComputedDOMStyle::GetBorderStyleFor(mozilla::css::Side aSide, nsIDOMCSSValue**
 }
 
 struct StyleCoordSerializeCalcOps {
-  StyleCoordSerializeCalcOps(nsAString& aResult, PRInt32 aAppUnitsPerInch)
-    : mResult(aResult),
-      mAppUnitsPerInch(aAppUnitsPerInch)
+  StyleCoordSerializeCalcOps(nsAString& aResult)
+    : mResult(aResult)
   {
   }
 
@@ -3820,8 +3826,7 @@ struct StyleCoordSerializeCalcOps {
 
   void AppendLeafValue(const input_type& aValue)
   {
-    nsRefPtr<nsROCSSPrimitiveValue> val =
-      new nsROCSSPrimitiveValue(mAppUnitsPerInch);
+    nsRefPtr<nsROCSSPrimitiveValue> val = new nsROCSSPrimitiveValue();
     if (aValue.GetUnit() == eStyleUnit_Percent) {
       val->SetPercent(aValue.GetPercentValue());
     } else {
@@ -3843,7 +3848,6 @@ struct StyleCoordSerializeCalcOps {
 
 private:
   nsAString &mResult;
-  PRInt32 mAppUnitsPerInch;
 };
 
 
@@ -3908,14 +3912,17 @@ nsComputedDOMStyle::SetValueToCoord(nsROCSSPrimitiveValue* aValue,
     default:
       if (aCoord.IsCalcUnit()) {
         nscoord percentageBase;
-        if (aPercentageBaseGetter &&
-            (this->*aPercentageBaseGetter)(percentageBase)) {
+        if (!aCoord.CalcHasPercent()) {
+          nscoord val = nsRuleNode::ComputeCoordPercentCalc(aCoord, 0);
+          aValue->SetAppUnits(NS_MAX(aMinAppUnits, NS_MIN(val, aMaxAppUnits)));
+        } else if (aPercentageBaseGetter &&
+                   (this->*aPercentageBaseGetter)(percentageBase)) {
           nscoord val =
             nsRuleNode::ComputeCoordPercentCalc(aCoord, percentageBase);
           aValue->SetAppUnits(NS_MAX(aMinAppUnits, NS_MIN(val, aMaxAppUnits)));
         } else {
           nsAutoString tmp;
-          StyleCoordSerializeCalcOps ops(tmp, mAppUnitsPerInch);
+          StyleCoordSerializeCalcOps ops(tmp);
           css::SerializeCalc(aCoord, ops);
           aValue->SetString(tmp); // not really SetString
         }

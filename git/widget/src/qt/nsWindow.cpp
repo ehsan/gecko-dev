@@ -674,7 +674,7 @@ nsWindow::Update()
 QWidget* nsWindow::GetViewWidget()
 {
     NS_ASSERTION(mWidget, "Calling GetViewWidget without mWidget created");
-    if (!mWidget || !mWidget->scene())
+    if (!mWidget || !mWidget->scene() || !mWidget->scene()->views().size())
         return nsnull;
 
     NS_ASSERTION(mWidget->scene()->views().size() == 1, "Not exactly one view for our scene!");
@@ -1738,9 +1738,14 @@ nsWindow::NativeResize(PRInt32 aWidth, PRInt32 aHeight, PRBool  aRepaint)
 
     mNeedsResize = PR_FALSE;
 
-    if (mIsTopLevel) {
-      GetViewWidget()->resize( aWidth, aHeight);
+#ifndef MOZ_ENABLE_MEEGOTOUCH
+    if (mIsTopLevel && XRE_GetProcessType() == GeckoProcessType_Default) {
+        QWidget *widget = GetViewWidget();
+        NS_ENSURE_TRUE(widget,);
+        widget->resize(aWidth, aHeight);
     }
+#endif
+
     mWidget->resize( aWidth, aHeight);
 
     if (aRepaint)
@@ -1758,12 +1763,16 @@ nsWindow::NativeResize(PRInt32 aX, PRInt32 aY,
     mNeedsResize = PR_FALSE;
     mNeedsMove = PR_FALSE;
 
+#ifndef MOZ_ENABLE_MEEGOTOUCH
     if (mIsTopLevel) {
-#ifdef MOZ_ENABLE_MEEGOTOUCH
-      if (XRE_GetProcessType() != GeckoProcessType_Default)
-#endif
-      GetViewWidget()->setGeometry(aX, aY, aWidth, aHeight);
+        if (XRE_GetProcessType() == GeckoProcessType_Default) {
+            QWidget *widget = GetViewWidget();
+            NS_ENSURE_TRUE(widget,);
+            widget->setGeometry(aX, aY, aWidth, aHeight);
+        }
     }
+#endif
+
     mWidget->setGeometry(aX, aY, aWidth, aHeight);
 
     if (aRepaint)
@@ -2187,6 +2196,19 @@ nsIWidget *
 nsWindow::GetParent(void)
 {
     return mParent;
+}
+
+float
+nsWindow::GetDPI()
+{
+    QDesktopWidget* rootWindow = QApplication::desktop();
+    double heightInches = rootWindow->heightMM()/25.4;
+    if (heightInches < 0.25) {
+        // Something's broken, but we'd better not crash.
+        return 96.0f;
+    }
+
+    return float(rootWindow->height()/heightInches);
 }
 
 void

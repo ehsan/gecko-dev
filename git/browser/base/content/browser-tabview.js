@@ -139,32 +139,32 @@ let TabView = {
 
   // ----------
   updateContextMenu: function(tab, popup) {
+    let separator = document.getElementById("context_tabViewNamedGroups");
     let isEmpty = true;
 
-    while(popup.lastChild && popup.lastChild.id != "context_namedGroups")
-      popup.removeChild(popup.lastChild);
+    while (popup.firstChild && popup.firstChild != separator)
+      popup.removeChild(popup.firstChild);
 
     let self = this;
     this._initFrame(function() {
       let activeGroup = tab.tabItem.parent;
       let groupItems = self._window.GroupItems.groupItems;
-  
+
       groupItems.forEach(function(groupItem) { 
         if (groupItem.getTitle().length > 0 && 
             (!activeGroup || activeGroup.id != groupItem.id)) {
           let menuItem = self._createGroupMenuItem(groupItem);
-          popup.appendChild(menuItem);
+          popup.insertBefore(menuItem, separator);
           isEmpty = false;
         }
       });
-      document.getElementById("context_namedGroups").hidden = isEmpty;
+      separator.hidden = isEmpty;
     });
   },
 
   // ----------
   _createGroupMenuItem : function(groupItem) {
     let menuItem = document.createElement("menuitem")
-    menuItem.setAttribute("class", "group");
     menuItem.setAttribute("label", groupItem.getTitle());
     menuItem.setAttribute(
       "oncommand", 
@@ -196,8 +196,8 @@ let TabView = {
       if (!event.ctrlKey && !event.metaKey && !event.shiftKey &&
           charCode == 160) { // alt + space
 #else
-      if (event.ctrlKey && !event.metaKey && !event.shiftKey &&
-          !event.altKey && charCode == 32) { // ctrl + space
+      if (event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey && 
+          charCode == KeyEvent.DOM_VK_SPACE) { // ctrl + space
 #endif
 
         // Don't handle this event if it's coming from a node that might allow
