@@ -14,8 +14,9 @@
 
 <script class="testbody" type="text/javascript">
 
-var Cc = SpecialPowers.Cc;
-var Ci = SpecialPowers.Ci;
+netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+var Cc = Components.classes;
+var Ci = Components.interfaces;
 
 // Add some URLs to the malware database.
 var testData = "example.com/tests/toolkit/components/url-classifier/tests/mochitest/evilWorker.js";
@@ -54,6 +55,8 @@ function doUpdate(update) {
       );
     }
   };
+
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
 
   dbService.beginUpdate(listener, "test-malware-simple", "");
   dbService.beginStream("", "");

@@ -345,7 +345,7 @@ IDBKeyRange::DropJSObjects()
   mHaveCachedLowerVal = false;
   mHaveCachedUpperVal = false;
   mRooted = false;
-  mozilla::DropJSObjects(this);
+  NS_DROP_JS_OBJECTS(this, IDBKeyRange);
 }
 
 IDBKeyRange::~IDBKeyRange()
@@ -361,7 +361,7 @@ IDBKeyRange::GetLower(JSContext* aCx,
 
   if (!mHaveCachedLowerVal) {
     if (!mRooted) {
-      mozilla::HoldJSObjects(this);
+      NS_HOLD_JS_OBJECTS(this, IDBKeyRange);
       mRooted = true;
     }
 
@@ -383,7 +383,7 @@ IDBKeyRange::GetUpper(JSContext* aCx,
 
   if (!mHaveCachedUpperVal) {
     if (!mRooted) {
-      mozilla::HoldJSObjects(this);
+      NS_HOLD_JS_OBJECTS(this, IDBKeyRange);
       mRooted = true;
     }
 

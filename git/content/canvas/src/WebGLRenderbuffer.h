@@ -32,16 +32,16 @@ public:
 
     bool HasEverBeenBound() { return mHasEverBeenBound; }
     void SetHasEverBeenBound(bool x) { mHasEverBeenBound = x; }
-    GLuint GLName() const { return mGLName; }
+    WebGLuint GLName() const { return mGLName; }
 
     bool Initialized() const { return mInitialized; }
     void SetInitialized(bool aInitialized) { mInitialized = aInitialized; }
 
-    GLenum InternalFormat() const { return mInternalFormat; }
-    void SetInternalFormat(GLenum aInternalFormat) { mInternalFormat = aInternalFormat; }
+    WebGLenum InternalFormat() const { return mInternalFormat; }
+    void SetInternalFormat(WebGLenum aInternalFormat) { mInternalFormat = aInternalFormat; }
 
-    GLenum InternalFormatForGL() const { return mInternalFormatForGL; }
-    void SetInternalFormatForGL(GLenum aInternalFormatForGL) { mInternalFormatForGL = aInternalFormatForGL; }
+    WebGLenum InternalFormatForGL() const { return mInternalFormatForGL; }
+    void SetInternalFormatForGL(WebGLenum aInternalFormatForGL) { mInternalFormatForGL = aInternalFormatForGL; }
 
     int64_t MemoryUsage() const;
 
@@ -57,9 +57,9 @@ public:
 
 protected:
 
-    GLuint mGLName;
-    GLenum mInternalFormat;
-    GLenum mInternalFormatForGL;
+    WebGLuint mGLName;
+    WebGLenum mInternalFormat;
+    WebGLenum mInternalFormatForGL;
     bool mHasEverBeenBound;
     bool mInitialized;
 

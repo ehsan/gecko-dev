@@ -5,6 +5,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/LoadContext.h"
+#include "nsIScriptSecurityManager.h"
+#include "nsServiceManagerUtils.h"
+#include "mozIApplication.h"
 
 namespace mozilla {
 

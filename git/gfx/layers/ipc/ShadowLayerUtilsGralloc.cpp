@@ -22,7 +22,6 @@
 
 #include "gfxImageSurface.h"
 #include "gfxPlatform.h"
-#include "GLContext.h"
 
 #include "GeckoProfiler.h"
 

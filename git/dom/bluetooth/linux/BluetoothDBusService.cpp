@@ -178,20 +178,10 @@ static nsTArray<uint32_t> sAuthorizedServiceClass;
 static nsString sAdapterPath;
 static Atomic<int32_t> sIsPairing(0);
 static int sConnectedDeviceCount = 0;
-static StaticAutoPtr<Monitor> sStopBluetoothMonitor;
+static Monitor sStopBluetoothMonitor("BluetoothService.sStopBluetoothMonitor");
 
 typedef void (*UnpackFunc)(DBusMessage*, DBusError*, BluetoothValue&, nsAString&);
 typedef bool (*FilterFunc)(const BluetoothValue&);
-
-BluetoothDBusService::BluetoothDBusService()
-{
-  sStopBluetoothMonitor = new Monitor("BluetoothService.sStopBluetoothMonitor");
-}
-
-BluetoothDBusService::~BluetoothDBusService()
-{
-  sStopBluetoothMonitor = nullptr;
-}
 
 static bool
 GetConnectedDevicesFilter(const BluetoothValue& aValue)
@@ -1308,10 +1298,10 @@ private:
   nsString mAdapterPath;
 };
 
-class RequestPlayStatusTask : public nsRunnable
+class SendPlayStatusTask : public nsRunnable
 {
 public:
-  RequestPlayStatusTask()
+  SendPlayStatusTask()
   {
     MOZ_ASSERT(!NS_IsMainThread());
   }
@@ -1320,14 +1310,15 @@ public:
   {
     MOZ_ASSERT(NS_IsMainThread());
 
-    BluetoothSignal signal(NS_LITERAL_STRING(REQUEST_MEDIA_PLAYSTATUS_ID),
-                           NS_LITERAL_STRING(KEY_ADAPTER),
-                           InfallibleTArray<BluetoothNamedValue>());
+    BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
+    NS_ENSURE_TRUE(a2dp, NS_ERROR_FAILURE);
 
     BluetoothService* bs = BluetoothService::Get();
     NS_ENSURE_TRUE(bs, NS_ERROR_FAILURE);
-    bs->DistributeSignal(signal);
 
+    bs->UpdatePlayStatus(a2dp->GetDuration(),
+                         a2dp->GetPosition(),
+                         a2dp->GetPlayStatus());
     return NS_OK;
   }
 };
@@ -1503,13 +1494,15 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
       signal.value() = parameters;
       NS_DispatchToMainThread(new DistributeBluetoothSignalTask(signal));
     } else if (property.name().EqualsLiteral("Connected")) {
-      MonitorAutoLock lock(*sStopBluetoothMonitor);
+      MonitorAutoLock lock(sStopBluetoothMonitor);
 
       if (property.value().get_bool()) {
         ++sConnectedDeviceCount;
       } else {
         MOZ_ASSERT(sConnectedDeviceCount > 0);
-        if (--sConnectedDeviceCount == 0) {
+
+        --sConnectedDeviceCount;
+        if (sConnectedDeviceCount == 0) {
           lock.Notify();
         }
       }
@@ -1540,7 +1533,7 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
                         sSinkProperties,
                         ArrayLength(sSinkProperties));
   } else if (dbus_message_is_signal(aMsg, DBUS_CTL_IFACE, "GetPlayStatus")) {
-    NS_DispatchToMainThread(new RequestPlayStatusTask());
+    NS_DispatchToMainThread(new SendPlayStatusTask());
     return DBUS_HANDLER_RESULT_HANDLED;
   } else if (dbus_message_is_signal(aMsg, DBUS_CTL_IFACE, "PropertyChanged")) {
     ParsePropertyChange(aMsg,
@@ -1704,7 +1697,7 @@ BluetoothDBusService::StopInternal()
   MOZ_ASSERT(!NS_IsMainThread());
 
   {
-    MonitorAutoLock lock(*sStopBluetoothMonitor);
+    MonitorAutoLock lock(sStopBluetoothMonitor);
     if (sConnectedDeviceCount > 0) {
       lock.Wait(PR_SecondsToInterval(TIMEOUT_FORCE_TO_DISABLE_BT));
     }
@@ -2662,6 +2655,55 @@ BluetoothDBusService::IsConnected(const uint16_t aProfileId)
   NS_ENSURE_TRUE(profile, false);
   return profile->IsConnected();
 }
+
+class ConnectBluetoothSocketRunnable : public nsRunnable
+{
+public:
+  ConnectBluetoothSocketRunnable(BluetoothReplyRunnable* aRunnable,
+                                 UnixSocketConsumer* aConsumer,
+                                 const nsAString& aObjectPath,
+                                 const nsAString& aServiceUUID,
+                                 BluetoothSocketType aType,
+                                 bool aAuth,
+                                 bool aEncrypt,
+                                 int aChannel)
+    : mRunnable(dont_AddRef(aRunnable))
+    , mConsumer(aConsumer)
+    , mObjectPath(aObjectPath)
+    , mServiceUUID(aServiceUUID)
+    , mType(aType)
+    , mAuth(aAuth)
+    , mEncrypt(aEncrypt)
+    , mChannel(aChannel)
+  {
+  }
+
+  nsresult
+  Run()
+  {
+    MOZ_ASSERT(NS_IsMainThread());
+
+    nsString address = GetAddressFromObjectPath(mObjectPath);
+    BluetoothUnixSocketConnector* c =
+      new BluetoothUnixSocketConnector(mType, mChannel, mAuth, mEncrypt);
+    if (!mConsumer->ConnectSocket(c, NS_ConvertUTF16toUTF8(address).get())) {
+      NS_NAMED_LITERAL_STRING(errorStr, "SocketConnectionError");
+      DispatchBluetoothReply(mRunnable, BluetoothValue(), errorStr);
+      return NS_ERROR_FAILURE;
+    }
+    return NS_OK;
+  }
+
+private:
+  nsRefPtr<BluetoothReplyRunnable> mRunnable;
+  nsRefPtr<UnixSocketConsumer> mConsumer;
+  nsString mObjectPath;
+  nsString mServiceUUID;
+  BluetoothSocketType mType;
+  bool mAuth;
+  bool mEncrypt;
+  int mChannel;
+};
 
 class OnUpdateSdpRecordsRunnable : public nsRunnable
 {

@@ -94,7 +94,7 @@ Promise::Promise(nsPIDOMWindow* aWindow)
   , mHadRejectCallback(false)
 {
   MOZ_COUNT_CTOR(Promise);
-  mozilla::HoldJSObjects(this);
+  NS_HOLD_JS_OBJECTS(this, Promise);
   SetIsDOMBinding();
 
   mResolver = new PromiseResolver(this);
@@ -104,7 +104,7 @@ Promise::~Promise()
 {
   MaybeReportRejected();
   mResult = JS::UndefinedValue();
-  mozilla::DropJSObjects(this);
+  NS_DROP_JS_OBJECTS(this, Promise);
   MOZ_COUNT_DTOR(Promise);
 }
 

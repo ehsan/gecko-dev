@@ -237,7 +237,7 @@ nsXBLDocGlobalObject::GetCompilationGlobal()
   if (!mJSObject)
       return nullptr;
 
-  mozilla::HoldJSObjects(this);
+  NS_HOLD_JS_OBJECTS(this, nsXBLDocGlobalObject);
 
   // Set the location information for the new global, so that tools like
   // about:memory may use that information
@@ -259,7 +259,7 @@ nsXBLDocGlobalObject::Destroy()
   if (!mJSObject)
     return;
   mJSObject = nullptr;
-  mozilla::DropJSObjects(this);
+  NS_DROP_JS_OBJECTS(this, nsXBLDocGlobalObject);
 }
 
 
@@ -421,7 +421,7 @@ nsXBLDocumentInfo::~nsXBLDocumentInfo()
   if (mBindingTable) {
     delete mBindingTable;
     mBindingTable = nullptr;
-    mozilla::DropJSObjects(this);
+    NS_DROP_JS_OBJECTS(this, nsXBLDocumentInfo);
   }
 }
 
@@ -455,7 +455,7 @@ nsXBLDocumentInfo::SetPrototypeBinding(const nsACString& aRef, nsXBLPrototypeBin
   if (!mBindingTable) {
     mBindingTable = new nsObjectHashtable(nullptr, nullptr, DeletePrototypeBinding, nullptr);
 
-    mozilla::HoldJSObjects(this);
+    NS_HOLD_JS_OBJECTS(this, nsXBLDocumentInfo);
   }
 
   const nsPromiseFlatCString& flat = PromiseFlatCString(aRef);

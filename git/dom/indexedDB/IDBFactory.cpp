@@ -88,7 +88,7 @@ IDBFactory::~IDBFactory()
   }
   if (mRootedOwningObject) {
     mOwningObject = nullptr;
-    mozilla::DropJSObjects(this);
+    NS_DROP_JS_OBJECTS(this, IDBFactory);
   }
 }
 
@@ -231,7 +231,7 @@ IDBFactory::Create(ContentParent* aContentParent,
   rv = Create(cx, global, aContentParent, getter_AddRefs(factory));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  mozilla::HoldJSObjects(factory.get());
+  NS_HOLD_JS_OBJECTS(factory, IDBFactory);
   factory->mRootedOwningObject = true;
 
   factory.forget(aFactory);
@@ -510,7 +510,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(IDBFactory)
     tmp->mOwningObject = nullptr;
   }
   if (tmp->mRootedOwningObject) {
-    mozilla::DropJSObjects(tmp);
+    NS_DROP_JS_OBJECTS(tmp, IDBFactory);
     tmp->mRootedOwningObject = false;
   }
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mWindow)

@@ -5,8 +5,9 @@ function paintCountIs(plugin, expected, msg) {
   if (isAsync) {
     ++realExpected; // extra paint at startup for all async-rendering plugins
   } else {
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
     try {
-      if (SpecialPowers.Cc["@mozilla.org/gfx/info;1"].getService(SpecialPowers.Ci.nsIGfxInfo).D2DEnabled) {
+      if (Components.classes["@mozilla.org/gfx/info;1"].getService(Components.interfaces.nsIGfxInfo).D2DEnabled) {
         realExpected *= 2;
       }
     } catch (e) {}

@@ -4352,13 +4352,7 @@ IonCompartment::generateStringConcatStub(JSContext *cx, ExecutionMode mode)
     masm.ret();
 
     Linker linker(masm);
-    IonCode *code = linker.newCode(cx, JSC::OTHER_CODE);
-
-#ifdef JS_ION_PERF
-    writePerfSpewerIonCodeProfile(code, "StringConcatStub");
-#endif
-
-    return code;
+    return linker.newCode(cx, JSC::OTHER_CODE);
 }
 
 typedef bool (*CharCodeAtFn)(JSContext *, HandleString, int32_t, uint32_t *);
@@ -5449,10 +5443,6 @@ CodeGenerator::generateAsmJS()
         return false;
     if (!generateEpilogue())
         return false;
-#if defined(JS_ION_PERF)
-    // Note the end of the inline code and start of the OOL code.
-    gen->perfSpewer().noteEndInlineCode(masm);
-#endif
     if (!generateOutOfLineCode())
         return false;
 
@@ -5520,10 +5510,6 @@ CodeGenerator::generate()
         return false;
     if (!generateInvalidateEpilogue())
         return false;
-#if defined(JS_ION_PERF)
-    // Note the end of the inline code and start of the OOL code.
-    perfSpewer_.noteEndInlineCode(masm);
-#endif
     if (!generateOutOfLineCode())
         return false;
 
@@ -5623,10 +5609,8 @@ CodeGenerator::link()
 
     ionScript->setDeoptTable(deoptTable_);
 
-#if defined(JS_ION_PERF)
     if (PerfEnabled())
         perfSpewer_.writeProfile(script, code, masm);
-#endif
 
     // for generating inline caches during the execution.
     if (runtimeData_.length())

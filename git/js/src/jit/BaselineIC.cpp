@@ -15,7 +15,6 @@
 #include "jit/BaselineJIT.h"
 #include "jit/IonLinker.h"
 #include "jit/IonSpewer.h"
-#include "jit/PerfSpewer.h"
 #include "jit/VMFunctions.h"
 
 #include "jsboolinlines.h"
@@ -561,10 +560,6 @@ ICStubCompiler::getStubCode()
         return NULL;
 
     JS_ASSERT(entersStubFrame_ == ICStub::CanMakeCalls(kind));
-
-#ifdef JS_ION_PERF
-    writePerfSpewerIonCodeProfile(newStubCode, "BaselineIC");
-#endif
 
     return newStubCode;
 }

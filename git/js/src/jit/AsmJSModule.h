@@ -16,7 +16,9 @@
 #include "gc/Marking.h"
 #include "jit/AsmJS.h"
 #include "jit/IonMacroAssembler.h"
-#include "jit/PerfSpewer.h"
+#if defined(JS_ION_PERF)
+# include "jit/PerfSpewer.h"
+#endif
 #include "jit/RegisterSets.h"
 
 namespace js {
@@ -278,20 +280,16 @@ class AsmJSModule
 #if defined(JS_ION_PERF)
     struct ProfiledBlocksFunction : public ProfiledFunction
     {
-        unsigned endInlineCodeOffset;
-        jit::BasicBlocksVector blocks;
+        jit::PerfSpewer::BasicBlocksVector blocks;
 
-        ProfiledBlocksFunction(JSAtom *name, unsigned start, unsigned endInline, unsigned end,
-                               jit::BasicBlocksVector &blocksVector)
-          : ProfiledFunction(name, start, end), endInlineCodeOffset(endInline),
-            blocks(mozilla::OldMove(blocksVector))
-        {
-            JS_ASSERT(name->isTenured());
-        }
+        ProfiledBlocksFunction(JSAtom *name, unsigned start, unsigned end,
+                               jit::PerfSpewer::BasicBlocksVector &blocksVector)
+          : ProfiledFunction(name, start, end), blocks(mozilla::OldMove(blocksVector))
+        { }
 
         ProfiledBlocksFunction(const ProfiledBlocksFunction &copy)
           : ProfiledFunction(copy.name, copy.startCodeOffset, copy.endCodeOffset),
-            endInlineCodeOffset(copy.endInlineCodeOffset), blocks(mozilla::OldMove(copy.blocks))
+            blocks(mozilla::OldMove(copy.blocks))
         { }
     };
 #endif
@@ -478,7 +476,7 @@ class AsmJSModule
     unsigned numProfiledFunctions() const {
         return profiledFunctions_.length();
     }
-    ProfiledFunction &profiledFunction(unsigned i) {
+    const ProfiledFunction &profiledFunction(unsigned i) const {
         return profiledFunctions_[i];
     }
 #endif
@@ -492,19 +490,18 @@ class AsmJSModule
     unsigned numPerfFunctions() const {
         return profiledFunctions_.length();
     }
-    ProfiledFunction &perfProfiledFunction(unsigned i) {
+    const ProfiledFunction &perfProfiledFunction(unsigned i) const {
         return profiledFunctions_[i];
     }
 
-    bool trackPerfProfiledBlocks(JSAtom *name, unsigned startCodeOffset, unsigned endInlineCodeOffset,
-                                 unsigned endCodeOffset, jit::BasicBlocksVector &basicBlocks) {
-        ProfiledBlocksFunction func(name, startCodeOffset, endInlineCodeOffset, endCodeOffset, basicBlocks);
+    bool trackPerfProfiledBlocks(JSAtom *name, unsigned startCodeOffset, unsigned endCodeOffset, jit::PerfSpewer::BasicBlocksVector &basicBlocks) {
+        ProfiledBlocksFunction func(name, startCodeOffset, endCodeOffset, basicBlocks);
         return perfProfiledBlocksFunctions_.append(func);
     }
     unsigned numPerfBlocksFunctions() const {
         return perfProfiledBlocksFunctions_.length();
     }
-    ProfiledBlocksFunction &perfProfiledBlocksFunction(unsigned i) {
+    const ProfiledBlocksFunction perfProfiledBlocksFunction(unsigned i) const {
         return perfProfiledBlocksFunctions_[i];
     }
 #endif

@@ -22,8 +22,9 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=732413
     aPrincipal is the system principal.
  **/
 
-const nsIScriptSecurityManager = SpecialPowers.Ci.nsIScriptSecurityManager;
-var secMan = SpecialPowers.Cc["@mozilla.org/scriptsecuritymanager;1"]
+netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+const nsIScriptSecurityManager = Components.interfaces.nsIScriptSecurityManager;
+var secMan = Components.classes["@mozilla.org/scriptsecuritymanager;1"]
                        .getService(nsIScriptSecurityManager);
 var sysPrincipal = secMan.getSystemPrincipal();
 isnot(sysPrincipal, undefined, "Should have a principal");
@@ -32,8 +33,8 @@ is(secMan.isSystemPrincipal(sysPrincipal), true,
    "Should have system principal here");
 
 
-var ioService = SpecialPowers.Cc["@mozilla.org/network/io-service;1"].
-                getService(SpecialPowers.Ci.nsIIOService);
+var ioService = Components.classes["@mozilla.org/network/io-service;1"].
+                getService(Components.interfaces.nsIIOService);
 var inheritingURI = ioService.newURI("javascript:1+1", null, null);
 
 // First try a normal call to checkLoadURIWithPrincipal

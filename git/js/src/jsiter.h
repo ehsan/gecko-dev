@@ -351,6 +351,13 @@ struct JSGenerator
 extern JSObject *
 js_NewGenerator(JSContext *cx, const js::FrameRegs &regs);
 
+namespace js {
+
+bool
+GeneratorHasMarkableFrame(JSGenerator *gen);
+
+} /* namespace js */
+
 extern JSObject *
 js_InitIteratorClasses(JSContext *cx, js::HandleObject obj);
 

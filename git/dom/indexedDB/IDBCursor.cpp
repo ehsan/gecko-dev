@@ -324,7 +324,7 @@ IDBCursor::CreateCommon(IDBRequest* aRequest,
   cursor->mScriptOwner = database->GetScriptOwner();
 
   if (cursor->mScriptOwner) {
-    mozilla::HoldJSObjects(cursor.get());
+    NS_HOLD_JS_OBJECTS(cursor, IDBCursor);
     cursor->mRooted = true;
   }
 
@@ -390,7 +390,7 @@ IDBCursor::DropJSObjects()
   mHaveCachedValue = false;
   mRooted = false;
   mHaveValue = false;
-  mozilla::DropJSObjects(this);
+  NS_DROP_JS_OBJECTS(this, IDBCursor);
 }
 
 void
@@ -546,7 +546,7 @@ IDBCursor::GetKey(JSContext* aCx, ErrorResult& aRv)
 
   if (!mHaveCachedKey) {
     if (!mRooted) {
-      mozilla::HoldJSObjects(this);
+      NS_HOLD_JS_OBJECTS(this, IDBCursor);
       mRooted = true;
     }
 
@@ -570,7 +570,7 @@ IDBCursor::GetPrimaryKey(JSContext* aCx, ErrorResult& aRv)
 
   if (!mHaveCachedPrimaryKey) {
     if (!mRooted) {
-      mozilla::HoldJSObjects(this);
+      NS_HOLD_JS_OBJECTS(this, IDBCursor);
       mRooted = true;
     }
 
@@ -602,7 +602,7 @@ IDBCursor::GetValue(JSContext* aCx, ErrorResult& aRv)
 
   if (!mHaveCachedValue) {
     if (!mRooted) {
-      mozilla::HoldJSObjects(this);
+      NS_HOLD_JS_OBJECTS(this, IDBCursor);
       mRooted = true;
     }
 

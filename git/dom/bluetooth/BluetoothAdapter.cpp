@@ -6,6 +6,7 @@
 
 #include "base/basictypes.h"
 #include "GeneratedEvents.h"
+#include "nsContentUtils.h"
 #include "nsCxPusher.h"
 #include "nsDOMClassInfo.h"
 #include "nsIDOMBluetoothDeviceEvent.h"
@@ -204,7 +205,7 @@ BluetoothAdapter::Unroot()
   }
   mJsUuids = nullptr;
   mJsDeviceAddresses = nullptr;
-  mozilla::DropJSObjects(this);
+  NS_DROP_JS_OBJECTS(this, BluetoothAdapter);
   mIsRooted = false;
 }
 
@@ -214,7 +215,7 @@ BluetoothAdapter::Root()
   if (mIsRooted) {
     return;
   }
-  mozilla::HoldJSObjects(this);
+  NS_HOLD_JS_OBJECTS(this, BluetoothAdapter);
   mIsRooted = true;
 }
 
@@ -344,15 +345,6 @@ BluetoothAdapter::Notify(const BluetoothSignal& aData)
     nsCOMPtr<nsIDOMBluetoothStatusChangedEvent> e = do_QueryInterface(event);
     e->InitBluetoothStatusChangedEvent(aData.name(), false, false,
                                        address, status);
-    DispatchTrustedEvent(event);
-  } else if (aData.name().EqualsLiteral(REQUEST_MEDIA_PLAYSTATUS_ID)) {
-    nsCOMPtr<nsIDOMEvent> event;
-    nsresult rv = NS_NewDOMEvent(getter_AddRefs(event), this, nullptr, nullptr);
-    NS_ENSURE_SUCCESS_VOID(rv);
-
-    rv = event->InitEvent(aData.name(), false, false);
-    NS_ENSURE_SUCCESS_VOID(rv);
-
     DispatchTrustedEvent(event);
   } else {
 #ifdef DEBUG

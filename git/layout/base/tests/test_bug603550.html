@@ -53,8 +53,9 @@ function fireEvent(target, event) {
 }
 
 function fireDrop(element) {
-  var ds = SpecialPowers.Cc["@mozilla.org/widget/dragservice;1"].
-    getService(SpecialPowers.Ci.nsIDragService);
+  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+  var ds = Components.classes["@mozilla.org/widget/dragservice;1"].
+    getService(Components.interfaces.nsIDragService);
 
   ds.startDragSession();
 

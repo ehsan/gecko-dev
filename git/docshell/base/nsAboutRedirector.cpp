@@ -6,6 +6,8 @@
 
 #include "nsAboutRedirector.h"
 #include "nsNetUtil.h"
+#include "plstr.h"
+#include "nsIScriptSecurityManager.h"
 #include "nsAboutProtocolUtils.h"
 
 NS_IMPL_ISUPPORTS1(nsAboutRedirector, nsIAboutModule)

@@ -6,8 +6,9 @@
 #ifndef GFX_CANVASLAYEROGL_H
 #define GFX_CANVASLAYEROGL_H
 
-#include "GLContextTypes.h"             // for GLContext
-#include "GLDefs.h"                     // for GLuint, LOCAL_GL_TEXTURE_2D
+#include "GLContext.h"                  // for GLContext
+#include "GLContextTypes.h"             // for GLuint, GLenum
+#include "GLDefs.h"                     // for LOCAL_GL_TEXTURE_2D
 #include "LayerManagerOGL.h"            // for LayerOGL::GLContext, etc
 #include "Layers.h"                     // for CanvasLayer, etc
 #include "gfxASurface.h"                // for gfxASurface, etc

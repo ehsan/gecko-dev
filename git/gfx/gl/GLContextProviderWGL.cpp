@@ -30,9 +30,9 @@ typedef WGLLibrary::LibraryType LibType;
 WGLLibrary sWGLLib[WGLLibrary::LIBS_MAX];
 
 LibType
-WGLLibrary::SelectLibrary(const ContextFlags& aFlags)
+WGLLibrary::SelectLibrary(const GLContext::ContextFlags& aFlags)
 {
-  return (aFlags & ContextFlagsMesaLLVMPipe) 
+  return (aFlags & GLContext::ContextFlagsMesaLLVMPipe) 
           ? WGLLibrary::MESA_LLVMPIPE_LIB
           : WGLLibrary::OPENGL_LIB;
 }
@@ -234,10 +234,10 @@ WGLLibrary::EnsureInitialized(bool aUseMesaLlvmPipe)
 
     mInitialized = true;
 
-    ContextFlags flag = ContextFlagsNone;
+    GLContext::ContextFlags flag = GLContext::ContextFlagsNone;
     if (aUseMesaLlvmPipe) {
       mLibType = WGLLibrary::MESA_LLVMPIPE_LIB;
-      flag = ContextFlagsMesaLLVMPipe;
+      flag = GLContext::ContextFlagsMesaLLVMPipe;
     }
 
     // Call this to create the global GLContext instance,
@@ -439,7 +439,7 @@ GLContextWGL::ResizeOffscreen(const gfxIntSize& aNewSize)
 }
 
 static GLContextWGL *
-GetGlobalContextWGL(const ContextFlags aFlags = ContextFlagsNone)
+GetGlobalContextWGL(const GLContext::ContextFlags aFlags = GLContext::ContextFlagsNone)
 {
     return static_cast<GLContextWGL*>(GLContextProviderWGL::GetGlobalContext(aFlags));
 }
@@ -603,7 +603,7 @@ CreatePBufferOffscreenContext(const gfxIntSize& aSize,
 }
 
 static already_AddRefed<GLContextWGL>
-CreateWindowOffscreenContext(ContextFlags aFlags)
+CreateWindowOffscreenContext(GLContext::ContextFlags aFlags)
 {
     // CreateWindowOffscreenContext must return a global-shared context
     GLContextWGL *shareContext = GetGlobalContextWGL(aFlags);
@@ -693,15 +693,15 @@ GLContextProviderWGL::CreateOffscreen(const gfxIntSize& size,
 }
 
 SharedTextureHandle
-GLContextProviderWGL::CreateSharedHandle(SharedTextureShareType shareType,
+GLContextProviderWGL::CreateSharedHandle(GLContext::SharedTextureShareType shareType,
                                          void* buffer,
-                                         SharedTextureBufferType bufferType)
+                                         GLContext::SharedTextureBufferType bufferType)
 {
   return 0;
 }
 
 already_AddRefed<gfxASurface>
-GLContextProviderWGL::GetSharedHandleAsSurface(SharedTextureShareType shareType,
+GLContextProviderWGL::GetSharedHandleAsSurface(GLContext::SharedTextureShareType shareType,
                                                SharedTextureHandle sharedHandle)
 {
   return nullptr;
