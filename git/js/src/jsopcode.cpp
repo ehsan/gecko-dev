@@ -1620,8 +1620,6 @@ ExpressionDecompiler::decompilePC(jsbytecode *pc)
             return false;
         return write(str);
       }
-      case JSOP_VOID:
-        return write("void ") && decompilePCForStackOperand(pc, -1);
       default:
         break;
     }

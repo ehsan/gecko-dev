@@ -114,8 +114,6 @@
  *   install completes.
  */
 
-'use strict';
-
 Components.utils.import("resource://gre/modules/AddonManager.jsm");
 
 // The tests have to use the pageid instead of the pageIndex due to the
@@ -160,14 +158,13 @@ const PREF_APP_UPDATE_LASTUPDATETIME = "app.update.lastUpdateTime.background-upd
 // from interefering with the tests.
 const PREF_DISABLEDADDONS = "app.update.test.disabledAddons";
 const PREF_EM_HOTFIX_ID = "extensions.hotfix.id";
+const PREF_EM_SILENT = "app.update.silent";
 const TEST_ADDONS = [ "appdisabled_1", "appdisabled_2",
                       "compatible_1", "compatible_2",
                       "noupdate_1", "noupdate_2",
                       "updatecompatibility_1", "updatecompatibility_2",
                       "updateversion_1", "updateversion_2",
                       "userdisabled_1", "userdisabled_2", "hotfix" ];
-
-const LOG_FUNCTION = info;
 
 var gURLData = URL_HOST + "/" + REL_PATH_DATA + "/";
 
@@ -662,11 +659,10 @@ function waitForRemoteContentLoaded(aEvent) {
   // expected or isn't the event's originalTarget.
   if (gRemoteContentState != gTest.expectedRemoteContentState ||
       aEvent.originalTarget != gRemoteContent) {
-    debugDump("returning early. " +
-              "gRemoteContentState: " +
-              gRemoteContentState + ", " +
+    debugDump("returning early\n" +
+              "gRemoteContentState: " + gRemoteContentState + "\n" +
               "expectedRemoteContentState: " +
-              gTest.expectedRemoteContentState + ", " +
+              gTest.expectedRemoteContentState + "\n" +
               "aEvent.originalTarget.nodeName: " +
               aEvent.originalTarget.nodeName);
     return true;
@@ -926,9 +922,9 @@ function setupPrefs() {
 
   Services.prefs.setIntPref(PREF_APP_UPDATE_IDLETIME, 0);
   Services.prefs.setIntPref(PREF_APP_UPDATE_PROMPTWAITTIME, 0);
-  Services.prefs.setBoolPref(PREF_APP_UPDATE_SILENT, false);
   Services.prefs.setBoolPref(PREF_EXTENSIONS_STRICT_COMPAT, true);
   Services.prefs.setCharPref(PREF_EM_HOTFIX_ID, "hotfix" + ADDON_ID_SUFFIX);
+  Services.prefs.setBoolPref(PREF_EM_SILENT, false);
 }
 
 /**
@@ -958,8 +954,9 @@ function resetFiles() {
       removeDirRecursive(updatedDir);
     }
     catch (e) {
-      logTestInfo("Unable to remove directory. Path: " + updatedDir.path +
-                  ", Exception: " + e);
+      dump("Unable to remove directory\n" +
+           "path: " + updatedDir.path + "\n" +
+           "Exception: " + e + "\n");
     }
   }
 }
@@ -1081,16 +1078,16 @@ function resetPrefs() {
   catch(e) {
   }
 
-  if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_SILENT)) {
-    Services.prefs.clearUserPref(PREF_APP_UPDATE_SILENT);
-  }
-
   if (Services.prefs.prefHasUserValue(PREF_EXTENSIONS_STRICT_COMPAT)) {
 		Services.prefs.clearUserPref(PREF_EXTENSIONS_STRICT_COMPAT);
   }
 
   if (Services.prefs.prefHasUserValue(PREF_EM_HOTFIX_ID)) {
     Services.prefs.clearUserPref(PREF_EM_HOTFIX_ID);
+  }
+
+  if (Services.prefs.prefHasUserValue(PREF_EM_SILENT)) {
+    Services.prefs.clearUserPref(PREF_EM_SILENT);
   }
 }
 
@@ -1190,7 +1187,7 @@ function setupAddons(aCallback) {
 
         if (--xpiCount == 0) {
           let installCount = installs.length;
-          let installCompleted = function(aInstall) {
+          function installCompleted(aInstall) {
             aInstall.removeListener(listener);
 
             if (getAddonTestType(aInstall.addon.name) == "userdisabled") {
@@ -1199,7 +1196,7 @@ function setupAddons(aCallback) {
             if (--installCount == 0) {
               setNoUpdateAddonsDisabledState();
             }
-          };
+          }
 
           let listener = {
             onDownloadFailed: installCompleted,

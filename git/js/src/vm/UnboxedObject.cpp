@@ -87,8 +87,7 @@ UnboxedPlainObject::setValue(JSContext *cx, const UnboxedLayout::Property &prope
 
       case JSVAL_TYPE_STRING:
         if (v.isString()) {
-            MOZ_ASSERT(!IsInsideNursery(v.toString()));
-            *reinterpret_cast<PreBarrieredString*>(p) = v.toString();
+            *reinterpret_cast<HeapPtrString*>(p) = v.toString();
             return true;
         }
         return false;
@@ -100,14 +99,7 @@ UnboxedPlainObject::setValue(JSContext *cx, const UnboxedLayout::Property &prope
             // created.
             AddTypePropertyId(cx, this, NameToId(property.name), v);
 
-            // Manually trigger post barriers on the whole object. If we treat
-            // the pointer as a HeapPtrObject we will get confused later if the
-            // object is converted to its native representation.
-            JSObject *obj = v.toObjectOrNull();
-            if (IsInsideNursery(v.toObjectOrNull()) && !IsInsideNursery(this))
-                cx->runtime()->gc.storeBuffer.putWholeCellFromMainThread(this);
-
-            *reinterpret_cast<PreBarrieredObject*>(p) = obj;
+            *reinterpret_cast<HeapPtrObject*>(p) = v.toObjectOrNull();
             return true;
         }
         return false;
@@ -146,7 +138,7 @@ UnboxedPlainObject::getValue(const UnboxedLayout::Property &property)
 void
 UnboxedPlainObject::trace(JSTracer *trc, JSObject *obj)
 {
-    const UnboxedLayout &layout = obj->as<UnboxedPlainObject>().layoutDontCheckGeneration();
+    const UnboxedLayout &layout = obj->as<UnboxedPlainObject>().layout();
     const int32_t *list = layout.traceList();
     if (!list)
         return;

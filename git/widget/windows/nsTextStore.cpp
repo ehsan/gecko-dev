@@ -1173,11 +1173,11 @@ bool nsTextStore::sDoNotReturnNoLayoutErrorToEasyChangjei = false;
 #define TEXTSTORE_DEFAULT_VIEW (1)
 
 nsTextStore::nsTextStore()
-  : mEditCookie(0)
+  : mLockedContent(mComposition, mSelection)
+  , mEditCookie(0)
   , mSinkMask(0)
   , mLock(0)
   , mLockQueued(0)
-  , mLockedContent(mComposition, mSelection)
   , mRequestedAttrValues(false)
   , mIsRecordingActionsWithoutLock(false)
   , mPendingOnSelectionChange(false)

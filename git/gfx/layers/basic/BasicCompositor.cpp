@@ -48,6 +48,8 @@ public:
                       nsIntRegion* aDestRegion = nullptr,
                       gfx::IntPoint* aSrcOffset = nullptr) MOZ_OVERRIDE
   {
+    // XXX - For this to work with IncrementalContentHost we will need to support
+    // the aDestRegion and aSrcOffset parameters properly;
     mSurface = aSurface;
     return true;
   }

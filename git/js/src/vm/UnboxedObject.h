@@ -176,10 +176,6 @@ class UnboxedPlainObject : public JSObject
         return group()->unboxedLayout();
     }
 
-    const UnboxedLayout &layoutDontCheckGeneration() const {
-        return group()->unboxedLayoutDontCheckGeneration();
-    }
-
     uint8_t *data() {
         return &data_[0];
     }
