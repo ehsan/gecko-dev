@@ -225,8 +225,11 @@ MmsConnection.prototype = {
   mmsPort:  -1,
 
   setApnSetting: function(network) {
-    this.mmsc = network.mmsc;
-    this.mmsProxy = network.mmsProxy;
+    // Workaround an xpconnect issue with undefined string objects. See bug 808220.
+    this.mmsc =
+      (network.mmsc === "undefined") ? undefined : network.mmsc;
+    this.mmsProxy =
+      (network.mmsProxy === "undefined") ? undefined : network.mmsProxy;
     this.mmsPort = network.mmsPort;
   },
 
@@ -363,6 +366,12 @@ MmsConnection.prototype = {
       return null;
     }
 
+    // Workaround an xpconnect issue with undefined string objects.
+    // See bug 808220
+    if (number === undefined || number === "undefined") {
+      return null;
+    }
+
     return number;
   },
 
@@ -376,7 +385,15 @@ MmsConnection.prototype = {
       return null;
     }
 
-    return iccInfo.iccid;
+    let iccId = iccInfo.iccid;
+
+    // Workaround an xpconnect issue with undefined string objects.
+    // See bug 808220
+    if (iccId === undefined || iccId === "undefined") {
+      return null;
+    }
+
+    return iccId;
   },
 
   /**

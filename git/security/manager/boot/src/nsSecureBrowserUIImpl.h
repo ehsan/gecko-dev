@@ -98,12 +98,14 @@ protected:
 
   static already_AddRefed<nsISupports> ExtractSecurityInfo(nsIRequest* aRequest);
   nsresult MapInternalToExternalState(uint32_t* aState, lockIconState lock, bool ev);
-  void UpdateSecurityState(nsIRequest* aRequest, bool withNewLocation,
-                           bool withUpdateStatus);
-  void TellTheWorld(nsIRequest* aRequest);
+  nsresult UpdateSecurityState(nsIRequest* aRequest, bool withNewLocation,
+                               bool withUpdateStatus);
+  bool UpdateMyFlags(lockIconState &warnSecurityState);
+  nsresult TellTheWorld(lockIconState warnSecurityState, 
+                        nsIRequest* aRequest);
 
-  void EvaluateAndUpdateSecurityState(nsIRequest* aRequest, nsISupports *info,
-                                      bool withNewLocation, bool withNewSink);
+  nsresult EvaluateAndUpdateSecurityState(nsIRequest* aRequest, nsISupports *info,
+                                          bool withNewLocation, bool withNewSink);
   void UpdateSubrequestMembers(nsISupports* securityInfo, nsIRequest* request);
 
   void ObtainEventSink(nsIChannel *channel, 

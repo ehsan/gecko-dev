@@ -1134,7 +1134,7 @@ nsLayoutUtils::GetChildListNameFor(nsIFrame* aChildFrame)
       }
     } else if (nsGkAtoms::tableColGroupFrame == childType) {
       id = nsIFrame::kColGroupList;
-    } else if (aChildFrame->IsTableCaption()) {
+    } else if (nsGkAtoms::tableCaptionFrame == childType) {
       id = nsIFrame::kCaptionList;
     } else {
       id = nsIFrame::kPrincipalList;

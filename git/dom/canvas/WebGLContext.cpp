@@ -1807,9 +1807,6 @@ WebGLContext::TexImageFromVideoElement(const TexImageTarget texImageTarget,
 
     gl->MakeCurrent();
     nsRefPtr<mozilla::layers::Image> srcImage = container->LockCurrentImage();
-    if (!srcImage)
-        return false;
-
     WebGLTexture* tex = ActiveBoundTextureForTexImageTarget(texImageTarget);
 
     const WebGLTexture::ImageInfo& info = tex->ImageInfoAt(texImageTarget, 0);
