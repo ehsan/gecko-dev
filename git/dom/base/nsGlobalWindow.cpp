@@ -1763,10 +1763,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGlobalWindow)
   }
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mLocalStorage)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mSessionStorage)
-  if (tmp->mApplicationCache) {
-    static_cast<nsDOMOfflineResourceList*>(tmp->mApplicationCache.get())->Disconnect();
-    NS_IMPL_CYCLE_COLLECTION_UNLINK(mApplicationCache)
-  }
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mApplicationCache)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mDocumentPrincipal)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mDoc)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mIdleService)
