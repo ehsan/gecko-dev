@@ -392,9 +392,7 @@ gfxWindowsPlatform::UpdateRenderMode()
     }
 
     ID3D11Device *device = GetD3D11Device();
-    if (isVistaOrHigher && !safeMode && tryD2D &&
-        device &&
-        device->GetFeatureLevel() >= D3D_FEATURE_LEVEL_10_0 &&
+    if (isVistaOrHigher && !safeMode && tryD2D && device &&
         DoesD3D11DeviceSupportResourceSharing(device)) {
 
         VerifyD2DDevice(d2dForceEnabled);

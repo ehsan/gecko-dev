@@ -10,8 +10,6 @@
 #include <vector>
 
 #include "ClearKeyUtils.h"
-#include "mozilla/ArrayUtils.h"
-#include "mozilla/Assertions.h"
 #include "mozilla/Endian.h"
 #include "mozilla/NullPtr.h"
 #include "openaes/oaes_lib.h"
@@ -97,7 +95,7 @@ EncodeBase64Web(vector<uint8_t> aBinary, string& aEncoded)
 
   auto out = aEncoded.begin();
   auto data = aBinary.begin();
-  for (string::size_type i = 0; i < aEncoded.length(); i++) {
+  for (int i = 0; i < aEncoded.length(); i++) {
     if (shift) {
       out[i] = (*data << (6 - shift)) & sMask;
       data++;
@@ -108,12 +106,7 @@ EncodeBase64Web(vector<uint8_t> aBinary, string& aEncoded)
     out[i] += (*data >> (shift + 2)) & sMask;
     shift = (shift + 2) % 8;
 
-    // Cast idx to size_t before using it as an array-index,
-    // to pacify clang 'Wchar-subscripts' warning:
-    size_t idx = static_cast<size_t>(out[i]);
-    MOZ_ASSERT(idx < MOZ_ARRAY_LENGTH(sAlphabet),
-               "out of bounds index for 'sAlphabet'");
-    out[i] = sAlphabet[idx];
+    out[i] = sAlphabet[out[i]];
   }
 
   return true;

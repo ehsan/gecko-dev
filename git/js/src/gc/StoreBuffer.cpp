@@ -303,7 +303,7 @@ void
 StoreBuffer::setAboutToOverflow()
 {
     aboutToOverflow_ = true;
-    runtime_->gc.requestMinorGC(JS::gcreason::FULL_STORE_BUFFER);
+    runtime_->requestInterrupt(JSRuntime::RequestInterruptMainThread);
 }
 
 bool

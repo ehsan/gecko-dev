@@ -48,8 +48,6 @@ SharedSurface_Basic::Create(GLContext* gl,
         break;
     case LOCAL_GL_RGBA:
     case LOCAL_GL_RGBA8:
-    case LOCAL_GL_BGRA:
-    case LOCAL_GL_BGRA8_EXT:
         format = SurfaceFormat::B8G8R8A8;
         break;
     default:

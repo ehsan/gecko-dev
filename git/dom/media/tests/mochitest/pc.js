@@ -1303,8 +1303,6 @@ DataChannelTest.prototype = Object.create(PeerConnectionTest.prototype, {
           is(channel.readyState, "open", peer + " dataChannels[0] switched to state: 'open'");
           dcOpened = true;
           onSuccess();
-        } else {
-          info("dataChannelConnected() called, but data channel was open already");
         }
       }
 
@@ -2608,12 +2606,11 @@ PeerConnectionWrapper.prototype = {
    *        Callback to execute when the data channel has been opened
    */
   registerDataChannelOpenEvents : function (onDataChannelOpened) {
-    info(this + ": Register callback for 'ondatachannel'");
+    info(this + ": Register callbacks for 'ondatachannel' and 'onopen'");
 
     this.ondatachannel = function (targetChannel) {
-      this.dataChannels.push(targetChannel);
-      info(this + ": 'ondatachannel' fired, registering 'onopen' callback");
       targetChannel.onopen = onDataChannelOpened;
+      this.dataChannels.push(targetChannel);
     };
   },
 

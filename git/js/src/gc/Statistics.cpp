@@ -766,8 +766,7 @@ Statistics::beginSlice(const ZoneGCStats &zoneStats, JS::gcreason::Reason reason
         beginGC();
 
     SliceData data(reason, PRMJ_Now(), GetPageFaultCount());
-    if (!slices.append(data))
-        CrashAtUnhandlableOOM("Failed to allocate statistics slice.");
+    (void) slices.append(data); /* Ignore any OOMs here. */
 
     if (JSAccumulateTelemetryDataCallback cb = runtime->telemetryCallback)
         (*cb)(JS_TELEMETRY_GC_REASON, reason);
