@@ -124,15 +124,19 @@ struct Class;
 
 class RegExpObject;
 class RegExpPrivate;
+class RegExpObjectBuilder;
 class RegExpStatics;
 class MatchPairs;
 
 enum RegExpFlag
 {
-    IgnoreCaseFlag  = JS_BIT(0),
-    GlobalFlag      = JS_BIT(1),
-    MultilineFlag   = JS_BIT(2),
-    StickyFlag      = JS_BIT(3)
+    IgnoreCaseFlag  = 0x01,
+    GlobalFlag      = 0x02,
+    MultilineFlag   = 0x04,
+    StickyFlag      = 0x08,
+
+    NoFlags         = 0x00,
+    AllFlags        = 0x0f
 };
 
 enum RegExpExecType
@@ -158,8 +162,7 @@ class FrameRegsIter;
 class CallReceiver;
 class CallArgs;
 
-struct BytecodeCompiler;
-struct CodeGenerator;
+struct BytecodeEmitter;
 struct Definition;
 struct FunctionBox;
 struct ObjectBox;
@@ -229,6 +232,9 @@ typedef HashMap<jsbytecode *, BreakpointSite *, DefaultHasher<jsbytecode *>, Run
     BreakpointSiteMap;
 class Debugger;
 class WatchpointMap;
+
+typedef HashMap<JSAtom *, RegExpPrivate *, DefaultHasher<JSAtom *>, RuntimeAllocPolicy>
+    RegExpPrivateCache;
 
 typedef JSNative             Native;
 typedef JSPropertyOp         PropertyOp;

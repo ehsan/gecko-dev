@@ -119,6 +119,7 @@
 #include "nsSVGIntegrationUtils.h"
 #include "nsSVGEffects.h"
 #include "nsChangeHint.h"
+#include "nsDeckFrame.h"
 
 #include "gfxContext.h"
 #include "CSSCalc.h"
@@ -280,6 +281,67 @@ void
 nsIFrame::MarkAsAbsoluteContainingBlock() {
   AddStateBits(NS_FRAME_HAS_ABSPOS_CHILDREN);
   Properties().Set(AbsoluteContainingBlockProperty(), new nsAbsoluteContainingBlock(GetAbsoluteListID()));
+}
+
+bool
+nsIFrame::CheckAndClearPaintedState()
+{
+  bool result = (GetStateBits() & NS_FRAME_PAINTED_THEBES);
+  RemoveStateBits(NS_FRAME_PAINTED_THEBES);
+  
+  nsIFrame::ChildListIterator lists(this);
+  for (; !lists.IsDone(); lists.Next()) {
+    nsFrameList::Enumerator childFrames(lists.CurrentList());
+    for (; !childFrames.AtEnd(); childFrames.Next()) {
+      nsIFrame* child = childFrames.get();
+      if (child->CheckAndClearPaintedState()) {
+        result = true;
+      }
+    }
+  }
+  return result;
+}
+
+bool
+nsIFrame::IsVisibleConsideringAncestors(PRUint32 aFlags) const
+{
+  if (!GetStyleVisibility()->IsVisible()) {
+    return false;
+  }
+
+  const nsIFrame* frame = this;
+  while (frame) {
+    nsIView* view = frame->GetView();
+    if (view && view->GetVisibility() == nsViewVisibility_kHide)
+      return false;
+    
+    nsIFrame* parent = frame->GetParent();
+    nsDeckFrame* deck = do_QueryFrame(parent);
+    if (deck) {
+      if (deck->GetSelectedBox() != frame)
+        return false;
+    }
+
+    if (parent) {
+      frame = parent;
+    } else {
+      parent = nsLayoutUtils::GetCrossDocParentFrame(frame);
+      if (!parent)
+        break;
+
+      if ((aFlags & nsIFrame::VISIBILITY_CROSS_CHROME_CONTENT_BOUNDARY) == 0 &&
+          parent->PresContext()->IsChrome() && !frame->PresContext()->IsChrome()) {
+        break;
+      }
+
+      if (!parent->GetStyleVisibility()->IsVisible())
+        return false;
+
+      frame = parent;
+    }
+  }
+
+  return true;
 }
 
 static bool ApplyOverflowClipping(nsDisplayListBuilder* aBuilder,
@@ -1800,17 +1862,15 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
   if (aBuilder->IsBackgroundOnly())
     return NS_OK;
 
-  if (aChild->GetStateBits() & NS_FRAME_TOO_DEEP_IN_FRAME_TREE)
+  nsIFrame* child = aChild;
+  if (child->GetStateBits() & NS_FRAME_TOO_DEEP_IN_FRAME_TREE)
     return NS_OK;
 
-  const nsStyleDisplay* disp = aChild->GetStyleDisplay();
   // true if this is a real or pseudo stacking context
   bool pseudoStackingContext =
     (aFlags & DISPLAY_CHILD_FORCE_PSEUDO_STACKING_CONTEXT) != 0;
-  // XXX we REALLY need a "are you an inline-block sort of thing?" here!!!
   if ((aFlags & DISPLAY_CHILD_INLINE) &&
-      (disp->mDisplay != NS_STYLE_DISPLAY_INLINE ||
-       (aChild->IsFrameOfType(eReplaced)))) {
+      !child->IsFrameOfType(eLineParticipant)) {
     // child is a non-inline frame in an inline context, i.e.,
     // it acts like inline-block or inline-table. Therefore it is a
     // pseudo-stacking-context.
@@ -1818,26 +1878,28 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
   }
 
   // dirty rect in child-relative coordinates
-  nsRect dirty = aDirtyRect - aChild->GetOffsetTo(this);
+  nsRect dirty = aDirtyRect - child->GetOffsetTo(this);
 
-  nsIAtom* childType = aChild->GetType();
+  nsIAtom* childType = child->GetType();
   if (childType == nsGkAtoms::placeholderFrame) {
-    nsPlaceholderFrame* placeholder = static_cast<nsPlaceholderFrame*>(aChild);
-    aChild = placeholder->GetOutOfFlowFrame();
-    NS_ASSERTION(aChild, "No out of flow frame?");
-    if (!aChild || nsLayoutUtils::IsPopup(aChild))
+    nsPlaceholderFrame* placeholder = static_cast<nsPlaceholderFrame*>(child);
+    child = placeholder->GetOutOfFlowFrame();
+    NS_ASSERTION(child, "No out of flow frame?");
+    // If 'child' is a pushed float then it's owned by a block that's not an
+    // ancestor of the placeholder, and it will be painted by that block and
+    // should not be painted through the placeholder.
+    if (!child || nsLayoutUtils::IsPopup(child) ||
+        (child->GetStateBits() & NS_FRAME_IS_PUSHED_FLOAT))
       return NS_OK;
-    // update for the new child
-    disp = aChild->GetStyleDisplay();
     // Make sure that any attempt to use childType below is disappointed. We
     // could call GetType again but since we don't currently need it, let's
     // avoid the virtual call.
     childType = nsnull;
     // Recheck NS_FRAME_TOO_DEEP_IN_FRAME_TREE
-    if (aChild->GetStateBits() & NS_FRAME_TOO_DEEP_IN_FRAME_TREE)
+    if (child->GetStateBits() & NS_FRAME_TOO_DEEP_IN_FRAME_TREE)
       return NS_OK;
     nsRect* savedDirty = static_cast<nsRect*>
-      (aChild->Properties().Get(nsDisplayListBuilder::OutOfFlowDirtyRectProperty()));
+      (child->Properties().Get(nsDisplayListBuilder::OutOfFlowDirtyRectProperty()));
     if (savedDirty) {
       dirty = *savedDirty;
     } else {
@@ -1850,30 +1912,30 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
   }
 
   // Mark the display list items for absolutely positioned children
-  aChild->MarkAbsoluteFramesForDisplayList(aBuilder, dirty);
+  child->MarkAbsoluteFramesForDisplayList(aBuilder, dirty);
 
   if (childType != nsGkAtoms::placeholderFrame &&
       aBuilder->GetSelectedFramesOnly() &&
-      aChild->IsLeaf() &&
-      !(aChild->GetStateBits() & NS_FRAME_SELECTED_CONTENT)) {
+      child->IsLeaf() &&
+      !(child->GetStateBits() & NS_FRAME_SELECTED_CONTENT)) {
     return NS_OK;
   }
 
   if (aBuilder->GetIncludeAllOutOfFlows() &&
-      (aChild->GetStateBits() & NS_FRAME_OUT_OF_FLOW)) {
-    dirty = aChild->GetVisualOverflowRect();
-  } else if (!(aChild->GetStateBits() & NS_FRAME_FORCE_DISPLAY_LIST_DESCEND_INTO)) {
-    // No need to descend into aChild to catch placeholders for visible
+      (child->GetStateBits() & NS_FRAME_OUT_OF_FLOW)) {
+    dirty = child->GetVisualOverflowRect();
+  } else if (!(child->GetStateBits() & NS_FRAME_FORCE_DISPLAY_LIST_DESCEND_INTO)) {
+    // No need to descend into child to catch placeholders for visible
     // positioned stuff. So see if we can short-circuit frame traversal here.
 
-    // We can stop if aChild's frame subtree's intersection with the
+    // We can stop if child's frame subtree's intersection with the
     // dirty area is empty.
     // If the child is a scrollframe that we want to ignore, then we need
     // to descend into it because its scrolled child may intersect the dirty
     // area even if the scrollframe itself doesn't.
-    if (aChild != aBuilder->GetIgnoreScrollFrame()) {
+    if (child != aBuilder->GetIgnoreScrollFrame()) {
       nsRect childDirty;
-      if (!childDirty.IntersectRect(dirty, aChild->GetVisualOverflowRect()))
+      if (!childDirty.IntersectRect(dirty, child->GetVisualOverflowRect()))
         return NS_OK;
       // Usually we could set dirty to childDirty now but there's no
       // benefit, and it can be confusing. It can especially confuse
@@ -1894,9 +1956,10 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
 
   // Child is composited if it's transformed, partially transparent, or has
   // SVG effects.
+  const nsStyleDisplay* disp = child->GetStyleDisplay();
   bool isVisuallyAtomic = disp->mOpacity != 1.0f
-    || aChild->IsTransformed()
-    || nsSVGIntegrationUtils::UsingEffectsForFrame(aChild);
+    || child->IsTransformed()
+    || nsSVGIntegrationUtils::UsingEffectsForFrame(child);
 
   bool isPositioned = disp->IsPositioned();
   if (isVisuallyAtomic || isPositioned || disp->IsFloating() ||
@@ -1908,9 +1971,9 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
   nsRect overflowClip;
   nscoord overflowClipRadii[8];
   bool applyOverflowClip =
-    ApplyOverflowClipping(aBuilder, aChild, disp, &overflowClip);
+    ApplyOverflowClipping(aBuilder, child, disp, &overflowClip);
   if (applyOverflowClip) {
-    aChild->GetPaddingBoxBorderRadii(overflowClipRadii);
+    child->GetPaddingBoxBorderRadii(overflowClipRadii);
   }
   // Don't use overflowClip to restrict the dirty rect, since some of the
   // descendants may not be clipped by it. Even if we end up with unnecessary
@@ -1926,34 +1989,34 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
     // Not a pseudo or real stacking context. Do the simple thing and
     // return early.
     if (applyOverflowClip) {
-      rv = BuildDisplayListWithOverflowClip(aBuilder, aChild, dirty, aLists,
+      rv = BuildDisplayListWithOverflowClip(aBuilder, child, dirty, aLists,
                                             overflowClip, overflowClipRadii);
     } else {
-      rv = aChild->BuildDisplayList(aBuilder, dirty, aLists);
+      rv = child->BuildDisplayList(aBuilder, dirty, aLists);
       if (NS_SUCCEEDED(rv)) {
-        rv = aBuilder->DisplayCaret(aChild, dirty, aLists.Content());
+        rv = aBuilder->DisplayCaret(child, dirty, aLists.Content());
       }
     }
 #ifdef NS_DEBUG
-    DisplayDebugBorders(aBuilder, aChild, aLists);
+    DisplayDebugBorders(aBuilder, child, aLists);
 #endif
     return rv;
   }
   
   nsDisplayList list;
   nsDisplayList extraPositionedDescendants;
-  const nsStylePosition* pos = aChild->GetStylePosition();
+  const nsStylePosition* pos = child->GetStylePosition();
   if ((isPositioned && pos->mZIndex.GetUnit() == eStyleUnit_Integer) ||
       isVisuallyAtomic || (aFlags & DISPLAY_CHILD_FORCE_STACKING_CONTEXT)) {
     // True stacking context
-    rv = aChild->BuildDisplayListForStackingContext(aBuilder, dirty, &list);
+    rv = child->BuildDisplayListForStackingContext(aBuilder, dirty, &list);
     if (NS_SUCCEEDED(rv)) {
-      rv = aBuilder->DisplayCaret(aChild, dirty, &list);
+      rv = aBuilder->DisplayCaret(child, dirty, &list);
     }
   } else {
     nsRect clipRect;
     bool applyAbsPosClipping =
-        ApplyAbsPosClipping(aBuilder, disp, aChild, &clipRect);
+        ApplyAbsPosClipping(aBuilder, disp, child, &clipRect);
     // A pseudo-stacking context (e.g., a positioned element with z-index auto).
     // We allow positioned descendants of the child to escape to our parent
     // stacking context's positioned descendant list, because they might be
@@ -1962,26 +2025,26 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
     nsRect clippedDirtyRect = dirty;
     if (applyAbsPosClipping) {
       // clipRect is in builder-reference-frame coordinates,
-      // dirty/clippedDirtyRect are in aChild coordinates
+      // dirty/clippedDirtyRect are in child coordinates
       clippedDirtyRect.IntersectRect(clippedDirtyRect,
-                                     clipRect - aBuilder->ToReferenceFrame(aChild));
+                                     clipRect - aBuilder->ToReferenceFrame(child));
     }
     
     if (applyOverflowClip) {
-      rv = BuildDisplayListWithOverflowClip(aBuilder, aChild, clippedDirtyRect,
+      rv = BuildDisplayListWithOverflowClip(aBuilder, child, clippedDirtyRect,
                                             pseudoStack, overflowClip,
                                             overflowClipRadii);
     } else {
-      rv = aChild->BuildDisplayList(aBuilder, clippedDirtyRect, pseudoStack);
+      rv = child->BuildDisplayList(aBuilder, clippedDirtyRect, pseudoStack);
       if (NS_SUCCEEDED(rv)) {
-        rv = aBuilder->DisplayCaret(aChild, dirty, pseudoStack.Content());
+        rv = aBuilder->DisplayCaret(child, dirty, pseudoStack.Content());
       }
     }
     
     if (NS_SUCCEEDED(rv)) {
       if (applyAbsPosClipping) {
         nsAbsPosClipWrapper wrapper(clipRect);
-        rv = wrapper.WrapListsInPlace(aBuilder, aChild, pseudoStack);
+        rv = wrapper.WrapListsInPlace(aBuilder, child, pseudoStack);
       }
     }
     list.AppendToTop(pseudoStack.BorderBackground());
@@ -1991,7 +2054,7 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
     list.AppendToTop(pseudoStack.Outlines());
     extraPositionedDescendants.AppendToTop(pseudoStack.PositionedDescendants());
 #ifdef NS_DEBUG
-    DisplayDebugBorders(aBuilder, aChild, aLists);
+    DisplayDebugBorders(aBuilder, child, aLists);
 #endif
   }
   NS_ENSURE_SUCCESS(rv, rv);
@@ -2001,11 +2064,11 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
     // Genuine stacking contexts, and positioned pseudo-stacking-contexts,
     // go in this level.
     rv = aLists.PositionedDescendants()->AppendNewToTop(new (aBuilder)
-        nsDisplayWrapList(aBuilder, aChild, &list));
+        nsDisplayWrapList(aBuilder, child, &list));
     NS_ENSURE_SUCCESS(rv, rv);
   } else if (disp->IsFloating()) {
     rv = aLists.Floats()->AppendNewToTop(new (aBuilder)
-        nsDisplayWrapList(aBuilder, aChild, &list));
+        nsDisplayWrapList(aBuilder, child, &list));
     NS_ENSURE_SUCCESS(rv, rv);
   } else {
     aLists.Content()->AppendToTop(&list);
@@ -4179,30 +4242,6 @@ NS_IMETHODIMP nsFrame::GetOffsetFromView(nsPoint&  aOffset,
   if (frame)
     *aView = frame->GetView();
   return NS_OK;
-}
-
-/* virtual */ bool
-nsIFrame::AreAncestorViewsVisible() const
-{
-  const nsIFrame* parent;
-  for (const nsIFrame* f = this; f; f = parent) {
-    nsIView* view = f->GetView();
-    if (view && view->GetVisibility() == nsViewVisibility_kHide) {
-      return false;
-    }
-    parent = f->GetParent();
-    if (!parent) {
-      parent = nsLayoutUtils::GetCrossDocParentFrame(f);
-      if (parent && parent->PresContext()->IsChrome() &&
-          !f->PresContext()->IsChrome()) {
-        // Don't look beyond chrome/content boundary ... if the chrome
-        // has hidden a content docshell, the content in the content
-        // docshell shouldn't be affected (e.g. it should remain focusable).
-        break;
-      }
-    }
-  }
-  return true;
 }
 
 nsIWidget*
@@ -6990,38 +7029,34 @@ nsIFrame::IsFocusable(PRInt32 *aTabIndex, bool aWithMouse)
   }
   bool isFocusable = false;
 
-  if (mContent && mContent->IsElement() && AreAncestorViewsVisible()) {
-    const nsStyleVisibility* vis = GetStyleVisibility();
-    if (vis->mVisible != NS_STYLE_VISIBILITY_COLLAPSE &&
-        vis->mVisible != NS_STYLE_VISIBILITY_HIDDEN) {
-      const nsStyleUserInterface* ui = GetStyleUserInterface();
-      if (ui->mUserFocus != NS_STYLE_USER_FOCUS_IGNORE &&
-          ui->mUserFocus != NS_STYLE_USER_FOCUS_NONE) {
-        // Pass in default tabindex of -1 for nonfocusable and 0 for focusable
-        tabIndex = 0;
-      }
-      isFocusable = mContent->IsFocusable(&tabIndex, aWithMouse);
-      if (!isFocusable && !aWithMouse &&
-          GetType() == nsGkAtoms::scrollFrame &&
-          mContent->IsHTML() &&
-          !mContent->IsRootOfNativeAnonymousSubtree() &&
-          mContent->GetParent() &&
-          !mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::tabindex)) {
-        // Elements with scrollable view are focusable with script & tabbable
-        // Otherwise you couldn't scroll them with keyboard, which is
-        // an accessibility issue (e.g. Section 508 rules)
-        // However, we don't make them to be focusable with the mouse,
-        // because the extra focus outlines are considered unnecessarily ugly.
-        // When clicked on, the selection position within the element 
-        // will be enough to make them keyboard scrollable.
-        nsIScrollableFrame *scrollFrame = do_QueryFrame(this);
-        if (scrollFrame &&
-            scrollFrame->GetScrollbarStyles() != nsIScrollableFrame::ScrollbarStyles(NS_STYLE_OVERFLOW_HIDDEN, NS_STYLE_OVERFLOW_HIDDEN) &&
-            !scrollFrame->GetScrollRange().IsEqualEdges(nsRect(0, 0, 0, 0))) {
-            // Scroll bars will be used for overflow
-            isFocusable = true;
-            tabIndex = 0;
-        }
+  if (mContent && mContent->IsElement() && IsVisibleConsideringAncestors()) {
+    const nsStyleUserInterface* ui = GetStyleUserInterface();
+    if (ui->mUserFocus != NS_STYLE_USER_FOCUS_IGNORE &&
+        ui->mUserFocus != NS_STYLE_USER_FOCUS_NONE) {
+      // Pass in default tabindex of -1 for nonfocusable and 0 for focusable
+      tabIndex = 0;
+    }
+    isFocusable = mContent->IsFocusable(&tabIndex, aWithMouse);
+    if (!isFocusable && !aWithMouse &&
+        GetType() == nsGkAtoms::scrollFrame &&
+        mContent->IsHTML() &&
+        !mContent->IsRootOfNativeAnonymousSubtree() &&
+        mContent->GetParent() &&
+        !mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::tabindex)) {
+      // Elements with scrollable view are focusable with script & tabbable
+      // Otherwise you couldn't scroll them with keyboard, which is
+      // an accessibility issue (e.g. Section 508 rules)
+      // However, we don't make them to be focusable with the mouse,
+      // because the extra focus outlines are considered unnecessarily ugly.
+      // When clicked on, the selection position within the element 
+      // will be enough to make them keyboard scrollable.
+      nsIScrollableFrame *scrollFrame = do_QueryFrame(this);
+      if (scrollFrame &&
+          scrollFrame->GetScrollbarStyles() != nsIScrollableFrame::ScrollbarStyles(NS_STYLE_OVERFLOW_HIDDEN, NS_STYLE_OVERFLOW_HIDDEN) &&
+          !scrollFrame->GetScrollRange().IsEqualEdges(nsRect(0, 0, 0, 0))) {
+          // Scroll bars will be used for overflow
+          isFocusable = true;
+          tabIndex = 0;
       }
     }
   }

@@ -52,7 +52,7 @@
 #include "nsIDOMHTMLDocument.h"
 #include "nsIDOMAttr.h"
 #include "nsIDOMDocumentFragment.h"
-#include "nsIDOMNSHTMLElement.h"
+#include "nsIDOMHTMLElement.h"
 #include "nsIDOMHTMLMenuElement.h"
 #include "nsIDOMElementCSSInlineStyle.h"
 #include "nsIDOMWindow.h"
@@ -117,6 +117,7 @@
 #include "mozilla/dom/Element.h"
 #include "nsHTMLFieldSetElement.h"
 #include "nsHTMLMenuElement.h"
+#include "nsPLDOMEvent.h"
 
 #include "mozilla/Preferences.h"
 
@@ -237,8 +238,7 @@ private:
   nsRefPtr<nsGenericHTMLElement> mElement;
 };
 
-class nsGenericHTMLElementTearoff : public nsIDOMNSHTMLElement,
-                                    public nsIDOMElementCSSInlineStyle
+class nsGenericHTMLElementTearoff : public nsIDOMElementCSSInlineStyle
 {
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
@@ -251,7 +251,6 @@ class nsGenericHTMLElementTearoff : public nsIDOMNSHTMLElement,
   {
   }
 
-  NS_FORWARD_NSIDOMNSHTMLELEMENT(mElement->)
   NS_IMETHOD GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
   {
     nsresult rv;
@@ -262,7 +261,7 @@ class nsGenericHTMLElementTearoff : public nsIDOMNSHTMLElement,
   }
 
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsGenericHTMLElementTearoff,
-                                           nsIDOMNSHTMLElement)
+                                           nsIDOMElementCSSInlineStyle)
 
 private:
   nsRefPtr<nsGenericHTMLElement> mElement;
@@ -274,8 +273,7 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(nsGenericHTMLElementTearoff)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsGenericHTMLElementTearoff)
 
 NS_INTERFACE_TABLE_HEAD(nsGenericHTMLElementTearoff)
-  NS_INTERFACE_TABLE_INHERITED2(nsGenericHTMLElementTearoff,
-                                nsIDOMNSHTMLElement,
+  NS_INTERFACE_TABLE_INHERITED1(nsGenericHTMLElementTearoff,
                                 nsIDOMElementCSSInlineStyle)
   NS_INTERFACE_TABLE_TO_MAP_SEGUE_CYCLE_COLLECTION(nsGenericHTMLElementTearoff)
 NS_INTERFACE_MAP_END_AGGREGATED(mElement)
@@ -299,8 +297,6 @@ nsGenericHTMLElement::DOMQueryInterface(nsIDOMHTMLElement *aElement,
   NS_INTERFACE_TABLE_END_WITH_PTR(aElement)
 
   NS_INTERFACE_TABLE_TO_MAP_SEGUE
-  NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOMNSHTMLElement,
-                                 new nsGenericHTMLElementTearoff(this))
   NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOMElementCSSInlineStyle,
                                  new nsGenericHTMLElementTearoff(this))
   NS_INTERFACE_MAP_END
@@ -669,7 +665,7 @@ nsGenericHTMLElement::GetOffsetParent(nsIDOMElement** aOffsetParent)
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsGenericHTMLElement::GetInnerHTML(nsAString& aInnerHTML)
 {
   aInnerHTML.Truncate();
@@ -739,7 +735,7 @@ nsGenericHTMLElement::FireMutationEventsForDirectParsing(nsIDocument* aDoc,
   }
 }
 
-nsresult
+NS_IMETHODIMP
 nsGenericHTMLElement::SetInnerHTML(const nsAString& aInnerHTML)
 {
   nsIDocument* doc = OwnerDoc();
@@ -800,7 +796,7 @@ enum nsAdjacentPosition {
   eAfterEnd
 };
 
-nsresult
+NS_IMETHODIMP
 nsGenericHTMLElement::InsertAdjacentHTML(const nsAString& aPosition,
                                          const nsAString& aText)
 {
@@ -1791,6 +1787,37 @@ nsGenericHTMLElement::MapCommonAttributesInto(const nsMappedAttributes* aAttribu
       }
     }
   }
+}
+
+void
+nsGenericHTMLFormElement::UpdateEditableFormControlState(bool aNotify)
+{
+  // nsCSSFrameConstructor::MaybeConstructLazily is based on the logic of this
+  // function, so should be kept in sync with that.
+
+  ContentEditableTristate value = GetContentEditableValue();
+  if (value != eInherit) {
+    DoSetEditableFlag(!!value, aNotify);
+    return;
+  }
+
+  nsIContent *parent = GetParent();
+
+  if (parent && parent->HasFlag(NODE_IS_EDITABLE)) {
+    DoSetEditableFlag(true, aNotify);
+    return;
+  }
+
+  if (!IsTextControl(false)) {
+    DoSetEditableFlag(false, aNotify);
+    return;
+  }
+
+  // If not contentEditable we still need to check the readonly attribute.
+  bool roState;
+  GetBoolAttr(nsGkAtoms::readonly, &roState);
+
+  DoSetEditableFlag(!roState, aNotify);
 }
 
 
@@ -2885,18 +2912,6 @@ nsGenericHTMLFormElement::IntrinsicState() const
       state |= NS_EVENT_STATE_DEFAULT;
   }
 
-  // Make the text controls read-write
-  if (!state.HasState(NS_EVENT_STATE_MOZ_READWRITE) &&
-      IsTextControl(false)) {
-    bool roState;
-    GetBoolAttr(nsGkAtoms::readonly, &roState);
-
-    if (!roState) {
-      state |= NS_EVENT_STATE_MOZ_READWRITE;
-      state &= ~NS_EVENT_STATE_MOZ_READONLY;
-    }
-  }
-
   return state;
 }
 
@@ -3390,29 +3405,17 @@ nsresult nsGenericHTMLElement::MozRequestFullScreen()
   // and it also makes it harder for bad guys' script to go full-screen and
   // spoof the browser chrome/window and phish logins etc.
   if (!nsContentUtils::IsRequestFullScreenAllowed()) {
+    nsRefPtr<nsPLDOMEvent> e =
+      new nsPLDOMEvent(OwnerDoc(),
+                       NS_LITERAL_STRING("mozfullscreenerror"),
+                       true,
+                       false);
+    e->PostDOMEvent();
     return NS_OK;
   }
 
-  nsIDocument* doc = OwnerDoc();
-  nsCOMPtr<nsIDOMDocument> domDocument(do_QueryInterface(doc));
-  NS_ENSURE_STATE(domDocument);
-  bool fullScreenEnabled;
-  domDocument->GetMozFullScreenEnabled(&fullScreenEnabled);
-  if (!fullScreenEnabled) {
-    return NS_OK;
-  }
+  OwnerDoc()->AsyncRequestFullScreen(this);
 
-  doc->RequestFullScreen(this);
-#ifdef DEBUG
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(doc->GetWindow());
-  NS_ENSURE_STATE(window);
-  bool fullscreen;
-  window->GetFullScreen(&fullscreen);
-  NS_ASSERTION(fullscreen, "Windows should report fullscreen");
-  domDocument->GetMozFullScreen(&fullscreen);
-  NS_ASSERTION(fullscreen, "Document should report fullscreen");
-  NS_ASSERTION(doc->IsFullScreenDoc(), "Should be in full screen state!");
-#endif
   return NS_OK;
 }
 

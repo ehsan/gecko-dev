@@ -83,7 +83,7 @@ public:
   // nsIDOMEventTarget
   virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
 
-  PRUint32 Id()
+  nsIAtom* Id()
   {
     return mDatabaseId;
   }
@@ -135,13 +135,16 @@ public:
   // Whether or not the database has had Close called on it.
   bool IsClosed();
 
+  void EnterSetVersionTransaction();
+  void ExitSetVersionTransaction();
+
 private:
   IDBDatabase();
   ~IDBDatabase();
 
   void OnUnlink();
 
-  PRUint32 mDatabaseId;
+  nsCOMPtr<nsIAtom> mDatabaseId;
   nsString mName;
   nsString mFilePath;
   nsCString mASCIIOrigin;

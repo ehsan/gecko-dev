@@ -64,7 +64,7 @@
 #include "nsIFormControl.h"
 #include "nsIComboboxControlFrame.h"
 #include "nsIScrollableFrame.h"
-#include "nsIDOMNSHTMLElement.h"
+#include "nsIDOMHTMLElement.h"
 #include "nsIDOMXULControlElement.h"
 #include "nsINameSpaceManager.h"
 #include "nsIBaseWindow.h"
@@ -1442,10 +1442,7 @@ IsAccessKeyTarget(nsIContent* aContent, nsIFrame* aFrame, nsAString& aKey)
   if (aFrame->IsFocusable())
     return true;
 
-  if (!aFrame->GetStyleVisibility()->IsVisible())
-    return false;
-
-  if (!aFrame->AreAncestorViewsVisible())
+  if (!aFrame->IsVisibleConsideringAncestors())
     return false;
 
   // XUL controls can be activated.
@@ -2223,7 +2220,7 @@ nsEventStateManager::DetermineDragTarget(nsPresContext* aPresContext,
   // found, just use the clicked node.
   if (!*aIsSelection) {
     while (dragContent) {
-      nsCOMPtr<nsIDOMNSHTMLElement> htmlElement = do_QueryInterface(dragContent);
+      nsCOMPtr<nsIDOMHTMLElement> htmlElement = do_QueryInterface(dragContent);
       if (htmlElement) {
         bool draggable = false;
         htmlElement->GetDraggable(&draggable);
@@ -4448,12 +4445,22 @@ static nsIContent* FindCommonAncestor(nsIContent *aNode1, nsIContent *aNode2)
   return nsnull;
 }
 
+static Element*
+GetParentElement(Element* aElement)
+{
+  nsIContent* p = aElement->GetParent();
+  return (p && p->IsElement()) ? p->AsElement() : nsnull;
+}
+
 /* static */
 void
-nsEventStateManager::SetFullScreenState(Element* aElement,
-                                        bool aIsFullScreen)
+nsEventStateManager::SetFullScreenState(Element* aElement, bool aIsFullScreen)
 {
   DoStateChange(aElement, NS_EVENT_STATE_FULL_SCREEN, aIsFullScreen);
+  Element* ancestor = aElement;
+  while ((ancestor = GetParentElement(ancestor))) {
+    DoStateChange(ancestor, NS_EVENT_STATE_FULL_SCREEN_ANCESTOR, aIsFullScreen);
+  }
 }
 
 /* static */

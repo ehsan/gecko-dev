@@ -65,7 +65,7 @@
 #include "jsopcode.h"
 #include "jsscript.h"
 
-#include "frontend/BytecodeGenerator.h"
+#include "frontend/BytecodeEmitter.h"
 #include "frontend/Parser.h"
 #include "frontend/TokenStream.h"
 #include "vm/RegExpObject.h"
@@ -920,7 +920,7 @@ TokenStream::getXMLTextOrTag(TokenKind *ttp, Token **tpp)
  *
  * https://bugzilla.mozilla.org/show_bug.cgi?id=336551
  *
- * The check for this is in BytecodeCompiler::compileScript.
+ * The check for this is in js::frontend::CompileScript.
  */
 bool
 TokenStream::getXMLMarkup(TokenKind *ttp, Token **tpp)
@@ -1290,6 +1290,48 @@ TokenStream::putIdentInTokenbuf(const jschar *identStart)
     return true;
 }
 
+bool
+TokenStream::checkForKeyword(const jschar *s, size_t length, TokenKind *ttp, JSOp *topp)
+{
+    JS_ASSERT(!ttp == !topp);
+
+    const KeywordInfo *kw = FindKeyword(s, length);
+    if (!kw)
+        return true;
+
+    if (kw->tokentype == TOK_RESERVED) {
+        return ReportCompileErrorNumber(cx, this, NULL, JSREPORT_ERROR,
+                                        JSMSG_RESERVED_ID, kw->chars);
+    }
+
+    if (kw->tokentype != TOK_STRICT_RESERVED) {
+        if (kw->version <= versionNumber()) {
+            /* Working keyword. */
+            if (ttp) {
+                *ttp = kw->tokentype;
+                *topp = (JSOp) kw->op;
+                return true;
+            }
+            return ReportCompileErrorNumber(cx, this, NULL, JSREPORT_ERROR,
+                                            JSMSG_RESERVED_ID, kw->chars);
+        }
+
+        /*
+         * The keyword is not in this version. Treat it as an identifier,
+         * unless it is let or yield which we treat as TOK_STRICT_RESERVED by
+         * falling through to the code below (ES5 forbids them in strict mode).
+         */
+        if (kw->tokentype != TOK_LET && kw->tokentype != TOK_YIELD)
+            return true;
+    }
+
+    /* Strict reserved word. */
+    if (isStrictMode())
+        return ReportStrictModeError(cx, this, NULL, NULL, JSMSG_RESERVED_ID, kw->chars);
+    return ReportCompileErrorNumber(cx, this, NULL, JSREPORT_STRICT | JSREPORT_WARNING,
+                                    JSMSG_RESERVED_ID, kw->chars);
+}
+
 enum FirstCharKind {
     Other,
     OneChar,
@@ -1464,45 +1506,20 @@ TokenStream::getTokenInternal()
 
         /* Check for keywords unless parser asks us to ignore keywords. */
         if (!(flags & TSF_KEYWORD_IS_NAME)) {
-            const KeywordInfo *kw;
-            if (hadUnicodeEscape)
-                kw = FindKeyword(tokenbuf.begin(), tokenbuf.length());
-            else
-                kw = FindKeyword(identStart, userbuf.addressOfNextRawChar() - identStart);
-
-            if (kw) {
-                if (kw->tokentype == TOK_RESERVED) {
-                    if (!ReportCompileErrorNumber(cx, this, NULL, JSREPORT_ERROR,
-                                                  JSMSG_RESERVED_ID, kw->chars)) {
-                        goto error;
-                    }
-                } else if (kw->tokentype == TOK_STRICT_RESERVED) {
-                    if (isStrictMode()
-                        ? !ReportStrictModeError(cx, this, NULL, NULL, JSMSG_RESERVED_ID, kw->chars)
-                        : !ReportCompileErrorNumber(cx, this, NULL,
-                                                    JSREPORT_STRICT | JSREPORT_WARNING,
-                                                    JSMSG_RESERVED_ID, kw->chars)) {
-                        goto error;
-                    }
-                } else {
-                    if (kw->version <= versionNumber()) {
-                        tt = kw->tokentype;
-                        tp->t_op = (JSOp) kw->op;
-                        goto out;
-                    }
-
-                    /*
-                     * let/yield are a Mozilla extension starting in JS1.7. If we
-                     * aren't parsing for a version supporting these extensions,
-                     * conform to ES5 and forbid these names in strict mode.
-                     */
-                    if ((kw->tokentype == TOK_LET || kw->tokentype == TOK_YIELD) &&
-                        !ReportStrictModeError(cx, this, NULL, NULL, JSMSG_RESERVED_ID, kw->chars))
-                    {
-                        goto error;
-                    }
-                }
+            const jschar *chars;
+            size_t length;
+            if (hadUnicodeEscape) {
+                chars = tokenbuf.begin();
+                length = tokenbuf.length();
+            } else {
+                chars = identStart;
+                length = userbuf.addressOfNextRawChar() - identStart;
             }
+            tt = TOK_NAME;
+            if (!checkForKeyword(chars, length, &tt, &tp->t_op))
+                goto error;
+            if (tt != TOK_NAME)
+                goto out;
         }
 
         /*
@@ -1713,7 +1730,7 @@ TokenStream::getTokenInternal()
             if (!js_strtod(cx, numStart, userbuf.addressOfNextRawChar(), &dummy, &dval))
                 goto error;
         }
-        tp->t_dval = dval;
+        tp->setNumber(dval);
         tt = TOK_NUMBER;
         goto out;
     }
@@ -1799,7 +1816,7 @@ TokenStream::getTokenInternal()
         const jschar *dummy;
         if (!GetPrefixInteger(cx, numStart, userbuf.addressOfNextRawChar(), radix, &dummy, &dval))
             goto error;
-        tp->t_dval = dval;
+        tp->setNumber(dval);
         tt = TOK_NUMBER;
         goto out;
     }
@@ -1867,7 +1884,7 @@ TokenStream::getTokenInternal()
 
       case '<':
 #if JS_HAS_XML_SUPPORT
-        if ((flags & TSF_OPERAND) && (hasXML() || peekChar() != '!')) {
+        if ((flags & TSF_OPERAND) && !isStrictMode() && (hasXML() || peekChar() != '!')) {
             if (!getXMLMarkup(&tt, &tp))
                 goto error;
             goto out;
@@ -1960,10 +1977,9 @@ TokenStream::getTokenInternal()
          * Look for a regexp.
          */
         if (flags & TSF_OPERAND) {
-            uintN reflags, length;
-            JSBool inCharClass = JS_FALSE;
-
             tokenbuf.clear();
+
+            bool inCharClass = false;
             for (;;) {
                 c = getChar();
                 if (c == '\\') {
@@ -1971,9 +1987,9 @@ TokenStream::getTokenInternal()
                         goto error;
                     c = getChar();
                 } else if (c == '[') {
-                    inCharClass = JS_TRUE;
+                    inCharClass = true;
                 } else if (c == ']') {
-                    inCharClass = JS_FALSE;
+                    inCharClass = false;
                 } else if (c == '/' && !inCharClass) {
                     /* For compat with IE, allow unescaped / in char classes. */
                     break;
@@ -1987,31 +2003,36 @@ TokenStream::getTokenInternal()
                 if (!tokenbuf.append(c))
                     goto error;
             }
-            for (reflags = 0, length = tokenbuf.length() + 1; ; length++) {
+
+            RegExpFlag reflags = NoFlags;
+            uintN length = tokenbuf.length() + 1;
+            while (true) {
                 c = peekChar();
-                if (c == 'g' && !(reflags & JSREG_GLOB))
-                    reflags |= JSREG_GLOB;
+                if (c == 'g' && !(reflags & GlobalFlag))
+                    reflags = RegExpFlag(reflags | GlobalFlag);
                 else if (c == 'i' && !(reflags & IgnoreCaseFlag))
-                    reflags |= IgnoreCaseFlag;
+                    reflags = RegExpFlag(reflags | IgnoreCaseFlag);
                 else if (c == 'm' && !(reflags & MultilineFlag))
-                    reflags |= MultilineFlag;
+                    reflags = RegExpFlag(reflags | MultilineFlag);
                 else if (c == 'y' && !(reflags & StickyFlag))
-                    reflags |= StickyFlag;
+                    reflags = RegExpFlag(reflags | StickyFlag);
                 else
                     break;
                 getChar();
+                length++;
             }
+
             c = peekChar();
             if (JS7_ISLET(c)) {
-                char buf[2] = { '\0' };
+                char buf[2] = { '\0', '\0' };
                 tp->pos.begin.index += length + 1;
-                buf[0] = (char)c;
+                buf[0] = char(c);
                 ReportCompileErrorNumber(cx, this, NULL, JSREPORT_ERROR, JSMSG_BAD_REGEXP_FLAG,
                                          buf);
                 (void) getChar();
                 goto error;
             }
-            tp->t_reflags = reflags;
+            tp->setRegExpFlags(reflags);
             tt = TOK_REGEXP;
             break;
         }
@@ -2067,9 +2088,8 @@ TokenStream::getTokenInternal()
                 goto error;
             }
         }
-        tp->t_dval = (jsdouble) n;
-        if (cx->hasStrictOption() &&
-            (c == '=' || c == '#')) {
+        tp->setSharpNumber(uint16(n));
+        if (cx->hasStrictOption() && (c == '=' || c == '#')) {
             char buf[20];
             JS_snprintf(buf, sizeof buf, "#%u%c", n, c);
             if (!ReportCompileErrorNumber(cx, this, NULL, JSREPORT_WARNING | JSREPORT_STRICT,

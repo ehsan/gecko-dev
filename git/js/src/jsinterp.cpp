@@ -72,7 +72,7 @@
 #include "jstracer.h"
 #include "jslibmath.h"
 
-#include "frontend/BytecodeGenerator.h"
+#include "frontend/BytecodeEmitter.h"
 #ifdef JS_METHODJIT
 #include "methodjit/MethodJIT.h"
 #include "methodjit/MethodJIT-inl.h"
@@ -1802,30 +1802,12 @@ js::Interpret(JSContext *cx, StackFrame *entryFrame, InterpMode interpMode)
             goto error;                                                       \
     JS_END_MACRO
 
-#if defined(JS_TRACER) && defined(JS_METHODJIT)
-# define LEAVE_ON_SAFE_POINT()                                                \
-    do {                                                                      \
-        JS_ASSERT_IF(leaveOnSafePoint, !TRACE_RECORDER(cx));                  \
-        JS_ASSERT_IF(leaveOnSafePoint, !TRACE_PROFILER(cx));                  \
-        JS_ASSERT_IF(leaveOnSafePoint, interpMode != JSINTERP_NORMAL);        \
-        if (leaveOnSafePoint && !regs.fp()->hasImacropc() &&                  \
-            script->maybeNativeCodeForPC(regs.fp()->isConstructing(), regs.pc)) { \
-            JS_ASSERT(!TRACE_RECORDER(cx));                                   \
-            interpReturnOK = true;                                            \
-            goto leave_on_safe_point;                                         \
-        }                                                                     \
-    } while (0)
-#else
-# define LEAVE_ON_SAFE_POINT() /* nop */
-#endif
-
 #define BRANCH(n)                                                             \
     JS_BEGIN_MACRO                                                            \
         regs.pc += (n);                                                       \
         op = (JSOp) *regs.pc;                                                 \
         if ((n) <= 0)                                                         \
             goto check_backedge;                                              \
-        LEAVE_ON_SAFE_POINT();                                                \
         DO_OP();                                                              \
     JS_END_MACRO
 
@@ -1860,13 +1842,6 @@ js::Interpret(JSContext *cx, StackFrame *entryFrame, InterpMode interpMode)
     ENABLE_PCCOUNT_INTERRUPTS();
     Value *argv = regs.fp()->maybeFormalArgs();
     CHECK_INTERRUPT_HANDLER();
-
-#if defined(JS_TRACER) && defined(JS_METHODJIT)
-    bool leaveOnSafePoint = (interpMode == JSINTERP_SAFEPOINT);
-# define CLEAR_LEAVE_ON_TRACE_POINT() ((void) (leaveOnSafePoint = false))
-#else
-# define CLEAR_LEAVE_ON_TRACE_POINT() ((void) 0)
-#endif
 
     if (!entryFrame)
         entryFrame = regs.fp();
@@ -2050,40 +2025,14 @@ js::Interpret(JSContext *cx, StackFrame *entryFrame, InterpMode interpMode)
             LoopProfile *prof = TRACE_PROFILER(cx);
             JS_ASSERT(!TRACE_RECORDER(cx));
             LoopProfile::ProfileAction act = prof->profileOperation(cx, op);
-            switch (act) {
-                case LoopProfile::ProfComplete:
-                    if (interpMode != JSINTERP_NORMAL) {
-                        leaveOnSafePoint = true;
-                        LEAVE_ON_SAFE_POINT();
-                    }
-                    break;
-                default:
-                    moreInterrupts = true;
-                    break;
-            }
+            if (act != LoopProfile::ProfComplete)
+                moreInterrupts = true;
         }
 #endif
         if (TraceRecorder* tr = TRACE_RECORDER(cx)) {
             JS_ASSERT(!TRACE_PROFILER(cx));
             AbortableRecordingStatus status = tr->monitorRecording(op);
             JS_ASSERT_IF(cx->isExceptionPending(), status == ARECORD_ERROR);
-
-            if (interpMode != JSINTERP_NORMAL) {
-                JS_ASSERT(interpMode == JSINTERP_RECORD || JSINTERP_SAFEPOINT);
-                switch (status) {
-                  case ARECORD_IMACRO_ABORTED:
-                  case ARECORD_ABORTED:
-                  case ARECORD_COMPLETED:
-                  case ARECORD_STOP:
-#ifdef JS_METHODJIT
-                    leaveOnSafePoint = true;
-                    LEAVE_ON_SAFE_POINT();
-#endif
-                    break;
-                  default:
-                    break;
-                }
-            }
 
             switch (status) {
               case ARECORD_CONTINUE:
@@ -2093,7 +2042,6 @@ js::Interpret(JSContext *cx, StackFrame *entryFrame, InterpMode interpMode)
               case ARECORD_IMACRO_ABORTED:
                 atoms = rt->atomState.commonAtomsStart();
                 op = JSOp(*regs.pc);
-                CLEAR_LEAVE_ON_TRACE_POINT();
                 if (status == ARECORD_IMACRO)
                     DO_OP();    /* keep interrupting for op. */
                 break;
@@ -2138,7 +2086,7 @@ END_EMPTY_CASES
 
 BEGIN_CASE(JSOP_TRACE)
 BEGIN_CASE(JSOP_NOTRACE)
-    LEAVE_ON_SAFE_POINT();
+    /* No-op */
 END_CASE(JSOP_TRACE)
 
 check_backedge:
@@ -2155,7 +2103,6 @@ check_backedge:
             JS_ASSERT(!TRACE_PROFILER(cx));
             MONITOR_BRANCH_TRACEVIS;
             ENABLE_INTERRUPTS();
-            CLEAR_LEAVE_ON_TRACE_POINT();
         }
         JS_ASSERT_IF(cx->isExceptionPending(), r == MONITOR_ERROR);
         RESTORE_INTERP_VARS_CHECK_EXCEPTION();
@@ -2280,7 +2227,6 @@ BEGIN_CASE(JSOP_STOP)
         if (js_CodeSpec[*imacpc].format & JOF_DECOMPOSE)
             regs.pc += GetDecomposeLength(imacpc, js_CodeSpec[*imacpc].length);
         regs.fp()->clearImacropc();
-        LEAVE_ON_SAFE_POINT();
         atoms = script->atoms;
         op = JSOp(*regs.pc);
         DO_OP();
@@ -4451,26 +4397,6 @@ BEGIN_CASE(JSOP_ARGUMENTS)
 }
 END_CASE(JSOP_ARGUMENTS)
 
-BEGIN_CASE(JSOP_ARGSUB)
-{
-    jsid id = INT_TO_JSID(GET_ARGNO(regs.pc));
-    Value rval;
-    if (!js_GetArgsProperty(cx, regs.fp(), id, &rval))
-        goto error;
-    PUSH_COPY(rval);
-}
-END_CASE(JSOP_ARGSUB)
-
-BEGIN_CASE(JSOP_ARGCNT)
-{
-    jsid id = ATOM_TO_JSID(rt->atomState.lengthAtom);
-    Value rval;
-    if (!js_GetArgsProperty(cx, regs.fp(), id, &rval))
-        goto error;
-    PUSH_COPY(rval);
-}
-END_CASE(JSOP_ARGCNT)
-
 BEGIN_CASE(JSOP_GETARG)
 BEGIN_CASE(JSOP_CALLARG)
 {
@@ -5349,12 +5275,6 @@ END_VARLEN_CASE
 BEGIN_CASE(JSOP_EXCEPTION)
     PUSH_COPY(cx->getPendingException());
     cx->clearPendingException();
-#if defined(JS_TRACER) && defined(JS_METHODJIT)
-    if (interpMode == JSINTERP_PROFILE) {
-        leaveOnSafePoint = true;
-        LEAVE_ON_SAFE_POINT();
-    }
-#endif
     CHECK_BRANCH();
 END_CASE(JSOP_EXCEPTION)
 
@@ -5469,6 +5389,8 @@ END_CASE(JSOP_DEBUGGER)
 #if JS_HAS_XML_SUPPORT
 BEGIN_CASE(JSOP_DEFXMLNS)
 {
+    JS_ASSERT(!script->strictModeCode);
+
     if (!js_SetDefaultXMLNamespace(cx, regs.sp[-1]))
         goto error;
     regs.sp--;
@@ -5477,6 +5399,8 @@ END_CASE(JSOP_DEFXMLNS)
 
 BEGIN_CASE(JSOP_ANYNAME)
 {
+    JS_ASSERT(!script->strictModeCode);
+
     jsid id;
     if (!js_GetAnyName(cx, &id))
         goto error;
@@ -5486,6 +5410,12 @@ END_CASE(JSOP_ANYNAME)
 
 BEGIN_CASE(JSOP_QNAMEPART)
 {
+    /*
+     * We do not JS_ASSERT(!script->strictModeCode) here because JSOP_QNAMEPART
+     * is used for __proto__ and (in contexts where we favor JSOP_*ELEM instead
+     * of JSOP_*PROP) obj.prop compiled as obj['prop'].
+     */
+
     JSAtom *atom;
     LOAD_ATOM(0, atom);
     PUSH_STRING(atom);
@@ -5494,6 +5424,8 @@ END_CASE(JSOP_QNAMEPART)
 
 BEGIN_CASE(JSOP_QNAMECONST)
 {
+    JS_ASSERT(!script->strictModeCode);
+
     JSAtom *atom;
     LOAD_ATOM(0, atom);
     Value rval = StringValue(atom);
@@ -5507,6 +5439,8 @@ END_CASE(JSOP_QNAMECONST)
 
 BEGIN_CASE(JSOP_QNAME)
 {
+    JS_ASSERT(!script->strictModeCode);
+
     Value rval = regs.sp[-1];
     Value lval = regs.sp[-2];
     JSObject *obj = js_ConstructXMLQNameObject(cx, lval, rval);
@@ -5519,6 +5453,8 @@ END_CASE(JSOP_QNAME)
 
 BEGIN_CASE(JSOP_TOATTRNAME)
 {
+    JS_ASSERT(!script->strictModeCode);
+
     Value rval;
     rval = regs.sp[-1];
     if (!js_ToAttributeName(cx, &rval))
@@ -5529,6 +5465,8 @@ END_CASE(JSOP_TOATTRNAME)
 
 BEGIN_CASE(JSOP_TOATTRVAL)
 {
+    JS_ASSERT(!script->strictModeCode);
+
     Value rval;
     rval = regs.sp[-1];
     JS_ASSERT(rval.isString());
@@ -5542,6 +5480,8 @@ END_CASE(JSOP_TOATTRVAL)
 BEGIN_CASE(JSOP_ADDATTRNAME)
 BEGIN_CASE(JSOP_ADDATTRVAL)
 {
+    JS_ASSERT(!script->strictModeCode);
+
     Value rval = regs.sp[-1];
     Value lval = regs.sp[-2];
     JSString *str = lval.toString();
@@ -5556,6 +5496,8 @@ END_CASE(JSOP_ADDATTRNAME)
 
 BEGIN_CASE(JSOP_BINDXMLNAME)
 {
+    JS_ASSERT(!script->strictModeCode);
+
     Value lval;
     lval = regs.sp[-1];
     JSObject *obj;
@@ -5569,6 +5511,8 @@ END_CASE(JSOP_BINDXMLNAME)
 
 BEGIN_CASE(JSOP_SETXMLNAME)
 {
+    JS_ASSERT(!script->strictModeCode);
+
     JSObject *obj = &regs.sp[-3].toObject();
     Value rval = regs.sp[-1];
     jsid id;
@@ -5584,6 +5528,8 @@ END_CASE(JSOP_SETXMLNAME)
 BEGIN_CASE(JSOP_CALLXMLNAME)
 BEGIN_CASE(JSOP_XMLNAME)
 {
+    JS_ASSERT(!script->strictModeCode);
+
     Value lval = regs.sp[-1];
     JSObject *obj;
     jsid id;
@@ -5601,6 +5547,8 @@ END_CASE(JSOP_XMLNAME)
 BEGIN_CASE(JSOP_DESCENDANTS)
 BEGIN_CASE(JSOP_DELDESC)
 {
+    JS_ASSERT(!script->strictModeCode);
+
     JSObject *obj;
     FETCH_OBJECT(cx, -2, obj);
     jsval rval = regs.sp[-1];
@@ -5619,8 +5567,10 @@ BEGIN_CASE(JSOP_DELDESC)
 }
 END_CASE(JSOP_DESCENDANTS)
 
-{
 BEGIN_CASE(JSOP_FILTER)
+{
+    JS_ASSERT(!script->strictModeCode);
+
     /*
      * We push the hole value before jumping to [enditer] so we can detect the
      * first iteration and direct js_StepXMLListFilter to initialize filter's
@@ -5629,11 +5579,13 @@ BEGIN_CASE(JSOP_FILTER)
     PUSH_HOLE();
     len = GET_JUMP_OFFSET(regs.pc);
     JS_ASSERT(len > 0);
-END_VARLEN_CASE
 }
+END_VARLEN_CASE
 
 BEGIN_CASE(JSOP_ENDFILTER)
 {
+    JS_ASSERT(!script->strictModeCode);
+
     bool cond = !regs.sp[-1].isMagic();
     if (cond) {
         /* Exit the "with" block left from the previous iteration. */
@@ -5660,6 +5612,8 @@ END_CASE(JSOP_ENDFILTER);
 
 BEGIN_CASE(JSOP_TOXML)
 {
+    JS_ASSERT(!script->strictModeCode);
+
     Value rval = regs.sp[-1];
     JSObject *obj = js_ValueToXMLObject(cx, rval);
     if (!obj)
@@ -5670,6 +5624,8 @@ END_CASE(JSOP_TOXML)
 
 BEGIN_CASE(JSOP_TOXMLLIST)
 {
+    JS_ASSERT(!script->strictModeCode);
+
     Value rval = regs.sp[-1];
     JSObject *obj = js_ValueToXMLListObject(cx, rval);
     if (!obj)
@@ -5680,6 +5636,8 @@ END_CASE(JSOP_TOXMLLIST)
 
 BEGIN_CASE(JSOP_XMLTAGEXPR)
 {
+    JS_ASSERT(!script->strictModeCode);
+
     Value rval = regs.sp[-1];
     JSString *str = js_ValueToString(cx, rval);
     if (!str)
@@ -5690,6 +5648,8 @@ END_CASE(JSOP_XMLTAGEXPR)
 
 BEGIN_CASE(JSOP_XMLELTEXPR)
 {
+    JS_ASSERT(!script->strictModeCode);
+
     Value rval = regs.sp[-1];
     JSString *str;
     if (IsXML(rval)) {
@@ -5707,6 +5667,8 @@ END_CASE(JSOP_XMLELTEXPR)
 
 BEGIN_CASE(JSOP_XMLCDATA)
 {
+    JS_ASSERT(!script->strictModeCode);
+
     JSAtom *atom;
     LOAD_ATOM(0, atom);
     JSString *str = atom;
@@ -5719,6 +5681,8 @@ END_CASE(JSOP_XMLCDATA)
 
 BEGIN_CASE(JSOP_XMLCOMMENT)
 {
+    JS_ASSERT(!script->strictModeCode);
+
     JSAtom *atom;
     LOAD_ATOM(0, atom);
     JSString *str = atom;
@@ -5731,6 +5695,8 @@ END_CASE(JSOP_XMLCOMMENT)
 
 BEGIN_CASE(JSOP_XMLPI)
 {
+    JS_ASSERT(!script->strictModeCode);
+
     JSAtom *atom;
     LOAD_ATOM(0, atom);
     JSString *str = atom;
@@ -5745,6 +5711,8 @@ END_CASE(JSOP_XMLPI)
 
 BEGIN_CASE(JSOP_GETFUNNS)
 {
+    JS_ASSERT(!script->strictModeCode);
+
     Value rval;
     if (!cx->fp()->scopeChain().getGlobal()->getFunctionNamespace(cx, &rval))
         goto error;

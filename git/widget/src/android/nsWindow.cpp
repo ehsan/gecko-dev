@@ -202,7 +202,6 @@ nsWindow::Create(nsIWidget *aParent,
                  const nsIntRect &aRect,
                  EVENT_CALLBACK aHandleEventFunction,
                  nsDeviceContext *aContext,
-                 nsIToolkit *aToolkit,
                  nsWidgetInitData *aInitData)
 {
     ALOG("nsWindow[%p]::Create %p [%d %d %d %d]", (void*)this, (void*)aParent, aRect.x, aRect.y, aRect.width, aRect.height);
@@ -230,8 +229,7 @@ nsWindow::Create(nsIWidget *aParent,
         mBounds.height = gAndroidBounds.height;
     }
 
-    BaseCreate(nsnull, mBounds, aHandleEventFunction, aContext,
-               aToolkit, aInitData);
+    BaseCreate(nsnull, mBounds, aHandleEventFunction, aContext, aInitData);
 
     NS_ASSERTION(IsTopLevel() || parent, "non top level windowdoesn't have a parent!");
 
@@ -803,8 +801,8 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
             win->UserActivity();
             if (!gTopLevelWindows.IsEmpty()) {
                 nsIntPoint pt(ae->P0());
-                pt.x = NS_MIN(NS_MAX(pt.x, 0), gAndroidBounds.width - 1);
-                pt.y = NS_MIN(NS_MAX(pt.y, 0), gAndroidBounds.height - 1);
+                pt.x = clamped(pt.x, 0, gAndroidBounds.width - 1);
+                pt.y = clamped(pt.y, 0, gAndroidBounds.height - 1);
                 nsWindow *target = win->FindWindowForPoint(pt);
 
 #if 0

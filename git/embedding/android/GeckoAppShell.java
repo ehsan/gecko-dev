@@ -114,6 +114,8 @@ public class GeckoAppShell
 
     public static native void processNextNativeEvent();
 
+    public static native void notifyBatteryChange(float aLevel, boolean aCharging);
+
     // A looper thread, accessed by GeckoAppShell.getHandler
     private static class LooperThread extends Thread {
         public SynchronousQueue<Handler> mHandlerQueue =
@@ -1473,6 +1475,14 @@ public class GeckoAppShell
     static int[] initCamera(String aContentType, int aCamera, int aWidth, int aHeight) {
         Log.i("GeckoAppJava", "initCamera(" + aContentType + ", " + aWidth + "x" + aHeight + ") on thread " + Thread.currentThread().getId());
 
+        getMainHandler().post(new Runnable() {
+                public void run() {
+                    try {
+                        GeckoApp.mAppContext.enableCameraView();
+                    } catch (Exception e) {}
+                }
+            });
+
         // [0] = 0|1 (failure/success)
         // [1] = width
         // [2] = height
@@ -1560,11 +1570,62 @@ public class GeckoAppShell
 
     static synchronized void closeCamera() {
         Log.i("GeckoAppJava", "closeCamera() on thread " + Thread.currentThread().getId());
+        getMainHandler().post(new Runnable() {
+                public void run() {
+                    try {
+                        GeckoApp.mAppContext.disableCameraView();
+                    } catch (Exception e) {}
+                }
+            });
         if (sCamera != null) {
             sCamera.stopPreview();
             sCamera.release();
             sCamera = null;
             sCameraBuffer = null;
         }
+    }
+
+
+    static SynchronousQueue<Date> sTracerQueue = new SynchronousQueue<Date>();
+    public static void fireAndWaitForTracerEvent() {
+        getMainHandler().post(new Runnable() { 
+                public void run() {
+                    try {
+                        sTracerQueue.put(new Date());
+                    } catch(InterruptedException ie) {
+                        Log.w("GeckoAppShell", "exception firing tracer", ie);
+                    }
+                }
+        });
+        try {
+            sTracerQueue.take();
+        } catch(InterruptedException ie) {
+            Log.w("GeckoAppShell", "exception firing tracer", ie);
+        }
+    }
+
+    public static void enableBatteryNotifications() {
+        GeckoBatteryManager.enableNotifications();
+    }
+
+    public static void disableBatteryNotifications() {
+        GeckoBatteryManager.disableNotifications();
+    }
+
+    public static float[] getCurrentBatteryInformation() {
+        return GeckoBatteryManager.getCurrentInformation();
+    }
+
+    public static boolean isTablet() {
+        if (android.os.Build.VERSION.SDK_INT >= 9) {
+            Configuration config = GeckoApp.mAppContext.getResources().getConfiguration();
+            // xlarge is defined by android as screens larger than 960dp x 720dp
+            // and should include most devices ~7in and up.
+            // http://developer.android.com/guide/practices/screens_support.html
+            if ((config.screenLayout & Configuration.SCREENLAYOUT_SIZE_MASK) >= Configuration.SCREENLAYOUT_SIZE_XLARGE) {
+                return true;
+            }
+        }
+        return false;
     }
 }

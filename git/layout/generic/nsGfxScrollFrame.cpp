@@ -1326,7 +1326,7 @@ public:
 
 protected:
   double ProgressAt(TimeStamp aTime) {
-    return NS_MIN(1.0, NS_MAX(0.0, (aTime - mStartTime) / mDuration));
+    return clamped((aTime - mStartTime) / mDuration, 0.0, 1.0);
   }
 
   nscoord VelocityComponent(double aTimeProgress,
@@ -2643,12 +2643,11 @@ nsGfxScrollFrameInner::PostScrollEvent()
   if (mScrollEvent.IsPending())
     return;
 
-  nsRefPtr<ScrollEvent> ev = new ScrollEvent(this);
-  if (NS_FAILED(NS_DispatchToCurrentThread(ev))) {
-    NS_WARNING("failed to dispatch ScrollEvent");
-  } else {
-    mScrollEvent = ev;
-  }
+  nsRootPresContext* rpc = mOuter->PresContext()->GetRootPresContext();
+  if (!rpc)
+    return;
+  mScrollEvent = new ScrollEvent(this);
+  rpc->AddWillPaintObserver(mScrollEvent.get());
 }
 
 NS_IMETHODIMP

@@ -149,11 +149,9 @@ public:
     eDOMEvents_SVGResize,
     eDOMEvents_SVGScroll,
     eDOMEvents_SVGZoom,
-#ifdef MOZ_SMIL
     eDOMEvents_beginEvent,
     eDOMEvents_endEvent,
     eDOMEvents_repeatEvent,
-#endif // MOZ_SMIL
 #ifdef MOZ_MEDIA
     eDOMEvents_loadstart,
     eDOMEvents_progress,
@@ -181,6 +179,7 @@ public:
     eDOMEvents_beforepaint,
     eDOMEvents_beforeresize,
     eDOMEvents_mozfullscreenchange,
+    eDOMEvents_mozfullscreenerror,
     eDOMEvents_MozSwipeGesture,
     eDOMEvents_MozMagnifyGestureStart,
     eDOMEvents_MozMagnifyGestureUpdate,

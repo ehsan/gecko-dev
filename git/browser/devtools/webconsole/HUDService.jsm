@@ -79,16 +79,16 @@ XPCOMUtils.defineLazyGetter(this, "gcli", function () {
   return obj.gcli;
 });
 
-XPCOMUtils.defineLazyGetter(this, "GcliCommands", function () {
-  var obj = {};
-  Cu.import("resource:///modules/GcliCommands.jsm", obj);
-  return obj.GcliCommands;
-});
-
 XPCOMUtils.defineLazyGetter(this, "StyleInspector", function () {
   var obj = {};
   Cu.import("resource:///modules/devtools/StyleInspector.jsm", obj);
   return obj.StyleInspector;
+});
+
+XPCOMUtils.defineLazyGetter(this, "CssRuleView", function() {
+  let tmp = {};
+  Cu.import("resource:///modules/devtools/CssRuleView.jsm", tmp);
+  return tmp.CssRuleView;
 });
 
 XPCOMUtils.defineLazyGetter(this, "NetUtil", function () {
@@ -133,9 +133,26 @@ function LogFactory(aMessagePrefix)
   return log;
 }
 
+/**
+ * Load the various Command JSMs.
+ * Should be called when the console first opens.
+ *
+ * @return an object containing the EXPORTED_SYMBOLS from all the command
+ * modules. In general there is no reason when JSMs need to export symbols
+ * except when they need the host environment to inform them of things like the
+ * current window/document/etc.
+ */
+function loadCommands() {
+  let commandExports = {};
+
+  Cu.import("resource:///modules/GcliCommands.jsm", commandExports);
+
+  return commandExports;
+}
+
 let log = LogFactory("*** HUDService:");
 
-const HUD_STRINGS_URI = "chrome://global/locale/headsUpDisplay.properties";
+const HUD_STRINGS_URI = "chrome://browser/locale/devtools/webconsole.properties";
 
 XPCOMUtils.defineLazyGetter(this, "stringBundle", function () {
   return Services.strings.createBundle(HUD_STRINGS_URI);
@@ -181,7 +198,9 @@ const LEVELS = {
   dir: SEVERITY_LOG,
   group: SEVERITY_LOG,
   groupCollapsed: SEVERITY_LOG,
-  groupEnd: SEVERITY_LOG
+  groupEnd: SEVERITY_LOG,
+  time: SEVERITY_LOG,
+  timeEnd: SEVERITY_LOG
 };
 
 // The lowest HTTP response code (inclusive) that is considered an error.
@@ -2076,6 +2095,30 @@ HUD_SERVICE.prototype =
           hud.groupDepth--;
         }
         return;
+
+      case "time":
+        if (!args) {
+          return;
+        }
+        if (args.error) {
+          Cu.reportError(this.getStr(args.error));
+          return;
+        }
+        body = this.getFormatStr("timerStarted", [args.name]);
+        clipboardText = body;
+        sourceURL = aMessage.filename;
+        sourceLine = aMessage.lineNumber;
+        break;
+
+      case "timeEnd":
+        if (!args) {
+          return;
+        }
+        body = this.getFormatStr("timeEnd", [args.name, args.duration]);
+        clipboardText = body;
+        sourceURL = aMessage.filename;
+        sourceLine = aMessage.lineNumber;
+        break;
 
       default:
         Cu.reportError("Unknown Console API log level: " + level);
@@ -4589,6 +4632,52 @@ function JSTermHelper(aJSTerm)
     }
   };
 
+  aJSTerm.sandbox.inspectrules = function JSTH_inspectrules(aNode)
+  {
+    aJSTerm.helperEvaluated = true;
+    let doc = aJSTerm.parentNode.ownerDocument;
+    let win = doc.defaultView;
+    let panel = createElement(doc, "panel", {
+      label: "CSS Rules",
+      titlebar: "normal",
+      noautofocus: "true",
+      noautohide: "true",
+      close: "true",
+      width: 350,
+      height: (win.screen.height / 2)
+    });
+
+    let iframe = createAndAppendElement(panel, "iframe", {
+      src: "chrome://browser/content/devtools/cssruleview.xul",
+      flex: "1",
+    });
+
+    panel.addEventListener("load", function onLoad() {
+      panel.removeEventListener("load", onLoad, true);
+      let doc = iframe.contentDocument;
+      let view = new CssRuleView(doc);
+      doc.documentElement.appendChild(view.element);
+      view.highlight(aNode);
+    }, true);
+
+    let parent = doc.getElementById("mainPopupSet");
+    parent.appendChild(panel);
+
+    panel.addEventListener("popuphidden", function onHide() {
+      panel.removeEventListener("popuphidden", onHide);
+      parent.removeChild(panel);
+    });
+
+    let footer = createElement(doc, "hbox", { align: "end" });
+    createAndAppendElement(footer, "spacer", { flex: 1});
+    createAndAppendElement(footer, "resizer", { dir: "bottomend" });
+    panel.appendChild(footer);
+
+    let anchor = win.gBrowser.selectedBrowser;
+    panel.openPopup(anchor, "end_before", 0, 0, false, false);
+
+  }
+
   /**
    * Prints aObject to the output.
    *
@@ -6883,6 +6972,11 @@ catch (ex) {
 ///////////////////////////////////////////////////////////////////////////
 
 /**
+ * Some commands need customization - this is how we get at them.
+ */
+let commandExports = undefined;
+
+/**
  * GcliTerm
  *
  * Initialize GCLI by creating a set of startup options from the available
@@ -6919,7 +7013,7 @@ function GcliTerm(aContentWindow, aHudId, aDocument, aConsole, aHintNode)
     chromeDocument: this.document,
     contentDocument: aContentWindow.document,
     jsEnvironment: {
-      globalObject: aContentWindow,
+      globalObject: unwrap(aContentWindow),
       evalFunction: this.evalInSandbox.bind(this)
     },
     inputElement: this.inputNode,
@@ -6932,7 +7026,10 @@ function GcliTerm(aContentWindow, aHudId, aDocument, aConsole, aHintNode)
 
   gcli._internal.commandOutputManager.addListener(this.onCommandOutput, this);
   gcli._internal.createView(this.opts);
-  GcliCommands.setDocument(aContentWindow.document);
+
+  if (!commandExports) {
+    commandExports = loadCommands();
+  }
 }
 
 GcliTerm.prototype = {
@@ -6957,7 +7054,6 @@ GcliTerm.prototype = {
    */
   destroy: function Gcli_destroy()
   {
-    GcliCommands.unsetDocument();
     gcli._internal.removeView(this.opts);
     gcli._internal.commandOutputManager.removeListener(this.onCommandOutput, this);
 

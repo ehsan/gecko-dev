@@ -55,6 +55,7 @@
 #include "mozilla/css/ImportRule.h"
 #include "nsCSSRules.h"
 #include "mozilla/css/NameSpaceRule.h"
+#include "nsTArray.h"
 #include "nsCSSStyleSheet.h"
 #include "mozilla/css/Declaration.h"
 #include "nsStyleConsts.h"
@@ -83,7 +84,6 @@
 #include "nsContentUtils.h"
 #include "nsDOMError.h"
 #include "nsAutoPtr.h"
-#include "nsTArray.h"
 #include "prlog.h"
 #include "CSSCalc.h"
 #include "nsMediaFeatures.h"
@@ -587,7 +587,6 @@ protected:
                        bool aIsRepeating);
 
   void SetParsingCompoundProperty(bool aBool) {
-    NS_ASSERTION(aBool == true || aBool == false, "bad bool value");
     mParsingCompoundProperty = aBool;
   }
   bool IsParsingCompoundProperty(void) const {
@@ -792,7 +791,6 @@ CSSParserImpl::SetStyleSheet(nsCSSStyleSheet* aSheet)
 nsresult
 CSSParserImpl::SetQuirkMode(bool aQuirkMode)
 {
-  NS_ASSERTION(aQuirkMode == true || aQuirkMode == false, "bad bool value");
   mNavQuirkMode = aQuirkMode;
   return NS_OK;
 }
@@ -800,8 +798,6 @@ CSSParserImpl::SetQuirkMode(bool aQuirkMode)
 nsresult
 CSSParserImpl::SetSVGMode(bool aSVGMode)
 {
-  NS_ASSERTION(aSVGMode == true || aSVGMode == false,
-               "bad bool value");
   mScanner.SetSVGMode(aSVGMode);
   return NS_OK;
 }
@@ -1157,8 +1153,6 @@ CSSParserImpl::ParseMediaList(const nsSubstring& aBuffer,
   InitScanner(aBuffer, aURI, aLineNumber, aURI, nsnull);
 
   AssertInitialState();
-  NS_ASSERTION(aHTMLMode == true || aHTMLMode == false,
-               "invalid bool");
   mHTMLMediaMode = aHTMLMode;
 
     // XXXldb We need to make the scanner not skip CSS comments!  (Or
