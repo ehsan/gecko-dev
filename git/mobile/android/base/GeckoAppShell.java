@@ -86,7 +86,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Locale;
 import java.util.NoSuchElementException;
 import java.util.StringTokenizer;
 import java.util.concurrent.SynchronousQueue;
@@ -1006,25 +1005,6 @@ public class GeckoAppShell
     }
 
     /**
-     * Return a <code>Uri</code> instance which is equivalent to <code>u</code>,
-     * but with a guaranteed-lowercase scheme as if the API level 16 method
-     * <code>u.normalizeScheme</code> had been called.
-     *
-     * @param u the <code>Uri</code> to normalize.
-     * @return a <code>Uri</code>, which might be <code>u</code>.
-     */
-    static Uri normalizeUriScheme(final Uri u) {
-        final String scheme = u.getScheme();
-        final String lower  = scheme.toLowerCase(Locale.US);
-        if (lower.equals(scheme)) {
-            return u;
-        }
-
-        // Otherwise, return a new URI with a normalized scheme.
-        return u.buildUpon().scheme(lower).build();
-    }
-
-    /**
      * Given a URI, a MIME type, an Android intent "action", and a title,
      * produce an intent which can be used to start an activity to open
      * the specified URI.
@@ -1062,23 +1042,23 @@ public class GeckoAppShell
                                         context.getResources().getString(R.string.share_title)); 
         }
 
-        final Uri uri = normalizeUriScheme(Uri.parse(targetURI));
         if (mimeType.length() > 0) {
             Intent intent = getIntentForActionString(action);
-            intent.setDataAndType(uri, mimeType);
+            intent.setDataAndType(Uri.parse(targetURI), mimeType);
             return intent;
         }
 
+        final Uri uri = Uri.parse(targetURI);
         if (!isUriSafeForScheme(uri)) {
             return null;
         }
-
+        
         final String scheme = uri.getScheme();
         final Intent intent = getIntentForActionString(action);
 
         // Start with the original URI. If we end up modifying it,
         // we'll overwrite it.
-        intent.setData(uri);
+        intent.setDataAndNormalize(uri);
 
         // Have a special handling for the SMS, as the message body
         // is not extracted from the URI automatically.
@@ -1113,9 +1093,10 @@ public class GeckoAppShell
 
         // Form a new URI without the body field in the query part, and
         // push that into the new Intent.
+        final String prefix = targetURI.substring(0, targetURI.indexOf('?'));
         final String newQuery = resultQuery.length() > 0 ? "?" + resultQuery : "";
-        final Uri pruned = uri.buildUpon().encodedQuery(newQuery).build();
-        intent.setData(pruned);
+        final Uri pruned = Uri.parse(prefix + newQuery);
+        intent.setDataAndNormalize(pruned);
 
         return intent;
     }

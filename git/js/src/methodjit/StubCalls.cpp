@@ -748,7 +748,7 @@ stubs::DebuggerStatement(VMFrame &f, jsbytecode *pc)
             st = handler(f.cx, fscript, pc, rval.address(), f.cx->runtime->debugHooks.debuggerHandlerData);
         }
         if (st == JSTRAP_CONTINUE)
-            st = Debugger::onDebuggerStatement(f.cx, &rval);
+            st = Debugger::onDebuggerStatement(f.cx, rval.address());
 
         switch (st) {
           case JSTRAP_THROW:
@@ -860,7 +860,7 @@ stubs::RecompileForInline(VMFrame &f)
 void JS_FASTCALL
 stubs::Trap(VMFrame &f, uint32_t trapTypes)
 {
-    RootedValue rval(f.cx);
+    Value rval;
 
     /*
      * Trap may be called for a single-step interrupt trap and/or a
@@ -876,8 +876,7 @@ stubs::Trap(VMFrame &f, uint32_t trapTypes)
         JSInterruptHook hook = f.cx->runtime->debugHooks.interruptHook;
         if (hook) {
             RootedScript fscript(f.cx, f.script());
-            result = hook(f.cx, fscript, f.pc(), rval.address(),
-                          f.cx->runtime->debugHooks.interruptHookData);
+            result = hook(f.cx, fscript, f.pc(), &rval, f.cx->runtime->debugHooks.interruptHookData);
         }
 
         if (result == JSTRAP_CONTINUE)

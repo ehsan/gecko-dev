@@ -2028,6 +2028,10 @@ this.DOMApplicationRegistry = {
       let download = AppDownloadManager.get(aApp.manifestURL);
       app.downloading = false;
 
+      // To prevent repeated prompts, wait for the next checkForUpdates to
+      // try a new download.
+      app.downloadAvailable = false;
+
       // If there were not enough storage to download the package we
       // won't have a record of the download details, so we just set the
       // installState to 'pending' at first download and to 'installed' when
@@ -2151,8 +2155,6 @@ this.DOMApplicationRegistry = {
           // network error.
           let responseStatus = requestChannel.responseStatus;
           if (responseStatus >= 400 && responseStatus <= 599) {
-            // unrecoverable error, don't bug the user
-            app.downloadAvailable = false;
             cleanup("NETWORK_ERROR");
             return;
           }
@@ -2188,8 +2190,6 @@ this.DOMApplicationRegistry = {
               certdb = Cc["@mozilla.org/security/x509certdb;1"]
                          .getService(Ci.nsIX509CertDB);
             } catch (e) {
-              // unrecoverable error, don't bug the user
-              app.downloadAvailable = false;
               cleanup("CERTDB_ERROR");
               return;
             }
@@ -2307,8 +2307,6 @@ this.DOMApplicationRegistry = {
                 }
               } catch (e) {
                 // Something bad happened when reading the package.
-                // unrecoverable error, don't bug the user
-                app.downloadAvailable = false;
                 if (typeof e == 'object') {
                   Cu.reportError("Error while reading package:" + e);
                   cleanup("INVALID_PACKAGE");
@@ -2847,6 +2845,7 @@ AppcacheObserver.prototype = {
       }
 
       app.downloading = false;
+      app.downloadAvailable = false;
       mustSave = true;
     }
 
