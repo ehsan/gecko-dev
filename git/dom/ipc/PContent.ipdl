@@ -478,9 +478,6 @@ parent:
 
     async GetSystemMemory(uint64_t getterId);
 
-    sync IsSecureURI(uint32_t type, URIParams uri, uint32_t flags)
-        returns (bool isSecureURI);
-
     PHal();
 
     PIndexedDB();
