@@ -198,7 +198,7 @@ frontend::CompileScript(ExclusiveContext *cx, LifoAlloc *alloc, HandleObject sco
     if (options.filename() && !ss->setFilename(cx, options.filename()))
         return nullptr;
 
-    RootedScriptSource sourceObject(cx, ScriptSourceObject::create(cx, ss, options));
+    RootedScriptSource sourceObject(cx, ScriptSourceObject::create(cx, ss));
     if (!sourceObject)
         return nullptr;
 
@@ -355,7 +355,9 @@ frontend::CompileScript(ExclusiveContext *cx, LifoAlloc *alloc, HandleObject sco
         if (!FoldConstants(cx, &pn, &parser))
             return nullptr;
 
-        if (!NameFunctions(cx, pn))
+        // Inferring names for functions in compiled scripts is currently only
+        // supported while on the main thread. See bug 895395.
+        if (cx->isJSContext() && !NameFunctions(cx->asJSContext(), pn))
             return nullptr;
 
         if (!EmitTree(cx, &bce, pn))
@@ -494,7 +496,7 @@ CompileFunctionBody(JSContext *cx, MutableHandleFunction fun, const ReadOnlyComp
         return false;
     if (options.filename() && !ss->setFilename(cx, options.filename()))
         return false;
-    RootedScriptSource sourceObject(cx, ScriptSourceObject::create(cx, ss, options));
+    RootedScriptSource sourceObject(cx, ScriptSourceObject::create(cx, ss));
     if (!sourceObject)
         return false;
     SourceCompressionTask sct(cx);
@@ -567,7 +569,7 @@ CompileFunctionBody(JSContext *cx, MutableHandleFunction fun, const ReadOnlyComp
     if (fn->pn_funbox->function()->isInterpreted()) {
         JS_ASSERT(fun == fn->pn_funbox->function());
 
-        Rooted<JSScript*> script(cx, JSScript::Create(cx, js::NullPtr(), false, options,
+        Rooted<JSScript*> script(cx, JSScript::Create(cx, NullPtr(), false, options,
                                                       /* staticLevel = */ 0, sourceObject,
                                                       /* sourceStart = */ 0, length));
         if (!script)
@@ -583,7 +585,7 @@ CompileFunctionBody(JSContext *cx, MutableHandleFunction fun, const ReadOnlyComp
          * instead is cloned immediately onto the right scope chain.
          */
         BytecodeEmitter funbce(/* parent = */ nullptr, &parser, fn->pn_funbox, script,
-                               /* insideEval = */ false, /* evalCaller = */ js::NullPtr(),
+                               /* insideEval = */ false, /* evalCaller = */ NullPtr(),
                                fun->environment() && fun->environment()->is<GlobalObject>(),
                                options.lineno);
         if (!funbce.init())

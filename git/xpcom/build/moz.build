@@ -48,18 +48,13 @@ UNIFIED_SOURCES += xpcom_gluens_src_cppsrcs
 UNIFIED_SOURCES += xpcom_glue_src_cppsrcs
 
 UNIFIED_SOURCES += [
+    'FileLocation.cpp',
     'FrozenFunctions.cpp',
     'LateWriteChecks.cpp',
     'nsXPComInit.cpp',
     'nsXPCOMStrings.cpp',
-    'Services.cpp',
-]
-
-# FileLocation.cpp and Omnijar.cpp cannot be built in unified mode because they
-# use plarena.h.
-SOURCES += [
-    'FileLocation.cpp',
     'Omnijar.cpp',
+    'Services.cpp',
 ]
 
 MSVC_ENABLE_PGO = True

@@ -23,7 +23,6 @@
 #include "mozilla/MiscEvents.h"
 #include "mozilla/MouseEvents.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/WindowsVersion.h"
 
 #include <psapi.h>
 
@@ -949,7 +948,7 @@ MouseScrollHandler::SystemSettings::Init()
     PR_LOG(gMouseScrollLog, PR_LOG_ALWAYS,
       ("MouseScroll::SystemSettings::Init(): ::SystemParametersInfo("
          "SPI_GETWHEELSCROLLCHARS) failed, %s",
-       IsVistaOrLater() ?
+       WinUtils::GetWindowsVersion() >= WinUtils::VISTA_VERSION ?
          "this is unexpected on Vista or later" :
          "but on XP or earlier, this is not a problem"));
     mScrollChars = 1;

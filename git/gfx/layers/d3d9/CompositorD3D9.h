@@ -19,7 +19,7 @@ namespace layers {
 class CompositorD3D9 : public Compositor
 {
 public:
-  CompositorD3D9(PCompositorParent* aParent, nsIWidget *aWidget);
+  CompositorD3D9(nsIWidget *aWidget);
   ~CompositorD3D9();
 
   virtual bool Initialize() MOZ_OVERRIDE;
@@ -61,8 +61,7 @@ public:
                         gfx::Float aOpacity,
                         const gfx::Matrix4x4 &aTransform) MOZ_OVERRIDE;
 
-  virtual void BeginFrame(const nsIntRegion& aInvalidRegion,
-                          const gfx::Rect *aClipRectIn,
+  virtual void BeginFrame(const gfx::Rect *aClipRectIn,
                           const gfxMatrix& aTransform,
                           const gfx::Rect& aRenderBounds,
                           gfx::Rect *aClipRectOut = nullptr,
@@ -95,23 +94,7 @@ public:
     return mSize;
   }
 
-  IDirect3DDevice9* device() const
-  {
-    return mDeviceManager
-           ? mDeviceManager->device()
-           : nullptr;
-  }
-
-  /**
-   * Returns true if the Compositor is ready to go.
-   * D3D9 devices can be awkward and there is a bunch of logic around
-   * resetting/recreating devices and swap chains. That is handled by this method.
-   * If we don't have a device and swap chain ready for rendering, we will return
-   * false and if necessary destroy the device and/or swap chain. We will also
-   * schedule another composite so we get another go at rendering, thus we shouldn't
-   * miss a composite due to re-creating a device.
-   */
-  virtual bool Ready() MOZ_OVERRIDE;
+  IDirect3DDevice9* device() const { return mDeviceManager->device(); }
 
   /**
    * Declare an offset to use when rendering layers. This will be ignored when
@@ -133,27 +116,6 @@ private:
   void SetSamplerForFilter(gfx::Filter aFilter);
   void PaintToTarget();
   void SetMask(const EffectChain &aEffectChain, uint32_t aMaskTexture);
-  /**
-   * Ensure we have a swap chain and it is ready for rendering.
-   * Requires mDeviceManger to be non-null.
-   * Returns true if we have a working swap chain; false otherwise.
-   * If we cannot create or validate the swap chain due to a bad device manager,
-   * then the device will be destroyed and set mDeviceManager to null. We will
-   * schedule another composite if it is a good idea to try again or we need to
-   * recreate the device.
-   */
-  bool EnsureSwapChain();
-
-  /**
-   * DeviceManagerD3D9 keeps a count of the number of times its device is
-   * reset or recreated. We keep a parallel count (mDeviceResetCount). It
-   * is possible that we miss a reset if it is 'caused' by another
-   * compositor (for another window). In which case we need to invalidate
-   * everything and render it all. This method checks the reset counts
-   * match and if not invalidates everything (a long comment on that in
-   * the cpp file).
-   */
-  void CheckResetCount();
 
   void ReportFailure(const nsACString &aMsg, HRESULT aCode);
 
@@ -175,8 +137,6 @@ private:
   RefPtr<CompositingRenderTargetD3D9> mCurrentRT;
 
   nsIntSize mSize;
-
-  uint32_t mDeviceResetCount;
 };
 
 }

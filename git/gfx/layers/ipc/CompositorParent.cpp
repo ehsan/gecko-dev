@@ -322,15 +322,6 @@ CompositorParent::RecvFlushRendering()
   return true;
 }
 
-bool
-CompositorParent::RecvNotifyRegionInvalidated(const nsIntRegion& aRegion)
-{
-  if (mLayerManager) {
-    mLayerManager->AddInvalidRegion(aRegion);
-  }
-  return true;
-}
-
 void
 CompositorParent::ActorDestroy(ActorDestroyReason why)
 {
@@ -672,7 +663,7 @@ CompositorParent::InitializeLayerManager(const nsTArray<LayersBackend>& aBackend
         new LayerManagerComposite(new CompositorD3D11(mWidget));
     } else if (aBackendHints[i] == LAYERS_D3D9) {
       layerManager =
-        new LayerManagerComposite(new CompositorD3D9(this, mWidget));
+        new LayerManagerComposite(new CompositorD3D9(mWidget));
 #endif
     }
 
@@ -905,7 +896,6 @@ public:
                                 SurfaceDescriptor* aOutSnapshot)
   { return true; }
   virtual bool RecvFlushRendering() MOZ_OVERRIDE { return true; }
-  virtual bool RecvNotifyRegionInvalidated(const nsIntRegion& aRegion) { return true; }
 
   virtual PLayerTransactionParent*
     AllocPLayerTransactionParent(const nsTArray<LayersBackend>& aBackendHints,

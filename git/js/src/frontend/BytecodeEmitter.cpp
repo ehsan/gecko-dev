@@ -4787,8 +4787,7 @@ EmitFunc(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
                 JSObject *scope = bce->blockChain;
                 if (!scope && bce->sc->isFunctionBox())
                     scope = bce->sc->asFunctionBox()->function();
-                JSObject *source = bce->script->sourceObject();
-                fun->lazyScript()->setParent(scope, &source->as<ScriptSourceObject>());
+                fun->lazyScript()->setParent(scope, bce->script->sourceObject());
             }
             if (bce->emittingRunOnceLambda)
                 fun->lazyScript()->setTreatAsRunOnce();
@@ -4811,7 +4810,7 @@ EmitFunc(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
                    .setVersion(parent->getVersion());
 
             Rooted<JSObject*> enclosingScope(cx, EnclosingStaticScope(bce));
-            Rooted<JSObject*> sourceObject(cx, bce->script->sourceObject());
+            Rooted<ScriptSourceObject *> sourceObject(cx, bce->script->sourceObject());
             Rooted<JSScript*> script(cx, JSScript::Create(cx, enclosingScope, false, options,
                                                           parent->staticLevel + 1,
                                                           sourceObject,

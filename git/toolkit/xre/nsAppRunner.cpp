@@ -99,7 +99,6 @@
 #include "nsIWinAppHelper.h"
 #include <windows.h>
 #include "cairo/cairo-features.h"
-#include "mozilla/WindowsVersion.h"
 #ifdef MOZ_METRO
 #include <roapi.h>
 #endif
@@ -1650,7 +1649,7 @@ static nsresult LaunchChild(nsINativeAppSupport* aNative,
   SaveToEnv("MOZ_LAUNCHED_CHILD=1");
 
 #if defined(MOZ_WIDGET_ANDROID)
-  mozilla::widget::android::GeckoAppShell::ScheduleRestart();
+  mozilla::AndroidBridge::Bridge()->ScheduleRestart();
 #else
 #if defined(XP_MACOSX)
   CommandLineServiceMac::SetupMacCommandLine(gRestartArgc, gRestartArgv, true);
@@ -1762,7 +1761,7 @@ ProfileLockedDialog(nsIFile* aProfileDir, nsIFile* aProfileLocalDir,
     if (aUnlocker) {
       int32_t button;
 #ifdef MOZ_WIDGET_ANDROID
-      mozilla::widget::android::GeckoAppShell::KillAnyZombies();
+      mozilla::AndroidBridge::Bridge()->KillAnyZombies();
       button = 1;
 #else
       const uint32_t flags =
@@ -1789,7 +1788,7 @@ ProfileLockedDialog(nsIFile* aProfileDir, nsIFile* aProfileLocalDir,
       }
     } else {
 #ifdef MOZ_WIDGET_ANDROID
-      if (mozilla::widget::android::GeckoAppShell::UnlockProfile()) {
+      if (mozilla::AndroidBridge::Bridge()->UnlockProfile()) {
         return NS_LockProfilePath(aProfileDir, aProfileLocalDir, 
                                   nullptr, aResult);
       }
@@ -2868,8 +2867,10 @@ XREMain::XRE_mainInit(bool* aExitFlag)
     // manual font file I/O on _all_ system fonts.  To avoid this, load the
     // dwrite library and create a factory as early as possible so that the
     // FntCache service is ready by the time it's needed.
-
-    if (IsVistaOrLater()) {
+      
+    OSVERSIONINFO vinfo;
+    vinfo.dwOSVersionInfoSize = sizeof(vinfo);
+    if (GetVersionEx(&vinfo) && vinfo.dwMajorVersion >= 6) {
       CreateThread(nullptr, 0, (LPTHREAD_START_ROUTINE)&InitDwriteBG,
                    nullptr, 0, nullptr);
     }

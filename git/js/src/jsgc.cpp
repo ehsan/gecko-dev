@@ -4872,27 +4872,7 @@ js::MinorGC(JSRuntime *rt, JS::gcreason::Reason reason)
                         TraceLogging::MINOR_GC_START,
                         TraceLogging::MINOR_GC_STOP);
 #endif
-    rt->gcNursery.collect(rt, reason, nullptr);
-#endif
-}
-
-void
-js::MinorGC(JSContext *cx, JS::gcreason::Reason reason)
-{
-    // Alternate to the runtime-taking form above which allows marking type
-    // objects as needing pretenuring.
-#ifdef JSGC_GENERATIONAL
-#if JS_TRACE_LOGGING
-    AutoTraceLog logger(TraceLogging::defaultLogger(),
-                        TraceLogging::MINOR_GC_START,
-                        TraceLogging::MINOR_GC_STOP);
-#endif
-    Nursery::TypeObjectList pretenureTypes;
-    cx->runtime()->gcNursery.collect(cx->runtime(), reason, &pretenureTypes);
-    for (size_t i = 0; i < pretenureTypes.length(); i++) {
-        if (pretenureTypes[i]->canPreTenure())
-            pretenureTypes[i]->setShouldPreTenure(cx);
-    }
+    rt->gcNursery.collect(rt, reason);
 #endif
 }
 
@@ -5384,13 +5364,9 @@ JS::GetGCNumber()
 }
 
 JS::AutoAssertNoGC::AutoAssertNoGC()
-  : runtime(nullptr)
+  : runtime(js::TlsPerThreadData.get()->runtimeFromMainThread())
 {
-    js::PerThreadData *data = js::TlsPerThreadData.get();
-    if (data) {
-        runtime = data->runtimeFromMainThread();
-        gcNumber = runtime->gcNumber;
-    }
+    gcNumber = runtime->gcNumber;
 }
 
 JS::AutoAssertNoGC::AutoAssertNoGC(JSRuntime *rt)
@@ -5400,9 +5376,6 @@ JS::AutoAssertNoGC::AutoAssertNoGC(JSRuntime *rt)
 
 JS::AutoAssertNoGC::~AutoAssertNoGC()
 {
-    if (runtime)
-        MOZ_ASSERT(gcNumber == runtime->gcNumber, "GC ran inside an AutoAssertNoGC scope.");
-    else
-        MOZ_ASSERT(!js::TlsPerThreadData.get(), "Runtime created within AutoAssertNoGC scope?");
+    MOZ_ASSERT(gcNumber == runtime->gcNumber, "GC ran inside an AutoAssertNoGC scope.");
 }
 #endif

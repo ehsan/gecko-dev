@@ -1637,13 +1637,6 @@ IonCompile(JSContext *cx, JSScript *script,
 
     BaselineInspector inspector(script);
 
-    BaselineFrameInspector *baselineFrameInspector = nullptr;
-    if (baselineFrame) {
-        baselineFrameInspector = NewBaselineFrameInspector(temp, baselineFrame);
-        if (!baselineFrameInspector)
-            return AbortReason_Alloc;
-    }
-
     AutoFlushCache afc("IonCompile", cx->runtime()->jitRuntime());
 
     AutoTempAllocatorRooter root(cx, temp);
@@ -1654,7 +1647,7 @@ IonCompile(JSContext *cx, JSScript *script,
     IonBuilder *builder = alloc->new_<IonBuilder>((JSContext *) nullptr,
                                                   CompileCompartment::get(cx->compartment()),
                                                   temp, graph, constraints,
-                                                  &inspector, info, baselineFrameInspector);
+                                                  &inspector, info, baselineFrame);
     if (!builder)
         return AbortReason_Alloc;
 

@@ -27,7 +27,6 @@
 #include "nsISupportsPrimitives.h"
 #include "nsThreadUtils.h"
 #include "nsXULAppAPI.h"
-#include "mozilla/WindowsVersion.h"
 
 #include "windows.h"
 #include "shellapi.h"
@@ -53,8 +52,6 @@
   (val != ERROR_SUCCESS)
 
 #define NS_TASKBAR_CONTRACTID "@mozilla.org/windows-taskbar;1"
-
-using mozilla::IsWin8OrLater;
 
 NS_IMPL_ISUPPORTS2(nsWindowsShellService, nsIWindowsShellService, nsIShellService)
 
@@ -315,6 +312,16 @@ nsWindowsShellService::ShortcutMaintenance()
   appHelperPath.AppendLiteral(" /UpdateShortcutAppUserModelIds");
 
   return LaunchHelper(appHelperPath);
+}
+
+static bool
+IsWin8OrLater()
+{
+  OSVERSIONINFOW osInfo;
+  osInfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFOW);
+  GetVersionExW(&osInfo);
+  return osInfo.dwMajorVersion > 6 || 
+         (osInfo.dwMajorVersion >= 6 && osInfo.dwMinorVersion >= 2);
 }
 
 static bool

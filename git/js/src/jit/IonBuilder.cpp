@@ -37,73 +37,9 @@ using namespace js::jit;
 using mozilla::DebugOnly;
 using mozilla::Maybe;
 
-class jit::BaselineFrameInspector
-{
-  public:
-    types::Type thisType;
-    JSObject *singletonScopeChain;
-
-    Vector<types::Type, 4, IonAllocPolicy> argTypes;
-    Vector<types::Type, 4, IonAllocPolicy> varTypes;
-
-    BaselineFrameInspector(TempAllocator *temp)
-      : thisType(types::Type::UndefinedType()),
-        singletonScopeChain(nullptr),
-        argTypes(*temp),
-        varTypes(*temp)
-    {}
-};
-
-BaselineFrameInspector *
-jit::NewBaselineFrameInspector(TempAllocator *temp, BaselineFrame *frame)
-{
-    JS_ASSERT(frame);
-
-    BaselineFrameInspector *inspector = temp->lifoAlloc()->new_<BaselineFrameInspector>(temp);
-    if (!inspector)
-        return nullptr;
-
-    // Note: copying the actual values into a temporary structure for use
-    // during compilation could capture nursery pointers, so the values' types
-    // are recorded instead.
-
-    inspector->thisType = types::GetValueType(frame->thisValue());
-
-    if (frame->scopeChain()->hasSingletonType())
-        inspector->singletonScopeChain = frame->scopeChain();
-
-    JSScript *script = frame->script();
-
-    if (script->function()) {
-        if (!inspector->argTypes.reserve(frame->numFormalArgs()))
-            return nullptr;
-        for (size_t i = 0; i < frame->numFormalArgs(); i++) {
-            if (script->formalIsAliased(i))
-                inspector->argTypes.infallibleAppend(types::Type::UndefinedType());
-            else if (!script->argsObjAliasesFormals())
-                inspector->argTypes.infallibleAppend(types::GetValueType(frame->unaliasedFormal(i)));
-            else if (frame->hasArgsObj())
-                inspector->argTypes.infallibleAppend(types::GetValueType(frame->argsObj().arg(i)));
-            else
-                inspector->argTypes.infallibleAppend(types::Type::UndefinedType());
-        }
-    }
-
-    if (!inspector->varTypes.reserve(frame->script()->nfixed))
-        return nullptr;
-    for (size_t i = 0; i < frame->script()->nfixed; i++) {
-        if (script->varIsAliased(i))
-            inspector->varTypes.infallibleAppend(types::Type::UndefinedType());
-        else
-            inspector->varTypes.infallibleAppend(types::GetValueType(frame->unaliasedVar(i)));
-    }
-
-    return inspector;
-}
-
 IonBuilder::IonBuilder(JSContext *analysisContext, CompileCompartment *comp, TempAllocator *temp, MIRGraph *graph,
                        types::CompilerConstraintList *constraints,
-                       BaselineInspector *inspector, CompileInfo *info, BaselineFrameInspector *baselineFrame,
+                       BaselineInspector *inspector, CompileInfo *info, BaselineFrame *baselineFrame,
                        size_t inliningDepth, uint32_t loopDepth)
   : MIRGenerator(comp, temp, graph, info),
     backgroundCodegen_(nullptr),
@@ -923,7 +859,7 @@ IonBuilder::initParameters()
     // frame to determine possible initial types for 'this' and parameters.
 
     if (thisTypes->empty() && baselineFrame_) {
-        if (!thisTypes->addType(baselineFrame_->thisType, alloc_->lifoAlloc()))
+        if (!thisTypes->addType(types::GetValueType(baselineFrame_->thisValue()), alloc_->lifoAlloc()))
             return false;
     }
 
@@ -936,7 +872,7 @@ IonBuilder::initParameters()
         if (types->empty() && baselineFrame_ &&
             !script_->baselineScript()->modifiesArguments())
         {
-            if (!types->addType(baselineFrame_->argTypes[i], alloc_->lifoAlloc()))
+            if (!types->addType(types::GetValueType(baselineFrame_->argv()[i]), alloc_->lifoAlloc()))
                 return false;
         }
 
@@ -4036,13 +3972,6 @@ IonBuilder::makeInliningDecision(JSFunction *target, CallInfo &callInfo)
                         targetScript->filename(), targetScript->lineno);
                 return false;
             }
-
-            // Caller must not be excessively large.
-            if (script()->length >= js_IonOptions.inliningMaxCallerBytecodeLength) {
-                IonSpew(IonSpew_Inlining, "%s:%d - Vetoed: caller excessively large.",
-                        targetScript->filename(), targetScript->lineno);
-                return false;
-            }
         }
 
         // Callee must not be excessively large.
@@ -4640,8 +4569,13 @@ IonBuilder::createCallObject(MDefinition *callee, MDefinition *scope)
     // instructions could potentially bailout, thus leaking the dynamic slots
     // pointer. Run-once scripts need a singleton type, so always do a VM call
     // in such cases.
-    MNewCallObject *callObj = MNewCallObject::New(alloc(), templateObj, script()->treatAsRunOnce, slots);
+    MInstruction *callObj = MNewCallObject::New(alloc(), templateObj, script()->treatAsRunOnce, slots);
     current->add(callObj);
+
+    // Insert a post barrier to protect the following writes if we allocated
+    // the new call object directly into tenured storage.
+    if (templateObj->type()->isLongLivedForJITAlloc())
+        current->add(MPostWriteBarrier::New(alloc(), callObj));
 
     // Initialize the object's reserved slots. No post barrier is needed here,
     // for the same reason as in createDeclEnvObject.
@@ -4745,9 +4679,7 @@ IonBuilder::createThisScriptedSingleton(JSFunction *target, MDefinition *callee)
 
     // Generate an inline path to create a new |this| object with
     // the given singleton prototype.
-    MCreateThisWithTemplate *createThis =
-        MCreateThisWithTemplate::New(alloc(), templateObject,
-                                     templateObject->type()->initialHeap(constraints()));
+    MCreateThisWithTemplate *createThis = MCreateThisWithTemplate::New(alloc(), templateObject);
     current->add(createThis);
 
     return createThis;
@@ -5442,9 +5374,7 @@ IonBuilder::jsop_newarray(uint32_t count)
     if (conversion == types::TemporaryTypeSet::AlwaysConvertToDoubles)
         templateObject->setShouldConvertDoubleElements();
 
-    MNewArray *ins = MNewArray::New(alloc(), count, templateObject,
-                                    templateObject->type()->initialHeap(constraints()),
-                                    MNewArray::NewArray_Allocating);
+    MNewArray *ins = MNewArray::New(alloc(), count, templateObject, MNewArray::NewArray_Allocating);
 
     current->add(ins);
     current->push(ins);
@@ -5464,9 +5394,6 @@ IonBuilder::jsop_newobject()
 
     JS_ASSERT(templateObject->is<JSObject>());
     MNewObject *ins = MNewObject::New(alloc(), templateObject,
-                                      templateObject->hasSingletonType()
-                                      ? gc::TenuredHeap
-                                      : templateObject->type()->initialHeap(constraints()),
                                       /* templateObjectIsClassPrototype = */ false);
 
     current->add(ins);
@@ -5887,23 +5814,30 @@ IonBuilder::newPendingLoopHeader(MBasicBlock *predecessor, jsbytecode *pc, bool 
 
             MPhi *phi = block->getSlot(i)->toPhi();
 
-            // Get the type from the baseline frame.
-            types::Type existingType = types::Type::UndefinedType();
+            // Get the value from the baseline frame.
+            Value existingValue;
             uint32_t arg = i - info().firstArgSlot();
             uint32_t var = i - info().firstLocalSlot();
-            if (info().fun() && i == info().thisSlot())
-                existingType = baselineFrame_->thisType;
-            else if (arg < info().nargs())
-                existingType = baselineFrame_->argTypes[arg];
-            else
-                existingType = baselineFrame_->varTypes[var];
+            if (info().fun() && i == info().thisSlot()) {
+                existingValue = baselineFrame_->thisValue();
+            } else if (arg < info().nargs()) {
+                if (info().needsArgsObj())
+                    existingValue = baselineFrame_->argsObj().arg(arg);
+                else
+                    existingValue = baselineFrame_->unaliasedFormal(arg);
+            } else {
+                existingValue = baselineFrame_->unaliasedVar(var);
+            }
 
             // Extract typeset from value.
+            MIRType type = existingValue.isDouble()
+                         ? MIRType_Double
+                         : MIRTypeFromValueType(existingValue.extractNonDoubleType());
+            types::Type ntype = types::GetValueType(existingValue);
             types::TemporaryTypeSet *typeSet =
-                alloc_->lifoAlloc()->new_<types::TemporaryTypeSet>(existingType);
+                alloc_->lifoAlloc()->new_<types::TemporaryTypeSet>(ntype);
             if (!typeSet)
                 return nullptr;
-            MIRType type = MIRTypeFromValueType(typeSet->getKnownTypeTag());
             phi->addBackedgeType(type, typeSet);
         }
     }
@@ -7777,9 +7711,7 @@ IonBuilder::jsop_rest()
     unsigned numFormals = info().nargs() - 1;
     unsigned numRest = numActuals > numFormals ? numActuals - numFormals : 0;
 
-    MNewArray *array = MNewArray::New(alloc(), numRest, templateObject,
-                                      templateObject->type()->initialHeap(constraints()),
-                                      MNewArray::NewArray_Allocating);
+    MNewArray *array = MNewArray::New(alloc(), numRest, templateObject, MNewArray::NewArray_Allocating);
     current->add(array);
 
     if (numActuals <= numFormals) {
@@ -9178,7 +9110,7 @@ IonBuilder::jsop_this()
     }
 
     if (thisTypes->getKnownTypeTag() == JSVAL_TYPE_OBJECT ||
-        (thisTypes->empty() && baselineFrame_ && baselineFrame_->thisType.isSomeObject()))
+        (thisTypes->empty() && baselineFrame_ && baselineFrame_->thisValue().isObject()))
     {
         // This is safe, because if the entry type of |this| is an object, it
         // will necessarily be an object throughout the entire function. OSR
@@ -9362,13 +9294,12 @@ IonBuilder::hasStaticScopeObject(ScopeCoordinate sc, JSObject **pcall)
     // entering the Ion code a different call object will be created.
 
     if (script() == outerScript && baselineFrame_ && info().osrPc()) {
-        JSObject *singletonScope = baselineFrame_->singletonScopeChain;
-        if (singletonScope &&
-            singletonScope->is<CallObject>() &&
-            singletonScope->as<CallObject>().callee().nonLazyScript() == outerScript)
+        JSObject *scope = baselineFrame_->scopeChain();
+        if (scope->is<CallObject>() &&
+            scope->as<CallObject>().callee().nonLazyScript() == outerScript)
         {
-            JS_ASSERT(singletonScope->hasSingletonType());
-            *pcall = singletonScope;
+            JS_ASSERT(scope->hasSingletonType());
+            *pcall = scope;
             return true;
         }
     }
