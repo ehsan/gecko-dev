@@ -2391,9 +2391,10 @@ TraceRecorder::TraceRecorder(JSContext* cx, VMSideExit* anchor, VMFragment* frag
                                                &js_LogController);
         }
     )
+    // CseFilter must be downstream of SoftFloatFilter (see bug 527754 for why).
+    lir = new (tempAlloc()) CseFilter(lir, tempAlloc());
     if (nanojit::AvmCore::config.soft_float)
         lir = new (tempAlloc()) SoftFloatFilter(lir);
-    lir = new (tempAlloc()) CseFilter(lir, tempAlloc());
     lir = new (tempAlloc()) ExprFilter(lir);
     lir = new (tempAlloc()) FuncFilter(lir);
 #ifdef DEBUG
@@ -4280,6 +4281,17 @@ TraceRecorder::compile()
     if (outOfMemory())
         return ARECORD_STOP;
 
+    /* :TODO: windows support */
+#if defined DEBUG && !defined WIN32
+    /* Associate a filename and line number with the fragment. */
+    const char* filename = cx->fp->script->filename;
+    char* label = (char*)js_malloc((filename ? strlen(filename) : 7) + 16);
+    sprintf(label, "%s:%u", filename ? filename : "<stdin>",
+            js_FramePCToLineNumber(cx, cx->fp));
+    traceMonitor->labels->add(fragment, sizeof(Fragment), 0, label);
+    js_free(label);
+#endif
+
     Assembler *assm = traceMonitor->assembler;
     JS_ASSERT(assm->error() == nanojit::None);
     nanojit::compile(assm, fragment, tempAlloc() verbose_only(, traceMonitor->labels));
@@ -4308,15 +4320,6 @@ TraceRecorder::compile()
     if (fragment == fragment->root)
         fragment->root->treeInfo = treeInfo;
 
-    /* :TODO: windows support */
-#if defined DEBUG && !defined WIN32
-    const char* filename = cx->fp->script->filename;
-    char* label = (char*)js_malloc((filename ? strlen(filename) : 7) + 16);
-    sprintf(label, "%s:%u", filename ? filename : "<stdin>",
-            js_FramePCToLineNumber(cx, cx->fp));
-    traceMonitor->labels->add(fragment, sizeof(Fragment), 0, label);
-    js_free(label);
-#endif
     return ARECORD_CONTINUE;
 }
 
