@@ -1641,6 +1641,11 @@ const FrameMetrics& AsyncPanZoomController::GetFrameMetrics() {
 }
 
 void AsyncPanZoomController::ZoomToRect(CSSRect aRect) {
+  if (!aRect.IsFinite()) {
+    NS_WARNING("ZoomToRect got called with a non-finite rect; ignoring...\n");
+    return;
+  }
+
   SetState(ANIMATING_ZOOM);
 
   {
@@ -1863,9 +1868,17 @@ void AsyncPanZoomController::TimeoutContentResponse() {
 void AsyncPanZoomController::UpdateZoomConstraints(const ZoomConstraints& aConstraints) {
   APZC_LOG("%p updating zoom constraints to %d %f %f\n", this, aConstraints.mAllowZoom,
     aConstraints.mMinZoom.scale, aConstraints.mMaxZoom.scale);
+  if (IsFloatNaN(aConstraints.mMinZoom.scale) || IsFloatNaN(aConstraints.mMinZoom.scale)) {
+    NS_WARNING("APZC received zoom constraints with NaN values; dropping...\n");
+    return;
+  }
+  // inf float values and other bad cases should be sanitized by the code below.
   mZoomConstraints.mAllowZoom = aConstraints.mAllowZoom;
   mZoomConstraints.mMinZoom = (MIN_ZOOM > aConstraints.mMinZoom ? MIN_ZOOM : aConstraints.mMinZoom);
   mZoomConstraints.mMaxZoom = (MAX_ZOOM > aConstraints.mMaxZoom ? aConstraints.mMaxZoom : MAX_ZOOM);
+  if (mZoomConstraints.mMaxZoom < mZoomConstraints.mMinZoom) {
+    mZoomConstraints.mMaxZoom = mZoomConstraints.mMinZoom;
+  }
 }
 
 ZoomConstraints
