@@ -787,14 +787,14 @@ private:
 
   static JSBool
   Resolve(JSContext* aCx, JSHandleObject aObj, JSHandleId aId, unsigned aFlags,
-          JSMutableHandleObject aObjp)
+          JSObject** aObjp)
   {
     JSBool resolved;
     if (!JS_ResolveStandardClass(aCx, aObj, aId, &resolved)) {
       return false;
     }
 
-    aObjp.set(resolved ? aObj.get() : NULL);
+    *aObjp = resolved ? aObj.value() : NULL;
     return true;
   }
 

@@ -38,8 +38,7 @@ BEGIN_TEST(testLookup_bug522590)
 END_TEST(testLookup_bug522590)
 
 JSBool
-document_resolve(JSContext *cx, JSHandleObject obj, JSHandleId id, unsigned flags,
-                 JSMutableHandleObject objp)
+document_resolve(JSContext *cx, JSHandleObject obj, JSHandleId id, unsigned flags, JSObject **objp)
 {
     // If id is "all", and we're not detecting, resolve document.all=true.
     jsvalRoot v(cx);
@@ -52,11 +51,11 @@ document_resolve(JSContext *cx, JSHandleObject obj, JSHandleId id, unsigned flag
             return false;
         if (JS_FlatStringEqualsAscii(flatStr, "all") && !(flags & JSRESOLVE_DETECTING)) {
             JSBool ok = JS_DefinePropertyById(cx, obj, id, JSVAL_TRUE, NULL, NULL, 0);
-            objp.set(ok ? obj.get() : NULL);
+            *objp = ok ? obj.value() : NULL;
             return ok;
         }
     }
-    objp.set(NULL);
+    *objp = NULL;
     return true;
 }
 

@@ -639,7 +639,7 @@ Debugger::wrapEnvironment(JSContext *cx, Handle<Env*> env, Value *rval)
             return false;
         envobj->setPrivate(env);
         envobj->setReservedSlot(JSSLOT_DEBUGENV_OWNER, ObjectValue(*object));
-        if (!environments.relookupOrAdd(p, env, envobj)) {
+        if (!environments.relookupOrAdd(p, env.value(), envobj)) {
             js_ReportOutOfMemory(cx);
             return false;
         }
@@ -841,7 +841,7 @@ Debugger::parseResumptionValue(AutoCompartment &ac, bool ok, const Value &rv, Va
     /* Check that rv is {return: val} or {throw: val}. */
     JSContext *cx = ac.context;
     Rooted<JSObject*> obj(cx);
-    Shape *shape;
+    const Shape *shape;
     jsid returnId = NameToId(cx->runtime->atomState.returnAtom);
     jsid throwId = NameToId(cx->runtime->atomState.throwAtom);
     bool okResumption = rv.isObject();
@@ -1816,7 +1816,7 @@ Debugger::construct(JSContext *cx, unsigned argc, Value *vp)
     for (unsigned slot = JSSLOT_DEBUG_PROTO_START; slot < JSSLOT_DEBUG_PROTO_STOP; slot++)
         obj->setReservedSlot(slot, proto->getReservedSlot(slot));
 
-    Debugger *dbg = cx->new_<Debugger>(cx, obj.get());
+    Debugger *dbg = cx->new_<Debugger>(cx, obj.reference());
     if (!dbg)
         return false;
     obj->setPrivate(dbg);
@@ -3229,7 +3229,7 @@ DebuggerFrame_getArguments(JSContext *cx, unsigned argc, Value *vp)
             id = INT_TO_JSID(i);
             if (!getobj ||
                 !DefineNativeProperty(cx, argsobj, id, UndefinedValue(),
-                                      JS_DATA_TO_FUNC_PTR(PropertyOp, getobj.get()), NULL,
+                                      JS_DATA_TO_FUNC_PTR(PropertyOp, getobj.reference()), NULL,
                                       JSPROP_ENUMERATE | JSPROP_SHARED | JSPROP_GETTER, 0, 0))
             {
                 return false;
@@ -4414,7 +4414,7 @@ DebuggerEnv_find(JSContext *cx, unsigned argc, Value *vp)
         /* This can trigger resolve hooks. */
         ErrorCopier ec(ac, dbg->toJSObject());
         JSProperty *prop = NULL;
-        RootedObject pobj(cx);
+        JSObject *pobj;
         for (; env && !prop; env = env->enclosingScope()) {
             if (!env->lookupGeneric(cx, id, &pobj, &prop))
                 return false;

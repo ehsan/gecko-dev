@@ -192,8 +192,7 @@ private:
   // This creates a (partially) uploaded bitmap for a DataSourceSurface. It
   // uploads the minimum requirement and possibly downscales. It adjusts the
   // input Matrix to compensate.
-  TemporaryRef<ID2D1Bitmap> CreatePartialBitmapForSurface(DataSourceSurface *aSurface, Matrix &aMatrix,
-                                                          ExtendMode aExtendMode);
+  TemporaryRef<ID2D1Bitmap> CreatePartialBitmapForSurface(DataSourceSurface *aSurface, Matrix &aMatrix);
 
   void SetupEffectForRadialGradient(const RadialGradientPattern *aPattern);
   void SetupStateForRendering();

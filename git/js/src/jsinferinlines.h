@@ -264,9 +264,8 @@ struct AutoEnterCompilation
 inline TypeObject *
 GetTypeNewObject(JSContext *cx, JSProtoKey key)
 {
-    RootedObject proto(cx);
-    RootedObject null(cx);
-    if (!js_GetClassPrototype(cx, null, key, &proto))
+    JSObject *proto;
+    if (!js_GetClassPrototype(cx, NULL, key, &proto, NULL))
         return NULL;
     return proto->getNewType(cx);
 }
@@ -503,9 +502,8 @@ TypeScript::SlotTypes(JSScript *script, unsigned slot)
 /* static */ inline TypeObject *
 TypeScript::StandardType(JSContext *cx, JSScript *script, JSProtoKey key)
 {
-    RootedObject proto(cx);
-    RootedObject global(cx, script->global());
-    if (!js_GetClassPrototype(cx, global, key, &proto, NULL))
+    JSObject *proto;
+    if (!js_GetClassPrototype(cx, script->global(), key, &proto, NULL))
         return NULL;
     return proto->getNewType(cx);
 }
@@ -1282,7 +1280,7 @@ TypeObject::getProperty(JSContext *cx, jsid id, bool assign)
                 continue;
             }
 
-            Shape *shape = protoWalk->nativeLookup(cx, id);
+            const Shape *shape = protoWalk->nativeLookup(cx, id);
 
             foundSetter = shape &&
                           !shape->hasDefaultSetter();

@@ -59,6 +59,7 @@
 #include "jsscriptinlines.h"
 #include "jstypedarrayinlines.h"
 
+#include "builtin/Iterator-inl.h"
 #include "vm/Stack-inl.h"
 #include "vm/String-inl.h"
 
@@ -169,13 +170,13 @@ js::OnUnknownMethod(JSContext *cx, HandleObject obj, Value idval_, Value *vp)
         return false;
     TypeScript::MonitorUnknown(cx, cx->fp()->script(), cx->regs().pc);
 
-    if (value.get().isPrimitive()) {
+    if (value.reference().isPrimitive()) {
         *vp = value;
     } else {
 #if JS_HAS_XML_SUPPORT
         /* Extract the function name from function::name qname. */
-        if (idval.get().isObject()) {
-            JSObject *obj = &idval.get().toObject();
+        if (idval.reference().isObject()) {
+            JSObject *obj = &idval.reference().toObject();
             if (js_GetLocalNameFromFunctionQName(obj, id.address(), cx))
                 idval = IdToValue(id);
         }
@@ -597,9 +598,9 @@ js::LooselyEqual(JSContext *cx, const Value &lval, const Value &rval, bool *resu
     if (!ToPrimitive(cx, rvalue.address()))
         return false;
 
-    if (lvalue.get().isString() && rvalue.get().isString()) {
-        JSString *l = lvalue.get().toString();
-        JSString *r = rvalue.get().toString();
+    if (lvalue.reference().isString() && rvalue.reference().isString()) {
+        JSString *l = lvalue.reference().toString();
+        JSString *r = rvalue.reference().toString();
         return EqualStrings(cx, l, r, result);
     }
 
@@ -952,15 +953,14 @@ js::AssertValidPropertyCacheHit(JSContext *cx, JSObject *start_,
     RootedPropertyName name(cx, GetNameFromBytecode(cx, script, pc, JSOp(*pc)));
     RootedObject start(cx, start_);
 
-    RootedObject obj(cx);
-    RootedObject pobj(cx);
+    JSObject *obj, *pobj;
     JSProperty *prop;
     JSBool ok;
 
     if (JOF_OPMODE(*pc) == JOF_NAME)
         ok = FindProperty(cx, name, start, &obj, &pobj, &prop);
     else
-        ok = baseops::LookupProperty(cx, start, name, &pobj, &prop);
+        ok = baseops::LookupProperty(cx, start, name.reference(), &pobj, &prop);
     JS_ASSERT(ok);
 
     if (cx->runtime->gcNumber != sample)
@@ -968,7 +968,7 @@ js::AssertValidPropertyCacheHit(JSContext *cx, JSObject *start_,
     JS_ASSERT(prop);
     JS_ASSERT(pobj == found);
 
-    Shape *shape = (Shape *) prop;
+    const Shape *shape = (Shape *) prop;
     JS_ASSERT(entry->prop == shape);
 }
 #endif /* DEBUG && !JS_THREADSAFE */
@@ -1004,8 +1004,8 @@ JS_STATIC_ASSERT(JSOP_INCNAME_LENGTH == JSOP_NAMEDEC_LENGTH);
 static inline bool
 IteratorMore(JSContext *cx, JSObject *iterobj, bool *cond, Value *rval)
 {
-    if (iterobj->isIterator()) {
-        NativeIterator *ni = iterobj->getNativeIterator();
+    if (iterobj->isPropertyIterator()) {
+        NativeIterator *ni = iterobj->asPropertyIterator().getNativeIterator();
         if (ni->isKeyIter()) {
             *cond = (ni->props_cursor < ni->props_end);
             return true;
@@ -1021,8 +1021,8 @@ IteratorMore(JSContext *cx, JSObject *iterobj, bool *cond, Value *rval)
 static inline bool
 IteratorNext(JSContext *cx, JSObject *iterobj, Value *rval)
 {
-    if (iterobj->isIterator()) {
-        NativeIterator *ni = iterobj->getNativeIterator();
+    if (iterobj->isPropertyIterator()) {
+        NativeIterator *ni = iterobj->asPropertyIterator().getNativeIterator();
         if (ni->isKeyIter()) {
             JS_ASSERT(ni->props_cursor < ni->props_end);
             rval->setString(*ni->current());
@@ -1276,7 +1276,7 @@ js::Interpret(JSContext *cx, StackFrame *entryFrame, InterpMode interpMode)
      */
     RootedValue rootValue0(cx), rootValue1(cx);
     RootedString rootString0(cx), rootString1(cx);
-    RootedObject rootObject0(cx), rootObject1(cx), rootObject2(cx);
+    RootedObject rootObject0(cx), rootObject1(cx);
     RootedFunction rootFunction0(cx);
     RootedTypeObject rootType0(cx);
     RootedPropertyName rootName0(cx);
@@ -1745,7 +1745,7 @@ BEGIN_CASE(JSOP_IN)
     obj = &rref.toObject();
     RootedId &id = rootId0;
     FETCH_ELEMENT_ID(obj, -2, id);
-    RootedObject &obj2 = rootObject1;
+    JSObject *obj2;
     JSProperty *prop;
     if (!obj->lookupGeneric(cx, id, &obj2, &prop))
         goto error;
@@ -2204,8 +2204,7 @@ BEGIN_CASE(JSOP_DELNAME)
     RootedObject &scopeObj = rootObject0;
     scopeObj = cx->stack.currentScriptedScopeChain();
 
-    RootedObject &obj = rootObject1;
-    RootedObject &obj2 = rootObject2;
+    JSObject *obj, *obj2;
     JSProperty *prop;
     if (!FindProperty(cx, name, scopeObj, &obj, &obj2, &prop))
         goto error;
@@ -2361,7 +2360,7 @@ BEGIN_CASE(JSOP_CALLPROP)
     if (!GetPropertyOperation(cx, script, regs.pc, regs.sp[-1], rval.address()))
         goto error;
 
-    TypeScript::Monitor(cx, script, regs.pc, rval);
+    TypeScript::Monitor(cx, script, regs.pc, rval.reference());
 
     regs.sp[-1] = rval;
     assertSameCompartment(cx, regs.sp[-1]);
@@ -2551,8 +2550,7 @@ BEGIN_CASE(JSOP_IMPLICITTHIS)
     RootedObject &scopeObj = rootObject0;
     scopeObj = cx->stack.currentScriptedScopeChain();
 
-    RootedObject &obj = rootObject1;
-    RootedObject &obj2 = rootObject2;
+    JSObject *obj, *obj2;
     JSProperty *prop;
     if (!FindPropertyHelper(cx, name, false, scopeObj, &obj, &obj2, &prop))
         goto error;
@@ -2921,7 +2919,7 @@ BEGIN_CASE(JSOP_DEFFUN)
     RootedPropertyName &name = rootName0;
     name = fun->atom->asPropertyName();
     JSProperty *prop = NULL;
-    RootedObject &pobj = rootObject1;
+    JSObject *pobj;
     if (!parent->lookupProperty(cx, name, &pobj, &prop))
         goto error;
 
@@ -3483,7 +3481,7 @@ BEGIN_CASE(JSOP_BINDXMLNAME)
 
     Value lval;
     lval = regs.sp[-1];
-    RootedObject &obj = rootObject0;
+    JSObject *obj;
     jsid id;
     if (!js_FindXMLProperty(cx, lval, &obj, &id))
         goto error;
@@ -3514,7 +3512,7 @@ BEGIN_CASE(JSOP_XMLNAME)
     JS_ASSERT(!script->strictModeCode);
 
     Value lval = regs.sp[-1];
-    RootedObject &obj = rootObject0;
+    JSObject *obj;
     RootedId &id = rootId0;
     if (!js_FindXMLProperty(cx, lval, &obj, id.address()))
         goto error;

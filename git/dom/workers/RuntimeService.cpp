@@ -368,13 +368,13 @@ BEGIN_WORKERS_NAMESPACE
 // Entry point for the DOM.
 JSBool
 ResolveWorkerClasses(JSContext* aCx, JSHandleObject aObj, JSHandleId aId, unsigned aFlags,
-                     JSMutableHandleObject aObjp)
+                     JSObject** aObjp)
 {
   AssertIsOnMainThread();
 
   // Don't care about assignments, bail now.
   if (aFlags & JSRESOLVE_ASSIGNING) {
-    aObjp.set(nsnull);
+    *aObjp = nsnull;
     return true;
   }
 
@@ -418,7 +418,7 @@ ResolveWorkerClasses(JSContext* aCx, JSHandleObject aObj, JSHandleId aId, unsign
   if (shouldResolve) {
     // Don't do anything if workers are disabled.
     if (!isChrome && !Preferences::GetBool(PREF_WORKERS_ENABLED)) {
-      aObjp.set(nsnull);
+      *aObjp = nsnull;
       return true;
     }
 
@@ -440,12 +440,12 @@ ResolveWorkerClasses(JSContext* aCx, JSHandleObject aObj, JSHandleId aId, unsign
       return false;
     }
 
-    aObjp.set(aObj);
+    *aObjp = aObj;
     return true;
   }
 
   // Not resolved.
-  aObjp.set(nsnull);
+  *aObjp = nsnull;
   return true;
 }
 

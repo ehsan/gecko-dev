@@ -1812,9 +1812,7 @@ static JSStdName standard_class_names[] = {
     {js_InitXMLClass,           EAGER_ATOM(isXMLName), CLASP(XML)},
 #endif
 
-#if JS_HAS_GENERATORS
-    {js_InitIteratorClasses,    EAGER_ATOM_AND_CLASP(Iterator)},
-#endif
+    {js_InitIteratorClasses,    EAGER_CLASS_ATOM(Iterator), &PropertyIteratorObject::class_},
 
     /* Typed Arrays */
     {js_InitTypedArrayClasses,  EAGER_CLASS_ATOM(ArrayBuffer),  &ArrayBufferClass},
@@ -2131,16 +2129,12 @@ JS_EnumerateResolvedStandardClasses(JSContext *cx, JSObject *obj, JSIdArray *ida
 #undef EAGER_ATOM_CLASP
 
 JS_PUBLIC_API(JSBool)
-JS_GetClassObject(JSContext *cx, JSObject *obj_, JSProtoKey key, JSObject **objp_)
+JS_GetClassObject(JSContext *cx, JSObject *obj, JSProtoKey key, JSObject **objp)
 {
     AssertNoGC(cx);
     CHECK_REQUEST(cx);
-    RootedObject obj(cx, obj_);
-    RootedObject objp(cx);
     assertSameCompartment(cx, obj);
-    bool result = js_GetClassObject(cx, obj, key, &objp);
-    *objp_ = objp;
-    return result;
+    return js_GetClassObject(cx, obj, key, objp);
 }
 
 JS_PUBLIC_API(JSObject *)
@@ -3397,7 +3391,7 @@ JS_DeepFreezeObject(JSContext *cx, JSObject *obj_)
 
 static JSBool
 LookupPropertyById(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
-                   MutableHandleObject objp, JSProperty **propp)
+                   JSObject **objp, JSProperty **propp)
 {
     AssertNoGC(cx);
     CHECK_REQUEST(cx);
@@ -3454,7 +3448,7 @@ JS_LookupPropertyById(JSContext *cx, JSObject *obj_, jsid id_, jsval *vp)
     RootedObject obj2(cx);
     JSProperty* prop;
 
-    return LookupPropertyById(cx, obj, id, JSRESOLVE_QUALIFIED, &obj2, &prop) &&
+    return LookupPropertyById(cx, obj, id, JSRESOLVE_QUALIFIED, obj2.address(), &prop) &&
            LookupResult(cx, obj, obj2, id, prop, vp);
 }
 
@@ -3496,8 +3490,8 @@ JS_LookupPropertyWithFlagsById(JSContext *cx, JSObject *obj_, jsid id_, unsigned
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj, id);
     if (!(obj->isNative()
-          ? LookupPropertyWithFlags(cx, obj, id, flags, &objp, &prop)
-          : obj->lookupGeneric(cx, id, &objp, &prop)))
+          ? LookupPropertyWithFlags(cx, obj, id, flags, objp.address(), &prop)
+          : obj->lookupGeneric(cx, id, objp.address(), &prop)))
         return false;
 
     if (!LookupResult(cx, obj, objp, id, prop, vp))
@@ -3523,7 +3517,7 @@ JS_HasPropertyById(JSContext *cx, JSObject *obj_, jsid id_, JSBool *foundp)
     RootedObject obj2(cx);
     JSProperty* prop;
     JSBool ok = LookupPropertyById(cx, obj, id, JSRESOLVE_QUALIFIED | JSRESOLVE_DETECTING,
-                                   &obj2, &prop);
+                                   obj2.address(), &prop);
     *foundp = (prop != NULL);
     return ok;
 }
@@ -3565,7 +3559,7 @@ JS_AlreadyHasOwnPropertyById(JSContext *cx, JSObject *obj_, jsid id_, JSBool *fo
     assertSameCompartment(cx, obj, id);
 
     if (!obj->isNative()) {
-        RootedObject obj2(cx);
+        JSObject *obj2;
         JSProperty *prop;
 
         if (!LookupPropertyById(cx, obj, id, JSRESOLVE_QUALIFIED | JSRESOLVE_DETECTING,
@@ -3840,7 +3834,7 @@ GetPropertyDescriptorById(JSContext *cx, HandleObject obj, HandleId id, unsigned
     RootedObject obj2(cx);
     JSProperty *prop;
 
-    if (!LookupPropertyById(cx, obj, id, flags, &obj2, &prop))
+    if (!LookupPropertyById(cx, obj, id, flags, obj2.address(), &prop))
         return JS_FALSE;
 
     if (!prop || (own && obj != obj2)) {
@@ -3965,7 +3959,7 @@ SetPropertyAttributesById(JSContext *cx, HandleObject obj, HandleId id, unsigned
     RootedObject obj2(cx);
     JSProperty *prop;
 
-    if (!LookupPropertyById(cx, obj, id, JSRESOLVE_QUALIFIED, &obj2, &prop))
+    if (!LookupPropertyById(cx, obj, id, JSRESOLVE_QUALIFIED, obj2.address(), &prop))
         return false;
     if (!prop || obj != obj2) {
         *foundp = false;
@@ -4376,7 +4370,7 @@ JS_NextProperty(JSContext *cx, JSObject *iterobj, jsid *idp)
 {
     AssertRootingUnnecessary safe(cx);
     int32_t i;
-    Shape *shape;
+    const Shape *shape;
     JSIdArray *ida;
 
     AssertNoGC(cx);
@@ -4413,22 +4407,16 @@ JS_NextProperty(JSContext *cx, JSObject *iterobj, jsid *idp)
     return JS_TRUE;
 }
 
-JS_PUBLIC_API(JSObject *)
-JS_NewElementIterator(JSContext *cx, JSObject *obj_)
+JS_PUBLIC_API(JSBool)
+JS_ArrayIterator(JSContext *cx, unsigned argc, jsval *vp)
 {
-    AssertNoGC(cx);
-    CHECK_REQUEST(cx);
-    assertSameCompartment(cx, obj_);
-
-    Rooted<JSObject*> obj(cx, obj_);
-    return ElementIteratorObject::create(cx, obj);
-}
-
-JS_PUBLIC_API(JSObject *)
-JS_ElementIteratorStub(JSContext *cx, JSHandleObject obj, JSBool keysonly)
-{
-    JS_ASSERT(!keysonly);
-    return JS_NewElementIterator(cx, obj);
+    CallArgs args = CallArgsFromVp(argc, vp);
+    Rooted<Value> target(cx, args.thisv());
+    JSObject *iterobj = ElementIteratorObject::create(cx, target);
+    if (!iterobj)
+        return false;
+    vp->setObject(*iterobj);
+    return true;
 }
 
 JS_PUBLIC_API(jsval)

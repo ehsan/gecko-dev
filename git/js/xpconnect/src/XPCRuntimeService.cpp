@@ -37,7 +37,7 @@ NS_IMETHODIMP
 BackstagePass::NewResolve(nsIXPConnectWrappedNative *wrapper,
                           JSContext * cx, JSObject * obj_,
                           jsid id_, PRUint32 flags,
-                          JSObject * *objp_, bool *_retval)
+                          JSObject * *objp, bool *_retval)
 {
     JS::RootedObject obj(cx, obj_);
     JS::RootedId id(cx, id_);
@@ -45,19 +45,15 @@ BackstagePass::NewResolve(nsIXPConnectWrappedNative *wrapper,
     JSBool resolved;
 
     *_retval = !!JS_ResolveStandardClass(cx, obj, id, &resolved);
-    if (!*_retval) {
-        *objp_ = nsnull;
+    if (!*_retval)
         return NS_OK;
-    }
 
     if (resolved) {
-        *objp_ = obj;
+        *objp = obj;
         return NS_OK;
     }
 
-    JS::RootedObject objp(cx, *objp_);
-    *_retval = !!ResolveWorkerClasses(cx, obj, id, flags, &objp);
-    *objp_ = objp;
+    *_retval = !!ResolveWorkerClasses(cx, obj, id, flags, objp);
     return NS_OK;
 }
 

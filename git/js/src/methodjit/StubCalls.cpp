@@ -192,7 +192,7 @@ stubs::ImplicitThis(VMFrame &f, PropertyName *name_)
     RootedObject scopeObj(f.cx, f.cx->stack.currentScriptedScopeChain());
     RootedPropertyName name(f.cx, name_);
 
-    RootedObject obj(f.cx), obj2(f.cx);
+    JSObject *obj, *obj2;
     JSProperty *prop;
     if (!FindPropertyHelper(f.cx, name, false, scopeObj, &obj, &obj2, &prop))
         THROW();
@@ -339,7 +339,7 @@ stubs::DefFun(VMFrame &f, JSFunction *fun_)
     /* ES5 10.5 (NB: with subsequent errata). */
     PropertyName *name = fun->atom->asPropertyName();
     JSProperty *prop = NULL;
-    RootedObject pobj(cx);
+    JSObject *pobj;
     if (!parent->lookupProperty(cx, name, &pobj, &prop))
         THROW();
 
@@ -1338,7 +1338,7 @@ stubs::DelName(VMFrame &f, PropertyName *name_)
     RootedObject scopeObj(f.cx, f.cx->stack.currentScriptedScopeChain());
     RootedPropertyName name(f.cx, name_);
 
-    RootedObject obj(f.cx), obj2(f.cx);
+    JSObject *obj, *obj2;
     JSProperty *prop;
     if (!FindProperty(f.cx, name, scopeObj, &obj, &obj2, &prop))
         THROW();
@@ -1438,7 +1438,7 @@ stubs::In(VMFrame &f)
     if (!FetchElementId(f.cx, obj, f.regs.sp[-2], id.address(), &f.regs.sp[-2]))
         THROWV(JS_FALSE);
 
-    RootedObject obj2(cx);
+    JSObject *obj2;
     JSProperty *prop;
     if (!obj->lookupGeneric(cx, id, &obj2, &prop))
         THROWV(JS_FALSE);

@@ -299,11 +299,11 @@ static JSProperty * const PROPERTY_FOUND = reinterpret_cast<JSProperty *>(1);
 
 JSBool
 ArrayBufferObject::obj_lookupGeneric(JSContext *cx, HandleObject obj, HandleId id,
-                                     MutableHandleObject objp, JSProperty **propp)
+                                     JSObject **objp, JSProperty **propp)
 {
     if (JSID_IS_ATOM(id, cx->runtime->atomState.byteLengthAtom)) {
         *propp = PROPERTY_FOUND;
-        objp.set(getArrayBuffer(obj));
+        *objp = getArrayBuffer(obj);
         return true;
     }
 
@@ -322,14 +322,14 @@ ArrayBufferObject::obj_lookupGeneric(JSContext *cx, HandleObject obj, HandleId i
         return false;
 
     if (*propp != NULL) {
-        if (objp == delegate)
-            objp.set(obj);
+        if (*objp == delegate)
+            *objp = obj;
         return true;
     }
 
     JSObject *proto = obj->getProto();
     if (!proto) {
-        objp.set(NULL);
+        *objp = NULL;
         *propp = NULL;
         return true;
     }
@@ -339,7 +339,7 @@ ArrayBufferObject::obj_lookupGeneric(JSContext *cx, HandleObject obj, HandleId i
 
 JSBool
 ArrayBufferObject::obj_lookupProperty(JSContext *cx, HandleObject obj, HandlePropertyName name,
-                                      MutableHandleObject objp, JSProperty **propp)
+                                      JSObject **objp, JSProperty **propp)
 {
     Rooted<jsid> id(cx, NameToId(name));
     return obj_lookupGeneric(cx, obj, id, objp, propp);
@@ -347,7 +347,7 @@ ArrayBufferObject::obj_lookupProperty(JSContext *cx, HandleObject obj, HandlePro
 
 JSBool
 ArrayBufferObject::obj_lookupElement(JSContext *cx, HandleObject obj, uint32_t index,
-                                     MutableHandleObject objp, JSProperty **propp)
+                                     JSObject **objp, JSProperty **propp)
 {
     RootedObject delegate(cx, ArrayBufferDelegate(cx, obj));
     if (!delegate)
@@ -363,22 +363,22 @@ ArrayBufferObject::obj_lookupElement(JSContext *cx, HandleObject obj, uint32_t i
         return false;
 
     if (*propp != NULL) {
-        if (objp == delegate)
-            objp.set(obj);
+        if (*objp == delegate)
+            *objp = obj;
         return true;
     }
 
     if (JSObject *proto = obj->getProto())
         return proto->lookupElement(cx, index, objp, propp);
 
-    objp.set(NULL);
+    *objp = NULL;
     *propp = NULL;
     return true;
 }
 
 JSBool
 ArrayBufferObject::obj_lookupSpecial(JSContext *cx, HandleObject obj, HandleSpecialId sid,
-                                     MutableHandleObject objp, JSProperty **propp)
+                                     JSObject **objp, JSProperty **propp)
 {
     Rooted<jsid> id(cx, SPECIALID_TO_JSID(sid));
     return obj_lookupGeneric(cx, obj, id, objp, propp);
@@ -727,7 +727,7 @@ GetProtoForClass(JSContext *cx, Class *clasp)
 {
     // Pass in the proto from this compartment
     Rooted<GlobalObject*> parent(cx, GetCurrentGlobal(cx));
-    RootedObject proto(cx);
+    JSObject *proto;
     if (!FindProto(cx, clasp, parent, &proto))
         return NULL;
     return proto;
@@ -774,20 +774,20 @@ js::IsDataView(JSObject* obj)
 
 JSBool
 TypedArray::obj_lookupGeneric(JSContext *cx, HandleObject obj, HandleId id,
-                              MutableHandleObject objp, JSProperty **propp)
+                              JSObject **objp, JSProperty **propp)
 {
     JSObject *tarray = getTypedArray(obj);
     JS_ASSERT(tarray);
 
     if (isArrayIndex(cx, tarray, id)) {
         *propp = PROPERTY_FOUND;
-        objp.set(obj);
+        *objp = obj;
         return true;
     }
 
     JSObject *proto = obj->getProto();
     if (!proto) {
-        objp.set(NULL);
+        *objp = NULL;
         *propp = NULL;
         return true;
     }
@@ -797,7 +797,7 @@ TypedArray::obj_lookupGeneric(JSContext *cx, HandleObject obj, HandleId id,
 
 JSBool
 TypedArray::obj_lookupProperty(JSContext *cx, HandleObject obj, HandlePropertyName name,
-                               MutableHandleObject objp, JSProperty **propp)
+                               JSObject **objp, JSProperty **propp)
 {
     Rooted<jsid> id(cx, NameToId(name));
     return obj_lookupGeneric(cx, obj, id, objp, propp);
@@ -805,28 +805,28 @@ TypedArray::obj_lookupProperty(JSContext *cx, HandleObject obj, HandlePropertyNa
 
 JSBool
 TypedArray::obj_lookupElement(JSContext *cx, HandleObject obj, uint32_t index,
-                              MutableHandleObject objp, JSProperty **propp)
+                              JSObject **objp, JSProperty **propp)
 {
     JSObject *tarray = getTypedArray(obj);
     JS_ASSERT(tarray);
 
     if (index < length(tarray)) {
         *propp = PROPERTY_FOUND;
-        objp.set(obj);
+        *objp = obj;
         return true;
     }
 
     if (JSObject *proto = obj->getProto())
         return proto->lookupElement(cx, index, objp, propp);
 
-    objp.set(NULL);
+    *objp = NULL;
     *propp = NULL;
     return true;
 }
 
 JSBool
 TypedArray::obj_lookupSpecial(JSContext *cx, HandleObject obj, HandleSpecialId sid,
-                              MutableHandleObject objp, JSProperty **propp)
+                              JSObject **objp, JSProperty **propp)
 {
     Rooted<jsid> id(cx, SPECIALID_TO_JSID(sid));
     return obj_lookupGeneric(cx, obj, id, objp, propp);
@@ -2305,7 +2305,7 @@ DataViewObject::constructWithProto(JSContext *cx, unsigned argc, Value *vp)
 
     // And now mimic class_constructor for everything else, but pass in the proto
     args = CallArgsFromVp(argc - 1, vp);
-    RootedObject bufobj(cx);
+    JSObject *bufobj;
     if (!GetFirstArgumentAsObject(cx, args.length(), args.base(), "DataView constructor", &bufobj))
         return false;
     return construct(cx, bufobj, args, &proto);
@@ -2316,7 +2316,7 @@ DataViewObject::class_constructor(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    RootedObject bufobj(cx);
+    JSObject *bufobj;
     if (!GetFirstArgumentAsObject(cx, args.length(), args.base(), "DataView constructor", &bufobj))
         return false;
 
@@ -2882,6 +2882,7 @@ JSFunctionSpec ArrayBufferObject::jsfuncs[] = {
 
 #define IMPL_TYPED_ARRAY_STATICS(_typedArray)                                  \
 JSFunctionSpec _typedArray::jsfuncs[] = {                                      \
+    JS_FN("iterator", JS_ArrayIterator, 0, 0),                                 \
     JS_FN("subarray", _typedArray::fun_subarray, 2, JSFUN_GENERIC_NATIVE),     \
     JS_FN("set", _typedArray::fun_set, 2, JSFUN_GENERIC_NATIVE),               \
     JS_FN("move", _typedArray::fun_move, 3, JSFUN_GENERIC_NATIVE),             \
@@ -2947,7 +2948,6 @@ IMPL_TYPED_ARRAY_JSAPI_CONSTRUCTORS(Float64, double)
     JSCLASS_HAS_RESERVED_SLOTS(TypedArray::FIELD_MAX) |                        \
     JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |                        \
     JSCLASS_HAS_CACHED_PROTO(JSProto_##_typedArray) |                          \
-    JSCLASS_FOR_OF_ITERATION |                                                 \
     Class::NON_NATIVE,                                                         \
     JS_PropertyStub,         /* addProperty */                                 \
     JS_PropertyStub,         /* delProperty */                                 \
@@ -2966,7 +2966,7 @@ IMPL_TYPED_ARRAY_JSAPI_CONSTRUCTORS(Float64, double)
         NULL,       /* equality    */                                          \
         NULL,       /* outerObject */                                          \
         NULL,       /* innerObject */                                          \
-        JS_ElementIteratorStub,                                                \
+        NULL,       /* iteratorObject  */                                      \
         NULL,       /* unused      */                                          \
         false,      /* isWrappedNative */                                      \
     },                                                                         \
@@ -3251,7 +3251,7 @@ js_InitTypedArrayClasses(JSContext *cx, JSObject *obj)
     Rooted<GlobalObject*> global(cx, &obj->asGlobal());
 
     /* Idempotency required: we initialize several things, possibly lazily. */
-    RootedObject stop(cx);
+    JSObject *stop;
     if (!js_GetClassObject(cx, global, JSProto_ArrayBuffer, &stop))
         return NULL;
     if (stop)

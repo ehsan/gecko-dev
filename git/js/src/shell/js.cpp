@@ -2489,7 +2489,7 @@ sandbox_enumerate(JSContext *cx, HandleObject obj)
 
 static JSBool
 sandbox_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
-                MutableHandleObject objp)
+                JSObject **objp)
 {
     jsval v;
     JSBool b, resolved;
@@ -2502,11 +2502,11 @@ sandbox_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
         if (!JS_ResolveStandardClass(cx, obj, id, &resolved))
             return false;
         if (resolved) {
-            objp.set(obj);
+            *objp = obj;
             return true;
         }
     }
-    objp.set(NULL);
+    *objp = NULL;
     return true;
 }
 
@@ -2687,14 +2687,14 @@ ShapeOf(JSContext *cx, unsigned argc, JS::Value *vp)
  */
 static JSBool
 CopyProperty(JSContext *cx, HandleObject obj, HandleObject referent, HandleId id,
-             unsigned lookupFlags, MutableHandleObject objp)
+             unsigned lookupFlags, JSObject **objp)
 {
     JSProperty *prop;
     PropertyDescriptor desc;
     unsigned propFlags = 0;
-    RootedObject obj2(cx);
+    JSObject *obj2;
 
-    objp.set(NULL);
+    *objp = NULL;
     if (referent->isNative()) {
         if (!LookupPropertyWithFlags(cx, referent, id, lookupFlags, &obj2, &prop))
             return false;
@@ -2726,7 +2726,7 @@ CopyProperty(JSContext *cx, HandleObject obj, HandleObject referent, HandleId id
     } else {
         if (!referent->lookupGeneric(cx, id, objp, &prop))
             return false;
-        if (objp != referent)
+        if (*objp != referent)
             return true;
         if (!referent->getGeneric(cx, id, &desc.value) ||
             !referent->getGenericAttributes(cx, id, &desc.attrs)) {
@@ -2738,14 +2738,13 @@ CopyProperty(JSContext *cx, HandleObject obj, HandleObject referent, HandleId id
         desc.shortid = 0;
     }
 
-    objp.set(obj);
+    *objp = obj;
     return !!DefineNativeProperty(cx, obj, id, desc.value, desc.getter, desc.setter,
                                   desc.attrs, propFlags, desc.shortid);
 }
 
 static JSBool
-resolver_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
-                 MutableHandleObject objp)
+resolver_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags, JSObject **objp)
 {
     jsval v = JS_GetReservedSlot(obj, 0);
     Rooted<JSObject*> vobj(cx, &v.toObject());
@@ -2760,7 +2759,7 @@ resolver_enumerate(JSContext *cx, HandleObject obj)
 
     AutoIdArray ida(cx, JS_Enumerate(cx, referent));
     bool ok = !!ida;
-    RootedObject ignore(cx);
+    JSObject *ignore;
     for (size_t i = 0; ok && i < ida.length(); i++) {
         Rooted<jsid> id(cx, ida[i]);
         ok = CopyProperty(cx, obj, referent, id, JSRESOLVE_QUALIFIED, &ignore);
@@ -3962,7 +3961,7 @@ its_enumerate(JSContext *cx, HandleObject obj, JSIterateOp enum_op,
 
 static JSBool
 its_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
-            MutableHandleObject objp)
+            JSObject **objp)
 {
     if (its_noisy) {
         IdStringifier idString(cx, id);
@@ -4276,7 +4275,7 @@ global_enumerate(JSContext *cx, HandleObject obj)
 
 static JSBool
 global_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
-               MutableHandleObject objp)
+               JSObject **objp)
 {
 #ifdef LAZY_STANDARD_CLASSES
     JSBool resolved;
@@ -4284,7 +4283,7 @@ global_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
     if (!JS_ResolveStandardClass(cx, obj, id, &resolved))
         return false;
     if (resolved) {
-        objp.set(obj);
+        *objp = obj;
         return true;
     }
 #endif
@@ -4331,7 +4330,7 @@ global_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
                                         JSPROP_ENUMERATE);
                 ok = (fun != NULL);
                 if (ok)
-                    objp.set(obj);
+                    *objp = obj;
                 break;
             }
         }
@@ -4425,7 +4424,7 @@ env_enumerate(JSContext *cx, HandleObject obj)
 
 static JSBool
 env_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
-            MutableHandleObject objp)
+            JSObject **objp)
 {
     JSString *valstr;
     const char *name, *value;
@@ -4447,7 +4446,7 @@ env_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
                                NULL, NULL, JSPROP_ENUMERATE)) {
             return false;
         }
-        objp.set(obj);
+        *objp = obj;
     }
     return true;
 }

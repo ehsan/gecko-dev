@@ -77,9 +77,9 @@ struct CrossCompartmentKey
         debugger(NULL),
         wrapped((js::gc::Cell *)wrapped.toGCThing()) {}
     CrossCompartmentKey(const RootedValue &wrapped)
-      : kind(wrapped.get().isString() ? StringWrapper : ObjectWrapper),
+      : kind(wrapped.raw().isString() ? StringWrapper : ObjectWrapper),
         debugger(NULL),
-        wrapped((js::gc::Cell *)wrapped.get().toGCThing()) {}
+        wrapped((js::gc::Cell *)wrapped.raw().toGCThing()) {}
     CrossCompartmentKey(Kind kind, JSObject *dbg, js::gc::Cell *wrapped)
       : kind(kind), debugger(dbg), wrapped(wrapped) {}
 };
