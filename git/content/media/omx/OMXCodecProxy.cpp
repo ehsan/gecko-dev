@@ -9,7 +9,6 @@
 
 #include <binder/IPCThreadState.h>
 #include <cutils/properties.h>
-#include <stagefright/foundation/ADebug.h>
 #include <stagefright/MetaData.h>
 #include <stagefright/OMXCodec.h>
 #include <utils/Log.h>
@@ -66,8 +65,6 @@ OMXCodecProxy::OMXCodecProxy(
 
 OMXCodecProxy::~OMXCodecProxy()
 {
-  mState = MediaResourceManagerClient::CLIENT_STATE_SHUTDOWN;
-
   if (mOMXCodec.get()) {
     wp<MediaSource> tmp = mOMXCodec;
     mOMXCodec.clear();
@@ -145,14 +142,9 @@ void OMXCodecProxy::statusChanged(int event)
   }
 
   mState = (MediaResourceManagerClient::State) event;
-  if (mState != MediaResourceManagerClient::CLIENT_STATE_RESOURCE_ASSIGNED) {
-    return;
-  }
 
   const char *mime;
   if (!mSrcMeta->findCString(kKeyMIMEType, &mime)) {
-    mState = MediaResourceManagerClient::CLIENT_STATE_SHUTDOWN;
-    notifyStatusChangedLocked();
     return;
   }
 
@@ -180,7 +172,6 @@ void OMXCodecProxy::statusChanged(int event)
           width * height <= maxWidth * maxHeight)) {
       printf_stderr("Failed to get video size, or it was too large for HW decoder (<w=%d, h=%d> but <maxW=%d, maxH=%d>)",
                     width, height, maxWidth, maxHeight);
-      mOMXCodec.clear();
       mState = MediaResourceManagerClient::CLIENT_STATE_SHUTDOWN;
       notifyStatusChangedLocked();
       return;
@@ -188,7 +179,6 @@ void OMXCodecProxy::statusChanged(int event)
 
     if (mOMXCodec->start() != OK) {
       NS_WARNING("Couldn't start OMX video source");
-      mOMXCodec.clear();
       mState = MediaResourceManagerClient::CLIENT_STATE_SHUTDOWN;
       notifyStatusChangedLocked();
       return;
@@ -201,10 +191,9 @@ status_t OMXCodecProxy::start(MetaData *params)
 {
   Mutex::Autolock autoLock(mLock);
 
-  if (mState != MediaResourceManagerClient::CLIENT_STATE_RESOURCE_ASSIGNED) {
+  if (!mOMXCodec.get()) {
     return NO_INIT;
   }
-  CHECK(mOMXCodec.get() != NULL);
   return mOMXCodec->start();
 }
 
@@ -212,10 +201,9 @@ status_t OMXCodecProxy::stop()
 {
   Mutex::Autolock autoLock(mLock);
 
-  if (mState != MediaResourceManagerClient::CLIENT_STATE_RESOURCE_ASSIGNED) {
+  if (!mOMXCodec.get()) {
     return NO_INIT;
   }
-  CHECK(mOMXCodec.get() != NULL);
   return mOMXCodec->stop();
 }
 
@@ -223,11 +211,10 @@ sp<MetaData> OMXCodecProxy::getFormat()
 {
   Mutex::Autolock autoLock(mLock);
 
-  if (mState != MediaResourceManagerClient::CLIENT_STATE_RESOURCE_ASSIGNED) {
-    sp<MetaData> meta = new MetaData;
+  if (!mOMXCodec.get()) {
+      sp<MetaData> meta = new MetaData;
     return meta;
   }
-  CHECK(mOMXCodec.get() != NULL);
   return mOMXCodec->getFormat();
 }
 
@@ -235,10 +222,9 @@ status_t OMXCodecProxy::read(MediaBuffer **buffer, const ReadOptions *options)
 {
   Mutex::Autolock autoLock(mLock);
 
-  if (mState != MediaResourceManagerClient::CLIENT_STATE_RESOURCE_ASSIGNED) {
+  if (!mOMXCodec.get()) {
     return NO_INIT;
   }
-  CHECK(mOMXCodec.get() != NULL);
   return mOMXCodec->read(buffer, options);
 }
 
@@ -246,10 +232,9 @@ status_t OMXCodecProxy::pause()
 {
   Mutex::Autolock autoLock(mLock);
 
-  if (mState != MediaResourceManagerClient::CLIENT_STATE_RESOURCE_ASSIGNED) {
+  if (!mOMXCodec.get()) {
     return NO_INIT;
   }
-  CHECK(mOMXCodec.get() != NULL);
   return mOMXCodec->pause();
 }
 

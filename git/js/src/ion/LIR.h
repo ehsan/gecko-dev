@@ -11,17 +11,17 @@
 // inputs and outputs, as well as the interface instructions must conform to.
 
 #include "jscntxt.h"
-#include "ion/IonAllocPolicy.h"
-#include "ion/InlineList.h"
-#include "ion/FixedArityList.h"
-#include "ion/LOpcodes.h"
-#include "ion/Registers.h"
-#include "ion/MIR.h"
-#include "ion/MIRGraph.h"
-#include "ion/shared/Assembler-shared.h"
-#include "ion/Safepoints.h"
-#include "ion/Bailouts.h"
-#include "ion/VMFunctions.h"
+#include "IonAllocPolicy.h"
+#include "InlineList.h"
+#include "FixedArityList.h"
+#include "LOpcodes.h"
+#include "Registers.h"
+#include "MIR.h"
+#include "MIRGraph.h"
+#include "shared/Assembler-shared.h"
+#include "Safepoints.h"
+#include "Bailouts.h"
+#include "VMFunctions.h"
 
 namespace js {
 namespace ion {
@@ -163,9 +163,6 @@ class LAllocation : public TempObject
     }
     bool isRegister() const {
         return isGeneralReg() || isFloatReg();
-    }
-    bool isRegister(bool needFloat) const {
-        return needFloat ? isFloatReg() : isGeneralReg();
     }
     bool isMemory() const {
         return isStackSlot() || isArgument();
@@ -444,7 +441,6 @@ class LDefinition
     enum Type {
         GENERAL,    // Generic, integer or pointer-width data (GPR).
         OBJECT,     // Pointer that may be collected as garbage (GPR).
-        SLOTS,      // Slots/elements pointer that may be moved by minor GCs (GPR).
         DOUBLE,     // 64-bit point value (FPU).
 #ifdef JS_NUNBOX32
         // A type virtual register must be followed by a payload virtual
@@ -546,13 +542,16 @@ class LDefinition
 #endif
           case MIRType_Slots:
           case MIRType_Elements:
-            return LDefinition::SLOTS;
+            // When we begin allocating slots vectors from the GC, this will
+            // need to change to ::OBJECT.
+            return LDefinition::GENERAL;
           case MIRType_Pointer:
             return LDefinition::GENERAL;
           case MIRType_ForkJoinSlice:
             return LDefinition::GENERAL;
           default:
-            MOZ_ASSUME_UNREACHABLE("unexpected type");
+            JS_NOT_REACHED("unexpected type");
+            return LDefinition::GENERAL;
         }
     }
 };
@@ -718,7 +717,7 @@ class LInstructionVisitor
     {}
 
   public:
-#define VISIT_INS(op) virtual bool visit##op(L##op *) { MOZ_ASSUME_UNREACHABLE("NYI: " #op); }
+#define VISIT_INS(op) virtual bool visit##op(L##op *) { JS_NOT_REACHED("NYI: " #op); return false; }
     LIR_OPCODE_LIST(VISIT_INS)
 #undef VISIT_INS
 };
@@ -1008,12 +1007,6 @@ class LSafepoint : public TempObject
     GeneralRegisterSet valueRegs_;
 #endif
 
-    // The subset of liveRegs which contains pointers to slots/elements.
-    GeneralRegisterSet slotsOrElementsRegs_;
-
-    // List of stack slots which have slots/elements pointers.
-    SlotList slotsOrElementsSlots_;
-
   public:
     LSafepoint()
       : safepointOffset_(INVALID_SAFEPOINT_OFFSET)
@@ -1039,38 +1032,6 @@ class LSafepoint : public TempObject
     }
     SlotList &gcSlots() {
         return gcSlots_;
-    }
-
-    SlotList &slotsOrElementsSlots() {
-        return slotsOrElementsSlots_;
-    }
-    GeneralRegisterSet slotsOrElementsRegs() const {
-        return slotsOrElementsRegs_;
-    }
-    void addSlotsOrElementsRegister(Register reg) {
-        slotsOrElementsRegs_.addUnchecked(reg);
-    }
-    bool addSlotsOrElementsSlot(uint32_t slot) {
-        return slotsOrElementsSlots_.append(slot);
-    }
-    bool addSlotsOrElementsPointer(LAllocation alloc) {
-        if (alloc.isStackSlot())
-            return addSlotsOrElementsSlot(alloc.toStackSlot()->slot());
-        JS_ASSERT(alloc.isRegister());
-        addSlotsOrElementsRegister(alloc.toRegister().gpr());
-        return true;
-    }
-    bool hasSlotsOrElementsPointer(LAllocation alloc) {
-        if (alloc.isRegister())
-            return slotsOrElementsRegs().has(alloc.toRegister().gpr());
-        if (alloc.isStackSlot()) {
-            for (size_t i = 0; i < slotsOrElementsSlots_.length(); i++) {
-                if (slotsOrElementsSlots_[i] == alloc.toStackSlot()->slot())
-                    return true;
-            }
-            return false;
-        }
-        return false;
     }
 
     bool addGcPointer(LAllocation alloc) {
@@ -1469,91 +1430,20 @@ LAllocation::toRegister() const
     }
 #endif
 
-#include "ion/LIR-Common.h"
+#include "LIR-Common.h"
 #if defined(JS_CPU_X86) || defined(JS_CPU_X64)
 # if defined(JS_CPU_X86)
-#  include "ion/x86/LIR-x86.h"
+#  include "x86/LIR-x86.h"
 # elif defined(JS_CPU_X64)
-#  include "ion/x64/LIR-x64.h"
+#  include "x64/LIR-x64.h"
 # endif
-# include "ion/shared/LIR-x86-shared.h"
+# include "shared/LIR-x86-shared.h"
 #elif defined(JS_CPU_ARM)
-# include "ion/arm/LIR-arm.h"
+# include "arm/LIR-arm.h"
 #endif
 
 #undef LIR_HEADER
 
-namespace js {
-namespace ion {
-
-#define LIROP(name)                                                         \
-    L##name *LInstruction::to##name()                                       \
-    {                                                                       \
-        JS_ASSERT(is##name());                                              \
-        return static_cast<L##name *>(this);                                \
-    }
-    LIR_OPCODE_LIST(LIROP)
-#undef LIROP
-
-#define LALLOC_CAST(type)                                                   \
-    L##type *LAllocation::to##type() {                                      \
-        JS_ASSERT(is##type());                                              \
-        return static_cast<L##type *>(this);                                \
-    }
-#define LALLOC_CONST_CAST(type)                                             \
-    const L##type *LAllocation::to##type() const {                          \
-        JS_ASSERT(is##type());                                              \
-        return static_cast<const L##type *>(this);                          \
-    }
-
-LALLOC_CAST(Use)
-LALLOC_CONST_CAST(Use)
-LALLOC_CONST_CAST(GeneralReg)
-LALLOC_CONST_CAST(FloatReg)
-LALLOC_CONST_CAST(StackSlot)
-LALLOC_CONST_CAST(Argument)
-LALLOC_CONST_CAST(ConstantIndex)
-
-#undef LALLOC_CAST
-
-#ifdef JS_NUNBOX32
-static inline signed
-OffsetToOtherHalfOfNunbox(LDefinition::Type type)
-{
-    JS_ASSERT(type == LDefinition::TYPE || type == LDefinition::PAYLOAD);
-    signed offset = (type == LDefinition::TYPE)
-                    ? PAYLOAD_INDEX - TYPE_INDEX
-                    : TYPE_INDEX - PAYLOAD_INDEX;
-    return offset;
-}
-
-static inline void
-AssertTypesFormANunbox(LDefinition::Type type1, LDefinition::Type type2)
-{
-    JS_ASSERT((type1 == LDefinition::TYPE && type2 == LDefinition::PAYLOAD) ||
-              (type2 == LDefinition::TYPE && type1 == LDefinition::PAYLOAD));
-}
-
-static inline unsigned
-OffsetOfNunboxSlot(LDefinition::Type type)
-{
-    if (type == LDefinition::PAYLOAD)
-        return NUNBOX32_PAYLOAD_OFFSET / STACK_SLOT_SIZE;
-    return NUNBOX32_TYPE_OFFSET / STACK_SLOT_SIZE;
-}
-
-// Note that stack indexes for LStackSlot are modelled backwards, so a
-// double-sized slot starting at 2 has its next word at 1, *not* 3.
-static inline unsigned
-BaseOfNunboxSlot(LDefinition::Type type, unsigned slot)
-{
-    if (type == LDefinition::PAYLOAD)
-        return slot + (NUNBOX32_PAYLOAD_OFFSET / STACK_SLOT_SIZE);
-    return slot + (NUNBOX32_TYPE_OFFSET / STACK_SLOT_SIZE);
-}
-#endif
-
-} // namespace ion
-} // namespace js
+#include "LIR-inl.h"
 
 #endif /* ion_LIR_h */

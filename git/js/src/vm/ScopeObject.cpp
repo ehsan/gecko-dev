@@ -9,17 +9,16 @@
 #include "jscompartment.h"
 #include "jsiter.h"
 
-#include "vm/GlobalObject.h"
-#include "vm/ScopeObject.h"
-#include "vm/Shape.h"
-#include "vm/Xdr.h"
+#include "GlobalObject.h"
+#include "ScopeObject.h"
+#include "Shape.h"
+#include "Xdr.h"
 
 #include "jsatominlines.h"
 #include "jsobjinlines.h"
 
 #include "gc/Barrier-inl.h"
 #include "vm/ScopeObject-inl.h"
-#include "vm/Stack-inl.h"
 
 using namespace js;
 using namespace js::types;
@@ -1358,11 +1357,10 @@ class DebugScopeProxy : public BaseProxyHandler
 
     DebugScopeProxy() : BaseProxyHandler(&family) {}
 
-    bool isExtensible(JSContext *cx, HandleObject proxy, bool *extensible) MOZ_OVERRIDE
+    bool isExtensible(JSObject *proxy) MOZ_OVERRIDE
     {
         // always [[Extensible]], can't be made non-[[Extensible]], like most
         // proxies
-        *extensible = true;
         return true;
     }
 
@@ -1598,8 +1596,8 @@ js_IsDebugScopeSlow(JSObject *obj)
 
 DebugScopes::DebugScopes(JSContext *cx)
  : proxiedScopes(cx),
-   missingScopes(cx->runtime()),
-   liveScopes(cx->runtime())
+   missingScopes(cx),
+   liveScopes(cx)
 {}
 
 DebugScopes::~DebugScopes()
@@ -2115,7 +2113,7 @@ GetDebugScopeForMissing(JSContext *cx, const ScopeIter &si)
       }
       case ScopeIter::With:
       case ScopeIter::StrictEvalScope:
-        MOZ_ASSUME_UNREACHABLE("should already have a scope");
+        JS_NOT_REACHED("should already have a scope");
     }
     if (!debugScope)
         return NULL;

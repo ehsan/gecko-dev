@@ -146,8 +146,6 @@ public:
         return [NSOpenGLContext currentContext] == mContext;
     }
 
-    virtual GLenum GetPreferredARGB32Format() MOZ_OVERRIDE { return LOCAL_GL_BGRA; }
-
     bool SetupLookupFunction()
     {
         return false;
@@ -203,7 +201,7 @@ public:
                                         SharedHandleDetails& details)
     {
         details.mTarget = LOCAL_GL_TEXTURE_RECTANGLE_ARB;
-        details.mTextureFormat = FORMAT_R8G8B8A8;
+        details.mProgramType = RGBARectLayerProgramType;
         return true;
     }
 

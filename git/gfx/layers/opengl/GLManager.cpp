@@ -47,7 +47,7 @@ public:
     return mImpl->gl();
   }
 
-  virtual ShaderProgramOGL* GetProgram(ShaderProgramType aType) MOZ_OVERRIDE
+  virtual ShaderProgramOGL* GetProgram(gl::ShaderProgramType aType) MOZ_OVERRIDE
   {
     return mImpl->GetProgram(aType);
   }
@@ -78,7 +78,8 @@ GLManager::CreateGLManager(LayerManager* aManager)
     }
   }
 
-  MOZ_CRASH("Cannot create GLManager for non-GL layer manager");
+  MOZ_NOT_REACHED("Cannot create GLManager for non-GL layer manager");
+  return nullptr;
 }
 
 }

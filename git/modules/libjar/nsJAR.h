@@ -8,6 +8,7 @@
 #define nsJAR_h__
 
 #include "nscore.h"
+#include "pratom.h"
 #include "prio.h"
 #include "plstr.h"
 #include "prlog.h"

@@ -33,7 +33,6 @@ inline GrGLubyte verb_to_gl_path_cmd(const SkPath::Verb verb) {
     return gTable[verb];
 }
 
-#ifdef SK_DEBUG
 inline int num_pts(const SkPath::Verb verb) {
     static const int gTable[] = {
         1, // move
@@ -51,12 +50,9 @@ inline int num_pts(const SkPath::Verb verb) {
     GrAssert(verb >= 0 && (size_t)verb < GR_ARRAY_COUNT(gTable));
     return gTable[verb];
 }
-#endif
 }
 
-static const bool kIsWrapped = false; // The constructor creates the GL path object.
-
-GrGLPath::GrGLPath(GrGpuGL* gpu, const SkPath& path) : INHERITED(gpu, kIsWrapped) {
+GrGLPath::GrGLPath(GrGpuGL* gpu, const SkPath& path) : INHERITED(gpu) {
     GL_CALL_RET(fPathID, GenPaths(1));
     SkPath::Iter iter(path, true);
 
@@ -94,7 +90,7 @@ GrGLPath::~GrGLPath() {
 }
 
 void GrGLPath::onRelease() {
-    if (0 != fPathID && !this->isWrapped()) {
+    if (0 != fPathID) {
         GL_CALL(DeletePaths(fPathID, 1));
         fPathID = 0;
     }
@@ -107,3 +103,4 @@ void GrGLPath::onAbandon() {
 
     INHERITED::onAbandon();
 }
+

@@ -15,6 +15,10 @@ typedef SkTRegistry<SkImageEncoder*, SkImageEncoder::Type> EncodeReg;
 // Can't use the typedef here because of complex C++ corner cases
 template EncodeReg* SkTRegistry<SkImageEncoder*, SkImageEncoder::Type>::gHead;
 
+#ifdef SK_ENABLE_LIBPNG
+    extern SkImageEncoder* sk_libpng_efactory(SkImageEncoder::Type);
+#endif
+
 SkImageEncoder* SkImageEncoder::Create(Type t) {
     SkImageEncoder* codec = NULL;
     const EncodeReg* curr = EncodeReg::Head();
@@ -24,5 +28,10 @@ SkImageEncoder* SkImageEncoder::Create(Type t) {
         }
         curr = curr->next();
     }
+#ifdef SK_ENABLE_LIBPNG
+    if ((codec = sk_libpng_efactory(t)) != NULL) {
+        return codec;
+    }
+#endif
     return NULL;
 }

@@ -359,7 +359,7 @@ nsPopupBoxObject::GetAlignmentPosition(nsAString& positionStr)
 NS_IMETHODIMP
 nsPopupBoxObject::GetAlignmentOffset(int32_t *aAlignmentOffset)
 {
-  nsMenuPopupFrame *menuPopupFrame = do_QueryFrame(GetFrame(false));
+  nsMenuPopupFrame *menuPopupFrame = do_QueryFrame(GetFrame(true));
   if (!menuPopupFrame)
     return NS_OK;
 

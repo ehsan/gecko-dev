@@ -203,11 +203,8 @@ class Heap : public js::HeapBase<T>
             relocate();
     }
 
-    bool operator==(const Heap<T> &other) { return ptr == other.ptr; }
-    bool operator!=(const Heap<T> &other) { return ptr != other.ptr; }
-
-    bool operator==(const T &other) const { return ptr == other; }
     bool operator!=(const T &other) const { return ptr != other; }
+    bool operator==(const T &other) const { return ptr == other; }
 
     operator T() const { return ptr; }
     T operator->() const { return ptr; }
@@ -660,12 +657,9 @@ class MOZ_STACK_CLASS Rooted : public js::RootedBase<T>
     Rooted<void*> **stack, *prev;
 #endif
 
-#if defined(DEBUG) && defined(JS_GC_ZEAL) && defined(JSGC_ROOT_ANALYSIS) && !defined(JS_THREADSAFE)
+#ifdef JSGC_ROOT_ANALYSIS
     /* Has the rooting analysis ever scanned this Rooted's stack location? */
     friend void JS::CheckStackRoots(JSContext*);
-#endif
-
-#ifdef JSGC_ROOT_ANALYSIS
     bool scanned;
 #endif
 
@@ -891,11 +885,13 @@ template <typename T> class MaybeRooted<T, NoGC>
     typedef FakeMutableHandle<T> MutableHandleType;
 
     static inline JS::Handle<T> toHandle(HandleType v) {
-        MOZ_ASSUME_UNREACHABLE("Bad conversion");
+        JS_NOT_REACHED("Bad conversion");
+        return JS::Handle<T>::fromMarkedLocation(NULL);
     }
 
     static inline JS::MutableHandle<T> toMutableHandle(MutableHandleType v) {
-        MOZ_ASSUME_UNREACHABLE("Bad conversion");
+        JS_NOT_REACHED("Bad conversion");
+        return JS::MutableHandle<T>::fromMarkedLocation(NULL);
     }
 };
 

@@ -32,3 +32,4 @@ void GrClipData::getConservativeBounds(const GrSurface* surface,
 
     devBounds.roundOut(devResult);
 }
+

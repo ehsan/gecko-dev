@@ -377,7 +377,7 @@ private:
 
   NativeKey()
   {
-    MOZ_CRASH("The default constructor of NativeKey isn't available");
+    MOZ_NOT_REACHED("The default constructor of NativeKey isn't available");
   }
 
   UINT GetScanCodeWithExtendedFlag() const;
@@ -394,9 +394,8 @@ private:
 
   /*
    * Dispatches a plugin event after the specified message is removed.
-   * Returns true if the widget is destoyed.  Otherwise, false.
    */
-  bool RemoveMessageAndDispatchPluginEvent(UINT aFirstMsg, UINT aLastMsg) const;
+  void RemoveMessageAndDispatchPluginEvent(UINT aFirstMsg, UINT aLastMsg) const;
 
   bool IsKeyDownMessage() const
   {

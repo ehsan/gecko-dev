@@ -11,13 +11,6 @@
 #include "Rect.h"
 #include "Matrix.h"
 #include "UserData.h"
-
-// GenericRefCountedBase allows us to hold on to refcounted objects of any type
-// (contrary to RefCounted<T> which requires knowing the type T) and, in particular,
-// without having a dependency on that type. This is used for DrawTargetSkia
-// to be able to hold on to a GLContext.
-#include "mozilla/GenericRefCounted.h"
-
 // This RefPtr class isn't ideal for usage in Azure, as it doesn't allow T**
 // outparams using the &-operator. But it will have to do as there's no easy
 // solution.
@@ -38,7 +31,6 @@ struct ID3D10Texture2D;
 struct IDWriteRenderingParams;
 
 class GrContext;
-struct GrGLInterface;
 
 namespace mozilla {
 
@@ -304,7 +296,7 @@ public:
 
 /*
  * This is the base class for source surfaces. These objects are surfaces
- * which may be used as a source in a SurfacePattern or a DrawSurface call.
+ * which may be used as a source in a SurfacePattern of a DrawSurface call.
  * They cannot be drawn to directly.
  */
 class SourceSurface : public RefCounted<SourceSurface>
@@ -727,7 +719,7 @@ public:
   virtual void MaskSurface(const Pattern &aSource,
                            SourceSurface *aMask,
                            Point aOffset,
-                           const DrawOptions &aOptions = DrawOptions()) = 0;
+                           const DrawOptions &aOptions = DrawOptions()) { MOZ_ASSERT(0); };
 
   /*
    * Push a clip to the DrawTarget.
@@ -864,20 +856,6 @@ public:
     return mPermitSubpixelAA;
   }
 
-  virtual GenericRefCountedBase* GetGLContext() const {
-    return nullptr;
-  }
-
-#ifdef USE_SKIA_GPU
-  virtual void InitWithGLContextAndGrGLInterface(GenericRefCountedBase* aGLContext,
-                                            GrGLInterface* aGrGLInterface,
-                                            const IntSize &aSize,
-                                            SurfaceFormat aFormat)
-  {
-    MOZ_CRASH();
-  }
-#endif
-
 protected:
   UserData mUserData;
   Matrix mTransform;
@@ -958,15 +936,7 @@ public:
 
 #ifdef USE_SKIA_GPU
   static TemporaryRef<DrawTarget>
-    CreateDrawTargetSkiaWithGLContextAndGrGLInterface(GenericRefCountedBase* aGLContext,
-                                                      GrGLInterface* aGrGLInterface,
-                                                      const IntSize &aSize,
-                                                      SurfaceFormat aFormat);
-#endif
-
-#if defined(USE_SKIA) && defined(MOZ_ENABLE_FREETYPE)
-  static TemporaryRef<GlyphRenderingOptions>
-    CreateCairoGlyphRenderingOptions(FontHinting aHinting, bool aAutoHinting);
+    CreateSkiaDrawTargetForFBO(unsigned int aFBOID, GrContext *aContext, const IntSize &aSize, SurfaceFormat aFormat);
 #endif
 
 #ifdef WIN32

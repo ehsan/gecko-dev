@@ -16,7 +16,7 @@ var gSearchBox = null;
 
 function test()
 {
-  requestLongerTimeout(3);
+  requestLongerTimeout(2);
 
   debug_tab_pane(STACK_URL, function(aTab, aDebuggee, aPane) {
     gTab = aTab;
@@ -268,12 +268,6 @@ function testScriptSearching() {
       "Not all the scripts are shown after the search. (20)");
     isnot(gSources.widget.getAttribute("label"), noMatchingSources,
       "The scripts container should not display a notice that matches are found.");
-
-
-    gEditor.setSelection(1, 5);
-    EventUtils.synthesizeKey("F", { accelKey:true });
-    is(gSearchBox.value, "#" + gEditor.getSelectedText(),
-      "The search field has the right initial value.");
 
     closeDebuggerAndFinish();
   }}, 0);

@@ -84,12 +84,11 @@ class nsChildView;
 class nsCocoaWindow;
 union nsPluginPort;
 
-namespace {
-class GLPresenter;
-class RectTextureImage;
+namespace mozilla {
+namespace gl {
+class TextureImage;
 }
 
-namespace mozilla {
 namespace layers {
 class GLManager;
 }
@@ -105,18 +104,6 @@ class GLManager;
 @end
 
 @interface NSView (Undocumented)
-
-// Draws the title string of a window.
-// Present on NSThemeFrame since at least 10.6.
-// _drawTitleBar is somewhat complex, and has changed over the years
-// since OS X 10.6.  But in that time it's never done anything that
-// would break when called outside of -[NSView drawRect:] (which we
-// sometimes do), or whose output can't be redirected to a
-// CGContextRef object (which we also sometimes do).  This is likely
-// to remain true for the indefinite future.  However we should
-// check _drawTitleBar in each new major version of OS X.  For more
-// information see bug 877767.
-- (void)_drawTitleBar:(NSRect)aRect;
 
 // Returns an NSRect that is the bounding box for all an NSView's dirty
 // rectangles (ones that need to be redrawn).  The full list of dirty
@@ -573,10 +560,6 @@ public:
     return nsCocoaUtils::DevPixelsToCocoaPoints(aRect, BackingScaleFactor());
   }
 
-  mozilla::TemporaryRef<mozilla::gfx::DrawTarget> StartRemoteDrawing() MOZ_OVERRIDE;
-  void EndRemoteDrawing() MOZ_OVERRIDE;
-  void CleanupRemoteDrawing() MOZ_OVERRIDE;
-
 protected:
 
   void              ReportMoveEvent();
@@ -595,10 +578,7 @@ protected:
     return widget.forget();
   }
 
-  void DoRemoteComposition(const nsIntRect& aRenderRect);
-
   // Overlay drawing functions for OpenGL drawing
-  void DrawWindowOverlay(mozilla::layers::GLManager* aManager, nsIntRect aRect);
   void MaybeDrawResizeIndicator(mozilla::layers::GLManager* aManager, const nsIntRect& aRect);
   void MaybeDrawRoundedCorners(mozilla::layers::GLManager* aManager, const nsIntRect& aRect);
   void MaybeDrawTitlebar(mozilla::layers::GLManager* aManager, const nsIntRect& aRect);
@@ -606,6 +586,10 @@ protected:
   // Redraw the contents of mTitlebarImageBuffer on the main thread, as
   // determined by mDirtyTitlebarRegion.
   void UpdateTitlebarImageBuffer();
+
+  // Upload the contents of mTitlebarImageBuffer to mTitlebarImage on the
+  // compositor thread, as determined by mUpdatedTitlebarRegion.
+  void UpdateTitlebarImage(mozilla::layers::GLManager* aManager, const nsIntRect& aRect);
 
   nsIntRect RectContainingTitlebarControls();
 
@@ -644,13 +628,14 @@ protected:
   // transaction. Accessed from any thread, protected by mEffectsLock.
   nsIntRegion mUpdatedTitlebarRegion;
 
-  mozilla::RefPtr<mozilla::gfx::DrawTarget> mTitlebarImageBuffer;
+  nsRefPtr<gfxQuartzSurface> mTitlebarImageBuffer;
 
   // Compositor thread only
-  nsAutoPtr<RectTextureImage> mResizerImage;
-  nsAutoPtr<RectTextureImage> mCornerMaskImage;
-  nsAutoPtr<RectTextureImage> mTitlebarImage;
-  nsAutoPtr<RectTextureImage> mBasicCompositorImage;
+  bool                  mFailedResizerImage;
+  bool                  mFailedCornerMaskImage;
+  nsRefPtr<mozilla::gl::TextureImage> mResizerImage;
+  nsRefPtr<mozilla::gl::TextureImage> mCornerMaskImage;
+  nsRefPtr<mozilla::gl::TextureImage> mTitlebarImage;
 
   // The area of mTitlebarImageBuffer that has changed and needs to be
   // uploaded to to mTitlebarImage. Main thread only.
@@ -669,10 +654,6 @@ protected:
 
   NP_CGContext          mPluginCGContext;
   nsIPluginInstanceOwner* mPluginInstanceOwner; // [WEAK]
-
-  // Used in OMTC BasicLayers mode. Presents the BasicCompositor result
-  // surface to the screen using an OpenGL context.
-  nsAutoPtr<GLPresenter> mGLPresenter;
 
   static uint32_t sLastInputEventCount;
 };

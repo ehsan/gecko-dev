@@ -10,16 +10,16 @@
 // This file declares the structures that are used for attaching LIR to a
 // MIRGraph.
 
-#include "ion/IonAllocPolicy.h"
-#include "ion/LIR.h"
-#include "ion/MOpcodes.h"
+#include "IonAllocPolicy.h"
+#include "LIR.h"
+#include "MOpcodes.h"
 
 #if defined(JS_CPU_X86)
-# include "ion/x86/Lowering-x86.h"
+# include "x86/Lowering-x86.h"
 #elif defined(JS_CPU_X64)
-# include "ion/x64/Lowering-x64.h"
+# include "x64/Lowering-x64.h"
 #elif defined(JS_CPU_ARM)
-# include "ion/arm/Lowering-arm.h"
+# include "arm/Lowering-arm.h"
 #else
 # error "CPU!"
 #endif
@@ -143,7 +143,6 @@ class LIRGenerator : public LIRGeneratorSpecific
     bool visitDiv(MDiv *ins);
     bool visitMod(MMod *ins);
     bool visitConcat(MConcat *ins);
-    bool visitParConcat(MParConcat *ins);
     bool visitCharCodeAt(MCharCodeAt *ins);
     bool visitFromCharCode(MFromCharCode *ins);
     bool visitStart(MStart *start);
@@ -164,7 +163,6 @@ class LIRGenerator : public LIRGeneratorSpecific
     bool visitElements(MElements *ins);
     bool visitConstantElements(MConstantElements *ins);
     bool visitConvertElementsToDoubles(MConvertElementsToDoubles *ins);
-    bool visitMaybeToDoubleElement(MMaybeToDoubleElement *ins);
     bool visitLoadSlot(MLoadSlot *ins);
     bool visitFunctionEnvironment(MFunctionEnvironment *ins);
     bool visitParSlice(MParSlice *ins);

@@ -26,12 +26,10 @@ NS_IMPL_RELEASE_INHERITED(ConvolverNode, AudioNode)
 
 class ConvolverNodeEngine : public AudioNodeEngine
 {
-  typedef PlayingRefChangeHandler<ConvolverNode> PlayingRefChanged;
 public:
   ConvolverNodeEngine(AudioNode* aNode, bool aNormalize)
     : AudioNodeEngine(aNode)
     , mBufferLength(0)
-    , mLeftOverData(INT32_MIN)
     , mSampleRate(0.0f)
     , mUseBackgroundThreads(!aNode->Context()->IsOffline())
     , mNormalize(aNormalize)
@@ -53,7 +51,6 @@ public:
       mBuffer = nullptr;
       mSampleRate = 0.0f;
       mBufferLength = aParam;
-      mLeftOverData = INT32_MIN;
       break;
     case SAMPLE_RATE:
       mSampleRate = aParam;
@@ -95,7 +92,6 @@ public:
     if (!mBuffer || !mBufferLength || !mSampleRate) {
       mReverb = nullptr;
       mSeenInput = false;
-      mLeftOverData = INT32_MIN;
       return;
     }
 
@@ -120,43 +116,24 @@ public:
     }
 
     mSeenInput = true;
+    uint32_t numChannels = 2;
     AudioChunk input = aInput;
     if (aInput.IsNull()) {
       AllocateAudioBlock(1, &input);
       WriteZeroesToAudioBlock(&input, 0, WEBAUDIO_BLOCK_SIZE);
-
-      mLeftOverData -= WEBAUDIO_BLOCK_SIZE;
-      if (mLeftOverData <= 0) {
-        // Note: this keeps spamming the main thread with messages as long
-        // as there is nothing to play. This isn't great, but it avoids
-        // problems with some messages being ignored when they're rejected by
-        // ConvolverNode::AcceptPlayingRefRelease.
-        mLeftOverData = 0;
-        nsRefPtr<PlayingRefChanged> refchanged =
-          new PlayingRefChanged(aStream, PlayingRefChanged::RELEASE);
-        NS_DispatchToMainThread(refchanged);
+    } else if (aInput.mVolume != 1.0f) {
+      // Pre-multiply the input's volume
+      numChannels = aInput.mChannelData.Length();
+      AllocateAudioBlock(numChannels, &input);
+      for (uint32_t i = 0; i < numChannels; ++i) {
+        const float* src = static_cast<const float*>(aInput.mChannelData[i]);
+        float* dest = static_cast<float*>(const_cast<void*>(input.mChannelData[i]));
+        AudioBlockAddChannelWithScale(src, aInput.mVolume, dest);
       }
     } else {
-      if (aInput.mVolume != 1.0f) {
-        // Pre-multiply the input's volume
-        uint32_t numChannels = aInput.mChannelData.Length();
-        AllocateAudioBlock(numChannels, &input);
-        for (uint32_t i = 0; i < numChannels; ++i) {
-          const float* src = static_cast<const float*>(aInput.mChannelData[i]);
-          float* dest = static_cast<float*>(const_cast<void*>(input.mChannelData[i]));
-          AudioBlockAddChannelWithScale(src, aInput.mVolume, dest);
-        }
-      }
-
-      if (mLeftOverData <= 0) {
-        nsRefPtr<PlayingRefChanged> refchanged =
-          new PlayingRefChanged(aStream, PlayingRefChanged::ADDREF);
-        NS_DispatchToMainThread(refchanged);
-      }
-      mLeftOverData = mBufferLength + WEBAUDIO_BLOCK_SIZE;
-      MOZ_ASSERT(mLeftOverData > 0);
+      numChannels = aInput.mChannelData.Length();
     }
-    AllocateAudioBlock(2, aOutput);
+    AllocateAudioBlock(numChannels, aOutput);
 
     mReverb->process(&input, aOutput, WEBAUDIO_BLOCK_SIZE);
   }
@@ -165,7 +142,6 @@ private:
   nsRefPtr<ThreadSharedFloatArrayBufferList> mBuffer;
   nsAutoPtr<WebCore::Reverb> mReverb;
   int32_t mBufferLength;
-  int32_t mLeftOverData;
   float mSampleRate;
   bool mUseBackgroundThreads;
   bool mNormalize;
@@ -177,7 +153,6 @@ ConvolverNode::ConvolverNode(AudioContext* aContext)
               2,
               ChannelCountMode::Clamped_max,
               ChannelInterpretation::Speakers)
-  , mMediaStreamGraphUpdateIndexAtLastInputConnection(0)
   , mNormalize(true)
 {
   ConvolverNodeEngine* engine = new ConvolverNodeEngine(this, mNormalize);
@@ -193,17 +168,15 @@ ConvolverNode::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 void
 ConvolverNode::SetBuffer(JSContext* aCx, AudioBuffer* aBuffer, ErrorResult& aRv)
 {
-  if (aBuffer) {
-    switch (aBuffer->NumberOfChannels()) {
-    case 1:
-    case 2:
-    case 4:
-      // Supported number of channels
-      break;
-    default:
-      aRv.Throw(NS_ERROR_DOM_SYNTAX_ERR);
-      return;
-    }
+  switch (aBuffer->NumberOfChannels()) {
+  case 1:
+  case 2:
+  case 4:
+    // Supported number of channels
+    break;
+  default:
+    aRv.Throw(NS_ERROR_DOM_SYNTAX_ERR);
+    return;
   }
 
   mBuffer = aBuffer;
@@ -215,7 +188,7 @@ ConvolverNode::SetBuffer(JSContext* aCx, AudioBuffer* aBuffer, ErrorResult& aRv)
     uint32_t length = mBuffer->Length();
     nsRefPtr<ThreadSharedFloatArrayBufferList> data =
       mBuffer->GetThreadSharedChannelsForRate(aCx);
-    if (data && length < WEBAUDIO_BLOCK_SIZE) {
+    if (length < WEBAUDIO_BLOCK_SIZE) {
       // For very small impulse response buffers, we need to pad the
       // buffer with 0 to make sure that the Reverb implementation
       // has enough data to compute FFTs from.

@@ -307,11 +307,8 @@ function test() {
           id: "node18",
         });
 
-        /**
-         * XXX: disabled until the remote markup view is enabled
-         * is(inspector.highlighter.nodeInfo.classesBox.textContent, "",
-         *  "No classes in the infobar before edit.");
-         */
+        is(inspector.highlighter.nodeInfo.classesBox.textContent, "",
+          "No classes in the infobar before edit.");
       },
       execute: function(after) {
         inspector.once("markupmutation", function() {
@@ -329,12 +326,8 @@ function test() {
           class: "newclass",
           style: "color:green"
         });
-
-        /**
-         * XXX: disabled until the remote markup view is enabled
-         *is(inspector.highlighter.nodeInfo.classesBox.textContent, ".newclass",
-         *  "Correct classes in the infobar after edit.");
-         */
+        is(inspector.highlighter.nodeInfo.classesBox.textContent, ".newclass",
+          "Correct classes in the infobar after edit.");
       }
     };
     testAsyncSetup(test, editTagName);

@@ -7,7 +7,7 @@
 #ifndef jsfixedsizehash_h_
 #define jsfixedsizehash_h_
 
-#include "ds/LifoAlloc.h"
+#include "LifoAlloc.h"
 
 namespace js {
 

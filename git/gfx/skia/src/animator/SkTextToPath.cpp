@@ -45,3 +45,4 @@ void SkTextToPath::onEndElement(SkAnimateMaker& maker) {
     realPaint.getTextPath(text->getText(), text->getSize(), text->x,
         text->y, &path->getPath());
 }
+

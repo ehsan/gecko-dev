@@ -4,7 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "shell/jsoptparse.h"
+#include "jsoptparse.h"
 
 #include <ctype.h>
 #include <stdarg.h>
@@ -135,7 +135,7 @@ PrintParagraph(const char *text, unsigned startColno, const unsigned limitColno,
             }
             break;
           default:
-            MOZ_ASSUME_UNREACHABLE("unhandled token splitting character in text");
+            JS_NOT_REACHED("unhandled token splitting character in text");
         }
     }
 }
@@ -309,7 +309,8 @@ OptionParser::handleOption(Option *opt, size_t argc, char **argv, size_t *i, boo
         return opt->asMultiStringOption()->strings.append(arg) ? Okay : Fail;
       }
       default:
-        MOZ_ASSUME_UNREACHABLE("unhandled option kind");
+        JS_NOT_REACHED("unhandled option kind");
+        return Fail;
     }
 }
 
@@ -336,7 +337,8 @@ OptionParser::handleArg(size_t argc, char **argv, size_t *i, bool *optionsAllowe
         return arg->asMultiStringOption()->strings.append(value) ? Okay : Fail;
       }
       default:
-        MOZ_ASSUME_UNREACHABLE("unhandled argument kind");
+        JS_NOT_REACHED("unhandled argument kind");
+        return Fail;
     }
 }
 

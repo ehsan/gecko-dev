@@ -10,7 +10,7 @@
 #include <stdio.h>
 
 #include "jsscript.h"
-#include "ion/IonMacroAssembler.h"
+#include "IonMacroAssembler.h"
 #include "js/RootingAPI.h"
 
 class JSScript;
@@ -37,57 +37,39 @@ static inline bool PerfEnabled() { return false; }
 
 class PerfSpewer
 {
-  protected:
+  private:
     static uint32_t nextFunctionIndex;
-    FILE *fp_;
 
-  public:
     struct Record {
         const char *filename;
         unsigned lineNumber;
         unsigned columnNumber;
         uint32_t id;
         Label start, end;
-        unsigned startOffset, endOffset;
 
         Record(const char *filename,
                unsigned lineNumber,
                unsigned columnNumber,
                uint32_t id)
           : filename(filename), lineNumber(lineNumber),
-            columnNumber(columnNumber), id(id),
-            startOffset(0u), endOffset(0u)
+            columnNumber(columnNumber), id(id)
         {}
     };
 
-    typedef Vector<Record, 1, SystemAllocPolicy> BasicBlocksVector;
-  protected:
-    BasicBlocksVector basicBlocks_;
+    FILE *fp_;
+    Vector<Record, 1, SystemAllocPolicy> basicBlocks_;
 
   public:
     PerfSpewer();
-    virtual ~PerfSpewer();
+    ~PerfSpewer();
 
-    virtual bool startBasicBlock(MBasicBlock *blk, MacroAssembler &masm);
+    bool init(const char *path);
+
+    bool startBasicBlock(MBasicBlock *blk, MacroAssembler &masm);
     bool endBasicBlock(MacroAssembler &masm);
     void writeProfile(JSScript *script,
                       IonCode *code,
                       MacroAssembler &masm);
-};
-
-class AsmJSPerfSpewer : public PerfSpewer
-{
-  public:
-    bool startBasicBlock(MBasicBlock *blk, MacroAssembler &masm);
-
-    void noteBlocksOffsets(MacroAssembler &masm);
-    BasicBlocksVector &basicBlocks() { return basicBlocks_; }
-
-    void writeBlocksMap(unsigned long baseAddress, unsigned long funcStartOffset,
-                        unsigned long funcSize, const char *filename, const char *funcName,
-                        const BasicBlocksVector &basicBlocks);
-    void writeFunctionMap(unsigned long base, unsigned long size, const char *filename,
-                          unsigned lineno, unsigned colIndex, const char *funcName);
 };
 
 } // namespace ion

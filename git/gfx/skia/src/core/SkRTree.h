@@ -87,8 +87,6 @@ public:
      */
     virtual int getCount() const { return fCount; }
 
-    virtual void rewindInserts() SK_OVERRIDE;
-
 private:
 
     struct Node;
@@ -121,28 +119,19 @@ private:
     typedef int32_t SkIRect::*SortSide;
 
     // Helper for sorting our children arrays by sides of their rects
-    struct RectLessThan {
-        RectLessThan(SkRTree::SortSide side) : fSide(side) { }
-        bool operator()(const SkRTree::Branch lhs, const SkRTree::Branch rhs) const {
-            return lhs.fBounds.*fSide < rhs.fBounds.*fSide;
-        }
-    private:
-        const SkRTree::SortSide fSide;
-    };
+    static bool RectLessThan(SortSide const& side, const Branch lhs, const Branch rhs) {
+        return lhs.fBounds.*side < rhs.fBounds.*side;
+    }
 
-    struct RectLessX {
-        bool operator()(const SkRTree::Branch lhs, const SkRTree::Branch rhs) {
-            return ((lhs.fBounds.fRight - lhs.fBounds.fLeft) >> 1) <
-                   ((rhs.fBounds.fRight - lhs.fBounds.fLeft) >> 1);
-        }
-    };
+    static bool RectLessX(int&, const Branch lhs, const Branch rhs) {
+        return ((lhs.fBounds.fRight - lhs.fBounds.fLeft) >> 1) <
+               ((rhs.fBounds.fRight - lhs.fBounds.fLeft) >> 1);
+    }
 
-    struct RectLessY {
-        bool operator()(const SkRTree::Branch lhs, const SkRTree::Branch rhs) {
-            return ((lhs.fBounds.fBottom - lhs.fBounds.fTop) >> 1) <
-                   ((rhs.fBounds.fBottom - lhs.fBounds.fTop) >> 1);
-        }
-    };
+    static bool RectLessY(int&, const Branch lhs, const Branch rhs) {
+        return ((lhs.fBounds.fBottom - lhs.fBounds.fTop) >> 1) <
+               ((rhs.fBounds.fBottom - lhs.fBounds.fTop) >> 1);
+    }
 
     SkRTree(int minChildren, int maxChildren, SkScalar aspectRatio);
 
@@ -191,3 +180,4 @@ private:
 };
 
 #endif
+

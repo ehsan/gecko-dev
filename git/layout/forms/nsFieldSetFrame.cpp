@@ -194,9 +194,6 @@ public:
                        HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames);
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsRenderingContext* aCtx);
-  virtual void ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
-                                         const nsDisplayItemGeometry* aGeometry,
-                                         nsRegion *aInvalidRegion) MOZ_OVERRIDE;
   NS_DISPLAY_DECL_NAME("FieldSetBorderBackground", TYPE_FIELDSET_BORDER_BACKGROUND)
 };
 
@@ -216,16 +213,6 @@ nsDisplayFieldSetBorderBackground::Paint(nsDisplayListBuilder* aBuilder,
   static_cast<nsFieldSetFrame*>(mFrame)->
     PaintBorderBackground(*aCtx, ToReferenceFrame(),
                           mVisibleRect, aBuilder->GetBackgroundPaintFlags());
-}
-
-void
-nsDisplayFieldSetBorderBackground::ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
-                                                             const nsDisplayItemGeometry* aGeometry,
-                                                             nsRegion *aInvalidRegion)
-{
-  AddInvalidRegionForSyncDecodeBackgroundImages(aBuilder, aGeometry, aInvalidRegion);
-
-  nsDisplayItem::ComputeInvalidationRegion(aBuilder, aGeometry, aInvalidRegion);
 }
 
 void
@@ -593,7 +580,7 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
     nsPoint curOrigin = legend->GetPosition();
 
     // only if the origin changed
-    if ((curOrigin.x != actualLegendRect.x) || (curOrigin.y != actualLegendRect.y)) {
+    if ((curOrigin.x != mLegendRect.x) || (curOrigin.y != mLegendRect.y)) {
       legend->SetPosition(nsPoint(actualLegendRect.x , actualLegendRect.y));
       nsContainerFrame::PositionFrameView(legend);
 

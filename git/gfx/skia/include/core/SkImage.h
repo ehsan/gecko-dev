@@ -16,12 +16,14 @@ class SkCanvas;
 class SkPaint;
 class SkShader;
 class GrContext;
-class GrTexture;
+struct GrPlatformTextureDesc;
 
 // need for TileMode
 #include "SkShader.h"
 
 ////// EXPERIMENTAL
+
+class SkColorSpace;
 
 /**
  *  SkImage is an abstraction for drawing a rectagle of pixels, though the
@@ -61,12 +63,13 @@ public:
         int         fHeight;
         ColorType   fColorType;
         AlphaType   fAlphaType;
+
     };
 
-    static SkImage* NewRasterCopy(const Info&, const void* pixels, size_t rowBytes);
-    static SkImage* NewRasterData(const Info&, SkData* pixels, size_t rowBytes);
+    static SkImage* NewRasterCopy(const Info&, SkColorSpace*, const void* pixels, size_t rowBytes);
+    static SkImage* NewRasterData(const Info&, SkColorSpace*, SkData* pixels, size_t rowBytes);
     static SkImage* NewEncodedData(SkData*);
-    static SkImage* NewTexture(GrTexture*);
+    static SkImage* NewTexture(GrContext*, const GrPlatformTextureDesc&);
 
     int width() const { return fWidth; }
     int height() const { return fHeight; }

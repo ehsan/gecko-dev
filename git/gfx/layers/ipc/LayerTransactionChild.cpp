@@ -23,7 +23,7 @@ LayerTransactionChild::Destroy()
 }
 
 PGrallocBufferChild*
-LayerTransactionChild::AllocPGrallocBufferChild(const gfxIntSize&,
+LayerTransactionChild::AllocPGrallocBuffer(const gfxIntSize&,
                                            const uint32_t&,
                                            const uint32_t&,
                                            MaybeMagicGrallocBufferHandle*)
@@ -37,7 +37,7 @@ LayerTransactionChild::AllocPGrallocBufferChild(const gfxIntSize&,
 }
 
 bool
-LayerTransactionChild::DeallocPGrallocBufferChild(PGrallocBufferChild* actor)
+LayerTransactionChild::DeallocPGrallocBuffer(PGrallocBufferChild* actor)
 {
 #ifdef MOZ_HAVE_SURFACEDESCRIPTORGRALLOC
   delete actor;
@@ -49,7 +49,7 @@ LayerTransactionChild::DeallocPGrallocBufferChild(PGrallocBufferChild* actor)
 }
 
 PLayerChild*
-LayerTransactionChild::AllocPLayerChild()
+LayerTransactionChild::AllocPLayer()
 {
   // we always use the "power-user" ctor
   NS_RUNTIMEABORT("not reached");
@@ -57,20 +57,20 @@ LayerTransactionChild::AllocPLayerChild()
 }
 
 bool
-LayerTransactionChild::DeallocPLayerChild(PLayerChild* actor)
+LayerTransactionChild::DeallocPLayer(PLayerChild* actor)
 {
   delete actor;
   return true;
 }
 
 PCompositableChild*
-LayerTransactionChild::AllocPCompositableChild(const TextureInfo& aInfo)
+LayerTransactionChild::AllocPCompositable(const TextureInfo& aInfo)
 {
   return new CompositableChild();
 }
 
 bool
-LayerTransactionChild::DeallocPCompositableChild(PCompositableChild* actor)
+LayerTransactionChild::DeallocPCompositable(PCompositableChild* actor)
 {
   delete actor;
   return true;

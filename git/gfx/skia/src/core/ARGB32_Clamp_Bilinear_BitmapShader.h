@@ -175,3 +175,4 @@ void ARGB32_Clamp_Bilinear_BitmapShader::shadeSpan(int x, int y, SkPMColor dstC[
         }
     }
 }
+

@@ -13,7 +13,6 @@
 
 #include "SkCanvas.h"
 #include "SkChunkAlloc.h"
-#include "SkDevice.h"
 #include "SkPicture.h"
 #include "SkRegion.h"
 #include "SkStream.h"
@@ -52,39 +51,28 @@ const char* DrawTypeToString(DrawType drawType) {
         case CLIP_PATH: return "CLIP_PATH";
         case CLIP_REGION: return "CLIP_REGION";
         case CLIP_RECT: return "CLIP_RECT";
-        case CLIP_RRECT: return "CLIP_RRECT";
         case CONCAT: return "CONCAT";
         case DRAW_BITMAP: return "DRAW_BITMAP";
         case DRAW_BITMAP_MATRIX: return "DRAW_BITMAP_MATRIX";
-        case DRAW_BITMAP_NINE: return "DRAW_BITMAP_NINE";
-        case DRAW_BITMAP_RECT_TO_RECT: return "DRAW_BITMAP_RECT_TO_RECT";
-        case DRAW_CLEAR: return "DRAW_CLEAR";
-        case DRAW_DATA: return "DRAW_DATA";
-        case DRAW_OVAL: return "DRAW_OVAL";
+        case DRAW_BITMAP_RECT: return "DRAW_BITMAP_RECT";
         case DRAW_PAINT: return "DRAW_PAINT";
         case DRAW_PATH: return "DRAW_PATH";
         case DRAW_PICTURE: return "DRAW_PICTURE";
         case DRAW_POINTS: return "DRAW_POINTS";
         case DRAW_POS_TEXT: return "DRAW_POS_TEXT";
-        case DRAW_POS_TEXT_TOP_BOTTOM: return "DRAW_POS_TEXT_TOP_BOTTOM";
         case DRAW_POS_TEXT_H: return "DRAW_POS_TEXT_H";
-        case DRAW_POS_TEXT_H_TOP_BOTTOM: return "DRAW_POS_TEXT_H_TOP_BOTTOM";
-        case DRAW_RECT: return "DRAW_RECT";
-        case DRAW_RRECT: return "DRAW_RRECT";
+        case DRAW_RECT_GENERAL: return "DRAW_RECT_GENERAL";
+        case DRAW_RECT_SIMPLE: return "DRAW_RECT_SIMPLE";
         case DRAW_SPRITE: return "DRAW_SPRITE";
         case DRAW_TEXT: return "DRAW_TEXT";
         case DRAW_TEXT_ON_PATH: return "DRAW_TEXT_ON_PATH";
-        case DRAW_TEXT_TOP_BOTTOM: return "DRAW_TEXT_TOP_BOTTOM";
-        case DRAW_VERTICES: return "DRAW_VERTICES";
         case RESTORE: return "RESTORE";
         case ROTATE: return "ROTATE";
         case SAVE: return "SAVE";
         case SAVE_LAYER: return "SAVE_LAYER";
         case SCALE: return "SCALE";
-        case SET_MATRIX: return "SET_MATRIX";
         case SKEW: return "SKEW";
         case TRANSLATE: return "TRANSLATE";
-        case NOOP: return "NOOP";
         default:
             SkDebugf("DrawType error 0x%08x\n", drawType);
             SkASSERT(0);
@@ -121,7 +109,7 @@ SkPicture::SkPicture() {
     fWidth = fHeight = 0;
 }
 
-SkPicture::SkPicture(const SkPicture& src) {
+SkPicture::SkPicture(const SkPicture& src) : SkRefCnt() {
     fWidth = src.fWidth;
     fHeight = src.fHeight;
     fRecord = NULL;
@@ -168,12 +156,6 @@ void SkPicture::clone(SkPicture* pictures, int count) const {
         clone->fHeight = fHeight;
         clone->fRecord = NULL;
 
-        if (NULL != clone->fRecord) {
-            clone->fRecord->unref();
-            clone->fRecord = NULL;
-        }
-        SkDELETE(clone->fPlayback);
-
         /*  We want to copy the src's playback. However, if that hasn't been built
             yet, we need to fake a call to endRecording() without actually calling
             it (since it is destructive, and we don't want to change src).
@@ -203,37 +185,29 @@ SkCanvas* SkPicture::beginRecording(int width, int height,
         fRecord = NULL;
     }
 
-    SkBitmap bm;
-    bm.setConfig(SkBitmap::kNo_Config, width, height);
-    SkAutoTUnref<SkDevice> dev(SkNEW_ARGS(SkDevice, (bm)));
+    if (recordingFlags & kOptimizeForClippedPlayback_RecordingFlag) {
+        SkScalar aspectRatio = SkScalarDiv(SkIntToScalar(width),
+                                           SkIntToScalar(height));
+        SkRTree* tree = SkRTree::Create(6, 11, aspectRatio);
+        SkASSERT(NULL != tree);
+        fRecord = SkNEW_ARGS(SkBBoxHierarchyRecord, (recordingFlags, tree));
+        tree->unref();
+    } else {
+        fRecord = SkNEW_ARGS(SkPictureRecord, (recordingFlags));
+    }
 
-    // Must be set before calling createBBoxHierarchy
     fWidth = width;
     fHeight = height;
 
-    if (recordingFlags & kOptimizeForClippedPlayback_RecordingFlag) {
-        SkBBoxHierarchy* tree = this->createBBoxHierarchy();
-        SkASSERT(NULL != tree);
-        fRecord = SkNEW_ARGS(SkBBoxHierarchyRecord, (recordingFlags, tree, dev));
-        tree->unref();
-    } else {
-        fRecord = SkNEW_ARGS(SkPictureRecord, (recordingFlags, dev));
-    }
-    fRecord->beginRecording();
+    SkBitmap bm;
+    bm.setConfig(SkBitmap::kNo_Config, width, height);
+    fRecord->setBitmapDevice(bm);
 
     return fRecord;
 }
 
-SkBBoxHierarchy* SkPicture::createBBoxHierarchy() const {
-    // These values were empirically determined to produce reasonable
-    // performance in most cases.
-    static const int kRTreeMinChildren = 6;
-    static const int kRTreeMaxChildren = 11;
-
-    SkScalar aspectRatio = SkScalarDiv(SkIntToScalar(fWidth),
-                                       SkIntToScalar(fHeight));
-    return SkRTree::Create(kRTreeMinChildren, kRTreeMaxChildren,
-                           aspectRatio);
+bool SkPicture::hasRecorded() const {
+    return NULL != fRecord && fRecord->writeStream().size() > 0;
 }
 
 SkCanvas* SkPicture::getRecordingCanvas() const {
@@ -264,18 +238,14 @@ void SkPicture::draw(SkCanvas* surface) {
 
 #include "SkStream.h"
 
-SkPicture::SkPicture(SkStream* stream) {
-    this->initFromStream(stream, NULL, NULL);
-}
+// V2 : adds SkPixelRef's generation ID.
+// V3 : PictInfo tag at beginning, and EOF tag at the end
+// V4 : move SkPictInfo to be the header
+// V5 : don't read/write FunctionPtr on cross-process (we can detect that)
+// V6 : added serialization of SkPath's bounds (and packed its flags tighter)
+#define PICTURE_VERSION     6
 
-SkPicture::SkPicture(SkStream* stream, bool* success, InstallPixelRefProc proc) {
-    this->initFromStream(stream, success, proc);
-}
-
-void SkPicture::initFromStream(SkStream* stream, bool* success, InstallPixelRefProc proc) {
-    if (success) {
-        *success = false;
-    }
+SkPicture::SkPicture(SkStream* stream) : SkRefCnt() {
     fRecord = NULL;
     fPlayback = NULL;
     fWidth = fHeight = 0;
@@ -290,18 +260,21 @@ void SkPicture::initFromStream(SkStream* stream, bool* success, InstallPixelRefP
     }
 
     if (stream->readBool()) {
-        fPlayback = SkNEW_ARGS(SkPicturePlayback, (stream, info, proc));
+        bool isValid = false;
+        fPlayback = SkNEW_ARGS(SkPicturePlayback, (stream, info, &isValid));
+        if (!isValid) {
+            SkDELETE(fPlayback);
+            fPlayback = NULL;
+            return;
+        }
     }
 
     // do this at the end, so that they will be zero if we hit an error.
     fWidth = info.fWidth;
     fHeight = info.fHeight;
-    if (success) {
-        *success = true;
-    }
 }
 
-void SkPicture::serialize(SkWStream* stream, EncodeBitmap encoder) const {
+void SkPicture::serialize(SkWStream* stream) const {
     SkPicturePlayback* playback = fPlayback;
 
     if (NULL == playback && fRecord) {
@@ -324,7 +297,7 @@ void SkPicture::serialize(SkWStream* stream, EncodeBitmap encoder) const {
     stream->write(&info, sizeof(info));
     if (playback) {
         stream->writeBool(true);
-        playback->serialize(stream, encoder);
+        playback->serialize(stream);
         // delete playback if it is a local version (i.e. cons'd up just now)
         if (playback != fPlayback) {
             SkDELETE(playback);
@@ -334,11 +307,11 @@ void SkPicture::serialize(SkWStream* stream, EncodeBitmap encoder) const {
     }
 }
 
-#ifdef SK_BUILD_FOR_ANDROID
 void SkPicture::abortPlayback() {
     if (NULL == fPlayback) {
         return;
     }
     fPlayback->abort();
 }
-#endif
+
+

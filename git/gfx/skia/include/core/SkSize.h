@@ -1,3 +1,4 @@
+
 /*
  * Copyright 2011 Google Inc.
  *
@@ -5,10 +6,9 @@
  * found in the LICENSE file.
  */
 
+
 #ifndef SkSize_DEFINED
 #define SkSize_DEFINED
-
-#include "SkScalar.h"
 
 template <typename T> struct SkTSize {
     T fWidth;
@@ -73,6 +73,8 @@ static inline bool operator!=(const SkTSize<T>& a, const SkTSize<T>& b) {
 ///////////////////////////////////////////////////////////////////////////////
 
 typedef SkTSize<int32_t> SkISize;
+
+#include "SkScalar.h"
 
 struct SkSize : public SkTSize<SkScalar> {
     static SkSize Make(SkScalar w, SkScalar h) {

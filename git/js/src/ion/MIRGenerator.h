@@ -13,15 +13,10 @@
 
 #include "jscntxt.h"
 #include "jscompartment.h"
-#include "ion/IonAllocPolicy.h"
-#include "ion/IonCompartment.h"
-#include "ion/CompileInfo.h"
-#include "ion/RegisterSets.h"
-
-#if defined(JS_ION_PERF)
-# include "ion/PerfSpewer.h"
-#endif
-
+#include "IonAllocPolicy.h"
+#include "IonCompartment.h"
+#include "CompileInfo.h"
+#include "RegisterSets.h"
 
 namespace js {
 namespace ion {
@@ -157,13 +152,6 @@ class MIRGenerator
     AsmJSHeapAccessVector asmJSHeapAccesses_;
 #endif
     AsmJSGlobalAccessVector asmJSGlobalAccesses_;
-
-#if defined(JS_ION_PERF)
-    AsmJSPerfSpewer asmJSPerfSpewer_;
-
-  public:
-    AsmJSPerfSpewer &perfSpewer() { return asmJSPerfSpewer_; }
-#endif
 };
 
 } // namespace ion

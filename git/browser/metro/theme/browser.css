@@ -122,7 +122,7 @@
     opacity: 0;
     transform: scale(0, 0);
   }
-
+  
   100% {
     opacity: 1;
     transform: scale(1, 1);
@@ -168,7 +168,7 @@ documenttab[closing] > .documenttab-container {
   font-size: @metro_font_normal@;
   width: @thumbnail_width@;
   padding: 4px @metro_spacing_snormal@ 8px;
-
+  
   background: #000;
   opacity: 0.95;
   color: #fff;
@@ -223,7 +223,7 @@ documenttab[selected] .documenttab-selection {
 }
 
 .selection-overlay {
-  pointer-events: none;
+  pointer-events: none;  
 }
 
 .selection-overlay:-moz-focusring {
@@ -402,16 +402,12 @@ appbar[visible] {
   -moz-image-region: rect(0 80px 40px 40px);
 }
 
-#toolbar > .appbar-primary[checked] {
+#toolbar > .appbar-primary:not([checked]):active {
   -moz-image-region: rect(0 120px 40px 80px);
 }
 
 #toolbar > .appbar-primary[checked]:hover:not(:active) {
   -moz-image-region: rect(0 160px 40px 120px);
-}
-
-#toolbar > .appbar-primary:active {
-  -moz-image-region: rect(0 120px 40px 80px);
 }
 
 @media (min-resolution: 130dpi) {
@@ -428,16 +424,12 @@ appbar[visible] {
     -moz-image-region: rect(0 112px 56px 56px);
   }
 
-  #toolbar > .appbar-primary[checked] {
-    -moz-image-region: rect(0 224px 56px 168px);
+  #toolbar > .appbar-primary:not([checked]):active {
+    -moz-image-region: rect(0 168px 56px 112px);
   }
 
   #toolbar > .appbar-primary[checked]:hover:not(:active) {
     -moz-image-region: rect(0 224px 56px 168px);
-  }
-
-  #toolbar > .appbar-primary:active {
-    -moz-image-region: rect(0 168px 56px 112px);
   }
 }
 
@@ -561,21 +553,26 @@ flyoutpanel > settings:first-child {
   width: 400px;
 }
 
-#sync-disconnectpanel {
-  margin-top: 25px;
-}
-
 #sync-disconnectwarntitle {
   font-weight: bold;
 }
 
-#sync-disconnectthrobber .progressContainer {
+#sync-disconnectthrobber {
+  margin-top: 25px;
+}
+
+#disconnectthrobber {
+  width: 25px;
+  height: 25px;
+}
+
+#syncdisconnectthrobber .progressContainer {
   width: 25px;
   height: 25px;
   margin-right: 10px;
 }
 
-#sync-disconnectthrobber .progressBall {
+#syncdisconnectthrobber .progressBall {
   margin: 2px;
   width: 22px;
   height: 22px;
@@ -707,21 +704,6 @@ setting[type="radio"] > vbox {
   width: 50%;
 }
 
-#clear-notification {
-  max-height: 25px;
-}
-
-#clearprivacythrobber .progressContainer {
-  width: 25px;
-  height: 25px;
-}
-
-#clearprivacythrobber .progressBall {
-  margin: 2px;
-  width: 22px;
-  height: 22px;
-}
-
 #clear-notification-done {
   font-weight: bold;
 }
@@ -750,15 +732,13 @@ setting[type="radio"] > vbox {
   visibility: collapse;
 }
 
-/* startUI sections, grids */
-#start-container .meta-section {
-  /* allot space for at least a single column */
-  min-width: @grid_double_column_width@;
+/*tile content should be on same line in snapped view */
+#snapped-topsites-grid > richgriditem > .richgrid-item-content {
+  -moz-box-orient: horizontal;
 }
 
-#start-topsites {
-  /* allot space for 3 tile columns for the topsites grid */
-  min-width: calc(3 * @grid_double_column_width@);
+[viewstate="snapped"] .canSnapTiles .richgrid-item-desc {
+ -moz-margin-start: 8px;
 }
 
 /* if snapped, hide the fullscreen awesome screen, if viewstate is anything
@@ -781,8 +761,8 @@ setting[type="radio"] > vbox {
 
 #start-container[viewstate="snapped"] .meta-section {
   margin: 0px;
-  min-width: @grid_double_column_width@;
 }
+
 
 /* Browser Content Areas ----------------------------------------------------- */
 

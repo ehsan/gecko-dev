@@ -69,6 +69,8 @@
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/ContentChild.h"
 
+#include "mozilla/jsipc/ContextWrapperParent.h"
+
 #include "mozilla/ipc/TestShellParent.h"
 #include "mozilla/ipc/XPCShellEnvironment.h"
 
@@ -93,6 +95,9 @@ using mozilla::plugins::PluginProcessChild;
 using mozilla::dom::ContentProcess;
 using mozilla::dom::ContentParent;
 using mozilla::dom::ContentChild;
+
+using mozilla::jsipc::PContextWrapperParent;
+using mozilla::jsipc::ContextWrapperParent;
 
 using mozilla::ipc::TestShellParent;
 using mozilla::ipc::TestShellCommandParent;
@@ -756,6 +761,13 @@ XRE_SendTestShellCommand(JSContext* aCx,
     NS_ENSURE_TRUE(callback->SetCallback(aCx, callbackVal), false);
 
     return true;
+}
+
+bool
+XRE_GetChildGlobalObject(JSContext* aCx, JSObject** aGlobalP)
+{
+    TestShellParent* tsp = GetOrCreateTestShellParent();
+    return tsp && tsp->GetGlobalJSObject(aCx, aGlobalP);
 }
 
 bool

@@ -107,7 +107,8 @@ GLXLibrary::EnsureInitialized(LibType libType)
 #endif
             break;
         default:
-            MOZ_CRASH("Invalid GLX library type.");
+            MOZ_NOT_REACHED("Invalid GLX library type.");
+            return false;
         }
 
         ScopedGfxFeatureReporter reporter(libGLfilename, forceFeatureReport);
@@ -1062,9 +1063,9 @@ private:
         , sGLXLib(sGLXLibrary[aLibType])
     {
         if (aSurface->GetContentType() == gfxASurface::CONTENT_COLOR_ALPHA) {
-            mTextureFormat = FORMAT_R8G8B8A8;
+            mShaderType = gl::RGBALayerProgramType;
         } else {
-            mTextureFormat = FORMAT_R8G8B8X8;
+            mShaderType = gl::RGBXLayerProgramType;
         }
     }
 
@@ -1386,7 +1387,7 @@ DONE_CREATING_PIXMAP:
                                                   display,
                                                   glxpixmap,
                                                   cfgs[chosenIndex],
-                                                  true,
+                                                  false,
                                                   libToUse,
                                                   xsurface);
     }

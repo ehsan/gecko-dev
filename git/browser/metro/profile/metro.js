@@ -11,10 +11,8 @@ pref("nglayout.debug.disable_xul_fastload", true);
 pref("devtools.errorconsole.enabled", true);
 #endif
 
-// Automatically submit crash reports
-pref("app.crashreporter.autosubmit", false);
-// Has the user been prompted about crash reporting?
-pref("app.crashreporter.prompted", false);
+// Enable headless crash reporting by default
+pref("app.reportCrashes", true);
 
 // Debug prefs, see input.js
 pref("metro.debug.treatmouseastouch", false);
@@ -24,7 +22,7 @@ pref("metro.debug.selection.dumpRanges", false);
 pref("metro.debug.selection.dumpEvents", false);
 
 // Enable off main thread compositing
-pref("layers.offmainthreadcomposition.enabled", true);
+pref("layers.offmainthreadcomposition.enabled", false);
 
 // Enable Microsoft TSF support by default for imes.
 pref("intl.enable_tsf_support", true);
@@ -85,9 +83,6 @@ pref("network.protocol-handler.warn-external.mailto", false);
 pref("network.protocol-handler.warn-external.vnd.youtube", false);
 pref("network.protocol-handler.warn-external.ms-windows-store", false);
 pref("network.protocol-handler.external.ms-windows-store", true);
-
-// display the overlay nav buttons
-pref("browser.display.overlaynavbuttons", true);
 
 /* history max results display */
 pref("browser.display.history.maxresults", 100);
@@ -390,7 +385,7 @@ pref("breakpad.reportURL", "https://crash-stats.mozilla.com/report/index/");
 // TODO: This is not the correct article for metro!!!
 pref("app.sync.tutorialURL", "https://support.mozilla.org/kb/sync-firefox-between-desktop-and-mobile");
 pref("app.support.baseURL", "https://support.mozilla.org/1/firefox/%VERSION%/%OS%/%LOCALE%/");
-pref("app.privacyURL", "http://www.mozilla.org/%LOCALE%/legal/privacy/firefox.html");
+pref("app.privacyURL", "https://www.mozilla.org/legal/privacy/");
 pref("app.creditsURL", "http://www.mozilla.org/credits/");
 pref("app.channelURL", "http://www.mozilla.org/%LOCALE%/firefox/channel/");
 
@@ -413,6 +408,13 @@ pref("app.update.enabled", true);
 // the UI easier to construct.
 pref("app.update.auto", true);
 
+// Defines how the Application Update Service notifies the user about updates:
+//
+// AUM Set to:        Minor Releases:     Major Releases:
+// 0                  download no prompt  download no prompt
+// 1                  download no prompt  download no prompt if no incompatibilities
+// 2                  download no prompt  prompt
+//
 // See chart in nsUpdateService.js source for more details
 pref("app.update.mode", 0);
 

@@ -18,13 +18,12 @@ function test() {
 
 function runTests(toolbox) {
   let panel = toolbox.getPanel("jsprofiler");
-  let record = gPanel.controls.record;
 
-  panel.once("started", () => {
+  panel.profiles.get(1).once("started", () => {
     is(getSidebarItem(1, panel).attachment.state, PROFILE_RUNNING);
 
     openConsole(gTab, (hud) => {
-      panel.once("stopped", () => {
+      panel.profiles.get(1).once("stopped", () => {
         is(getSidebarItem(1, panel).attachment.state, PROFILE_COMPLETED);
         tearDown(gTab, () => gTab = gPanel = null);
       });
@@ -33,5 +32,5 @@ function runTests(toolbox) {
     });
   });
 
-  record.click();
+  sendFromProfile(1, "start");
 }

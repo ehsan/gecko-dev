@@ -114,7 +114,7 @@ typedef AutoValueVector NodeVector;
 
 #define LOCAL_NOT_REACHED(expr)                                                        \
     JS_BEGIN_MACRO                                                                     \
-        MOZ_ASSERT(false);                                                             \
+        JS_NOT_REACHED(expr);                                                          \
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_BAD_PARSE_NODE);      \
         return false;                                                                  \
     JS_END_MACRO
@@ -204,12 +204,12 @@ class NodeBuilder
                 return false;
             Value argv[] = { loc };
             AutoValueArray ava(cx, argv, 1);
-            return Invoke(cx, userv, fun, ArrayLength(argv), argv, dst);
+            return Invoke(cx, userv, fun, ArrayLength(argv), argv, dst.address());
         }
 
         Value argv[] = { NullValue() }; /* no zero-length arrays allowed! */
         AutoValueArray ava(cx, argv, 1);
-        return Invoke(cx, userv, fun, 0, argv, dst);
+        return Invoke(cx, userv, fun, 0, argv, dst.address());
     }
 
     bool callback(HandleValue fun, HandleValue v1, TokenPos *pos, MutableHandleValue dst) {
@@ -219,12 +219,12 @@ class NodeBuilder
                 return false;
             Value argv[] = { v1, loc };
             AutoValueArray ava(cx, argv, 2);
-            return Invoke(cx, userv, fun, ArrayLength(argv), argv, dst);
+            return Invoke(cx, userv, fun, ArrayLength(argv), argv, dst.address());
         }
 
         Value argv[] = { v1 };
         AutoValueArray ava(cx, argv, 1);
-        return Invoke(cx, userv, fun, ArrayLength(argv), argv, dst);
+        return Invoke(cx, userv, fun, ArrayLength(argv), argv, dst.address());
     }
 
     bool callback(HandleValue fun, HandleValue v1, HandleValue v2, TokenPos *pos,
@@ -235,12 +235,12 @@ class NodeBuilder
                 return false;
             Value argv[] = { v1, v2, loc };
             AutoValueArray ava(cx, argv, 3);
-            return Invoke(cx, userv, fun, ArrayLength(argv), argv, dst);
+            return Invoke(cx, userv, fun, ArrayLength(argv), argv, dst.address());
         }
 
         Value argv[] = { v1, v2 };
         AutoValueArray ava(cx, argv, 2);
-        return Invoke(cx, userv, fun, ArrayLength(argv), argv, dst);
+        return Invoke(cx, userv, fun, ArrayLength(argv), argv, dst.address());
     }
 
     bool callback(HandleValue fun, HandleValue v1, HandleValue v2, HandleValue v3, TokenPos *pos,
@@ -251,12 +251,12 @@ class NodeBuilder
                 return false;
             Value argv[] = { v1, v2, v3, loc };
             AutoValueArray ava(cx, argv, 4);
-            return Invoke(cx, userv, fun, ArrayLength(argv), argv, dst);
+            return Invoke(cx, userv, fun, ArrayLength(argv), argv, dst.address());
         }
 
         Value argv[] = { v1, v2, v3 };
         AutoValueArray ava(cx, argv, 3);
-        return Invoke(cx, userv, fun, ArrayLength(argv), argv, dst);
+        return Invoke(cx, userv, fun, ArrayLength(argv), argv, dst.address());
     }
 
     bool callback(HandleValue fun, HandleValue v1, HandleValue v2, HandleValue v3, HandleValue v4,
@@ -267,12 +267,12 @@ class NodeBuilder
                 return false;
             Value argv[] = { v1, v2, v3, v4, loc };
             AutoValueArray ava(cx, argv, 5);
-            return Invoke(cx, userv, fun, ArrayLength(argv), argv, dst);
+            return Invoke(cx, userv, fun, ArrayLength(argv), argv, dst.address());
         }
 
         Value argv[] = { v1, v2, v3, v4 };
         AutoValueArray ava(cx, argv, 4);
-        return Invoke(cx, userv, fun, ArrayLength(argv), argv, dst);
+        return Invoke(cx, userv, fun, ArrayLength(argv), argv, dst.address());
     }
 
     bool callback(HandleValue fun, HandleValue v1, HandleValue v2, HandleValue v3, HandleValue v4,
@@ -283,12 +283,12 @@ class NodeBuilder
                 return false;
             Value argv[] = { v1, v2, v3, v4, v5, loc };
             AutoValueArray ava(cx, argv, 6);
-            return Invoke(cx, userv, fun, ArrayLength(argv), argv, dst);
+            return Invoke(cx, userv, fun, ArrayLength(argv), argv, dst.address());
         }
 
         Value argv[] = { v1, v2, v3, v4, v5 };
         AutoValueArray ava(cx, argv, 5);
-        return Invoke(cx, userv, fun, ArrayLength(argv), argv, dst);
+        return Invoke(cx, userv, fun, ArrayLength(argv), argv, dst.address());
     }
 
     // WARNING: Returning a Handle is non-standard, but it works in this case
@@ -2786,7 +2786,12 @@ ASTSerializer::function(ParseNode *pn, ASTType type, MutableHandleValue dst)
 {
     RootedFunction func(cx, pn->pn_funbox->function());
 
-    bool isGenerator = pn->pn_funbox->isGenerator();
+    bool isGenerator =
+#if JS_HAS_GENERATORS
+        pn->pn_funbox->isGenerator();
+#else
+        false;
+#endif
 
     bool isExpression =
 #if JS_HAS_EXPR_CLOSURES

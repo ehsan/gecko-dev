@@ -35,7 +35,6 @@ GonkDisplayJB::GonkDisplayJB()
     , mFBModule(nullptr)
     , mHwc(nullptr)
     , mFBDevice(nullptr)
-    , mEnabledCallback(nullptr)
 {
     int err = hw_get_module(GRALLOC_HARDWARE_MODULE_ID, &mFBModule);
     ALOGW_IF(err, "%s module not found", GRALLOC_HARDWARE_MODULE_ID);
@@ -89,8 +88,7 @@ GonkDisplayJB::GonkDisplayJB()
     mSTClient = stc;
 
     mList = (hwc_display_contents_1_t *)malloc(sizeof(*mList) + (sizeof(hwc_layer_1_t)*2));
-    if (mHwc)
-        mHwc->blank(mHwc, HWC_DISPLAY_PRIMARY, 0);
+    SetEnabled(true);
 
     status_t error;
     mBootAnimBuffer = mAlloc->createGraphicBuffer(mWidth, mHeight, surfaceformat, GRALLOC_USAGE_HW_FB | GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_COMPOSER, &error);
@@ -123,17 +121,8 @@ GonkDisplayJB::SetEnabled(bool enabled)
     else if (mFBDevice->enableScreen)
         mFBDevice->enableScreen(mFBDevice, enabled);
 
-    if (mEnabledCallback)
-        mEnabledCallback(enabled);
-
     if (!enabled)
         autosuspend_enable();
-}
-
-void
-GonkDisplayJB::OnEnabled(OnEnabledCallbackType callback)
-{
-    mEnabledCallback = callback;
 }
 
 void*

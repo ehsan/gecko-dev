@@ -52,13 +52,13 @@ function testWithFrame()
       is(innerNodes[3].querySelector(".name").getAttribute("value"), "buffer",
         "Should have the right property name for |buffer|.");
 
-      is(innerNodes[3].querySelector(".value").getAttribute("value"), "ArrayBuffer",
+      is(innerNodes[3].querySelector(".value").getAttribute("value"), "[object ArrayBuffer]",
         "Should have the right property value for |buffer|.");
 
       is(innerNodes[4].querySelector(".name").getAttribute("value"), "z",
         "Should have the right property name for |z|.");
 
-      is(innerNodes[4].querySelector(".value").getAttribute("value"), "Int8Array",
+      is(innerNodes[4].querySelector(".value").getAttribute("value"), "[object Int8Array]",
         "Should have the right property value for |z|.");
 
 

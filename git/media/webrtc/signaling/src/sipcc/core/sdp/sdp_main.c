@@ -229,7 +229,7 @@ const sdp_namearray_t sdp_transport[SDP_MAX_TRANSPORT_TYPES] =
     {"RTP/SAVP",     sizeof("RTP/SAVP")},
     {"tcp",          sizeof("tcp")},
     {"RTP/SAVPF",    sizeof("RTP/SAVPF")},
-    {"DTLS/SCTP",    sizeof("DTLS/SCTP")}
+    {"SCTP/DTLS",    sizeof("SCTP/DTLS")}
 };
 
 /* Note: These *must* be in the same order as the enum type. */

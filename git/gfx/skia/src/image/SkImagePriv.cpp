@@ -108,7 +108,8 @@ SkImage* SkNewImageFromBitmap(const SkBitmap& bm, bool canSharePixelRef) {
     } else {
         bm.lockPixels();
         if (bm.getPixels()) {
-            image = SkImage::NewRasterCopy(info, bm.getPixels(), bm.rowBytes());
+            image = SkImage::NewRasterCopy(info, NULL, bm.getPixels(),
+                                           bm.rowBytes());
         }
         bm.unlockPixels();
     }
@@ -141,3 +142,4 @@ void SkImagePrivDrawPicture(SkCanvas* canvas, SkPicture* picture,
     canvas->drawPicture(*picture);
     canvas->restoreToCount(saveCount);
 }
+

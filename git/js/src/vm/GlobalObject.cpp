@@ -4,7 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "vm/GlobalObject.h"
+#include "GlobalObject.h"
 
 #include "jscntxt.h"
 #include "jsdate.h"
@@ -21,7 +21,6 @@
 #include "builtin/RegExp.h"
 
 #include "jscompartmentinlines.h"
-#include "jsfuninlines.h"
 #include "jsobjinlines.h"
 
 #include "vm/GlobalObject-inl.h"
@@ -124,10 +123,7 @@ ProtoSetterImpl(JSContext *cx, CallArgs args)
     Rooted<JSObject*> obj(cx, &args.thisv().toObject());
 
     /* ES5 8.6.2 forbids changing [[Prototype]] if not [[Extensible]]. */
-    bool extensible;
-    if (!JSObject::isExtensible(cx, obj, &extensible))
-        return false;
-    if (!extensible) {
+    if (!obj->isExtensible()) {
         obj->reportNotExtensible(cx);
         return false;
     }

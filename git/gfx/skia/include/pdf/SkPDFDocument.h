@@ -21,7 +21,6 @@ class SkPDFDict;
 class SkPDFPage;
 class SkPDFObject;
 class SkWStream;
-template <typename T> class SK_API SkTSet;
 
 /** \class SkPDFDocument
 
@@ -30,10 +29,7 @@ template <typename T> class SK_API SkTSet;
 class SkPDFDocument {
 public:
     enum Flags {
-        kNoCompression_Flags = 0x01,  //!< DEPRECATED.
-        kFavorSpeedOverSize_Flags = 0x01,  //!< Don't compress the stream, but
-                                           // if it is already compressed return
-                                           // the compressed stream.
+        kNoCompression_Flags = 0x01,  //!< mask disable stream compression.
         kNoLinks_Flags       = 0x02,  //!< do not honor link annotations.
 
         kDraftMode_Flags     = 0x01,
@@ -79,13 +75,12 @@ private:
 
     SkTDArray<SkPDFPage*> fPages;
     SkTDArray<SkPDFDict*> fPageTree;
-    SkPDFDict* fDocCatalog;
-    SkTSet<SkPDFObject*>* fFirstPageResources;
-    SkTSet<SkPDFObject*>* fOtherPageResources;
+    SkRefPtr<SkPDFDict> fDocCatalog;
+    SkTDArray<SkPDFObject*> fPageResources;
     SkTDArray<SkPDFObject*> fSubstitutes;
     int fSecondPageFirstResourceIndex;
 
-    SkPDFDict* fTrailerDict;
+    SkRefPtr<SkPDFDict> fTrailerDict;
 
     /** Output the PDF header to the passed stream.
      *  @param stream    The writable output stream to send the header to.

@@ -3,10 +3,13 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "TestShellChild.h"
+#include "mozilla/jsipc/ContextWrapperChild.h"
 
 using mozilla::ipc::TestShellChild;
 using mozilla::ipc::PTestShellCommandChild;
 using mozilla::ipc::XPCShellEnvironment;
+using mozilla::jsipc::PContextWrapperChild;
+using mozilla::jsipc::ContextWrapperChild;
 
 TestShellChild::TestShellChild()
 : mXPCShell(XPCShellEnvironment::CreateEnvironment())
@@ -25,13 +28,13 @@ TestShellChild::RecvExecuteCommand(const nsString& aCommand)
 }
 
 PTestShellCommandChild*
-TestShellChild::AllocPTestShellCommandChild(const nsString& aCommand)
+TestShellChild::AllocPTestShellCommand(const nsString& aCommand)
 {
   return new PTestShellCommandChild();
 }
 
 bool
-TestShellChild::DeallocPTestShellCommandChild(PTestShellCommandChild* aCommand)
+TestShellChild::DeallocPTestShellCommand(PTestShellCommandChild* aCommand)
 {
   delete aCommand;
   return true;
@@ -54,3 +57,19 @@ TestShellChild::RecvPTestShellCommandConstructor(PTestShellCommandChild* aActor,
   return PTestShellCommandChild::Send__delete__(aActor, response);
 }
 
+PContextWrapperChild*
+TestShellChild::AllocPContextWrapper()
+{
+  JSContext* cx;
+  if (mXPCShell && (cx = mXPCShell->GetContext())) {
+    return new ContextWrapperChild(cx);
+  }
+  return NULL;
+}
+
+bool
+TestShellChild::DeallocPContextWrapper(PContextWrapperChild* actor)
+{
+  delete actor;
+  return true;
+}

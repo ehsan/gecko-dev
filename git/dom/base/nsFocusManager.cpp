@@ -311,7 +311,7 @@ nsFocusManager::GetRedirectedFocus(nsIContent* aContent)
         if (!doc)
           return nullptr;
 
-        nsINodeList* children = doc->BindingManager()->GetAnonymousNodesFor(aContent);
+        nsINodeList* children = doc->BindingManager()->GetXBLChildNodesFor(aContent);
         if (children) {
           nsIContent* child = children->Item(0);
           if (child && child->Tag() == nsGkAtoms::slider)
@@ -687,9 +687,7 @@ nsFocusManager::WindowRaised(nsIDOMWindow* aWindow)
       return NS_ERROR_FAILURE;
     }
 
-    if (!sTestMode) {
-      baseWindow->SetVisibility(true);
-    }
+    baseWindow->SetVisibility(true);
   }
 
   // inform the DOM window that it has activated, so that the active attribute

@@ -19,18 +19,18 @@ using namespace gfx;
 
 namespace layers {
 
-TemporaryRef<DeprecatedTextureHost>
-CreateDeprecatedTextureHostD3D11(SurfaceDescriptorType aDescriptorType,
-                             uint32_t aDeprecatedTextureHostFlags,
-                             uint32_t aTextureFlags)
+TemporaryRef<TextureHost>
+CreateTextureHostD3D11(SurfaceDescriptorType aDescriptorType,
+                       uint32_t aTextureHostFlags,
+                       uint32_t aTextureFlags)
 {
-  RefPtr<DeprecatedTextureHost> result;
+  RefPtr<TextureHost> result;
   if (aDescriptorType == SurfaceDescriptor::TYCbCrImage) {
-    result = new DeprecatedTextureHostYCbCrD3D11();
+    result = new TextureHostYCbCrD3D11();
   } else if (aDescriptorType == SurfaceDescriptor::TSurfaceDescriptorD3D10) {
-    result = new DeprecatedTextureHostDXGID3D11();
+    result = new TextureHostDXGID3D11();
   } else {
-    result = new DeprecatedTextureHostShmemD3D11();
+    result = new TextureHostShmemD3D11();
   }
 
   result->SetFlags(aTextureFlags);
@@ -63,14 +63,14 @@ CompositingRenderTargetD3D11::GetSize() const
   return TextureSourceD3D11::GetSize();
 }
 
-DeprecatedTextureClientD3D11::DeprecatedTextureClientD3D11(CompositableForwarder* aCompositableForwarder, const TextureInfo& aTextureInfo)
-  : DeprecatedTextureClient(aCompositableForwarder, aTextureInfo)
+TextureClientD3D11::TextureClientD3D11(CompositableForwarder* aCompositableForwarder, const TextureInfo& aTextureInfo)
+  : TextureClient(aCompositableForwarder, aTextureInfo)
   , mIsLocked(false)
 {
   mTextureInfo = aTextureInfo;
 }
 
-DeprecatedTextureClientD3D11::~DeprecatedTextureClientD3D11()
+TextureClientD3D11::~TextureClientD3D11()
 {
   mDescriptor = SurfaceDescriptor();
 
@@ -78,7 +78,7 @@ DeprecatedTextureClientD3D11::~DeprecatedTextureClientD3D11()
 }
 
 void
-DeprecatedTextureClientD3D11::EnsureAllocated(gfx::IntSize aSize, gfxASurface::gfxContentType aType)
+TextureClientD3D11::EnsureAllocated(gfx::IntSize aSize, gfxASurface::gfxContentType aType)
 {
   D3D10_TEXTURE2D_DESC desc;
 
@@ -127,7 +127,7 @@ DeprecatedTextureClientD3D11::EnsureAllocated(gfx::IntSize aSize, gfxASurface::g
 }
 
 gfxASurface*
-DeprecatedTextureClientD3D11::LockSurface()
+TextureClientD3D11::LockSurface()
 {
   EnsureSurface();
 
@@ -136,7 +136,7 @@ DeprecatedTextureClientD3D11::LockSurface()
 }
 
 DrawTarget*
-DeprecatedTextureClientD3D11::LockDrawTarget()
+TextureClientD3D11::LockDrawTarget()
 {
   EnsureDrawTarget();
 
@@ -145,7 +145,7 @@ DeprecatedTextureClientD3D11::LockDrawTarget()
 }
 
 void
-DeprecatedTextureClientD3D11::Unlock()
+TextureClientD3D11::Unlock()
 {
   // TODO - Things seem to believe they can hold on to our surface... well...
   // They shouldn't!!
@@ -153,7 +153,7 @@ DeprecatedTextureClientD3D11::Unlock()
 }
 
 void
-DeprecatedTextureClientD3D11::SetDescriptor(const SurfaceDescriptor& aDescriptor)
+TextureClientD3D11::SetDescriptor(const SurfaceDescriptor& aDescriptor)
 {
   if (aDescriptor.type() == SurfaceDescriptor::Tnull_t) {
     EnsureAllocated(mSize, mContentType);
@@ -177,7 +177,7 @@ DeprecatedTextureClientD3D11::SetDescriptor(const SurfaceDescriptor& aDescriptor
 }
 
 void
-DeprecatedTextureClientD3D11::EnsureSurface()
+TextureClientD3D11::EnsureSurface()
 {
   if (mSurface) {
     return;
@@ -189,7 +189,7 @@ DeprecatedTextureClientD3D11::EnsureSurface()
 }
 
 void
-DeprecatedTextureClientD3D11::EnsureDrawTarget()
+TextureClientD3D11::EnsureDrawTarget()
 {
   if (mDrawTarget) {
     return;
@@ -217,7 +217,7 @@ DeprecatedTextureClientD3D11::EnsureDrawTarget()
 }
 
 void
-DeprecatedTextureClientD3D11::LockTexture()
+TextureClientD3D11::LockTexture()
 {
   RefPtr<IDXGIKeyedMutex> mutex;
   mTexture->QueryInterface((IDXGIKeyedMutex**)byRef(mutex));
@@ -227,7 +227,7 @@ DeprecatedTextureClientD3D11::LockTexture()
 }
 
 void
-DeprecatedTextureClientD3D11::ReleaseTexture()
+TextureClientD3D11::ReleaseTexture()
 {
   // TODO - Bas - We seem to have places that unlock without ever having locked,
   // that's kind of bad.
@@ -247,7 +247,7 @@ DeprecatedTextureClientD3D11::ReleaseTexture()
 }
 
 void
-DeprecatedTextureClientD3D11::ClearDT()
+TextureClientD3D11::ClearDT()
 {
   // An Azure DrawTarget needs to be locked when it gets NULL'ed as this is
   // when it calls EndDraw. This EndDraw should not execute anything so it
@@ -262,7 +262,7 @@ DeprecatedTextureClientD3D11::ClearDT()
 }
 
 IntSize
-DeprecatedTextureHostShmemD3D11::GetSize() const
+TextureHostShmemD3D11::GetSize() const
 {
   if (mIterating) {
     gfx::IntRect rect = GetTileRect(mCurrentTile);
@@ -272,7 +272,7 @@ DeprecatedTextureHostShmemD3D11::GetSize() const
 }
 
 nsIntRect
-DeprecatedTextureHostShmemD3D11::GetTileRect()
+TextureHostShmemD3D11::GetTileRect()
 {
   IntRect rect = GetTileRect(mCurrentTile);
   return nsIntRect(rect.x, rect.y, rect.width, rect.height);
@@ -288,19 +288,18 @@ static uint32_t GetRequiredTiles(uint32_t aSize, uint32_t aMaxSize)
 }
 
 void
-DeprecatedTextureHostShmemD3D11::SetCompositor(Compositor* aCompositor)
+TextureHostShmemD3D11::SetCompositor(Compositor* aCompositor)
 {
   CompositorD3D11 *d3dCompositor = static_cast<CompositorD3D11*>(aCompositor);
   mDevice = d3dCompositor ? d3dCompositor->GetDevice() : nullptr;
 }
 
 void
-DeprecatedTextureHostShmemD3D11::UpdateImpl(const SurfaceDescriptor& aImage,
+TextureHostShmemD3D11::UpdateImpl(const SurfaceDescriptor& aImage,
                                   nsIntRegion *aRegion,
                                   nsIntPoint *aOffset)
 {
-  MOZ_ASSERT(aImage.type() == SurfaceDescriptor::TShmem ||
-             aImage.type() == SurfaceDescriptor::TMemoryImage);
+  MOZ_ASSERT(aImage.type() == SurfaceDescriptor::TShmem);
 
   AutoOpenSurface openSurf(OPEN_READ_ONLY, aImage);
 
@@ -365,7 +364,7 @@ DeprecatedTextureHostShmemD3D11::UpdateImpl(const SurfaceDescriptor& aImage,
 }
 
 IntRect
-DeprecatedTextureHostShmemD3D11::GetTileRect(uint32_t aID) const
+TextureHostShmemD3D11::GetTileRect(uint32_t aID) const
 {
   uint32_t maxSize = GetMaxTextureSizeForFeatureLevel(mDevice->GetFeatureLevel());
   uint32_t horizontalTiles = GetRequiredTiles(mSize.width, maxSize);
@@ -381,33 +380,33 @@ DeprecatedTextureHostShmemD3D11::GetTileRect(uint32_t aID) const
 }
 
 void
-DeprecatedTextureHostDXGID3D11::SetCompositor(Compositor* aCompositor)
+TextureHostDXGID3D11::SetCompositor(Compositor* aCompositor)
 {
   CompositorD3D11 *d3dCompositor = static_cast<CompositorD3D11*>(aCompositor);
   mDevice = d3dCompositor ? d3dCompositor->GetDevice() : nullptr;
 }
 
 IntSize
-DeprecatedTextureHostDXGID3D11::GetSize() const
+TextureHostDXGID3D11::GetSize() const
 {
   return TextureSourceD3D11::GetSize();
 }
 
 bool
-DeprecatedTextureHostDXGID3D11::Lock()
+TextureHostDXGID3D11::Lock()
 {
   LockTexture();
   return true;
 }
 
 void
-DeprecatedTextureHostDXGID3D11::Unlock()
+TextureHostDXGID3D11::Unlock()
 {
   ReleaseTexture();
 }
 
 void
-DeprecatedTextureHostDXGID3D11::UpdateImpl(const SurfaceDescriptor& aImage,
+TextureHostDXGID3D11::UpdateImpl(const SurfaceDescriptor& aImage,
                                  nsIntRegion *aRegion,
                                  nsIntPoint *aOffset)
 {
@@ -424,7 +423,7 @@ DeprecatedTextureHostDXGID3D11::UpdateImpl(const SurfaceDescriptor& aImage,
 }
 
 void
-DeprecatedTextureHostDXGID3D11::LockTexture()
+TextureHostDXGID3D11::LockTexture()
 {
   RefPtr<IDXGIKeyedMutex> mutex;
   mTextures[0]->QueryInterface((IDXGIKeyedMutex**)byRef(mutex));
@@ -433,7 +432,7 @@ DeprecatedTextureHostDXGID3D11::LockTexture()
 }
 
 void
-DeprecatedTextureHostDXGID3D11::ReleaseTexture()
+TextureHostDXGID3D11::ReleaseTexture()
 {
   RefPtr<IDXGIKeyedMutex> mutex;
   mTextures[0]->QueryInterface((IDXGIKeyedMutex**)byRef(mutex));
@@ -442,20 +441,20 @@ DeprecatedTextureHostDXGID3D11::ReleaseTexture()
 }
 
 void
-DeprecatedTextureHostYCbCrD3D11::SetCompositor(Compositor* aCompositor)
+TextureHostYCbCrD3D11::SetCompositor(Compositor* aCompositor)
 {
   CompositorD3D11 *d3dCompositor = static_cast<CompositorD3D11*>(aCompositor);
   mDevice = d3dCompositor ? d3dCompositor->GetDevice() : nullptr;
 }
 
 IntSize
-DeprecatedTextureHostYCbCrD3D11::GetSize() const
+TextureHostYCbCrD3D11::GetSize() const
 {
   return TextureSourceD3D11::GetSize();
 }
 
 void
-DeprecatedTextureHostYCbCrD3D11::UpdateImpl(const SurfaceDescriptor& aImage,
+TextureHostYCbCrD3D11::UpdateImpl(const SurfaceDescriptor& aImage,
                                   nsIntRegion *aRegion,
                                   nsIntPoint *aOffset)
 {

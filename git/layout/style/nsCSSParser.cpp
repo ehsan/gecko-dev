@@ -952,7 +952,8 @@ CSSParserImpl::ParseSheet(const nsAString& aInput,
 
   int32_t ruleCount = mSheet->StyleRuleCount();
   if (0 < ruleCount) {
-    const css::Rule* lastRule = mSheet->GetStyleRuleAt(ruleCount - 1);
+    css::Rule* lastRule = nullptr;
+    mSheet->GetStyleRuleAt(ruleCount - 1, lastRule);
     if (lastRule) {
       switch (lastRule->GetType()) {
         case css::Rule::CHARSET_RULE:
@@ -966,6 +967,7 @@ CSSParserImpl::ParseSheet(const nsAString& aInput,
           mSection = eCSSSection_General;
           break;
       }
+      NS_RELEASE(lastRule);
     }
   }
   else {
@@ -2780,21 +2782,17 @@ CSSParserImpl::ParseSupportsCondition(bool& aConditionMet)
 
   UngetToken();
 
-  mScanner->ClearSeenBadToken();
-
   if (mToken.IsSymbol('(') ||
       mToken.mType == eCSSToken_Function ||
       mToken.mType == eCSSToken_URL ||
       mToken.mType == eCSSToken_Bad_URL) {
     return ParseSupportsConditionInParens(aConditionMet) &&
-           ParseSupportsConditionTerms(aConditionMet) &&
-           !mScanner->SeenBadToken();
+           ParseSupportsConditionTerms(aConditionMet);
   }
 
   if (mToken.mType == eCSSToken_Ident &&
       mToken.mIdent.LowerCaseEqualsLiteral("not")) {
-    return ParseSupportsConditionNegation(aConditionMet) &&
-           !mScanner->SeenBadToken();
+    return ParseSupportsConditionNegation(aConditionMet);
   }
 
   REPORT_UNEXPECTED_TOKEN(PESupportsConditionExpectedStart);

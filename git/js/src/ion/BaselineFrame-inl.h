@@ -9,12 +9,10 @@
 
 #ifdef JS_ION
 
-#include "ion/BaselineFrame.h"
-
 #include "jscntxt.h"
 #include "jscompartment.h"
 
-#include "ion/IonFrames.h"
+#include "IonFrames.h"
 #include "vm/ScopeObject-inl.h"
 
 namespace js {

@@ -23,3 +23,4 @@ public:
 };
 
 #endif // SkSVGBase_DEFINEDes(const SkSVGAttribute** attrPtr) = 0;
+

@@ -6,7 +6,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
-#include "jsapi-tests/tests.h"
+#include "tests.h"
 
 #define JSVAL_IS_FALSE(x) ((JSVAL_IS_BOOLEAN(x)) && !(JSVAL_TO_BOOLEAN(x)))
 #define JSVAL_IS_TRUE(x)  ((JSVAL_IS_BOOLEAN(x)) && (JSVAL_TO_BOOLEAN(x)))

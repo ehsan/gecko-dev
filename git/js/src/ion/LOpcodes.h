@@ -108,7 +108,6 @@
     _(ModD)                         \
     _(BinaryV)                      \
     _(Concat)                       \
-    _(ParConcat)                    \
     _(CharCodeAt)                   \
     _(FromCharCode)                 \
     _(Int32ToDouble)                \
@@ -117,7 +116,6 @@
     _(DoubleToInt32)                \
     _(TruncateDToInt32)             \
     _(IntToString)                  \
-    _(DoubleToString)               \
     _(Start)                        \
     _(OsrEntry)                     \
     _(OsrValue)                     \
@@ -131,7 +129,6 @@
     _(Slots)                        \
     _(Elements)                     \
     _(ConvertElementsToDoubles)     \
-    _(MaybeToDoubleElement)         \
     _(LoadSlotV)                    \
     _(LoadSlotT)                    \
     _(StoreSlotV)                   \
@@ -244,11 +241,11 @@
     _(ParCheckInterrupt)
 
 #if defined(JS_CPU_X86)
-# include "ion/x86/LOpcodes-x86.h"
+# include "x86/LOpcodes-x86.h"
 #elif defined(JS_CPU_X64)
-# include "ion/x64/LOpcodes-x64.h"
+# include "x64/LOpcodes-x64.h"
 #elif defined(JS_CPU_ARM)
-# include "ion/arm/LOpcodes-arm.h"
+# include "arm/LOpcodes-arm.h"
 #endif
 
 #define LIR_OPCODE_LIST(_)          \

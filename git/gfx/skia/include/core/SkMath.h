@@ -40,7 +40,7 @@ int32_t SkSqrtBits(int32_t value, int bitBias);
 //! Returns the number of leading zero bits (0...32)
 int SkCLZ_portable(uint32_t);
 
-#if defined(SK_CPU_ARM)
+#if defined(__arm__)
     #define SkCLZ(x)    __builtin_clz(x)
 #endif
 
@@ -159,3 +159,4 @@ static inline U8CPU SkMulDiv255Round(U8CPU a, U8CPU b) {
 }
 
 #endif
+

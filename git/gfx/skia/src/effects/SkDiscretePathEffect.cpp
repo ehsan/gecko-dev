@@ -26,7 +26,7 @@ SkDiscretePathEffect::SkDiscretePathEffect(SkScalar segLength, SkScalar deviatio
 }
 
 bool SkDiscretePathEffect::filterPath(SkPath* dst, const SkPath& src,
-                                      SkStrokeRec* rec, const SkRect*) const {
+                                      SkStrokeRec* rec) {
     bool doFill = rec->isFillStyle();
 
     SkPathMeasure   meas(src, doFill);
@@ -80,3 +80,8 @@ SkDiscretePathEffect::SkDiscretePathEffect(SkFlattenableReadBuffer& buffer) {
     fSegLength = buffer.readScalar();
     fPerterb = buffer.readScalar();
 }
+
+///////////////////////////////////////////////////////////////////////////////
+
+SK_DEFINE_FLATTENABLE_REGISTRAR(SkDiscretePathEffect)
+

@@ -11,12 +11,12 @@
 
 #include "mozilla/MemoryReporting.h"
 
-#include "ion/IonCode.h"
+#include "IonCode.h"
 #include "jsweakcache.h"
 #include "js/Value.h"
 #include "vm/Stack.h"
-#include "ion/IonFrames.h"
-#include "ion/CompileInfo.h"
+#include "IonFrames.h"
+#include "CompileInfo.h"
 
 namespace js {
 namespace ion {
@@ -228,9 +228,8 @@ class IonCompartment
     // pointers. This has to be a weak pointer to avoid keeping the whole
     // compartment alive.
     ReadBarriered<IonCode> stringConcatStub_;
-    ReadBarriered<IonCode> parallelStringConcatStub_;
 
-    IonCode *generateStringConcatStub(JSContext *cx, ExecutionMode mode);
+    IonCode *generateStringConcatStub(JSContext *cx);
 
   public:
     IonCode *getVMWrapper(const VMFunction &f);
@@ -290,7 +289,7 @@ class IonCompartment
         switch (mode) {
           case SequentialExecution: return rt->argumentsRectifier_;
           case ParallelExecution:   return rt->parallelArgumentsRectifier_;
-          default:                  MOZ_ASSUME_UNREACHABLE("No such execution mode");
+          default:                  JS_NOT_REACHED("No such execution mode");
         }
     }
 
@@ -322,12 +321,8 @@ class IonCompartment
         return rt->debugTrapHandler(cx);
     }
 
-    IonCode *stringConcatStub(ExecutionMode mode) {
-        switch (mode) {
-          case SequentialExecution: return stringConcatStub_;
-          case ParallelExecution:   return parallelStringConcatStub_;
-          default:                  MOZ_ASSUME_UNREACHABLE("No such execution mode");
-        }
+    IonCode *stringConcatStub() {
+        return stringConcatStub_;
     }
 
     AutoFlushCache *flusher() {

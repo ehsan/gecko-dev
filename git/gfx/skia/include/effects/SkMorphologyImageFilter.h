@@ -9,10 +9,10 @@
 #ifndef SkMorphologyImageFilter_DEFINED
 #define SkMorphologyImageFilter_DEFINED
 
-#include "SkImageFilter.h"
+#include "SkSingleInputImageFilter.h"
 #include "SkSize.h"
 
-class SK_API SkMorphologyImageFilter : public SkImageFilter {
+class SK_API SkMorphologyImageFilter : public SkSingleInputImageFilter {
 public:
     SkMorphologyImageFilter(int radiusX, int radiusY, SkImageFilter* input);
 
@@ -27,7 +27,7 @@ protected:
 
 private:
     SkISize    fRadius;
-    typedef SkImageFilter INHERITED;
+    typedef SkSingleInputImageFilter INHERITED;
 };
 
 class SK_API SkDilateImageFilter : public SkMorphologyImageFilter {
@@ -38,7 +38,7 @@ public:
     virtual bool onFilterImage(Proxy*, const SkBitmap& src, const SkMatrix&,
                                SkBitmap* result, SkIPoint* offset) SK_OVERRIDE;
 #if SK_SUPPORT_GPU
-    virtual bool filterImageGPU(Proxy* proxy, const SkBitmap& src, SkBitmap* result) SK_OVERRIDE;
+    virtual GrTexture* onFilterImageGPU(GrTexture* src, const SkRect& rect) SK_OVERRIDE;
 #endif
 
     SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkDilateImageFilter)
@@ -58,7 +58,7 @@ public:
     virtual bool onFilterImage(Proxy*, const SkBitmap& src, const SkMatrix&,
                                SkBitmap* result, SkIPoint* offset) SK_OVERRIDE;
 #if SK_SUPPORT_GPU
-    virtual bool filterImageGPU(Proxy* proxy, const SkBitmap& src, SkBitmap* result) SK_OVERRIDE;
+    virtual GrTexture* onFilterImageGPU(GrTexture* src, const SkRect& rect) SK_OVERRIDE;
 #endif
 
     SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkErodeImageFilter)
@@ -71,3 +71,4 @@ private:
 };
 
 #endif
+

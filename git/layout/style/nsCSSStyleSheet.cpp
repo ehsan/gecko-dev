@@ -112,20 +112,26 @@ CSSRuleListImpl::GetLength(uint32_t* aLength)
 nsIDOMCSSRule*    
 CSSRuleListImpl::GetItemAt(uint32_t aIndex, nsresult* aResult)
 {
+  nsresult result = NS_OK;
+
   if (mStyleSheet) {
     // ensure rules have correct parent
     if (mStyleSheet->EnsureUniqueInner() !=
           nsCSSStyleSheet::eUniqueInner_CloneFailed) {
-      css::Rule* rule = mStyleSheet->GetStyleRuleAt(aIndex);
+      nsRefPtr<css::Rule> rule;
+
+      result = mStyleSheet->GetStyleRuleAt(aIndex, *getter_AddRefs(rule));
       if (rule) {
         *aResult = NS_OK;
         return rule->GetDOMRule();
       }
+      if (result == NS_ERROR_ILLEGAL_VALUE) {
+        result = NS_OK; // per spec: "Return Value ... null if ... not a valid index."
+      }
     }
   }
 
-  // Per spec: "Return Value ... null if ... not a valid index."
-  *aResult = NS_OK;
+  *aResult = result;
   return nullptr;
 }
 
@@ -1496,12 +1502,18 @@ nsCSSStyleSheet::StyleRuleCount() const
   return mInner->mOrderedRules.Count();
 }
 
-css::Rule*
-nsCSSStyleSheet::GetStyleRuleAt(int32_t aIndex) const
+nsresult
+nsCSSStyleSheet::GetStyleRuleAt(int32_t aIndex, css::Rule*& aRule) const
 {
   // Important: If this function is ever made scriptable, we must add
   // a security check here. See GetCssRules below for an example.
-  return mInner->mOrderedRules.SafeObjectAt(aIndex);
+  aRule = mInner->mOrderedRules.SafeObjectAt(aIndex);
+  if (aRule) {
+    NS_ADDREF(aRule);
+    return NS_OK;
+  }
+
+  return NS_ERROR_ILLEGAL_VALUE;
 }
 
 int32_t

@@ -92,17 +92,16 @@ public:
     return mStream->AsSourceStream();
   }
 
-  // mVideo/AudioSource are set by Activate(), so we assume they're capturing
-  // if set and represent a real capture device.
+  // mVideo/AudioSource are set by Activate(), so we assume they're capturing if set
   bool CapturingVideo()
   {
     NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
-    return mVideoSource && !mVideoSource->IsFake() && !mStopped;
+    return mVideoSource && !mStopped;
   }
   bool CapturingAudio()
   {
     NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
-    return mAudioSource && !mAudioSource->IsFake() && !mStopped;
+    return mAudioSource && !mStopped;
   }
 
   void SetStopped()

@@ -15,7 +15,7 @@
 #include <stdio.h>
 
 // number of bytes (on the stack) to receive the printf result
-static const size_t kBufferSize = 512;
+static const size_t kBufferSize = 256;
 
 #ifdef SK_BUILD_FOR_WIN
     #define VSNPRINTF(buffer, size, format, args) \
@@ -36,23 +36,13 @@ static const size_t kBufferSize = 512;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-bool SkStrEndsWith(const char string[], const char suffixStr[]) {
+bool SkStrEndsWith(const char string[], const char suffix[]) {
     SkASSERT(string);
-    SkASSERT(suffixStr);
+    SkASSERT(suffix);
     size_t  strLen = strlen(string);
-    size_t  suffixLen = strlen(suffixStr);
+    size_t  suffixLen = strlen(suffix);
     return  strLen >= suffixLen &&
-            !strncmp(string + strLen - suffixLen, suffixStr, suffixLen);
-}
-
-bool SkStrEndsWith(const char string[], const char suffixChar) {
-    SkASSERT(string);
-    size_t  strLen = strlen(string);
-    if (0 == strLen) {
-        return false;
-    } else {
-        return (suffixChar == string[strLen-1]);
-    }
+            !strncmp(string + strLen - suffixLen, suffix, suffixLen);
 }
 
 int SkStrStartsWithOneOf(const char string[], const char prefixes[]) {
@@ -531,13 +521,6 @@ void SkString::appendf(const char format[], ...) {
     this->append(buffer, strlen(buffer));
 }
 
-void SkString::appendf(const char format[], va_list args) {
-    char    buffer[kBufferSize];
-    VSNPRINTF(buffer, kBufferSize, format, args);
-
-    this->append(buffer, strlen(buffer));
-}
-
 void SkString::prependf(const char format[], ...) {
     char    buffer[kBufferSize];
     ARGS_TO_BUFFER(format, buffer, kBufferSize);
@@ -619,3 +602,4 @@ SkString SkStringPrintf(const char* format, ...) {
 
 #undef VSNPRINTF
 #undef SNPRINTF
+

@@ -17,10 +17,8 @@ function run_test()
 {
   do_test_pending();
 
-  // Set special pref to load distribution.ini from the profile folder.
-  Services.prefs.setBoolPref("distribution.testing.loadFromProfile", true);
-  // Copy distribution.ini file to the profile dir.
-  let distroDir = gProfD.clone();
+  // Copy distribution.ini file to our app dir.
+  let distroDir = Services.dirsvc.get("XREExeF", Ci.nsIFile);
   distroDir.leafName = "distribution";
   let iniFile = distroDir.clone();
   iniFile.append("distribution.ini");
@@ -96,7 +94,7 @@ function onCustomizationComplete()
 do_register_cleanup(function() {
   // Remove the distribution file, even if the test failed, otherwise all
   // next tests will import it.
-  let iniFile = gProfD.clone();
+  let iniFile = Services.dirsvc.get("XREExeF", Ci.nsIFile);
   iniFile.leafName = "distribution";
   iniFile.append("distribution.ini");
   if (iniFile.exists())

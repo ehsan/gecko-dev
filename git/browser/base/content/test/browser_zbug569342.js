@@ -65,9 +65,10 @@ function testFindEnabled(url, cb) {
     ok(!document.getElementById("cmd_find").getAttribute("disabled"),
        "Find command should not be disabled");
 
-    // Open Find bar and then close it.
-    EventUtils.synthesizeKey("f", { accelKey: true });
     ok(!gFindBar.hidden, "Find bar should be visible again");
+
+    // Give focus to the Find bar and then close it.
+    EventUtils.synthesizeKey("f", { accelKey: true });
     EventUtils.synthesizeKey("VK_ESCAPE", { });
     ok(gFindBar.hidden, "Find bar should now be hidden");
 

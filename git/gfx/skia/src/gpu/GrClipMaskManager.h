@@ -12,7 +12,6 @@
 #include "GrContext.h"
 #include "GrNoncopyable.h"
 #include "GrRect.h"
-#include "GrReducedClip.h"
 #include "GrStencil.h"
 #include "GrTexture.h"
 
@@ -20,7 +19,6 @@
 #include "SkDeque.h"
 #include "SkPath.h"
 #include "SkRefCnt.h"
-#include "SkTLList.h"
 
 #include "GrClipMaskCache.h"
 
@@ -41,6 +39,8 @@ class GrDrawState;
  */
 class GrClipMaskManager : public GrNoncopyable {
 public:
+    GR_DECLARE_RESOURCE_CACHE_DOMAIN(GetAlphaMaskDomain)
+
     GrClipMaskManager()
         : fGpu(NULL)
         , fCurrClipMaskType(kNone_ClipMaskType) {
@@ -68,11 +68,18 @@ public:
         }
     }
 
+    void setContext(GrContext* context) {
+        fAACache.setContext(context);
+    }
+
     GrContext* getContext() {
         return fAACache.getContext();
     }
 
-    void setGpu(GrGpu* gpu);
+    void setGpu(GrGpu* gpu) {
+        fGpu = gpu;
+    }
+
 private:
     /**
      * Informs the helper function adjustStencilParams() about how the stencil
@@ -103,49 +110,28 @@ private:
 
     GrClipMaskCache fAACache;       // cache for the AA path
 
-    // Draws the clip into the stencil buffer
-    bool createStencilClipMask(GrReducedClip::InitialState initialState,
-                               const GrReducedClip::ElementList& elements,
-                               const SkIRect& clipSpaceIBounds,
-                               const SkIPoint& clipSpaceToStencilOffset);
-    // Creates an alpha mask of the clip. The mask is a rasterization of elements through the
-    // rect specified by clipSpaceIBounds.
-    GrTexture* createAlphaClipMask(int32_t clipStackGenID,
-                                   GrReducedClip::InitialState initialState,
-                                   const GrReducedClip::ElementList& elements,
-                                   const SkIRect& clipSpaceIBounds);
-    // Similar to createAlphaClipMask but it rasterizes in SW and uploads to the result texture.
-    GrTexture* createSoftwareClipMask(int32_t clipStackGenID,
-                                      GrReducedClip::InitialState initialState,
-                                      const GrReducedClip::ElementList& elements,
-                                      const SkIRect& clipSpaceIBounds);
+    bool createStencilClipMask(const GrClipData& clipDataIn,
+                               const GrIRect& devClipBounds);
+    bool createAlphaClipMask(const GrClipData& clipDataIn,
+                             GrTexture** result,
+                             GrIRect *devResultBounds);
+    bool createSoftwareClipMask(const GrClipData& clipDataIn,
+                                GrTexture** result,
+                                GrIRect *devResultBounds);
+    bool clipMaskPreamble(const GrClipData& clipDataIn,
+                          GrTexture** result,
+                          GrIRect *devResultBounds);
 
-    // Gets a texture to use for the clip mask. If true is returned then a cached mask was found
-    // that already contains the rasterization of the clip stack, otherwise an uninitialized texture
-    // is returned.
-    bool getMaskTexture(int32_t clipStackGenID,
-                        const SkIRect& clipSpaceIBounds,
-                        GrTexture** result);
+    bool useSWOnlyPath(const SkClipStack& clipIn);
 
-    bool useSWOnlyPath(const GrReducedClip::ElementList& elements);
+    bool drawClipShape(GrTexture* target,
+                       const SkClipStack::Iter::Clip* clip,
+                       const GrIRect& resultBounds);
 
-    // Draws a clip element into the target alpha mask. The caller should have already setup the
-    // desired blend operation. Optionally if the caller already selected a path renderer it can
-    // be passed. Otherwise the function will select one if the element is a path.
-    bool drawElement(GrTexture* target, const SkClipStack::Element*, GrPathRenderer* = NULL);
+    void drawTexture(GrTexture* target,
+                     GrTexture* texture);
 
-    // Determines whether it is possible to draw the element to both the stencil buffer and the
-    // alpha mask simultaneously. If so and the element is a path a compatible path renderer is
-    // also returned.
-    bool canStencilAndDrawElement(GrTexture* target, const SkClipStack::Element*, GrPathRenderer**);
-
-    void mergeMask(GrTexture* dstMask,
-                   GrTexture* srcMask,
-                   SkRegion::Op op,
-                   const GrIRect& dstBound,
-                   const GrIRect& srcBound);
-
-    void getTemp(int width, int height, GrAutoScratchTexture* temp);
+    void getTemp(const GrIRect& bounds, GrAutoScratchTexture* temp);
 
     void setupCache(const SkClipStack& clip,
                     const GrIRect& bounds);

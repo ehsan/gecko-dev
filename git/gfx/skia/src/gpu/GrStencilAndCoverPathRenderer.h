@@ -21,31 +21,32 @@ class GrGpu;
 class GrStencilAndCoverPathRenderer : public GrPathRenderer {
 public:
 
-    static GrPathRenderer* Create(GrContext*);
+    static GrPathRenderer* Create(GrContext* context);
 
     virtual ~GrStencilAndCoverPathRenderer();
 
-    virtual bool canDrawPath(const SkPath&,
-                             const SkStrokeRec&,
-                             const GrDrawTarget*,
+    virtual bool canDrawPath(const SkPath& path,
+                             GrPathFill fill,
+                             const GrDrawTarget* target,
                              bool antiAlias) const SK_OVERRIDE;
 
-protected:
-    virtual StencilSupport onGetStencilSupport(const SkPath&,
-                                               const SkStrokeRec&,
-                                               const GrDrawTarget*) const SK_OVERRIDE;
+    virtual bool requiresStencilPass(const SkPath& path,
+                                     GrPathFill fill,
+                                     const GrDrawTarget* target) const SK_OVERRIDE;
 
-    virtual bool onDrawPath(const SkPath&,
-                            const SkStrokeRec&,
-                            GrDrawTarget*,
+    virtual void drawPathToStencil(const SkPath& path,
+                                   GrPathFill fill,
+                                   GrDrawTarget* target) SK_OVERRIDE;
+
+protected:
+    virtual bool onDrawPath(const SkPath& path,
+                            GrPathFill fill,
+                            const GrVec* translate,
+                            GrDrawTarget* target,
                             bool antiAlias) SK_OVERRIDE;
 
-    virtual void onStencilPath(const SkPath&,
-                               const SkStrokeRec&,
-                               GrDrawTarget*) SK_OVERRIDE;
-
 private:
-    GrStencilAndCoverPathRenderer(GrGpu*);
+    GrStencilAndCoverPathRenderer(GrGpu* gpu);
 
     GrGpu* fGpu;
 

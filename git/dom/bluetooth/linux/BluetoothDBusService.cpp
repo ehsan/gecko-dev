@@ -29,11 +29,11 @@
 #include <cstdio>
 #include <dbus/dbus.h>
 
+#include "pratom.h"
 #include "nsAutoPtr.h"
 #include "nsThreadUtils.h"
 #include "nsDebug.h"
 #include "nsDataHashtable.h"
-#include "mozilla/Atomics.h"
 #include "mozilla/Hal.h"
 #include "mozilla/ipc/UnixSocket.h"
 #include "mozilla/ipc/DBusThread.h"
@@ -151,7 +151,7 @@ static const char* sBluetoothDBusSignals[] =
 static nsAutoPtr<RawDBusConnection> gThreadConnection;
 static nsDataHashtable<nsStringHashKey, DBusMessage* > sPairingReqTable;
 static nsDataHashtable<nsStringHashKey, DBusMessage* > sAuthorizeReqTable;
-static Atomic<int32_t> sIsPairing;
+static int32_t sIsPairing = 0;
 static nsString sAdapterPath;
 
 typedef void (*UnpackFunc)(DBusMessage*, DBusError*, BluetoothValue&, nsAString&);
@@ -456,7 +456,7 @@ GetObjectPathCallback(DBusMessage* aMsg, void* aBluetoothReplyRunnable)
   if (sIsPairing) {
     RunDBusCallback(aMsg, aBluetoothReplyRunnable,
                     UnpackObjectPathMessage);
-    sIsPairing--;
+    PR_AtomicDecrement(&sIsPairing);
   }
 }
 
@@ -1678,7 +1678,7 @@ BluetoothDBusService::StopInternal()
   sAuthorizeReqTable.EnumerateRead(UnrefDBusMessages, nullptr);
   sAuthorizeReqTable.Clear();
 
-  sIsPairing = 0;
+  PR_AtomicSet(&sIsPairing, 0);
 
   StopDBus();
   return NS_OK;
@@ -2173,7 +2173,7 @@ BluetoothDBusService::CreatePairedDeviceInternal(
    *
    * Please see Bug 818696 for more information.
    */
-  sIsPairing++;
+  PR_AtomicIncrement(&sIsPairing);
 
   nsRefPtr<BluetoothReplyRunnable> runnable = aRunnable;
   // Then send CreatePairedDevice, it will register a temp device agent then

@@ -173,10 +173,10 @@ public:
 
 protected:
   virtual PLayerTransactionParent*
-    AllocPLayerTransactionParent(const LayersBackend& aBackendHint,
-                                 const uint64_t& aId,
-                                 TextureFactoryIdentifier* aTextureFactoryIdentifier);
-  virtual bool DeallocPLayerTransactionParent(PLayerTransactionParent* aLayers);
+    AllocPLayerTransaction(const LayersBackend& aBackendHint,
+                           const uint64_t& aId,
+                           TextureFactoryIdentifier* aTextureFactoryIdentifier);
+  virtual bool DeallocPLayerTransaction(PLayerTransactionParent* aLayers);
   virtual void ScheduleTask(CancelableTask*, int);
   virtual void Composite();
   virtual void ComposeToTarget(gfxContext* aTarget);

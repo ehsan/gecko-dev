@@ -83,10 +83,10 @@ protected:
                                    const Request& aRequest) MOZ_OVERRIDE;
 
   virtual PBluetoothRequestParent*
-  AllocPBluetoothRequestParent(const Request& aRequest) MOZ_OVERRIDE;
+  AllocPBluetoothRequest(const Request& aRequest) MOZ_OVERRIDE;
 
   virtual bool
-  DeallocPBluetoothRequestParent(PBluetoothRequestParent* aActor) MOZ_OVERRIDE;
+  DeallocPBluetoothRequest(PBluetoothRequestParent* aActor) MOZ_OVERRIDE;
 
   virtual void
   Notify(const BluetoothSignal& aSignal) MOZ_OVERRIDE;

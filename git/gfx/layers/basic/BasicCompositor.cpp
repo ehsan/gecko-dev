@@ -6,7 +6,6 @@
 #include "BasicCompositor.h"
 #include "ipc/AutoOpenSurface.h"
 #include "mozilla/layers/Effects.h"
-#include "mozilla/layers/YCbCrImageDataSerializer.h"
 #include "nsIWidget.h"
 #include "gfx2DGlue.h"
 #include "gfxUtils.h"
@@ -17,21 +16,7 @@ using namespace mozilla::gfx;
 
 namespace layers {
 
-/**
- * A texture source interface that can be used by the software Compositor.
- */
-class TextureSourceBasic
-{
-public:
-  virtual ~TextureSourceBasic() {}
-  virtual gfx::SourceSurface* GetSurface() = 0;
-};
-
-/**
- * Texture source and host implementaion for software compositing.
- */
-class DeprecatedTextureHostBasic : public DeprecatedTextureHost
-                                 , public TextureSourceBasic
+class TextureSourceBasic : public TextureHost
 {
 public:
   virtual IntSize GetSize() const MOZ_OVERRIDE { return mSize; }
@@ -45,7 +30,7 @@ public:
     mCompositor = static_cast<BasicCompositor*>(aCompositor);
   }
 
-  virtual const char *Name() { return "DeprecatedTextureHostBasic"; }
+  virtual const char *Name() { return "TextureSourceBasic"; }
 
 protected:
   virtual void UpdateImpl(const SurfaceDescriptor& aImage,
@@ -63,11 +48,8 @@ protected:
     mSize = IntSize(mThebesImage->Width(), mThebesImage->Height());
   }
 
-  virtual void EnsureSurface() { }
-
   virtual bool Lock() MOZ_OVERRIDE
   {
-    EnsureSurface();
     if (!mSurface) {
       mSurface = mCompositor->GetDrawTarget()->CreateSourceSurfaceFromData(mThebesImage->Data(),
                                                                            mSize,
@@ -92,89 +74,15 @@ protected:
   IntSize mSize;
 };
 
-void
-DeserializerToPlanarYCbCrImageData(YCbCrImageDataDeserializer& aDeserializer, PlanarYCbCrImage::Data& aData)
+TemporaryRef<TextureHost>
+CreateBasicTextureHost(SurfaceDescriptorType aDescriptorType,
+                       uint32_t aTextureHostFlags,
+                       uint32_t aTextureFlags)
 {
-  aData.mYChannel = aDeserializer.GetYData();
-  aData.mYStride = aDeserializer.GetYStride();
-  aData.mYSize = aDeserializer.GetYSize();
-  aData.mCbChannel = aDeserializer.GetCbData();
-  aData.mCrChannel = aDeserializer.GetCrData();
-  aData.mCbCrStride = aDeserializer.GetCbCrStride();
-  aData.mCbCrSize = aDeserializer.GetCbCrSize();
-  aData.mPicSize = aDeserializer.GetYSize();
-}
-
-class YCbCrDeprecatedTextureHostBasic : public DeprecatedTextureHostBasic
-{
-public:
-  virtual void UpdateImpl(const SurfaceDescriptor& aImage,
-                          nsIntRegion *aRegion,
-                          nsIntPoint*) MOZ_OVERRIDE
-  {
-    MOZ_ASSERT(aImage.type() == SurfaceDescriptor::TYCbCrImage);
-    mSurface = nullptr;
-    ConvertImageToRGB(aImage);
-  }
-
-  virtual void SwapTexturesImpl(const SurfaceDescriptor& aImage,
-                                nsIntRegion* aRegion) MOZ_OVERRIDE
-  {
-    MOZ_ASSERT(aImage.type() == SurfaceDescriptor::TYCbCrImage);
-    mSurface = nullptr;
-  }
-
-  virtual void EnsureSurface() MOZ_OVERRIDE
-  {
-    if (!mBuffer) {
-      return;
-    }
-    ConvertImageToRGB(*mBuffer);
-  }
-
-  void ConvertImageToRGB(const SurfaceDescriptor& aImage)
-  {
-    YCbCrImageDataDeserializer deserializer(aImage.get_YCbCrImage().data().get<uint8_t>());
-    PlanarYCbCrImage::Data data;
-    DeserializerToPlanarYCbCrImageData(deserializer, data);
-
-    gfxASurface::gfxImageFormat format = gfxASurface::ImageFormatRGB24;
-    gfxIntSize size;
-    gfxUtils::GetYCbCrToRGBDestFormatAndSize(data, format, size);
-    if (size.width > PlanarYCbCrImage::MAX_DIMENSION ||
-        size.height > PlanarYCbCrImage::MAX_DIMENSION) {
-      NS_ERROR("Illegal image dest width or height");
-      return;
-    }
-
-    mThebesSurface = mThebesImage =
-      new gfxImageSurface(size, format);
-
-    gfxUtils::ConvertYCbCrToRGB(data, format, size,
-                                mThebesImage->Data(),
-                                mThebesImage->Stride());
-
-    mSize = IntSize(size.width, size.height);
-    mFormat =
-      (format == gfxASurface::ImageFormatARGB32) ? FORMAT_B8G8R8A8 :
-                                                   FORMAT_B8G8R8X8;
-  }
-
-};
-
-TemporaryRef<DeprecatedTextureHost>
-CreateBasicDeprecatedTextureHost(SurfaceDescriptorType aDescriptorType,
-                             uint32_t aTextureHostFlags,
-                             uint32_t aTextureFlags)
-{
-  if (aDescriptorType == SurfaceDescriptor::TYCbCrImage) {
-    return new YCbCrDeprecatedTextureHostBasic();
-  }
-
   MOZ_ASSERT(aDescriptorType == SurfaceDescriptor::TShmem ||
              aDescriptorType == SurfaceDescriptor::TMemoryImage,
              "We can only support Shmem currently");
-  return new DeprecatedTextureHostBasic();
+  return new TextureSourceBasic();
 }
 
 BasicCompositor::BasicCompositor(nsIWidget *aWidget)
@@ -187,13 +95,8 @@ BasicCompositor::BasicCompositor(nsIWidget *aWidget)
 
 BasicCompositor::~BasicCompositor()
 {
+  Destroy();
   MOZ_COUNT_DTOR(BasicCompositor);
-}
-
-void BasicCompositor::Destroy()
-{
-  mWidget->CleanupRemoteDrawing();
-  mWidget = nullptr;
 }
 
 TemporaryRef<CompositingRenderTarget>
@@ -362,8 +265,6 @@ BasicCompositor::BeginFrame(const gfx::Rect *aClipRectIn,
     // If we have a copy target, then we don't have a widget-provided mDrawTarget (currently). Create a dummy
     // placeholder so that CreateRenderTarget() works.
     mDrawTarget = gfxPlatform::GetPlatform()->CreateOffscreenDrawTarget(IntSize(1,1), FORMAT_B8G8R8A8);
-  } else {
-    mDrawTarget = mWidget->StartRemoteDrawing();
   }
   if (!mDrawTarget) {
     if (aRenderBoundsOut) {
@@ -402,28 +303,13 @@ BasicCompositor::EndFrame()
     mCopyTarget->SetOperator(gfxContext::OPERATOR_SOURCE);
     mCopyTarget->SetSource(thebes);
     mCopyTarget->Paint();
-    mCopyTarget = nullptr;
-  } else {
-    // Most platforms require us to buffer drawing to the widget surface.
-    // That's why we don't draw to mDrawTarget directly.
-    RefPtr<SourceSurface> source = mRenderTarget->mDrawTarget->Snapshot();
-    mDrawTarget->DrawSurface(source,
-                             Rect(0, 0, mWidgetSize.width, mWidgetSize.height),
-                             Rect(0, 0, mWidgetSize.width, mWidgetSize.height),
-                             DrawSurfaceOptions(),
-                             DrawOptions());
-    mWidget->EndRemoteDrawing();
   }
-  mDrawTarget = nullptr;
-  mRenderTarget = nullptr;
 }
 
 void
 BasicCompositor::AbortFrame()
 {
-  mRenderTarget->mDrawTarget->PopClip();
-  mDrawTarget = nullptr;
-  mRenderTarget = nullptr;
+  mDrawTarget->PopClip();
 }
 
 }

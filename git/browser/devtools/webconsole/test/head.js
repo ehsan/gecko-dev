@@ -15,7 +15,6 @@ let TargetFactory = tempScope.devtools.TargetFactory;
 Components.utils.import("resource://gre/modules/devtools/Console.jsm", tempScope);
 let console = tempScope.console;
 let Promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js", {}).Promise;
-// Promise._reportErrors = true; // please never leave me.
 
 let gPendingOutputTest = 0;
 
@@ -571,7 +570,7 @@ function matchVariablesViewProperty(aProp, aRule, aOptions)
   }
 
   if ("isGenerator" in aRule) {
-    let isGenerator = aProp.displayValue == "Generator";
+    let isGenerator = aProp.displayValue == "[object Generator]";
     if (aRule.isGenerator != isGenerator) {
       info("rule " + aRule.name + " generator test failed");
       return resolve(false);
@@ -612,7 +611,7 @@ function matchVariablesViewProperty(aProp, aRule, aOptions)
  */
 function isVariableViewPropertyIterator(aProp, aWebConsole)
 {
-  if (aProp.displayValue == "Iterator") {
+  if (aProp.displayValue == "[object Iterator]") {
     return Promise.resolve(true);
   }
 

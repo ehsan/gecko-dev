@@ -38,7 +38,6 @@
 #include "mozilla/Attributes.h"
 #include "nsContentUtils.h"
 #include "gfxPlatform.h"
-#include "mozilla/gfx/2D.h"
 
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
@@ -1032,11 +1031,6 @@ CompositorChild* nsBaseWidget::GetRemoteRenderer()
   return mCompositorChild;
 }
 
-TemporaryRef<mozilla::gfx::DrawTarget> nsBaseWidget::StartRemoteDrawing()
-{
-  return nullptr;
-}
-
 //-------------------------------------------------------------------------
 //
 // Return the used device context
@@ -1489,7 +1483,7 @@ nsBaseWidget::NotifyUIStateChanged(UIStateChangeType aShowAccelerators,
 #ifdef ACCESSIBILITY
 
 a11y::Accessible*
-nsBaseWidget::GetRootAccessible()
+nsBaseWidget::GetAccessible()
 {
   NS_ENSURE_TRUE(mWidgetListener, nullptr);
 
@@ -1504,8 +1498,7 @@ nsBaseWidget::GetRootAccessible()
 
   // Accessible creation might be not safe so use IsSafeToRunScript to
   // make sure it's not created at unsafe times.
-  nsCOMPtr<nsIAccessibilityService> accService =
-    services::GetAccessibilityService();
+  nsCOMPtr<nsIAccessibilityService> accService = services::GetAccessibilityService();
   if (accService) {
     return accService->GetRootDocumentAccessible(presShell, nsContentUtils::IsSafeToRunScript());
   }

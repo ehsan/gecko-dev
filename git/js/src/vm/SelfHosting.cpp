@@ -17,6 +17,7 @@
 #include "vm/Interpreter.h"
 
 #include "jsfuninlines.h"
+#include "jstypedarrayinlines.h"
 
 #include "vm/BooleanObject-inl.h"
 #include "vm/NumberObject-inl.h"
@@ -137,7 +138,7 @@ intrinsic_ToInteger(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     double result;
-    if (!ToInteger(cx, args.handleAt(0), &result))
+    if (!ToInteger(cx, args[0], &result))
         return false;
     args.rval().setDouble(result);
     return true;
@@ -413,9 +414,10 @@ js::intrinsic_NewDenseArray(JSContext *cx, unsigned argc, Value *vp)
 }
 
 /*
- * UnsafePutElements(arr0, idx0, elem0, ..., arrN, idxN, elemN): For each set of
- * (arr, idx, elem) arguments that are passed, performs the assignment
- * |arr[idx] = elem|. |arr| must be either a dense array or a typed array.
+ * UnsafeSetElement(arr0, idx0, elem0, ..., arrN, idxN, elemN): For
+ * each set of (arr, idx, elem) arguments that are passed, performs
+ * the assignment |arr[idx] = elem|. |arr| must be either a dense array
+ * or a typed array.
  *
  * If |arr| is a dense array, the index must be an int32 less than the
  * initialized length of |arr|. Use |%EnsureDenseResultArrayElements|
@@ -425,7 +427,7 @@ js::intrinsic_NewDenseArray(JSContext *cx, unsigned argc, Value *vp)
  * length of |arr|.
  */
 JSBool
-js::intrinsic_UnsafePutElements(JSContext *cx, unsigned argc, Value *vp)
+js::intrinsic_UnsafeSetElement(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -441,7 +443,7 @@ js::intrinsic_UnsafePutElements(JSContext *cx, unsigned argc, Value *vp)
 
         JS_ASSERT(args[arri].isObject());
         JS_ASSERT(args[arri].toObject().isNative() ||
-                  args[arri].toObject().is<TypedArrayObject>());
+                  args[arri].toObject().isTypedArray());
         JS_ASSERT(args[idxi].isInt32());
 
         RootedObject arrobj(cx, &args[arri].toObject());
@@ -451,7 +453,7 @@ js::intrinsic_UnsafePutElements(JSContext *cx, unsigned argc, Value *vp)
             JS_ASSERT(idx < arrobj->getDenseInitializedLength());
             JSObject::setDenseElementWithType(cx, arrobj, idx, args[elemi]);
         } else {
-            JS_ASSERT(idx < arrobj->as<TypedArrayObject>().length());
+            JS_ASSERT(idx < TypedArray::length(arrobj));
             RootedValue tmp(cx, args[elemi]);
             // XXX: Always non-strict.
             if (!JSObject::setElement(cx, arrobj, arrobj, idx, &tmp, false))
@@ -604,7 +606,7 @@ const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("DecompileArg",            intrinsic_DecompileArg,            2,0),
     JS_FN("RuntimeDefaultLocale",    intrinsic_RuntimeDefaultLocale,    0,0),
 
-    JS_FN("UnsafePutElements",               intrinsic_UnsafePutElements,               3,0),
+    JS_FN("UnsafeSetElement",        intrinsic_UnsafeSetElement,        3,0),
     JS_FN("UnsafeSetReservedSlot",   intrinsic_UnsafeSetReservedSlot,   3,0),
     JS_FN("UnsafeGetReservedSlot",   intrinsic_UnsafeGetReservedSlot,   2,0),
 

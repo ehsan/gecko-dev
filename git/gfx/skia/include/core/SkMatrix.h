@@ -85,11 +85,6 @@ public:
                         kPerspective_Mask);
     }
 
-    /** Returns true if the matrix contains only translation, rotation or uniform scale
-        Returns false if other transformation types are included or is degenerate
-     */
-    bool isSimilarity(SkScalar tol = SK_ScalarNearlyZero) const;
-
     enum {
         kMScaleX,
         kMSkewX,
@@ -178,8 +173,6 @@ public:
     /** Set the matrix to translate by (dx, dy).
     */
     void setTranslate(SkScalar dx, SkScalar dy);
-    void setTranslate(const SkVector& v) { this->setTranslate(v.fX, v.fY); }
-
     /** Set the matrix to scale by sx and sy, with a pivot point at (px, py).
         The pivot point is the coordinate that should remain unchanged by the
         specified transformation.
@@ -344,16 +337,7 @@ public:
         set inverse to be the inverse of this matrix. If this matrix cannot be
         inverted, ignore inverse and return false
     */
-    bool SK_WARN_UNUSED_RESULT invert(SkMatrix* inverse) const {
-        // Allow the trivial case to be inlined.
-        if (this->isIdentity()) {
-            if (NULL != inverse) {
-                inverse->reset();
-            }
-            return true;
-        }
-        return this->invertNonIdentity(inverse);
-    }
+    bool SK_WARN_UNUSED_RESULT invert(SkMatrix* inverse) const;
 
     /** Fills the passed array with affine identity values
         in column major order.
@@ -532,8 +516,8 @@ public:
     // return the number of bytes read
     uint32_t readFromMemory(const void* buffer);
 
-    SkDEVCODE(void dump() const;)
-    SkDEVCODE(void toString(SkString*) const;)
+    void dump() const;
+    void toDumpString(SkString*) const;
 
     /**
      * Calculates the maximum stretching factor of the matrix. If the matrix has
@@ -633,8 +617,6 @@ private:
         }
         return ((fTypeMask & 0xF) == 0);
     }
-
-    bool SK_WARN_UNUSED_RESULT invertNonIdentity(SkMatrix* inverse) const;
 
     static bool Poly2Proc(const SkPoint[], SkMatrix*, const SkPoint& scale);
     static bool Poly3Proc(const SkPoint[], SkMatrix*, const SkPoint& scale);

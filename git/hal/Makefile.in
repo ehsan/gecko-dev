@@ -31,6 +31,13 @@ MOCHITEST_BROWSER_FILES += \
 	tests/browser_alarms.js \
 	$(NULL)
 
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+CMMSRCS += \
+  CocoaSensor.mm \
+  smslib.mm \
+  $(NULL)
+endif
+
 ifdef MOZ_GAMEPAD
 LOCAL_INCLUDES = -I$(topsrcdir)/dom/base
 endif

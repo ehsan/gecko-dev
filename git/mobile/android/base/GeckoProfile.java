@@ -167,6 +167,23 @@ public final class GeckoProfile {
     }
 
     /**
+     * Determines whether the tabs from the previous session should be
+     * automatically restored.
+     *
+     * sessionstore.js is moved to sessionstore.bak on a clean quit, so if we
+     * still have sessionstore.js at startup, that means we were killed
+     * uncleanly. This is caused by either 1) a crash, or 2) being killed by
+     * android because of memory constraints. Either way, the existence of this
+     * file indicates that we'll want to restore the previous session.
+     *
+     * @return whether the previous session should be restored
+     */
+    public boolean shouldRestoreSession() {
+        File sessionFile = getFile("sessionstore.js");
+        return sessionFile != null && sessionFile.exists();
+    }
+
+    /**
      * Moves the session file to the backup session file.
      *
      * sessionstore.js should hold the current session, and sessionstore.bak
@@ -221,7 +238,7 @@ public final class GeckoProfile {
     private String readFile(File target) throws IOException {
         FileReader fr = new FileReader(target);
         try {
-            StringBuilder sb = new StringBuilder();
+            StringBuffer sb = new StringBuffer();
             char[] buf = new char[8192];
             int read = fr.read(buf);
             while (read >= 0) {
@@ -329,7 +346,7 @@ public final class GeckoProfile {
 
     private static String saltProfileName(String name) {
         String allowedChars = "abcdefghijklmnopqrstuvwxyz0123456789";
-        StringBuilder salt = new StringBuilder(16);
+        StringBuffer salt = new StringBuffer(16);
         for (int i = 0; i < 8; i++) {
             salt.append(allowedChars.charAt((int)(Math.random() * allowedChars.length())));
         }

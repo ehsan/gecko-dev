@@ -35,7 +35,6 @@
 #include "nsSVGEnum.h"
 #include "nsSVGViewBox.h"
 #include "nsSVGString.h"
-#include "mozilla/dom/SVGAnimatedEnumeration.h"
 #include "SVGAnimatedNumberList.h"
 #include "SVGAnimatedLengthList.h"
 #include "SVGAnimatedPointList.h"

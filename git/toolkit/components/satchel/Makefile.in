@@ -9,6 +9,8 @@ VPATH = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE_NAME = satchel
+IS_COMPONENT = 1
 LIBXUL_LIBRARY = 1
 EXPORT_LIBRARY = 1
 
@@ -16,6 +18,16 @@ LOCAL_INCLUDES = \
   -I$(srcdir)/../build \
   $(NULL)
 
+DISABLED_EXTRA_COMPONENTS = \
+  nsFormAutoComplete.js \
+  FormHistoryStartup.js \
+  nsInputListAutoComplete.js \
+  satchel.manifest \
+  $(NULL)
+
+EXTRA_JS_MODULES = \
+  nsFormAutoCompleteResult.jsm \
+  $(NULL)
 
 EXTRA_PP_JS_MODULES = \
   FormHistory.jsm \

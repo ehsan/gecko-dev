@@ -777,17 +777,9 @@ public class BrowserHealthRecorder implements GeckoEventListener {
         final int day = storage.getDay();
         final int env = this.env;
         final String key = getEngineKey(engine);
-        final BrowserHealthRecorder self = this;
-
         ThreadUtils.postToBackgroundThread(new Runnable() {
             @Override
             public void run() {
-                final HealthReportDatabaseStorage storage = self.storage;
-                if (storage == null) {
-                    Log.d(LOG_TAG, "No storage: not recording search. Shutting down?");
-                    return;
-                }
-
                 Log.d(LOG_TAG, "Recording search: " + key + ", " + location +
                                " (" + day + ", " + env + ").");
                 final int searchField = storage.getField(MEASUREMENT_NAME_SEARCH_COUNTS,
@@ -837,12 +829,8 @@ public class BrowserHealthRecorder implements GeckoEventListener {
      *
      * "r": reason. Values are "P" (activity paused), "A" (abnormal termination)
      * "d": duration. Value in seconds.
-     * "sg": Gecko startup time. Present if this is a clean launch. This
-     *       corresponds to the telemetry timer FENNEC_STARTUP_TIME_GECKOREADY.
-     * "sj": Java activity init time. Present if this is a clean launch. This
-     *       corresponds to the telemetry timer FENNEC_STARTUP_TIME_JAVAUI,
-     *       and includes initialization tasks beyond initial
-     *       onWindowFocusChanged.
+     * "sg": Gecko startup time. Present if this is a clean launch.
+     * "sj": Java startup time. Present if this is a clean launch.
      *
      * Abnormal terminations will be missing a duration and will feature these keys:
      *

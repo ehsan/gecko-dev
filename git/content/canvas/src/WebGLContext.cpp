@@ -11,7 +11,6 @@
 #include "WebGLVertexAttribData.h"
 #include "WebGLMemoryMultiReporterWrapper.h"
 #include "WebGLFramebuffer.h"
-#include "WebGLVertexArray.h"
 
 #include "AccessCheck.h"
 #include "nsIConsoleService.h"
@@ -254,16 +253,15 @@ WebGLContext::DestroyResourcesAndContext()
     mBound2DTextures.Clear();
     mBoundCubeMapTextures.Clear();
     mBoundArrayBuffer = nullptr;
+    mBoundElementArrayBuffer = nullptr;
     mCurrentProgram = nullptr;
     mBoundFramebuffer = nullptr;
     mBoundRenderbuffer = nullptr;
-    mBoundVertexArray = nullptr;
-    mDefaultVertexArray = nullptr;
+
+    mAttribBuffers.Clear();
 
     while (!mTextures.isEmpty())
         mTextures.getLast()->DeleteOnce();
-    while (!mVertexArrays.isEmpty())
-        mVertexArrays.getLast()->DeleteOnce();
     while (!mBuffers.isEmpty())
         mBuffers.getLast()->DeleteOnce();
     while (!mRenderbuffers.isEmpty())
@@ -964,19 +962,6 @@ WebGLContext::MozGetUnderlyingParamString(uint32_t pname, nsAString& retval)
 
 bool WebGLContext::IsExtensionSupported(JSContext *cx, WebGLExtensionID ext) const
 {
-    // Chrome contexts need access to debug information even when
-    // webgl.disable-extensions is set. This is used in the graphics
-    // section of about:support.
-    if (xpc::AccessCheck::isChrome(js::GetContextCompartment(cx))) {
-        switch (ext) {
-            case WEBGL_debug_renderer_info:
-                return true;
-            default:
-                // For warnings-as-errors.
-                break;
-        }
-    }
-
     if (mDisableExtensions) {
         return false;
     }
@@ -999,8 +984,6 @@ bool WebGLContext::IsExtensionSupported(JSContext *cx, WebGLExtensionID ext) con
         case OES_texture_float_linear:
             return gl->IsExtensionSupported(gl->IsGLES2() ? GLContext::OES_texture_float_linear
                                                           : GLContext::ARB_texture_float);
-        case OES_vertex_array_object:
-            return WebGLExtensionVertexArray::IsSupported(this);
         case EXT_texture_filter_anisotropic:
             return gl->IsExtensionSupported(GLContext::EXT_texture_filter_anisotropic);
         case WEBGL_compressed_texture_s3tc:
@@ -1031,6 +1014,8 @@ bool WebGLContext::IsExtensionSupported(JSContext *cx, WebGLExtensionID ext) con
                 return true;
             }
             return false;
+        case WEBGL_debug_renderer_info:
+            return xpc::AccessCheck::isChrome(js::GetContextCompartment(cx));
         default:
             // For warnings-as-errors.
             break;
@@ -1077,10 +1062,6 @@ WebGLContext::GetExtension(JSContext *cx, const nsAString& aName, ErrorResult& r
     else if (CompareWebGLExtensionName(name, "OES_texture_float_linear"))
     {
         ext = OES_texture_float_linear;
-    }
-    else if (CompareWebGLExtensionName(name, "OES_vertex_array_object"))
-    {
-        ext = OES_vertex_array_object;
     }
     else if (CompareWebGLExtensionName(name, "OES_standard_derivatives"))
     {
@@ -1180,9 +1161,6 @@ WebGLContext::GetExtension(JSContext *cx, const nsAString& aName, ErrorResult& r
             case WEBGL_draw_buffers:
                 obj = new WebGLExtensionDrawBuffers(this);
                 break;
-            case OES_vertex_array_object:
-                obj = new WebGLExtensionVertexArray(this);
-                break;
             default:
                 MOZ_ASSERT(false, "should not get there.");
         }
@@ -1215,14 +1193,8 @@ WebGLContext::ClearScreen()
 
 #ifdef DEBUG
 // For NaNs, etc.
-static bool IsShadowCorrect(float shadow, float actual) {
-    if (IsNaN(shadow)) {
-        // GL is allowed to do anything it wants for NaNs, so if we're shadowing
-        // a NaN, then whatever `actual` is might be correct.
-        return true;
-    }
-
-    return shadow == actual;
+static bool IsSameFloat(float a, float b) {
+    return (a == b) || (IsNaN(a) && IsNaN(b));
 }
 #endif
 
@@ -1260,10 +1232,10 @@ WebGLContext::ForceClearFramebufferWithDefaultValues(GLbitfield mask, const bool
                    colorWriteMask[1] == mColorWriteMask[1] &&
                    colorWriteMask[2] == mColorWriteMask[2] &&
                    colorWriteMask[3] == mColorWriteMask[3]);
-        MOZ_ASSERT(IsShadowCorrect(mColorClearValue[0], colorClearValue[0]) &&
-                   IsShadowCorrect(mColorClearValue[1], colorClearValue[1]) &&
-                   IsShadowCorrect(mColorClearValue[2], colorClearValue[2]) &&
-                   IsShadowCorrect(mColorClearValue[3], colorClearValue[3]));
+        MOZ_ASSERT(IsSameFloat(mColorClearValue[0], colorClearValue[0]) &&
+                   IsSameFloat(mColorClearValue[0], colorClearValue[0]) &&
+                   IsSameFloat(mColorClearValue[0], colorClearValue[0]) &&
+                   IsSameFloat(mColorClearValue[0], colorClearValue[0]));
 
 
         realGLboolean depthWriteMask = 2;
@@ -1273,7 +1245,7 @@ WebGLContext::ForceClearFramebufferWithDefaultValues(GLbitfield mask, const bool
         gl->fGetFloatv(LOCAL_GL_DEPTH_CLEAR_VALUE, &depthClearValue);
 
         MOZ_ASSERT(depthWriteMask == mDepthWriteMask);
-        MOZ_ASSERT(IsShadowCorrect(mDepthClearValue, depthClearValue));
+        MOZ_ASSERT(IsSameFloat(mDepthClearValue, depthClearValue));
 
 
         GLuint stencilWriteMaskFront = 0xdeadbad1;
@@ -1592,8 +1564,6 @@ WebGLContext::GetSupportedExtensions(JSContext *cx, Nullable< nsTArray<nsString>
         arr.AppendElement(NS_LITERAL_STRING("WEBGL_depth_texture"));
     if (IsExtensionSupported(cx, WEBGL_draw_buffers))
         arr.AppendElement(NS_LITERAL_STRING("WEBGL_draw_buffers"));
-    if (IsExtensionSupported(cx, OES_vertex_array_object))
-        arr.AppendElement(NS_LITERAL_STRING("OES_vertex_array_object"));
 }
 
 //
@@ -1603,16 +1573,17 @@ WebGLContext::GetSupportedExtensions(JSContext *cx, Nullable< nsTArray<nsString>
 NS_IMPL_CYCLE_COLLECTING_ADDREF(WebGLContext)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(WebGLContext)
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_9(WebGLContext,
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_10(WebGLContext,
   mCanvasElement,
   mExtensions,
   mBound2DTextures,
   mBoundCubeMapTextures,
   mBoundArrayBuffer,
+  mBoundElementArrayBuffer,
   mCurrentProgram,
   mBoundFramebuffer,
   mBoundRenderbuffer,
-  mBoundVertexArray)
+  mAttribBuffers)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(WebGLContext)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY

@@ -109,9 +109,7 @@ Presenter.prototype = {
  * Visual presenter. Draws a box around the virtual cursor's position.
  */
 
-this.VisualPresenter = function VisualPresenter() {
-  this._displayedAccessibles = new WeakMap();
-};
+this.VisualPresenter = function VisualPresenter() {};
 
 VisualPresenter.prototype = {
   __proto__: Presenter.prototype,
@@ -124,14 +122,13 @@ VisualPresenter.prototype = {
   BORDER_PADDING: 2,
 
   viewportChanged: function VisualPresenter_viewportChanged(aWindow) {
-    let currentAcc = this._displayedAccessibles.get(aWindow);
-    if (Utils.isAliveAndVisible(currentAcc)) {
-      let bounds = Utils.getBounds(currentAcc);
+    if (this._currentAccessible) {
+      let context = new PivotContext(this._currentAccessible);
       return {
         type: this.type,
         details: {
           method: 'showBounds',
-          bounds: bounds,
+          bounds: context.bounds,
           padding: this.BORDER_PADDING
         }
       };
@@ -141,8 +138,7 @@ VisualPresenter.prototype = {
   },
 
   pivotChanged: function VisualPresenter_pivotChanged(aContext, aReason) {
-    this._displayedAccessibles.set(aContext.accessible.document.window,
-                                   aContext.accessible);
+    this._currentAccessible = aContext.accessible;
 
     if (!aContext.accessible)
       return {type: this.type, details: {method: 'hideBounds'}};
@@ -159,7 +155,7 @@ VisualPresenter.prototype = {
         }
       };
     } catch (e) {
-      Logger.logException(e, 'Failed to get bounds');
+      Logger.error('Failed to get bounds: ' + e);
       return null;
     }
   },
@@ -240,12 +236,12 @@ AndroidPresenter.prototype = {
         this._braillePresenter = new BraillePresenter();
       }
       brailleText = this._braillePresenter.pivotChanged(aContext, aReason).
-                         details;
+                         details.text;
     }
 
     androidEvents.push({eventType: (isExploreByTouch) ?
                           this.ANDROID_VIEW_HOVER_ENTER : focusEventType,
-                        text: UtteranceGenerator.genForContext(aContext).output,
+                        text: UtteranceGenerator.genForContext(aContext),
                         bounds: aContext.bounds,
                         clickable: aContext.accessible.actionCount > 0,
                         checkable: !!(state &
@@ -397,21 +393,8 @@ SpeechPresenter.prototype = {
         actions: [
           {method: 'playEarcon', data: 'tick', options: {}},
           {method: 'speak',
-            data: UtteranceGenerator.genForContext(aContext).output.join(' '),
+            data: UtteranceGenerator.genForContext(aContext).join(' '),
             options: {enqueue: true}}
-        ]
-      }
-    };
-  },
-
-  actionInvoked: function SpeechPresenter_actionInvoked(aObject, aActionName) {
-    return {
-      type: this.type,
-      details: {
-        actions: [
-          {method: 'speak',
-           data: UtteranceGenerator.genForAction(aObject, aActionName).join(' '),
-           options: {enqueue: false}}
         ]
       }
     };
@@ -452,10 +435,9 @@ BraillePresenter.prototype = {
       return null;
     }
 
-    let brailleOutput = BrailleGenerator.genForContext(aContext);
-    brailleOutput.output = brailleOutput.output.join(' ');
+    let text = BrailleGenerator.genForContext(aContext);
 
-    return { type: this.type, details: brailleOutput };
+    return { type: this.type, details: {text: text.join(' ')} };
   }
 
 };

@@ -21,12 +21,6 @@
 using namespace js;
 using namespace js::ion;
 
-// All registers to save and restore. This includes the stack pointer, since we
-// use the ability to reference register values on the stack by index.
-static const RegisterSet AllRegs =
-  RegisterSet(GeneralRegisterSet(Registers::AllMask),
-              FloatRegisterSet(FloatRegisters::AllMask));
-
 enum EnterJitEbpArgumentOffset {
     ARG_JITCODE         = 2 * sizeof(void *),
     ARG_ARGC            = 3 * sizeof(void *),
@@ -271,8 +265,13 @@ IonRuntime::generateInvalidator(JSContext *cx)
 
     masm.addl(Imm32(sizeof(uintptr_t)), esp);
 
-    // Push registers such that we can access them from [base + code].
-    masm.PushRegsInMask(AllRegs);
+    masm.reserveStack(Registers::Total * sizeof(void *));
+    for (uint32_t i = 0; i < Registers::Total; i++)
+        masm.movl(Register::FromCode(i), Operand(esp, i * sizeof(void *)));
+
+    masm.reserveStack(FloatRegisters::Total * sizeof(double));
+    for (uint32_t i = 0; i < FloatRegisters::Total; i++)
+        masm.movsd(FloatRegister::FromCode(i), Operand(esp, i * sizeof(double)));
 
     masm.movl(esp, eax); // Argument to ion::InvalidationBailout.
 
@@ -375,7 +374,7 @@ IonRuntime::generateArgumentsRectifier(JSContext *cx, ExecutionMode mode, void *
 
     // Construct IonJSFrameLayout.
     masm.push(edx); // number of actual arguments
-    masm.pushCalleeToken(eax, mode);
+    masm.push(eax); // calleeToken
     masm.push(ebx); // descriptor
 
     // Call the target function.
@@ -412,7 +411,14 @@ static void
 GenerateBailoutThunk(JSContext *cx, MacroAssembler &masm, uint32_t frameClass)
 {
     // Push registers such that we can access them from [base + code].
-    masm.PushRegsInMask(AllRegs);
+    masm.reserveStack(Registers::Total * sizeof(void *));
+    for (uint32_t i = 0; i < Registers::Total; i++)
+        masm.movl(Register::FromCode(i), Operand(esp, i * sizeof(void *)));
+
+    // Push xmm registers, such that we can access them from [base + code].
+    masm.reserveStack(FloatRegisters::Total * sizeof(double));
+    for (uint32_t i = 0; i < FloatRegisters::Total; i++)
+        masm.movsd(FloatRegister::FromCode(i), Operand(esp, i * sizeof(double)));
 
     // Push the bailout table number.
     masm.push(Imm32(frameClass));
@@ -533,7 +539,7 @@ IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
     switch (f.outParam) {
       case Type_Value:
         outReg = regs.takeAny();
-        masm.Push(UndefinedValue());
+        masm.reserveStack(sizeof(Value));
         masm.movl(esp, outReg);
         break;
 
@@ -609,7 +615,8 @@ IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
         masm.branchPtr(Assembler::NotEqual, eax, Imm32(TP_SUCCESS), &failure);
         break;
       default:
-        MOZ_ASSUME_UNREACHABLE("unknown failure kind");
+        JS_NOT_REACHED("unknown failure kind");
+        break;
     }
 
     // Load the outparam and free any allocated stack.
@@ -619,12 +626,14 @@ IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
         break;
 
       case Type_Value:
-        masm.Pop(JSReturnOperand);
+        masm.loadValue(Address(esp, 0), JSReturnOperand);
+        masm.freeStack(sizeof(Value));
         break;
 
       case Type_Int32:
       case Type_Pointer:
-        masm.Pop(ReturnReg);
+        masm.load32(Address(esp, 0), ReturnReg);
+        masm.freeStack(sizeof(int32_t));
         break;
 
       default:

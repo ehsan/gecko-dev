@@ -7,16 +7,17 @@
 #ifndef assembler_assembler_SparcAssembler_h
 #define assembler_assembler_SparcAssembler_h
 
-#include "assembler/wtf/Platform.h"
+#include <assembler/wtf/Platform.h>
 
 // Some debug code uses s(n)printf for instruction logging.
 #include <stdio.h>
 
 #if ENABLE_ASSEMBLER && WTF_CPU_SPARC
 
-#include "assembler/assembler/AssemblerBufferWithConstantPool.h"
-#include "assembler/wtf/Assertions.h"
+#include "AssemblerBufferWithConstantPool.h"
+#include <assembler/wtf/Assertions.h>
 
+#include "methodjit/Logging.h"
 #define IPFX  "        %s"
 #define ISPFX "        "
 #ifdef JS_METHODJIT_SPEW

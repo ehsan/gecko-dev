@@ -12,7 +12,19 @@
 #include "SMILEnumType.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
+
+NS_SVG_VAL_IMPL_CYCLE_COLLECTION(nsSVGEnum::DOMAnimatedEnum, mSVGElement)
+
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsSVGEnum::DOMAnimatedEnum)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGEnum::DOMAnimatedEnum)
+
+DOMCI_DATA(SVGAnimatedEnumeration, nsSVGEnum::DOMAnimatedEnum)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGEnum::DOMAnimatedEnum)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedEnumeration)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGAnimatedEnumeration)
+NS_INTERFACE_MAP_END
 
 static nsSVGAttrTearoffTable<nsSVGEnum, nsSVGEnum::DOMAnimatedEnum>
   sSVGAnimatedEnumTearoffTable;
@@ -110,7 +122,15 @@ nsSVGEnum::SetAnimValue(uint16_t aValue, nsSVGElement *aSVGElement)
   aSVGElement->DidAnimateEnum(mAttrEnum);
 }
 
-already_AddRefed<SVGAnimatedEnumeration>
+nsresult
+nsSVGEnum::ToDOMAnimatedEnum(nsIDOMSVGAnimatedEnumeration **aResult,
+                             nsSVGElement *aSVGElement)
+{
+  *aResult = ToDOMAnimatedEnum(aSVGElement).get();
+  return NS_OK;
+}
+
+already_AddRefed<nsIDOMSVGAnimatedEnumeration>
 nsSVGEnum::ToDOMAnimatedEnum(nsSVGElement* aSVGElement)
 {
   nsRefPtr<DOMAnimatedEnum> domAnimatedEnum =

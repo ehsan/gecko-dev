@@ -8,7 +8,7 @@
  * JavaScript bytecode interpreter.
  */
 
-#include "vm/Interpreter.h"
+#include "Interpreter.h"
 
 #include "mozilla/DebugOnly.h"
 #include "mozilla/FloatingPoint.h"
@@ -212,7 +212,9 @@ js::OnUnknownMethod(JSContext *cx, HandleObject obj, Value idval_, MutableHandle
 
     TypeScript::MonitorUnknown(cx);
 
-    if (value.isObject()) {
+    if (value.get().isPrimitive()) {
+        vp.set(value);
+    } else {
         JSObject *obj = NewObjectWithClassProto(cx, &js_NoSuchMethodClass, NULL, NULL);
         if (!obj)
             return false;
@@ -503,7 +505,7 @@ js::Invoke(JSContext *cx, CallArgs args, MaybeConstruct construct)
 
 bool
 js::Invoke(JSContext *cx, const Value &thisv, const Value &fval, unsigned argc, Value *argv,
-           MutableHandleValue rval)
+           Value *rval)
 {
     InvokeArgs args(cx);
     if (!args.init(argc))
@@ -529,7 +531,7 @@ js::Invoke(JSContext *cx, const Value &thisv, const Value &fval, unsigned argc, 
     if (!Invoke(cx, args))
         return false;
 
-    rval.set(args.rval());
+    *rval = args.rval();
     return true;
 }
 
@@ -570,7 +572,7 @@ js::InvokeConstructor(JSContext *cx, CallArgs args)
 }
 
 bool
-js::InvokeConstructor(JSContext *cx, Value fval, unsigned argc, Value *argv, Value *rval)
+js::InvokeConstructor(JSContext *cx, const Value &fval, unsigned argc, Value *argv, Value *rval)
 {
     InvokeArgs args(cx);
     if (!args.init(argc))
@@ -588,8 +590,8 @@ js::InvokeConstructor(JSContext *cx, Value fval, unsigned argc, Value *argv, Val
 }
 
 bool
-js::InvokeGetterOrSetter(JSContext *cx, JSObject *obj, Value fval, unsigned argc,
-                         Value *argv, MutableHandleValue rval)
+js::InvokeGetterOrSetter(JSContext *cx, JSObject *obj, const Value &fval, unsigned argc, Value *argv,
+                         Value *rval)
 {
     /*
      * Invoke could result in another try to get or set the same id again, see
@@ -1193,6 +1195,7 @@ Interpret(JSContext *cx, RunState &state)
     RootedScript rootScript0(cx);
     DebugOnly<uint32_t> blockDepth;
 
+#if JS_HAS_GENERATORS
     if (JS_UNLIKELY(regs.fp()->isGeneratorFrame())) {
         JS_ASSERT(size_t(regs.pc - script->code) <= script->length);
         JS_ASSERT(regs.stackDepth() <= script->nslots);
@@ -1206,6 +1209,7 @@ Interpret(JSContext *cx, RunState &state)
             goto error;
         }
     }
+#endif
 
     /* State communicated between non-local jumps: */
     bool interpReturnOK;
@@ -1228,7 +1232,7 @@ Interpret(JSContext *cx, RunState &state)
           case JSTRAP_ERROR:
             goto error;
           default:
-            MOZ_ASSUME_UNREACHABLE("bad ScriptDebugPrologue status");
+            JS_NOT_REACHED("bad ScriptDebugPrologue status");
         }
     }
 
@@ -2360,7 +2364,7 @@ BEGIN_CASE(JSOP_FUNCALL)
           case JSTRAP_ERROR:
             goto error;
           default:
-            MOZ_ASSUME_UNREACHABLE("bad ScriptDebugPrologue status");
+            JS_NOT_REACHED("bad ScriptDebugPrologue status");
         }
     }
 
@@ -3046,6 +3050,7 @@ BEGIN_CASE(JSOP_LEAVEBLOCKEXPR)
 }
 END_CASE(JSOP_LEAVEBLOCK)
 
+#if JS_HAS_GENERATORS
 BEGIN_CASE(JSOP_GENERATOR)
 {
     JS_ASSERT(!cx->isExceptionPending());
@@ -3089,6 +3094,7 @@ BEGIN_CASE(JSOP_ARRAYPUSH)
     regs.sp--;
 }
 END_CASE(JSOP_ARRAYPUSH)
+#endif /* JS_HAS_GENERATORS */
 
           default:
           {
@@ -3122,7 +3128,7 @@ END_CASE(JSOP_ARRAYPUSH)
                 goto forced_return;
 
               default:
-                MOZ_ASSUME_UNREACHABLE("Invalid trap status");
+                JS_NOT_REACHED("Invalid trap status");
             }
         }
 
@@ -3143,9 +3149,11 @@ END_CASE(JSOP_ARRAYPUSH)
               case JSTRY_CATCH:
                   JS_ASSERT(*regs.pc == JSOP_ENTERBLOCK);
 
+#if JS_HAS_GENERATORS
                 /* Catch cannot intercept the closing of a generator. */
                   if (JS_UNLIKELY(cx->getPendingException().isMagic(JS_GENERATOR_CLOSING)))
                     break;
+#endif
 
                 /*
                  * Don't clear exceptions to save cx->exception from GC
@@ -3188,12 +3196,14 @@ END_CASE(JSOP_ARRAYPUSH)
          * is an asynchronous return from a generator.
          */
         interpReturnOK = false;
+#if JS_HAS_GENERATORS
         if (JS_UNLIKELY(cx->isExceptionPending() &&
                         cx->getPendingException().isMagic(JS_GENERATOR_CLOSING))) {
             cx->clearPendingException();
             interpReturnOK = true;
             regs.fp()->clearReturnValue();
         }
+#endif
     } else {
         UnwindForUncatchableException(cx, regs);
         interpReturnOK = false;

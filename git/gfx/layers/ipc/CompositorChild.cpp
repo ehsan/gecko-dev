@@ -71,15 +71,15 @@ CompositorChild::Get()
 }
 
 PLayerTransactionChild*
-CompositorChild::AllocPLayerTransactionChild(const LayersBackend& aBackendHint,
-                                             const uint64_t& aId,
-                                             TextureFactoryIdentifier*)
+CompositorChild::AllocPLayerTransaction(const LayersBackend& aBackendHint,
+                                        const uint64_t& aId,
+                                        TextureFactoryIdentifier*)
 {
   return new LayerTransactionChild();
 }
 
 bool
-CompositorChild::DeallocPLayerTransactionChild(PLayerTransactionChild* actor)
+CompositorChild::DeallocPLayerTransaction(PLayerTransactionChild* actor)
 {
   delete actor;
   return true;

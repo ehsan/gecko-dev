@@ -10,6 +10,8 @@
  * liability, trademark and document use rules apply.
  */
 
+interface SVGAnimatedEnumeration;
+
 interface SVGPatternElement : SVGElement {
   [Constant]
   readonly attribute SVGAnimatedEnumeration patternUnits;

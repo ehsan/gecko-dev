@@ -10,11 +10,10 @@
 #include "SkPixelXorXfermode.h"
 #include "SkColorPriv.h"
 #include "SkFlattenableBuffers.h"
-#include "SkString.h"
 
 // we always return an opaque color, 'cause I don't know what to do with
 // the alpha-component and still return a valid premultiplied color.
-SkPMColor SkPixelXorXfermode::xferColor(SkPMColor src, SkPMColor dst) const {
+SkPMColor SkPixelXorXfermode::xferColor(SkPMColor src, SkPMColor dst) {
     SkPMColor res = src ^ dst ^ fOpColor;
     res |= (SK_A32_MASK << SK_A32_SHIFT);   // force it to be opaque
     return res;
@@ -30,9 +29,4 @@ SkPixelXorXfermode::SkPixelXorXfermode(SkFlattenableReadBuffer& rb)
     fOpColor = rb.readColor();
 }
 
-#ifdef SK_DEVELOPER
-void SkPixelXorXfermode::toString(SkString* str) const {
-    str->append("SkPixelXorXfermode: ");
-    str->appendHex(fOpColor);
-}
-#endif
+SK_DEFINE_FLATTENABLE_REGISTRAR(SkPixelXorXfermode)

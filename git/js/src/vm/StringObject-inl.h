@@ -7,7 +7,7 @@
 #ifndef vm_StringObject_inl_h
 #define vm_StringObject_inl_h
 
-#include "vm/StringObject.h"
+#include "StringObject.h"
 
 #include "jsobjinlines.h"
 

@@ -117,6 +117,11 @@ else
 LOCAL_INCLUDES = -Ictypes/libffi/include
 endif
 
+LOCAL_INCLUDES += \
+    -I. \
+    $(NULL)
+
+
 ifdef MOZ_NATIVE_FFI
 EXTRA_DSO_LDOPTS += $(MOZ_FFI_LIBS)
 else
@@ -334,7 +339,10 @@ check-jstests:
 #
 #   Bug 652155: On Mac, SM(d) doesn't work for unknown reasons
 
-ifneq ($(OS_ARCH),WINNT)
+ifeq ($(OS_ARCH),WINNT)
+ifdef ENABLE_METHODJIT
+endif
+else
 ifndef HAVE_DTRACE
 #check:: check-jstests
 endif
@@ -673,6 +681,8 @@ CXXFLAGS += -DUSE_SYSTEM_MALLOC=1 -DENABLE_ASSEMBLER=1
 ifneq (,$(ENABLE_YARR_JIT))
 CXXFLAGS +=  -DENABLE_JIT=1
 endif
+
+INCLUDES +=	-I$(srcdir)/assembler -I$(srcdir)/yarr
 
 #
 # END kludges for the Nitro assembler

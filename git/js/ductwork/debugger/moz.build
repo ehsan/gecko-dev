@@ -18,6 +18,3 @@ CPP_SOURCES += [
 
 LIBRARY_NAME = 'jsdebugger'
 
-EXTRA_JS_MODULES += [
-    'jsdebugger.jsm',
-]

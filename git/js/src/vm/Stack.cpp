@@ -695,7 +695,7 @@ ScriptFrameIter::operator++()
 {
     switch (data_.state_) {
       case DONE:
-        MOZ_ASSUME_UNREACHABLE("Unexpected state");
+        JS_NOT_REACHED("Unexpected state");
       case SCRIPTED:
         if (interpFrame()->isDebuggerFrame() && interpFrame()->evalInFramePrev()) {
             AbstractFramePtr eifPrev = interpFrame()->evalInFramePrev();
@@ -714,7 +714,7 @@ ScriptFrameIter::operator++()
 #ifdef JS_ION
                     popJitFrame();
 #else
-                    MOZ_ASSUME_UNREACHABLE("Invalid state");
+                    JS_NOT_REACHED("Invalid state");
 #endif
                 } else {
                     popInterpreterFrame();
@@ -733,7 +733,7 @@ ScriptFrameIter::operator++()
         popJitFrame();
         break;
 #else
-        MOZ_ASSUME_UNREACHABLE("Unexpected state");
+        JS_NOT_REACHED("Unexpected state");
 #endif
     }
     return *this;
@@ -762,7 +762,8 @@ ScriptFrameIter::compartment() const
       case JIT:
         return data_.activations_.activation()->compartment();
     }
-    MOZ_ASSUME_UNREACHABLE("Unexpected state");
+    JS_NOT_REACHED("Unexpected state");
+    return NULL;
 }
 
 bool
@@ -783,7 +784,8 @@ ScriptFrameIter::isFunctionFrame() const
         break;
 #endif
     }
-    MOZ_ASSUME_UNREACHABLE("Unexpected state");
+    JS_NOT_REACHED("Unexpected state");
+    return false;
 }
 
 bool
@@ -804,7 +806,8 @@ ScriptFrameIter::isGlobalFrame() const
         break;
 #endif
     }
-    MOZ_ASSUME_UNREACHABLE("Unexpected state");
+    JS_NOT_REACHED("Unexpected state");
+    return false;
 }
 
 bool
@@ -825,7 +828,8 @@ ScriptFrameIter::isEvalFrame() const
         break;
 #endif
     }
-    MOZ_ASSUME_UNREACHABLE("Unexpected state");
+    JS_NOT_REACHED("Unexpected state");
+    return false;
 }
 
 bool
@@ -840,7 +844,8 @@ ScriptFrameIter::isNonEvalFunctionFrame() const
       case JIT:
         return !isEvalFrame() && isFunctionFrame();
     }
-    MOZ_ASSUME_UNREACHABLE("Unexpected state");
+    JS_NOT_REACHED("Unexpected state");
+    return false;
 }
 
 bool
@@ -854,7 +859,8 @@ ScriptFrameIter::isGeneratorFrame() const
       case JIT:
         return false;
     }
-    MOZ_ASSUME_UNREACHABLE("Unexpected state");
+    JS_NOT_REACHED("Unexpected state");
+    return false;
 }
 
 bool
@@ -875,7 +881,8 @@ ScriptFrameIter::isConstructing() const
       case SCRIPTED:
         return interpFrame()->isConstructing();
     }
-    MOZ_ASSUME_UNREACHABLE("Unexpected state");
+    JS_NOT_REACHED("Unexpected state");
+    return false;
 }
 
 AbstractFramePtr
@@ -894,7 +901,8 @@ ScriptFrameIter::abstractFramePtr() const
         JS_ASSERT(interpFrame());
         return AbstractFramePtr(interpFrame());
     }
-    MOZ_ASSUME_UNREACHABLE("Unexpected state");
+    JS_NOT_REACHED("Unexpected state");
+    return NullFramePtr();
 }
 
 void
@@ -942,7 +950,7 @@ ScriptFrameIter::updatePcQuadratic()
 #endif
         break;
     }
-    MOZ_ASSUME_UNREACHABLE("Unexpected state");
+    JS_NOT_REACHED("Unexpected state");
 }
 
 JSFunction *
@@ -964,7 +972,8 @@ ScriptFrameIter::callee() const
         break;
 #endif
     }
-    MOZ_ASSUME_UNREACHABLE("Unexpected state");
+    JS_NOT_REACHED("Unexpected state");
+    return NULL;
 }
 
 Value
@@ -983,7 +992,8 @@ ScriptFrameIter::calleev() const
         break;
 #endif
     }
-    MOZ_ASSUME_UNREACHABLE("Unexpected state");
+    JS_NOT_REACHED("Unexpected state");
+    return Value();
 }
 
 unsigned
@@ -1006,7 +1016,8 @@ ScriptFrameIter::numActualArgs() const
         break;
 #endif
     }
-    MOZ_ASSUME_UNREACHABLE("Unexpected state");
+    JS_NOT_REACHED("Unexpected state");
+    return 0;
 }
 
 Value
@@ -1025,7 +1036,8 @@ ScriptFrameIter::unaliasedActual(unsigned i, MaybeCheckAliasing checkAliasing) c
         break;
 #endif
     }
-    MOZ_ASSUME_UNREACHABLE("Unexpected state");
+    JS_NOT_REACHED("Unexpected state");
+    return NullValue();
 }
 
 JSObject *
@@ -1045,7 +1057,8 @@ ScriptFrameIter::scopeChain() const
       case SCRIPTED:
         return interpFrame()->scopeChain();
     }
-    MOZ_ASSUME_UNREACHABLE("Unexpected state");
+    JS_NOT_REACHED("Unexpected state");
+    return NULL;
 }
 
 CallObject &
@@ -1075,7 +1088,8 @@ ScriptFrameIter::hasArgsObj() const
         break;
 #endif
     }
-    MOZ_ASSUME_UNREACHABLE("Unexpected state");
+    JS_NOT_REACHED("Unexpected state");
+    return false;
 }
 
 ArgumentsObject &
@@ -1096,7 +1110,8 @@ ScriptFrameIter::argsObj() const
       case SCRIPTED:
         return interpFrame()->argsObj();
     }
-    MOZ_ASSUME_UNREACHABLE("Unexpected state");
+    JS_NOT_REACHED("Unexpected state");
+    return interpFrame()->argsObj();
 }
 
 bool
@@ -1127,7 +1142,8 @@ ScriptFrameIter::thisv() const
       case SCRIPTED:
         return interpFrame()->thisValue();
     }
-    MOZ_ASSUME_UNREACHABLE("Unexpected state");
+    JS_NOT_REACHED("Unexpected state");
+    return NullValue();
 }
 
 Value
@@ -1145,7 +1161,8 @@ ScriptFrameIter::returnValue() const
       case SCRIPTED:
         return interpFrame()->returnValue();
     }
-    MOZ_ASSUME_UNREACHABLE("Unexpected state");
+    JS_NOT_REACHED("Unexpected state");
+    return NullValue();
 }
 
 void
@@ -1166,7 +1183,7 @@ ScriptFrameIter::setReturnValue(const Value &v)
         interpFrame()->setReturnValue(v);
         return;
     }
-    MOZ_ASSUME_UNREACHABLE("Unexpected state");
+    JS_NOT_REACHED("Unexpected state");
 }
 
 size_t
@@ -1189,7 +1206,8 @@ ScriptFrameIter::numFrameSlots() const
         JS_ASSERT(data_.interpFrames_.sp() >= interpFrame()->base());
         return data_.interpFrames_.sp() - interpFrame()->base();
     }
-    MOZ_ASSUME_UNREACHABLE("Unexpected state");
+    JS_NOT_REACHED("Unexpected state");
+    return 0;
 }
 
 Value
@@ -1214,7 +1232,8 @@ ScriptFrameIter::frameSlotValue(size_t index) const
       case SCRIPTED:
           return interpFrame()->base()[index];
     }
-    MOZ_ASSUME_UNREACHABLE("Unexpected state");
+    JS_NOT_REACHED("Unexpected state");
+    return NullValue();
 }
 
 #if defined(_MSC_VER)
@@ -1242,7 +1261,8 @@ AbstractFramePtr::hasPushedSPSFrame() const
 #ifdef JS_ION
     return asBaselineFrame()->hasPushedSPSFrame();
 #else
-    MOZ_ASSUME_UNREACHABLE("Invalid frame");
+    JS_NOT_REACHED("Invalid frame");
+    return false;
 #endif
 }
 
@@ -1269,46 +1289,33 @@ js::CheckLocalUnaliased(MaybeCheckAliasing checkAliasing, JSScript *script,
 }
 #endif
 
-ion::JitActivation::JitActivation(JSContext *cx, bool firstFrameIsConstructing, bool active)
-  : Activation(cx, Jit),
-    firstFrameIsConstructing_(firstFrameIsConstructing),
-    active_(active)
+void
+Activation::setActive(bool active)
 {
-    if (active) {
-        prevIonTop_ = cx->mainThread().ionTop;
-        prevIonJSContext_ = cx->mainThread().ionJSContext;
-        cx->mainThread().ionJSContext = cx;
-    } else {
-        prevIonTop_ = NULL;
-        prevIonJSContext_ = NULL;
-    }
+    // Only allowed to deactivate/activate if activation is top.
+    // (Not tested and will probably fail in other situations.)
+    JS_ASSERT(cx()->mainThread().activation_ == this);
+    JS_ASSERT(active != active_);
+    active_ = active;
+
+    // Restore ionTop
+    if (!active && isJit())
+        cx()->mainThread().ionTop = asJit()->prevIonTop();
+}
+
+ion::JitActivation::JitActivation(JSContext *cx, bool firstFrameIsConstructing, bool active)
+  : Activation(cx, Jit, active),
+    prevIonTop_(cx->mainThread().ionTop),
+    prevIonJSContext_(cx->mainThread().ionJSContext),
+    firstFrameIsConstructing_(firstFrameIsConstructing)
+{
+    cx->mainThread().ionJSContext = cx;
 }
 
 ion::JitActivation::~JitActivation()
 {
-    if (active_) {
-        cx_->mainThread().ionTop = prevIonTop_;
-        cx_->mainThread().ionJSContext = prevIonJSContext_;
-    }
-}
-
-void
-ion::JitActivation::setActive(JSContext *cx, bool active)
-{
-    // Only allowed to deactivate/activate if activation is top.
-    // (Not tested and will probably fail in other situations.)
-    JS_ASSERT(cx->mainThread().activation_ == this);
-    JS_ASSERT(active != active_);
-    active_ = active;
-
-    if (active) {
-        prevIonTop_ = cx->mainThread().ionTop;
-        prevIonJSContext_ = cx->mainThread().ionJSContext;
-        cx->mainThread().ionJSContext = cx;
-    } else {
-        cx->mainThread().ionTop = prevIonTop_;
-        cx->mainThread().ionJSContext = prevIonJSContext_;
-    }
+    cx_->mainThread().ionTop = prevIonTop_;
+    cx_->mainThread().ionJSContext = prevIonJSContext_;
 }
 
 InterpreterFrameIterator &
@@ -1338,7 +1345,7 @@ ActivationIterator &
 ActivationIterator::operator++()
 {
     JS_ASSERT(activation_);
-    if (activation_->isJit() && activation_->asJit()->isActive())
+    if (activation_->isJit())
         jitTop_ = activation_->asJit()->prevIonTop();
     activation_ = activation_->prev();
     settle();
@@ -1348,8 +1355,8 @@ ActivationIterator::operator++()
 void
 ActivationIterator::settle()
 {
-    while (!done() && activation_->isJit() && !activation_->asJit()->isActive()) {
-        if (activation_->asJit()->isActive())
+    while (!done() && !activation_->isActive()) {
+        if (activation_->isJit())
             jitTop_ = activation_->asJit()->prevIonTop();
         activation_ = activation_->prev();
     }

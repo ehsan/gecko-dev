@@ -11,13 +11,25 @@
 #ifndef jsdebug_h___
 #define jsdebug_h___
 
+/* Get jstypes.h included first. After that we can use PR macros for doing
+*  this extern "C" stuff!
+*/
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+#include "jstypes.h"
+#ifdef __cplusplus
+}
+#endif
+
 #include "jsapi.h"
 #include "jsdbgapi.h"
 #ifdef LIVEWIRE
 #include "lwdbgapi.h"
 #endif
 
-extern "C" {
+JS_BEGIN_EXTERN_C
 
 /*
  * The linkage of JSD API functions differs depending on whether the file is
@@ -1547,6 +1559,6 @@ JSDLW_ProcessedToRawLineNumber(JSDContext* jsdc, JSDScript* jsdscript,
 #endif
 /***************************************************************************/
 
-} // extern "C"
+JS_END_EXTERN_C
 
 #endif /* jsdebug_h___ */

@@ -17,6 +17,3 @@ CPP_SOURCES += [
     'RenderFrameParent.cpp',
 ]
 
-IPDL_SOURCES = [
-    'PRenderFrame.ipdl',
-]

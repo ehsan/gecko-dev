@@ -104,6 +104,8 @@ class MOZ_STACK_CLASS JSONParser : private AutoGCRooter
     Token lastToken;
 #endif
 
+    JSONParser *thisDuringConstruction() { return this; }
+
   public:
     /* Public API */
 

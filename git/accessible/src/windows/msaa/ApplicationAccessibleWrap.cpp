@@ -48,9 +48,6 @@ ApplicationAccessibleWrap::NativeAttributes()
 STDMETHODIMP
 ApplicationAccessibleWrap::QueryInterface(REFIID iid, void** ppv)
 {
-  if (!ppv)
-    return E_INVALIDARG;
-
   *ppv = nullptr;
 
   if (IID_IAccessibleApplication == iid) {
@@ -69,9 +66,6 @@ STDMETHODIMP
 ApplicationAccessibleWrap::get_appName(BSTR* aName)
 {
   A11Y_TRYBLOCK_BEGIN
-
-  if (!aName)
-    return E_INVALIDARG;
 
   *aName = nullptr;
 
@@ -97,9 +91,6 @@ ApplicationAccessibleWrap::get_appVersion(BSTR* aVersion)
 {
   A11Y_TRYBLOCK_BEGIN
 
-  if (!aVersion)
-    return E_INVALIDARG;
-
   *aVersion = nullptr;
 
   if (IsDefunct())
@@ -124,9 +115,6 @@ ApplicationAccessibleWrap::get_toolkitName(BSTR* aName)
 {
   A11Y_TRYBLOCK_BEGIN
 
-  if (!aName)
-    return E_INVALIDARG;
-
   if (IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
@@ -148,9 +136,6 @@ STDMETHODIMP
 ApplicationAccessibleWrap::get_toolkitVersion(BSTR* aVersion)
 {
   A11Y_TRYBLOCK_BEGIN
-
-  if (!aVersion)
-    return E_INVALIDARG;
 
   *aVersion = nullptr;
 

@@ -149,7 +149,7 @@ static void FreeGlyph(GrGlyph*& glyph) { glyph->free(); }
 GrTextStrike::~GrTextStrike() {
     GrAtlas::FreeLList(fAtlas);
     fFontScalerKey->unref();
-    fCache.getArray().visitAll(FreeGlyph);
+    fCache.getArray().visit(FreeGlyph);
 
 #if GR_DEBUG
     gCounter -= 1;
@@ -207,3 +207,5 @@ bool GrTextStrike::getGlyphAtlas(GrGlyph* glyph, GrFontScaler* scaler) {
     glyph->fAtlas = fAtlas = atlas;
     return true;
 }
+
+

@@ -12,21 +12,14 @@
 
 SK_DEFINE_INST_COUNT(GrResource)
 
-GrResource::GrResource(GrGpu* gpu, bool isWrapped) {
-    fGpu              = gpu;
-    fCacheEntry       = NULL;
-    fDeferredRefCount = 0;
-    if (isWrapped) {
-        fFlags = kWrapped_Flag;
-    } else {
-        fFlags = 0;
-    }
+GrResource::GrResource(GrGpu* gpu) {
+    fGpu        = gpu;
+    fCacheEntry = NULL;
     fGpu->insertResource(this);
 }
 
 GrResource::~GrResource() {
     // subclass should have released this.
-    GrAssert(0 == fDeferredRefCount);
     GrAssert(!this->isValid());
 }
 
@@ -61,3 +54,4 @@ GrContext* GrResource::getContext() {
         return NULL;
     }
 }
+

@@ -29,8 +29,7 @@ extern "C" void arm_memset32(uint32_t* dst, uint32_t value, int count);
 #endif
 
 SkMemset16Proc SkMemset16GetPlatformProc() {
-    // FIXME: memset.arm.S is using syntax incompatible with XCode
-#if !defined(SK_CPU_LENDIAN) || defined(SK_BUILD_FOR_IOS)
+#if !defined(SK_CPU_LENDIAN)
     return NULL;
 #elif SK_ARM_NEON_IS_DYNAMIC
     if (sk_cpu_arm_has_neon()) {
@@ -46,8 +45,7 @@ SkMemset16Proc SkMemset16GetPlatformProc() {
 }
 
 SkMemset32Proc SkMemset32GetPlatformProc() {
-    // FIXME: memset.arm.S is using syntax incompatible with XCode
-#if !defined(SK_CPU_LENDIAN) || defined(SK_BUILD_FOR_IOS)
+#if !defined(SK_CPU_LENDIAN)
     return NULL;
 #elif SK_ARM_NEON_IS_DYNAMIC
     if (sk_cpu_arm_has_neon()) {
@@ -65,3 +63,4 @@ SkMemset32Proc SkMemset32GetPlatformProc() {
 SkBlitRow::ColorRectProc PlatformColorRectProcFactory() {
     return NULL;
 }
+

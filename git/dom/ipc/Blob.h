@@ -84,12 +84,6 @@ struct BlobTraits<Parent>
     }
 
   protected:
-    virtual StreamType*
-    AllocPBlobStreamParent() MOZ_OVERRIDE;
-
-    virtual bool
-    DeallocPBlobStreamParent(StreamType* aActor) MOZ_OVERRIDE;
-
     BaseType();
     virtual ~BaseType();
 
@@ -139,12 +133,6 @@ struct BlobTraits<Child>
     }
 
   protected:
-    virtual StreamType*
-    AllocPBlobStreamChild() MOZ_OVERRIDE;
-
-    virtual bool
-    DeallocPBlobStreamChild(StreamType* aActor) MOZ_OVERRIDE;
-
     BaseType()
     { }
 
@@ -229,6 +217,12 @@ private:
 
   virtual bool
   RecvPBlobStreamConstructor(StreamType* aActor) MOZ_OVERRIDE;
+
+  virtual StreamType*
+  AllocPBlobStream() MOZ_OVERRIDE;
+
+  virtual bool
+  DeallocPBlobStream(StreamType* aActor) MOZ_OVERRIDE;
 };
 
 } // namespace ipc

@@ -53,3 +53,4 @@ SkBoundableAuto::~SkBoundableAuto() {
     fMaker.fCanvas->setBounder(NULL);
     fBoundable->setBounds(fMaker.fDisplayList.fBounds);
 }
+

@@ -1570,7 +1570,7 @@ MainAxisPositionTracker::
         }
         break;
       default:
-        MOZ_CRASH("Unexpected justify-content value");
+        MOZ_NOT_REACHED("Unexpected justify-content value");
     }
   }
 
@@ -1900,7 +1900,9 @@ FlexboxAxisTracker::FlexboxAxisTracker(nsFlexContainerFrame* aFlexContainerFrame
       mMainAxis = GetReverseAxis(blockDimension);
       break;
     default:
-      MOZ_CRASH("Unexpected computed value for 'flex-flow' property");
+      MOZ_NOT_REACHED("Unexpected computed value for 'flex-flow' property");
+      mMainAxis = inlineDimension;
+      break;
   }
 
   // Determine cross axis:
@@ -2159,8 +2161,6 @@ nsFlexContainerFrame::Reflow(nsPresContext*           aPresContext,
     return NS_OK;
   }
 
-  aStatus = NS_FRAME_COMPLETE;
-
   // We (and our children) can only depend on our ancestor's height if we have
   // a percent-height, or if we're positioned and we have "top" and "bottom"
   // set and have height:auto.  (There are actually other cases, too -- e.g. if
@@ -2208,18 +2208,21 @@ nsFlexContainerFrame::Reflow(nsPresContext*           aPresContext,
   // This would produce an array of arrays, or a list of arrays,
   // or something like that. (one list/array per line)
 
-  const nscoord contentBoxMainSize =
+  nscoord flexContainerMainSize =
     ComputeFlexContainerMainSize(aReflowState, axisTracker, items);
 
-  ResolveFlexibleLengths(axisTracker, contentBoxMainSize, items);
+  ResolveFlexibleLengths(axisTracker, flexContainerMainSize, items);
 
   // Our frame's main-size is the content-box size plus border and padding.
-  const nscoord frameMainSize = contentBoxMainSize +
+  nscoord frameMainSize = flexContainerMainSize +
     axisTracker.GetMarginSizeInMainAxis(aReflowState.mComputedBorderPadding);
 
-  // Cross Size Determination - Flexbox spec section 9.4
-  // ===================================================
-  // Calculate the hypothetical cross size of each item:
+  nscoord frameCrossSize;
+
+  MainAxisPositionTracker mainAxisPosnTracker(this, axisTracker,
+                                              aReflowState, items);
+
+  // First loop: Compute main axis position & cross-axis size of each item
   for (uint32_t i = 0; i < items.Length(); ++i) {
     FlexItem& curItem = items[i];
 
@@ -2233,6 +2236,8 @@ nsFlexContainerFrame::Reflow(nsPresContext*           aPresContext,
     } else {
       childReflowState.SetComputedHeight(curItem.GetMainSize());
     }
+
+    PositionItemInMainAxis(mainAxisPosnTracker, curItem);
 
     nsresult rv =
       SizeItemInCrossAxis(aPresContext, axisTracker,
@@ -2286,8 +2291,7 @@ nsFlexContainerFrame::Reflow(nsPresContext*           aPresContext,
     // flex container's inner cross size."
     lineCrossAxisPosnTracker.SetLineCrossSize(contentBoxCrossSize);
   }
-
-  const nscoord frameCrossSize = contentBoxCrossSize +
+  frameCrossSize = contentBoxCrossSize +
     axisTracker.GetMarginSizeInCrossAxis(aReflowState.mComputedBorderPadding);
 
   // Set the flex container's baseline, from its baseline-aligned items.
@@ -2300,16 +2304,7 @@ nsFlexContainerFrame::Reflow(nsPresContext*           aPresContext,
     flexContainerAscent += aReflowState.mComputedBorderPadding.top;
   }
 
-  // Main-Axis Alignment - Flexbox spec section 9.5
-  // ==============================================
-  MainAxisPositionTracker mainAxisPosnTracker(this, axisTracker,
-                                              aReflowState, items);
-  for (uint32_t i = 0; i < items.Length(); ++i) {
-    PositionItemInMainAxis(mainAxisPosnTracker, items[i]);
-  }
-
-  // Cross-Axis Alignment - Flexbox spec section 9.6
-  // ===============================================
+  // Position the items in cross axis, within their line
   for (uint32_t i = 0; i < items.Length(); ++i) {
     PositionItemInCrossAxis(crossAxisPosnTracker.GetPosition(),
                             lineCrossAxisPosnTracker, items[i]);
@@ -2458,10 +2453,13 @@ nsFlexContainerFrame::Reflow(nsPresContext*           aPresContext,
     ConsiderChildOverflow(aDesiredSize.mOverflowAreas, e.get());
   }
 
+  NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize)
+
+  aStatus = NS_FRAME_COMPLETE;
+
   FinishReflowWithAbsoluteFrames(aPresContext, aDesiredSize,
                                  aReflowState, aStatus);
 
-  NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize)
   return NS_OK;
 }
 

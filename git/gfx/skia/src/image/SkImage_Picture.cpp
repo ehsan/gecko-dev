@@ -52,3 +52,4 @@ SkImage* SkNewImageFromPicture(const SkPicture* srcPicture) {
 
     return SkNEW_ARGS(SkImage_Picture, (playback));
 }
+

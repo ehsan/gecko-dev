@@ -531,8 +531,18 @@ final class GeckoEditable
     @Override
     public void sendEvent(final GeckoEvent event) {
         if (DEBUG) {
-            assertOnIcThread();
             Log.d(LOGTAG, "sendEvent(" + event + ")");
+        }
+        if (!onIcThread()) {
+            // Events may get dispatched to the main thread;
+            // reroute to our IC thread instead
+            mIcRunHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    sendEvent(event);
+                }
+            });
+            return;
         }
         /*
            We are actually sending two events to Gecko here,
@@ -834,12 +844,8 @@ final class GeckoEditable
         if (DEBUG) {
             // GeckoEditableListener methods should all be called from the Gecko thread
             ThreadUtils.assertOnGeckoThread();
-            StringBuilder sb = new StringBuilder("onTextChange(");
-            debugAppend(sb, text);
-            sb.append(", ").append(start).append(", ")
-                .append(unboundedOldEnd).append(", ")
-                .append(unboundedNewEnd).append(")");
-            Log.d(LOGTAG, sb.toString());
+            Log.d(LOGTAG, "onTextChange(\"" + text + "\", " + start + ", " +
+                          unboundedOldEnd + ", " + unboundedNewEnd + ")");
         }
         if (start < 0 || start > unboundedOldEnd) {
             throw new IllegalArgumentException("invalid text notification range: " +

@@ -2466,13 +2466,11 @@ void MediaDecoderStateMachine::AdvanceFrame()
     while (mRealTime || clock_time >= frame->mTime) {
       mVideoFrameEndTime = frame->mEndTime;
       currentFrame = frame;
+      LOG(PR_LOG_DEBUG, ("%p Decoder discarding video frame %lld", mDecoder.get(), frame->mTime));
 #ifdef PR_LOGGING
-      if (!PR_GetEnv("MOZ_QUIET")) {
-        LOG(PR_LOG_DEBUG, ("%p Decoder discarding video frame %lld", mDecoder.get(), frame->mTime));
-        if (droppedFrames++) {
-          LOG(PR_LOG_DEBUG, ("%p Decoder discarding video frame %lld (%d so far)",
-            mDecoder.get(), frame->mTime, droppedFrames - 1));
-        }
+      if (droppedFrames++) {
+        LOG(PR_LOG_DEBUG, ("%p Decoder discarding video frame %lld (%d so far)",
+              mDecoder.get(), frame->mTime, droppedFrames - 1));
       }
 #endif
       mReader->VideoQueue().PopFront();
@@ -2535,12 +2533,8 @@ void MediaDecoderStateMachine::AdvanceFrame()
       ScheduleStateMachine();
       return;
     }
-    MediaDecoder::FrameStatistics& frameStats = mDecoder->GetFrameStatistics();
-    frameStats.NotifyPresentedFrame();
+    mDecoder->GetFrameStatistics().NotifyPresentedFrame();
     remainingTime = currentFrame->mEndTime - clock_time;
-    int64_t frameDuration = currentFrame->mEndTime - currentFrame->mTime;
-    double displayError = fabs(double(frameDuration - remainingTime) / USECS_PER_S);
-    frameStats.NotifyPlaybackJitter(displayError);
     currentFrame = nullptr;
   }
 

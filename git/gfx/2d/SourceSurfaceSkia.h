@@ -53,7 +53,7 @@ private:
   SurfaceFormat mFormat;
   IntSize mSize;
   int32_t mStride;
-  RefPtr<DrawTargetSkia> mDrawTarget;
+  DrawTargetSkia* mDrawTarget;
   bool mLocked;
 };
 

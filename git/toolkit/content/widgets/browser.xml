@@ -360,7 +360,7 @@
               return null;
 
             var tabBrowser = this.getTabBrowser();
-            if (tabBrowser && "fastFind" in tabBrowser)
+            if (tabBrowser)
               return this._fastFind = tabBrowser.fastFind;
 
             if (!this.docShell)
@@ -565,8 +565,7 @@
             if (!this.docShell || !this.fastFind)
               return;
             var tabBrowser = this.getTabBrowser();
-            if (!tabBrowser || !("fastFind" in tabBrowser) ||
-                tabBrowser.selectedBrowser == this)
+            if (!tabBrowser || tabBrowser.mCurrentBrowser == this)
               this.fastFind.setDocShell(this.docShell);
 
             if (this._scrollable) {

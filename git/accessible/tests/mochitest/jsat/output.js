@@ -22,8 +22,7 @@ function testContextOutput(expected, aAccOrElmOrID, aOldAccOrElmOrID, aGenerator
   var accessible = getAccessible(aAccOrElmOrID);
   var oldAccessible = getAccessible(aOldAccOrElmOrID);
   var context = new PivotContext(accessible, oldAccessible);
-  var output = aGenerator.genForContext(context).output;
-
+  var output = aGenerator.genForContext(context);
   isDeeply(output, expected,
     "Context output is correct for " + aAccOrElmOrID);
 }
@@ -38,8 +37,7 @@ function testContextOutput(expected, aAccOrElmOrID, aOldAccOrElmOrID, aGenerator
  */
 function testObjectOutput(aAccOrElmOrID, aGenerator) {
   var accessible = getAccessible(aAccOrElmOrID);
-  var context = new PivotContext(accessible);
-  var output = aGenerator.genForObject(accessible, context);
+  var output = aGenerator.genForObject(accessible);
   var outputOrder;
   try {
     outputOrder = SpecialPowers.getIntPref(PREF_UTTERANCE_ORDER);

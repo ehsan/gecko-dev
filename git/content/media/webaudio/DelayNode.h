@@ -9,7 +9,6 @@
 
 #include "AudioNode.h"
 #include "AudioParam.h"
-#include "PlayingRefChangeHandler.h"
 
 namespace mozilla {
 namespace dom {
@@ -32,26 +31,11 @@ public:
     return mDelay;
   }
 
-  virtual void NotifyInputConnected() MOZ_OVERRIDE
-  {
-    mMediaStreamGraphUpdateIndexAtLastInputConnection =
-      mStream->Graph()->GetCurrentGraphUpdateIndex();
-  }
-  bool AcceptPlayingRefRelease(int64_t aLastGraphUpdateIndexProcessed) const
-  {
-    // Reject any requests to release mPlayingRef if the request was issued
-    // before the MediaStreamGraph was aware of the most-recently-added input
-    // connection.
-    return aLastGraphUpdateIndexProcessed >= mMediaStreamGraphUpdateIndexAtLastInputConnection;
-  }
-
 private:
   static void SendDelayToStream(AudioNode* aNode);
   friend class DelayNodeEngine;
-  friend class PlayingRefChangeHandler<DelayNode>;
 
 private:
-  int64_t mMediaStreamGraphUpdateIndexAtLastInputConnection;
   nsRefPtr<AudioParam> mDelay;
   SelfReference<DelayNode> mPlayingRef;
 };

@@ -13,6 +13,7 @@
 #include "nsXPCOMPrivate.h"
 #include "nsXPCOMCIDInternal.h"
 
+#include "nsStaticComponents.h"
 #include "prlink.h"
 
 #include "nsCycleCollector.h"
@@ -240,7 +241,6 @@ nsXPTIInterfaceInfoManagerGetSingleton(nsISupports* outer,
 
 nsComponentManagerImpl* nsComponentManagerImpl::gComponentManager = NULL;
 bool gXPCOMShuttingDown = false;
-bool gXPCOMThreadsShutDown = false;
 
 static NS_DEFINE_CID(kComponentManagerCID, NS_COMPONENTMANAGER_CID);
 static NS_DEFINE_CID(kINIParserFactoryCID, NS_INIPARSERFACTORY_CID);
@@ -588,7 +588,6 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
                 NotifyObservers(nullptr, NS_XPCOM_SHUTDOWN_THREADS_OBSERVER_ID,
                                 nullptr);
 
-        gXPCOMThreadsShutDown = true;
         nsCycleCollector_shutdownThreads();
 
         NS_ProcessPendingEvents(thread);

@@ -87,3 +87,4 @@ static inline unsigned SkDiv255Round(unsigned prod) {
 }
 
 #endif
+

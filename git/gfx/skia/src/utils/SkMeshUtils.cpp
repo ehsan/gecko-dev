@@ -100,3 +100,4 @@ void SkMeshUtils::Draw(SkCanvas* canvas, const SkBitmap& bitmap,
                              idx.indices(), idx.indexCount(), p);
     }
 }
+

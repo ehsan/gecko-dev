@@ -8,18 +8,18 @@
 #define ion_Registers_h
 
 #include "jsutil.h"
-#include "ion/IonTypes.h"
+#include "IonTypes.h"
 #if defined(JS_CPU_X86)
-# include "ion/x86/Architecture-x86.h"
+# include "x86/Architecture-x86.h"
 #elif defined(JS_CPU_X64)
-# include "ion/x64/Architecture-x64.h"
+# include "x64/Architecture-x64.h"
 #elif defined(JS_CPU_ARM)
-# include "ion/arm/Architecture-arm.h"
+# include "arm/Architecture-arm.h"
 #endif
-#include "ion/FixedArityList.h"
+#include "FixedArityList.h"
 
 // ARM defines the RegisterID within Architecture-arm.h
-#if !defined(JS_CPU_ARM)
+#if !defined(JS_CPU_ARM) && defined(JS_METHODJIT)
 #include "assembler/assembler/MacroAssembler.h"
 #endif
 

@@ -8,6 +8,7 @@
 #include "mozilla/Util.h"
 
 #include "nsIPlatformCharset.h"
+#include "pratom.h"
 #include "nsUConvPropertySearch.h"
 #include "nsCOMPtr.h"
 #include "nsReadableUtils.h"

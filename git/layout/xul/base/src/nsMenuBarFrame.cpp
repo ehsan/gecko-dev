@@ -170,8 +170,7 @@ GetInsertionPoint(nsIPresShell* aShell, nsIFrame* aFrame, nsIFrame* aChild,
   nsIContent* child = nullptr;
   if (aChild)
     child = aChild->GetContent();
-  *aResult = aShell->FrameConstructor()->
-    GetInsertionPoint(aFrame->GetContent(), child);
+  aShell->FrameConstructor()->GetInsertionPoint(aFrame, child, aResult);
 }
 
 nsMenuFrame*

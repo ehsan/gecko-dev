@@ -10,6 +10,10 @@
  * liability, trademark and document use rules apply.
  */
 
+interface SVGAnimatedEnumeration;
+interface SVGAnimatedInteger;
+interface SVGAnimatedNumber;
+
 interface SVGFETurbulenceElement : SVGElement {
 
   // Turbulence Types

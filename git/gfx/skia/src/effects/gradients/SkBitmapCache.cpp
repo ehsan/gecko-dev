@@ -151,3 +151,4 @@ void SkBitmapCache::validate() const {
 }
 
 #endif
+

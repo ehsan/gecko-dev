@@ -343,7 +343,7 @@ LayerTransactionParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
     case Edit::TOpSetRoot: {
       MOZ_LAYERS_LOG(("[ParentSide] SetRoot"));
 
-      mRoot = AsLayerComposite(edit.get_OpSetRoot())->AsLayer();
+      mRoot = AsLayerComposite(edit.get_OpSetRoot())->AsContainer();
       break;
     }
     case Edit::TOpInsertAfter: {
@@ -514,7 +514,7 @@ LayerTransactionParent::RecvClearCachedResources()
 }
 
 PGrallocBufferParent*
-LayerTransactionParent::AllocPGrallocBufferParent(const gfxIntSize& aSize,
+LayerTransactionParent::AllocPGrallocBuffer(const gfxIntSize& aSize,
                                             const uint32_t& aFormat,
                                             const uint32_t& aUsage,
                                             MaybeMagicGrallocBufferHandle* aOutHandle)
@@ -528,7 +528,7 @@ LayerTransactionParent::AllocPGrallocBufferParent(const gfxIntSize& aSize,
 }
 
 bool
-LayerTransactionParent::DeallocPGrallocBufferParent(PGrallocBufferParent* actor)
+LayerTransactionParent::DeallocPGrallocBuffer(PGrallocBufferParent* actor)
 {
 #ifdef MOZ_HAVE_SURFACEDESCRIPTORGRALLOC
   delete actor;
@@ -540,26 +540,26 @@ LayerTransactionParent::DeallocPGrallocBufferParent(PGrallocBufferParent* actor)
 }
 
 PLayerParent*
-LayerTransactionParent::AllocPLayerParent()
+LayerTransactionParent::AllocPLayer()
 {
   return new ShadowLayerParent();
 }
 
 bool
-LayerTransactionParent::DeallocPLayerParent(PLayerParent* actor)
+LayerTransactionParent::DeallocPLayer(PLayerParent* actor)
 {
   delete actor;
   return true;
 }
 
 PCompositableParent*
-LayerTransactionParent::AllocPCompositableParent(const TextureInfo& aInfo)
+LayerTransactionParent::AllocPCompositable(const TextureInfo& aInfo)
 {
   return new CompositableParent(this, aInfo);
 }
 
 bool
-LayerTransactionParent::DeallocPCompositableParent(PCompositableParent* actor)
+LayerTransactionParent::DeallocPCompositable(PCompositableParent* actor)
 {
   delete actor;
   return true;

@@ -826,45 +826,16 @@ Accessible::ChildAtPoint(int32_t aX, int32_t aY,
   DocAccessible* accDocument = Document();
   NS_ENSURE_TRUE(accDocument, nullptr);
 
-  nsIFrame* rootFrame = accDocument->GetFrame();
-  NS_ENSURE_TRUE(rootFrame, nullptr);
+  nsIFrame *frame = accDocument->GetFrame();
+  NS_ENSURE_TRUE(frame, nullptr);
 
-  nsIFrame* startFrame = rootFrame;
+  nsPresContext *presContext = frame->PresContext();
 
-  // Check whether the point is at popup content.
-  nsIWidget* rootWidget = rootFrame->GetView()->GetNearestWidget(nullptr);
-  NS_ENSURE_TRUE(rootWidget, nullptr);
+  nsRect screenRect = frame->GetScreenRectInAppUnits();
+  nsPoint offset(presContext->DevPixelsToAppUnits(aX) - screenRect.x,
+                 presContext->DevPixelsToAppUnits(aY) - screenRect.y);
 
-  nsIntRect rootRect;
-  rootWidget->GetScreenBounds(rootRect);
-
-  nsMouseEvent dummyEvent(true, NS_MOUSE_MOVE, rootWidget,
-                          nsMouseEvent::eSynthesized);
-  dummyEvent.refPoint = nsIntPoint(aX - rootRect.x, aY - rootRect.y);
-
-  nsIFrame* popupFrame = nsLayoutUtils::
-    GetPopupFrameForEventCoordinates(accDocument->PresContext()->GetRootPresContext(),
-                                     &dummyEvent);
-  if (popupFrame) {
-    // If 'this' accessible is not inside the popup then ignore the popup when
-    // searching an accessible at point.
-    DocAccessible* popupDoc =
-      GetAccService()->GetDocAccessible(popupFrame->GetContent()->OwnerDoc());
-    Accessible* popupAcc =
-      popupDoc->GetAccessibleOrContainer(popupFrame->GetContent());
-    Accessible* popupChild = this;
-    while (popupChild && !popupChild->IsDoc() && popupChild != popupAcc)
-      popupChild = popupChild->Parent();
-
-    if (popupChild == popupAcc)
-      startFrame = popupFrame;
-  }
-
-  nsPresContext* presContext = startFrame->PresContext();
-  nsRect screenRect = startFrame->GetScreenRectInAppUnits();
-    nsPoint offset(presContext->DevPixelsToAppUnits(aX) - screenRect.x,
-                   presContext->DevPixelsToAppUnits(aY) - screenRect.y);
-  nsIFrame* foundFrame = nsLayoutUtils::GetFrameForPoint(startFrame, offset);
+  nsIFrame *foundFrame = nsLayoutUtils::GetFrameForPoint(frame, offset);
 
   nsIContent* content = nullptr;
   if (!foundFrame || !(content = foundFrame->GetContent()))

@@ -178,10 +178,14 @@ ASSERT_OK(JSBool ok)
 enum ErrorNum {
 #define MSG_DEF(name, number, count, exception, format) \
   name = number,
-#include "ctypes/ctypes.msg"
+#include "ctypes.msg"
 #undef MSG_DEF
   CTYPESERR_LIMIT
 };
+
+const JSErrorFormatString*
+GetErrorMessage(void* userRef, const char* locale, const unsigned errorNumber);
+JSBool TypeError(JSContext* cx, const char* expected, jsval actual);
 
 /**
  * ABI constants that specify the calling convention to use.
@@ -200,7 +204,7 @@ enum ABICode {
 enum TypeCode {
   TYPE_void_t,
 #define DEFINE_TYPE(name, type, ffiType) TYPE_##name,
-#include "ctypes/typedefs.h"
+#include "typedefs.h"
   TYPE_pointer,
   TYPE_function,
   TYPE_array,
@@ -306,6 +310,17 @@ struct ClosureInfo
 bool IsCTypesGlobal(JSObject* obj);
 
 JSCTypesCallbacks* GetCallbacks(JSObject* obj);
+
+JSBool InitTypeClasses(JSContext* cx, HandleObject parent);
+
+JSBool ConvertToJS(JSContext* cx, HandleObject typeObj, HandleObject dataObj,
+  void* data, bool wantPrimitive, bool ownResult, jsval* result);
+
+JSBool ImplicitConvert(JSContext* cx, HandleValue val, JSObject* targetType,
+  void* buffer, bool isArgument, bool* freePointer);
+
+JSBool ExplicitConvert(JSContext* cx, HandleValue val, HandleObject targetType,
+  void* buffer);
 
 /*******************************************************************************
 ** JSClass reserved slot definitions

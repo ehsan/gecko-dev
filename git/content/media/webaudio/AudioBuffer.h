@@ -31,7 +31,8 @@ namespace dom {
  * are Float32Arrays, or in mSharedChannels if the mJSChannels objects have
  * been neutered.
  */
-class AudioBuffer MOZ_FINAL : public nsWrapperCache,
+class AudioBuffer MOZ_FINAL : public nsISupports,
+                              public nsWrapperCache,
                               public EnableWebAudioCheck
 {
 public:
@@ -44,8 +45,8 @@ public:
   bool InitializeBuffers(uint32_t aNumberOfChannels,
                          JSContext* aJSContext);
 
-  NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(AudioBuffer)
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(AudioBuffer)
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(AudioBuffer)
 
   AudioContext* GetParentObject() const
   {
@@ -82,11 +83,22 @@ public:
   JSObject* GetChannelData(JSContext* aJSContext, uint32_t aChannel,
                            ErrorResult& aRv);
 
+  JSObject* GetChannelData(uint32_t aChannel) const {
+    // Doesn't perform bounds checking
+    MOZ_ASSERT(aChannel < mJSChannels.Length());
+    return mJSChannels[aChannel];
+  }
+
   /**
    * Returns a ThreadSharedFloatArrayBufferList containing the sample data.
-   * Can return null if there is no data.
    */
   ThreadSharedFloatArrayBufferList* GetThreadSharedChannelsForRate(JSContext* aContext);
+
+  // aContents should either come from JS_AllocateArrayBufferContents or
+  // JS_StealArrayBufferContents.
+  bool SetChannelDataFromArrayBufferContents(JSContext* aJSContext,
+                                             uint32_t aChannel,
+                                             void* aContents);
 
   // This replaces the contents of the JS array for the given channel.
   // This function needs to be called on an AudioBuffer which has not been

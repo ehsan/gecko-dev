@@ -7,8 +7,8 @@
 #ifndef ion_AliasAnalysis_h
 #define ion_AliasAnalysis_h
 
-#include "ion/MIR.h"
-#include "ion/MIRGraph.h"
+#include "MIR.h"
+#include "MIRGraph.h"
 
 namespace js {
 namespace ion {

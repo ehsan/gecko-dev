@@ -19,7 +19,7 @@ NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_4(TextTrackCue,
                                         mGlobal,
                                         mTrack,
                                         mTrackElement,
-                                        mDisplayState)
+                                        mCueDiv)
 
 NS_IMPL_ADDREF_INHERITED(TextTrackCue, nsDOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(TextTrackCue, nsDOMEventTargetHelper)
@@ -48,7 +48,6 @@ TextTrackCue::TextTrackCue(nsISupports* aGlobal,
   , mStartTime(aStartTime)
   , mEndTime(aEndTime)
   , mHead(nullptr)
-  , mReset(false)
 {
   SetDefaultCueSettings();
   MOZ_ASSERT(aGlobal);
@@ -67,7 +66,6 @@ TextTrackCue::TextTrackCue(nsISupports* aGlobal,
   , mEndTime(aEndTime)
   , mTrackElement(aTrackElement)
   , mHead(head)
-  , mReset(false)
 {
   // Use the webvtt library's reference counting.
   webvtt_ref_node(mHead);
@@ -97,9 +95,9 @@ TextTrackCue::CreateCueOverlay()
   }
   document->CreateElem(NS_LITERAL_STRING("div"), nullptr,
                        kNameSpaceID_XHTML,
-                       getter_AddRefs(mDisplayState));
+                       getter_AddRefs(mCueDiv));
   nsGenericHTMLElement* cueDiv =
-    static_cast<nsGenericHTMLElement*>(mDisplayState.get());
+    static_cast<nsGenericHTMLElement*>(mCueDiv.get());
   cueDiv->SetClassName(NS_LITERAL_STRING("caption-text"));
 }
 
@@ -111,7 +109,7 @@ TextTrackCue::RenderCue()
     return;
   }
 
-  if (!mDisplayState) {
+  if (!mCueDiv) {
     CreateCueOverlay();
   }
 
@@ -137,10 +135,10 @@ TextTrackCue::RenderCue()
 
   ErrorResult rv;
   nsContentUtils::SetNodeTextContent(overlay, EmptyString(), true);
-  nsContentUtils::SetNodeTextContent(mDisplayState, EmptyString(), true);
+  nsContentUtils::SetNodeTextContent(mCueDiv, EmptyString(), true);
 
-  mDisplayState->AppendChild(*frag, rv);
-  overlay->AppendChild(*mDisplayState, rv);
+  mCueDiv->AppendChild(*frag, rv);
+  overlay->AppendChild(*mCueDiv, rv);
 }
 
 already_AddRefed<DocumentFragment>

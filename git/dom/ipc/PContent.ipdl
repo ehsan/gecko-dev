@@ -20,7 +20,6 @@ include protocol PSms;
 include protocol PSpeechSynthesis;
 include protocol PStorage;
 include protocol PTestShell;
-include protocol PJavaScript;
 include DOMTypes;
 include InputStreamParams;
 include URIParams;
@@ -253,7 +252,6 @@ rpc protocol PContent
     manages PSpeechSynthesis;
     manages PStorage;
     manages PTestShell;
-    manages PJavaScript;
 
 both:
     // Depending on exactly how the new browser is being created, it might be
@@ -282,8 +280,6 @@ both:
     async PBrowser(IPCTabContext context, uint32_t chromeFlags);
 
     async PBlob(BlobConstructorParams params);
-
-    PJavaScript();
 
 child:
     /**
@@ -317,7 +313,6 @@ child:
      * MemoryInfoDumper::dumpGCAndCCLogsToFile.
      */
     async DumpGCAndCCLogsToFile(nsString identifier,
-                                bool dumpAllTraces,
                                 bool dumpChildProcesses);
 
     PTestShell();

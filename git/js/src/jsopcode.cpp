@@ -117,7 +117,8 @@ js_GetVariableBytecodeLength(jsbytecode *pc)
         return 1 + 3 * JUMP_OFFSET_LEN + ncases * JUMP_OFFSET_LEN;
       }
       default:
-        MOZ_ASSUME_UNREACHABLE("Unexpected op");
+        JS_NOT_REACHED("Unexpected op");
+        return 0;
     }
 }
 
@@ -249,14 +250,18 @@ PCCounts::countName(JSOp op, size_t which)
             return countElementNames[which - ACCESS_LIMIT];
         if (propertyOp(op))
             return countPropertyNames[which - ACCESS_LIMIT];
-        MOZ_ASSUME_UNREACHABLE("bad op");
+        JS_NOT_REACHED("bad op");
+        return NULL;
     }
 
     if (arithOp(op))
         return countArithNames[which - BASE_LIMIT];
 
-    MOZ_ASSUME_UNREACHABLE("bad op");
+    JS_NOT_REACHED("bad op");
+    return NULL;
 }
+
+#ifdef DEBUG
 
 #ifdef JS_ION
 void
@@ -282,7 +287,6 @@ js_DumpPCCounts(JSContext *cx, HandleScript script, js::Sprinter *sp)
 {
     JS_ASSERT(script->hasScriptCounts);
 
-#ifdef DEBUG
     jsbytecode *pc = script->code;
     while (pc < script->code + script->length) {
         JSOp op = JSOp(*pc);
@@ -311,7 +315,6 @@ js_DumpPCCounts(JSContext *cx, HandleScript script, js::Sprinter *sp)
 
         pc = next;
     }
-#endif
 
 #ifdef JS_ION
     ion::IonScriptCounts *ionCounts = script->getIonCounts();
@@ -322,8 +325,6 @@ js_DumpPCCounts(JSContext *cx, HandleScript script, js::Sprinter *sp)
     }
 #endif
 }
-
-#ifdef DEBUG
 
 /*
  * If pc != NULL, include a prefix indicating whether the PC is at the current line.
@@ -1341,8 +1342,7 @@ ExpressionDecompiler::decompilePC(jsbytecode *pc)
         JSObject *obj = (op == JSOP_REGEXP)
                         ? script->getRegExp(GET_UINT32_INDEX(pc))
                         : script->getObject(GET_UINT32_INDEX(pc));
-        RootedValue objv(cx, ObjectValue(*obj));
-        JSString *str = ValueToSource(cx, objv);
+        JSString *str = ValueToSource(cx, ObjectValue(*obj));
         if (!str)
             return false;
         return write(str);
@@ -2123,7 +2123,7 @@ js::GetPCCountScriptSummary(JSContext *cx, size_t index)
 
     AppendJSONProperty(buf, "file", NO_COMMA);
     JSString *str = JS_NewStringCopyZ(cx, script->filename());
-    if (!str || !(str = StringToSource(cx, str)))
+    if (!str || !(str = ValueToSource(cx, StringValue(str))))
         return NULL;
     buf.append(str);
 
@@ -2134,7 +2134,7 @@ js::GetPCCountScriptSummary(JSContext *cx, size_t index)
         JSAtom *atom = script->function()->displayAtom();
         if (atom) {
             AppendJSONProperty(buf, "name");
-            if (!(str = StringToSource(cx, atom)))
+            if (!(str = ValueToSource(cx, StringValue(atom))))
                 return NULL;
             buf.append(str);
         }
@@ -2166,11 +2166,11 @@ js::GetPCCountScriptSummary(JSContext *cx, size_t index)
                 else if (PCCounts::propertyOp(op))
                     propertyTotals[j - PCCounts::ACCESS_LIMIT] += value;
                 else
-                    MOZ_ASSUME_UNREACHABLE("Bad opcode");
+                    JS_NOT_REACHED("Bad opcode");
             } else if (PCCounts::arithOp(op)) {
                 arithTotals[j - PCCounts::BASE_LIMIT] += value;
             } else {
-                MOZ_ASSUME_UNREACHABLE("Bad opcode");
+                JS_NOT_REACHED("Bad opcode");
             }
         }
     }
@@ -2221,7 +2221,7 @@ GetPCCountJSON(JSContext *cx, const ScriptAndCounts &sac, StringBuffer &buf)
     AppendJSONProperty(buf, "text", NO_COMMA);
 
     JSString *str = JS_DecompileScript(cx, script, NULL, 0);
-    if (!str || !(str = StringToSource(cx, str)))
+    if (!str || !(str = ValueToSource(cx, StringValue(str))))
         return false;
 
     buf.append(str);
@@ -2277,7 +2277,7 @@ GetPCCountJSON(JSContext *cx, const ScriptAndCounts &sac, StringBuffer &buf)
             AppendJSONProperty(buf, "text");
             JSString *str = JS_NewStringCopyZ(cx, text);
             js_free(text);
-            if (!str || !(str = StringToSource(cx, str)))
+            if (!str || !(str = ValueToSource(cx, StringValue(str))))
                 return false;
             buf.append(str);
         }
@@ -2338,7 +2338,7 @@ GetPCCountJSON(JSContext *cx, const ScriptAndCounts &sac, StringBuffer &buf)
 
                 AppendJSONProperty(buf, "code");
                 JSString *str = JS_NewStringCopyZ(cx, block.code());
-                if (!str || !(str = StringToSource(cx, str)))
+                if (!str || !(str = ValueToSource(cx, StringValue(str))))
                     return false;
                 buf.append(str);
 

@@ -13,8 +13,6 @@
 #include "ion/IonFrameIterator.h"
 #include "ion/LIR.h"
 
-#include "ion/IonFrameIterator-inl.h"
-
 namespace js {
 namespace ion {
 
@@ -47,8 +45,9 @@ SizeOfFramePrefix(FrameType type)
       case IonFrame_Osr:
         return IonOsrFrameLayout::Size();
       default:
-        MOZ_ASSUME_UNREACHABLE("unknown frame type");
+        JS_NOT_REACHED("unknown frame type");
     }
+    return 0;
 }
 
 inline IonCommonFrameLayout *

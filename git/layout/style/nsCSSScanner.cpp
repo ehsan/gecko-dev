@@ -138,24 +138,21 @@ IsVertSpace(int32_t ch) {
 }
 
 /**
- * True if 'ch' is a character that can appear in the middle of an identifier.
- * This includes U+0000 since it is handled as U+FFFD, but for purposes of
- * GatherText it should not be included in IsOpenCharClass.
+ * True if 'ch' is a character that can appear in the middle of an
+ * identifier.
  */
 static inline bool
 IsIdentChar(int32_t ch) {
-  return IsOpenCharClass(ch, IS_IDCHAR) || ch == 0;
+  return IsOpenCharClass(ch, IS_IDCHAR);
 }
 
 /**
  * True if 'ch' is a character that by itself begins an identifier.
- * This includes U+0000 since it is handled as U+FFFD, but for purposes of
- * GatherText it should not be included in IsOpenCharClass.
  * (This is a subset of IsIdentChar.)
  */
 static inline bool
 IsIdentStart(int32_t ch) {
-  return IsOpenCharClass(ch, IS_IDSTART) || ch == 0;
+  return IsOpenCharClass(ch, IS_IDSTART);
 }
 
 /**
@@ -352,7 +349,6 @@ nsCSSScanner::nsCSSScanner(const nsAString& aBuffer, uint32_t aLineNumber)
   , mReporter(nullptr)
   , mSVGMode(false)
   , mRecording(false)
-  , mSeenBadToken(false)
 {
   MOZ_COUNT_CTOR(nsCSSScanner);
 }
@@ -543,7 +539,7 @@ nsCSSScanner::GatherEscape(nsString& aOutput, bool aInString)
     // character.
     Advance();
     if (!aInString) {
-      aOutput.Append(UCS2_REPLACEMENT_CHAR);
+      aOutput.Append(0xFFFD);
     }
     return true;
   }
@@ -565,11 +561,7 @@ nsCSSScanner::GatherEscape(nsString& aOutput, bool aInString)
     // return, or form feed) can be escaped with a backslash to remove
     // its special meaning." -- CSS2.1 section 4.1.3
     Advance(2);
-    if (ch == 0) {
-      aOutput.Append(UCS2_REPLACEMENT_CHAR);
-    } else {
-      aOutput.Append(ch);
-    }
+    aOutput.Append(ch);
     return true;
   }
 
@@ -592,21 +584,22 @@ nsCSSScanner::GatherEscape(nsString& aOutput, bool aInString)
     ch = Peek();
   } while (i < 6 && IsHexDigit(ch));
 
-  // "Interpret the hex digits as a hexadecimal number. If this number is zero,
-  // or is greater than the maximum allowed codepoint, return U+FFFD
-  // REPLACEMENT CHARACTER" -- CSS Syntax Level 3
+  // Silently deleting \0 opens a content-filtration loophole (see
+  // bug 228856), so what we do instead is pretend the "cancels the
+  // meaning of special characters" rule applied.
   if (MOZ_UNLIKELY(val == 0)) {
-    aOutput.Append(UCS2_REPLACEMENT_CHAR);
+    do {
+      aOutput.Append('0');
+    } while (--i);
   } else {
     AppendUCS4ToUTF16(ENSURE_VALID_CHAR(val), aOutput);
-  }
-
-  // Consume exactly one whitespace character after a
-  // hexadecimal escape sequence.
-  if (IsVertSpace(ch)) {
-    AdvanceLine();
-  } else if (IsHorzSpace(ch)) {
-    Advance();
+    // Consume exactly one whitespace character after a nonzero
+    // hexadecimal escape sequence.
+    if (IsVertSpace(ch)) {
+      AdvanceLine();
+    } else if (IsHorzSpace(ch)) {
+      Advance();
+    }
   }
   return true;
 }
@@ -651,11 +644,6 @@ nsCSSScanner::GatherText(uint8_t aClass, nsString& aText)
     int32_t ch = Peek();
     MOZ_ASSERT(!IsOpenCharClass(ch, aClass),
                "should not have exited the inner loop");
-    if (ch == 0) {
-      Advance();
-      aText.Append(UCS2_REPLACEMENT_CHAR);
-      continue;
-    }
 
     if (ch != '\\') {
       break;
@@ -923,7 +911,6 @@ nsCSSScanner::ScanString(nsCSSToken& aToken)
       continue;
     }
 
-    mSeenBadToken = true;
     aToken.mType = eCSSToken_Bad_String;
     mReporter->ReportUnexpected("SEUnterminatedString", aToken);
     break;
@@ -1058,7 +1045,6 @@ nsCSSScanner::NextURL(nsCSSToken& aToken)
     Advance();
     aToken.mType = eCSSToken_URL;
   } else {
-    mSeenBadToken = true;
     aToken.mType = eCSSToken_Bad_URL;
   }
   return true;

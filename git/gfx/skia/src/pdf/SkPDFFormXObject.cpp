@@ -20,15 +20,15 @@ SkPDFFormXObject::SkPDFFormXObject(SkPDFDevice* device) {
     // We don't want to keep around device because we'd have two copies
     // of content, so reference or copy everything we need (content and
     // resources).
-    SkTSet<SkPDFObject*> emptySet;
-    device->getResources(emptySet, &fResources, false);
+    device->getResources(&fResources, false);
 
-    SkAutoTUnref<SkStream> content(device->content());
+    SkRefPtr<SkStream> content = device->content();
+    content->unref();  // SkRefPtr and content() both took a reference.
     setData(content.get());
 
     insertName("Type", "XObject");
     insertName("Subtype", "Form");
-    SkSafeUnref(this->insert("BBox", device->copyMediaBox()));
+    insert("BBox", device->getMediaBox().get());
     insert("Resources", device->getResourceDict());
 
     // We invert the initial transform and apply that to the xobject so that
@@ -46,7 +46,8 @@ SkPDFFormXObject::SkPDFFormXObject(SkPDFDevice* device) {
 
     // Right now SkPDFFormXObject is only used for saveLayer, which implies
     // isolated blending.  Do this conditionally if that changes.
-    SkAutoTUnref<SkPDFDict> group(new SkPDFDict("Group"));
+    SkRefPtr<SkPDFDict> group = new SkPDFDict("Group");
+    group->unref();  // SkRefPtr and new both took a reference.
     group->insertName("S", "Transparency");
     group->insert("I", new SkPDFBool(true))->unref();  // Isolated.
     insert("Group", group.get());
@@ -56,10 +57,6 @@ SkPDFFormXObject::~SkPDFFormXObject() {
     fResources.unrefAll();
 }
 
-void SkPDFFormXObject::getResources(
-        const SkTSet<SkPDFObject*>& knownResourceObjects,
-        SkTSet<SkPDFObject*>* newResourceObjects) {
-    GetResourcesHelper(&fResources.toArray(),
-                       knownResourceObjects,
-                       newResourceObjects);
+void SkPDFFormXObject::getResources(SkTDArray<SkPDFObject*>* resourceList) {
+    GetResourcesHelper(&fResources, resourceList);
 }

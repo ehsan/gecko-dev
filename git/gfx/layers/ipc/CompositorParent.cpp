@@ -563,9 +563,9 @@ CompositorParent::ShadowLayersUpdated(LayerTransactionParent* aLayerTree,
 }
 
 PLayerTransactionParent*
-CompositorParent::AllocPLayerTransactionParent(const LayersBackend& aBackendHint,
-                                               const uint64_t& aId,
-                                               TextureFactoryIdentifier* aTextureFactoryIdentifier)
+CompositorParent::AllocPLayerTransaction(const LayersBackend& aBackendHint,
+                                         const uint64_t& aId,
+                                         TextureFactoryIdentifier* aTextureFactoryIdentifier)
 {
   MOZ_ASSERT(aId == 0);
 
@@ -608,7 +608,7 @@ CompositorParent::AllocPLayerTransactionParent(const LayersBackend& aBackendHint
 }
 
 bool
-CompositorParent::DeallocPLayerTransactionParent(PLayerTransactionParent* actor)
+CompositorParent::DeallocPLayerTransaction(PLayerTransactionParent* actor)
 {
   delete actor;
   return true;
@@ -758,11 +758,11 @@ public:
   virtual bool RecvFlushRendering() MOZ_OVERRIDE { return true; }
 
   virtual PLayerTransactionParent*
-    AllocPLayerTransactionParent(const LayersBackend& aBackendType,
-                                 const uint64_t& aId,
-                                 TextureFactoryIdentifier* aTextureFactoryIdentifier) MOZ_OVERRIDE;
+    AllocPLayerTransaction(const LayersBackend& aBackendType,
+                           const uint64_t& aId,
+                           TextureFactoryIdentifier* aTextureFactoryIdentifier) MOZ_OVERRIDE;
 
-  virtual bool DeallocPLayerTransactionParent(PLayerTransactionParent* aLayers) MOZ_OVERRIDE;
+  virtual bool DeallocPLayerTransaction(PLayerTransactionParent* aLayers) MOZ_OVERRIDE;
 
   virtual void ShadowLayersUpdated(LayerTransactionParent* aLayerTree,
                                    const TargetConfig& aTargetConfig,
@@ -812,10 +812,9 @@ UpdateIndirectTree(uint64_t aId, Layer* aRoot, const TargetConfig& aTargetConfig
 {
   sIndirectLayerTrees[aId].mRoot = aRoot;
   sIndirectLayerTrees[aId].mTargetConfig = aTargetConfig;
-  ContainerLayer* rootContainer = aRoot->AsContainerLayer();
-  if (rootContainer) {
+  if (ContainerLayer* root = aRoot->AsContainerLayer()) {
     if (AsyncPanZoomController* apzc = sIndirectLayerTrees[aId].mController) {
-      apzc->NotifyLayersUpdated(rootContainer->GetFrameMetrics(), isFirstPaint);
+      apzc->NotifyLayersUpdated(root->GetFrameMetrics(), isFirstPaint);
     }
   }
 }
@@ -845,9 +844,9 @@ CrossProcessCompositorParent::ActorDestroy(ActorDestroyReason aWhy)
 }
 
 PLayerTransactionParent*
-CrossProcessCompositorParent::AllocPLayerTransactionParent(const LayersBackend& aBackendType,
-                                                           const uint64_t& aId,
-                                                           TextureFactoryIdentifier* aTextureFactoryIdentifier)
+CrossProcessCompositorParent::AllocPLayerTransaction(const LayersBackend& aBackendType,
+                                                     const uint64_t& aId,
+                                                     TextureFactoryIdentifier* aTextureFactoryIdentifier)
 {
   MOZ_ASSERT(aId != 0);
 
@@ -857,7 +856,7 @@ CrossProcessCompositorParent::AllocPLayerTransactionParent(const LayersBackend& 
 }
 
 bool
-CrossProcessCompositorParent::DeallocPLayerTransactionParent(PLayerTransactionParent* aLayers)
+CrossProcessCompositorParent::DeallocPLayerTransaction(PLayerTransactionParent* aLayers)
 {
   LayerTransactionParent* slp = static_cast<LayerTransactionParent*>(aLayers);
   RemoveIndirectTree(slp->GetId());

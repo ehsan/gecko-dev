@@ -15,6 +15,22 @@
 class SkFlattenableReadBuffer;
 class SkFlattenableWriteBuffer;
 
+#if SK_ALLOW_STATIC_GLOBAL_INITIALIZERS
+
+#define SK_DEFINE_FLATTENABLE_REGISTRAR(flattenable) \
+    static SkFlattenable::Registrar g##flattenable##Reg(#flattenable, \
+                                                       flattenable::CreateProc);
+#define SK_DEFINE_FLATTENABLE_REGISTRAR_ENTRY(flattenable) \
+    static SkFlattenable::Registrar g##flattenable##Reg(#flattenable, \
+                                                       flattenable::CreateProc);
+
+#define SK_DECLARE_FLATTENABLE_REGISTRAR_GROUP()
+#define SK_DEFINE_FLATTENABLE_REGISTRAR_GROUP_START(flattenable)
+#define SK_DEFINE_FLATTENABLE_REGISTRAR_GROUP_END
+
+#else
+
+#define SK_DEFINE_FLATTENABLE_REGISTRAR(flattenable)
 #define SK_DEFINE_FLATTENABLE_REGISTRAR_ENTRY(flattenable) \
         SkFlattenable::Registrar(#flattenable, flattenable::CreateProc);
 
@@ -25,6 +41,8 @@ class SkFlattenableWriteBuffer;
 
 #define SK_DEFINE_FLATTENABLE_REGISTRAR_GROUP_END \
     }
+
+#endif
 
 #define SK_DECLARE_UNFLATTENABLE_OBJECT() \
     virtual Factory getFactory() SK_OVERRIDE { return NULL; }; \
@@ -75,7 +93,9 @@ protected:
     virtual void flatten(SkFlattenableWriteBuffer&) const;
 
 private:
+#if !SK_ALLOW_STATIC_GLOBAL_INITIALIZERS
     static void InitializeFlattenables();
+#endif
 
     friend class SkGraphics;
     friend class SkFlattenableWriteBuffer;

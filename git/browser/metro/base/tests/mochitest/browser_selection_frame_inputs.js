@@ -28,8 +28,6 @@ function setUpAndTearDown() {
   yield waitForCondition(function () {
       return !SelectionHelperUI.isSelectionUIVisible;
     }, kCommonWaitMs, kCommonPollMs);
-  InputSourceHelper.isPrecise = false;
-  InputSourceHelper.fireUpdate();
 }
 
 gTests.push({
@@ -53,6 +51,8 @@ gTests.push({
     ok(gWindow != null, "gWindow");
     ok(gFrame != null, "gFrame");
     ok(gInput != null, "gInput");
+
+    InputSourceHelper.isPrecise = false;
   },
 });
 
@@ -75,7 +75,7 @@ gTests.push({
     ok(menuItem, "menu item exists");
     ok(!menuItem.hidden, "menu item visible");
     let popupPromise = waitForEvent(document, "popuphidden");
-    sendElementTap(gWindow, menuItem);
+    EventUtils.synthesizeMouse(menuItem, 10, 10, {}, gWindow);
     yield popupPromise;
 
     yield waitForCondition(function () {
@@ -109,7 +109,7 @@ gTests.push({
     ok(menuItem, "menu item exists");
     ok(!menuItem.hidden, "menu item visible");
     let popupPromise = waitForEvent(document, "popuphidden");
-    sendElementTap(gWindow, menuItem);
+    EventUtils.synthesizeMouse(menuItem, 10, 10, {}, gWindow);
     yield popupPromise;
 
     yield waitForCondition(function () {

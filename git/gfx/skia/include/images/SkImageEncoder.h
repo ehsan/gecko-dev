@@ -17,8 +17,7 @@ class SkImageEncoder {
 public:
     enum Type {
         kJPEG_Type,
-        kPNG_Type,
-        kWEBP_Type
+        kPNG_Type
     };
     static SkImageEncoder* Create(Type);
 
@@ -29,25 +28,8 @@ public:
         kDefaultQuality = 80
     };
 
-    /**
-     * Encode bitmap 'bm' in the desired format, writing results to
-     * file 'file', at quality level 'quality' (which can be in range
-     * 0-100).
-     *
-     * Calls the particular implementation's onEncode() method to
-     * actually do the encoding.
-     */
-    bool encodeFile(const char file[], const SkBitmap& bm, int quality);
-
-    /**
-     * Encode bitmap 'bm' in the desired format, writing results to
-     * stream 'stream', at quality level 'quality' (which can be in
-     * range 0-100).
-     *
-     * Calls the particular implementation's onEncode() method to
-     * actually do the encoding.
-     */
-    bool encodeStream(SkWStream* stream, const SkBitmap& bm, int quality);
+    bool encodeFile(const char file[], const SkBitmap&, int quality);
+    bool encodeStream(SkWStream*, const SkBitmap&, int quality);
 
     static bool EncodeFile(const char file[], const SkBitmap&, Type,
                            int quality);
@@ -55,14 +37,7 @@ public:
                            int quality);
 
 protected:
-    /**
-     * Encode bitmap 'bm' in the desired format, writing results to
-     * stream 'stream', at quality level 'quality' (which can be in
-     * range 0-100).
-     *
-     * This must be overridden by each SkImageEncoder implementation.
-     */
-    virtual bool onEncode(SkWStream* stream, const SkBitmap& bm, int quality) = 0;
+    virtual bool onEncode(SkWStream*, const SkBitmap&, int quality) = 0;
 };
 
 // This macro declares a global (i.e., non-class owned) creation entry point
@@ -81,6 +56,5 @@ protected:
 // not all of these will be available
 DECLARE_ENCODER_CREATOR(JPEGImageEncoder);
 DECLARE_ENCODER_CREATOR(PNGImageEncoder);
-DECLARE_ENCODER_CREATOR(WEBPImageEncoder);
 
 #endif

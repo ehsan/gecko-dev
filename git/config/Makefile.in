@@ -58,6 +58,7 @@ endif
 
 HEADERS_FILES = \
 	$(DEPTH)/mozilla-config.h \
+	$(srcdir)/nsStaticComponents.h \
 	$(NULL)
 HEADERS_DEST := $(DIST)/include
 HEADERS_TARGET := export

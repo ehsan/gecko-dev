@@ -26,11 +26,11 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "yarr/YarrInterpreter.h"
+#include "YarrInterpreter.h"
 
-#include "yarr/Yarr.h"
-#include "yarr/YarrCanonicalizeUCS2.h"
-#include "yarr/BumpPointerAllocator.h"
+#include "Yarr.h"
+#include "YarrCanonicalizeUCS2.h"
+#include "BumpPointerAllocator.h"
 
 using namespace WTF;
 
@@ -1663,10 +1663,10 @@ public:
 #ifndef NDEBUG
     void dumpDisjunction(ByteDisjunction* disjunction)
     {
-        dataLogF("ByteDisjunction(%p):\n\t", (void *)disjunction);
+        dataLog("ByteDisjunction(%p):\n\t", (void *)disjunction);
         for (unsigned i = 0; i < disjunction->terms.size(); ++i)
-            dataLogF("{ %d } ", disjunction->terms[i].type);
-        dataLogF("\n");
+            dataLog("{ %d } ", disjunction->terms[i].type);
+        dataLog("\n");
     }
 #endif
 

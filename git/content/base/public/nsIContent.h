@@ -611,8 +611,7 @@ public:
 
   /**
    * Returns the content node that is the parent of this node in the flattened
-   * tree. For nodes that are not filtered into an insertion point, this
-   * simply returns their DOM parent in the original DOM tree.
+   * tree.
    *
    * @return the flattened tree parent
    */

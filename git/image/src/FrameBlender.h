@@ -7,13 +7,12 @@
 #ifndef mozilla_imagelib_FrameBlender_h_
 #define mozilla_imagelib_FrameBlender_h_
 
+#include "nsTArray.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/TimeStamp.h"
 #include "gfxASurface.h"
-#include "imgFrame.h"
-#include "FrameSequence.h"
-#include "nsCOMPtr.h"
-#include "nsISupportsImpl.h"
+
+class imgFrame;
 
 namespace mozilla {
 namespace image {
@@ -24,22 +23,16 @@ namespace image {
  *
  * All logic about when and whether to blend are external to FrameBlender.
  */
+
 class FrameBlender
 {
 public:
 
-  /**
-   * Create a new FrameBlender with a given frame sequence.
-   *
-   * If aSequenceToUse is not specified, it will be allocated automatically.
-   */
-  FrameBlender(FrameSequence* aSequenceToUse = nullptr);
+  FrameBlender();
   ~FrameBlender();
 
   bool DoBlend(nsIntRect* aDirtyRect, uint32_t aPrevFrameIndex,
                uint32_t aNextFrameIndex);
-
-  already_AddRefed<FrameSequence> GetFrameSequence();
 
   /**
    * Get the @aIndex-th frame, including (if applicable) any results of
@@ -102,7 +95,7 @@ private:
   struct Anim
   {
     //! Track the last composited frame for Optimizations (See DoComposite code)
-    int32_t lastCompositedFrameIndex;
+    int32_t                    lastCompositedFrameIndex;
 
     /** For managing blending of frames
      *
@@ -112,7 +105,7 @@ private:
      *       lastCompositedFrameIndex to -1.  Code assume that if
      *       lastCompositedFrameIndex >= 0 then compositingFrame exists.
      */
-    FrameDataPair compositingFrame;
+    nsAutoPtr<imgFrame>        compositingFrame;
 
     /** the previous composited frame, for DISPOSE_RESTORE_PREVIOUS
      *
@@ -120,14 +113,20 @@ private:
      * stored in cases where the image specifies it wants the last frame back
      * when it's done with the current frame.
      */
-    FrameDataPair compositingPrevFrame;
+    nsAutoPtr<imgFrame>        compositingPrevFrame;
 
     Anim() :
       lastCompositedFrameIndex(-1)
     {}
   };
 
-  void EnsureAnimExists();
+  inline void EnsureAnimExists()
+  {
+    if (!mAnim) {
+      // Create the animation context
+      mAnim = new Anim();
+    }
+  }
 
   /** Clears an area of <aFrame> with transparent black.
    *
@@ -137,13 +136,16 @@ private:
    * @note Does also clears the transparancy mask
    */
   static void ClearFrame(uint8_t* aFrameData, const nsIntRect& aFrameRect);
+  static void ClearFrame(imgFrame* aFrame);
 
   //! @overload
   static void ClearFrame(uint8_t* aFrameData, const nsIntRect& aFrameRect, const nsIntRect &aRectToClear);
+  static void ClearFrame(imgFrame* aFrame, const nsIntRect& aRectToClear);
 
   //! Copy one frames's image and mask into another
-  static bool CopyFrameImage(const uint8_t *aDataSrc, const nsIntRect& aRectSrc,
+  static bool CopyFrameImage(uint8_t *aDataSrc, const nsIntRect& aRectSrc,
                              uint8_t *aDataDest, const nsIntRect& aRectDest);
+  static bool CopyFrameImage(imgFrame* aSrc, imgFrame* aDst);
 
   /**
    * Draws one frames's image to into another, at the position specified by
@@ -160,15 +162,24 @@ private:
    * @aDstRect the size of the composition frame
    * @aBlendMethod the blend method for how to blend src on the composition frame.
    */
-  static nsresult DrawFrameTo(const uint8_t *aSrcData, const nsIntRect& aSrcRect,
+  static nsresult DrawFrameTo(uint8_t *aSrcData, const nsIntRect& aSrcRect,
                               uint32_t aSrcPaletteLength, bool aSrcHasAlpha,
                               uint8_t *aDstPixels, const nsIntRect& aDstRect,
                               FrameBlendMethod aBlendMethod);
+  static nsresult DrawFrameTo(imgFrame* aSrc, imgFrame* aDst, const nsIntRect& aSrcRect);
 
 private: // data
   //! All the frames of the image
-  nsRefPtr<FrameSequence> mFrames;
+  // IMPORTANT: if you use mFrames in a method, call EnsureImageIsDecoded() first
+  // to ensure that the frames actually exist (they may have been discarded to save
+  // memory, or we may be decoding on draw).
+  nsTArray<imgFrame*> mFrames;
+
   nsIntSize mSize;
+
+  // IMPORTANT: if you use mAnim in a method, call EnsureImageIsDecoded() first to ensure
+  // that the frames actually exist (they may have been discarded to save memory, or
+  // we maybe decoding on draw).
   Anim* mAnim;
 };
 

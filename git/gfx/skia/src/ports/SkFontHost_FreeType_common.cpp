@@ -119,7 +119,60 @@ static void copyFT2LCD16(const SkGlyph& glyph, const FT_Bitmap& bitmap,
     }
 }
 
-void SkScalerContext_FreeType_Base::generateGlyphImage(FT_Face face, const SkGlyph& glyph) {
+///////////////////////////////////////////////////////////////////////////////
+
+#define ft2sk(x)    SkFixedToScalar(SkFDot6ToFixed(x))
+
+#if FREETYPE_MAJOR >= 2 && FREETYPE_MINOR >= 2
+    #define CONST_PARAM const
+#else   // older freetype doesn't use const here
+    #define CONST_PARAM
+#endif
+
+static int move_proc(CONST_PARAM FT_Vector* pt, void* ctx) {
+    SkPath* path = (SkPath*)ctx;
+    path->close();  // to close the previous contour (if any)
+    path->moveTo(ft2sk(pt->x), -ft2sk(pt->y));
+    return 0;
+}
+
+static int line_proc(CONST_PARAM FT_Vector* pt, void* ctx) {
+    SkPath* path = (SkPath*)ctx;
+    path->lineTo(ft2sk(pt->x), -ft2sk(pt->y));
+    return 0;
+}
+
+static int quad_proc(CONST_PARAM FT_Vector* pt0, CONST_PARAM FT_Vector* pt1,
+                     void* ctx) {
+    SkPath* path = (SkPath*)ctx;
+    path->quadTo(ft2sk(pt0->x), -ft2sk(pt0->y), ft2sk(pt1->x), -ft2sk(pt1->y));
+    return 0;
+}
+
+static int cubic_proc(CONST_PARAM FT_Vector* pt0, CONST_PARAM FT_Vector* pt1,
+                      CONST_PARAM FT_Vector* pt2, void* ctx) {
+    SkPath* path = (SkPath*)ctx;
+    path->cubicTo(ft2sk(pt0->x), -ft2sk(pt0->y), ft2sk(pt1->x),
+                  -ft2sk(pt1->y), ft2sk(pt2->x), -ft2sk(pt2->y));
+    return 0;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+void SkScalerContext_FreeType_Base::generateGlyphImage(FT_Face face,
+                                                       const SkGlyph& glyph,
+                                                       SkMaskGamma::PreBlend* maskPreBlend)
+{
+    //Must be careful not to use these if maskPreBlend == NULL
+    const uint8_t* tableR = NULL;
+    const uint8_t* tableG = NULL;
+    const uint8_t* tableB = NULL;
+    if (maskPreBlend) {
+        tableR = maskPreBlend->fR;
+        tableG = maskPreBlend->fG;
+        tableB = maskPreBlend->fB;
+    }
+
     const bool doBGR = SkToBool(fRec.fFlags & SkScalerContext::kLCD_BGROrder_Flag);
     const bool doVert = SkToBool(fRec.fFlags & SkScalerContext::kLCD_Vertical_Flag);
 
@@ -154,12 +207,12 @@ void SkScalerContext_FreeType_Base::generateGlyphImage(FT_Face face, const SkGly
 
             if (SkMask::kLCD16_Format == glyph.fMaskFormat) {
                 FT_Render_Glyph(face->glyph, doVert ? FT_RENDER_MODE_LCD_V : FT_RENDER_MODE_LCD);
-                if (fPreBlend.isApplicable()) {
+                if (maskPreBlend) {
                     copyFT2LCD16<true>(glyph, face->glyph->bitmap, doBGR, doVert,
-                                       fPreBlend.fR, fPreBlend.fG, fPreBlend.fB);
+                                       tableR, tableG, tableB);
                 } else {
                     copyFT2LCD16<false>(glyph, face->glyph->bitmap, doBGR, doVert,
-                                        fPreBlend.fR, fPreBlend.fG, fPreBlend.fB);
+                                        tableR, tableG, tableB);
                 }
             } else {
                 target.width = glyph.fWidth;
@@ -225,12 +278,12 @@ void SkScalerContext_FreeType_Base::generateGlyphImage(FT_Face face, const SkGly
                     dst += glyph.rowBytes();
                 }
             } else if (SkMask::kLCD16_Format == glyph.fMaskFormat) {
-                if (fPreBlend.isApplicable()) {
+                if (maskPreBlend) {
                     copyFT2LCD16<true>(glyph, face->glyph->bitmap, doBGR, doVert,
-                                       fPreBlend.fR, fPreBlend.fG, fPreBlend.fB);
+                                       tableR, tableG, tableB);
                 } else {
                     copyFT2LCD16<false>(glyph, face->glyph->bitmap, doBGR, doVert,
-                                        fPreBlend.fR, fPreBlend.fG, fPreBlend.fB);
+                                        tableR, tableG, tableB);
                 }
             } else {
                 SkDEBUGFAIL("unknown glyph bitmap transform needed");
@@ -246,13 +299,13 @@ void SkScalerContext_FreeType_Base::generateGlyphImage(FT_Face face, const SkGly
 // We used to always do this pre-USE_COLOR_LUMINANCE, but with colorlum,
 // it is optional
 #if defined(SK_GAMMA_APPLY_TO_A8)
-    if (SkMask::kA8_Format == glyph.fMaskFormat && fPreBlend.isApplicable()) {
+    if (SkMask::kA8_Format == glyph.fMaskFormat && maskPreBlend) {
         uint8_t* SK_RESTRICT dst = (uint8_t*)glyph.fImage;
         unsigned rowBytes = glyph.rowBytes();
 
         for (int y = glyph.fHeight - 1; y >= 0; --y) {
             for (int x = glyph.fWidth - 1; x >= 0; --x) {
-                dst[x] = fPreBlend.fG[dst[x]];
+                dst[x] = tableG[dst[x]];
             }
             dst += rowBytes;
         }
@@ -260,39 +313,8 @@ void SkScalerContext_FreeType_Base::generateGlyphImage(FT_Face face, const SkGly
 #endif
 }
 
-///////////////////////////////////////////////////////////////////////////////
-
-static int move_proc(const FT_Vector* pt, void* ctx) {
-    SkPath* path = (SkPath*)ctx;
-    path->close();  // to close the previous contour (if any)
-    path->moveTo(SkFDot6ToScalar(pt->x), -SkFDot6ToScalar(pt->y));
-    return 0;
-}
-
-static int line_proc(const FT_Vector* pt, void* ctx) {
-    SkPath* path = (SkPath*)ctx;
-    path->lineTo(SkFDot6ToScalar(pt->x), -SkFDot6ToScalar(pt->y));
-    return 0;
-}
-
-static int quad_proc(const FT_Vector* pt0, const FT_Vector* pt1,
-                     void* ctx) {
-    SkPath* path = (SkPath*)ctx;
-    path->quadTo(SkFDot6ToScalar(pt0->x), -SkFDot6ToScalar(pt0->y),
-                 SkFDot6ToScalar(pt1->x), -SkFDot6ToScalar(pt1->y));
-    return 0;
-}
-
-static int cubic_proc(const FT_Vector* pt0, const FT_Vector* pt1,
-                      const FT_Vector* pt2, void* ctx) {
-    SkPath* path = (SkPath*)ctx;
-    path->cubicTo(SkFDot6ToScalar(pt0->x), -SkFDot6ToScalar(pt0->y),
-                  SkFDot6ToScalar(pt1->x), -SkFDot6ToScalar(pt1->y),
-                  SkFDot6ToScalar(pt2->x), -SkFDot6ToScalar(pt2->y));
-    return 0;
-}
-
 void SkScalerContext_FreeType_Base::generateGlyphPath(FT_Face face,
+                                                      const SkGlyph& glyph,
                                                       SkPath* path)
 {
     if (fRec.fFlags & SkScalerContext::kEmbolden_Flag) {

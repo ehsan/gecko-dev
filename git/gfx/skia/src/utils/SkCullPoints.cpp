@@ -217,3 +217,4 @@ bool SkHitTestPath(const SkPath& path, SkScalar x, SkScalar y, bool hires) {
     SkRect r = SkRect::MakeXYWH(x - half, y - half, one, one);
     return SkHitTestPath(path, r, hires);
 }
+

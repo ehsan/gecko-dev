@@ -14,7 +14,6 @@ SK_DEFINE_INST_COUNT(SkPictureStateTree)
 SkPictureStateTree::SkPictureStateTree()
     : fAlloc(2048)
     , fRoot(NULL)
-    , fLastRestoredNode(NULL)
     , fStateStack(sizeof(Draw), 16) {
     SkMatrix* identity = static_cast<SkMatrix*>(fAlloc.allocThrow(sizeof(SkMatrix)));
     identity->reset();
@@ -50,20 +49,7 @@ void SkPictureStateTree::appendSaveLayer(uint32_t offset) {
     fCurrentState.fNode->fFlags |= Node::kSaveLayer_Flag;
 }
 
-void SkPictureStateTree::saveCollapsed() {
-    SkASSERT(NULL != fLastRestoredNode);
-    SkASSERT(SkToBool(fLastRestoredNode->fFlags & \
-        (Node::kSaveLayer_Flag | Node::kSave_Flag)));
-    SkASSERT(fLastRestoredNode->fParent == fCurrentState.fNode);
-    // The structure of the tree is not modified here. We just turn off
-    // the save or saveLayer flag to prevent the iterator from making state
-    // changing calls on the playback canvas when traversing a save or
-    // saveLayerNode node.
-    fLastRestoredNode->fFlags = 0;
-}
-
 void SkPictureStateTree::appendRestore() {
-    fLastRestoredNode = fCurrentState.fNode;
     fCurrentState = *static_cast<Draw*>(fStateStack.back());
     fStateStack.pop_back();
 }
@@ -189,3 +175,4 @@ uint32_t SkPictureStateTree::Iterator::draw() {
     ++fPlaybackIndex;
     return draw->fOffset;
 }
+

@@ -350,7 +350,8 @@ TabChild::Observe(nsISupports *aSubject,
         mLastMetrics.mZoom = ScreenToScreenScale(1.0);
         mLastMetrics.mViewport = CSSRect(CSSPoint(), kDefaultViewportSize);
         mLastMetrics.mCompositionBounds = ScreenIntRect(ScreenIntPoint(), mInnerSize);
-        CSSToScreenScale resolution = mLastMetrics.CalculateResolution();
+        CSSToScreenScale resolution =
+          AsyncPanZoomController::CalculateResolution(mLastMetrics);
         // We use ScreenToLayerScale(1) below in order to ask gecko to render
         // what's currently visible on the screen. This is effectively turning
         // the async zoom amount into the gecko zoom amount.
@@ -601,7 +602,8 @@ TabChild::HandlePossibleViewportChange()
   nsresult rv = utils->GetIsFirstPaint(&isFirstPaint);
   MOZ_ASSERT(NS_SUCCEEDED(rv));
   if (NS_FAILED(rv) || isFirstPaint) {
-    CSSToScreenScale intrinsicScale = metrics.CalculateIntrinsicScale();
+    CSSToScreenScale intrinsicScale =
+        AsyncPanZoomController::CalculateIntrinsicScale(metrics);
     // FIXME/bug 799585(?): GetViewportInfo() returns a defaultZoom of
     // 0.0 to mean "did not calculate a zoom".  In that case, we default
     // it to the intrinsic scale.
@@ -622,7 +624,7 @@ TabChild::HandlePossibleViewportChange()
     // new CSS viewport, so we know that there's no velocity, acceleration, and
     // we have no idea how long painting will take.
     metrics, gfx::Point(0.0f, 0.0f), gfx::Point(0.0f, 0.0f), 0.0);
-  CSSToScreenScale resolution = metrics.CalculateResolution();
+  CSSToScreenScale resolution = AsyncPanZoomController::CalculateResolution(metrics);
   metrics.mResolution = resolution / metrics.mDevPixelsPerCSSPixel * ScreenToLayerScale(1);
   utils->SetResolution(metrics.mResolution.scale, metrics.mResolution.scale);
 
@@ -1145,8 +1147,10 @@ TabChild::~TabChild()
     if (webBrowser) {
       webBrowser->SetContainerWindow(nullptr);
     }
-    mGlobal = nullptr;
-
+    if (mCx) {
+      DestroyCx();
+    }
+    
     if (mTabChildGlobal) {
       nsEventListenerManager* elm = mTabChildGlobal->GetListenerManager(false);
       if (elm) {
@@ -1443,7 +1447,7 @@ TabChild::DispatchMessageManagerMessage(const nsAString& aMessageName,
         cloneData.mDataLength = buffer.nbytes();
     }
 
-    nsCOMPtr<nsIXPConnectJSObjectHolder> kungFuDeathGrip(GetGlobal());
+    nsFrameScriptCx frameScriptCx(static_cast<nsIWebBrowserChrome*>(this), this);
     // Let the BrowserElementScrolling helper (if it exists) for this
     // content manipulate the frame state.
     nsRefPtr<nsFrameMessageManager> mm =
@@ -1483,11 +1487,12 @@ TabChild::RecvUpdateFrame(const FrameMetrics& aFrameMetrics)
 bool
 TabChild::ProcessUpdateFrame(const FrameMetrics& aFrameMetrics)
   {
-    if (!mGlobal || !mTabChildGlobal) {
+    if (!mCx || !mTabChildGlobal) {
         return true;
     }
 
-    CSSRect cssCompositedRect = aFrameMetrics.CalculateCompositedRectInCssPixels();
+    CSSRect cssCompositedRect =
+      AsyncPanZoomController::CalculateCompositedRectInCssPixels(aFrameMetrics);
     // The BrowserElementScrolling helper must know about these updated metrics
     // for other functions it performs, such as double tap handling.
     nsCString data;
@@ -1529,10 +1534,8 @@ TabChild::ProcessUpdateFrame(const FrameMetrics& aFrameMetrics)
     utils->SetScrollPositionClampingScrollPortSize(
       cssCompositedRect.width, cssCompositedRect.height);
     ScrollWindowTo(window, aFrameMetrics.mScrollOffset);
-    LayoutDeviceToLayerScale resolution =
-      aFrameMetrics.CalculateResolution()
-      / aFrameMetrics.mDevPixelsPerCSSPixel
-      * ScreenToLayerScale(1);
+    CSSToScreenScale resolution = AsyncPanZoomController::CalculateResolution(
+      aFrameMetrics);
     utils->SetResolution(resolution.scale, resolution.scale);
 
     nsCOMPtr<nsIDOMDocument> domDoc;
@@ -1556,7 +1559,7 @@ TabChild::ProcessUpdateFrame(const FrameMetrics& aFrameMetrics)
 bool
 TabChild::RecvHandleDoubleTap(const CSSIntPoint& aPoint)
 {
-    if (!mGlobal || !mTabChildGlobal) {
+    if (!mCx || !mTabChildGlobal) {
         return true;
     }
 
@@ -1573,7 +1576,7 @@ TabChild::RecvHandleDoubleTap(const CSSIntPoint& aPoint)
 bool
 TabChild::RecvHandleSingleTap(const CSSIntPoint& aPoint)
 {
-  if (!mGlobal || !mTabChildGlobal) {
+  if (!mCx || !mTabChildGlobal) {
     return true;
   }
 
@@ -1587,7 +1590,7 @@ TabChild::RecvHandleSingleTap(const CSSIntPoint& aPoint)
 bool
 TabChild::RecvHandleLongTap(const CSSIntPoint& aPoint)
 {
-  if (!mGlobal || !mTabChildGlobal) {
+  if (!mCx || !mTabChildGlobal) {
     return true;
   }
 
@@ -1877,18 +1880,18 @@ TabChild::DispatchWidgetEvent(nsGUIEvent& event)
 }
 
 PDocumentRendererChild*
-TabChild::AllocPDocumentRendererChild(const nsRect& documentRect,
-                                      const gfxMatrix& transform,
-                                      const nsString& bgcolor,
-                                      const uint32_t& renderFlags,
-                                      const bool& flushLayout,
-                                      const nsIntSize& renderSize)
+TabChild::AllocPDocumentRenderer(const nsRect& documentRect,
+                                 const gfxMatrix& transform,
+                                 const nsString& bgcolor,
+                                 const uint32_t& renderFlags,
+                                 const bool& flushLayout,
+                                 const nsIntSize& renderSize)
 {
     return new DocumentRendererChild();
 }
 
 bool
-TabChild::DeallocPDocumentRendererChild(PDocumentRendererChild* actor)
+TabChild::DeallocPDocumentRenderer(PDocumentRendererChild* actor)
 {
     delete actor;
     return true;
@@ -1928,31 +1931,31 @@ TabChild::RecvPDocumentRendererConstructor(PDocumentRendererChild* actor,
 }
 
 PContentDialogChild*
-TabChild::AllocPContentDialogChild(const uint32_t&,
-                                   const nsCString&,
-                                   const nsCString&,
-                                   const InfallibleTArray<int>&,
-                                   const InfallibleTArray<nsString>&)
+TabChild::AllocPContentDialog(const uint32_t&,
+                              const nsCString&,
+                              const nsCString&,
+                              const InfallibleTArray<int>&,
+                              const InfallibleTArray<nsString>&)
 {
   return new ContentDialogChild();
 }
 
 bool
-TabChild::DeallocPContentDialogChild(PContentDialogChild* aDialog)
+TabChild::DeallocPContentDialog(PContentDialogChild* aDialog)
 {
   delete aDialog;
   return true;
 }
 
 PContentPermissionRequestChild*
-TabChild::AllocPContentPermissionRequestChild(const nsCString& aType, const nsCString& aAccess, const IPC::Principal&)
+TabChild::AllocPContentPermissionRequest(const nsCString& aType, const nsCString& aAccess, const IPC::Principal&)
 {
   NS_RUNTIMEABORT("unused");
   return nullptr;
 }
 
 bool
-TabChild::DeallocPContentPermissionRequestChild(PContentPermissionRequestChild* actor)
+TabChild::DeallocPContentPermissionRequest(PContentPermissionRequestChild* actor)
 {
     PCOMContentPermissionRequestChild* child =
         static_cast<PCOMContentPermissionRequestChild*>(actor);
@@ -1977,16 +1980,16 @@ TabChild::RecvActivateFrameEvent(const nsString& aType, const bool& capture)
 }
 
 POfflineCacheUpdateChild*
-TabChild::AllocPOfflineCacheUpdateChild(const URIParams& manifestURI,
-                                        const URIParams& documentURI,
-                                        const bool& stickDocument)
+TabChild::AllocPOfflineCacheUpdate(const URIParams& manifestURI,
+                                   const URIParams& documentURI,
+                                   const bool& stickDocument)
 {
   NS_RUNTIMEABORT("unused");
   return nullptr;
 }
 
 bool
-TabChild::DeallocPOfflineCacheUpdateChild(POfflineCacheUpdateChild* actor)
+TabChild::DeallocPOfflineCacheUpdate(POfflineCacheUpdateChild* actor)
 {
   OfflineCacheUpdateChild* offlineCacheUpdate = static_cast<OfflineCacheUpdateChild*>(actor);
   delete offlineCacheUpdate;
@@ -1996,7 +1999,7 @@ TabChild::DeallocPOfflineCacheUpdateChild(POfflineCacheUpdateChild* actor)
 bool
 TabChild::RecvLoadRemoteScript(const nsString& aURL)
 {
-  if (!mGlobal && !InitTabChildGlobal())
+  if (!mCx && !InitTabChildGlobal())
     // This can happen if we're half-destroyed.  It's not a fatal
     // error.
     return true;
@@ -2010,7 +2013,7 @@ TabChild::RecvAsyncMessage(const nsString& aMessage,
                            const ClonedMessageData& aData)
 {
   if (mTabChildGlobal) {
-    nsCOMPtr<nsIXPConnectJSObjectHolder> kungFuDeathGrip(GetGlobal());
+    nsFrameScriptCx cx(static_cast<nsIWebBrowserChrome*>(this), this);
     StructuredCloneData cloneData = UnpackClonedMessageDataForChild(aData);
     nsRefPtr<nsFrameMessageManager> mm =
       static_cast<nsFrameMessageManager*>(mTabChildGlobal->mMessageManager.get());
@@ -2077,7 +2080,7 @@ TabChild::RecvDestroy()
 }
 
 PRenderFrameChild*
-TabChild::AllocPRenderFrameChild(ScrollingBehavior* aScrolling,
+TabChild::AllocPRenderFrame(ScrollingBehavior* aScrolling,
                             TextureFactoryIdentifier* aTextureFactoryIdentifier,
                             uint64_t* aLayersId)
 {
@@ -2085,7 +2088,7 @@ TabChild::AllocPRenderFrameChild(ScrollingBehavior* aScrolling,
 }
 
 bool
-TabChild::DeallocPRenderFrameChild(PRenderFrameChild* aFrame)
+TabChild::DeallocPRenderFrame(PRenderFrameChild* aFrame)
 {
     delete aFrame;
     return true;
@@ -2094,7 +2097,7 @@ TabChild::DeallocPRenderFrameChild(PRenderFrameChild* aFrame)
 bool
 TabChild::InitTabChildGlobal(FrameScriptLoading aScriptLoading)
 {
-  if (!mGlobal && !mTabChildGlobal) {
+  if (!mCx && !mTabChildGlobal) {
     nsCOMPtr<nsPIDOMWindow> window = do_GetInterface(mWebNav);
     NS_ENSURE_TRUE(window, false);
     nsCOMPtr<EventTarget> chromeHandler =
@@ -2295,14 +2298,14 @@ TabChild::GetMessageManager(nsIContentFrameMessageManager** aResult)
 }
 
 PIndexedDBChild*
-TabChild::AllocPIndexedDBChild(const nsCString& aASCIIOrigin, bool* /* aAllowed */)
+TabChild::AllocPIndexedDB(const nsCString& aASCIIOrigin, bool* /* aAllowed */)
 {
   NS_NOTREACHED("Should never get here!");
   return NULL;
 }
 
 bool
-TabChild::DeallocPIndexedDBChild(PIndexedDBChild* aActor)
+TabChild::DeallocPIndexedDB(PIndexedDBChild* aActor)
 {
   delete aActor;
   return true;
@@ -2345,6 +2348,7 @@ TabChildGlobal::Init()
   NS_ASSERTION(!mMessageManager, "Re-initializing?!?");
   mMessageManager = new nsFrameMessageManager(mTabChild,
                                               nullptr,
+                                              mTabChild->GetJSContext(),
                                               MM_CHILD);
 }
 
@@ -2418,7 +2422,9 @@ TabChildGlobal::Atob(const nsAString& aAsciiString,
 JSContext*
 TabChildGlobal::GetJSContextForEventHandlers()
 {
-  return nsContentUtils::GetSafeJSContext();
+  if (!mTabChild)
+    return nullptr;
+  return mTabChild->GetJSContext();
 }
 
 nsIPrincipal* 

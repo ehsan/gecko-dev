@@ -810,9 +810,9 @@ BluetoothHfpManager::ReceiveSocketData(BluetoothSocket* aSocket,
       // See bug 884190 for more information.
       NotifyDialer(NS_LITERAL_STRING("CHLD=0"));
     } else if (chld == '1') {
-      NotifyDialer(NS_LITERAL_STRING("CHLD=1"));
+      NotifyDialer(NS_LITERAL_STRING("CHUP+ATA"));
     } else if (chld == '2') {
-      NotifyDialer(NS_LITERAL_STRING("CHLD=2"));
+      NotifyDialer(NS_LITERAL_STRING("CHLD+ATA"));
     } else {
       NS_WARNING("Wrong value of command [AT+CHLD]");
       valid = false;
@@ -1005,14 +1005,8 @@ BluetoothHfpManager::Connect(const nsAString& aDeviceAddress,
   }
 
   if (mSocket) {
-    if (mDeviceAddress == aDeviceAddress) {
-      DispatchBluetoothReply(aRunnable, BluetoothValue(),
-                             NS_LITERAL_STRING(ERR_ALREADY_CONNECTED));
-    } else {
-      DispatchBluetoothReply(aRunnable, BluetoothValue(),
-                             NS_LITERAL_STRING(ERR_REACHED_CONNECTION_LIMIT));
-    }
-
+    DispatchBluetoothReply(aRunnable, BluetoothValue(),
+                           NS_LITERAL_STRING(ERR_REACHED_CONNECTION_LIMIT));
     return;
   }
 

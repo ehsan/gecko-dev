@@ -473,7 +473,6 @@ int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
   int result = RUN_ALL_TESTS();
 
-  sipcc::PeerConnectionCtx::Destroy();
   delete test_utils;
 
   return result;

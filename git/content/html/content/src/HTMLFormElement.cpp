@@ -59,6 +59,8 @@
 // images
 #include "mozilla/dom/HTMLImageElement.h"
 
+DOMCI_NODE_DATA(HTMLFormElement, mozilla::dom::HTMLFormElement)
+
 // construction, destruction
 nsGenericHTMLElement*
 NS_NewHTMLFormElement(already_AddRefed<nsINodeInfo> aNodeInfo,
@@ -335,6 +337,7 @@ NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(HTMLFormElement)
                                 nsIWebProgressListener,
                                 nsIRadioGroupContainer)
   NS_INTERFACE_TABLE_TO_MAP_SEGUE
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(HTMLFormElement)
 NS_ELEMENT_INTERFACE_MAP_END
 
 

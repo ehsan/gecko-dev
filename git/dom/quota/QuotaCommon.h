@@ -20,8 +20,6 @@
 #define USING_QUOTA_NAMESPACE \
   using namespace mozilla::dom::quota;
 
-#define DSSTORE_FILE_NAME ".DS_Store"
-
 BEGIN_QUOTA_NAMESPACE
 
 #ifdef DEBUG

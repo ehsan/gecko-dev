@@ -10,13 +10,11 @@
 #define SkOrderedReadBuffer_DEFINED
 
 #include "SkRefCnt.h"
+#include "SkBitmap.h"
 #include "SkBitmapHeap.h"
 #include "SkFlattenableBuffers.h"
-#include "SkPath.h"
-#include "SkPicture.h"
 #include "SkReader32.h"
-
-class SkBitmap;
+#include "SkPath.h"
 
 class SkOrderedReadBuffer : public SkFlattenableReadBuffer {
 public:
@@ -99,15 +97,6 @@ public:
         fFactoryCount = 0;
     }
 
-    /**
-     *  Provide a function to decode an SkBitmap from encoded data. Only used if the writer
-     *  encoded the SkBitmap. If the proper decoder cannot be used, a red bitmap with the
-     *  appropriate size will be used.
-     */
-    void setBitmapDecoder(SkPicture::InstallPixelRefProc bitmapDecoder) {
-        fBitmapDecoder = bitmapDecoder;
-    }
-
 private:
     SkReader32 fReader;
     void* fMemoryPtr;
@@ -119,8 +108,6 @@ private:
     SkTDArray<SkFlattenable::Factory>* fFactoryTDArray;
     SkFlattenable::Factory* fFactoryArray;
     int                     fFactoryCount;
-
-    SkPicture::InstallPixelRefProc fBitmapDecoder;
 
     typedef SkFlattenableReadBuffer INHERITED;
 };

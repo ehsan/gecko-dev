@@ -5,9 +5,6 @@
 let Ci = Components.interfaces;
 let Cu = Components.utils;
 
-const ROLE_ENTRY = Ci.nsIAccessibleRole.ROLE_ENTRY;
-const ROLE_INTERNAL_FRAME = Ci.nsIAccessibleRole.ROLE_INTERNAL_FRAME;
-
 Cu.import('resource://gre/modules/XPCOMUtils.jsm');
 XPCOMUtils.defineLazyModuleGetter(this, 'Logger',
   'resource://gre/modules/accessibility/Utils.jsm');
@@ -96,14 +93,14 @@ function virtualCursorControl(aMessage) {
       sendAsyncMessage('AccessFu:VirtualCursor', aMessage.json);
     }
   } catch (x) {
-    Logger.logException(x, 'Failed to move virtual cursor');
+    Logger.error(x);
   }
 }
 
 function forwardMessage(aVirtualCursor, aMessage) {
   try {
     let acc = aVirtualCursor.position;
-    if (acc && acc.role == ROLE_INTERNAL_FRAME) {
+    if (acc && acc.role == Ci.nsIAccessibleRole.ROLE_INTERNAL_FRAME) {
       let mm = Utils.getMessageManager(acc.DOMNode);
       mm.addMessageListener(aMessage.name, virtualCursorControl);
       aMessage.json.origin = 'parent';
@@ -154,24 +151,6 @@ function activateCurrent(aMessage) {
       dispatchMouseEvent('mousedown');
       dispatchMouseEvent('mouseup');
     }
-  }
-
-  function moveCaretTo(aAccessible, aOffset) {
-    let accText = aAccessible.QueryInterface(Ci.nsIAccessibleText);
-    let oldOffset = accText.caretOffset;
-    let text = accText.getText(0, accText.characterCount);
-
-    if (aOffset >= 0 && aOffset <= accText.characterCount) {
-      accText.caretOffset = aOffset;
-    }
-
-    presentCaretChange(text, oldOffset, accText.caretOffset);
-  }
-
-  let focusedAcc = Utils.AccRetrieval.getAccessibleFor(content.document.activeElement);
-  if (focusedAcc && focusedAcc.role === ROLE_ENTRY) {
-    moveCaretTo(focusedAcc, aMessage.json.offset);
-    return;
   }
 
   let vc = Utils.getVirtualCursor(content.document);
@@ -237,13 +216,10 @@ function moveCaret(aMessage) {
     }
   }
 
-  presentCaretChange(text, oldOffset, accText.caretOffset);
-}
-
-function presentCaretChange(aText, aOldOffset, aNewOffset) {
-  if (aOldOffset !== aNewOffset) {
-    let msg = Presentation.textSelectionChanged(aText, aNewOffset, aNewOffset,
-                                                aOldOffset, aOldOffset);
+  let newOffset = accText.caretOffset;
+  if (oldOffset !== newOffset) {
+    let msg = Presentation.textSelectionChanged(text, newOffset, newOffset,
+                                                oldOffset, oldOffset);
     sendAsyncMessage('AccessFu:Present', msg);
   }
 }

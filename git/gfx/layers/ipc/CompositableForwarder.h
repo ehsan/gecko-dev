@@ -19,7 +19,7 @@ class CompositableClient;
 class TextureFactoryIdentifier;
 class SurfaceDescriptor;
 class ThebesBufferData;
-class DeprecatedTextureClient;
+class TextureClient;
 class BasicTiledLayerBuffer;
 
 /**
@@ -35,7 +35,7 @@ class BasicTiledLayerBuffer;
 class CompositableForwarder : public ISurfaceAllocator
 {
   friend class AutoOpenSurface;
-  friend class DeprecatedTextureClientShmem;
+  friend class TextureClientShmem;
 public:
   typedef gfxASurface::gfxContentType gfxContentType;
 

@@ -134,7 +134,6 @@ public:
     if (mVertical == aVertical)
       return;
 
-    mReset = true;
     mVertical = aVertical;
     CueChanged();
   }
@@ -149,7 +148,6 @@ public:
     if (mSnapToLines == aSnapToLines)
       return;
 
-    mReset = true;
     mSnapToLines = aSnapToLines;
     CueChanged();
   }
@@ -162,7 +160,6 @@ public:
   void SetLine(double aLine)
   {
     //XXX: validate? bug 868519.
-    mReset = true;
     mLine = aLine;
   }
 
@@ -177,7 +174,6 @@ public:
     if (mPosition == aPosition)
       return;
 
-    mReset = true;
     mPosition = aPosition;
     CueChanged();
   }
@@ -197,7 +193,6 @@ public:
       //XXX:throw IndexSizeError; bug 868519.
     }
 
-    mReset = true;
     mSize = aSize;
     CueChanged();
   }
@@ -212,7 +207,6 @@ public:
     if (mAlign == aAlign)
       return;
 
-    mReset = true;
     mAlign = aAlign;
     CueChanged();
   }
@@ -228,7 +222,6 @@ public:
     if (mText == aText)
       return;
 
-    mReset = true;
     mText = aText;
     CueChanged();
   }
@@ -341,13 +334,8 @@ private:
   int mLine;
   TextTrackCueAlign mAlign;
 
-  // Holds the computed DOM elements that represent the parsed cue text.
-  // http://www.whatwg.org/specs/web-apps/current-work/#text-track-cue-display-state
-  nsCOMPtr<nsIContent> mDisplayState;
-  // Tells whether or not we need to recompute mDisplayState. This is set
-  // anytime a property that relates to the display of the TextTrackCue is
-  // changed.
-  bool mReset;
+  // Anonymous child which is appended to VideoFrame's caption display div.
+  nsCOMPtr<nsIContent> mCueDiv;
 };
 
 } // namespace dom

@@ -81,14 +81,12 @@ SkPixelRef::SkPixelRef(SkFlattenableReadBuffer& buffer, SkBaseMutex* mutex)
 }
 
 void SkPixelRef::setPreLocked(void* pixels, SkColorTable* ctable) {
-#ifndef SK_IGNORE_PIXELREF_SETPRELOCKED
     // only call me in your constructor, otherwise fLockCount tracking can get
     // out of sync.
     fPixels = pixels;
     fColorTable = ctable;
     fLockCount = SKPIXELREF_PRELOCKED_LOCKCOUNT;
     fPreLocked = true;
-#endif
 }
 
 void SkPixelRef::flatten(SkFlattenableWriteBuffer& buffer) const {
@@ -168,10 +166,6 @@ bool SkPixelRef::readPixels(SkBitmap* dst, const SkIRect* subset) {
 
 bool SkPixelRef::onReadPixels(SkBitmap* dst, const SkIRect* subset) {
     return false;
-}
-
-SkData* SkPixelRef::onRefEncodedData() {
-    return NULL;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

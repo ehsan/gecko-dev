@@ -62,7 +62,7 @@ SVGFEBlendElement::In2()
   return mStringAttributes[IN2].ToDOMAnimatedString(this);
 }
 
-already_AddRefed<SVGAnimatedEnumeration>
+already_AddRefed<nsIDOMSVGAnimatedEnumeration>
 SVGFEBlendElement::Mode()
 {
   return mEnumAttributes[MODE].ToDOMAnimatedEnum(this);

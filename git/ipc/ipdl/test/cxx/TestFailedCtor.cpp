@@ -18,19 +18,19 @@ TestFailedCtorParent::Main()
 }
 
 PTestFailedCtorSubParent*
-TestFailedCtorParent::AllocPTestFailedCtorSubParent()
+TestFailedCtorParent::AllocPTestFailedCtorSub()
 {
     return new TestFailedCtorSubParent();
 }
 bool
-TestFailedCtorParent::DeallocPTestFailedCtorSubParent(PTestFailedCtorSubParent* actor)
+TestFailedCtorParent::DeallocPTestFailedCtorSub(PTestFailedCtorSubParent* actor)
 {
     delete actor;
     return true;
 }
 
 PTestFailedCtorSubsubParent*
-TestFailedCtorSubParent::AllocPTestFailedCtorSubsubParent()
+TestFailedCtorSubParent::AllocPTestFailedCtorSubsub()
 {
     TestFailedCtorSubsub* a = new TestFailedCtorSubsub();
     if (!mOne) {
@@ -45,7 +45,7 @@ TestFailedCtorSubParent::AllocPTestFailedCtorSubsubParent()
     }
 }
 bool
-TestFailedCtorSubParent::DeallocPTestFailedCtorSubsubParent(PTestFailedCtorSubsubParent* actor)
+TestFailedCtorSubParent::DeallocPTestFailedCtorSubsub(PTestFailedCtorSubsubParent* actor)
 {
     static_cast<TestFailedCtorSubsub*>(actor)->mDealloced = true;
     return true;
@@ -80,7 +80,7 @@ TestFailedCtorSubParent::~TestFailedCtorSubParent()
 // child
 
 PTestFailedCtorSubChild*
-TestFailedCtorChild::AllocPTestFailedCtorSubChild()
+TestFailedCtorChild::AllocPTestFailedCtorSub()
 {
     return new TestFailedCtorSubChild();
 }
@@ -101,7 +101,7 @@ TestFailedCtorChild::AnswerPTestFailedCtorSubConstructor(PTestFailedCtorSubChild
 }
 
 bool
-TestFailedCtorChild::DeallocPTestFailedCtorSubChild(PTestFailedCtorSubChild* actor)
+TestFailedCtorChild::DeallocPTestFailedCtorSub(PTestFailedCtorSubChild* actor)
 {
     delete actor;
     return true;
@@ -115,13 +115,13 @@ TestFailedCtorChild::ProcessingError(Result what)
 }
 
 PTestFailedCtorSubsubChild*
-TestFailedCtorSubChild::AllocPTestFailedCtorSubsubChild()
+TestFailedCtorSubChild::AllocPTestFailedCtorSubsub()
 {
     return new TestFailedCtorSubsub();
 }
 
 bool
-TestFailedCtorSubChild::DeallocPTestFailedCtorSubsubChild(PTestFailedCtorSubsubChild* actor)
+TestFailedCtorSubChild::DeallocPTestFailedCtorSubsub(PTestFailedCtorSubsubChild* actor)
 {
     delete actor;
     return true;

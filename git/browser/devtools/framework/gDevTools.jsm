@@ -13,8 +13,7 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource:///modules/devtools/shared/event-emitter.js");
 Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 Cu.import("resource://gre/modules/devtools/Loader.jsm");
-
-var ProfilerController = devtools.require("devtools/profiler/controller");
+Cu.import("resource:///modules/devtools/ProfilerController.jsm");
 
 const FORBIDDEN_IDS = new Set(["toolbox", ""]);
 const MAX_ORDINAL = 99;

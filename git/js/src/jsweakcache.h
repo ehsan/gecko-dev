@@ -31,7 +31,7 @@ class WeakCache : public HashMap<Key, Value, HashPolicy, AllocPolicy> {
 
   public:
     explicit WeakCache(JSRuntime *rt) : Base(rt) { }
-    explicit WeakCache(JSContext *cx) : Base(cx->runtime()) { }
+    explicit WeakCache(JSContext *cx) : Base(cx) { }
 
   public:
     // Sweep all entries which have unmarked key or value.
@@ -82,7 +82,7 @@ class WeakValueCache : public HashMap<Key, Value, HashPolicy, AllocPolicy>
     typedef typename Base::Enum Enum;
 
     explicit WeakValueCache(JSRuntime *rt) : Base(rt) { }
-    explicit WeakValueCache(JSContext *cx) : Base(cx->runtime()) { }
+    explicit WeakValueCache(JSContext *cx) : Base(cx) { }
 
   public:
     // Sweep all entries which have unmarked key or value.

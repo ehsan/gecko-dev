@@ -7,7 +7,9 @@
 
 #include "mozilla/MemoryReporting.h"
 #include "RasterImage.h"
+#include "imgFrame.h"
 
+#define PIXMAN_DONT_DEFINE_STDINT
 #include "pixman.h"
 
 using namespace mozilla;
@@ -16,25 +18,15 @@ using namespace mozilla::image;
 namespace mozilla {
 namespace image {
 
-FrameBlender::FrameBlender(FrameSequence* aSequenceToUse /* = nullptr */)
- : mFrames(aSequenceToUse)
- , mAnim(nullptr)
-{
-  if (!mFrames) {
-    mFrames = new FrameSequence();
-  }
-}
+FrameBlender::FrameBlender()
+ : mAnim(nullptr)
+{}
 
 FrameBlender::~FrameBlender()
 {
-  delete mAnim;
-}
+  ClearFrames();
 
-already_AddRefed<FrameSequence>
-FrameBlender::GetFrameSequence()
-{
-  nsRefPtr<FrameSequence> seq(mFrames);
-  return seq.forget();
+  delete mAnim;
 }
 
 imgFrame*
@@ -42,11 +34,11 @@ FrameBlender::GetFrame(uint32_t framenum) const
 {
   if (!mAnim) {
     NS_ASSERTION(framenum == 0, "Don't ask for a frame > 0 if we're not animated!");
-    return mFrames->GetFrame(0);
+    return mFrames.SafeElementAt(0, nullptr);
   }
   if (mAnim->lastCompositedFrameIndex == int32_t(framenum))
     return mAnim->compositingFrame;
-  return mFrames->GetFrame(framenum);
+  return mFrames.SafeElementAt(framenum, nullptr);
 }
 
 imgFrame*
@@ -54,38 +46,42 @@ FrameBlender::RawGetFrame(uint32_t framenum) const
 {
   if (!mAnim) {
     NS_ASSERTION(framenum == 0, "Don't ask for a frame > 0 if we're not animated!");
-    return mFrames->GetFrame(0);
+    return mFrames.SafeElementAt(0, nullptr);
   }
 
-  return mFrames->GetFrame(framenum);
+  return mFrames.SafeElementAt(framenum, nullptr);
 }
 
 uint32_t
 FrameBlender::GetNumFrames() const
 {
-  return mFrames->GetNumFrames();
+  return mFrames.Length();
 }
 
 void
 FrameBlender::RemoveFrame(uint32_t framenum)
 {
-  NS_ABORT_IF_FALSE(framenum < GetNumFrames(), "Deleting invalid frame!");
+  NS_ABORT_IF_FALSE(framenum < mFrames.Length(), "Deleting invalid frame!");
 
-  mFrames->RemoveFrame(framenum);
+  delete mFrames[framenum];
+  mFrames[framenum] = nullptr;
+  mFrames.RemoveElementAt(framenum);
 }
 
 void
 FrameBlender::ClearFrames()
 {
-  // Forget our old frame sequence, letting whoever else has it deal with it.
-  mFrames = new FrameSequence();
+  for (uint32_t i = 0; i < mFrames.Length(); ++i) {
+    delete mFrames[i];
+  }
+  mFrames.Clear();
 }
 
 void
 FrameBlender::InsertFrame(uint32_t framenum, imgFrame* aFrame)
 {
-  NS_ABORT_IF_FALSE(framenum <= GetNumFrames(), "Inserting invalid frame!");
-  mFrames->InsertFrame(framenum, aFrame);
+  NS_ABORT_IF_FALSE(framenum <= mFrames.Length(), "Inserting invalid frame!");
+  mFrames.InsertElementAt(framenum, aFrame);
   if (GetNumFrames() > 1) {
     EnsureAnimExists();
   }
@@ -94,33 +90,14 @@ FrameBlender::InsertFrame(uint32_t framenum, imgFrame* aFrame)
 imgFrame*
 FrameBlender::SwapFrame(uint32_t framenum, imgFrame* aFrame)
 {
-  NS_ABORT_IF_FALSE(framenum < GetNumFrames(), "Swapping invalid frame!");
-
-  imgFrame* ret;
-
-  // Steal the imgFrame from wherever it's currently stored
-  if (mAnim && mAnim->lastCompositedFrameIndex == int32_t(framenum)) {
-    ret = mAnim->compositingFrame.Forget();
-    mAnim->lastCompositedFrameIndex = -1;
-    nsAutoPtr<imgFrame> toDelete(mFrames->SwapFrame(framenum, aFrame));
-  } else {
-    ret = mFrames->SwapFrame(framenum, aFrame);
+  NS_ABORT_IF_FALSE(framenum < mFrames.Length(), "Swapping invalid frame!");
+  imgFrame* ret = mFrames.SafeElementAt(framenum, nullptr);
+  mFrames.RemoveElementAt(framenum);
+  if (aFrame) {
+    mFrames.InsertElementAt(framenum, aFrame);
   }
 
   return ret;
-}
-
-void
-FrameBlender::EnsureAnimExists()
-{
-  if (!mAnim) {
-    // Create the animation context
-    mAnim = new Anim();
-
-    // We should only get into this code path directly after we've created our
-    // second frame (hence we know we're animated).
-    MOZ_ASSERT(GetNumFrames() == 2);
-  }
 }
 
 //******************************************************************************
@@ -135,9 +112,9 @@ FrameBlender::DoBlend(nsIntRect* aDirtyRect,
     return false;
   }
 
-  const FrameDataPair& prevFrame = mFrames->GetFrame(aPrevFrameIndex);
-  const FrameDataPair& nextFrame = mFrames->GetFrame(aNextFrameIndex);
-  if (!prevFrame.HasFrameData() || !nextFrame.HasFrameData()) {
+  imgFrame* prevFrame = mFrames[aPrevFrameIndex];
+  imgFrame* nextFrame = mFrames[aNextFrameIndex];
+  if (!prevFrame || !nextFrame) {
     return false;
   }
 
@@ -224,14 +201,13 @@ FrameBlender::DoBlend(nsIntRect* aDirtyRect,
 
   // Create the Compositing Frame
   if (!mAnim->compositingFrame) {
-    mAnim->compositingFrame.SetFrame(new imgFrame());
+    mAnim->compositingFrame = new imgFrame();
     nsresult rv = mAnim->compositingFrame->Init(0, 0, mSize.width, mSize.height,
                                                 gfxASurface::ImageFormatARGB32);
     if (NS_FAILED(rv)) {
-      mAnim->compositingFrame.SetFrame(nullptr);
+      mAnim->compositingFrame = nullptr;
       return false;
     }
-    mAnim->compositingFrame.LockAndGetData();
     needToBlankComposite = true;
   } else if (int32_t(aNextFrameIndex) != mAnim->lastCompositedFrameIndex+1) {
 
@@ -274,36 +250,28 @@ FrameBlender::DoBlend(nsIntRect* aDirtyRect,
         if (needToBlankComposite) {
           // If we just created the composite, it could have anything in its
           // buffer. Clear whole frame
-          ClearFrame(mAnim->compositingFrame.GetFrameData(),
-                     mAnim->compositingFrame.GetFrame()->GetRect());
+          ClearFrame(mAnim->compositingFrame);
         } else {
           // Only blank out previous frame area (both color & Mask/Alpha)
-          ClearFrame(mAnim->compositingFrame.GetFrameData(),
-                     mAnim->compositingFrame.GetFrame()->GetRect(),
-                     prevFrameRect);
+          ClearFrame(mAnim->compositingFrame, prevFrameRect);
         }
         break;
 
       case FrameBlender::kDisposeClearAll:
-        ClearFrame(mAnim->compositingFrame.GetFrameData(),
-                   mAnim->compositingFrame.GetFrame()->GetRect());
+        ClearFrame(mAnim->compositingFrame);
         break;
 
       case FrameBlender::kDisposeRestorePrevious:
         // It would be better to copy only the area changed back to
         // compositingFrame.
         if (mAnim->compositingPrevFrame) {
-          CopyFrameImage(mAnim->compositingPrevFrame.GetFrameData(),
-                         mAnim->compositingPrevFrame.GetFrame()->GetRect(),
-                         mAnim->compositingFrame.GetFrameData(),
-                         mAnim->compositingFrame.GetFrame()->GetRect());
+          CopyFrameImage(mAnim->compositingPrevFrame, mAnim->compositingFrame);
 
           // destroy only if we don't need it for this frame's disposal
           if (nextFrameDisposalMethod != FrameBlender::kDisposeRestorePrevious)
-            mAnim->compositingPrevFrame.SetFrame(nullptr);
+            mAnim->compositingPrevFrame = nullptr;
         } else {
-          ClearFrame(mAnim->compositingFrame.GetFrameData(),
-                     mAnim->compositingFrame.GetFrame()->GetRect());
+          ClearFrame(mAnim->compositingFrame);
         }
         break;
 
@@ -317,32 +285,22 @@ FrameBlender::DoBlend(nsIntRect* aDirtyRect,
         if (mAnim->lastCompositedFrameIndex != int32_t(aNextFrameIndex - 1)) {
           if (isFullPrevFrame && !prevFrame->GetIsPaletted()) {
             // Just copy the bits
-            CopyFrameImage(prevFrame.GetFrameData(),
-                           prevFrame.GetFrame()->GetRect(),
-                           mAnim->compositingFrame.GetFrameData(),
-                           mAnim->compositingFrame.GetFrame()->GetRect());
+            CopyFrameImage(prevFrame, mAnim->compositingFrame);
           } else {
             if (needToBlankComposite) {
               // Only blank composite when prev is transparent or not full.
               if (prevFrame->GetHasAlpha() || !isFullPrevFrame) {
-                ClearFrame(mAnim->compositingFrame.GetFrameData(),
-                           mAnim->compositingFrame.GetFrame()->GetRect());
+                ClearFrame(mAnim->compositingFrame);
               }
             }
-            DrawFrameTo(prevFrame.GetFrameData(), prevFrameRect,
-                        prevFrame.GetFrame()->PaletteDataLength(),
-                        prevFrame.GetFrame()->GetHasAlpha(),
-                        mAnim->compositingFrame.GetFrameData(),
-                        mAnim->compositingFrame.GetFrame()->GetRect(),
-                        FrameBlendMethod(prevFrame.GetFrame()->GetBlendMethod()));
+            DrawFrameTo(prevFrame, mAnim->compositingFrame, prevFrameRect);
           }
         }
     }
   } else if (needToBlankComposite) {
     // If we just created the composite, it could have anything in it's
     // buffers. Clear them
-    ClearFrame(mAnim->compositingFrame.GetFrameData(),
-               mAnim->compositingFrame.GetFrame()->GetRect());
+    ClearFrame(mAnim->compositingFrame);
   }
 
   // Check if the frame we are composing wants the previous image restored afer
@@ -354,30 +312,20 @@ FrameBlender::DoBlend(nsIntRect* aDirtyRect,
     // It would be better if we just stored the area that nextFrame is going to
     // overwrite.
     if (!mAnim->compositingPrevFrame) {
-      mAnim->compositingPrevFrame.SetFrame(new imgFrame());
+      mAnim->compositingPrevFrame = new imgFrame();
       nsresult rv = mAnim->compositingPrevFrame->Init(0, 0, mSize.width, mSize.height,
                                                       gfxASurface::ImageFormatARGB32);
       if (NS_FAILED(rv)) {
-        mAnim->compositingPrevFrame.SetFrame(nullptr);
+        mAnim->compositingPrevFrame = nullptr;
         return false;
       }
-
-      mAnim->compositingPrevFrame.LockAndGetData();
     }
 
-    CopyFrameImage(mAnim->compositingFrame.GetFrameData(),
-                   mAnim->compositingFrame.GetFrame()->GetRect(),
-                   mAnim->compositingPrevFrame.GetFrameData(),
-                   mAnim->compositingPrevFrame.GetFrame()->GetRect());
+    CopyFrameImage(mAnim->compositingFrame, mAnim->compositingPrevFrame);
   }
 
   // blit next frame into it's correct spot
-  DrawFrameTo(nextFrame.GetFrameData(), nextFrameRect,
-              nextFrame.GetFrame()->PaletteDataLength(),
-              nextFrame.GetFrame()->GetHasAlpha(),
-              mAnim->compositingFrame.GetFrameData(),
-              mAnim->compositingFrame.GetFrame()->GetRect(),
-              FrameBlendMethod(nextFrame.GetFrame()->GetBlendMethod()));
+  DrawFrameTo(nextFrame, mAnim->compositingFrame, nextFrameRect);
 
   // Set timeout of CompositeFrame to timeout of frame we just composed
   // Bug 177948
@@ -388,6 +336,26 @@ FrameBlender::DoBlend(nsIntRect* aDirtyRect,
   nsresult rv = mAnim->compositingFrame->ImageUpdated(mAnim->compositingFrame->GetRect());
   if (NS_FAILED(rv)) {
     return false;
+  }
+
+  // We don't want to keep composite images for 8bit frames.  Also this
+  // optimization won't work if the next frame has kDisposeRestorePrevious,
+  // because it would need to be restored into "after prev disposal but before
+  // next blend" state, not into empty frame.
+  if (isFullNextFrame &&
+      nextFrameDisposalMethod != FrameBlender::kDisposeRestorePrevious &&
+      !nextFrame->GetIsPaletted()) {
+    // We have a composited full frame
+    // Store the composited frame into the mFrames[..] so we don't have to
+    // continuously re-build it
+    // Then set the previous frame's disposal to CLEAR_ALL so we just draw the
+    // frame next time around
+    if (CopyFrameImage(mAnim->compositingFrame, nextFrame)) {
+      prevFrame->SetFrameDisposalMethod(FrameBlender::kDisposeClearAll);
+      mAnim->compositingFrame = nullptr;
+      mAnim->lastCompositedFrameIndex = -1;
+      return true;
+    }
   }
 
   mAnim->lastCompositedFrameIndex = int32_t(aNextFrameIndex);
@@ -406,6 +374,15 @@ FrameBlender::ClearFrame(uint8_t* aFrameData, const nsIntRect& aFrameRect)
   memset(aFrameData, 0, aFrameRect.width * aFrameRect.height * 4);
 }
 
+void
+FrameBlender::ClearFrame(imgFrame* aFrame)
+{
+  AutoFrameLocker lock(aFrame);
+  if (lock.Succeeded()) {
+    ClearFrame(aFrame->GetImageData(), aFrame->GetRect());
+  }
+}
+
 //******************************************************************************
 void
 FrameBlender::ClearFrame(uint8_t* aFrameData, const nsIntRect& aFrameRect, const nsIntRect& aRectToClear)
@@ -421,8 +398,17 @@ FrameBlender::ClearFrame(uint8_t* aFrameData, const nsIntRect& aFrameRect, const
   }
 
   uint32_t bytesPerRow = aFrameRect.width * 4;
-  for (int row = toClear.y; row < toClear.y + toClear.height; ++row) {
+  for (int row = toClear.y; row < toClear.height; ++row) {
     memset(aFrameData + toClear.x * 4 + row * bytesPerRow, 0, toClear.width * 4);
+  }
+}
+
+void
+FrameBlender::ClearFrame(imgFrame* aFrame, const nsIntRect& aRectToClear)
+{
+  AutoFrameLocker lock(aFrame);
+  if (lock.Succeeded()) {
+    ClearFrame(aFrame->GetImageData(), aFrame->GetRect(), aRectToClear);
   }
 }
 
@@ -430,8 +416,8 @@ FrameBlender::ClearFrame(uint8_t* aFrameData, const nsIntRect& aFrameRect, const
 // Whether we succeed or fail will not cause a crash, and there's not much
 // we can do about a failure, so there we don't return a nsresult
 bool
-FrameBlender::CopyFrameImage(const uint8_t *aDataSrc, const nsIntRect& aRectSrc,
-                             uint8_t *aDataDest, const nsIntRect& aRectDest)
+FrameBlender::CopyFrameImage(uint8_t *aDataSrc, const nsIntRect& aRectSrc,
+                            uint8_t *aDataDest, const nsIntRect& aRectDest)
 {
   uint32_t dataLengthSrc = aRectSrc.width * aRectSrc.height * 4;
   uint32_t dataLengthDest = aRectDest.width * aRectDest.height * 4;
@@ -445,11 +431,24 @@ FrameBlender::CopyFrameImage(const uint8_t *aDataSrc, const nsIntRect& aRectSrc,
   return true;
 }
 
+bool
+FrameBlender::CopyFrameImage(imgFrame* aSrc, imgFrame* aDst)
+{
+  AutoFrameLocker srclock(aSrc);
+  AutoFrameLocker dstlock(aDst);
+  if (!srclock.Succeeded() || !dstlock.Succeeded()) {
+    return false;
+  }
+
+  return CopyFrameImage(aSrc->GetImageData(), aSrc->GetRect(),
+                        aDst->GetImageData(), aDst->GetRect());
+}
+
 nsresult
-FrameBlender::DrawFrameTo(const uint8_t *aSrcData, const nsIntRect& aSrcRect,
-                          uint32_t aSrcPaletteLength, bool aSrcHasAlpha,
-                          uint8_t *aDstPixels, const nsIntRect& aDstRect,
-                          FrameBlender::FrameBlendMethod aBlendMethod)
+FrameBlender::DrawFrameTo(uint8_t *aSrcData, const nsIntRect& aSrcRect,
+                         uint32_t aSrcPaletteLength, bool aSrcHasAlpha,
+                         uint8_t *aDstPixels, const nsIntRect& aDstRect,
+                         FrameBlender::FrameBlendMethod aBlendMethod)
 {
   NS_ENSURE_ARG_POINTER(aSrcData);
   NS_ENSURE_ARG_POINTER(aDstPixels);
@@ -480,9 +479,9 @@ FrameBlender::DrawFrameTo(const uint8_t *aSrcData, const nsIntRect& aSrcRect,
                  "FrameBlender::DrawFrameTo: source must be smaller than dest");
 
     // Get pointers to image data
-    const uint8_t *srcPixels = aSrcData + aSrcPaletteLength;
+    uint8_t *srcPixels = aSrcData + aSrcPaletteLength;
     uint32_t *dstPixels = reinterpret_cast<uint32_t*>(aDstPixels);
-    const uint32_t *colormap = reinterpret_cast<const uint32_t*>(aSrcData);
+    uint32_t *colormap = reinterpret_cast<uint32_t*>(aSrcData);
 
     // Skip to the right offset
     dstPixels += aSrcRect.x + (aSrcRect.y * aDstRect.width);
@@ -511,7 +510,7 @@ FrameBlender::DrawFrameTo(const uint8_t *aSrcData, const nsIntRect& aSrcRect,
     pixman_image_t* src = pixman_image_create_bits(aSrcHasAlpha ? PIXMAN_a8r8g8b8 : PIXMAN_x8r8g8b8,
                                                    aSrcRect.width,
                                                    aSrcRect.height,
-                                                   reinterpret_cast<uint32_t*>(const_cast<uint8_t*>(aSrcData)),
+                                                   reinterpret_cast<uint32_t*>(aSrcData),
                                                    aSrcRect.width * 4);
     pixman_image_t* dst = pixman_image_create_bits(PIXMAN_a8r8g8b8,
                                                    aDstRect.width,
@@ -535,6 +534,29 @@ FrameBlender::DrawFrameTo(const uint8_t *aSrcData, const nsIntRect& aSrcRect,
   return NS_OK;
 }
 
+nsresult
+FrameBlender::DrawFrameTo(imgFrame* aSrc, imgFrame* aDst, const nsIntRect& aSrcRect)
+{
+  AutoFrameLocker srclock(aSrc);
+  AutoFrameLocker dstlock(aDst);
+  if (!srclock.Succeeded() || !dstlock.Succeeded()) {
+    return NS_ERROR_FAILURE;
+  }
+
+  if (aSrc->GetIsPaletted()) {
+    return DrawFrameTo(reinterpret_cast<uint8_t*>(aSrc->GetPaletteData()),
+                       aSrcRect, aSrc->PaletteDataLength(),
+                       aSrc->GetHasAlpha(), aDst->GetImageData(),
+                       aDst->GetRect(),
+                       FrameBlendMethod(aSrc->GetBlendMethod()));
+  }
+
+  return DrawFrameTo(aSrc->GetImageData(), aSrcRect,
+                     0, aSrc->GetHasAlpha(),
+                     aDst->GetImageData(), aDst->GetRect(),
+                     FrameBlendMethod(aSrc->GetBlendMethod()));
+}
+
 void
 FrameBlender::Discard()
 {
@@ -545,14 +567,21 @@ FrameBlender::Discard()
   NS_ABORT_IF_FALSE(!mAnim, "Asked to discard for animated image!");
 
   // Delete all the decoded frames, then clear the array.
-  ClearFrames();
+  for (uint32_t i = 0; i < mFrames.Length(); ++i)
+    delete mFrames[i];
+  mFrames.Clear();
 }
 
 size_t
 FrameBlender::SizeOfDecodedWithComputedFallbackIfHeap(gfxASurface::MemoryLocation aLocation,
                                                       MallocSizeOf aMallocSizeOf) const
 {
-  size_t n = mFrames->SizeOfDecodedWithComputedFallbackIfHeap(aLocation, aMallocSizeOf);
+  size_t n = 0;
+  for (uint32_t i = 0; i < mFrames.Length(); ++i) {
+    imgFrame* frame = mFrames.SafeElementAt(i, nullptr);
+    NS_ABORT_IF_FALSE(frame, "Null frame in frame array!");
+    n += frame->SizeOfExcludingThisWithComputedFallbackIfHeap(aLocation, aMallocSizeOf);
+  }
 
   if (mAnim) {
     if (mAnim->compositingFrame) {

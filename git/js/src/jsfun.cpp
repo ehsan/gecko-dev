@@ -143,7 +143,8 @@ fun_getProperty(JSContext *cx, HandleObject obj_, HandleId id, MutableHandleValu
         return true;
     }
 
-    MOZ_ASSUME_UNREACHABLE("fun_getProperty");
+    JS_NOT_REACHED("fun_getProperty");
+    return false;
 }
 
 
@@ -1156,11 +1157,10 @@ JSFunction::createScriptForLazilyInterpretedFunction(JSContext *cx, HandleFuncti
 JSBool
 js::CallOrConstructBoundFunction(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    RootedFunction fun(cx, &args.callee().as<JSFunction>());
+    RootedFunction fun(cx, &vp[0].toObject().as<JSFunction>());
     JS_ASSERT(fun->isBoundFunction());
 
-    bool constructing = args.isConstructing();
+    bool constructing = IsConstructing(vp);
     if (constructing && fun->isArrow()) {
         /*
          * Per spec, arrow functions do not even have a [[Construct]] method.
@@ -1184,28 +1184,29 @@ js::CallOrConstructBoundFunction(JSContext *cx, unsigned argc, Value *vp)
     /* 15.3.4.5.1 step 2. */
     const Value &boundThis = fun->getBoundFunctionThis();
 
-    InvokeArgs invokeArgs(cx);
-    if (!invokeArgs.init(argc + argslen))
+    InvokeArgs args(cx);
+    if (!args.init(argc + argslen))
         return false;
 
     /* 15.3.4.5.1, 15.3.4.5.2 step 4. */
     for (unsigned i = 0; i < argslen; i++)
-        invokeArgs[i] = fun->getBoundFunctionArgument(i);
-    PodCopy(invokeArgs.array() + argslen, vp + 2, argc);
+        args[i] = fun->getBoundFunctionArgument(i);
+    PodCopy(args.array() + argslen, vp + 2, argc);
 
     /* 15.3.4.5.1, 15.3.4.5.2 step 5. */
-    invokeArgs.setCallee(ObjectValue(*target));
+    args.setCallee(ObjectValue(*target));
 
     if (!constructing)
-        invokeArgs.setThis(boundThis);
+        args.setThis(boundThis);
 
-    if (constructing ? !InvokeConstructor(cx, invokeArgs) : !Invoke(cx, invokeArgs))
+    if (constructing ? !InvokeConstructor(cx, args) : !Invoke(cx, args))
         return false;
 
-    *vp = invokeArgs.rval();
+    *vp = args.rval();
     return true;
 }
 
+#if JS_HAS_GENERATORS
 static JSBool
 fun_isGenerator(JSContext *cx, unsigned argc, Value *vp)
 {
@@ -1225,6 +1226,7 @@ fun_isGenerator(JSContext *cx, unsigned argc, Value *vp)
     JS_SET_RVAL(cx, vp, BooleanValue(result));
     return true;
 }
+#endif
 
 /* ES5 15.3.4.5. */
 static JSBool
@@ -1315,7 +1317,9 @@ const JSFunctionSpec js::function_methods[] = {
     JS_FN(js_apply_str,      js_fun_apply,   2,0),
     JS_FN(js_call_str,       js_fun_call,    1,0),
     JS_FN("bind",            fun_bind,       1,0),
+#if JS_HAS_GENERATORS
     JS_FN("isGenerator",     fun_isGenerator,0,0),
+#endif
     JS_FS_END
 };
 
@@ -1347,7 +1351,6 @@ js::Function(JSContext *cx, unsigned argc, Value *vp)
     options.setPrincipals(principals)
            .setOriginPrincipals(originPrincipals)
            .setFileAndLine(filename, lineno)
-           .setNoScriptRval(false)
            .setCompileAndGo(true);
 
     unsigned n = args.length() ? args.length() - 1 : 0;
@@ -1751,21 +1754,7 @@ JSObject::hasIdempotentProtoChain() const
             return true;
     }
 
-    MOZ_ASSUME_UNREACHABLE("Should not get here");
+    JS_NOT_REACHED("Should not get here");
+    return false;
 }
 
-namespace JS {
-namespace detail {
-
-JS_PUBLIC_API(void)
-CheckIsValidConstructible(Value calleev)
-{
-    JSObject *callee = &calleev.toObject();
-    if (callee->is<JSFunction>())
-        JS_ASSERT(callee->as<JSFunction>().isNativeConstructor());
-    else
-        JS_ASSERT(callee->getClass()->construct != NULL);
-}
-
-} // namespace detail
-} // namespace JS

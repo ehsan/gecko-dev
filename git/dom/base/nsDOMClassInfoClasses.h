@@ -6,15 +6,23 @@
 DOMCI_CLASS(Window)
 DOMCI_CLASS(Location)
 DOMCI_CLASS(Navigator)
+DOMCI_CLASS(Plugin)
+DOMCI_CLASS(PluginArray)
+DOMCI_CLASS(MimeType)
+DOMCI_CLASS(MimeTypeArray)
 DOMCI_CLASS(History)
 DOMCI_CLASS(DOMPrototype)
 DOMCI_CLASS(DOMConstructor)
 
 // Core classes
 DOMCI_CLASS(DOMException)
+DOMCI_CLASS(Element)
 
 DOMCI_CLASS(DeviceAcceleration)
 DOMCI_CLASS(DeviceRotationRate)
+
+// HTML element classes
+DOMCI_CLASS(HTMLFormElement)
 
 // CSS classes
 DOMCI_CLASS(CSSStyleRule)
@@ -70,6 +78,9 @@ DOMCI_CLASS(CSSMozDocumentRule)
 DOMCI_CLASS(CSSSupportsRule)
 
 // other SVG classes
+DOMCI_CLASS(SVGAnimatedEnumeration)
+DOMCI_CLASS(SVGAnimatedInteger)
+DOMCI_CLASS(SVGAnimatedNumber)
 DOMCI_CLASS(SVGLength)
 DOMCI_CLASS(SVGNumber)
 
@@ -95,6 +106,9 @@ DOMCI_CLASS(File)
 
 // DOM modal content window class, almost identical to Window
 DOMCI_CLASS(ModalContentWindow)
+
+// Geolocation
+DOMCI_CLASS(GeoPositionCoords)
 
 DOMCI_CLASS(MozPowerManager)
 DOMCI_CLASS(MozWakeLock)
@@ -124,6 +138,7 @@ DOMCI_CLASS(ContentFrameMessageManager)
 DOMCI_CLASS(ChromeMessageBroadcaster)
 DOMCI_CLASS(ChromeMessageSender)
 
+DOMCI_CLASS(IDBFileHandle)
 DOMCI_CLASS(IDBRequest)
 DOMCI_CLASS(IDBDatabase)
 DOMCI_CLASS(IDBObjectStore)

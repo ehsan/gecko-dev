@@ -20,14 +20,8 @@ var Downloads = {
 
   _getLocalFile: function dh__getLocalFile(aFileURI) {
     // XXX it's possible that using a null char-set here is bad
-    let spec = ('string' == typeof aFileURI) ? aFileURI : aFileURI.spec;
-    let fileUrl;
-    try {
-      fileUrl = Services.io.newURI(spec, null, null).QueryInterface(Ci.nsIFileURL);
-    } catch (ex) {
-      Util.dumpLn("_getLocalFile: Caught exception creating newURI from file spec: "+aFileURI.spec+": " + ex.message);
-      return;
-    }
+
+    const fileUrl = Services.io.newURI(aFileURI.spec || aFileURI, null, null).QueryInterface(Ci.nsIFileURL);
     return fileUrl.file.clone().QueryInterface(Ci.nsILocalFile);
   },
 
@@ -42,30 +36,20 @@ var Downloads = {
   },
 
   uninit: function dh_uninit() {
-    if (this._inited) {
-      Services.obs.removeObserver(this, "dl-start");
-      Services.obs.removeObserver(this, "dl-done");
-    }
+    Services.obs.removeObserver(this, "dl-start");
+    Services.obs.removeObserver(this, "dl-done");
   },
 
   openDownload: function dh_openDownload(aDownload) {
     // expects xul item
     let id = aDownload.getAttribute("downloadId");
-    let download = this.manager.getDownload(id);
+    let download = this.manager.getDownload(id)
     let fileURI = download.target;
-
-    if (!(fileURI && fileURI.spec)) {
-      Util.dumpLn("Cant open download "+id+", fileURI is invalid");
-      return;
-    }
-
     let file = this._getLocalFile(fileURI);
+
     try {
-      file && file.launch();
-    } catch (ex) {
-      Util.dumpLn("Failed to open download, with id: "+id+", download target URI spec: " + fileURI.spec);
-      Util.dumpLn("Failed download source:"+(aDownload.source && aDownload.source.spec));
-    }
+      file.launch();
+    } catch (ex) { }
   },
 
   removeDownload: function dh_removeDownload(aDownload) {
@@ -82,24 +66,14 @@ var Downloads = {
 
   cancelDownload: function dh_cancelDownload(aDownload) {
     let id = aDownload.getAttribute("downloadId");
-    let download = this.manager.getDownload(id);
+    let download = this.manager.getDownload(id)
     this.manager.cancelDownload(id);
 
     let fileURI = download.target;
-
-    if (!(fileURI && fileURI.spec)) {
-      Util.dumpLn("Cant remove download file for: "+id+", fileURI is invalid");
-      return;
-    }
-
     let file = this._getLocalFile(fileURI);
-    try {
-      if (file && file.exists())
-        file.remove(false);
-    } catch (ex) {
-      Util.dumpLn("Failed to cancel download, with id: "+id+", download target URI spec: " + fileURI.spec);
-      Util.dumpLn("Failed download source:"+(aDownload.source && aDownload.source.spec));
-    }
+
+    if (file.exists())
+      file.remove(false);
   },
 
   pauseDownload: function dh_pauseDownload(aDownload) {
@@ -119,7 +93,7 @@ var Downloads = {
 
   showPage: function dh_showPage(aDownload) {
     let id = aDownload.getAttribute("downloadId");
-    let download = this.manager.getDownload(id);
+    let download = this.manager.getDownload(id)
     let uri = this._getReferrerOrSource(download);
     if (uri)
       BrowserUI.newTab(uri, Browser.selectedTab);
@@ -223,14 +197,13 @@ DownloadsView.prototype = {
   },
 
   _getAttrsForDownload: function dv__getAttrsForDownload(aDownload) {
-    // params: nsiDownload
+    // expects a DownloadManager download object
     return {
       typeName: 'download',
       downloadId: aDownload.id,
       downloadGuid: aDownload.guid,
       name: aDownload.displayName,
-      // use the stringified version of the target nsIURI for the item attribute
-      target: aDownload.target.spec,
+      target: aDownload.target,
       iconURI: "moz-icon://" + aDownload.displayName + "?size=64",
       date: DownloadUtils.getReadableDates(new Date())[0],
       domain: DownloadUtils.getURIHost(aDownload.source.spec)[0],
@@ -242,8 +215,6 @@ DownloadsView.prototype = {
   _updateItemWithAttrs: function dv__updateItemWithAttrs(anItem, aAttrs) {
     for (let name in aAttrs)
       anItem.setAttribute(name, aAttrs[name]);
-    if (anItem.refresh)
-      anItem.refresh();
   },
 
   _getDownloadSize: function dv__getDownloadSize (aSize) {
@@ -351,7 +322,8 @@ DownloadsView.prototype = {
   },
 
   clearDownloads: function dv_clearDownloads() {
-    this._set.clearAll();
+    while (this._set.itemCount > 0)
+      this._set.removeItemAt(0);
   },
 
   addDownload: function dv_addDownload(aDownload) {

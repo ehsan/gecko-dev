@@ -51,7 +51,7 @@ class DebuggerWeakMap : private WeakMap<Key, Value, DefaultHasher<Key> >
   public:
     typedef WeakMap<Key, Value, DefaultHasher<Key> > Base;
     explicit DebuggerWeakMap(JSContext *cx)
-        : Base(cx), zoneCounts(cx->runtime()) { }
+        : Base(cx), zoneCounts(cx) { }
 
   public:
     /* Expose those parts of HashMap public interface that are used by Debugger methods. */

@@ -43,13 +43,6 @@ public:
     Mutex()->Unlock();
   }
 
-  void AssertCurrentThreadOwns()
-  {
-#ifdef DEBUG
-    Mutex()->AssertCurrentThreadOwns();
-#endif
-  }
-
 private:
   OffTheBooksMutex* Mutex()
   {

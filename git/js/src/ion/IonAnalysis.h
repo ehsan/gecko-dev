@@ -9,8 +9,8 @@
 
 // This file declares various analysis passes that operate on MIR.
 
-#include "ion/IonAllocPolicy.h"
-#include "ion/MIR.h"
+#include "IonAllocPolicy.h"
+#include "MIR.h"
 
 namespace js {
 namespace ion {

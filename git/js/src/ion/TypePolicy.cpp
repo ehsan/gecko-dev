@@ -4,9 +4,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ion/TypePolicy.h"
-#include "ion/MIR.h"
-#include "ion/MIRGraph.h"
+#include "TypePolicy.h"
+#include "MIR.h"
+#include "MIRGraph.h"
 
 using namespace js;
 using namespace js::ion;
@@ -77,7 +77,7 @@ BinaryStringPolicy::adjustInputs(MInstruction *ins)
             continue;
 
         MInstruction *replace = NULL;
-        if (in->type() == MIRType_Int32 || in->type() == MIRType_Double) {
+        if (in->type() == MIRType_Int32) {
             replace = MToString::New(in);
         } else {
             if (in->type() != MIRType_Value)
@@ -209,7 +209,8 @@ ComparePolicy::adjustInputs(MInstruction *def)
             replace = MUnbox::New(in, MIRType_String, MUnbox::Infallible);
             break;
           default:
-            MOZ_ASSUME_UNREACHABLE("Unknown compare specialization");
+            JS_NOT_REACHED("Unknown compare specialization");
+            return false;
         }
 
         def->block()->insertBefore(def, replace);
@@ -299,7 +300,7 @@ StringPolicy<Op>::staticAdjustInputs(MInstruction *def)
         return true;
 
     MInstruction *replace;
-    if (in->type() == MIRType_Int32 || in->type() == MIRType_Double) {
+    if (in->type() == MIRType_Int32) {
         replace = MToString::New(in);
     } else {
         if (in->type() != MIRType_Value)
@@ -314,7 +315,6 @@ StringPolicy<Op>::staticAdjustInputs(MInstruction *def)
 
 template bool StringPolicy<0>::staticAdjustInputs(MInstruction *ins);
 template bool StringPolicy<1>::staticAdjustInputs(MInstruction *ins);
-template bool StringPolicy<2>::staticAdjustInputs(MInstruction *ins);
 
 template <unsigned Op>
 bool
@@ -468,7 +468,7 @@ StoreTypedArrayPolicy::adjustValueInput(MInstruction *ins, int arrayType,
 {
     MDefinition *curValue = value;
     // First, ensure the value is int32, boolean, double or Value.
-    // The conversion is based on TypedArrayObjectTemplate::setElementTail.
+    // The conversion is based on TypedArrayTemplate::setElementTail.
     switch (value->type()) {
       case MIRType_Int32:
       case MIRType_Double:
@@ -490,7 +490,8 @@ StoreTypedArrayPolicy::adjustValueInput(MInstruction *ins, int arrayType,
         value = boxAt(ins, value);
         break;
       default:
-        MOZ_ASSUME_UNREACHABLE("Unexpected type");
+        JS_NOT_REACHED("Unexpected type");
+        break;
     }
 
     if (value != curValue) {
@@ -504,30 +505,31 @@ StoreTypedArrayPolicy::adjustValueInput(MInstruction *ins, int arrayType,
               value->type() == MIRType_Value);
 
     switch (arrayType) {
-      case TypedArrayObject::TYPE_INT8:
-      case TypedArrayObject::TYPE_UINT8:
-      case TypedArrayObject::TYPE_INT16:
-      case TypedArrayObject::TYPE_UINT16:
-      case TypedArrayObject::TYPE_INT32:
-      case TypedArrayObject::TYPE_UINT32:
+      case TypedArray::TYPE_INT8:
+      case TypedArray::TYPE_UINT8:
+      case TypedArray::TYPE_INT16:
+      case TypedArray::TYPE_UINT16:
+      case TypedArray::TYPE_INT32:
+      case TypedArray::TYPE_UINT32:
         if (value->type() != MIRType_Int32) {
             value = MTruncateToInt32::New(value);
             ins->block()->insertBefore(ins, value->toInstruction());
         }
         break;
-      case TypedArrayObject::TYPE_UINT8_CLAMPED:
+      case TypedArray::TYPE_UINT8_CLAMPED:
         // IonBuilder should have inserted ClampToUint8.
         JS_ASSERT(value->type() == MIRType_Int32);
         break;
-      case TypedArrayObject::TYPE_FLOAT32:
-      case TypedArrayObject::TYPE_FLOAT64:
+      case TypedArray::TYPE_FLOAT32:
+      case TypedArray::TYPE_FLOAT64:
         if (value->type() != MIRType_Double) {
             value = MToDouble::New(value);
             ins->block()->insertBefore(ins, value->toInstruction());
         }
         break;
       default:
-        MOZ_ASSUME_UNREACHABLE("Invalid array type");
+        JS_NOT_REACHED("Invalid array type");
+        break;
     }
 
     if (value != curValue) {

@@ -1,3 +1,4 @@
+
 /*
  * Copyright 2008 The Android Open Source Project
  *
@@ -5,23 +6,22 @@
  * found in the LICENSE file.
  */
 
+
 #ifndef SkKernel33MaskFilter_DEFINED
 #define SkKernel33MaskFilter_DEFINED
 
 #include "SkMaskFilter.h"
 
-class SK_API SkKernel33ProcMaskFilter : public SkMaskFilter {
+class SkKernel33ProcMaskFilter : public SkMaskFilter {
 public:
     SkKernel33ProcMaskFilter(unsigned percent256 = 256)
         : fPercent256(percent256) {}
 
-    virtual uint8_t computeValue(uint8_t* const* srcRows) const = 0;
+    virtual uint8_t computeValue(uint8_t* const* srcRows) = 0;
 
-    virtual SkMask::Format getFormat() const SK_OVERRIDE;
-    virtual bool filterMask(SkMask*, const SkMask&, const SkMatrix&,
-                            SkIPoint*) const SK_OVERRIDE;
-
-    SkDEVCODE(virtual void toString(SkString* str) const SK_OVERRIDE;)
+    // overrides from SkMaskFilter
+    virtual SkMask::Format getFormat();
+    virtual bool filterMask(SkMask*, const SkMask&, const SkMatrix&, SkIPoint*);
 
 protected:
     SkKernel33ProcMaskFilter(SkFlattenableReadBuffer& rb);
@@ -35,7 +35,7 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class SK_API SkKernel33MaskFilter : public SkKernel33ProcMaskFilter {
+class SkKernel33MaskFilter : public SkKernel33ProcMaskFilter {
 public:
     SkKernel33MaskFilter(const int coeff[3][3], int shift, int percent256 = 256)
             : SkKernel33ProcMaskFilter(percent256) {
@@ -44,9 +44,8 @@ public:
     }
 
     // override from SkKernel33ProcMaskFilter
-    virtual uint8_t computeValue(uint8_t* const* srcRows) const SK_OVERRIDE;
+    virtual uint8_t computeValue(uint8_t* const* srcRows);
 
-    SkDEVCODE(virtual void toString(SkString* str) const SK_OVERRIDE;)
     SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkKernel33MaskFilter)
 
 private:

@@ -43,38 +43,9 @@ class RopeBuilder;
 
 template <AllowGC allowGC>
 extern JSString *
-ConcatStrings(ThreadSafeContext *cx,
+ConcatStrings(JSContext *cx,
               typename MaybeRooted<JSString*, allowGC>::HandleType left,
               typename MaybeRooted<JSString*, allowGC>::HandleType right);
-
-// Return s advanced past any Unicode white space characters.
-static inline const jschar *
-SkipSpace(const jschar *s, const jschar *end)
-{
-    JS_ASSERT(s <= end);
-
-    while (s < end && unicode::IsSpace(*s))
-        s++;
-
-    return s;
-}
-
-// Return less than, equal to, or greater than zero depending on whether
-// s1 is less than, equal to, or greater than s2.
-inline bool
-CompareChars(const jschar *s1, size_t l1, const jschar *s2, size_t l2, int32_t *result)
-{
-    size_t n = Min(l1, l2);
-    for (size_t i = 0; i < n; i++) {
-        if (int32_t cmp = s1[i] - s2[i]) {
-            *result = cmp;
-            return true;
-        }
-    }
-
-    *result = (int32_t)(l1 - l2);
-    return true;
-}
 
 }  /* namespace js */
 
@@ -117,7 +88,7 @@ extern const char js_encodeURIComponent_str[];
 /* GC-allocate a string descriptor for the given malloc-allocated chars. */
 template <js::AllowGC allowGC>
 extern JSStableString *
-js_NewString(js::ThreadSafeContext *tcx, jschar *chars, size_t length);
+js_NewString(JSContext *cx, jschar *chars, size_t length);
 
 extern JSLinearString *
 js_NewDependentString(JSContext *cx, JSString *base, size_t start, size_t length);
@@ -129,7 +100,7 @@ js_NewStringCopyN(JSContext *cx, const jschar *s, size_t n);
 
 template <js::AllowGC allowGC>
 extern JSFlatString *
-js_NewStringCopyN(js::ThreadSafeContext *tcx, const char *s, size_t n);
+js_NewStringCopyN(JSContext *cx, const char *s, size_t n);
 
 /* Copy a C string and GC-allocate a descriptor for it. */
 template <js::AllowGC allowGC>
@@ -138,7 +109,7 @@ js_NewStringCopyZ(JSContext *cx, const jschar *s);
 
 template <js::AllowGC allowGC>
 extern JSFlatString *
-js_NewStringCopyZ(js::ThreadSafeContext *tcx, const char *s);
+js_NewStringCopyZ(JSContext *cx, const char *s);
 
 /*
  * Convert a value to a printable C string.
@@ -186,20 +157,15 @@ ToString(JSContext *cx, JS::HandleValue v)
 inline bool
 ValueToStringBuffer(JSContext *cx, const Value &v, StringBuffer &sb);
 
+} /* namespace js */
+
+namespace js {
 /*
  * Convert a value to its source expression, returning null after reporting
  * an error, otherwise returning a new string reference.
  */
 extern JSString *
-ValueToSource(JSContext *cx, HandleValue v);
-
-/*
- * Convert a JSString to its source expression; returns null after reporting an
- * error, otherwise returns a new string reference. No Handle needed since the
- * input is dead after the GC.
- */
-extern JSString *
-StringToSource(JSContext *cx, JSString *str);
+ValueToSource(JSContext *cx, const js::Value &v);
 
 /*
  * Test if strings are equal. The caller can call the function even if str1
@@ -262,7 +228,7 @@ namespace js {
  * new string (in jschars).
  */
 extern jschar *
-InflateString(ThreadSafeContext *cx, const char *bytes, size_t *length);
+InflateString(JSContext *cx, const char *bytes, size_t *length);
 
 /*
  * Inflate bytes in UTF-8 encoding to jschars. Return null on error, otherwise

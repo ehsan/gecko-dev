@@ -40,7 +40,7 @@ ImageClient::CreateImageClient(CompositableType aCompositableHostType,
     result = nullptr;
     break;
   default:
-    MOZ_CRASH("unhandled program type");
+    MOZ_NOT_REACHED("unhandled program type");
   }
 
   NS_ASSERTION(result, "Failed to create ImageClient");
@@ -51,6 +51,7 @@ ImageClient::CreateImageClient(CompositableType aCompositableHostType,
 
 ImageClient::ImageClient(CompositableForwarder* aFwd, CompositableType aType)
 : CompositableClient(aFwd)
+, mFilter(gfxPattern::FILTER_GOOD)
 , mType(aType)
 , mLastPaintedImageSerial(0)
 {}
@@ -76,15 +77,15 @@ ImageClientSingle::ImageClientSingle(CompositableForwarder* aFwd,
 }
 
 bool
-ImageClientSingle::EnsureDeprecatedTextureClient(DeprecatedTextureClientType aType)
+ImageClientSingle::EnsureTextureClient(TextureClientType aType)
 {
   // We should not call this method if using ImageBridge or tiled texture
   // clients since SupportsType always fails
-  if (mDeprecatedTextureClient && mDeprecatedTextureClient->SupportsType(aType)) {
+  if (mTextureClient && mTextureClient->SupportsType(aType)) {
     return true;
   }
-  mDeprecatedTextureClient = CreateDeprecatedTextureClient(aType);
-  return !!mDeprecatedTextureClient;
+  mTextureClient = CreateTextureClient(aType);
+  return !!mTextureClient;
 }
 
 bool
@@ -103,11 +104,11 @@ ImageClientSingle::UpdateImage(ImageContainer* aContainer,
   }
 
   if (image->GetFormat() == PLANAR_YCBCR &&
-      EnsureDeprecatedTextureClient(TEXTURE_YCBCR)) {
+      EnsureTextureClient(TEXTURE_YCBCR)) {
     PlanarYCbCrImage* ycbcr = static_cast<PlanarYCbCrImage*>(image);
 
     if (ycbcr->AsSharedPlanarYCbCrImage()) {
-      AutoLockDeprecatedTextureClient lock(mDeprecatedTextureClient);
+      AutoLockTextureClient lock(mTextureClient);
 
       SurfaceDescriptor sd;
       if (!ycbcr->AsSharedPlanarYCbCrImage()->ToSurfaceDescriptor(sd)) {
@@ -120,15 +121,15 @@ ImageClientSingle::UpdateImage(ImageContainer* aContainer,
 
       *lock.GetSurfaceDescriptor() = sd;
     } else {
-      AutoLockYCbCrClient clientLock(mDeprecatedTextureClient);
+      AutoLockYCbCrClient clientLock(mTextureClient);
 
       if (!clientLock.Update(ycbcr)) {
-        NS_WARNING("failed to update DeprecatedTextureClient (YCbCr)");
+        NS_WARNING("failed to update TextureClient (YCbCr)");
         return false;
       }
     }
   } else if (image->GetFormat() == SHARED_TEXTURE &&
-             EnsureDeprecatedTextureClient(TEXTURE_SHARED_GL_EXTERNAL)) {
+             EnsureTextureClient(TEXTURE_SHARED_GL_EXTERNAL)) {
     SharedTextureImage* sharedImage = static_cast<SharedTextureImage*>(image);
     const SharedTextureImage::Data *data = sharedImage->GetData();
 
@@ -136,62 +137,65 @@ ImageClientSingle::UpdateImage(ImageContainer* aContainer,
                                     data->mHandle,
                                     data->mSize,
                                     data->mInverted);
-    mDeprecatedTextureClient->SetDescriptor(SurfaceDescriptor(texture));
+    mTextureClient->SetDescriptor(SurfaceDescriptor(texture));
   } else if (image->GetFormat() == SHARED_RGB &&
-             EnsureDeprecatedTextureClient(TEXTURE_SHMEM)) {
+             EnsureTextureClient(TEXTURE_SHMEM)) {
     nsIntRect rect(0, 0,
                    image->GetSize().width,
                    image->GetSize().height);
     UpdatePictureRect(rect);
 
-    AutoLockDeprecatedTextureClient lock(mDeprecatedTextureClient);
+    AutoLockTextureClient lock(mTextureClient);
 
     SurfaceDescriptor desc;
     if (!static_cast<SharedRGBImage*>(image)->ToSurfaceDescriptor(desc)) {
       return false;
     }
-    mDeprecatedTextureClient->SetDescriptor(desc);
+    mTextureClient->SetDescriptor(desc);
 #ifdef MOZ_WIDGET_GONK
   } else if (image->GetFormat() == GONK_IO_SURFACE &&
-             EnsureDeprecatedTextureClient(TEXTURE_SHARED_GL_EXTERNAL)) {
+             EnsureTextureClient(TEXTURE_SHARED_GL_EXTERNAL)) {
     nsIntRect rect(0, 0,
                    image->GetSize().width,
                    image->GetSize().height);
     UpdatePictureRect(rect);
 
-    AutoLockDeprecatedTextureClient lock(mDeprecatedTextureClient);
+    AutoLockTextureClient lock(mTextureClient);
 
     SurfaceDescriptor desc = static_cast<GonkIOSurfaceImage*>(image)->GetSurfaceDescriptor();
     if (!IsSurfaceDescriptorValid(desc)) {
       return false;
     }
-    mDeprecatedTextureClient->SetDescriptor(desc);
+    mTextureClient->SetDescriptor(desc);
   } else if (image->GetFormat() == GRALLOC_PLANAR_YCBCR) {
-    EnsureDeprecatedTextureClient(TEXTURE_SHARED_GL_EXTERNAL);
+    EnsureTextureClient(TEXTURE_SHARED_GL_EXTERNAL);
 
     nsIntRect rect(0, 0,
                    image->GetSize().width,
                    image->GetSize().height);
     UpdatePictureRect(rect);
 
-    AutoLockDeprecatedTextureClient lock(mDeprecatedTextureClient);
+    AutoLockTextureClient lock(mTextureClient);
 
     SurfaceDescriptor desc = static_cast<GrallocPlanarYCbCrImage*>(image)->GetSurfaceDescriptor();
     if (!IsSurfaceDescriptorValid(desc)) {
       return false;
     }
-    mDeprecatedTextureClient->SetDescriptor(desc);
+    mTextureClient->SetDescriptor(desc);
 #endif
   } else {
     nsRefPtr<gfxASurface> surface = image->GetAsSurface();
     MOZ_ASSERT(surface);
 
-    EnsureDeprecatedTextureClient(TEXTURE_SHMEM);
-    MOZ_ASSERT(mDeprecatedTextureClient, "Failed to create texture client");
+    EnsureTextureClient(TEXTURE_SHMEM);
+    MOZ_ASSERT(mTextureClient, "Failed to create texture client");
 
-    AutoLockShmemClient clientLock(mDeprecatedTextureClient);
-    if (!clientLock.Update(image, aContentFlags, surface)) {
-      NS_WARNING("failed to update DeprecatedTextureClient");
+    nsRefPtr<gfxPattern> pattern = new gfxPattern(surface);
+    pattern->SetFilter(mFilter);
+
+    AutoLockShmemClient clientLock(mTextureClient);
+    if (!clientLock.Update(image, aContentFlags, pattern)) {
+      NS_WARNING("failed to update TextureClient");
       return false;
     }
   }
@@ -211,7 +215,7 @@ ImageClientSingle::UpdateImage(ImageContainer* aContainer,
 void
 ImageClientSingle::Updated()
 {
-  mForwarder->UpdateTexture(this, 1, mDeprecatedTextureClient->GetDescriptor());
+  mForwarder->UpdateTexture(this, 1, mTextureClient->GetDescriptor());
 }
 
 ImageClientBridge::ImageClientBridge(CompositableForwarder* aFwd,

@@ -11,7 +11,6 @@
 #include "mozilla/RefPtr.h"
 #include "Zip.h"
 #include "Elfxx.h"
-#include "Mappable.h"
 
 /**
  * dlfcn.h replacement functions
@@ -76,6 +75,9 @@ template <> inline RefCounted<LibHandle, AtomicRefCount>::~RefCounted()
 
 } /* namespace detail */
 } /* namespace mozilla */
+
+/* Forward declaration */
+class Mappable;
 
 /**
  * Abstract class for loaded libraries. Libraries may be loaded through the
@@ -198,7 +200,7 @@ private:
   char *path;
 
   /* Mappable object keeping the result of GetMappable() */
-  mutable mozilla::RefPtr<Mappable> mappable;
+  mutable Mappable *mappable;
 };
 
 /**
@@ -547,7 +549,7 @@ private:
       {
         if (other.item == NULL)
           return item ? true : false;
-        MOZ_CRASH("DebuggerHelper::iterator::operator< called with something else than DebuggerHelper::end()");
+        MOZ_NOT_REACHED("DebuggerHelper::iterator::operator< called with something else than DebuggerHelper::end()");
       }
     protected:
       friend class DebuggerHelper;

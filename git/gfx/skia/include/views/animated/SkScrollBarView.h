@@ -42,3 +42,4 @@ private:
     typedef SkWidgetView INHERITED;
 };
 #endif
+

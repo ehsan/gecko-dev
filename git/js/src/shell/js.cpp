@@ -35,20 +35,21 @@
 #include "json.h"
 #include "jsreflect.h"
 #include "jsscript.h"
+#include "jstypedarray.h"
+#include "jstypedarrayinlines.h"
 #include "jsworkers.h"
 #include "jswrapper.h"
-#include "perf/jsperf.h"
+#include "jsperf.h"
 
 #include "builtin/TestingFunctions.h"
 #include "frontend/BytecodeEmitter.h"
 #include "frontend/Parser.h"
 #include "vm/Shape.h"
-#include "vm/TypedArrayObject.h"
 
 #include "prmjtime.h"
 
-#include "shell/jsoptparse.h"
-#include "shell/jsheaptools.h"
+#include "jsoptparse.h"
+#include "jsheaptools.h"
 
 #include "jsinferinlines.h"
 #include "jsscriptinlines.h"
@@ -193,10 +194,10 @@ static const JSErrorFormatString *
 my_GetErrorMessage(void *userRef, const char *locale, const unsigned errorNumber);
 
 #ifdef EDITLINE
-extern "C" {
+JS_BEGIN_EXTERN_C
 extern JS_EXPORT_API(char *) readline(const char *prompt);
 extern JS_EXPORT_API(void)   add_history(char *line);
-} // extern "C"
+JS_END_EXTERN_C
 #endif
 
 static void
@@ -624,10 +625,9 @@ static JSBool
 Version(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    JSVersion origVersion = JS_GetVersion(cx);
     if (args.length() == 0 || JSVAL_IS_VOID(args[0])) {
         /* Get version. */
-        args.rval().setInt32(origVersion);
+        args.rval().setInt32(JS_GetVersion(cx));
     } else {
         /* Set version. */
         int32_t v = -1;
@@ -642,9 +642,17 @@ Version(JSContext *cx, unsigned argc, jsval *vp)
             JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL, JSSMSG_INVALID_ARGS, "version");
             return false;
         }
-        JS_SetVersionForCompartment(js::GetContextCompartment(cx), JSVersion(v));
-        args.rval().setInt32(origVersion);
+        args.rval().setInt32(JS_SetVersion(cx, JSVersion(v)));
     }
+    return true;
+}
+
+static JSBool
+RevertVersion(JSContext *cx, unsigned argc, jsval *vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    js_RevertVersion(cx);
+    args.rval().setUndefined();
     return true;
 }
 
@@ -1155,7 +1163,7 @@ FileAsTypedArray(JSContext *cx, const char *pathname)
             obj = JS_NewUint8Array(cx, len);
             if (!obj)
                 return NULL;
-            char *buf = (char *) obj->as<TypedArrayObject>().viewData();
+            char *buf = (char *) TypedArray::viewData(obj);
             size_t cc = fread(buf, 1, len, file);
             if (cc != len) {
                 JS_ReportError(cx, "can't read %s: %s", pathname,
@@ -3437,17 +3445,16 @@ Serialize(JSContext *cx, unsigned argc, jsval *vp)
     if (!JS_WriteStructuredClone(cx, v, &datap, &nbytes, NULL, NULL, UndefinedValue()))
         return false;
 
-    JSObject *obj = JS_NewUint8Array(cx, nbytes);
-    if (!obj) {
+    JSObject *array = JS_NewUint8Array(cx, nbytes);
+    if (!array) {
         JS_free(cx, datap);
         return false;
     }
-    TypedArrayObject *tarr = &obj->as<TypedArrayObject>();
-    JS_ASSERT((uintptr_t(tarr->viewData()) & 7) == 0);
-    js_memcpy(tarr->viewData(), datap, nbytes);
+    JS_ASSERT((uintptr_t(TypedArray::viewData(array)) & 7) == 0);
+    js_memcpy(TypedArray::viewData(array), datap, nbytes);
 
     JS_ClearStructuredClone(datap, nbytes);
-    JS_SET_RVAL(cx, vp, OBJECT_TO_JSVAL(tarr));
+    JS_SET_RVAL(cx, vp, OBJECT_TO_JSVAL(array));
     return true;
 }
 
@@ -3456,21 +3463,20 @@ Deserialize(JSContext *cx, unsigned argc, jsval *vp)
 {
     Rooted<jsval> v(cx, argc > 0 ? JS_ARGV(cx, vp)[0] : UndefinedValue());
     JSObject *obj;
-    if (JSVAL_IS_PRIMITIVE(v) || !(obj = JSVAL_TO_OBJECT(v))->is<TypedArrayObject>()) {
+    if (JSVAL_IS_PRIMITIVE(v) || !(obj = JSVAL_TO_OBJECT(v))->isTypedArray()) {
         JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL, JSSMSG_INVALID_ARGS, "deserialize");
         return false;
     }
-    TypedArrayObject *tarr = &obj->as<TypedArrayObject>();
-    if ((tarr->byteLength() & 7) != 0) {
+    if ((TypedArray::byteLength(obj) & 7) != 0) {
         JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL, JSSMSG_INVALID_ARGS, "deserialize");
         return false;
     }
-    if ((uintptr_t(tarr->viewData()) & 7) != 0) {
+    if ((uintptr_t(TypedArray::viewData(obj)) & 7) != 0) {
         JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL, JSSMSG_BAD_ALIGNMENT);
         return false;
     }
 
-    if (!JS_ReadStructuredClone(cx, (uint64_t *) tarr->viewData(), tarr->byteLength(),
+    if (!JS_ReadStructuredClone(cx, (uint64_t *) TypedArray::viewData(obj), TypedArray::byteLength(obj),
                                 JS_STRUCTURED_CLONE_VERSION, v.address(), NULL, NULL)) {
         return false;
     }
@@ -3566,6 +3572,10 @@ static const JSFunctionSpecWithHelp shell_functions[] = {
     JS_FN_HELP("version", Version, 0, 0,
 "version([number])",
 "  Get or force a script compilation version number."),
+
+    JS_FN_HELP("revertVersion", RevertVersion, 0, 0,
+"revertVersion()",
+"  Revert previously set version number."),
 
     JS_FN_HELP("options", Options, 0, 0,
 "options([option ...])",
@@ -4772,6 +4782,7 @@ NewContext(JSRuntime *rt)
 
     JS_SetContextPrivate(cx, data);
     JS_SetErrorReporter(cx, my_ErrorReporter);
+    JS_SetVersion(cx, JSVERSION_LATEST);
     SetContextOptions(cx);
     if (enableTypeInference)
         JS_ToggleOptions(cx, JSOPTION_TYPE_INFERENCE);
@@ -4796,10 +4807,8 @@ DestroyContext(JSContext *cx, bool withGC)
 static JSObject *
 NewGlobalObject(JSContext *cx, JSObject *sameZoneAs)
 {
-    JS::CompartmentOptions options;
-    options.setZone(sameZoneAs ? JS::SameZoneAs(sameZoneAs) : JS::FreshZone)
-           .setVersion(JSVERSION_LATEST);
-    RootedObject glob(cx, JS_NewGlobalObject(cx, &global_class, NULL, options));
+    JS::ZoneSpecifier spec = sameZoneAs ? JS::SameZoneAs(sameZoneAs) : JS::FreshZone;
+    RootedObject glob(cx, JS_NewGlobalObject(cx, &global_class, NULL, spec));
     if (!glob)
         return NULL;
 
@@ -4934,10 +4943,8 @@ ProcessArgs(JSContext *cx, JSObject *obj_, OptionParser *op)
     if (op->getBoolOption('b'))
         printTiming = true;
 
-    if (op->getBoolOption('D')) {
-        cx->runtime()->profilingScripts = true;
+    if (op->getBoolOption('D'))
         enableDisassemblyDumps = true;
-    }
 
 #ifdef JS_THREADSAFE
     int32_t threadCount = op->getIntOption("thread-count");
@@ -5371,6 +5378,10 @@ main(int argc, char **argv, char **envp)
     JS_SetGCParameterForThread(cx, JSGC_MAX_CODE_CACHE_BYTES, 16 * 1024 * 1024);
 
     js::SetPreserveWrapperCallback(rt, DummyPreserveWrapperCallback);
+
+    /* Must be done before creating the global object */
+    if (op.getBoolOption('D'))
+        JS_ToggleOptions(cx, JSOPTION_PCCOUNT);
 
     result = Shell(cx, &op, envp);
 

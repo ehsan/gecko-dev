@@ -54,3 +54,4 @@ bool SkDataInput::setParent(SkDisplayable* displayable) {
 void SkDataInput::onEndElement(SkAnimateMaker&) {
     add();
 }
+

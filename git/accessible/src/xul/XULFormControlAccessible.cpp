@@ -244,7 +244,7 @@ XULDropmarkerAccessible::DropmarkerOpen(bool aToggleOpen)
   bool isOpen = false;
 
   nsCOMPtr<nsIDOMXULButtonElement> parentButtonElement =
-    do_QueryInterface(mContent->GetFlattenedTreeParent());
+    do_QueryInterface(mContent->GetParent());
 
   if (parentButtonElement) {
     parentButtonElement->GetOpen(&isOpen);

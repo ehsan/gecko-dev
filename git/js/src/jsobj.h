@@ -27,7 +27,6 @@
 #include "gc/Heap.h"
 
 #include "vm/ObjectImpl.h"
-#include "vm/Shape.h"
 #include "vm/String.h"
 
 namespace JS {
@@ -41,6 +40,7 @@ class BaseProxyHandler;
 struct GCMarker;
 struct NativeIterator;
 class Nursery;
+class Shape;
 struct StackShape;
 
 namespace mjit { class Compiler; }
@@ -209,6 +209,7 @@ extern Class IntlClass;
 extern Class JSONClass;
 extern Class MathClass;
 extern Class ObjectClass;
+extern Class ProxyClass;
 
 class ArrayBufferObject;
 class GlobalObject;
@@ -219,6 +220,8 @@ class SetObject;
 class StrictArgumentsObject;
 
 }  /* namespace js */
+
+#define JSSLOT_FREE(clasp)  JSCLASS_RESERVED_SLOTS(clasp)
 
 /*
  * The public interface for an object.
@@ -288,28 +291,18 @@ class JSObject : public js::ObjectImpl
     static const uint32_t NELEMENTS_LIMIT = JS_BIT(28);
 
   public:
-    bool setDelegate(JSContext *cx) {
-        return setFlag(cx, js::BaseShape::DELEGATE, GENERATE_SHAPE);
-    }
+    inline bool setDelegate(JSContext *cx);
 
-    bool isBoundFunction() const {
-        return lastProperty()->hasObjectFlag(js::BaseShape::BOUND_FUNCTION);
-    }
+    inline bool isBoundFunction() const;
 
     inline bool hasSpecialEquality() const;
 
-    bool watched() const {
-        return lastProperty()->hasObjectFlag(js::BaseShape::WATCHED);
-    }
-    bool setWatched(JSContext *cx) {
-        return setFlag(cx, js::BaseShape::WATCHED, GENERATE_SHAPE);
-    }
+    inline bool watched() const;
+    inline bool setWatched(JSContext *cx);
 
     /* See StackFrame::varObj. */
     inline bool isVarObj();
-    bool setVarObj(JSContext *cx) {
-        return setFlag(cx, js::BaseShape::VAROBJ);
-    }
+    inline bool setVarObj(JSContext *cx);
 
     /*
      * Objects with an uncacheable proto can have their prototype mutated
@@ -317,28 +310,18 @@ class JSObject : public js::ObjectImpl
      * and JIT inline caches should not be filled for lookups across prototype
      * lookups on the object.
      */
-    bool hasUncacheableProto() const {
-        return lastProperty()->hasObjectFlag(js::BaseShape::UNCACHEABLE_PROTO);
-    }
-    bool setUncacheableProto(JSContext *cx) {
-        return setFlag(cx, js::BaseShape::UNCACHEABLE_PROTO, GENERATE_SHAPE);
-    }
+    inline bool hasUncacheableProto() const;
+    inline bool setUncacheableProto(JSContext *cx);
 
     /*
      * Whether SETLELEM was used to access this object. See also the comment near
      * PropertyTree::MAX_HEIGHT.
      */
-    bool hadElementsAccess() const {
-        return lastProperty()->hasObjectFlag(js::BaseShape::HAD_ELEMENTS_ACCESS);
-    }
-    bool setHadElementsAccess(JSContext *cx) {
-        return setFlag(cx, js::BaseShape::HAD_ELEMENTS_ACCESS);
-    }
+    inline bool hadElementsAccess() const;
+    inline bool setHadElementsAccess(JSContext *cx);
 
   public:
-    bool nativeEmpty() const {
-        return lastProperty()->isEmptyShape();
-    }
+    inline bool nativeEmpty() const;
 
     bool shadowingShapeChange(JSContext *cx, const js::Shape &shape);
 
@@ -346,17 +329,11 @@ class JSObject : public js::ObjectImpl
      * Whether there may be indexed properties on this object, excluding any in
      * the object's elements.
      */
-    bool isIndexed() const {
-        return lastProperty()->hasObjectFlag(js::BaseShape::INDEXED);
-    }
+    inline bool isIndexed() const;
 
-    uint32_t propertyCount() const {
-        return lastProperty()->entryCount();
-    }
+    inline uint32_t propertyCount() const;
 
-    bool hasShapeTable() const {
-        return lastProperty()->hasTable();
-    }
+    inline bool hasShapeTable() const;
 
     void sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::ObjectsExtraSizes *sizes);
 
@@ -428,9 +405,7 @@ class JSObject : public js::ObjectImpl
      */
     static inline bool setSingletonType(JSContext *cx, js::HandleObject obj);
 
-    // uninlinedGetType() is the same as getType(), but not inlined.
     inline js::types::TypeObject* getType(JSContext *cx);
-    js::types::TypeObject* uninlinedGetType(JSContext *cx);
 
     const js::HeapPtr<js::types::TypeObject> &typeFromGC() const {
         /* Direct field access for use by GC. */
@@ -449,17 +424,15 @@ class JSObject : public js::ObjectImpl
      *    If obj is a proxy and the proto is lazy, this code may allocate or
      *    GC in order to compute the proto. Currently, it will not run JS code.
      */
-    bool uninlinedIsProxy() const;
+    bool isProxySlow() const;
     JSObject *getProto() const {
-        JS_ASSERT(!uninlinedIsProxy());
+        JS_ASSERT(!isProxySlow());
         return js::ObjectImpl::getProto();
     }
     static inline bool getProto(JSContext *cx, js::HandleObject obj,
                                 js::MutableHandleObject protop);
 
-    // uninlinedSetType() is the same as setType(), but not inlined.
     inline void setType(js::types::TypeObject *newType);
-    void uninlinedSetType(js::types::TypeObject *newType);
 
     js::types::TypeObject *getNewType(JSContext *cx, js::Class *clasp, JSFunction *fun = NULL);
 
@@ -472,9 +445,7 @@ class JSObject : public js::ObjectImpl
      * to recover this information in the object's type information after it
      * is purged on GC.
      */
-    bool setIteratedSingleton(JSContext *cx) {
-        return setFlag(cx, js::BaseShape::ITERATED_SINGLETON);
-    }
+    inline bool setIteratedSingleton(JSContext *cx);
 
     /*
      * Mark an object as requiring its default 'new' type to have unknown
@@ -518,9 +489,7 @@ class JSObject : public js::ObjectImpl
      */
 
     /* Access the parent link of an object. */
-    JSObject *getParent() const {
-        return lastProperty()->getObjectParent();
-    }
+    inline JSObject *getParent() const;
     static bool setParent(JSContext *cx, js::HandleObject obj, js::HandleObject newParent);
 
     /*
@@ -531,9 +500,7 @@ class JSObject : public js::ObjectImpl
     inline JSObject *enclosingScope();
 
     /* Access the metadata on an object. */
-    inline JSObject *getMetadata() const {
-        return lastProperty()->getObjectMetadata();
-    }
+    inline JSObject *getMetadata() const;
     static bool setMetadata(JSContext *cx, js::HandleObject obj, js::HandleObject newMetadata);
 
     inline js::GlobalObject &global() const;
@@ -578,7 +545,7 @@ class JSObject : public js::ObjectImpl
     static const char *className(JSContext *cx, js::HandleObject obj);
 
     /* Accessors for elements. */
-    inline bool ensureElements(JSContext *cx, uint32_t capacity);
+    inline bool ensureElements(JSContext *cx, uint32_t cap);
     bool growElements(js::ThreadSafeContext *tcx, uint32_t newcap);
     void shrinkElements(JSContext *cx, uint32_t cap);
     void setDynamicElements(js::ObjectElements *header) {
@@ -588,7 +555,7 @@ class JSObject : public js::ObjectImpl
     }
 
     uint32_t getDenseCapacity() {
-        JS_ASSERT(uninlinedIsNative());
+        JS_ASSERT(isNativeSlow());
         JS_ASSERT(getElementsHeader()->capacity >= getElementsHeader()->initializedLength);
         return getElementsHeader()->capacity;
     }
@@ -611,7 +578,7 @@ class JSObject : public js::ObjectImpl
     inline void moveDenseElementsUnbarriered(uint32_t dstStart, uint32_t srcStart, uint32_t count);
 
     bool shouldConvertDoubleElements() {
-        JS_ASSERT(uninlinedIsNative());
+        JS_ASSERT(isNativeSlow());
         return getElementsHeader()->shouldConvertDoubleElements();
     }
 
@@ -716,7 +683,7 @@ class JSObject : public js::ObjectImpl
      *
      * Notes:
      * 1. getter and setter must be normalized based on flags (see jsscope.cpp).
-     * 2. Checks for non-extensibility must be done by callers.
+     * 2. !isExtensible() checking must be done by callers.
      */
     static js::Shape *addPropertyInternal(JSContext *cx,
                                             JS::HandleObject obj, JS::HandleId id,
@@ -1072,6 +1039,7 @@ class JSObject : public js::ObjectImpl
     /* Direct subtypes of JSObject: */
     inline bool isObject()           const { return hasClass(&js::ObjectClass); }
     using js::ObjectImpl::isProxy;
+    inline bool isTypedArray()       const;
 
     /* Subtypes of Proxy. */
     inline bool isWrapper()                 const;
@@ -1348,9 +1316,6 @@ DefineProperty(JSContext *cx, js::HandleObject obj,
                js::HandleId id, const PropDesc &desc, bool throwError,
                bool *rval);
 
-bool
-DefineProperties(JSContext *cx, HandleObject obj, HandleObject props);
-
 /*
  * Read property descriptors from props, as for Object.defineProperties. See
  * ES5 15.2.3.7 steps 3-5.
@@ -1420,12 +1385,12 @@ bool
 LookupPropertyPure(JSObject *obj, jsid id, JSObject **objp, Shape **propp);
 
 bool
-GetPropertyPure(ThreadSafeContext *tcx, JSObject *obj, jsid id, Value *vp);
+GetPropertyPure(JSObject *obj, jsid id, Value *vp);
 
 inline bool
-GetPropertyPure(ThreadSafeContext *tcx, JSObject *obj, PropertyName *name, Value *vp)
+GetPropertyPure(JSObject *obj, PropertyName *name, Value *vp)
 {
-    return GetPropertyPure(tcx, obj, NameToId(name), vp);
+    return GetPropertyPure(obj, NameToId(name), vp);
 }
 
 bool
@@ -1456,9 +1421,6 @@ CheckAccess(JSContext *cx, JSObject *obj, HandleId id, JSAccessMode mode,
 
 extern bool
 IsDelegate(JSContext *cx, HandleObject obj, const Value &v, bool *result);
-
-bool
-GetObjectElementOperationPure(ThreadSafeContext *tcx, JSObject *obj, const Value &prop, Value *vp);
 
 } /* namespace js */
 

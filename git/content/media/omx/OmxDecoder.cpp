@@ -8,7 +8,6 @@
 
 #include "base/basictypes.h"
 #include <cutils/properties.h>
-#include <stagefright/foundation/ADebug.h>
 #include <stagefright/foundation/AMessage.h>
 #include <stagefright/MediaExtractor.h>
 #include <stagefright/MetaData.h>
@@ -151,8 +150,7 @@ OmxDecoder::OmxDecoder(MediaResource *aResource,
   mAudioBuffer(nullptr),
   mIsVideoSeeking(false),
   mAudioMetadataRead(false),
-  mAudioPaused(false),
-  mVideoPaused(false)
+  mPaused(false)
 {
   mLooper = new ALooper;
   mLooper->setName("OmxDecoder");
@@ -176,10 +174,8 @@ OmxDecoder::~OmxDecoder()
 
 void OmxDecoder::statusChanged()
 {
-  sp<AMessage> notify =
-           new AMessage(kNotifyStatusChanged, mReflector->id());
- // post AMessage to OmxDecoder via ALooper.
- notify->post();
+  mozilla::ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
+  mDecoder->GetReentrantMonitor().NotifyAll();
 }
 
 static sp<IOMX> sOMX = nullptr;
@@ -408,7 +404,6 @@ bool OmxDecoder::AllocateMediaResources()
     }
     if (mAudioSource->start() != OK) {
       NS_WARNING("Couldn't start OMX audio source");
-      mAudioSource.clear();
       return false;
     }
   }
@@ -738,71 +733,44 @@ bool OmxDecoder::ReadAudio(AudioFrame *aFrame, int64_t aSeekTimeUs)
 
 nsresult OmxDecoder::Play()
 {
-  if (!mVideoPaused && !mAudioPaused) {
+  if (!mPaused) {
     return NS_OK;
   }
-
-  if (mVideoPaused && mVideoSource.get() && mVideoSource->start() != OK) {
+  if (mVideoSource.get() && mVideoSource->start() != OK) {
     return NS_ERROR_UNEXPECTED;
   }
-  mVideoPaused = false;
 
-  if (mAudioPaused && mAudioSource.get() && mAudioSource->start() != OK) {
+  if (mAudioSource.get()&& mAudioSource->start() != OK) {
     return NS_ERROR_UNEXPECTED;
   }
-  mAudioPaused = false;
-
+  mPaused = false;
   return NS_OK;
 }
 
-// AOSP didn't give implementation on OMXCodec::Pause() and not define
-// OMXCodec::Start() should be called for resuming the decoding. Currently
-// it is customized by a specific open source repository only.
-// ToDo The one not supported OMXCodec::Pause() should return error code here,
-// so OMXCodec::Start() doesn't be called again for resuming. But if someone
-// implement the OMXCodec::Pause() and need a following OMXCodec::Read() with
-// seek option (define in MediaSource.h) then it is still not supported here.
-// We need to fix it until it is really happened.
 void OmxDecoder::Pause()
 {
-  if (mVideoPaused || mAudioPaused) {
+  if (mPaused) {
     return;
   }
-
-  if (mVideoSource.get() && mVideoSource->pause() == OK) {
-    mVideoPaused = true;
+  if (mVideoSource.get()) {
+    mVideoSource->pause();
   }
 
-  if (mAudioSource.get() && mAudioSource->pause() == OK) {
-    mAudioPaused = true;
+  if (mAudioSource.get()) {
+    mAudioSource->pause();
   }
+  mPaused = true;
 }
 
 // Called on ALooper thread.
 void OmxDecoder::onMessageReceived(const sp<AMessage> &msg)
 {
-  switch (msg->what()) {
-    case kNotifyPostReleaseVideoBuffer:
-    {
-      Mutex::Autolock autoLock(mSeekLock);
-      // Free pending video buffers when OmxDecoder is not seeking video.
-      // If OmxDecoder is seeking video, the buffers are freed on seek exit.
-      if (!mIsVideoSeeking) {
-        ReleaseAllPendingVideoBuffersLocked();
-      }
-      break;
-    }
+  Mutex::Autolock autoLock(mSeekLock);
 
-    case kNotifyStatusChanged:
-    {
-      mozilla::ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-      mDecoder->GetReentrantMonitor().NotifyAll();
-      break;
-    }
-
-    default:
-      TRESPASS();
-      break;
+  // Free pending video buffers when OmxDecoder is not seeking video.
+  // If OmxDecoder is in seeking video, the buffers are freed on seek exit. 
+  if (mIsVideoSeeking != true) {
+    ReleaseAllPendingVideoBuffersLocked();
   }
 }
 

@@ -85,10 +85,6 @@ const SETTINGS_USB_DHCPSERVER_ENDIP    = "tethering.usb.dhcpserver.endip";
 const SETTINGS_USB_DNS1                = "tethering.usb.dns1";
 const SETTINGS_USB_DNS2                = "tethering.usb.dns2";
 
-// Settings DB path for WIFI tethering.
-const SETTINGS_WIFI_DHCPSERVER_STARTIP = "tethering.wifi.dhcpserver.startip";
-const SETTINGS_WIFI_DHCPSERVER_ENDIP   = "tethering.wifi.dhcpserver.endip";
-
 // Default value for USB tethering.
 const DEFAULT_USB_IP                   = "192.168.0.1";
 const DEFAULT_USB_PREFIX               = "24";
@@ -97,9 +93,6 @@ const DEFAULT_USB_DHCPSERVER_ENDIP     = "192.168.0.30";
 
 const DEFAULT_DNS1                     = "8.8.8.8";
 const DEFAULT_DNS2                     = "8.8.4.4";
-
-const DEFAULT_WIFI_DHCPSERVER_STARTIP  = "192.168.1.10";
-const DEFAULT_WIFI_DHCPSERVER_ENDIP    = "192.168.1.30";
 
 const MANUAL_PROXY_CONFIGURATION = 1;
 
@@ -181,19 +174,13 @@ function NetworkManager() {
   settingsLock.get(SETTINGS_USB_DNS2, this);
   settingsLock.get(SETTINGS_USB_ENABLED, this);
 
-  // Read wifi tethering data from settings DB.
-  settingsLock.get(SETTINGS_WIFI_DHCPSERVER_STARTIP, this);
-  settingsLock.get(SETTINGS_WIFI_DHCPSERVER_ENDIP, this);
-
   this._usbTetheringSettingsToRead = [SETTINGS_USB_IP,
                                       SETTINGS_USB_PREFIX,
                                       SETTINGS_USB_DHCPSERVER_STARTIP,
                                       SETTINGS_USB_DHCPSERVER_ENDIP,
                                       SETTINGS_USB_DNS1,
                                       SETTINGS_USB_DNS2,
-                                      SETTINGS_USB_ENABLED,
-                                      SETTINGS_WIFI_DHCPSERVER_STARTIP,
-                                      SETTINGS_WIFI_DHCPSERVER_ENDIP];
+                                      SETTINGS_USB_ENABLED];
 
   this.wantConnectionEvent = null;
   this.setAndConfigureActive();
@@ -241,7 +228,7 @@ NetworkManager.prototype = {
             this.setAndConfigureActive();
             // Update data connection when Wifi connected/disconnected
             if (network.type == Ci.nsINetworkInterface.NETWORK_TYPE_WIFI) {
-              this.mRIL.getRadioInterface(0).updateRILNetworkInterface();
+              this.mRIL.updateRILNetworkInterface();
             }
 
             this.onConnectionChanged(network);
@@ -258,14 +245,14 @@ NetworkManager.prototype = {
             }
             // Remove routing table in /proc/net/route
             if (network.type == Ci.nsINetworkInterface.NETWORK_TYPE_WIFI) {
-              this.resetRoutingTable(network);
+              this.resetRoutingTable(this._activeInfo);
             }
             // Abort ongoing captive portal detection on the wifi interface
             CaptivePortalDetectionHelper.notify(CaptivePortalDetectionHelper.EVENT_DISCONNECT, network);
             this.setAndConfigureActive();
             // Update data connection when Wifi connected/disconnected
             if (network.type == Ci.nsINetworkInterface.NETWORK_TYPE_WIFI) {
-              this.mRIL.getRadioInterface(0).updateRILNetworkInterface();
+              this.mRIL.updateRILNetworkInterface();
             }
             break;
         }
@@ -677,9 +664,6 @@ NetworkManager.prototype = {
     this.tetheringSettings[SETTINGS_USB_DHCPSERVER_ENDIP] = DEFAULT_USB_DHCPSERVER_ENDIP;
     this.tetheringSettings[SETTINGS_USB_DNS1] = DEFAULT_DNS1;
     this.tetheringSettings[SETTINGS_USB_DNS2] = DEFAULT_DNS2;
-
-    this.tetheringSettings[SETTINGS_WIFI_DHCPSERVER_STARTIP] = DEFAULT_WIFI_DHCPSERVER_STARTIP;
-    this.tetheringSettings[SETTINGS_WIFI_DHCPSERVER_ENDIP]   = DEFAULT_WIFI_DHCPSERVER_ENDIP;
   },
 
   _requestCount: 0,
@@ -694,8 +678,6 @@ NetworkManager.prototype = {
       case SETTINGS_USB_DHCPSERVER_ENDIP:
       case SETTINGS_USB_DNS1:
       case SETTINGS_USB_DNS2:
-      case SETTINGS_WIFI_DHCPSERVER_STARTIP:
-      case SETTINGS_WIFI_DHCPSERVER_ENDIP:
         if (aResult !== null) {
           this.tetheringSettings[aName] = aResult;
         }
@@ -790,10 +772,8 @@ NetworkManager.prototype = {
   getUSBTetheringParameters: function getUSBTetheringParameters(enable, tetheringinterface) {
     let interfaceIp;
     let prefix;
-    let wifiDhcpStartIp;
-    let wifiDhcpEndIp;
-    let usbDhcpStartIp;
-    let usbDhcpEndIp;
+    let dhcpStartIp;
+    let dhcpEndIp;
     let dns1;
     let dns2;
     let internalInterface = tetheringinterface.internalInterface;
@@ -801,17 +781,14 @@ NetworkManager.prototype = {
 
     interfaceIp = this.tetheringSettings[SETTINGS_USB_IP];
     prefix = this.tetheringSettings[SETTINGS_USB_PREFIX];
-    wifiDhcpStartIp = this.tetheringSettings[SETTINGS_WIFI_DHCPSERVER_STARTIP];
-    wifiDhcpEndIp = this.tetheringSettings[SETTINGS_WIFI_DHCPSERVER_ENDIP];
-    usbDhcpStartIp = this.tetheringSettings[SETTINGS_USB_DHCPSERVER_STARTIP];
-    usbDhcpEndIp = this.tetheringSettings[SETTINGS_USB_DHCPSERVER_ENDIP];
+    dhcpStartIp = this.tetheringSettings[SETTINGS_USB_DHCPSERVER_STARTIP];
+    dhcpEndIp = this.tetheringSettings[SETTINGS_USB_DHCPSERVER_ENDIP];
     dns1 = this.tetheringSettings[SETTINGS_USB_DNS1];
     dns2 = this.tetheringSettings[SETTINGS_USB_DNS2];
 
     // Using the default values here until application support these settings.
     if (interfaceIp == "" || prefix == "" ||
-        wifiDhcpStartIp == "" || wifiDhcpEndIp == "" ||
-        usbDhcpStartIp == "" || usbDhcpEndIp == "") {
+        dhcpStartIp == "" || dhcpEndIp == "") {
       debug("Invalid subnet information.");
       return null;
     }
@@ -820,10 +797,8 @@ NetworkManager.prototype = {
       ifname: internalInterface,
       ip: interfaceIp,
       prefix: prefix,
-      wifiStartIp: wifiDhcpStartIp,
-      wifiEndIp: wifiDhcpEndIp,
-      usbStartIp: usbDhcpStartIp,
-      usbEndIp: usbDhcpEndIp,
+      startIp: dhcpStartIp,
+      endIp: dhcpEndIp,
       dns1: dns1,
       dns2: dns2,
       internalIfname: internalInterface,

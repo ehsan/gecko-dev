@@ -539,31 +539,31 @@ TabParent::SetDocShell(nsIDocShell *aDocShell)
 }
 
 PDocumentRendererParent*
-TabParent::AllocPDocumentRendererParent(const nsRect& documentRect,
-                                        const gfxMatrix& transform,
-                                        const nsString& bgcolor,
-                                        const uint32_t& renderFlags,
-                                        const bool& flushLayout,
-                                        const nsIntSize& renderSize)
+TabParent::AllocPDocumentRenderer(const nsRect& documentRect,
+                                  const gfxMatrix& transform,
+                                  const nsString& bgcolor,
+                                  const uint32_t& renderFlags,
+                                  const bool& flushLayout,
+                                  const nsIntSize& renderSize)
 {
     return new DocumentRendererParent();
 }
 
 bool
-TabParent::DeallocPDocumentRendererParent(PDocumentRendererParent* actor)
+TabParent::DeallocPDocumentRenderer(PDocumentRendererParent* actor)
 {
     delete actor;
     return true;
 }
 
 PContentPermissionRequestParent*
-TabParent::AllocPContentPermissionRequestParent(const nsCString& type, const nsCString& access, const IPC::Principal& principal)
+TabParent::AllocPContentPermissionRequest(const nsCString& type, const nsCString& access, const IPC::Principal& principal)
 {
   return new ContentPermissionRequestParent(type, access, mFrameElement, principal);
 }
 
 bool
-TabParent::DeallocPContentPermissionRequestParent(PContentPermissionRequestParent* actor)
+TabParent::DeallocPContentPermissionRequest(PContentPermissionRequestParent* actor)
 {
   delete actor;
   return true;
@@ -1091,7 +1091,7 @@ TabParent::ReceiveMessage(const nsString& aMessage,
   if (frameLoader && frameLoader->GetFrameMessageManager()) {
     nsRefPtr<nsFrameMessageManager> manager =
       frameLoader->GetFrameMessageManager();
-    AutoSafeJSContext ctx;
+    AutoPushJSContext ctx(manager->GetJSContext());
     uint32_t len = 0; //TODO: obtain a real value in bug 572685
     // Because we want JS messages to have always the same properties,
     // create array even if len == 0.
@@ -1111,13 +1111,13 @@ TabParent::ReceiveMessage(const nsString& aMessage,
 }
 
 PIndexedDBParent*
-TabParent::AllocPIndexedDBParent(const nsCString& aASCIIOrigin, bool* /* aAllowed */)
+TabParent::AllocPIndexedDB(const nsCString& aASCIIOrigin, bool* /* aAllowed */)
 {
   return new IndexedDBParent(this);
 }
 
 bool
-TabParent::DeallocPIndexedDBParent(PIndexedDBParent* aActor)
+TabParent::DeallocPIndexedDB(PIndexedDBParent* aActor)
 {
   delete aActor;
   return true;
@@ -1221,11 +1221,11 @@ TabParent::GetAuthPrompt(uint32_t aPromptReason, const nsIID& iid,
 }
 
 PContentDialogParent*
-TabParent::AllocPContentDialogParent(const uint32_t& aType,
-                                     const nsCString& aName,
-                                     const nsCString& aFeatures,
-                                     const InfallibleTArray<int>& aIntParams,
-                                     const InfallibleTArray<nsString>& aStringParams)
+TabParent::AllocPContentDialog(const uint32_t& aType,
+                               const nsCString& aName,
+                               const nsCString& aFeatures,
+                               const InfallibleTArray<int>& aIntParams,
+                               const InfallibleTArray<nsString>& aStringParams)
 {
   ContentDialogParent* parent = new ContentDialogParent();
   nsCOMPtr<nsIDialogParamBlock> params =
@@ -1295,9 +1295,9 @@ TabParent::HandleDelayedDialogs()
 }
 
 PRenderFrameParent*
-TabParent::AllocPRenderFrameParent(ScrollingBehavior* aScrolling,
-                                   TextureFactoryIdentifier* aTextureFactoryIdentifier,
-                                   uint64_t* aLayersId)
+TabParent::AllocPRenderFrame(ScrollingBehavior* aScrolling,
+                             TextureFactoryIdentifier* aTextureFactoryIdentifier,
+                             uint64_t* aLayersId)
 {
   MOZ_ASSERT(ManagedPRenderFrameParent().IsEmpty());
 
@@ -1314,16 +1314,16 @@ TabParent::AllocPRenderFrameParent(ScrollingBehavior* aScrolling,
 }
 
 bool
-TabParent::DeallocPRenderFrameParent(PRenderFrameParent* aFrame)
+TabParent::DeallocPRenderFrame(PRenderFrameParent* aFrame)
 {
   delete aFrame;
   return true;
 }
 
 mozilla::docshell::POfflineCacheUpdateParent*
-TabParent::AllocPOfflineCacheUpdateParent(const URIParams& aManifestURI,
-                                          const URIParams& aDocumentURI,
-                                          const bool& stickDocument)
+TabParent::AllocPOfflineCacheUpdate(const URIParams& aManifestURI,
+                                    const URIParams& aDocumentURI,
+                                    const bool& stickDocument)
 {
   nsRefPtr<mozilla::docshell::OfflineCacheUpdateParent> update =
     new mozilla::docshell::OfflineCacheUpdateParent(OwnOrContainingAppId(),
@@ -1339,7 +1339,7 @@ TabParent::AllocPOfflineCacheUpdateParent(const URIParams& aManifestURI,
 }
 
 bool
-TabParent::DeallocPOfflineCacheUpdateParent(mozilla::docshell::POfflineCacheUpdateParent* actor)
+TabParent::DeallocPOfflineCacheUpdate(mozilla::docshell::POfflineCacheUpdateParent* actor)
 {
   mozilla::docshell::OfflineCacheUpdateParent* update =
     static_cast<mozilla::docshell::OfflineCacheUpdateParent*>(actor);

@@ -338,7 +338,7 @@ public:
    */
   bool IsEmpty() { return mStreams.IsEmpty() && mPortCount == 0; }
 
-  // For use by control messages, on graph thread only.
+  // For use by control messages
   /**
    * Identify which graph update index we are currently processing.
    */

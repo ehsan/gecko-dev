@@ -9,7 +9,7 @@
 
 #include "js/Vector.h"
 #include "jsalloc.h"
-#include "ion/IonTypes.h"
+#include "IonTypes.h"
 
 namespace js {
 namespace ion {
@@ -42,7 +42,8 @@ class CompactBufferReader
             if (!(byte & 1))
                 return val;
         }
-        MOZ_ASSUME_UNREACHABLE("unreachable");
+        JS_NOT_REACHED("unreachable");
+        return 0;
     }
 
   public:

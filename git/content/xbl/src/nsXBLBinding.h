@@ -22,16 +22,9 @@ class nsIContent;
 class nsIAtom;
 class nsIDocument;
 class nsIScriptContext;
-
-namespace mozilla {
-namespace dom {
-
-class XBLChildrenElement;
-
-}
-}
-
-class nsAnonymousContentList;
+class nsObjectHashtable;
+class nsXBLInsertionPoint;
+typedef nsTArray<nsRefPtr<nsXBLInsertionPoint> > nsInsertionPointList;
 struct JSContext;
 class JSObject;
 
@@ -60,7 +53,6 @@ public:
 
   nsXBLPrototypeBinding* PrototypeBinding() { return mPrototypeBinding; }
   nsIContent* GetAnonymousContent() { return mContent.get(); }
-  nsXBLBinding* GetBindingWithContent();
 
   nsXBLBinding* GetBaseBinding() { return mNextBinding; }
   void SetBaseBinding(nsXBLBinding *aBinding);
@@ -128,12 +120,28 @@ public:
   // object |obj|.  False return means a JS exception was set.
   bool ResolveAllFields(JSContext *cx, JS::Handle<JSObject*> obj) const;
 
+  // Get the list of insertion points for aParent. The nsInsertionPointList
+  // is owned by the binding, you should not delete it.
+  void GetInsertionPointsFor(nsIContent* aParent,
+                             nsInsertionPointList** aResult);
+
+  nsInsertionPointList* GetExistingInsertionPointsFor(nsIContent* aParent);
+
+  // XXXbz this aIndex has nothing to do with an index into the child
+  // list of the insertion parent or anything.
+  nsIContent* GetInsertionPoint(const nsIContent* aChild, uint32_t* aIndex);
+
+  nsIContent* GetSingleInsertionPoint(uint32_t* aIndex,
+                                      bool* aMultipleInsertionPoints);
+
   void AttributeChanged(nsIAtom* aAttribute, int32_t aNameSpaceID,
                         bool aRemoveFlag, bool aNotify);
 
   void ChangeDocument(nsIDocument* aOldDocument, nsIDocument* aNewDocument);
 
   void WalkRules(nsIStyleRuleProcessor::EnumFunc aFunc, void* aData);
+
+  nsINodeList* GetAnonymousNodes();
 
   static nsresult DoInitJSClass(JSContext *cx, JS::Handle<JSObject*> global,
                                 JS::Handle<JSObject*> obj,
@@ -144,24 +152,8 @@ public:
 
   bool AllowScripts();  // XXX make const
 
-  mozilla::dom::XBLChildrenElement* FindInsertionPointFor(nsIContent* aChild);
-
-  bool HasFilteredInsertionPoints()
-  {
-    return !mInsertionPoints.IsEmpty();
-  }
-
-  mozilla::dom::XBLChildrenElement* GetDefaultInsertionPoint()
-  {
-    return mDefaultInsertionPoint;
-  }
-
-  // Removes all inserted node from <xbl:children> insertion points under us.
-  void ClearInsertionPoints();
-
-  // Returns a live node list that iterates over the anonymous nodes generated
-  // by this binding.
-  nsAnonymousContentList* GetAnonymousNodeList();
+  void RemoveInsertionParent(nsIContent* aParent);
+  bool HasInsertionParent(nsIContent* aParent);
 
 // MEMBER VARIABLES
 protected:
@@ -175,20 +167,11 @@ protected:
   nsRefPtr<nsXBLJSClass> mJSClass; // Strong. The class object also holds a strong reference,
                                    // which might be somewhat redundant, but be safe to avoid
                                    // worrying about edge cases.
-
+  
   nsIContent* mBoundElement; // [WEAK] We have a reference, but we don't own it.
-
-  // The <xbl:children> elements that we found in our <xbl:content> when we
-  // processed this binding. The default insertion point has no includes
-  // attribute and all other insertion points must have at least one includes
-  // attribute. These points must be up-to-date with respect to their parent's
-  // children, even if their parent has another binding attached to it,
-  // preventing us from rendering their contents directly.
-  nsRefPtr<mozilla::dom::XBLChildrenElement> mDefaultInsertionPoint;
-  nsTArray<nsRefPtr<mozilla::dom::XBLChildrenElement> > mInsertionPoints;
-  nsRefPtr<nsAnonymousContentList> mAnonymousContentList;
-
-  mozilla::dom::XBLChildrenElement* FindInsertionPointForInternal(nsIContent* aChild);
+  
+  // A hash from nsIContent* -> (a sorted array of nsXBLInsertionPoint)
+  nsClassHashtable<nsISupportsHashKey, nsInsertionPointList>* mInsertionPointTable;
 };
 
 #endif // nsXBLBinding_h_

@@ -20,8 +20,6 @@
 #include "vm/NumericConversions.h"
 #include "vm/String.h"
 
-#define JSSLOT_FREE(clasp)  JSCLASS_RESERVED_SLOTS(clasp)
-
 namespace js {
 
 class Debugger;
@@ -692,7 +690,7 @@ class TypedElementsHeader : public ElementsHeader
 template<typename T> inline void
 TypedElementsHeader<T>::assign(uint32_t index, double d)
 {
-    MOZ_ASSUME_UNREACHABLE("didn't specialize for this element type");
+    MOZ_NOT_REACHED("didn't specialize for this element type");
 }
 
 template<> inline void
@@ -1241,14 +1239,7 @@ class ObjectImpl : public gc::Cell
         return type_->clasp;
     }
 
-    static inline bool
-    isExtensible(JSContext *cx, Handle<ObjectImpl*> obj, bool *extensible);
-
-    // Indicates whether a non-proxy is extensible.  Don't call on proxies!
-    // This method really shouldn't exist -- but there are a few internal
-    // places that want it (JITs and the like), and it'd be a pain to mark them
-    // all as friends.
-    inline bool nonProxyIsExtensible() const;
+    inline bool isExtensible() const;
 
     // Attempt to change the [[Extensible]] bit on |obj| to false.  Callers
     // must ensure that |obj| is currently extensible before calling this!
@@ -1256,30 +1247,32 @@ class ObjectImpl : public gc::Cell
     preventExtensions(JSContext *cx, Handle<ObjectImpl*> obj);
 
     HeapSlotArray getDenseElements() {
-        JS_ASSERT(uninlinedIsNative());
+        JS_ASSERT(isNativeSlow());
         return HeapSlotArray(elements);
     }
     const Value &getDenseElement(uint32_t idx) {
-        JS_ASSERT(uninlinedIsNative());
+        JS_ASSERT(isNativeSlow());
         MOZ_ASSERT(idx < getDenseInitializedLength());
         return elements[idx];
     }
     bool containsDenseElement(uint32_t idx) {
-        JS_ASSERT(uninlinedIsNative());
+        JS_ASSERT(isNativeSlow());
         return idx < getDenseInitializedLength() && !elements[idx].isMagic(JS_ELEMENTS_HOLE);
     }
     uint32_t getDenseInitializedLength() {
-        JS_ASSERT(uninlinedIsNative());
+        JS_ASSERT(isNativeSlow());
         return getElementsHeader()->initializedLength;
     }
     uint32_t getDenseCapacity() {
-        JS_ASSERT(uninlinedIsNative());
+        JS_ASSERT(isNativeSlow());
         return getElementsHeader()->capacity;
     }
 
     bool makeElementsSparse(JSContext *cx) {
         NEW_OBJECT_REPRESENTATION_ONLY();
-        MOZ_ASSUME_UNREACHABLE("NYI");
+
+        MOZ_NOT_REACHED("NYI");
+        return false;
     }
 
     inline bool isProxy() const;
@@ -1406,7 +1399,9 @@ class ObjectImpl : public gc::Cell
                                                        uint32_t extra)
     {
         NEW_OBJECT_REPRESENTATION_ONLY();
-        MOZ_ASSUME_UNREACHABLE("NYI");
+
+        MOZ_NOT_REACHED("NYI");
+        return Failure;
     }
 
     /*
@@ -1430,9 +1425,9 @@ class ObjectImpl : public gc::Cell
 
     inline JSCompartment *compartment() const;
 
-    // uninlinedIsNative() is equivalent to isNative(), but isn't inlined.
+    // isNativeSlow() is equivalent to isNative(), but isn't inlined.
     inline bool isNative() const;
-    bool uninlinedIsNative() const;
+    bool isNativeSlow() const;
 
     types::TypeObject *type() const {
         MOZ_ASSERT(!hasLazyType());
@@ -1455,9 +1450,9 @@ class ObjectImpl : public gc::Cell
      */
     bool hasLazyType() const { return type_->lazy(); }
 
-    // uninlinedSlotSpan() is the same as slotSpan(), but isn't inlined.
+    // slotSpanSlow() is the same as slotSpan(), but isn't inlined.
     inline uint32_t slotSpan() const;
-    uint32_t uninlinedSlotSpan() const;
+    uint32_t slotSpanSlow() const;
 
     /* Compute dynamicSlotsCount() for this object. */
     inline uint32_t numDynamicSlots() const;
@@ -1557,11 +1552,11 @@ class ObjectImpl : public gc::Cell
     }
 
     HeapSlot &nativeGetSlotRef(uint32_t slot) {
-        JS_ASSERT(uninlinedIsNative() && slot < uninlinedSlotSpan());
+        JS_ASSERT(isNativeSlow() && slot < slotSpanSlow());
         return getSlotRef(slot);
     }
     const Value &nativeGetSlot(uint32_t slot) const {
-        JS_ASSERT(uninlinedIsNative() && slot < uninlinedSlotSpan());
+        JS_ASSERT(isNativeSlow() && slot < slotSpanSlow());
         return getSlot(slot);
     }
 

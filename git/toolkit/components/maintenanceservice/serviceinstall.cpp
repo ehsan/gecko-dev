@@ -387,11 +387,10 @@ SvcInstall(SvcInstallAction action)
           // Calculate the temp file path that we're moving the file to. This 
           // is the same as the proper service path but with a .old extension.
           LPWSTR oldServiceBinaryTempPath = 
-            new WCHAR[len + 1];
-          memset(oldServiceBinaryTempPath, 0, (len + 1) * sizeof (WCHAR));
-          wcsncpy(oldServiceBinaryTempPath, serviceConfig.lpBinaryPathName, len);
+            new WCHAR[wcslen(serviceConfig.lpBinaryPathName) + 1];
+          wcscpy(oldServiceBinaryTempPath, serviceConfig.lpBinaryPathName);
           // Rename the last 3 chars to 'old'
-          wcsncpy(oldServiceBinaryTempPath + len - 3, L"old", 3);
+          wcscpy(oldServiceBinaryTempPath + len - 3, L"old");
 
           // Move the current (old) service file to the temp path.
           if (MoveFileExW(serviceConfig.lpBinaryPathName, 
@@ -678,8 +677,8 @@ SetUserAccessServiceDACL(SC_HANDLE hService, PACL &pNewAcl,
   // a buffer for the domain name but it's not used since we're using
   // the built in account Sid.
   SID_NAME_USE accountType;
-  WCHAR accountName[UNLEN + 1] = { L'\0' };
-  WCHAR domainName[DNLEN + 1] = { L'\0' };
+  WCHAR accountName[UNLEN + 1];
+  WCHAR domainName[DNLEN + 1];
   DWORD accountNameSize = UNLEN + 1;
   DWORD domainNameSize = DNLEN + 1;
   if (!LookupAccountSidW(NULL, sid, accountName, 
@@ -687,7 +686,7 @@ SetUserAccessServiceDACL(SC_HANDLE hService, PACL &pNewAcl,
                          domainName, &domainNameSize, &accountType)) {
     LOG_WARN(("Could not lookup account Sid, will try Users.  (%d)",
               GetLastError()));
-    wcsncpy(accountName, L"Users", UNLEN);
+    wcscpy(accountName, L"Users");
   }
 
   // We already have the group name so we can get rid of the SID

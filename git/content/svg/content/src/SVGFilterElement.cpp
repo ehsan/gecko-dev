@@ -93,26 +93,26 @@ SVGFilterElement::Height()
   return mLengthAttributes[ATTR_HEIGHT].ToDOMAnimatedLength(this);
 }
 
-already_AddRefed<SVGAnimatedEnumeration>
+already_AddRefed<nsIDOMSVGAnimatedEnumeration>
 SVGFilterElement::FilterUnits()
 {
   return mEnumAttributes[FILTERUNITS].ToDOMAnimatedEnum(this);
 }
 
-already_AddRefed<SVGAnimatedEnumeration>
+already_AddRefed<nsIDOMSVGAnimatedEnumeration>
 SVGFilterElement::PrimitiveUnits()
 {
   return mEnumAttributes[PRIMITIVEUNITS].ToDOMAnimatedEnum(this);
 }
 
-already_AddRefed<SVGAnimatedInteger>
+already_AddRefed<nsIDOMSVGAnimatedInteger>
 SVGFilterElement::FilterResX()
 {
   return mIntegerPairAttributes[FILTERRES].ToDOMAnimatedInteger(nsSVGIntegerPair::eFirst,
                                                                 this);
 }
 
-already_AddRefed<SVGAnimatedInteger>
+already_AddRefed<nsIDOMSVGAnimatedInteger>
 SVGFilterElement::FilterResY()
 {
   return mIntegerPairAttributes[FILTERRES].ToDOMAnimatedInteger(nsSVGIntegerPair::eSecond,

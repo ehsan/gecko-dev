@@ -7,7 +7,7 @@
 #ifndef js_GCAPI_h
 #define js_GCAPI_h
 
-#include "js/HeapAPI.h"
+#include "HeapAPI.h"
 
 namespace JS {
 
@@ -205,7 +205,7 @@ WasIncrementalGC(JSRuntime *rt);
 
 class ObjectPtr
 {
-    Heap<JSObject *> value;
+    JSObject *value;
 
   public:
     ObjectPtr() : value(NULL) {}
@@ -240,7 +240,7 @@ class ObjectPtr
     }
 
     void trace(JSTracer *trc, const char *name) {
-        JS_CallHeapObjectTracer(trc, &value, name);
+        JS_CallObjectTracer(trc, &value, name);
     }
 
     JSObject &operator*() const { return *value; }

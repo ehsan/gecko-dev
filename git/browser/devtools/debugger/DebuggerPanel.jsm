@@ -93,9 +93,6 @@ DebuggerPanel.prototype = {
 
   highlightWhenPaused: function() {
     this._toolbox.highlightTool("jsdebugger");
-    // Also raise the toolbox window if it is undocked or select the
-    // corresponding tab when toolbox is docked.
-    this._toolbox.raise();
   },
 
   unhighlightWhenResumed: function() {

@@ -16,7 +16,6 @@
 #include "mozilla/Attributes.h"
 
 #include "jsapi.h"
-#include "jsfriendapi.h"
 
 using namespace xpc;
 using namespace JS;
@@ -1650,37 +1649,8 @@ nsXPCWrappedJSClass::GetInterfaceName()
     return mName;
 }
 
-static void
-FinalizeStub(JSFreeOp *fop, JSObject *obj)
-{
-}
-
-static JSClass XPCOutParamClass = {
-    "XPCOutParam",
-    0,
-    JS_PropertyStub,
-    JS_DeletePropertyStub,
-    JS_PropertyStub,
-    JS_StrictPropertyStub,
-    JS_EnumerateStub,
-    JS_ResolveStub,
-    JS_ConvertStub,
-    FinalizeStub,
-    NULL,   /* checkAccess */
-    NULL,   /* call */
-    NULL,   /* hasInstance */
-    NULL,   /* construct */
-    NULL    /* trace */
-};
-
-bool
-xpc::IsOutObject(JSContext* cx, JSObject* obj)
-{
-    return js::GetObjectJSClass(obj) == &XPCOutParamClass;
-}
-
 JSObject*
-xpc::NewOutObject(JSContext* cx, JSObject* scope)
+nsXPCWrappedJSClass::NewOutObject(JSContext* cx, JSObject* scope)
 {
     return JS_NewObject(cx, nullptr, nullptr, JS_GetGlobalForObject(cx, scope));
 }

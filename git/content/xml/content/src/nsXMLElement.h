@@ -32,6 +32,8 @@ public:
   // nsINode interface methods
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
 
+  virtual nsXPCClassInfo* GetClassInfo() MOZ_OVERRIDE;
+
   virtual nsIDOMNode* AsDOMNode() MOZ_OVERRIDE { return this; }
 
   // nsIContent interface methods

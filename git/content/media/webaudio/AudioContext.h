@@ -210,9 +210,6 @@ public:
 
   uint32_t MaxChannelCount() const;
 
-  void Mute() const;
-  void Unmute() const;
-
   JSContext* GetJSContext() const;
 
 private:

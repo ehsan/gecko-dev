@@ -19,18 +19,9 @@
 class SkPictureStateTree;
 class SkBBoxHierarchy;
 
-// These macros help with packing and unpacking a single byte value and
-// a 3 byte value into/out of a uint32_t
-#define MASK_24 0x00FFFFFF
-#define UNPACK_8_24(combined, small, large)             \
-    small = (combined >> 24) & 0xFF;                    \
-    large = combined & MASK_24;
-#define PACK_8_24(small, large) ((small << 24) | large)
-
-
 class SkPictureRecord : public SkCanvas {
 public:
-    SkPictureRecord(uint32_t recordFlags, SkDevice*);
+    SkPictureRecord(uint32_t recordFlags);
     virtual ~SkPictureRecord();
 
     virtual SkDevice* setDevice(SkDevice* device) SK_OVERRIDE;
@@ -45,21 +36,18 @@ public:
     virtual bool concat(const SkMatrix& matrix) SK_OVERRIDE;
     virtual void setMatrix(const SkMatrix& matrix) SK_OVERRIDE;
     virtual bool clipRect(const SkRect&, SkRegion::Op, bool) SK_OVERRIDE;
-    virtual bool clipRRect(const SkRRect&, SkRegion::Op, bool) SK_OVERRIDE;
     virtual bool clipPath(const SkPath&, SkRegion::Op, bool) SK_OVERRIDE;
     virtual bool clipRegion(const SkRegion& region, SkRegion::Op op) SK_OVERRIDE;
     virtual void clear(SkColor) SK_OVERRIDE;
     virtual void drawPaint(const SkPaint& paint) SK_OVERRIDE;
     virtual void drawPoints(PointMode, size_t count, const SkPoint pts[],
                             const SkPaint&) SK_OVERRIDE;
-    virtual void drawOval(const SkRect&, const SkPaint&) SK_OVERRIDE;
-    virtual void drawRect(const SkRect&, const SkPaint&) SK_OVERRIDE;
-    virtual void drawRRect(const SkRRect&, const SkPaint&) SK_OVERRIDE;
+    virtual void drawRect(const SkRect& rect, const SkPaint&) SK_OVERRIDE;
     virtual void drawPath(const SkPath& path, const SkPaint&) SK_OVERRIDE;
     virtual void drawBitmap(const SkBitmap&, SkScalar left, SkScalar top,
                             const SkPaint*) SK_OVERRIDE;
-    virtual void drawBitmapRectToRect(const SkBitmap&, const SkRect* src,
-                                      const SkRect& dst, const SkPaint*) SK_OVERRIDE;
+    virtual void drawBitmapRect(const SkBitmap&, const SkIRect* src,
+                                const SkRect& dst, const SkPaint*) SK_OVERRIDE;
     virtual void drawBitmapMatrix(const SkBitmap&, const SkMatrix&,
                                   const SkPaint*) SK_OVERRIDE;
     virtual void drawBitmapNine(const SkBitmap& bitmap, const SkIRect& center,
@@ -84,8 +72,7 @@ public:
     virtual void drawData(const void*, size_t) SK_OVERRIDE;
     virtual bool isDrawingToLayer() const SK_OVERRIDE;
 
-    void addFontMetricsTopBottom(const SkPaint& paint, const SkFlatData&,
-                                 SkScalar minY, SkScalar maxY);
+    void addFontMetricsTopBottom(const SkPaint& paint, SkScalar minY, SkScalar maxY);
 
     const SkTDArray<SkPicture* >& getPictureRefs() const {
         return fPictureRefs;
@@ -99,11 +86,8 @@ public:
         return fWriter;
     }
 
-    void beginRecording();
     void endRecording();
-
 private:
-    void handleOptimization(int opt);
     void recordRestoreOffsetPlaceholder(SkRegion::Op);
     void fillRestoreOffsetPlaceholdersForCurrentStackLevel(
         uint32_t restoreOffset);
@@ -114,41 +98,14 @@ private:
         kNoSavedLayerIndex = -1
     };
 
-    /*
-     * Write the 'drawType' operation and chunk size to the skp. 'size'
-     * can potentially be increased if the chunk size needs its own storage
-     * location (i.e., it overflows 24 bits).
-     * Returns the start offset of the chunk. This is the location at which
-     * the opcode & size are stored.
-     * TODO: since we are handing the size into here we could call reserve
-     * and then return a pointer to the memory storage. This could decrease
-     * allocation overhead but could lead to more wasted space (the tail
-     * end of blocks could go unused). Possibly add a second addDraw that
-     * operates in this manner.
-     */
-    uint32_t addDraw(DrawType drawType, uint32_t* size) {
-        uint32_t offset = fWriter.size();
-
+    void addDraw(DrawType drawType) {
         this->predrawNotify();
 
-    #ifdef SK_DEBUG_TRACE
+#ifdef SK_DEBUG_TRACE
         SkDebugf("add %s\n", DrawTypeToString(drawType));
-    #endif
-
-        SkASSERT(0 != *size);
-        SkASSERT(((uint8_t) drawType) == drawType);
-
-        if (0 != (*size & ~MASK_24) || *size == MASK_24) {
-            fWriter.writeInt(PACK_8_24(drawType, MASK_24));
-            *size += 1;
-            fWriter.writeInt(*size);
-        } else {
-            fWriter.writeInt(PACK_8_24(drawType, *size));
-        }
-
-        return offset;
+#endif
+        fWriter.writeInt(drawType);
     }
-
     void addInt(int value) {
         fWriter.writeInt(value);
     }
@@ -159,8 +116,8 @@ private:
     void addBitmap(const SkBitmap& bitmap);
     void addMatrix(const SkMatrix& matrix);
     void addMatrixPtr(const SkMatrix* matrix);
-    const SkFlatData* addPaint(const SkPaint& paint) { return this->addPaintPtr(&paint); }
-    const SkFlatData* addPaintPtr(const SkPaint* paint);
+    void addPaint(const SkPaint& paint);
+    void addPaintPtr(const SkPaint* paint);
     void addPath(const SkPath& path);
     void addPicture(SkPicture& picture);
     void addPoint(const SkPoint& point);
@@ -169,7 +126,6 @@ private:
     void addRectPtr(const SkRect* rect);
     void addIRect(const SkIRect& rect);
     void addIRectPtr(const SkIRect* rect);
-    void addRRect(const SkRRect&);
     void addRegion(const SkRegion& region);
     void addText(const void* text, size_t byteLength);
 
@@ -197,7 +153,7 @@ public:
 
 #ifdef SK_DEBUG_VALIDATE
 public:
-    void validate(uint32_t initialOffset, uint32_t size) const;
+    void validate() const;
 private:
     void validateBitmaps() const;
     void validateMatrices() const;
@@ -206,9 +162,7 @@ private:
     void validateRegions() const;
 #else
 public:
-    void validate(uint32_t initialOffset, uint32_t size) const {
-        SkASSERT(fWriter.size() == initialOffset + size);
-    }
+    void validate() const {}
 #endif
 
 protected:
@@ -218,10 +172,8 @@ protected:
     SkBBoxHierarchy* fBoundingHierarchy;
     SkPictureStateTree* fStateTree;
 
-    // Allocated in the constructor and managed by this class.
-    SkBitmapHeap* fBitmapHeap;
-
 private:
+    SkBitmapHeap* fBitmapHeap;
     SkChunkFlatController fFlattenableHeap;
 
     SkMatrixDictionary fMatrices;

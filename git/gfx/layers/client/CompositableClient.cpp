@@ -76,46 +76,44 @@ CompositableChild::Destroy()
   Send__delete__(this);
 }
 
-TemporaryRef<DeprecatedTextureClient>
-CompositableClient::CreateDeprecatedTextureClient(DeprecatedTextureClientType aDeprecatedTextureClientType)
+TemporaryRef<TextureClient>
+CompositableClient::CreateTextureClient(TextureClientType aTextureClientType)
 {
   MOZ_ASSERT(GetForwarder(), "Can't create a texture client if the compositable is not connected to the compositor.");
   LayersBackend parentBackend = GetForwarder()->GetCompositorBackendType();
-  RefPtr<DeprecatedTextureClient> result;
+  RefPtr<TextureClient> result;
 
-  switch (aDeprecatedTextureClientType) {
+  switch (aTextureClientType) {
   case TEXTURE_SHARED_GL:
     if (parentBackend == LAYERS_OPENGL) {
-      result = new DeprecatedTextureClientSharedOGL(GetForwarder(), GetTextureInfo());
+      result = new TextureClientSharedOGL(GetForwarder(), GetTextureInfo());
     }
      break;
   case TEXTURE_SHARED_GL_EXTERNAL:
     if (parentBackend == LAYERS_OPENGL) {
-      result = new DeprecatedTextureClientSharedOGLExternal(GetForwarder(), GetTextureInfo());
+      result = new TextureClientSharedOGLExternal(GetForwarder(), GetTextureInfo());
     }
     break;
   case TEXTURE_STREAM_GL:
     if (parentBackend == LAYERS_OPENGL) {
-      result = new DeprecatedTextureClientStreamOGL(GetForwarder(), GetTextureInfo());
+      result = new TextureClientStreamOGL(GetForwarder(), GetTextureInfo());
     }
     break;
   case TEXTURE_YCBCR:
-    if (parentBackend == LAYERS_OPENGL ||
-        parentBackend == LAYERS_D3D11 ||
-        parentBackend == LAYERS_BASIC) {
-      result = new DeprecatedTextureClientShmemYCbCr(GetForwarder(), GetTextureInfo());
+    if (parentBackend == LAYERS_OPENGL || parentBackend == LAYERS_D3D11) {
+      result = new TextureClientShmemYCbCr(GetForwarder(), GetTextureInfo());
     }
     break;
   case TEXTURE_CONTENT:
 #ifdef XP_WIN
     if (parentBackend == LAYERS_D3D11 && gfxWindowsPlatform::GetPlatform()->GetD2DDevice()) {
-      result = new DeprecatedTextureClientD3D11(GetForwarder(), GetTextureInfo());
+      result = new TextureClientD3D11(GetForwarder(), GetTextureInfo());
       break;
     }
 #endif
      // fall through to TEXTURE_SHMEM
   case TEXTURE_SHMEM:
-    result = new DeprecatedTextureClientShmem(GetForwarder(), GetTextureInfo());
+    result = new TextureClientShmem(GetForwarder(), GetTextureInfo());
     break;
   default:
     MOZ_ASSERT(false, "Unhandled texture client type");
@@ -128,7 +126,7 @@ CompositableClient::CreateDeprecatedTextureClient(DeprecatedTextureClientType aD
     return nullptr;
   }
 
-  MOZ_ASSERT(result->SupportsType(aDeprecatedTextureClientType),
+  MOZ_ASSERT(result->SupportsType(aTextureClientType),
              "Created the wrong texture client?");
   result->SetFlags(GetTextureInfo().mTextureFlags);
 

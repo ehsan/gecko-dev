@@ -47,9 +47,7 @@ class VideoCaptureAndroid : public VideoCaptureImpl {
   static void JNICALL ProvideCameraFrame (JNIEnv * env,
                                           jobject,
                                           jbyteArray javaCameraFrame,
-                                          jint length,
-                                          jint rotation,
-                                          jlong context);
+                                          jint length, jlong context);
   DeviceInfoAndroid _capInfo;
   jobject _javaCaptureObj; // Java Camera object.
   VideoCaptureCapability _frameInfo;

@@ -55,7 +55,6 @@ SEARCH_PATHS = [
 MACH_MODULES = [
     'addon-sdk/mach_commands.py',
     'layout/tools/reftest/mach_commands.py',
-    'python/mach_commands.py',
     'python/mach/mach/commands/commandinfo.py',
     'python/mozboot/mozboot/mach_commands.py',
     'python/mozbuild/mozbuild/config.py',
@@ -128,7 +127,7 @@ def bootstrap(topsrcdir, mozilla_dir=None):
         if not os.path.exists(state_env_dir):
             print('Creating global state directory from environment variable: %s'
                 % state_env_dir)
-            os.makedirs(state_env_dir, mode=0o770)
+            os.makedirs(state_env_dir, mode=0777)
             print('Please re-run mach.')
             sys.exit(1)
     else:

@@ -89,6 +89,12 @@ DOMProxyHandler::GetAndClearExpandoObject(JSObject* obj)
     if (v.isUndefined()) {
       return nullptr;
     }
+
+    nsISupports* native = UnwrapDOMObject<nsISupports>(obj);
+    nsWrapperCache* cache;
+    CallQueryInterface(native, &cache);
+    cache->SetPreservingWrapper(false);
+    nsContentUtils::DropJSObjects(native);
     expandoAndGeneration->expando = UndefinedValue();
   }
 
@@ -144,11 +150,9 @@ DOMProxyHandler::EnsureExpandoObject(JSContext* cx, JS::Handle<JSObject*> obj)
 }
 
 bool
-DOMProxyHandler::isExtensible(JSContext *cx, JS::Handle<JSObject*> proxy, bool *extensible)
+DOMProxyHandler::isExtensible(JSObject *proxy)
 {
-  // always extensible per WebIDL
-  *extensible = true;
-  return true;
+  return true; // always extensible per WebIDL
 }
 
 bool

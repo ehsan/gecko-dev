@@ -184,11 +184,11 @@ TiledContentHost::RenderTile(const TiledTexture& aTile,
                              const nsIntPoint& aTextureOffset,
                              const nsIntSize& aTextureBounds)
 {
-  MOZ_ASSERT(aTile.mDeprecatedTextureHost, "Trying to render a placeholder tile?");
+  MOZ_ASSERT(aTile.mTextureHost, "Trying to render a placeholder tile?");
 
   RefPtr<TexturedEffect> effect =
-    CreateTexturedEffect(aTile.mDeprecatedTextureHost, aFilter);
-  if (aTile.mDeprecatedTextureHost->Lock()) {
+    CreateTexturedEffect(aTile.mTextureHost, aFilter);
+  if (aTile.mTextureHost->Lock()) {
     aEffectChain.mPrimaryEffect = effect;
   } else {
     return;
@@ -209,7 +209,7 @@ TiledContentHost::RenderTile(const TiledTexture& aTile,
                                  graphicsRect, aClipRect, aTransform, aOffset);
   }
 
-  aTile.mDeprecatedTextureHost->Unlock();
+  aTile.mTextureHost->Unlock();
 }
 
 void
@@ -294,16 +294,16 @@ void
 TiledTexture::Validate(gfxReusableSurfaceWrapper* aReusableSurface, Compositor* aCompositor, uint16_t aSize)
 {
   TextureFlags flags = 0;
-  if (!mDeprecatedTextureHost) {
+  if (!mTextureHost) {
     // convert placeholder tile to a real tile
-    mDeprecatedTextureHost = DeprecatedTextureHost::CreateDeprecatedTextureHost(SurfaceDescriptor::Tnull_t,
+    mTextureHost = TextureHost::CreateTextureHost(SurfaceDescriptor::Tnull_t,
                                                   TEXTURE_HOST_TILED,
                                                   flags);
-    mDeprecatedTextureHost->SetCompositor(aCompositor);
+    mTextureHost->SetCompositor(aCompositor);
     flags |= NewTile;
   }
 
-  mDeprecatedTextureHost->Update(aReusableSurface, flags, gfx::IntSize(aSize, aSize));
+  mTextureHost->Update(aReusableSurface, flags, gfx::IntSize(aSize, aSize));
 }
 
 #ifdef MOZ_LAYERS_HAVE_LOG
@@ -333,7 +333,7 @@ TiledContentHost::Dump(FILE* aFile,
   for (;it != stop; ++it) {
     fprintf(aFile, "%s", aPrefix);
     fprintf(aFile, aDumpHtml ? "<li> <a href=" : "Tile ");
-    DumpDeprecatedTextureHost(aFile, it->mDeprecatedTextureHost);
+    DumpTextureHost(aFile, it->mTextureHost);
     fprintf(aFile, aDumpHtml ? " >Tile</a></li>" : " ");
   }
     if (aDumpHtml) {

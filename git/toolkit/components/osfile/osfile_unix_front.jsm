@@ -19,12 +19,10 @@
   (function(exports) {
      "use strict";
 
-     exports.OS = require("resource://gre/modules/osfile/osfile_shared_allthreads.jsm").OS;
      // exports.OS.Unix is created by osfile_unix_back.jsm
-     if (exports.OS && exports.OS.File) {
+     if (exports.OS.File) {
        return; // Avoid double-initialization
      }
-
      exports.OS.Unix.File._init();
      let Const = exports.OS.Constants.libc;
      let UnixFile = exports.OS.Unix.File;
@@ -270,21 +268,11 @@
       * Remove an existing file.
       *
       * @param {string} path The name of the file.
-      * @param {*=} options Additional options.
-      *   - {bool} ignoreAbsent If |false|, throw an error if the file does
-      *     not exist. |true| by default.
-      *
-      * @throws {OS.File.Error} In case of I/O error.
       */
-     File.remove = function remove(path, options = {}) {
-       let result = UnixFile.unlink(path);
-       if (result == -1) {
-         if ((!("ignoreAbsent" in options) || options.ignoreAbsent) &&
-             ctypes.errno == Const.ENOENT) {
-           return;
-         }
-         throw new File.Error("remove");
-       }
+     File.remove = function remove(path) {
+       throw_on_negative("remove",
+         UnixFile.unlink(path)
+       );
      };
 
      /**

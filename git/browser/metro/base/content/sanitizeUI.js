@@ -39,7 +39,6 @@ var SanitizeUI = {
       checkbox.disabled = true;
     }
     clearNotificationDeck.selectedPanel = clearNotificationClearing;
-    document.getElementById("clearprivacythrobber").enabled = true;
 
     // Run asynchronously to let UI update
     setTimeout(function() {
@@ -58,7 +57,6 @@ var SanitizeUI = {
         checkbox.disabled = false;
       }
       clearNotificationDeck.selectedPanel = clearNotificationDone;
-      document.getElementById("clearprivacythrobber").enabled = false;
 
       // Clear notifications after 4 seconds
       clearTimeout(SanitizeUI._clearNotificationTimeout);

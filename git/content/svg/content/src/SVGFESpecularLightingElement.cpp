@@ -29,32 +29,32 @@ SVGFESpecularLightingElement::In1()
   return mStringAttributes[IN1].ToDOMAnimatedString(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFESpecularLightingElement::SurfaceScale()
 {
   return mNumberAttributes[SURFACE_SCALE].ToDOMAnimatedNumber(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFESpecularLightingElement::SpecularConstant()
 {
   return mNumberAttributes[SPECULAR_CONSTANT].ToDOMAnimatedNumber(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFESpecularLightingElement::SpecularExponent()
 {
   return mNumberAttributes[SPECULAR_EXPONENT].ToDOMAnimatedNumber(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFESpecularLightingElement::KernelUnitLengthX()
 {
   return mNumberPairAttributes[KERNEL_UNIT_LENGTH].ToDOMAnimatedNumber(
     nsSVGNumberPair::eFirst, this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFESpecularLightingElement::KernelUnitLengthY()
 {
   return mNumberPairAttributes[KERNEL_UNIT_LENGTH].ToDOMAnimatedNumber(

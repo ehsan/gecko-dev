@@ -8,6 +8,7 @@
 
 #include "nsIPlatformCharset.h"
 #include "nsUConvPropertySearch.h"
+#include "pratom.h"
 #define INCL_WIN
 #include <os2.h>
 #include "nsIOS2Locale.h"

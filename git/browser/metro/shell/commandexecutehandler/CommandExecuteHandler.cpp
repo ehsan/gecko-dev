@@ -579,19 +579,13 @@ void CExecuteCommandVerb::LaunchDesktopBrowser()
   // If a taskbar shortcut, link or local file is clicked, the target will
   // be the browser exe or file.
   CStringW params;
-  if (!IsTargetBrowser() && !mTarget.IsEmpty()) {
+  if (!IsTargetBrowser()) {
     // Fallback to the module path if it failed to get the default browser.
     GetDefaultBrowserPath(browserPath);
     params += "-url ";
     params += "\"";
     params += mTarget;
     params += "\"";
-  }
-
-  // Tack on any extra parameters we received (for example -profilemanager)
-  if (!mParameters.IsEmpty()) {
-    params += " ";
-    params += mParameters;
   }
 
   Log(L"Desktop Launch: verb:%s exe:%s params:%s", mVerb, browserPath, params); 

@@ -25,9 +25,11 @@ void GrGLTexture::init(GrGpuGL* gpu,
     fTexIDObj           = SkNEW_ARGS(GrGLTexID,
                                      (GPUGL->glInterface(),
                                       textureDesc.fTextureID,
-                                      textureDesc.fIsWrapped));
+                                      textureDesc.fOwnsID));
+    fOrientation        = textureDesc.fOrientation;
 
     if (NULL != rtDesc) {
+        // we render to the top left
         GrGLIRect vp;
         vp.fLeft   = 0;
         vp.fWidth  = textureDesc.fWidth;
@@ -41,14 +43,14 @@ void GrGLTexture::init(GrGpuGL* gpu,
 
 GrGLTexture::GrGLTexture(GrGpuGL* gpu,
                          const Desc& textureDesc)
-    : INHERITED(gpu, textureDesc.fIsWrapped, textureDesc) {
+    : INHERITED(gpu, textureDesc) {
     this->init(gpu, textureDesc, NULL);
 }
 
 GrGLTexture::GrGLTexture(GrGpuGL* gpu,
                          const Desc& textureDesc,
                          const GrGLRenderTarget::Desc& rtDesc)
-    : INHERITED(gpu, textureDesc.fIsWrapped, textureDesc) {
+    : INHERITED(gpu, textureDesc) {
     this->init(gpu, textureDesc, &rtDesc);
 }
 
@@ -70,6 +72,7 @@ void GrGLTexture::onAbandon() {
     INHERITED::onAbandon();
 }
 
-GrBackendObject GrGLTexture::getTextureHandle() const {
+intptr_t GrGLTexture::getTextureHandle() const {
     return fTexIDObj->id();
 }
+

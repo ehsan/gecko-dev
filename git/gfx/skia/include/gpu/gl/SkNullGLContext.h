@@ -8,9 +8,9 @@
 #ifndef SkNullGLContext_DEFINED
 #define SkNullGLContext_DEFINED
 
-#include "SkGLContextHelper.h"
+#include "SkGLContext.h"
 
-class SkNullGLContext : public SkGLContextHelper {
+class SkNullGLContext : public SkGLContext {
 
 public:
     SkNullGLContext() {};
@@ -24,3 +24,4 @@ protected:
 };
 
 #endif
+

@@ -237,7 +237,6 @@ public:
   bool AnimationsPaused();
   float GetCurrentTime();
   void SetCurrentTime(float seconds);
-  void DeselectAll();
   already_AddRefed<nsIDOMSVGNumber> CreateSVGNumber();
   already_AddRefed<nsIDOMSVGLength> CreateSVGLength();
   already_AddRefed<SVGAngle> CreateSVGAngle();

@@ -136,7 +136,7 @@ nsTextEquivUtils::AppendTextEquivFromTextContent(nsIContent *aContent,
   if (aContent->IsNodeOfType(nsINode::eTEXT)) {
     bool isHTMLBlock = false;
 
-    nsIContent *parentContent = aContent->GetFlattenedTreeParent();
+    nsIContent *parentContent = aContent->GetParent();
     if (parentContent) {
       nsIFrame *frame = parentContent->GetPrimaryFrame();
       if (frame) {
@@ -394,7 +394,7 @@ nsTextEquivUtils::GetRoleRule(role aRole)
   switch (aRole) {
 #include "RoleMap.h"
     default:
-      MOZ_CRASH("Unknown role.");
+      MOZ_NOT_REACHED("Unknown role.");
   }
 
 #undef ROLE

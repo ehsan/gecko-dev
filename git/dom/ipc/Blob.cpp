@@ -90,7 +90,8 @@ public:
   {
     // See InputStreamUtils.cpp to see how deserialization of a
     // RemoteInputStream is special-cased.
-    MOZ_CRASH("RemoteInputStream should never be deserialized");
+    MOZ_NOT_REACHED("RemoteInputStream should never be deserialized");
+    return false;
   }
 
   void
@@ -625,7 +626,7 @@ BlobTraits<Parent>::BaseType::NoteRunnableCompleted(
     }
   }
 
-  MOZ_CRASH("Runnable not in our array!");
+  MOZ_NOT_REACHED("Runnable not in our array!");
 }
 
 template <ActorFlavorEnum ActorFlavor>
@@ -1078,7 +1079,7 @@ Blob<ActorFlavor>::Create(const ConstructorParamsType& aParams)
     }
 
     default:
-      MOZ_CRASH("Unknown params!");
+      MOZ_NOT_REACHED("Unknown params!");
   }
 
   return nullptr;
@@ -1184,13 +1185,13 @@ Blob<ActorFlavor>::CreateRemoteBlob(const ConstructorParamsType& aParams)
     }
 
     default:
-      MOZ_CRASH("Unknown params!");
+      MOZ_NOT_REACHED("Unknown params!");
   }
 
   MOZ_ASSERT(remoteBlob);
 
   if (NS_FAILED(remoteBlob->SetMutable(false))) {
-    MOZ_CRASH("Failed to make remote blob immutable!");
+    MOZ_NOT_REACHED("Failed to make remote blob immutable!");
   }
 
   return remoteBlob.forget();
@@ -1277,7 +1278,7 @@ Blob<ActorFlavor>::RecvResolveMystery(const ResolveMysteryParams& aParams)
     }
 
     default:
-      MOZ_CRASH("Unknown params!");
+      MOZ_NOT_REACHED("Unknown params!");
   }
 
   return true;
@@ -1367,30 +1368,17 @@ Blob<Child>::RecvPBlobStreamConstructor(StreamType* aActor)
   return aActor->Send__delete__(aActor, params);
 }
 
-BlobTraits<Parent>::StreamType*
-BlobTraits<Parent>::BaseType::AllocPBlobStreamParent()
+template <ActorFlavorEnum ActorFlavor>
+typename Blob<ActorFlavor>::StreamType*
+Blob<ActorFlavor>::AllocPBlobStream()
 {
   MOZ_ASSERT(NS_IsMainThread());
-  return new InputStreamActor<Parent>();
+  return new InputStreamActor<ActorFlavor>();
 }
 
-BlobTraits<Child>::StreamType*
-BlobTraits<Child>::BaseType::AllocPBlobStreamChild()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-  return new InputStreamActor<Child>();
-}
-
+template <ActorFlavorEnum ActorFlavor>
 bool
-BlobTraits<Parent>::BaseType::DeallocPBlobStreamParent(BlobTraits<Parent>::StreamType* aActor)
-{
-  MOZ_ASSERT(NS_IsMainThread());
-  delete aActor;
-  return true;
-}
-
-bool
-BlobTraits<Child>::BaseType::DeallocPBlobStreamChild(BlobTraits<Child>::StreamType* aActor)
+Blob<ActorFlavor>::DeallocPBlobStream(StreamType* aActor)
 {
   MOZ_ASSERT(NS_IsMainThread());
   delete aActor;

@@ -317,7 +317,7 @@ function ParallelArrayBuild(self, shape, func, mode) {
       var indexStart = chunkPos << CHUNK_SHIFT;
       var indexEnd = std_Math_min(indexStart + CHUNK_SIZE, length);
       computefunc(indexStart, indexEnd);
-      UnsafePutElements(info, SLICE_POS(sliceId), ++chunkPos);
+      UnsafeSetElement(info, SLICE_POS(sliceId), ++chunkPos);
     }
 
     return chunkEnd == info[SLICE_END(sliceId)];
@@ -325,14 +325,14 @@ function ParallelArrayBuild(self, shape, func, mode) {
 
   function fill1(indexStart, indexEnd) {
     for (var i = indexStart; i < indexEnd; i++)
-      UnsafePutElements(buffer, i, func(i));
+      UnsafeSetElement(buffer, i, func(i));
   }
 
   function fill2(indexStart, indexEnd) {
     var x = (indexStart / yDimension) | 0;
     var y = indexStart - x * yDimension;
     for (var i = indexStart; i < indexEnd; i++) {
-      UnsafePutElements(buffer, i, func(x, y));
+      UnsafeSetElement(buffer, i, func(x, y));
       if (++y == yDimension) {
         y = 0;
         ++x;
@@ -346,7 +346,7 @@ function ParallelArrayBuild(self, shape, func, mode) {
     var y = (r / zDimension) | 0;
     var z = r - y * zDimension;
     for (var i = indexStart; i < indexEnd; i++) {
-      UnsafePutElements(buffer, i, func(x, y, z));
+      UnsafeSetElement(buffer, i, func(x, y, z));
       if (++z == zDimension) {
         z = 0;
         if (++y == yDimension) {
@@ -361,7 +361,7 @@ function ParallelArrayBuild(self, shape, func, mode) {
     var indices = ComputeIndices(shape, indexStart);
     for (var i = indexStart; i < indexEnd; i++) {
       var result = callFunction(std_Function_apply, func, null, indices);
-      UnsafePutElements(buffer, i, result);
+      UnsafeSetElement(buffer, i, result);
       StepIndices(shape, indices);
     }
   }
@@ -398,7 +398,7 @@ function ParallelArrayMap(func, mode) {
   for (var i = 0; i < length; i++) {
     // Note: Unlike JS arrays, parallel arrays cannot have holes.
     var v = func(self.get(i), i, self);
-    UnsafePutElements(buffer, i, v);
+    UnsafeSetElement(buffer, i, v);
   }
   return NewParallelArray(ParallelArrayView, [length], buffer, 0);
 
@@ -414,9 +414,9 @@ function ParallelArrayMap(func, mode) {
       var indexEnd = std_Math_min(indexStart + CHUNK_SIZE, length);
 
       for (var i = indexStart; i < indexEnd; i++)
-        UnsafePutElements(buffer, i, func(self.get(i), i, self));
+        UnsafeSetElement(buffer, i, func(self.get(i), i, self));
 
-      UnsafePutElements(info, SLICE_POS(sliceId), ++chunkPos);
+      UnsafeSetElement(info, SLICE_POS(sliceId), ++chunkPos);
     }
 
     return chunkEnd == info[SLICE_END(sliceId)];
@@ -484,8 +484,8 @@ function ParallelArrayReduce(func, mode) {
       var indexPos = chunkStart << CHUNK_SHIFT;
       var accumulator = reduceChunk(self.get(indexPos), indexPos + 1, indexPos + CHUNK_SIZE);
 
-      UnsafePutElements(subreductions, sliceId, accumulator, // see (*) above
-                        info, SLICE_POS(sliceId), ++chunkPos);
+      UnsafeSetElement(subreductions, sliceId, accumulator, // see (*) above
+                       info, SLICE_POS(sliceId), ++chunkPos);
     }
 
     var accumulator = subreductions[sliceId]; // see (*) above
@@ -493,7 +493,8 @@ function ParallelArrayReduce(func, mode) {
     while (chunkPos < chunkEnd) {
       var indexPos = chunkPos << CHUNK_SHIFT;
       accumulator = reduceChunk(accumulator, indexPos, indexPos + CHUNK_SIZE);
-      UnsafePutElements(subreductions, sliceId, accumulator, info, SLICE_POS(sliceId), ++chunkPos);
+      UnsafeSetElement(subreductions, sliceId, accumulator,
+                       info, SLICE_POS(sliceId), ++chunkPos);
     }
 
     return chunkEnd == info[SLICE_END(sliceId)];
@@ -568,10 +569,10 @@ function ParallelArrayScan(func, mode) {
   return NewParallelArray(ParallelArrayView, [length], buffer, 0);
 
   function scan(accumulator, start, end) {
-    UnsafePutElements(buffer, start, accumulator);
+    UnsafeSetElement(buffer, start, accumulator);
     for (var i = start + 1; i < end; i++) {
       accumulator = func(accumulator, self.get(i));
-      UnsafePutElements(buffer, i, accumulator);
+      UnsafeSetElement(buffer, i, accumulator);
     }
     return accumulator;
   }
@@ -606,7 +607,7 @@ function ParallelArrayScan(func, mode) {
       var indexStart = chunkPos << CHUNK_SHIFT;
       var indexEnd = std_Math_min(indexStart + CHUNK_SIZE, length);
       scan(self.get(indexStart), indexStart, indexEnd);
-      UnsafePutElements(info, SLICE_POS(sliceId), ++chunkPos);
+      UnsafeSetElement(info, SLICE_POS(sliceId), ++chunkPos);
     }
 
     while (chunkPos < chunkEnd) {
@@ -619,7 +620,7 @@ function ParallelArrayScan(func, mode) {
       var indexEnd = std_Math_min(indexStart + CHUNK_SIZE, length);
       var accumulator = func(buffer[indexStart - 1], self.get(indexStart));
       scan(accumulator, indexStart, indexEnd);
-      UnsafePutElements(info, SLICE_POS(sliceId), ++chunkPos);
+      UnsafeSetElement(info, SLICE_POS(sliceId), ++chunkPos);
     }
 
     return chunkEnd == info[SLICE_END(sliceId)];
@@ -687,8 +688,8 @@ function ParallelArrayScan(func, mode) {
 
     var intermediate = intermediates[sliceId - 1];
     for (; indexPos < indexEnd; indexPos++) {
-      UnsafePutElements(buffer, indexPos, func(intermediate, buffer[indexPos]),
-                        info, SLICE_POS(sliceId), indexPos + 1);
+      UnsafeSetElement(buffer, indexPos, func(intermediate, buffer[indexPos]),
+                       info, SLICE_POS(sliceId), indexPos + 1);
     }
 
     return indexEnd == info[SLICE_END(sliceId)];
@@ -816,14 +817,14 @@ function ParallelArrayScatter(targets, defaultValue, conflictFunc, length, mode)
     var numSlices = ForkJoinSlices();
     var checkpoints = NewDenseArray(numSlices);
     for (var i = 0; i < numSlices; i++)
-      UnsafePutElements(checkpoints, i, 0);
+      UnsafeSetElement(checkpoints, i, 0);
 
     var buffer = NewDenseArray(length);
     var conflicts = NewDenseArray(length);
 
     for (var i = 0; i < length; i++) {
-      UnsafePutElements(buffer, i, defaultValue);
-      UnsafePutElements(conflicts, i, false);
+      UnsafeSetElement(buffer, i, defaultValue);
+      UnsafeSetElement(conflicts, i, false);
     }
 
     ForkJoin(fill, ForkJoinMode(mode));
@@ -845,7 +846,9 @@ function ParallelArrayScatter(targets, defaultValue, conflictFunc, length, mode)
           continue;
         if (conflicts[t])
           x = collide(x, buffer[t]);
-        UnsafePutElements(buffer, t, x, conflicts, t, true, checkpoints, sliceId, indexPos + 1);
+        UnsafeSetElement(buffer, t, x,
+                         conflicts, t, true,
+                         checkpoints, sliceId, indexPos + 1);
       }
 
       return indexEnd == targetsLength;
@@ -864,13 +867,13 @@ function ParallelArrayScatter(targets, defaultValue, conflictFunc, length, mode)
     // FIXME(bug 844890): Use typed arrays here.
     var localBuffers = NewDenseArray(numSlices);
     for (var i = 0; i < numSlices; i++)
-      UnsafePutElements(localBuffers, i, NewDenseArray(length));
+      UnsafeSetElement(localBuffers, i, NewDenseArray(length));
     var localConflicts = NewDenseArray(numSlices);
     for (var i = 0; i < numSlices; i++) {
       var conflicts_i = NewDenseArray(length);
       for (var j = 0; j < length; j++)
-        UnsafePutElements(conflicts_i, j, false);
-      UnsafePutElements(localConflicts, i, conflicts_i);
+        UnsafeSetElement(conflicts_i, j, false);
+      UnsafeSetElement(localConflicts, i, conflicts_i);
     }
 
     // Initialize the 0th buffer, which will become the output. For
@@ -879,7 +882,7 @@ function ParallelArrayScatter(targets, defaultValue, conflictFunc, length, mode)
     // initialized.
     var outputBuffer = localBuffers[0];
     for (var i = 0; i < length; i++)
-      UnsafePutElements(outputBuffer, i, defaultValue);
+      UnsafeSetElement(outputBuffer, i, defaultValue);
 
     ForkJoin(fill, ForkJoinMode(mode));
     mergeBuffers();
@@ -898,8 +901,9 @@ function ParallelArrayScatter(targets, defaultValue, conflictFunc, length, mode)
         var t = checkTarget(indexPos, targets[indexPos]);
         if (conflicts[t])
           x = collide(x, localbuffer[t]);
-        UnsafePutElements(localbuffer, t, x, conflicts, t, true, 
-                          info, SLICE_POS(sliceId), ++indexPos);
+        UnsafeSetElement(localbuffer, t, x,
+                         conflicts, t, true,
+                         info, SLICE_POS(sliceId), ++indexPos);
       }
 
       return indexEnd == info[SLICE_END(sliceId)];
@@ -935,8 +939,8 @@ function ParallelArrayScatter(targets, defaultValue, conflictFunc, length, mode)
     var conflicts = NewDenseArray(length);
 
     for (var i = 0; i < length; i++) {
-      UnsafePutElements(buffer, i, defaultValue);
-      UnsafePutElements(conflicts, i, false);
+      UnsafeSetElement(buffer, i, defaultValue);
+      UnsafeSetElement(conflicts, i, false);
     }
 
     for (var i = 0; i < targetsLength; i++) {
@@ -945,7 +949,8 @@ function ParallelArrayScatter(targets, defaultValue, conflictFunc, length, mode)
       if (conflicts[t])
         x = collide(x, buffer[t]);
 
-      UnsafePutElements(buffer, t, x, conflicts, t, true);
+      UnsafeSetElement(buffer, t, x,
+                       conflicts, t, true);
     }
 
     return NewParallelArray(ParallelArrayView, [length], buffer, 0);
@@ -997,7 +1002,7 @@ function ParallelArrayFilter(func, mode) {
     // FIXME(bug 844890): Use typed arrays here.
     var counts = NewDenseArray(numSlices);
     for (var i = 0; i < numSlices; i++)
-      UnsafePutElements(counts, i, 0);
+      UnsafeSetElement(counts, i, 0);
     var survivors = NewDenseArray(chunks);
     ForkJoin(findSurvivorsInSlice, ForkJoinMode(mode));
 
@@ -1047,9 +1052,9 @@ function ParallelArrayFilter(func, mode) {
         count += keep;
       }
 
-      UnsafePutElements(survivors, chunkPos, chunkBits,
-                        counts, sliceId, count,
-                        info, SLICE_POS(sliceId), ++chunkPos);
+      UnsafeSetElement(survivors, chunkPos, chunkBits,
+                       counts, sliceId, count,
+                       info, SLICE_POS(sliceId), ++chunkPos);
     }
 
     return chunkEnd == info[SLICE_END(sliceId)];
@@ -1088,7 +1093,7 @@ function ParallelArrayFilter(func, mode) {
       var indexStart = chunk << CHUNK_SHIFT;
       for (var i = 0; i < CHUNK_SIZE; i++) {
         if (chunkBits & (1 << i)) {
-          UnsafePutElements(buffer, count++, self.get(indexStart + i));
+          UnsafeSetElement(buffer, count++, self.get(indexStart + i));
           if (count == total)
             break;
         }

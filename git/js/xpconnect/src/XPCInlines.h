@@ -61,6 +61,13 @@ XPCCallContext::GetJSContext() const
     return mJSContext;
 }
 
+inline JSBool
+XPCCallContext::GetContextPopRequired() const
+{
+    CHECK_STATE(HAVE_CONTEXT);
+    return mContextPopRequired;
+}
+
 inline XPCContext::LangType
 XPCCallContext::GetCallerLanguage() const
 {
@@ -259,6 +266,14 @@ XPCCallContext::SetMethodIndex(uint16_t index)
 {
     CHECK_STATE(HAVE_OBJECT);
     mMethodIndex = index;
+}
+
+inline void
+XPCCallContext::SetDestroyJSContextInDestructor()
+{
+    CHECK_STATE(HAVE_CONTEXT);
+    MOZ_ASSERT(mJSContext);
+    mCxDestroyer.construct(mJSContext);
 }
 
 /***************************************************************************/

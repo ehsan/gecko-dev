@@ -15,6 +15,7 @@ XPIDL_SOURCES = [
 TEST_DIRS += ['test']
 
 EXPORTS.mozilla.dom += [
+    'FakeSpeechRecognitionService.h',
     'SpeechGrammar.h',
     'SpeechGrammarList.h',
     'SpeechRecognition.h',
@@ -22,7 +23,6 @@ EXPORTS.mozilla.dom += [
     'SpeechRecognitionResult.h',
     'SpeechRecognitionResultList.h',
     'SpeechStreamListener.h',
-    'test/FakeSpeechRecognitionService.h',
 ]
 
 CPP_SOURCES += [

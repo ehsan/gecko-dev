@@ -16,6 +16,7 @@
 #include "SkMatrix.h"
 #include "SkPaint.h"
 #include "SkRect.h"
+#include "SkAutoKern.h"
 
 class SkBounder;
 class SkClipStack;
@@ -75,7 +76,7 @@ public:
         solely to assist in computing the mask's bounds (if the mode requests that).
     */
     static bool DrawToMask(const SkPath& devPath, const SkIRect* clipBounds,
-                           const SkMaskFilter*, const SkMatrix* filterMatrix,
+                           SkMaskFilter* filter, const SkMatrix* filterMatrix,
                            SkMask* mask, SkMask::CreateMode mode,
                            SkPaint::Style style);
 
@@ -103,17 +104,6 @@ private:
     void    drawDevMask(const SkMask& mask, const SkPaint&) const;
     void    drawBitmapAsMask(const SkBitmap&, const SkPaint&) const;
 
-    /**
-     *  Return the current clip bounds, in local coordinates, with slop to account
-     *  for antialiasing or hairlines (i.e. device-bounds outset by 1, and then
-     *  run through the inverse of the matrix).
-     *
-     *  If the matrix cannot be inverted, or the current clip is empty, return
-     *  false and ignore bounds parameter.
-     */
-    bool SK_WARN_UNUSED_RESULT
-    computeConservativeLocalClipBounds(SkRect* bounds) const;
-
 public:
     const SkBitmap* fBitmap;        // required
     const SkMatrix* fMatrix;        // required
@@ -125,6 +115,9 @@ public:
     SkBounder*      fBounder;       // optional
     SkDrawProcs*    fProcs;         // optional
 
+    const SkMatrix* fMVMatrix;      // optional
+    const SkMatrix* fExtMatrix;     // optional
+
 #ifdef SK_DEBUG
     void validate() const;
 #else
@@ -133,3 +126,5 @@ public:
 };
 
 #endif
+
+

@@ -105,7 +105,7 @@ js::ScriptDebugPrologue(JSContext *cx, AbstractFramePtr frame)
         frame.setReturnValue(rval);
         break;
       default:
-        MOZ_ASSUME_UNREACHABLE("bad Debugger::onEnterFrame JSTrapStatus value");
+        JS_NOT_REACHED("bad Debugger::onEnterFrame JSTrapStatus value");
     }
     return status;
 }
@@ -167,7 +167,7 @@ js::DebugExceptionUnwind(JSContext *cx, AbstractFramePtr frame, jsbytecode *pc)
         break;
 
       default:
-        MOZ_ASSUME_UNREACHABLE("Invalid trap status");
+        JS_NOT_REACHED("Invalid trap status");
     }
 
     return status;
@@ -828,6 +828,12 @@ JS_SetDebugErrorHook(JSRuntime *rt, JSDebugErrorHook hook, void *closure)
 
 /************************************************************************/
 
+JS_FRIEND_API(void)
+js_RevertVersion(JSContext *cx)
+{
+    cx->clearVersionOverride();
+}
+
 JS_PUBLIC_API(const JSDebugHooks *)
 JS_GetGlobalDebugHooks(JSRuntime *rt)
 {
@@ -856,6 +862,7 @@ JS_DumpBytecode(JSContext *cx, JSScript *scriptArg)
 extern JS_PUBLIC_API(void)
 JS_DumpPCCounts(JSContext *cx, JSScript *scriptArg)
 {
+#if defined(DEBUG)
     Rooted<JSScript*> script(cx, scriptArg);
     JS_ASSERT(script->hasScriptCounts);
 
@@ -867,6 +874,7 @@ JS_DumpPCCounts(JSContext *cx, JSScript *scriptArg)
     js_DumpPCCounts(cx, script, &sprinter);
     fputs(sprinter.string(), stdout);
     fprintf(stdout, "--- END SCRIPT %s:%d ---\n", script->filename(), script->lineno);
+#endif
 }
 
 namespace {
@@ -905,7 +913,7 @@ JS_DumpCompartmentPCCounts(JSContext *cx)
             JS_DumpPCCounts(cx, script);
     }
 
-#if defined(JS_ION)
+#if defined(JS_ION) && defined(DEBUG)
     for (unsigned thingKind = FINALIZE_OBJECT0; thingKind < FINALIZE_OBJECT_LIMIT; thingKind++) {
         for (CellIter i(cx->zone(), (AllocKind) thingKind); !i.done(); i.next()) {
             JSObject *obj = i.get<JSObject>();

@@ -32,8 +32,6 @@ public:
 
     virtual void SetEnabled(bool enabled);
 
-    virtual void OnEnabled(OnEnabledCallbackType callback);
-
     virtual void* GetHWCDevice();
 
     virtual bool SwapBuffers(EGLDisplay dpy, EGLSurface sur);
@@ -56,7 +54,6 @@ private:
     hwc_display_contents_1_t* mList;
     uint32_t mWidth;
     uint32_t mHeight;
-    OnEnabledCallbackType mEnabledCallback;
 };
 
 }

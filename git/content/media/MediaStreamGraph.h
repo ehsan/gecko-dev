@@ -430,10 +430,6 @@ public:
   GraphTime StreamTimeToGraphTime(StreamTime aTime);
   bool IsFinishedOnGraphThread() { return mFinished; }
   void FinishOnGraphThread();
-  /**
-   * Identify which graph update index we are currently processing.
-   */
-  int64_t GetProcessingGraphUpdateIndex();
 
   bool HasCurrentData() { return mHasCurrentData; }
 

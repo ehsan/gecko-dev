@@ -41,6 +41,8 @@ pref("toolkit.zoomManager.zoomValues", ".2,.3,.5,.67,.8,.9,1,1.1,1.2,1.33,1.5,1.
 // Mobile will use faster, less durable mode.
 pref("toolkit.storage.synchronous", 0);
 
+// Device pixel to CSS px ratio, in percent. Set to -1 to calculate based on display density.
+pref("browser.viewport.scaleRatio", -1);
 pref("browser.viewport.desktopWidth", 980);
 // The default fallback zoom level to render pages at. Set to -1 to fit page; otherwise
 // the value is divided by 1000 and clamped to hard-coded min/max scale values.
@@ -358,9 +360,6 @@ pref("gfx.displayport.strategy_vb.danger_y_incr", -1); // additional danger zone
 // prediction bias strategy options
 pref("gfx.displayport.strategy_pb.threshold", -1); // velocity threshold in inches/frame
 
-// Allow 24-bit colour when the hardware supports it
-pref("gfx.android.rgb16.force", false);
-
 // don't allow JS to move and resize existing windows
 pref("dom.disable_window_move_resize", true);
 
@@ -457,7 +456,7 @@ pref("breakpad.reportURL", "https://crash-stats.mozilla.com/report/index/");
 pref("app.support.baseURL", "http://support.mozilla.org/1/mobile/%VERSION%/%OS%/%LOCALE%/");
 // Used to submit data to input from about:feedback
 pref("app.feedback.postURL", "https://input.mozilla.org/%LOCALE%/feedback");
-pref("app.privacyURL", "https://www.mozilla.org/legal/privacy/firefox.html");
+pref("app.privacyURL", "http://www.mozilla.org/%LOCALE%/privacy/");
 pref("app.creditsURL", "http://www.mozilla.org/credits/");
 pref("app.channelURL", "http://www.mozilla.org/%LOCALE%/firefox/channel/");
 #if MOZ_UPDATE_CHANNEL == aurora
@@ -750,8 +749,8 @@ pref("dom.payment.provider.0.type", "mozilla/payments/pay/v1");
 pref("dom.payment.provider.0.requestMethod", "GET");
 #endif
 
-// Support for the mozAudioChannel attribute on media elements is disabled in non-webapps
-pref("media.useAudioChannelService", false);
+// Make <audio> and <video> talk to the AudioChannelService.
+pref("media.useAudioChannelService", true);
 
 // Turn on the CSP 1.0 parser for Content Security Policy headers
 pref("security.csp.speccompliant", true);

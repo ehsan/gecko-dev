@@ -286,7 +286,7 @@ protected:
    * unset the provider when inactive, by calling
    * SetBufferProvider(nullptr).
    */
-  void SetBufferProvider(DeprecatedTextureClient* aClient)
+  void SetBufferProvider(TextureClient* aClient)
   {
     // Only this buffer provider can give us a buffer.  If we
     // already have one, something has gone wrong.
@@ -299,7 +299,7 @@ protected:
     } 
   }
   
-  void SetBufferProviderOnWhite(DeprecatedTextureClient* aClient)
+  void SetBufferProviderOnWhite(TextureClient* aClient)
   {
     // Only this buffer provider can give us a buffer.  If we
     // already have one, something has gone wrong.
@@ -350,8 +350,8 @@ protected:
    * when we're using surfaces that require explicit map/unmap. Only one
    * may be used at a time.
    */
-  DeprecatedTextureClient* mBufferProvider;
-  DeprecatedTextureClient* mBufferProviderOnWhite;
+  TextureClient* mBufferProvider;
+  TextureClient* mBufferProviderOnWhite;
 
   BufferSizePolicy      mBufferSizePolicy;
 };

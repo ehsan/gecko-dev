@@ -10,6 +10,7 @@
 #include "nsCOMPtr.h"               // for member, local
 #include "nsGkAtoms.h"              // for nsGkAtoms::baseURIProperty
 #include "nsIDOMNode.h"
+#include "nsIDOMNodeSelector.h"     // base class
 #include "nsINodeInfo.h"            // member (in nsCOMPtr)
 #include "nsIVariant.h"             // for use in GetUserData()
 #include "nsNodeInfoManager.h"      // for use in NodePrincipal()
@@ -113,6 +114,8 @@ enum {
   // For all Element nodes, NODE_MAY_HAVE_CLASS is guaranteed to be set if the
   // node in fact has a class, but may be set even if it doesn't.
   NODE_MAY_HAVE_CLASS =                   NODE_FLAG_BIT(8),
+
+  NODE_IS_INSERTION_PARENT =              NODE_FLAG_BIT(9),
 
   // Node has an :empty or :-moz-only-whitespace selector
   NODE_HAS_EMPTY_SELECTOR =               NODE_FLAG_BIT(10),
@@ -1084,9 +1087,6 @@ public:
   already_AddRefed<nsINodeList> QuerySelectorAll(const nsAString& aSelector,
                                                  mozilla::ErrorResult& aResult);
 
-  nsresult QuerySelector(const nsAString& aSelector, nsIDOMElement **aReturn);
-  nsresult QuerySelectorAll(const nsAString& aSelector, nsIDOMNodeList **aReturn);
-
   /**
    * Associate an object aData to aKey on this node. If aData is null any
    * previously registered object and UserDataHandler associated to aKey on
@@ -1313,7 +1313,7 @@ private:
     // Set if a node in the node's parent chain has dir=auto.
     NodeAncestorHasDirAuto,
     // Set if the element is in the scope of a scoped style sheet; this flag is
-    // only accurate for elements bound to a document
+    // only accurate for elements bounds to a document
     ElementIsInStyleScope,
     // Set if the element is a scoped style sheet root
     ElementIsScopedStyleRoot,
@@ -1760,6 +1760,29 @@ inline nsINode* NODE_FROM(C& aContent, D& aDocument)
     return static_cast<nsINode*>(aContent);
   return static_cast<nsINode*>(aDocument);
 }
+
+/**
+ * A tearoff class for FragmentOrElement to implement NodeSelector
+ */
+class nsNodeSelectorTearoff MOZ_FINAL : public nsIDOMNodeSelector
+{
+public:
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+
+  NS_DECL_NSIDOMNODESELECTOR
+
+  NS_DECL_CYCLE_COLLECTION_CLASS(nsNodeSelectorTearoff)
+
+  nsNodeSelectorTearoff(nsINode *aNode) : mNode(aNode)
+  {
+  }
+
+private:
+  ~nsNodeSelectorTearoff() {}
+
+private:
+  nsCOMPtr<nsINode> mNode;
+};
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsINode, NS_INODE_IID)
 

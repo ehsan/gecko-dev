@@ -61,7 +61,8 @@ SharedSurface_GL::Copy(SharedSurface_GL* src, SharedSurface_GL* dest,
             gl->BlitFramebufferToFramebuffer(0, destWrapper.FB(),
                                              src->Size(), dest->Size());
         } else {
-            MOZ_CRASH("Unhandled dest->AttachType().");
+            MOZ_NOT_REACHED("Unhandled dest->AttachType().");
+            return;
         }
 
         if (srcNeedsUnlock)
@@ -98,7 +99,8 @@ SharedSurface_GL::Copy(SharedSurface_GL* src, SharedSurface_GL* dest,
             gl->BlitFramebufferToFramebuffer(srcWrapper.FB(), 0,
                                              src->Size(), dest->Size());
         } else {
-            MOZ_CRASH("Unhandled src->AttachType().");
+            MOZ_NOT_REACHED("Unhandled src->AttachType().");
+            return;
         }
 
         if (destNeedsUnlock)
@@ -135,7 +137,8 @@ SharedSurface_GL::Copy(SharedSurface_GL* src, SharedSurface_GL* dest,
             return;
         }
 
-        MOZ_CRASH("Unhandled dest->AttachType().");
+        MOZ_NOT_REACHED("Unhandled dest->AttachType().");
+        return;
     }
 
     if (src->AttachType() == AttachmentType::GLRenderbuffer) {
@@ -161,10 +164,12 @@ SharedSurface_GL::Copy(SharedSurface_GL* src, SharedSurface_GL* dest,
             return;
         }
 
-        MOZ_CRASH("Unhandled dest->AttachType().");
+        MOZ_NOT_REACHED("Unhandled dest->AttachType().");
+        return;
     }
 
-    MOZ_CRASH("Unhandled src->AttachType().");
+    MOZ_NOT_REACHED("Unhandled src->AttachType().");
+    return;
 }
 
 void
@@ -259,7 +264,8 @@ SharedSurface_Basic::Create(GLContext* gl,
         format = gfxASurface::ImageFormatARGB32;
         break;
     default:
-        MOZ_CRASH("Unhandled Tex format.");
+        MOZ_NOT_REACHED("Unhandled Tex format.");
+        return nullptr;
     }
     return new SharedSurface_Basic(gl, size, hasAlpha, format, tex);
 }

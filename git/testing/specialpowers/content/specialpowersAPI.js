@@ -10,7 +10,6 @@ var Cc = Components.classes;
 var Cu = Components.utils;
 
 Cu.import("resource://specialpowers/MockFilePicker.jsm");
-Cu.import("resource://specialpowers/MockColorPicker.jsm");
 Cu.import("resource://specialpowers/MockPermissionPrompt.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
@@ -484,10 +483,6 @@ SpecialPowersAPI.prototype = {
 
   get MockFilePicker() {
     return MockFilePicker
-  },
-
-  get MockColorPicker() {
-    return MockColorPicker
   },
 
   get MockPermissionPrompt() {
@@ -1256,8 +1251,7 @@ SpecialPowersAPI.prototype = {
     var serv = Cc["@mozilla.org/dom/dom-request-service;1"].
       getService(Ci.nsIDOMRequestService);
     var res = { __exposedProps__: {} };
-    var props = ["createRequest", "createCursor", "fireError", "fireSuccess",
-                 "fireDone", "fireDetailedError"];
+    var props = ["createRequest", "createCursor", "fireError", "fireSuccess", "fireDone"];
     for (i in props) {
       let prop = props[i];
       res[prop] = function() { return serv[prop].apply(serv, arguments) };

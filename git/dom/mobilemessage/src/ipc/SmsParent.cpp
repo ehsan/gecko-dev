@@ -338,25 +338,26 @@ SmsParent::RecvPSmsRequestConstructor(PSmsRequestParent* aActor,
     case IPCSmsRequest::TMarkMessageReadRequest:
       return actor->DoRequest(aRequest.get_MarkMessageReadRequest());
     default:
-      MOZ_CRASH("Unknown type!");
+      MOZ_NOT_REACHED("Unknown type!");
+      break;
   }
 
   return false;
 }
 
 PSmsRequestParent*
-SmsParent::AllocPSmsRequestParent(const IPCSmsRequest& aRequest)
+SmsParent::AllocPSmsRequest(const IPCSmsRequest& aRequest)
 {
   SmsRequestParent* actor = new SmsRequestParent();
   // Add an extra ref for IPDL. Will be released in
-  // SmsParent::DeallocPSmsRequestParent().
+  // SmsParent::DeallocPSmsRequest().
   actor->AddRef();
 
   return actor;
 }
 
 bool
-SmsParent::DeallocPSmsRequestParent(PSmsRequestParent* aActor)
+SmsParent::DeallocPSmsRequest(PSmsRequestParent* aActor)
 {
   // SmsRequestParent is refcounted, must not be freed manually.
   static_cast<SmsRequestParent*>(aActor)->Release();
@@ -376,25 +377,26 @@ SmsParent::RecvPMobileMessageCursorConstructor(PMobileMessageCursorParent* aActo
     case IPCMobileMessageCursor::TCreateThreadCursorRequest:
       return actor->DoRequest(aRequest.get_CreateThreadCursorRequest());
     default:
-      MOZ_CRASH("Unknown type!");
+      MOZ_NOT_REACHED("Unknown type!");
+      break;
   }
 
   return false;
 }
 
 PMobileMessageCursorParent*
-SmsParent::AllocPMobileMessageCursorParent(const IPCMobileMessageCursor& aRequest)
+SmsParent::AllocPMobileMessageCursor(const IPCMobileMessageCursor& aRequest)
 {
   MobileMessageCursorParent* actor = new MobileMessageCursorParent();
   // Add an extra ref for IPDL. Will be released in
-  // SmsParent::DeallocPMobileMessageCursorParent().
+  // SmsParent::DeallocPMobileMessageCursor().
   actor->AddRef();
 
   return actor;
 }
 
 bool
-SmsParent::DeallocPMobileMessageCursorParent(PMobileMessageCursorParent* aActor)
+SmsParent::DeallocPMobileMessageCursor(PMobileMessageCursorParent* aActor)
 {
   // MobileMessageCursorParent is refcounted, must not be freed manually.
   static_cast<MobileMessageCursorParent*>(aActor)->Release();
@@ -442,7 +444,8 @@ SmsRequestParent::DoRequest(const SendMessageRequest& aRequest)
     }
     break;
   default:
-    MOZ_CRASH("Unknown type of SendMessageRequest!");
+    MOZ_NOT_REACHED("Unknown type of SendMessageRequest!");
+    return false;
   }
   return true;
 }
@@ -737,7 +740,8 @@ MobileMessageCursorParent::NotifyCursorResult(nsISupports* aResult)
       ? NS_OK : NS_ERROR_FAILURE;
   }
 
-  MOZ_CRASH("Received invalid response parameters!");
+  MOZ_NOT_REACHED("Received invalid response parameters!");
+  return NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP

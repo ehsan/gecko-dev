@@ -211,7 +211,6 @@ bool hasMOVWT();
 bool hasVFPv3();
 bool hasVFP();
 bool has16DP();
-bool hasIDIV();
 
 } // namespace ion
 } // namespace js

@@ -220,7 +220,7 @@ ICStub::trace(JSTracer *trc)
           case 2: setElemStub->toImpl<2>()->traceShapes(trc); break;
           case 3: setElemStub->toImpl<3>()->traceShapes(trc); break;
           case 4: setElemStub->toImpl<4>()->traceShapes(trc); break;
-          default: MOZ_ASSUME_UNREACHABLE("Invalid proto stub.");
+          default: JS_NOT_REACHED("Invalid proto stub.");
         }
         break;
       }
@@ -358,7 +358,7 @@ ICStub::trace(JSTracer *trc)
           case 2: propStub->toImpl<2>()->traceShapes(trc); break;
           case 3: propStub->toImpl<3>()->traceShapes(trc); break;
           case 4: propStub->toImpl<4>()->traceShapes(trc); break;
-          default: MOZ_ASSUME_UNREACHABLE("Invalid proto stub.");
+          default: JS_NOT_REACHED("Invalid proto stub.");
         }
         break;
       }
@@ -723,7 +723,7 @@ EnsureCanEnterIon(JSContext *cx, ICUseCount_Fallback *stub, BaselineFrame *frame
     else if (stat == Method_Compiled)
         IonSpew(IonSpew_BaselineOSR, "  Compiled with Ion!");
     else
-        MOZ_ASSUME_UNREACHABLE("Invalid MethodStatus!");
+        JS_NOT_REACHED("Invalid MethodStatus!");
 
     // Failed to compile.  Reset use count and return.
     if (stat != Method_Compiled) {
@@ -1436,7 +1436,8 @@ DoTypeUpdateFallback(JSContext *cx, BaselineFrame *frame, ICUpdatedStub *stub, H
         break;
       }
       default:
-        MOZ_ASSUME_UNREACHABLE("Invalid stub");
+        JS_NOT_REACHED("Invalid stub");
+        return false;
     }
 
     return stub->addUpdateStubForValue(cx, script, obj, id, value);
@@ -2463,7 +2464,8 @@ DoBinaryArithFallback(JSContext *cx, BaselineFrame *frame, ICBinaryArith_Fallbac
         break;
       }
       default:
-        MOZ_ASSUME_UNREACHABLE("Unhandled baseline arith op");
+        JS_NOT_REACHED("Unhandled baseline arith op");
+        return false;
     }
 
     if (ret.isDouble())
@@ -2781,7 +2783,8 @@ ICBinaryArith_Double::Compiler::generateStubCode(MacroAssembler &masm)
         JS_ASSERT(ReturnFloatReg == FloatReg0);
         break;
       default:
-        MOZ_ASSUME_UNREACHABLE("Unexpected op");
+        JS_NOT_REACHED("Unexpected op");
+        return false;
     }
 
     masm.boxDouble(FloatReg0, R0);
@@ -2861,7 +2864,8 @@ ICBinaryArith_BooleanWithInt32::Compiler::generateStubCode(MacroAssembler &masm)
         break;
       }
       default:
-       MOZ_ASSUME_UNREACHABLE("Unhandled op for BinaryArith_BooleanWithInt32.");
+       JS_NOT_REACHED("Unhandled op for BinaryArith_BooleanWithInt32.");
+       return false;
     }
 
     // Failure case - jump to next stub
@@ -2923,7 +2927,8 @@ ICBinaryArith_DoubleWithInt32::Compiler::generateStubCode(MacroAssembler &masm)
         masm.andPtr(intReg, intReg2);
         break;
       default:
-       MOZ_ASSUME_UNREACHABLE("Unhandled op for BinaryArith_DoubleWithInt32.");
+       JS_NOT_REACHED("Unhandled op for BinaryArith_DoubleWithInt32.");
+       return false;
     }
     masm.tagValue(JSVAL_TYPE_INT32, intReg2, R0);
     EmitReturnFromIC(masm);
@@ -2964,7 +2969,8 @@ DoUnaryArithFallback(JSContext *cx, BaselineFrame *frame, ICUnaryArith_Fallback 
             return false;
         break;
       default:
-        MOZ_ASSUME_UNREACHABLE("Unexpected op");
+        JS_NOT_REACHED("Unexpected op");
+        return false;
     }
 
     if (res.isDouble())
@@ -3336,7 +3342,7 @@ IsCacheableSetPropAddSlot(JSContext *cx, HandleObject obj, HandleShape oldShape,
         return false;
 
     // Object must be extensible, oldShape must be immediate parent of curShape.
-    if (!obj->nonProxyIsExtensible() || obj->lastProperty()->previous() != oldShape)
+    if (!obj->isExtensible() || obj->lastProperty()->previous() != oldShape)
         return false;
 
     // Basic shape checks.
@@ -3487,12 +3493,12 @@ static bool TryAttachNativeGetElemStub(JSContext *cx, HandleScript script,
 }
 
 static bool
-TypedArrayRequiresFloatingPoint(TypedArrayObject *tarr)
+TypedArrayRequiresFloatingPoint(JSObject *obj)
 {
-    uint32_t type = tarr->type();
-    return (type == TypedArrayObject::TYPE_UINT32 ||
-            type == TypedArrayObject::TYPE_FLOAT32 ||
-            type == TypedArrayObject::TYPE_FLOAT64);
+    uint32_t type = TypedArray::type(obj);
+    return (type == TypedArray::TYPE_UINT32 ||
+            type == TypedArray::TYPE_FLOAT32 ||
+            type == TypedArray::TYPE_FLOAT64);
 }
 
 static bool
@@ -3572,15 +3578,14 @@ TryAttachGetElemStub(JSContext *cx, HandleScript script, ICGetElem_Fallback *stu
     }
 
     // Check for TypedArray[int] => Number accesses.
-    if (obj->is<TypedArrayObject>() && rhs.isInt32() && res.isNumber() &&
+    if (obj->isTypedArray() && rhs.isInt32() && res.isNumber() &&
         !TypedArrayGetElemStubExists(stub, obj))
     {
-        Rooted<TypedArrayObject*> tarr(cx, &obj->as<TypedArrayObject>());
-        if (!cx->runtime()->jitSupportsFloatingPoint && TypedArrayRequiresFloatingPoint(tarr))
+        if (!cx->runtime()->jitSupportsFloatingPoint && TypedArrayRequiresFloatingPoint(obj))
             return true;
 
         IonSpew(IonSpew_BaselineIC, "  Generating GetElem(TypedArray[Int32]) stub");
-        ICGetElem_TypedArray::Compiler compiler(cx, tarr->lastProperty(), tarr->type());
+        ICGetElem_TypedArray::Compiler compiler(cx, obj->lastProperty(), TypedArray::type(obj));
         ICStub *typedArrayStub = compiler.getStub(compiler.getStubSpace(script));
         if (!typedArrayStub)
             return false;
@@ -3592,7 +3597,7 @@ TryAttachGetElemStub(JSContext *cx, HandleScript script, ICGetElem_Fallback *stu
     // GetElem operations on non-native objects other than typed arrays cannot
     // be cached by either Baseline or Ion. Indicate this in the cache so that
     // Ion does not generate a cache for this op.
-    if (!obj->isNative() && !obj->is<TypedArrayObject>())
+    if (!obj->isNative() && !obj->isTypedArray())
         stub->noteNonNativeAccess();
 
     return true;
@@ -3859,14 +3864,14 @@ ICGetElem_TypedArray::Compiler::generateStubCode(MacroAssembler &masm)
     Register key = masm.extractInt32(R1, ExtractTemp1);
 
     // Bounds check.
-    masm.unboxInt32(Address(obj, TypedArrayObject::lengthOffset()), scratchReg);
+    masm.unboxInt32(Address(obj, TypedArray::lengthOffset()), scratchReg);
     masm.branch32(Assembler::BelowOrEqual, scratchReg, key, &failure);
 
     // Load the elements vector.
-    masm.loadPtr(Address(obj, TypedArrayObject::dataOffset()), scratchReg);
+    masm.loadPtr(Address(obj, TypedArray::dataOffset()), scratchReg);
 
     // Load the value.
-    BaseIndex source(scratchReg, key, ScaleFromElemWidth(TypedArrayObject::slotWidth(type_)));
+    BaseIndex source(scratchReg, key, ScaleFromElemWidth(TypedArray::slotWidth(type_)));
     masm.loadFromTypedArray(type_, source, R0, false, scratchReg, &failure);
 
     // Todo: Allow loading doubles from uint32 arrays, but this requires monitoring.
@@ -3960,9 +3965,12 @@ ICGetElem_Arguments::Compiler::generateStubCode(MacroAssembler &masm)
     // unlikely.
     Label failureReconstructInputs;
     regs = availableGeneralRegs(0);
-    regs.takeUnchecked(objReg);
-    regs.takeUnchecked(idxReg);
-    regs.takeUnchecked(scratchReg);
+    if (regs.has(objReg))
+        regs.take(objReg);
+    if (regs.has(idxReg))
+        regs.take(idxReg);
+    if (regs.has(scratchReg))
+        regs.take(scratchReg);
     Register argData = regs.takeAny();
     Register tempReg = regs.takeAny();
 
@@ -4194,7 +4202,7 @@ DoSetElemFallback(JSContext *cx, BaselineFrame *frame, ICSetElem_Fallback *stub,
         index.isInt32() && index.toInt32() >= 0 &&
         !rhs.isMagic(JS_ELEMENTS_HOLE))
     {
-        JS_ASSERT(!obj->is<TypedArrayObject>());
+        JS_ASSERT(!obj->isTypedArray());
 
         bool addingCase;
         size_t protoDepth;
@@ -4238,24 +4246,24 @@ DoSetElemFallback(JSContext *cx, BaselineFrame *frame, ICSetElem_Fallback *stub,
         return true;
     }
 
-    if (obj->is<TypedArrayObject>() && index.isInt32() && rhs.isNumber()) {
-        Rooted<TypedArrayObject*> tarr(cx, &obj->as<TypedArrayObject>());
-        if (!cx->runtime()->jitSupportsFloatingPoint && TypedArrayRequiresFloatingPoint(tarr))
+    if (obj->isTypedArray() && index.isInt32() && rhs.isNumber()) {
+        if (!cx->runtime()->jitSupportsFloatingPoint && TypedArrayRequiresFloatingPoint(obj))
             return true;
 
-        uint32_t len = tarr->length();
+        uint32_t len = TypedArray::length(obj);
         int32_t idx = index.toInt32();
         bool expectOutOfBounds = (idx < 0) || (static_cast<uint32_t>(idx) >= len);
 
-        if (!TypedArraySetElemStubExists(stub, tarr, expectOutOfBounds)) {
+        if (!TypedArraySetElemStubExists(stub, obj, expectOutOfBounds)) {
             // Remove any existing TypedArraySetElemStub that doesn't handle out-of-bounds
             if (expectOutOfBounds)
-                RemoveExistingTypedArraySetElemStub(cx, stub, tarr);
+                RemoveExistingTypedArraySetElemStub(cx, stub, obj);
 
             IonSpew(IonSpew_BaselineIC,
                     "  Generating SetElem_TypedArray stub (shape=%p, type=%u, oob=%s)",
-                    tarr->lastProperty(), tarr->type(), expectOutOfBounds ? "yes" : "no");
-            ICSetElem_TypedArray::Compiler compiler(cx, tarr->lastProperty(), tarr->type(),
+                    obj->lastProperty(), TypedArray::type(obj),
+                    expectOutOfBounds ? "yes" : "no");
+            ICSetElem_TypedArray::Compiler compiler(cx, obj->lastProperty(), TypedArray::type(obj),
                                                     expectOutOfBounds);
             ICStub *typedArrayStub = compiler.getStub(compiler.getStubSpace(script));
             if (!typedArrayStub)
@@ -4470,7 +4478,7 @@ ICSetElemDenseAddCompiler::getStub(ICStubSpace *space)
       case 2: stub = getStubSpecific<2>(space, &shapes); break;
       case 3: stub = getStubSpecific<3>(space, &shapes); break;
       case 4: stub = getStubSpecific<4>(space, &shapes); break;
-      default: MOZ_ASSUME_UNREACHABLE("ProtoChainDepth too high.");
+      default: JS_NOT_REACHED("ProtoChainDepth too high.");
     }
     if (!stub || !stub->initUpdatingChain(cx, space))
         return NULL;
@@ -4643,14 +4651,14 @@ ICSetElem_TypedArray::Compiler::generateStubCode(MacroAssembler &masm)
 
     // Bounds check.
     Label oobWrite;
-    masm.unboxInt32(Address(obj, TypedArrayObject::lengthOffset()), scratchReg);
+    masm.unboxInt32(Address(obj, TypedArray::lengthOffset()), scratchReg);
     masm.branch32(Assembler::BelowOrEqual, scratchReg, key,
                   expectOutOfBounds_ ? &oobWrite : &failure);
 
     // Load the elements vector.
-    masm.loadPtr(Address(obj, TypedArrayObject::dataOffset()), scratchReg);
+    masm.loadPtr(Address(obj, TypedArray::dataOffset()), scratchReg);
 
-    BaseIndex dest(scratchReg, key, ScaleFromElemWidth(TypedArrayObject::slotWidth(type_)));
+    BaseIndex dest(scratchReg, key, ScaleFromElemWidth(TypedArray::slotWidth(type_)));
     Address value(BaselineStackReg, ICStackValueOffset);
 
     // We need a second scratch register. It's okay to clobber the type tag of
@@ -4661,11 +4669,11 @@ ICSetElem_TypedArray::Compiler::generateStubCode(MacroAssembler &masm)
     regs.take(scratchReg);
     Register secondScratch = regs.takeAny();
 
-    if (type_ == TypedArrayObject::TYPE_FLOAT32 || type_ == TypedArrayObject::TYPE_FLOAT64) {
+    if (type_ == TypedArray::TYPE_FLOAT32 || type_ == TypedArray::TYPE_FLOAT64) {
         masm.ensureDouble(value, FloatReg0, &failure);
         masm.storeToTypedFloatArray(type_, FloatReg0, dest);
         EmitReturnFromIC(masm);
-    } else if (type_ == TypedArrayObject::TYPE_UINT8_CLAMPED) {
+    } else if (type_ == TypedArray::TYPE_UINT8_CLAMPED) {
         Label notInt32;
         masm.branchTestInt32(Assembler::NotEqual, value, &notInt32);
         masm.unboxInt32(value, secondScratch);
@@ -5178,7 +5186,7 @@ TryAttachLengthStub(JSContext *cx, HandleScript script, ICGetProp_Fallback *stub
         stub->addNewStub(newStub);
         return true;
     }
-    if (obj->is<TypedArrayObject>()) {
+    if (obj->isTypedArray()) {
         JS_ASSERT(res.isInt32());
         IonSpew(IonSpew_BaselineIC, "  Generating GetProp(TypedArray.length) stub");
         ICGetProp_TypedArrayLength::Compiler compiler(cx);
@@ -5553,12 +5561,12 @@ ICGetProp_TypedArrayLength::Compiler::generateStubCode(MacroAssembler &masm)
 
     // Implement the negated version of JSObject::isTypedArray predicate.
     masm.loadObjClass(obj, scratch);
-    masm.branchPtr(Assembler::Below, scratch, ImmWord(&TypedArrayObject::classes[0]), &failure);
+    masm.branchPtr(Assembler::Below, scratch, ImmWord(&TypedArray::classes[0]), &failure);
     masm.branchPtr(Assembler::AboveOrEqual, scratch,
-                   ImmWord(&TypedArrayObject::classes[TypedArrayObject::TYPE_MAX]), &failure);
+                   ImmWord(&TypedArray::classes[TypedArray::TYPE_MAX]), &failure);
 
     // Load length from fixed slot.
-    masm.loadValue(Address(obj, TypedArrayObject::lengthOffset()), R0);
+    masm.loadValue(Address(obj, TypedArray::lengthOffset()), R0);
     EmitReturnFromIC(masm);
 
     // Failure case - jump to next stub
@@ -6444,7 +6452,7 @@ ICSetPropNativeAddCompiler::getStub(ICStubSpace *space)
       case 2: stub = getStubSpecific<2>(space, &shapes); break;
       case 3: stub = getStubSpecific<3>(space, &shapes); break;
       case 4: stub = getStubSpecific<4>(space, &shapes); break;
-      default: MOZ_ASSUME_UNREACHABLE("ProtoChainDepth too high.");
+      default: JS_NOT_REACHED("ProtoChainDepth too high.");
     }
     if (!stub || !stub->initUpdatingChain(cx, space))
         return NULL;
@@ -6993,7 +7001,7 @@ DoCallFallback(JSContext *cx, BaselineFrame *frame, ICCall_Fallback *stub, uint3
         res.set(vp[0]);
     } else {
         JS_ASSERT(op == JSOP_CALL || op == JSOP_FUNCALL || op == JSOP_FUNAPPLY || op == JSOP_EVAL);
-        if (!Invoke(cx, thisv, callee, argc, args, res))
+        if (!Invoke(cx, thisv, callee, argc, args, res.address()))
             return false;
     }
 
@@ -7230,7 +7238,8 @@ ICCallScriptedCompiler::generateStubCode(MacroAssembler &masm)
 
     regs.take(argcReg);
     regs.take(ArgumentsRectifierReg);
-    regs.takeUnchecked(BaselineTailCallReg);
+    if (regs.has(BaselineTailCallReg))
+        regs.take(BaselineTailCallReg);
 
     // Load the callee in R1.
     // Stack Layout: [ ..., CalleeVal, ThisVal, Arg0Val, ..., ArgNVal, +ICStackValueOffset+ ]
@@ -8130,7 +8139,7 @@ ICTypeOf_Typed::Compiler::generateStubCode(MacroAssembler &masm)
         break;
 
       default:
-        MOZ_ASSUME_UNREACHABLE("Unexpected type");
+        JS_NOT_REACHED("Unexpected type");
     }
 
     masm.movePtr(ImmGCPtr(typeString_), R0.scratchReg());

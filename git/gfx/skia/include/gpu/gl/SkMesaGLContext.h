@@ -8,11 +8,11 @@
 #ifndef SkMesaGLContext_DEFINED
 #define SkMesaGLContext_DEFINED
 
-#include "SkGLContextHelper.h"
+#include "SkGLContext.h"
 
 #if SK_MESA
 
-class SkMesaGLContext : public SkGLContextHelper {
+class SkMesaGLContext : public SkGLContext {
 private:
     typedef intptr_t Context;
 

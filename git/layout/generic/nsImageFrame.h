@@ -364,9 +364,6 @@ public:
   virtual ~nsDisplayImage() {
     MOZ_COUNT_DTOR(nsDisplayImage);
   }
-  virtual void ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
-                                         const nsDisplayItemGeometry* aGeometry,
-                                         nsRegion* aInvalidRegion) MOZ_OVERRIDE;
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsRenderingContext* aCtx) MOZ_OVERRIDE;
 

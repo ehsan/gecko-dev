@@ -6,40 +6,40 @@
 
 #include "mozilla/MemoryReporting.h"
 
-#include "ion/BaselineJIT.h"
-#include "ion/BaselineCompiler.h"
-#include "ion/BaselineInspector.h"
-#include "ion/Ion.h"
-#include "ion/IonAnalysis.h"
-#include "ion/IonBuilder.h"
-#include "ion/IonLinker.h"
-#include "ion/IonSpewer.h"
-#include "ion/LIR.h"
-#include "ion/AliasAnalysis.h"
-#include "ion/LICM.h"
-#include "ion/ValueNumbering.h"
-#include "ion/EdgeCaseAnalysis.h"
-#include "ion/RangeAnalysis.h"
-#include "ion/LinearScan.h"
-#include "ion/ParallelSafetyAnalysis.h"
+#include "BaselineJIT.h"
+#include "BaselineCompiler.h"
+#include "BaselineInspector.h"
+#include "Ion.h"
+#include "IonAnalysis.h"
+#include "IonBuilder.h"
+#include "IonLinker.h"
+#include "IonSpewer.h"
+#include "LIR.h"
+#include "AliasAnalysis.h"
+#include "LICM.h"
+#include "ValueNumbering.h"
+#include "EdgeCaseAnalysis.h"
+#include "RangeAnalysis.h"
+#include "LinearScan.h"
+#include "ParallelSafetyAnalysis.h"
 #include "jscompartment.h"
 #include "vm/ThreadPool.h"
 #include "vm/ForkJoin.h"
-#include "ion/IonCompartment.h"
-#include "ion/PerfSpewer.h"
-#include "ion/CodeGenerator.h"
+#include "IonCompartment.h"
+#include "PerfSpewer.h"
+#include "CodeGenerator.h"
 #include "jsworkers.h"
-#include "ion/BacktrackingAllocator.h"
-#include "ion/StupidAllocator.h"
-#include "ion/UnreachableCodeElimination.h"
-#include "ion/EffectiveAddressAnalysis.h"
+#include "BacktrackingAllocator.h"
+#include "StupidAllocator.h"
+#include "UnreachableCodeElimination.h"
+#include "EffectiveAddressAnalysis.h"
 
 #if defined(JS_CPU_X86)
-# include "ion/x86/Lowering-x86.h"
+# include "x86/Lowering-x86.h"
 #elif defined(JS_CPU_X64)
-# include "ion/x64/Lowering-x64.h"
+# include "x64/Lowering-x64.h"
 #elif defined(JS_CPU_ARM)
-# include "ion/arm/Lowering-arm.h"
+# include "arm/Lowering-arm.h"
 #endif
 #include "gc/Marking.h"
 
@@ -51,9 +51,9 @@
 #include "vm/Stack-inl.h"
 #include "ion/IonFrames-inl.h"
 #include "ion/CompilerRoot.h"
-#include "ion/ExecutionModeInlines.h"
-#include "ion/AsmJS.h"
-#include "ion/AsmJSModule.h"
+#include "ExecutionModeInlines.h"
+#include "AsmJS.h"
+#include "AsmJSModule.h"
 
 #if JS_TRACE_LOGGING
 #include "TraceLogging.h"
@@ -298,8 +298,7 @@ IonCompartment::IonCompartment(IonRuntime *rt)
   : rt(rt),
     stubCodes_(NULL),
     baselineCallReturnAddr_(NULL),
-    stringConcatStub_(NULL),
-    parallelStringConcatStub_(NULL)
+    stringConcatStub_(NULL)
 {
 }
 
@@ -323,18 +322,10 @@ bool
 IonCompartment::ensureIonStubsExist(JSContext *cx)
 {
     if (!stringConcatStub_) {
-        stringConcatStub_ = generateStringConcatStub(cx, SequentialExecution);
+        stringConcatStub_ = generateStringConcatStub(cx);
         if (!stringConcatStub_)
             return false;
     }
-
-#ifdef JS_THREADSAFE
-    if (!parallelStringConcatStub_) {
-        parallelStringConcatStub_ = generateStringConcatStub(cx, ParallelExecution);
-        if (!parallelStringConcatStub_)
-            return false;
-    }
-#endif
 
     return true;
 }
@@ -385,10 +376,7 @@ IonRuntime::Mark(JSTracer *trc)
 void
 IonCompartment::mark(JSTracer *trc, JSCompartment *compartment)
 {
-    // Cancel any active or pending off thread compilations. Note that the
-    // MIR graph does not hold any nursery pointers, so there's no need to
-    // do this for minor GCs.
-    JS_ASSERT(!trc->runtime->isHeapMinorCollecting());
+    // Cancel any active or pending off thread compilations.
     CancelOffThreadIonCompile(compartment, NULL);
     FinishAllOffThreadCompilations(this);
 
@@ -407,9 +395,6 @@ IonCompartment::sweep(FreeOp *fop)
 
     if (stringConcatStub_ && !IsIonCodeMarked(stringConcatStub_.unsafeGet()))
         stringConcatStub_ = NULL;
-
-    if (parallelStringConcatStub_ && !IsIonCodeMarked(parallelStringConcatStub_.unsafeGet()))
-        parallelStringConcatStub_ = NULL;
 }
 
 IonCode *
@@ -540,6 +525,14 @@ IonCode::writeBarrierPre(IonCode *code)
     Zone *zone = code->zone();
     if (zone->needsBarrier())
         MarkIonCodeUnbarriered(zone->barrierTracer(), &code, "ioncode write barrier");
+#endif
+}
+
+void
+IonCode::writeBarrierPost(IonCode *code, void *addr)
+{
+#ifdef JSGC_GENERATIONAL
+    // Nothing to do.
 #endif
 }
 
@@ -822,7 +815,8 @@ IonScript::getSafepointIndex(uint32_t disp) const
         }
     }
 
-    MOZ_ASSUME_UNREACHABLE("displacement not found.");
+    JS_NOT_REACHED("displacement not found.");
+    return NULL;
 }
 
 const OsiIndex *
@@ -836,7 +830,8 @@ IonScript::getOsiIndex(uint32_t disp) const
             return it;
     }
 
-    MOZ_ASSUME_UNREACHABLE("Failed to find OSI point return address");
+    JS_NOT_REACHED("Failed to find OSI point return address");
+    return NULL;
 }
 
 const OsiIndex *
@@ -1219,7 +1214,7 @@ GenerateLIR(MIRGenerator *mir)
       }
 
       default:
-        MOZ_ASSUME_UNREACHABLE("Bad regalloc");
+        JS_NOT_REACHED("Bad regalloc");
     }
 
     if (mir->shouldCancel("Allocate Registers"))
@@ -1494,28 +1489,24 @@ CheckScript(JSContext *cx, JSScript *script, bool osr)
     return true;
 }
 
-// Longer scripts can only be compiled off thread, as these compilations
-// can be expensive and stall the main thread for too long.
-static const uint32_t MAX_OFF_THREAD_SCRIPT_SIZE = 100000;
-static const uint32_t MAX_MAIN_THREAD_SCRIPT_SIZE = 2000;
-static const uint32_t MAX_MAIN_THREAD_LOCALS_AND_ARGS = 256;
-
 static MethodStatus
 CheckScriptSize(JSContext *cx, JSScript* script)
 {
     if (!js_IonOptions.limitScriptSize)
         return Method_Compiled;
 
+    // Longer scripts can only be compiled off thread, as these compilations
+    // can be expensive and stall the main thread for too long.
+    static const uint32_t MAX_MAIN_THREAD_SCRIPT_SIZE = 2000;
+    static const uint32_t MAX_OFF_THREAD_SCRIPT_SIZE = 20000;
+    static const uint32_t MAX_LOCALS_AND_ARGS = 256;
+
     if (script->length > MAX_OFF_THREAD_SCRIPT_SIZE) {
-        // Some scripts are so large we never try to Ion compile them.
         IonSpew(IonSpew_Abort, "Script too large (%u bytes)", script->length);
         return Method_CantCompile;
     }
 
-    uint32_t numLocalsAndArgs = analyze::TotalSlots(script);
-    if (script->length > MAX_MAIN_THREAD_SCRIPT_SIZE ||
-        numLocalsAndArgs > MAX_MAIN_THREAD_LOCALS_AND_ARGS)
-    {
+    if (script->length > MAX_MAIN_THREAD_SCRIPT_SIZE) {
         if (OffThreadCompilationEnabled(cx)) {
             // Even if off thread compilation is enabled, there are cases where
             // compilation must still occur on the main thread. Don't compile
@@ -1523,16 +1514,19 @@ CheckScriptSize(JSContext *cx, JSScript* script)
             // occurring with profiling should reflect those without), but do
             // not forbid compilation so that the script may be compiled later.
             if (!OffThreadCompilationAvailable(cx) && !cx->runtime()->profilingScripts) {
-                IonSpew(IonSpew_Abort,
-                        "Script too large for main thread, skipping (%u bytes) (%u locals/args)",
-                        script->length, numLocalsAndArgs);
+                IonSpew(IonSpew_Abort, "Script too large for main thread, skipping (%u bytes)", script->length);
                 return Method_Skipped;
             }
         } else {
-            IonSpew(IonSpew_Abort, "Script too large (%u bytes) (%u locals/args)",
-                    script->length, numLocalsAndArgs);
+            IonSpew(IonSpew_Abort, "Script too large (%u bytes)", script->length);
             return Method_CantCompile;
         }
+    }
+
+    uint32_t numLocalsAndArgs = analyze::TotalSlots(script);
+    if (numLocalsAndArgs > MAX_LOCALS_AND_ARGS) {
+        IonSpew(IonSpew_Abort, "Too many locals and arguments (%u)", numLocalsAndArgs);
+        return Method_CantCompile;
     }
 
     return Method_Compiled;
@@ -1704,19 +1698,19 @@ ion::CanEnter(JSContext *cx, RunState &state)
 
     // If --ion-eager is used, compile with Baseline first, so that we
     // can directly enter IonMonkey.
-    RootedScript rscript(cx, script);
-    if (js_IonOptions.eagerCompilation && !rscript->hasBaselineScript()) {
+    if (js_IonOptions.eagerCompilation && !script->hasBaselineScript()) {
         MethodStatus status = CanEnterBaselineMethod(cx, state);
         if (status != Method_Compiled)
             return status;
     }
 
     // Attempt compilation. Returns Method_Compiled if already compiled.
+    RootedScript rscript(cx, script);
     bool constructing = state.isInvoke() && state.asInvoke()->constructing();
     MethodStatus status = Compile(cx, rscript, NULL, NULL, constructing, SequentialExecution);
     if (status != Method_Compiled) {
         if (status == Method_CantCompile)
-            ForbidCompilation(cx, rscript);
+            ForbidCompilation(cx, script);
         return status;
     }
 
@@ -2007,7 +2001,8 @@ InvalidateActivation(FreeOp *fop, uint8_t *ionTop, bool invalidateAll)
             break;
           case IonFrame_Unwound_OptimizedJS:
           case IonFrame_Unwound_BaselineStub:
-            MOZ_ASSUME_UNREACHABLE("invalid");
+            JS_NOT_REACHED("invalid");
+            break;
           case IonFrame_Unwound_Rectifier:
             IonSpew(IonSpew_Invalidate, "#%d unwound rectifier frame @ %p", frameno, it.fp());
             break;
@@ -2319,7 +2314,7 @@ ion::ForbidCompilation(JSContext *cx, JSScript *script, ExecutionMode mode)
         return;
     }
 
-    MOZ_ASSUME_UNREACHABLE("No such execution mode");
+    JS_NOT_REACHED("No such execution mode");
 }
 
 uint32_t
@@ -2328,19 +2323,6 @@ ion::UsesBeforeIonRecompile(JSScript *script, jsbytecode *pc)
     JS_ASSERT(pc == script->code || JSOp(*pc) == JSOP_LOOPENTRY);
 
     uint32_t minUses = js_IonOptions.usesBeforeCompile;
-
-    // If the script is too large to compile on the main thread, we can still
-    // compile it off thread. In these cases, increase the use count threshold
-    // to improve the compilation's type information and hopefully avoid later
-    // recompilation.
-
-    if (script->length > MAX_MAIN_THREAD_SCRIPT_SIZE)
-        minUses = minUses * (script->length / (double) MAX_MAIN_THREAD_SCRIPT_SIZE);
-
-    uint32_t numLocalsAndArgs = analyze::TotalSlots(script);
-    if (numLocalsAndArgs > MAX_MAIN_THREAD_LOCALS_AND_ARGS)
-        minUses = minUses * (numLocalsAndArgs / (double) MAX_MAIN_THREAD_LOCALS_AND_ARGS);
-
     if (JSOp(*pc) != JSOP_LOOPENTRY || js_IonOptions.eagerCompilation)
         return minUses;
 

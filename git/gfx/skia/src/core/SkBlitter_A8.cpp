@@ -180,7 +180,7 @@ void SkA8_Blitter::blitV(int x, int y, int height, SkAlpha alpha) {
 
     unsigned sa = SkAlphaMul(fSrcA, SkAlpha255To256(alpha));
     uint8_t* device = fDevice.getAddr8(x, y);
-    size_t   rowBytes = fDevice.rowBytes();
+    int      rowBytes = fDevice.rowBytes();
 
     if (sa == 0xFF) {
         for (int i = 0; i < height; i++) {
@@ -343,3 +343,4 @@ void SkA8_Shader_Blitter::blitMask(const SkMask& mask, const SkIRect& clip) {
         alpha += mask.fRowBytes;
     }
 }
+

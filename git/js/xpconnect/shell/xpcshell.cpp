@@ -491,11 +491,10 @@ Load(JSContext *cx, unsigned argc, jsval *vp)
 static JSBool
 Version(JSContext *cx, unsigned argc, jsval *vp)
 {
-    JSVersion origVersion = JS_GetVersion(cx);
-    JS_SET_RVAL(cx, vp, INT_TO_JSVAL(origVersion));
     if (argc > 0 && JSVAL_IS_INT(JS_ARGV(cx, vp)[0]))
-        JS_SetVersionForCompartment(js::GetContextCompartment(cx),
-                                    JSVersion(JSVAL_TO_INT(JS_ARGV(cx, vp)[0])));
+        JS_SET_RVAL(cx, vp, INT_TO_JSVAL(JS_SetVersion(cx, JSVersion(JSVAL_TO_INT(JS_ARGV(cx, vp)[0])))));
+    else
+        JS_SET_RVAL(cx, vp, INT_TO_JSVAL(JS_GetVersion(cx)));
     return true;
 }
 
@@ -678,6 +677,19 @@ SendCommand(JSContext* cx,
 
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return true;
+}
+
+static JSBool
+GetChildGlobalObject(JSContext* cx,
+                     unsigned,
+                     jsval* vp)
+{
+    JS::Rooted<JSObject*> global(cx);
+    if (XRE_GetChildGlobalObject(cx, global.address())) {
+        JS_SET_RVAL(cx, vp, OBJECT_TO_JSVAL(global));
+        return true;
+    }
+    return false;
 }
 
 /*
@@ -906,6 +918,7 @@ static const JSFunctionSpec glob_functions[] = {
     JS_FS("dumpHeap",        DumpHeap,       5,0),
 #endif
     JS_FS("sendCommand",     SendCommand,    1,0),
+    JS_FS("getChildGlobalObject", GetChildGlobalObject, 0,0),
     JS_FS("atob",            Atob,           1,0),
     JS_FS("btoa",            Btoa,           1,0),
     JS_FS("Blob",            Blob,           2,JSFUN_CONSTRUCTOR),
@@ -1305,8 +1318,7 @@ ProcessArgs(JSContext *cx, JS::Handle<JSObject*> obj, char **argv, int argc, XPC
             if (++i == argc) {
                 return usage();
             }
-            JS_SetVersionForCompartment(js::GetContextCompartment(cx),
-                                        JSVersion(atoi(argv[i])));
+            JS_SetVersion(cx, JSVersion(atoi(argv[i])));
             break;
         case 'W':
             reportWarnings = false;
@@ -1470,6 +1482,7 @@ ContextCallback(JSContext *cx, unsigned contextOp)
 
     if (contextOp == JSCONTEXT_NEW) {
         JS_SetErrorReporter(cx, my_ErrorReporter);
+        JS_SetVersion(cx, JSVERSION_LATEST);
     }
     return true;
 }
@@ -1703,15 +1716,12 @@ main(int argc, char **argv, char **envp)
             return 1;
         }
 
-        JS::CompartmentOptions options;
-        options.setZone(JS::SystemZone)
-               .setVersion(JSVERSION_LATEST);
         nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
         rv = xpc->InitClassesWithNewWrappedGlobal(cx,
                                                   static_cast<nsIGlobalObject *>(backstagePass),
                                                   systemprincipal,
                                                   0,
-                                                  options,
+                                                  JS::SystemZone,
                                                   getter_AddRefs(holder));
         if (NS_FAILED(rv))
             return 1;

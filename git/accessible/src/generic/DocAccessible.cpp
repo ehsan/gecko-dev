@@ -1377,9 +1377,8 @@ DocAccessible::RecreateAccessible(nsIContent* aContent)
   // coalescence with normal hide and show events. Note, in this case they
   // should be coalesced with normal show/hide events.
 
-  nsIContent* parent = aContent->GetFlattenedTreeParent();
-  ContentRemoved(parent, aContent);
-  ContentInserted(parent, aContent, aContent->GetNextSibling());
+  ContentRemoved(aContent->GetParent(), aContent);
+  ContentInserted(aContent->GetParent(), aContent, aContent->GetNextSibling());
 }
 
 void

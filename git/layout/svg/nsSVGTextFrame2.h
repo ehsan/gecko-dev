@@ -24,7 +24,6 @@ typedef nsSVGDisplayContainerFrame nsSVGTextFrame2Base;
 
 namespace mozilla {
 
-class CharIterator;
 class TextFrameIterator;
 class TextNodeCorrespondenceRecorder;
 struct TextRenderedRun;
@@ -176,12 +175,12 @@ class nsSVGTextFrame2 : public nsSVGTextFrame2Base
   friend nsIFrame*
   NS_NewSVGTextFrame2(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
-  friend class mozilla::CharIterator;
   friend class mozilla::GlyphMetricsUpdater;
   friend class mozilla::TextFrameIterator;
   friend class mozilla::TextNodeCorrespondenceRecorder;
   friend struct mozilla::TextRenderedRun;
   friend class mozilla::TextRenderedRunIterator;
+  friend class AutoCanvasTMForMarker;
   friend class MutationObserver;
   friend class nsDisplaySVGText;
 
@@ -189,8 +188,7 @@ protected:
   nsSVGTextFrame2(nsStyleContext* aContext)
     : nsSVGTextFrame2Base(aContext),
       mFontSizeScaleFactor(1.0f),
-      mLastContextScale(1.0f),
-      mLengthAdjustScaleFactor(1.0f)
+      mGetCanvasTMForFlag(FOR_OUTERSVG_TM)
   {
     AddStateBits(NS_STATE_SVG_POSITIONING_DIRTY);
   }
@@ -317,10 +315,8 @@ public:
   /**
    * Updates the mFontSizeScaleFactor value by looking at the range of
    * font-sizes used within the <text>.
-   *
-   * @return Whether mFontSizeScaleFactor changed.
    */
-  bool UpdateFontSizeScaleFactor();
+  void UpdateFontSizeScaleFactor();
 
   double GetFontSizeScaleFactor() const;
 
@@ -351,6 +347,28 @@ public:
                                           nsIFrame* aChildFrame);
 
 private:
+  /**
+   * This class exists purely because it would be too messy to pass the "for"
+   * flag for GetCanvasTM through the call chains to the GetCanvasTM() call in
+   * UpdateFontSizeScaleFactor.
+   */
+  class AutoCanvasTMForMarker {
+  public:
+    AutoCanvasTMForMarker(nsSVGTextFrame2* aFrame, uint32_t aFor)
+      : mFrame(aFrame)
+    {
+      mOldFor = mFrame->mGetCanvasTMForFlag;
+      mFrame->mGetCanvasTMForFlag = aFor;
+    }
+    ~AutoCanvasTMForMarker()
+    {
+      mFrame->mGetCanvasTMForFlag = mOldFor;
+    }
+  private:
+    nsSVGTextFrame2* mFrame;
+    uint32_t mOldFor;
+  };
+
   /**
    * Mutation observer used to watch for text positioning attribute changes
    * on descendent text content elements (like <tspan>s).
@@ -449,11 +467,9 @@ private:
    * was not given for that character.  Also fills aDeltas with values based on
    * dx/dy attributes.
    *
-   * @param aRunPerGlyph Whether mPositions should record that a new run begins
-   *   at each glyph.
    * @return True if we recorded any positions.
    */
-  bool ResolvePositions(nsTArray<gfxPoint>& aDeltas, bool aRunPerGlyph);
+  bool ResolvePositions(nsTArray<gfxPoint>& aDeltas);
 
   /**
    * Determines the position, in app units, of each character in the <text> as
@@ -621,17 +637,18 @@ private:
   float mFontSizeScaleFactor;
 
   /**
-   * The scale of the context that we last used to compute mFontSizeScaleFactor.
-   * We record this so that we can tell when our scale transform has changed
-   * enough to warrant reflowing the text.
+   * The flag to pass to GetCanvasTM from UpdateFontSizeScaleFactor.  This is
+   * normally FOR_OUTERSVG_TM, but while painting or hit testing a pattern or
+   * marker, we set it to FOR_PAINTING or FOR_HIT_TESTING appropriately.
+   *
+   * This flag is also used to determine whether in UpdateFontSizeScaleFactor
+   * GetCanvasTM should be called at all.  When the nsSVGTextFrame2 is a
+   * non-display child, and we are not painting or hit testing, there is
+   * no sensible CTM stack to use.  Additionally, when inside a <marker>,
+   * calling GetCanvasTM on the nsSVGMarkerFrame would crash due to not
+   * having a current mMarkedFrame.
    */
-  float mLastContextScale;
-
-  /**
-   * The amount that we need to scale each rendered run to account for
-   * lengthAdjust="spacingAndGlyphs".
-   */
-  float mLengthAdjustScaleFactor;
+  uint32_t mGetCanvasTMForFlag;
 };
 
 #endif

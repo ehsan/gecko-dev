@@ -158,47 +158,10 @@ NS_INTERFACE_MAP_END
 NS_IMPL_CYCLE_COLLECTING_ADDREF(Navigator)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(Navigator)
 
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(Navigator)
-  tmp->Invalidate();
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mWindow)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(Navigator)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPlugins)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mMimeTypes)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mGeolocation)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mNotification)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mBatteryManager)
-  // mPowerManager isn't cycle collected
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSmsManager)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mMobileMessageManager)
-#ifdef MOZ_B2G_RIL
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mTelephony)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mVoicemail)
-#endif
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mConnection)
-#ifdef MOZ_B2G_RIL
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mMobileConnection)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mCellBroadcast)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mIccManager)
-#endif
-#ifdef MOZ_B2G_BT
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mBluetooth)
-#endif
-#ifdef MOZ_AUDIO_CHANNEL_MANAGER
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mAudioChannelManager)
-#endif
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mCameraManager)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mMessagesManager)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mDeviceStorageStores)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mTimeManager)
-
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mWindow)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_IMPL_CYCLE_COLLECTION_TRACE_WRAPPERCACHE(Navigator)
+// We seem to manually break cycles through most of our members in Invalidate.
+// That said, if those members get set _after_ the window calls Invalidate on
+// us, then what?
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(Navigator, mWindow)
 
 void
 Navigator::Invalidate()
@@ -210,8 +173,6 @@ Navigator::Invalidate()
     mPlugins->Invalidate();
     mPlugins = nullptr;
   }
-
-  mMimeTypes = nullptr;
 
   // If there is a page transition, make sure delete the geolocation object.
   if (mGeolocation) {
@@ -483,12 +444,11 @@ Navigator::GetProductSub(nsAString& aProductSub)
 }
 
 NS_IMETHODIMP
-Navigator::GetMimeTypes(nsISupports** aMimeTypes)
+Navigator::GetMimeTypes(nsIDOMMimeTypeArray** aMimeTypes)
 {
   if (!mMimeTypes) {
     NS_ENSURE_STATE(mWindow);
-    nsWeakPtr win = do_GetWeakReference(mWindow);
-    mMimeTypes = new nsMimeTypeArray(win);
+    mMimeTypes = new nsMimeTypeArray(this);
   }
 
   NS_ADDREF(*aMimeTypes = mMimeTypes);
@@ -497,16 +457,16 @@ Navigator::GetMimeTypes(nsISupports** aMimeTypes)
 }
 
 NS_IMETHODIMP
-Navigator::GetPlugins(nsISupports** aPlugins)
+Navigator::GetPlugins(nsIDOMPluginArray** aPlugins)
 {
   if (!mPlugins) {
     NS_ENSURE_STATE(mWindow);
-    nsWeakPtr win = do_GetWeakReference(mWindow);
-    mPlugins = new nsPluginArray(win);
+
+    mPlugins = new nsPluginArray(this, mWindow->GetDocShell());
     mPlugins->Init();
   }
 
-  NS_ADDREF(*aPlugins = static_cast<nsIObserver*>(mPlugins.get()));
+  NS_ADDREF(*aPlugins = mPlugins);
 
   return NS_OK;
 }
@@ -620,16 +580,31 @@ Navigator::JavaEnabled(bool* aReturn)
 
   if (!mMimeTypes) {
     NS_ENSURE_STATE(mWindow);
-    nsWeakPtr win = do_GetWeakReference(mWindow);
-    mMimeTypes = new nsMimeTypeArray(win);
+    mMimeTypes = new nsMimeTypeArray(this);
   }
 
   RefreshMIMEArray();
 
-  nsMimeType *mimeType =
-    mMimeTypes->NamedItem(NS_LITERAL_STRING("application/x-java-vm"));
+  uint32_t count;
+  mMimeTypes->GetLength(&count);
+  for (uint32_t i = 0; i < count; i++) {
+    nsresult rv;
+    nsIDOMMimeType* type = mMimeTypes->GetItemAt(i, &rv);
 
-  *aReturn = mimeType && mimeType->GetEnabledPlugin();
+    if (NS_FAILED(rv) || !type) {
+      continue;
+    }
+
+    nsAutoString mimeString;
+    if (NS_FAILED(type->GetType(mimeString))) {
+      continue;
+    }
+
+    if (mimeString.EqualsLiteral("application/x-java-vm")) {
+      *aReturn = true;
+      break;
+    }
+  }
 
   return NS_OK;
 }

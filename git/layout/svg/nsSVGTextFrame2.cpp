@@ -46,7 +46,6 @@
 #include <limits>
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 // ============================================================================
 // Utility functions
@@ -432,16 +431,6 @@ FrameIfAnonymousChildReflowed(nsSVGTextFrame2* aFrame)
   return aFrame;
 }
 
-static double
-GetContextScale(const gfxMatrix& aMatrix)
-{
-  // The context scale is the ratio of the length of the transformed
-  // diagonal vector (1,1) to the length of the untransformed diagonal
-  // (which is sqrt(2)).
-  gfxPoint p = aMatrix.Transform(gfxPoint(1, 1)) -
-               aMatrix.Transform(gfxPoint(0, 0));
-  return SVGContentUtils::ComputeNormalizedHypotenuse(p.x, p.y);
-}
 
 // ============================================================================
 // Utility classes
@@ -482,14 +471,12 @@ struct TextRenderedRun
    * for descriptions of the arguments.
    */
   TextRenderedRun(nsTextFrame* aFrame, const gfxPoint& aPosition,
-                  float aLengthAdjustScaleFactor, double aRotate,
-                  float aFontSizeScaleFactor, nscoord aBaseline,
+                  double aRotate, float aFontSizeScaleFactor, nscoord aBaseline,
                   uint32_t aTextFrameContentOffset,
                   uint32_t aTextFrameContentLength,
                   uint32_t aTextElementCharIndex)
     : mFrame(aFrame),
       mPosition(aPosition),
-      mLengthAdjustScaleFactor(aLengthAdjustScaleFactor),
       mRotate(static_cast<float>(aRotate)),
       mFontSizeScaleFactor(aFontSizeScaleFactor),
       mBaseline(aBaseline),
@@ -740,12 +727,6 @@ struct TextRenderedRun
   gfxPoint mPosition;
 
   /**
-   * The horizontal scale factor to apply when painting glyphs to take
-   * into account textLength="".
-   */
-  float mLengthAdjustScaleFactor;
-
-  /**
    * The rotation in radians in the user coordinate system that the text has.
    */
   float mRotate;
@@ -795,13 +776,11 @@ TextRenderedRun::GetTransformFromUserSpaceForPainting(
   // Glyph position in user space.
   m.Translate(mPosition / cssPxPerDevPx);
 
-  // Take into account any font size scaling and scaling due to textLength="".
+  // Take into account any font size scaling.
   m.Scale(1.0 / mFontSizeScaleFactor, 1.0 / mFontSizeScaleFactor);
 
   // Rotation due to rotate="" or a <textPath>.
   m.Rotate(mRotate);
-
-  m.Scale(mLengthAdjustScaleFactor, 1.0);
 
   // Translation to get the text frame in the right place.
   nsPoint t(IsRightToLeft() ?
@@ -833,9 +812,6 @@ TextRenderedRun::GetTransformFromRunUserSpaceToUserSpace(
 
   // Rotation due to rotate="" or a <textPath>.
   m.Rotate(mRotate);
-
-  // Scale due to textLength="".
-  m.Scale(mLengthAdjustScaleFactor, 1.0);
 
   // Translation to get the text frame in the right place.
   nsPoint t(IsRightToLeft() ?
@@ -1756,10 +1732,11 @@ void
 TextFrameIterator::PushBaseline(nsIFrame* aNextFrame)
 {
   uint8_t baseline = aNextFrame->StyleSVGReset()->mDominantBaseline;
-  if (baseline == NS_STYLE_DOMINANT_BASELINE_AUTO) {
-    baseline = mBaselines.LastElement();
+  if (baseline != NS_STYLE_DOMINANT_BASELINE_AUTO) {
+    mBaselines.AppendElement(baseline);
+  } else {
+    mBaselines.AppendElement(mBaselines[mBaselines.Length() - 1]);
   }
-  mBaselines.AppendElement(baseline);
 }
 
 void
@@ -2009,8 +1986,7 @@ TextRenderedRunIterator::Next()
     }
   }
 
-  mCurrent = TextRenderedRun(frame, pt, Root()->mLengthAdjustScaleFactor,
-                             rotate, mFontSizeScaleFactor, baseline,
+  mCurrent = TextRenderedRun(frame, pt, rotate, mFontSizeScaleFactor, baseline,
                              offset, length, charIndex);
   return mCurrent;
 }
@@ -2314,12 +2290,6 @@ private:
    * current character is a part of.
    */
   uint32_t mGlyphStartTextElementCharIndex;
-
-  /**
-   * The scale factor to apply to glyph advances returned by
-   * GetGlyphAdvance etc. to take into account textLength="".
-   */
-  float mLengthAdjustScaleFactor;
 };
 
 CharIterator::CharIterator(nsSVGTextFrame2* aSVGTextFrame,
@@ -2331,8 +2301,7 @@ CharIterator::CharIterator(nsSVGTextFrame2* aSVGTextFrame,
     mTrimmedOffset(0),
     mTrimmedLength(0),
     mTextElementCharIndex(0),
-    mGlyphStartTextElementCharIndex(0),
-    mLengthAdjustScaleFactor(aSVGTextFrame->mLengthAdjustScaleFactor)
+    mGlyphStartTextElementCharIndex(0)
 {
   if (!AtEnd()) {
     mSkipCharsIterator = TextFrame()->EnsureTextRun(nsTextFrame::eInflated);
@@ -2510,8 +2479,7 @@ CharIterator::GetGlyphAdvance(nsPresContext* aContext) const
     AppUnitsToFloatCSSPixels(aContext->AppUnitsPerDevPixel());
 
   gfxFloat advance = mTextRun->GetAdvanceWidth(offset, length, nullptr);
-  return aContext->AppUnitsToGfxUnits(advance) *
-         mLengthAdjustScaleFactor * cssPxPerDevPx;
+  return aContext->AppUnitsToGfxUnits(advance) * cssPxPerDevPx;
 }
 
 gfxFloat
@@ -2522,8 +2490,7 @@ CharIterator::GetAdvance(nsPresContext* aContext) const
 
   gfxFloat advance =
     mTextRun->GetAdvanceWidth(mSkipCharsIterator.GetSkippedOffset(), 1, nullptr);
-  return aContext->AppUnitsToGfxUnits(advance) *
-         mLengthAdjustScaleFactor * cssPxPerDevPx;
+  return aContext->AppUnitsToGfxUnits(advance) * cssPxPerDevPx;
 }
 
 gfxFloat
@@ -2545,8 +2512,7 @@ CharIterator::GetGlyphPartialAdvance(uint32_t aPartOffset, uint32_t aPartLength,
     AppUnitsToFloatCSSPixels(aContext->AppUnitsPerDevPixel());
 
   gfxFloat advance = mTextRun->GetAdvanceWidth(offset, length, nullptr);
-  return aContext->AppUnitsToGfxUnits(advance) *
-         mLengthAdjustScaleFactor * cssPxPerDevPx;
+  return aContext->AppUnitsToGfxUnits(advance) * cssPxPerDevPx;
 }
 
 bool
@@ -3061,9 +3027,7 @@ nsSVGTextFrame2::AttributeChanged(int32_t aNameSpaceID,
       NotifyGlyphMetricsChange();
     }
     mCanvasTM = nullptr;
-  } else if (IsGlyphPositioningAttribute(aAttribute) ||
-             aAttribute == nsGkAtoms::textLength ||
-             aAttribute == nsGkAtoms::lengthAdjust) {
+  } else if (IsGlyphPositioningAttribute(aAttribute)) {
     NotifyGlyphMetricsChange();
   }
 
@@ -3317,23 +3281,6 @@ nsSVGTextFrame2::NotifySVGChanged(uint32_t aFlags)
     }
   }
 
-  // If the scale at which we computed our mFontSizeScaleFactor has changed by
-  // at least a factor of two, reflow the text.  This avoids reflowing text
-  // at every tick of a transform animation, but ensures our glyph metrics
-  // do not get too far out of sync with the final font size on the screen.
-  if (needNewCanvasTM && mLastContextScale != 0.0f) {
-    // Compute the new mCanvasTM now.
-    mCanvasTM = nullptr;
-    gfxMatrix newTM = GetCanvasTM(FOR_OUTERSVG_TM);
-    // Compare the old and new context scales.
-    float scale = GetContextScale(newTM);
-    float change = scale / mLastContextScale;
-    if (change >= 2.0f || change <= 0.5f) {
-      needNewBounds = true;
-      needGlyphMetricsUpdate = true;
-    }
-  }
-
   if (needNewBounds) {
     // Ancestor changes can't affect how we render from the perspective of
     // any rendering observers that we may have, so we don't need to
@@ -3351,6 +3298,12 @@ nsSVGTextFrame2::NotifySVGChanged(uint32_t aFlags)
     if (!(mState & NS_FRAME_FIRST_REFLOW)) {
       NotifyGlyphMetricsChange();
     }
+  }
+
+  if (needNewCanvasTM) {
+    // Do this after calling InvalidateAndScheduleReflowSVG in case we
+    // change the code and it needs to use it.
+    mCanvasTM = nullptr;
   }
 }
 
@@ -3407,6 +3360,8 @@ nsSVGTextFrame2::PaintSVG(nsRenderingContext* aContext,
 
   gfxContext *gfx = aContext->ThebesContext();
   gfxMatrix initialMatrix = gfx->CurrentMatrix();
+
+  AutoCanvasTMForMarker autoCanvasTMFor(this, FOR_PAINTING);
 
   if (mState & NS_STATE_SVG_NONDISPLAY_CHILD) {
     // If we are in a canvas DrawWindow call that used the
@@ -3529,6 +3484,8 @@ nsSVGTextFrame2::GetFrameForPoint(const nsPoint& aPoint)
 {
   NS_ASSERTION(GetFirstPrincipalChild(), "must have a child frame");
 
+  AutoCanvasTMForMarker autoCanvasTMFor(this, FOR_HIT_TESTING);
+
   if (mState & NS_STATE_SVG_NONDISPLAY_CHILD) {
     // Text frames inside <clipPath> will never have had ReflowSVG called on
     // them, so call UpdateGlyphPositioning to do this now.  (Text frames
@@ -3615,11 +3572,6 @@ nsSVGTextFrame2::ReflowSVG()
   }
   mRect =
     nsLayoutUtils::RoundGfxRectToAppRect(r, presContext->AppUnitsPerCSSPixel());
-
-  // Due to rounding issues when we have a transform applied, we sometimes
-  // don't include an additional row of pixels.  For now, just inflate our
-  // covered region.
-  mRect.Inflate(presContext->AppUnitsPerDevPixel());
 
 
   if (mState & NS_FRAME_FIRST_REFLOW) {
@@ -3817,7 +3769,7 @@ nsSVGTextFrame2::GetComputedTextLength(nsIContent* aContent)
   }
 
   return PresContext()->AppUnitsToGfxUnits(length) *
-           cssPxPerDevPx * mLengthAdjustScaleFactor / mFontSizeScaleFactor;
+           cssPxPerDevPx / mFontSizeScaleFactor;
 }
 
 /**
@@ -4293,8 +4245,7 @@ nsSVGTextFrame2::ResolvePositions(nsIContent* aContent,
 }
 
 bool
-nsSVGTextFrame2::ResolvePositions(nsTArray<gfxPoint>& aDeltas,
-                                  bool aRunPerGlyph)
+nsSVGTextFrame2::ResolvePositions(nsTArray<gfxPoint>& aDeltas)
 {
   NS_ASSERTION(mPositions.IsEmpty(), "expected mPositions to be empty");
   RemoveStateBits(NS_STATE_SVG_POSITIONING_MAY_USE_PERCENTAGES);
@@ -4325,8 +4276,7 @@ nsSVGTextFrame2::ResolvePositions(nsTArray<gfxPoint>& aDeltas,
 
   // Recurse over the content and fill in character positions as we go.
   bool forceStartOfChunk = false;
-  return ResolvePositions(mContent, 0, aRunPerGlyph,
-                          forceStartOfChunk, aDeltas) != 0;
+  return ResolvePositions(mContent, 0, false, forceStartOfChunk, aDeltas) != 0;
 }
 
 void
@@ -4743,22 +4693,11 @@ nsSVGTextFrame2::DoGlyphPositioning()
     return;
   }
 
-  // If the textLength="" attribute was specified, then we need ResolvePositions
-  // to record that a new run starts with each glyph.
-  SVGTextContentElement* element = static_cast<SVGTextContentElement*>(mContent);
-  nsSVGLength2* textLengthAttr =
-    element->GetAnimatedLength(nsGkAtoms::textLength);
-  bool adjustingTextLength = textLengthAttr->IsExplicitlySet();
-  float expectedTextLength = textLengthAttr->GetAnimValue(element);
-
-  if (adjustingTextLength && expectedTextLength < 0.0f) {
-    // If textLength="" is less than zero, ignore it.
-    adjustingTextLength = false;
-  }
+  nsPresContext* presContext = PresContext();
 
   // Get the x, y, dx, dy, rotate values for the subtree.
   nsTArray<gfxPoint> deltas;
-  if (!ResolvePositions(deltas, adjustingTextLength)) {
+  if (!ResolvePositions(deltas)) {
     // If ResolvePositions returned false, it means that there were some
     // characters in the DOM but none of them are displayed.  Clear out
     // mPositions so that we don't attempt to do any painting later.
@@ -4784,42 +4723,8 @@ nsSVGTextFrame2::DoGlyphPositioning()
     mPositions[0].mAngle = 0.0;
   }
 
-  nsPresContext* presContext = PresContext();
-
-  float cssPxPerDevPx = presContext->
-    AppUnitsToFloatCSSPixels(presContext->AppUnitsPerDevPixel());
-  double factor = cssPxPerDevPx / mFontSizeScaleFactor;
-
-  // Determine how much to compress or expand glyph positions due to
-  // textLength="" and lengthAdjust="".
-  double adjustment = 0.0;
-  mLengthAdjustScaleFactor = 1.0f;
-  if (adjustingTextLength) {
-    nscoord frameWidth = GetFirstPrincipalChild()->GetRect().width;
-    float actualTextLength =
-      static_cast<float>(presContext->AppUnitsToGfxUnits(frameWidth) * factor);
-
-    nsRefPtr<SVGAnimatedEnumeration> lengthAdjustEnum = element->LengthAdjust();
-    uint16_t lengthAdjust = lengthAdjustEnum->AnimVal();
-    switch (lengthAdjust) {
-      case SVG_LENGTHADJUST_SPACINGANDGLYPHS:
-        // Scale the glyphs and their positions.
-        mLengthAdjustScaleFactor = expectedTextLength / actualTextLength;
-        break;
-
-      default:
-        MOZ_ASSERT(lengthAdjust == SVG_LENGTHADJUST_SPACING);
-        // Just add space between each glyph.
-        int32_t adjustableSpaces = 0;
-        for (uint32_t i = 1; i < mPositions.Length(); i++) {
-          if (!mPositions[i].mUnaddressable) {
-            adjustableSpaces++;
-          }
-        }
-        adjustment = (expectedTextLength - actualTextLength) / adjustableSpaces;
-        break;
-    }
-  }
+  float cssPxPerDevPx = PresContext()->
+    AppUnitsToFloatCSSPixels(PresContext()->AppUnitsPerDevPixel());
 
   // Fill in any unspecified character positions based on the positions recorded
   // in charPositions, and also add in the dx/dy values.
@@ -4827,16 +4732,14 @@ nsSVGTextFrame2::DoGlyphPositioning()
     mPositions[0].mPosition += deltas[0];
   }
 
+  double factor = cssPxPerDevPx / mFontSizeScaleFactor;
   for (uint32_t i = 1; i < mPositions.Length(); i++) {
     // Fill in unspecified x position.
     if (!mPositions[i].IsXSpecified()) {
       nscoord d = charPositions[i].x - charPositions[i - 1].x;
       mPositions[i].mPosition.x =
         mPositions[i - 1].mPosition.x +
-        presContext->AppUnitsToGfxUnits(d) * factor * mLengthAdjustScaleFactor;
-      if (!mPositions[i].mUnaddressable) {
-        mPositions[i].mPosition.x += adjustment;
-      }
+        presContext->AppUnitsToGfxUnits(d) * factor;
     }
     // Fill in unspecified y position.
     if (!mPositions[i].IsYSpecified()) {
@@ -4855,7 +4758,26 @@ nsSVGTextFrame2::DoGlyphPositioning()
     }
   }
 
-  MOZ_ASSERT(mPositions.Length() == charPositions.Length());
+  // Fill in any remaining character positions after the specified
+  // x/y/rotate positions.
+  //
+  // XXX This may not be needed since ResolvePositions now initializes
+  // mPositions with an (unspecified) value for each character.
+  for (uint32_t i = mPositions.Length(); i < charPositions.Length(); i++) {
+    nscoord dx = charPositions[i].x - charPositions[i - 1].x;
+    nscoord dy = charPositions[i].y - charPositions[i - 1].y;
+
+    gfxPoint pt(mPositions[i - 1].mPosition.x +
+                  presContext->AppUnitsToGfxUnits(dx) * cssPxPerDevPx,
+                mPositions[i - 1].mPosition.y +
+                  presContext->AppUnitsToGfxUnits(dy) * cssPxPerDevPx);
+
+    mPositions.AppendElement(CharPosition(pt / mFontSizeScaleFactor,
+                                          mPositions[i - 1].mAngle));
+    if (i < deltas.Length()) {
+      mPositions[i].mPosition += deltas[i];
+    }
+  }
 
   AdjustChunksForLineBreaks();
   AdjustPositionsForClusters();
@@ -4987,11 +4909,7 @@ nsSVGTextFrame2::DoReflow()
   if (!renderingContext)
     return;
 
-  if (UpdateFontSizeScaleFactor()) {
-    // If the font size scale factor changed, we need the block to report
-    // an updated preferred width.
-    kid->MarkIntrinsicWidthsDirty();
-  }
+  UpdateFontSizeScaleFactor();
 
   nscoord width = kid->GetPrefWidth(renderingContext);
   nsHTMLReflowState reflowState(presContext, kid,
@@ -5018,11 +4936,9 @@ nsSVGTextFrame2::DoReflow()
 #define CLAMP_MAX_SIZE 200.0
 #define PRECISE_SIZE   200.0
 
-bool
+void
 nsSVGTextFrame2::UpdateFontSizeScaleFactor()
 {
-  double oldFontSizeScaleFactor = mFontSizeScaleFactor;
-
   nsPresContext* presContext = PresContext();
 
   bool geometricPrecision = false;
@@ -5051,32 +4967,35 @@ nsSVGTextFrame2::UpdateFontSizeScaleFactor()
   if (min == nscoord_MAX) {
     // No text, so no need for scaling.
     mFontSizeScaleFactor = 1.0;
-    return mFontSizeScaleFactor != oldFontSizeScaleFactor;
+    return;
   }
 
-  double minSize = presContext->AppUnitsToFloatCSSPixels(min);
+  gfxMatrix m;
+  if (!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD) ||
+      mGetCanvasTMForFlag != FOR_OUTERSVG_TM) {
+    m = GetCanvasTM(mGetCanvasTMForFlag);
+    if (m.IsSingular()) {
+      mFontSizeScaleFactor = 1.0;
+      return;
+    }
+  }
+
+  float textZoom = presContext->TextZoom();
+  double minSize = presContext->AppUnitsToFloatCSSPixels(min) / textZoom;
 
   if (geometricPrecision) {
     // We want to ensure minSize is scaled to PRECISE_SIZE.
     mFontSizeScaleFactor = PRECISE_SIZE / minSize;
-    return mFontSizeScaleFactor != oldFontSizeScaleFactor;
+    return;
   }
 
-  // When we are non-display, we could be painted in different coordinate
-  // spaces, and we don't want to have to reflow for each of these.  We
-  // just assume that the context scale is 1.0 for them all, so we don't
-  // get stuck with a font size scale factor based on whichever referencing
-  // frame happens to reflow first.
-  double contextScale = 1.0;
-  if (!(mState & NS_STATE_SVG_NONDISPLAY_CHILD)) {
-    gfxMatrix m(GetCanvasTM(FOR_OUTERSVG_TM));
-    if (!m.IsSingular()) {
-      contextScale = GetContextScale(m);
-    }
-  }
-  mLastContextScale = contextScale;
+  double maxSize = presContext->AppUnitsToFloatCSSPixels(max) / textZoom;
 
-  double maxSize = presContext->AppUnitsToFloatCSSPixels(max);
+  // The context scale is the ratio of the length of the transformed
+  // diagonal vector (1,1) to the length of the untransformed diagonal
+  // (which is sqrt(2)).
+  gfxPoint p = m.Transform(gfxPoint(1, 1)) - m.Transform(gfxPoint(0, 0));
+  double contextScale = SVGContentUtils::ComputeNormalizedHypotenuse(p.x, p.y);
 
   // But we want to ignore any scaling required due to HiDPI displays, since
   // regular CSS text frames will still create text runs using the font size
@@ -5094,18 +5013,23 @@ nsSVGTextFrame2::UpdateFontSizeScaleFactor()
     // We are already in the ideal font size range for all text frames,
     // so we only have to take into account the contextScale.
     mFontSizeScaleFactor = contextScale;
-  } else if (maxSize / minSize > CLAMP_MAX_SIZE / CLAMP_MIN_SIZE) {
+    return;
+  }
+
+  if (maxSize / minSize > CLAMP_MAX_SIZE / CLAMP_MIN_SIZE) {
     // We can't scale the font sizes so that all of the text frames lie
     // within our ideal font size range, so we treat the minimum as more
     // important and just scale so that minSize = CLAMP_MIN_SIZE.
     mFontSizeScaleFactor = CLAMP_MIN_SIZE / minTextRunSize;
-  } else if (minTextRunSize < CLAMP_MIN_SIZE) {
-    mFontSizeScaleFactor = CLAMP_MIN_SIZE / minTextRunSize;
-  } else {
-    mFontSizeScaleFactor = CLAMP_MAX_SIZE / maxTextRunSize;
+    return;
   }
 
-  return mFontSizeScaleFactor != oldFontSizeScaleFactor;
+  if (minTextRunSize < CLAMP_MIN_SIZE) {
+    mFontSizeScaleFactor = CLAMP_MIN_SIZE / minTextRunSize;
+    return;
+  }
+
+  mFontSizeScaleFactor = CLAMP_MAX_SIZE / maxTextRunSize;
 }
 
 double

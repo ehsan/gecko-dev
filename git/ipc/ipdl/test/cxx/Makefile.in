@@ -16,6 +16,7 @@ EXPORT_LIBRARY = 1
 
 IPDLTESTS = \
   TestActorPunning \
+  TestBlockChild \
   TestBridgeMain \
   TestCrashCleanup \
   TestDataStructures \
@@ -44,7 +45,6 @@ IPDLTESTS = \
   TestSyncHang \
   TestSyncWakeup \
   TestBadActor \
-  TestUrgency \
   $(NULL)
 
 ifeq ($(OS_ARCH),Linux)

@@ -160,9 +160,7 @@ XPCJSContextStack::GetSafeJSContext()
     JS::RootedObject glob(mSafeJSContext);
     JS_SetErrorReporter(mSafeJSContext, mozJSLoaderErrorReporter);
 
-    JS::CompartmentOptions options;
-    options.setZone(JS::SystemZone);
-    glob = xpc::CreateGlobalObject(mSafeJSContext, &global_class, principal, options);
+    glob = xpc::CreateGlobalObject(mSafeJSContext, &global_class, principal, JS::SystemZone);
     if (!glob)
         MOZ_CRASH();
 

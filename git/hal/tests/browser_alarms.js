@@ -14,7 +14,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "AlarmService",
 function add_alarm_future(cb) {
   let alarmId = undefined;
   AlarmService.add({
-    date: new Date(Date.now() + 143),
+    date: Date.now() + 143,
     ignoreTimezone: true
   },
   function onAlarmFired(aAlarm) {
@@ -34,7 +34,7 @@ function add_alarm_present(cb) {
   let self = this;
   let alarmId = undefined;
   AlarmService.add({
-    date: new Date(),
+    date: Date.now(),
     ignoreTimezone: true
   },
   function onAlarmFired(aAlarm) {
@@ -53,7 +53,7 @@ function add_alarm_past(cb) {
   let self = this;
   let alarmId = undefined;
   AlarmService.add({
-    date: new Date(Date.now() - 5),
+    date: Date.now() - 5,
     ignoreTimezone: true
   },
   function onAlarmFired(aAlarm) {
@@ -72,7 +72,7 @@ function add_alarm_past(cb) {
 function trigger_all_alarms(cb) {
   let n = 10;
   let counter = 0;
-  let date = new Date(Date.now() + 57);
+  let date = Date.now() + 57;
   function onAlarmFired() {
     counter++;
     info("trigger_all_alarms count " + counter);
@@ -94,7 +94,7 @@ function trigger_all_alarms(cb) {
 }
 
 function multiple_handlers(cb) {
-  let d = new Date(Date.now() + 100);
+  let d = Date.now() + 100;
   let called = 0;
 
   function done() {
@@ -132,7 +132,7 @@ function multiple_handlers(cb) {
 
 function same_time_alarms(cb) {
   var fired = 0;
-  var delay = new Date(Date.now() + 100);
+  var delay = Date.now() + 100;
 
   function check() {
     fired++;

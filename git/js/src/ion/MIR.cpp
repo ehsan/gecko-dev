@@ -4,24 +4,21 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ion/MIR.h"
+#include "MIR.h"
 
 #include "mozilla/Casting.h"
 
-#include "ion/BaselineInspector.h"
-#include "ion/IonBuilder.h"
-#include "ion/LICM.h" // For LinearSum
-#include "ion/MIRGraph.h"
-#include "ion/EdgeCaseAnalysis.h"
-#include "ion/RangeAnalysis.h"
-#include "ion/IonSpewer.h"
+#include "BaselineInspector.h"
+#include "IonBuilder.h"
+#include "LICM.h" // For LinearSum
+#include "MIRGraph.h"
+#include "EdgeCaseAnalysis.h"
+#include "RangeAnalysis.h"
+#include "IonSpewer.h"
 #include "jsnum.h"
 #include "jsstr.h"
-
 #include "jsatominlines.h"
-#include "jsinferinlines.h"
-
-#include "vm/Shape-inl.h"
+#include "jstypedarrayinlines.h"
 
 using namespace js;
 using namespace js::ion;
@@ -119,7 +116,8 @@ EvaluateConstantOperands(MBinaryInstruction *ins, bool *ptypeChange = NULL)
         ret.setNumber(NumberMod(lhs.toNumber(), rhs.toNumber()));
         break;
       default:
-        MOZ_ASSUME_UNREACHABLE("NYI");
+        JS_NOT_REACHED("NYI");
+        return NULL;
     }
 
     if (ins->type() != MIRTypeFromValue(ret)) {
@@ -339,6 +337,12 @@ MDefinition::emptyResultTypeSet() const
     return resultTypeSet() && resultTypeSet()->empty();
 }
 
+static inline bool
+IsPowerOfTwo(uint32_t n)
+{
+    return (n > 0) && ((n & (n - 1)) == 0);
+}
+
 MConstant *
 MConstant::New(const Value &v)
 {
@@ -433,7 +437,8 @@ MConstant::printOpcode(FILE *fp)
         fprintf(fp, "magic");
         break;
       default:
-        MOZ_ASSUME_UNREACHABLE("unexpected type");
+        JS_NOT_REACHED("unexpected type");
+        break;
     }
 }
 
@@ -1169,35 +1174,6 @@ MDiv::fallible()
     return !isTruncated();
 }
 
-bool
-MMod::canBeDivideByZero() const
-{
-    JS_ASSERT(specialization_ == MIRType_Int32);
-    return !rhs()->isConstant() || rhs()->toConstant()->value().toInt32() == 0;
-}
-
-bool
-MMod::canBeNegativeDividend() const
-{
-    JS_ASSERT(specialization_ == MIRType_Int32);
-    return !lhs()->range() || lhs()->range()->lower() < 0;
-}
-
-bool
-MMod::canBePowerOfTwoDivisor() const
-{
-    JS_ASSERT(specialization_ == MIRType_Int32);
-
-    if (!rhs()->isConstant())
-        return true;
-
-    int32_t i = rhs()->toConstant()->value().toInt32();
-    if (i <= 0 || !IsPowerOfTwo(i))
-        return false;
-
-    return true;
-}
-
 static inline MDefinition *
 TryFold(MDefinition *original, MDefinition *replacement)
 {
@@ -1299,9 +1275,6 @@ MMul::updateForReplacement(MDefinition *ins_)
     MMul *ins = ins_->toMul();
     bool negativeZero = canBeNegativeZero() || ins->canBeNegativeZero();
     setCanBeNegativeZero(negativeZero);
-    // Remove the imul annotation when merging imul and normal multiplication.
-    if (mode_ == Integer && ins->mode() != Integer)
-        mode_ = Normal;
     return true;
 }
 
@@ -1309,14 +1282,6 @@ bool
 MMul::canOverflow()
 {
     if (isTruncated())
-        return false;
-    return !range() || !range()->isInt32();
-}
-
-bool
-MUrsh::canOverflow()
-{
-    if (!canOverflow_)
         return false;
     return !range() || !range()->isInt32();
 }
@@ -1518,7 +1483,8 @@ MCompare::inputType()
       case Compare_Value:
         return MIRType_Value;
       default:
-        MOZ_ASSUME_UNREACHABLE("No known conversion");
+        JS_NOT_REACHED("No known conversion");
+        return MIRType_None;
     }
 }
 
@@ -1968,7 +1934,8 @@ MCompare::tryFold(bool *result)
             *result = (op == JSOP_NE || op == JSOP_STRICTNE);
             return true;
           default:
-            MOZ_ASSUME_UNREACHABLE("Unexpected type");
+            JS_NOT_REACHED("Unexpected type");
+            return false;
         }
     }
 
@@ -1989,9 +1956,11 @@ MCompare::tryFold(bool *result)
             return true;
           case MIRType_Boolean:
             // Int32 specialization should handle this.
-            MOZ_ASSUME_UNREACHABLE("Wrong specialization");
+            JS_NOT_REACHED("Wrong specialization");
+            return false;
           default:
-            MOZ_ASSUME_UNREACHABLE("Unexpected type");
+            JS_NOT_REACHED("Unexpected type");
+            return false;
         }
     }
 
@@ -2012,9 +1981,11 @@ MCompare::tryFold(bool *result)
             return true;
           case MIRType_String:
             // Compare_String specialization should handle this.
-            MOZ_ASSUME_UNREACHABLE("Wrong specialization");
+            JS_NOT_REACHED("Wrong specialization");
+            return false;
           default:
-            MOZ_ASSUME_UNREACHABLE("Unexpected type");
+            JS_NOT_REACHED("Unexpected type");
+            return false;
         }
     }
 
@@ -2066,7 +2037,8 @@ MCompare::evaluateConstantOperands(bool *result)
             *result = (comp != 0);
             break;
           default:
-            MOZ_ASSUME_UNREACHABLE("Unexpected op.");
+            JS_NOT_REACHED("Unexpected op.");
+            return false;
         }
 
         return true;
@@ -2098,7 +2070,8 @@ MCompare::evaluateConstantOperands(bool *result)
             *result = (lhsUint != rhsUint);
             break;
           default:
-            MOZ_ASSUME_UNREACHABLE("Unexpected op.");
+            JS_NOT_REACHED("Unexpected op.");
+            return false;
         }
 
         return true;
@@ -2341,25 +2314,25 @@ MInArray::needsNegativeIntCheck() const
 void *
 MLoadTypedArrayElementStatic::base() const
 {
-    return typedArray_->viewData();
+    return TypedArray::viewData(typedArray_);
 }
 
 size_t
 MLoadTypedArrayElementStatic::length() const
 {
-    return typedArray_->byteLength();
+    return TypedArray::byteLength(typedArray_);
 }
 
 void *
 MStoreTypedArrayElementStatic::base() const
 {
-    return typedArray_->viewData();
+    return TypedArray::viewData(typedArray_);
 }
 
 size_t
 MStoreTypedArrayElementStatic::length() const
 {
-    return typedArray_->byteLength();
+    return TypedArray::byteLength(typedArray_);
 }
 
 bool
@@ -2465,7 +2438,7 @@ ion::ElementAccessIsTypedArray(MDefinition *obj, MDefinition *id, int *arrayType
         return false;
 
     *arrayType = types->getTypedArrayType();
-    return *arrayType != TypedArrayObject::TYPE_MAX;
+    return *arrayType != TypedArray::TYPE_MAX;
 }
 
 bool

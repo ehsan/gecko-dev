@@ -130,17 +130,6 @@ IccManager::SendStkEventDownload(const JS::Value& aEvent)
 }
 
 NS_IMETHODIMP
-IccManager::GetCardState(nsAString& cardState)
-{
-  cardState.SetIsVoid(true);
-
-  if (!mProvider) {
-    return NS_ERROR_FAILURE;
-  }
-  return mProvider->GetCardState(cardState);
-}
-
-NS_IMETHODIMP
 IccManager::GetCardLock(const nsAString& aLockType, nsIDOMDOMRequest** aDomRequest)
 {
   if (!mProvider) {
@@ -226,7 +215,6 @@ IccManager::UpdateContact(const nsAString& aContactType,
 NS_IMPL_EVENT_HANDLER(IccManager, stkcommand)
 NS_IMPL_EVENT_HANDLER(IccManager, stksessionend)
 NS_IMPL_EVENT_HANDLER(IccManager, icccardlockerror)
-NS_IMPL_EVENT_HANDLER(IccManager, cardstatechange)
 
 // nsIIccListener
 
@@ -258,10 +246,4 @@ IccManager::NotifyIccCardLockError(const nsAString& aLockType, uint32_t aRetryCo
   NS_ENSURE_SUCCESS(rv, rv);
 
   return DispatchTrustedEvent(ce);
-}
-
-NS_IMETHODIMP
-IccManager::NotifyCardStateChanged()
-{
-  return DispatchTrustedEvent(NS_LITERAL_STRING("cardstatechange"));
 }

@@ -18,9 +18,8 @@
  * At the end of an application a call to all the "root" objects'
  * CheckInstanceCount methods should be made
  */
-#include "SkTypes.h"
-
-#if SK_ENABLE_INST_COUNT
+#ifdef SK_ENABLE_INST_COUNT
+#include <stdlib.h>
 #include "SkTArray.h"
 #include "SkThread_platform.h"
 
@@ -55,7 +54,7 @@ extern bool gPrintInstCount;
             sk_atomic_inc(&gInstanceCount);                                 \
         }                                                                   \
                                                                             \
-        SkInstanceCountHelper(const SkInstanceCountHelper&) {               \
+        SkInstanceCountHelper(const SkInstanceCountHelper& other) {         \
             sk_atomic_inc(&gInstanceCount);                                 \
         }                                                                   \
                                                                             \

@@ -83,18 +83,12 @@ nsNSSSocketInfo::nsNSSSocketInfo(SharedSSLState& aState, uint32_t providerFlags)
     mHandshakeInProgress(false),
     mAllowTLSIntoleranceTimeout(true),
     mRememberClientAuthCertificate(false),
-    mPreliminaryHandshakeDone(false),
     mHandshakeStartTime(0),
     mFirstServerHelloReceived(false),
     mNPNCompleted(false),
     mHandshakeCompleted(false),
     mJoined(false),
     mSentClientCert(false),
-    mNotedTimeUntilReady(false),
-    mKEAUsed(nsISSLSocketControl::KEY_EXCHANGE_UNKNOWN),
-    mKEAExpected(nsISSLSocketControl::KEY_EXCHANGE_UNKNOWN),
-    mSymmetricCipherUsed(nsISSLSocketControl::SYMMETRIC_CIPHER_UNKNOWN),
-    mSymmetricCipherExpected(nsISSLSocketControl::SYMMETRIC_CIPHER_UNKNOWN),
     mProviderFlags(providerFlags),
     mSocketCreationTimestamp(TimeStamp::Now()),
     mPlaintextBytesRead(0)
@@ -109,48 +103,6 @@ NS_IMETHODIMP
 nsNSSSocketInfo::GetProviderFlags(uint32_t* aProviderFlags)
 {
   *aProviderFlags = mProviderFlags;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsNSSSocketInfo::GetKEAUsed(int16_t *aKea)
-{
-  *aKea = mKEAUsed;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsNSSSocketInfo::GetKEAExpected(int16_t *aKea)
-{
-  *aKea = mKEAExpected;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsNSSSocketInfo::SetKEAExpected(int16_t aKea)
-{
-  mKEAExpected = aKea;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsNSSSocketInfo::GetSymmetricCipherUsed(int16_t *aSymmetricCipher)
-{
-  *aSymmetricCipher = mSymmetricCipherUsed;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsNSSSocketInfo::GetSymmetricCipherExpected(int16_t *aSymmetricCipher)
-{
-  *aSymmetricCipher = mSymmetricCipherExpected;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsNSSSocketInfo::SetSymmetricCipherExpected(int16_t aSymmetricCipher)
-{
-  mSymmetricCipherExpected = aSymmetricCipher;
   return NS_OK;
 }
 
@@ -246,26 +198,11 @@ getSecureBrowserUI(nsIInterfaceRequestor * callbacks,
 #endif
 
 void
-nsNSSSocketInfo::NoteTimeUntilReady()
-{
-  if (mNotedTimeUntilReady)
-    return;
-
-  mNotedTimeUntilReady = true;
-
-  // This will include TCP and proxy tunnel wait time
-  Telemetry::AccumulateTimeDelta(Telemetry::SSL_TIME_UNTIL_READY,
-                                 mSocketCreationTimestamp, TimeStamp::Now());
-  PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
-         ("[%p] nsNSSSocketInfo::NoteTimeUntilReady\n", mFd));
-}
-
-void
 nsNSSSocketInfo::SetHandshakeCompleted(bool aResumedSession)
 {
   if (!mHandshakeCompleted) {
     // This will include TCP and proxy tunnel wait time
-    Telemetry::AccumulateTimeDelta(Telemetry::SSL_TIME_UNTIL_HANDSHAKE_FINISHED,
+    Telemetry::AccumulateTimeDelta(Telemetry::SSL_TIME_UNTIL_READY,
                                    mSocketCreationTimestamp, TimeStamp::Now());
 
     // If the handshake is completed for the first time from just 1 callback
@@ -283,9 +220,6 @@ nsNSSSocketInfo::SetHandshakeCompleted(bool aResumedSession)
     }
 
     mHandshakeCompleted = true;
-
-    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
-           ("[%p] nsNSSSocketInfo::SetHandshakeCompleted\n", (void*)mFd));
   }
 }
 
@@ -1161,8 +1095,6 @@ nsSSLIOLayerHelpers::nsSSLIOLayerHelpers()
 , mRenegoUnrestrictedSites(nullptr)
 , mTreatUnsafeNegotiationAsBroken(false)
 , mWarnLevelMissingRFC5746(1)
-, mFalseStartRequireNPN(true)
-, mFalseStartRequireForwardSecrecy(false)
 {
 }
 
@@ -1353,12 +1285,6 @@ PrefObserver::Observe(nsISupports *aSubject, const char *aTopic,
       int32_t warnLevel = 1;
       Preferences::GetInt("security.ssl.warn_missing_rfc5746", &warnLevel);
       mOwner->setWarnLevelMissingRFC5746(warnLevel);
-    } else if (prefName.Equals("security.ssl.false_start.require-npn")) {
-      Preferences::GetBool("security.ssl.false_start.require-npn",
-                           &mOwner->mFalseStartRequireNPN);
-    } else if (prefName.Equals("security.ssl.false_start.require-forward-secrecy")) {
-      Preferences::GetBool("security.ssl.false_start.require-forward-secrecy",
-                           &mOwner->mFalseStartRequireForwardSecrecy);
     }
   }
   return NS_OK;
@@ -1386,8 +1312,6 @@ nsSSLIOLayerHelpers::~nsSSLIOLayerHelpers()
   Preferences::RemoveObserver(mPrefObserver, "security.ssl.renego_unrestricted_hosts");
   Preferences::RemoveObserver(mPrefObserver, "security.ssl.treat_unsafe_negotiation_as_broken");
   Preferences::RemoveObserver(mPrefObserver, "security.ssl.warn_missing_rfc5746");
-  Preferences::RemoveObserver(mPrefObserver, "security.ssl.false_start.require-npn");
-  Preferences::RemoveObserver(mPrefObserver, "security.ssl.false_start.require-forward-secrecy");
 }
 
 nsresult nsSSLIOLayerHelpers::Init()
@@ -1462,11 +1386,6 @@ nsresult nsSSLIOLayerHelpers::Init()
   Preferences::GetInt("security.ssl.warn_missing_rfc5746", &warnLevel);
   setWarnLevelMissingRFC5746(warnLevel);
 
-  Preferences::GetBool("security.ssl.false_start.require-npn",
-                       &mFalseStartRequireNPN);
-  Preferences::GetBool("security.ssl.false_start.require-forward-secrecy",
-                       &mFalseStartRequireForwardSecrecy);
-
   mPrefObserver = new PrefObserver(this);
   Preferences::AddStrongObserver(mPrefObserver,
                                  "security.ssl.renego_unrestricted_hosts");
@@ -1474,10 +1393,7 @@ nsresult nsSSLIOLayerHelpers::Init()
                                  "security.ssl.treat_unsafe_negotiation_as_broken");
   Preferences::AddStrongObserver(mPrefObserver,
                                  "security.ssl.warn_missing_rfc5746");
-  Preferences::AddStrongObserver(mPrefObserver,
-                                 "security.ssl.false_start.require-npn");
-  Preferences::AddStrongObserver(mPrefObserver,
-                                 "security.ssl.false_start.require-forward-secrecy");
+
   return NS_OK;
 }
 
@@ -2563,7 +2479,6 @@ nsSSLIOLayerImportFD(PRFileDesc *fd,
   }
   SSL_SetPKCS11PinArg(sslSock, (nsIInterfaceRequestor*)infoObject);
   SSL_HandshakeCallback(sslSock, HandshakeCallback, infoObject);
-  SSL_SetCanFalseStartCallback(sslSock, CanFalseStartCallback, infoObject);
 
   // Disable this hook if we connect anonymously. See bug 466080.
   uint32_t flags = 0;

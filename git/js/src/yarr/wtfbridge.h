@@ -19,7 +19,7 @@
 #include "vm/String.h"
 #include "assembler/wtf/Platform.h"
 #include "assembler/jit/ExecutableAllocator.h"
-#include "yarr/CheckedArithmetic.h"
+#include "CheckedArithmetic.h"
 #include "js/TemplateLib.h"
 
 namespace JSC { namespace Yarr {
@@ -248,7 +248,7 @@ deleteAllValues(Vector<T, N> &v) {
 }
 
 static inline void
-dataLogF(const char *fmt, ...)
+dataLog(const char *fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);

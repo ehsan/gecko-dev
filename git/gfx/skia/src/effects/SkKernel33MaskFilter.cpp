@@ -8,14 +8,13 @@
 #include "SkKernel33MaskFilter.h"
 #include "SkColorPriv.h"
 #include "SkFlattenableBuffers.h"
-#include "SkString.h"
 
-SkMask::Format SkKernel33ProcMaskFilter::getFormat() const {
+SkMask::Format SkKernel33ProcMaskFilter::getFormat() {
     return SkMask::kA8_Format;
 }
 
 bool SkKernel33ProcMaskFilter::filterMask(SkMask* dst, const SkMask& src,
-                                      const SkMatrix&, SkIPoint* margin) const {
+                                          const SkMatrix&, SkIPoint* margin) {
     // margin???
     dst->fImage = NULL;
     dst->fBounds = src.fBounds;
@@ -85,15 +84,9 @@ SkKernel33ProcMaskFilter::SkKernel33ProcMaskFilter(SkFlattenableReadBuffer& rb)
     fPercent256 = rb.readInt();
 }
 
-#ifdef SK_DEVELOPER
-void SkKernel33ProcMaskFilter::toString(SkString* str) const {
-    str->appendf("percent256: %d, ", fPercent256);
-}
-#endif
-
 ///////////////////////////////////////////////////////////////////////////////
 
-uint8_t SkKernel33MaskFilter::computeValue(uint8_t* const* srcRows) const {
+uint8_t SkKernel33MaskFilter::computeValue(uint8_t* const* srcRows) {
     int value = 0;
 
     for (int i = 0; i < 3; i++) {
@@ -120,23 +113,8 @@ void SkKernel33MaskFilter::flatten(SkFlattenableWriteBuffer& wb) const {
 
 SkKernel33MaskFilter::SkKernel33MaskFilter(SkFlattenableReadBuffer& rb)
         : SkKernel33ProcMaskFilter(rb) {
-    SkDEBUGCODE(const uint32_t count = )rb.readIntArray(&fKernel[0][0]);
+    const uint32_t count = rb.readIntArray(&fKernel[0][0]);
     SkASSERT(9 == count);
     fShift = rb.readInt();
 }
 
-#ifdef SK_DEVELOPER
-void SkKernel33MaskFilter::toString(SkString* str) const {
-    str->append("SkKernel33MaskFilter: (");
-
-    str->appendf("kernel: (%d, %d, %d, %d, %d, %d, %d, %d, %d), ",
-            fKernel[0][0], fKernel[0][1], fKernel[0][2],
-            fKernel[1][0], fKernel[1][1], fKernel[1][2],
-            fKernel[2][0], fKernel[2][1], fKernel[2][2]);
-    str->appendf("shift: %d, ", fShift);
-
-    this->INHERITED::toString(str);
-
-    str->append(")");
-}
-#endif

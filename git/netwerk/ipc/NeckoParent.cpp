@@ -158,15 +158,15 @@ NeckoParent::CreateChannelLoadContext(PBrowserParent* aBrowser,
 }
 
 PHttpChannelParent*
-NeckoParent::AllocPHttpChannelParent(PBrowserParent* aBrowser,
-                                     const SerializedLoadContext& aSerialized,
-                                     const HttpChannelCreationArgs& aOpenArgs)
+NeckoParent::AllocPHttpChannel(PBrowserParent* aBrowser,
+                               const SerializedLoadContext& aSerialized,
+                               const HttpChannelCreationArgs& aOpenArgs)
 {
   nsCOMPtr<nsILoadContext> loadContext;
   const char *error = CreateChannelLoadContext(aBrowser, aSerialized,
                                                loadContext);
   if (error) {
-    printf_stderr("NeckoParent::AllocPHttpChannelParent: "
+    printf_stderr("NeckoParent::AllocPHttpChannel: "
                   "FATAL error: %s: KILLING CHILD PROCESS\n",
                   error);
     return nullptr;
@@ -178,7 +178,7 @@ NeckoParent::AllocPHttpChannelParent(PBrowserParent* aBrowser,
 }
 
 bool
-NeckoParent::DeallocPHttpChannelParent(PHttpChannelParent* channel)
+NeckoParent::DeallocPHttpChannel(PHttpChannelParent* channel)
 {
   HttpChannelParent *p = static_cast<HttpChannelParent *>(channel);
   p->Release();
@@ -197,15 +197,15 @@ NeckoParent::RecvPHttpChannelConstructor(
 }
 
 PFTPChannelParent*
-NeckoParent::AllocPFTPChannelParent(PBrowserParent* aBrowser,
-                                    const SerializedLoadContext& aSerialized,
-                                    const FTPChannelCreationArgs& aOpenArgs)
+NeckoParent::AllocPFTPChannel(PBrowserParent* aBrowser,
+                              const SerializedLoadContext& aSerialized,
+                              const FTPChannelCreationArgs& aOpenArgs)
 {
   nsCOMPtr<nsILoadContext> loadContext;
   const char *error = CreateChannelLoadContext(aBrowser, aSerialized,
                                                loadContext);
   if (error) {
-    printf_stderr("NeckoParent::AllocPFTPChannelParent: "
+    printf_stderr("NeckoParent::AllocPFTPChannel: "
                   "FATAL error: %s: KILLING CHILD PROCESS\n",
                   error);
     return nullptr;
@@ -217,7 +217,7 @@ NeckoParent::AllocPFTPChannelParent(PBrowserParent* aBrowser,
 }
 
 bool
-NeckoParent::DeallocPFTPChannelParent(PFTPChannelParent* channel)
+NeckoParent::DeallocPFTPChannel(PFTPChannelParent* channel)
 {
   FTPChannelParent *p = static_cast<FTPChannelParent *>(channel);
   p->Release();
@@ -235,21 +235,21 @@ NeckoParent::RecvPFTPChannelConstructor(
   return p->Init(aOpenArgs);
 }
 
-PCookieServiceParent*
-NeckoParent::AllocPCookieServiceParent()
+PCookieServiceParent* 
+NeckoParent::AllocPCookieService()
 {
   return new CookieServiceParent();
 }
 
 bool 
-NeckoParent::DeallocPCookieServiceParent(PCookieServiceParent* cs)
+NeckoParent::DeallocPCookieService(PCookieServiceParent* cs)
 {
   delete cs;
   return true;
 }
 
 PWyciwygChannelParent*
-NeckoParent::AllocPWyciwygChannelParent()
+NeckoParent::AllocPWyciwygChannel()
 {
   WyciwygChannelParent *p = new WyciwygChannelParent();
   p->AddRef();
@@ -257,7 +257,7 @@ NeckoParent::AllocPWyciwygChannelParent()
 }
 
 bool
-NeckoParent::DeallocPWyciwygChannelParent(PWyciwygChannelParent* channel)
+NeckoParent::DeallocPWyciwygChannel(PWyciwygChannelParent* channel)
 {
   WyciwygChannelParent *p = static_cast<WyciwygChannelParent *>(channel);
   p->Release();
@@ -265,14 +265,14 @@ NeckoParent::DeallocPWyciwygChannelParent(PWyciwygChannelParent* channel)
 }
 
 PWebSocketParent*
-NeckoParent::AllocPWebSocketParent(PBrowserParent* browser,
-                                   const SerializedLoadContext& serialized)
+NeckoParent::AllocPWebSocket(PBrowserParent* browser,
+                             const SerializedLoadContext& serialized)
 {
   nsCOMPtr<nsILoadContext> loadContext;
   const char *error = CreateChannelLoadContext(browser, serialized,
                                                loadContext);
   if (error) {
-    printf_stderr("NeckoParent::AllocPWebSocketParent: "
+    printf_stderr("NeckoParent::AllocPWebSocket: "
                   "FATAL error: %s: KILLING CHILD PROCESS\n",
                   error);
     return nullptr;
@@ -287,7 +287,7 @@ NeckoParent::AllocPWebSocketParent(PBrowserParent* browser,
 }
 
 bool
-NeckoParent::DeallocPWebSocketParent(PWebSocketParent* actor)
+NeckoParent::DeallocPWebSocket(PWebSocketParent* actor)
 {
   WebSocketChannelParent* p = static_cast<WebSocketChannelParent*>(actor);
   p->Release();
@@ -295,11 +295,11 @@ NeckoParent::DeallocPWebSocketParent(PWebSocketParent* actor)
 }
 
 PTCPSocketParent*
-NeckoParent::AllocPTCPSocketParent(const nsString& aHost,
-                                   const uint16_t& aPort,
-                                   const bool& useSSL,
-                                   const nsString& aBinaryType,
-                                   PBrowserParent* aBrowser)
+NeckoParent::AllocPTCPSocket(const nsString& aHost,
+                             const uint16_t& aPort,
+                             const bool& useSSL,
+                             const nsString& aBinaryType,
+                             PBrowserParent* aBrowser)
 {
   if (UsingNeckoIPCSecurity() && !aBrowser) {
     printf_stderr("NeckoParent::AllocPTCPSocket: FATAL error: no browser present \
@@ -329,7 +329,7 @@ NeckoParent::RecvPTCPSocketConstructor(PTCPSocketParent* aActor,
 }
 
 bool
-NeckoParent::DeallocPTCPSocketParent(PTCPSocketParent* actor)
+NeckoParent::DeallocPTCPSocket(PTCPSocketParent* actor)
 {
   TCPSocketParent* p = static_cast<TCPSocketParent*>(actor);
   p->Release();
@@ -337,8 +337,8 @@ NeckoParent::DeallocPTCPSocketParent(PTCPSocketParent* actor)
 }
 
 PRemoteOpenFileParent*
-NeckoParent::AllocPRemoteOpenFileParent(const URIParams& aURI,
-                                        PBrowserParent* aBrowser)
+NeckoParent::AllocPRemoteOpenFile(const URIParams& aURI,
+                                  PBrowserParent* aBrowser)
 {
   nsCOMPtr<nsIURI> uri = DeserializeURI(aURI);
   nsCOMPtr<nsIFileURL> fileURL = do_QueryInterface(uri);
@@ -450,7 +450,7 @@ NeckoParent::RecvPRemoteOpenFileConstructor(PRemoteOpenFileParent* aActor,
 }
 
 bool
-NeckoParent::DeallocPRemoteOpenFileParent(PRemoteOpenFileParent* actor)
+NeckoParent::DeallocPRemoteOpenFile(PRemoteOpenFileParent* actor)
 {
   delete actor;
   return true;

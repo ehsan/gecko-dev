@@ -56,7 +56,7 @@ struct SkAAClip::YOffset {
 struct SkAAClip::RunHead {
     int32_t fRefCnt;
     int32_t fRowCount;
-    size_t  fDataSize;
+    int32_t fDataSize;
 
     YOffset* yoffsets() {
         return (YOffset*)((char*)this + sizeof(RunHead));
@@ -193,6 +193,7 @@ void SkAAClip::validate() const {
     const RunHead* head = fRunHead;
     SkASSERT(head->fRefCnt > 0);
     SkASSERT(head->fRowCount > 0);
+    SkASSERT(head->fDataSize > 0);
 
     const YOffset* yoff = head->yoffsets();
     const YOffset* ystop = yoff + head->fRowCount;
@@ -209,7 +210,7 @@ void SkAAClip::validate() const {
         prevOffset = yoff->fOffset;
         const uint8_t* row = head->data() + yoff->fOffset;
         size_t rowLength = compute_row_length(row, fBounds.width());
-        SkASSERT(yoff->fOffset + rowLength <= head->fDataSize);
+        SkASSERT(yoff->fOffset + rowLength <= (size_t) head->fDataSize);
         yoff += 1;
     }
     // check the last entry;
@@ -2175,3 +2176,4 @@ void SkAAClipBlitter::blitMask(const SkMask& origMask, const SkIRect& clip) {
 const SkBitmap* SkAAClipBlitter::justAnOpaqueColor(uint32_t* value) {
     return NULL;
 }
+

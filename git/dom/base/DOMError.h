@@ -33,8 +33,6 @@ public:
   // aWindow can be null if this DOMError is not associated with a particular
   // window.
 
-  DOMError(nsPIDOMWindow* aWindow);
-
   DOMError(nsPIDOMWindow* aWindow, nsresult aValue);
 
   DOMError(nsPIDOMWindow* aWindow, const nsAString& aName);
@@ -64,12 +62,6 @@ public:
   void GetMessage(nsString& aRetval) const
   {
     aRetval = mMessage;
-  }
-
-  void Init(const nsAString& aName, const nsAString& aMessage)
-  {
-    mName = aName;
-    mMessage = aMessage;
   }
 };
 

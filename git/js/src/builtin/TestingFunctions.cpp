@@ -246,8 +246,7 @@ static const struct ParamPair {
     {"maxMallocBytes",      JSGC_MAX_MALLOC_BYTES},
     {"gcBytes",             JSGC_BYTES},
     {"gcNumber",            JSGC_NUMBER},
-    {"sliceTimeBudget",     JSGC_SLICE_TIME_BUDGET},
-    {"markStackLimit",      JSGC_MARK_STACK_LIMIT}
+    {"sliceTimeBudget",     JSGC_SLICE_TIME_BUDGET}
 };
 
 static JSBool
@@ -491,7 +490,7 @@ GCState(JSContext *cx, unsigned argc, jsval *vp)
     else if (globalState == gc::SWEEP)
         state = "sweep";
     else
-        MOZ_ASSUME_UNREACHABLE("Unobserveable global GC state");
+        JS_NOT_REACHED("Unobserveable global GC state");
 
     JSString *str = JS_NewStringCopyZ(cx, state);
     if (!str)
@@ -915,7 +914,7 @@ ShellObjectMetadataCallback(JSContext *cx, JSObject **pmetadata)
     Value thisv = UndefinedValue();
 
     RootedValue rval(cx);
-    if (!Invoke(cx, thisv, ObjectValue(*objectMetadataFunction), 0, NULL, &rval))
+    if (!Invoke(cx, thisv, ObjectValue(*objectMetadataFunction), 0, NULL, rval.address()))
         return false;
 
     if (rval.isObject())

@@ -10,7 +10,6 @@
 
 #include "GrSingleTextureEffect.h"
 
-class GrEffectStage;
 class GrGLConfigConversionEffect;
 
 /**
@@ -34,18 +33,16 @@ public:
         kPMConversionCnt
     };
 
-    // Installs an effect in the GrEffectStage to perform a config conversion.
-    static const GrEffectRef* Create(GrTexture*,
-                                     bool swapRedAndBlue,
-                                     PMConversion pmConversion,
-                                     const SkMatrix& matrix);
+    // This will fail if the config is not 8888 and a PM conversion is requested.
+    static GrCustomStage* Create(GrTexture*,
+                                 bool swapRedAndBlue,
+                                 PMConversion pmConversion = kNone_PMConversion);
 
     static const char* Name() { return "Config Conversion"; }
-    typedef GrGLConfigConversionEffect GLEffect;
+    typedef GrGLConfigConversionEffect GLProgramStage;
 
-    virtual const GrBackendEffectFactory& getFactory() const SK_OVERRIDE;
-
-    virtual void getConstantColorComponents(GrColor* color, uint32_t* validFlags) const SK_OVERRIDE;
+    virtual const GrProgramStageFactory& getFactory() const SK_OVERRIDE;
+    virtual bool isEqual(const GrCustomStage&) const SK_OVERRIDE;
 
     bool swapsRedAndBlue() const { return fSwapRedAndBlue; }
     PMConversion  pmConversion() const { return fPMConversion; }
@@ -62,15 +59,12 @@ public:
 private:
     GrConfigConversionEffect(GrTexture*,
                             bool swapRedAndBlue,
-                            PMConversion pmConversion,
-                            const SkMatrix& matrix);
-
-    virtual bool onIsEqual(const GrEffect&) const SK_OVERRIDE;
+                            PMConversion pmConversion);
 
     bool            fSwapRedAndBlue;
     PMConversion    fPMConversion;
 
-    GR_DECLARE_EFFECT_TEST;
+    GR_DECLARE_CUSTOM_STAGE_TEST;
 
     typedef GrSingleTextureEffect INHERITED;
 };

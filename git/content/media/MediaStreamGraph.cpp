@@ -1539,12 +1539,6 @@ MediaStream::FinishOnGraphThread()
   GraphImpl()->FinishStream(this);
 }
 
-int64_t
-MediaStream::GetProcessingGraphUpdateIndex()
-{
-  return GraphImpl()->GetProcessingGraphUpdateIndex();
-}
-
 StreamBuffer::Track*
 MediaStream::EnsureTrack(TrackID aTrackId, TrackRate aSampleRate)
 {
@@ -1843,7 +1837,8 @@ MediaStream::ApplyTrackDisabling(TrackID aTrackID, MediaSegment* aSegment)
     break;
   }
   default:
-    MOZ_CRASH("Unknown track type");
+    MOZ_NOT_REACHED("Unknown track type");
+    break;
   }
 }
 

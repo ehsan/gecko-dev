@@ -29,6 +29,3 @@ CPP_SOURCES += [
     'nsWyciwygProtocolHandler.cpp',
 ]
 
-IPDL_SOURCES += [
-    'PWyciwygChannel.ipdl',
-]

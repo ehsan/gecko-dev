@@ -297,14 +297,13 @@ Shape::getUserId(JSContext *cx, MutableHandleId idp) const
 }
 
 inline bool
-Shape::get(JSContext* cx, HandleObject receiver, JSObject* obj, JSObject *pobj,
-           MutableHandleValue vp)
+Shape::get(JSContext* cx, HandleObject receiver, JSObject* obj, JSObject *pobj, MutableHandleValue vp)
 {
     JS_ASSERT(!hasDefaultGetter());
 
     if (hasGetterValue()) {
         Value fval = getterValue();
-        return InvokeGetterOrSetter(cx, receiver, fval, 0, 0, vp);
+        return InvokeGetterOrSetter(cx, receiver, fval, 0, 0, vp.address());
     }
 
     Rooted<Shape *> self(cx, this);
@@ -316,14 +315,13 @@ Shape::get(JSContext* cx, HandleObject receiver, JSObject* obj, JSObject *pobj,
 }
 
 inline bool
-Shape::set(JSContext* cx, HandleObject obj, HandleObject receiver, bool strict,
-           MutableHandleValue vp)
+Shape::set(JSContext* cx, HandleObject obj, HandleObject receiver, bool strict, MutableHandleValue vp)
 {
     JS_ASSERT_IF(hasDefaultSetter(), hasGetterValue());
 
     if (attrs & JSPROP_SETTER) {
         Value fval = setterValue();
-        return InvokeGetterOrSetter(cx, receiver, fval, 1, vp.address(), vp);
+        return InvokeGetterOrSetter(cx, receiver, fval, 1, vp.address(), vp.address());
     }
 
     if (attrs & JSPROP_GETTER)
@@ -429,6 +427,11 @@ Shape::writeBarrierPre(Shape *shape)
 }
 
 inline void
+Shape::writeBarrierPost(Shape *shape, void *addr)
+{
+}
+
+inline void
 Shape::readBarrier(Shape *shape)
 {
 #ifdef JSGC_INCREMENTAL
@@ -464,6 +467,11 @@ BaseShape::writeBarrierPre(BaseShape *base)
         JS_ASSERT(tmp == base);
     }
 #endif
+}
+
+inline void
+BaseShape::writeBarrierPost(BaseShape *shape, void *addr)
+{
 }
 
 inline void

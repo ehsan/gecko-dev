@@ -53,7 +53,6 @@ typedef char realGLboolean;
 #include "mozilla/Preferences.h"
 #include "mozilla/StandardInteger.h"
 #include "mozilla/Mutex.h"
-#include "mozilla/GenericRefCounted.h"
 
 namespace android {
     class GraphicBuffer;
@@ -62,7 +61,6 @@ namespace android {
 namespace mozilla {
     namespace gfx {
         class SharedSurface;
-        class DataSourceSurface;
         struct SurfaceCaps;
     }
 
@@ -85,13 +83,12 @@ typedef uintptr_t SharedTextureHandle;
 
 class GLContext
     : public GLLibraryLoader
-    , public GenericAtomicRefCounted
 {
+    NS_INLINE_DECL_THREADSAFE_REFCOUNTING(GLContext)
+
 protected:
     typedef class gfx::SharedSurface SharedSurface;
     typedef gfx::SharedSurfaceType SharedSurfaceType;
-    typedef gfxASurface::gfxImageFormat ImageFormat;
-    typedef gfx::SurfaceFormat SurfaceFormat;
 
 public:
     typedef struct gfx::SurfaceCaps SurfaceCaps;
@@ -253,7 +250,7 @@ public:
     virtual GLLibraryEGL* GetLibraryEGL() { return nullptr; }
 
     virtual void MakeCurrent_EGLSurface(void* surf) {
-        MOZ_CRASH("Must be called against a GLContextEGL.");
+        MOZ_NOT_REACHED("Must be called against a GLContextEGL.");
     }
 
     /**
@@ -492,7 +489,7 @@ public:
 
     typedef struct {
         GLenum mTarget;
-        SurfaceFormat mTextureFormat;
+        ShaderProgramType mProgramType;
         gfx3DMatrix mTextureTransform;
     } SharedHandleDetails;
 
@@ -755,8 +752,6 @@ public:
         return false;
     }
 
-    virtual GLenum GetPreferredARGB32Format() { return LOCAL_GL_RGBA; }
-
     virtual bool RenewSurface() { return false; }
 
     /**
@@ -810,7 +805,7 @@ public:
                                                        GLenum aTextureFormat,
                                                        bool aYInvert = false);
 
-    already_AddRefed<gfxImageSurface> GetTexImage(GLuint aTexture, bool aYInvert, SurfaceFormat aFormat);
+    already_AddRefed<gfxImageSurface> GetTexImage(GLuint aTexture, bool aYInvert, ShaderProgramType aShader);
 
     /**
      * Call ReadPixels into an existing gfxImageSurface.
@@ -869,7 +864,7 @@ public:
      * The aDstPoint parameter is ignored if no texture was provided
      * or aOverwrite is true.
      *
-     * \param aData Image data to upload.
+     * \param aSurface Surface to upload.
      * \param aDstRegion Region of texture to upload to.
      * \param aTexture Texture to use, or 0 to have one created for you.
      * \param aOverwrite Over an existing texture with a new one.
@@ -882,41 +877,16 @@ public:
      *  surface. This testure may be overridden, clients should not rely on
      *  the contents of this texture after this call or even on this
      *  texture unit being active.
-     * \return Surface format of this texture.
+     * \return Shader program needed to render this texture.
      */
-    SurfaceFormat UploadImageDataToTexture(unsigned char* aData,
-                                           int32_t aStride,
-                                           gfxASurface::gfxImageFormat aFormat,
-                                           const nsIntRegion& aDstRegion,
-                                           GLuint& aTexture,
-                                           bool aOverwrite = false,
-                                           bool aPixelBuffer = false,
-                                           GLenum aTextureUnit = LOCAL_GL_TEXTURE0,
-                                           GLenum aTextureTarget = LOCAL_GL_TEXTURE_2D);
+    ShaderProgramType UploadSurfaceToTexture(gfxASurface *aSurface,
+                                             const nsIntRegion& aDstRegion,
+                                             GLuint& aTexture,
+                                             bool aOverwrite = false,
+                                             const nsIntPoint& aSrcPoint = nsIntPoint(0, 0),
+                                             bool aPixelBuffer = false,
+                                             GLenum aTextureUnit = LOCAL_GL_TEXTURE0);
 
-    /**
-     * Convenience wrapper around UploadImageDataToTexture for gfxASurfaces. 
-     */
-    SurfaceFormat UploadSurfaceToTexture(gfxASurface *aSurface,
-                                         const nsIntRegion& aDstRegion,
-                                         GLuint& aTexture,
-                                         bool aOverwrite = false,
-                                         const nsIntPoint& aSrcPoint = nsIntPoint(0, 0),
-                                         bool aPixelBuffer = false,
-                                         GLenum aTextureUnit = LOCAL_GL_TEXTURE0,
-                                         GLenum aTextureTarget = LOCAL_GL_TEXTURE_2D);
-
-    /**
-     * Same as above, for DataSourceSurfaces.
-     */
-    SurfaceFormat UploadSurfaceToTexture(gfx::DataSourceSurface *aSurface,
-                                         const nsIntRegion& aDstRegion,
-                                         GLuint& aTexture,
-                                         bool aOverwrite = false,
-                                         const nsIntPoint& aSrcPoint = nsIntPoint(0, 0),
-                                         bool aPixelBuffer = false,
-                                         GLenum aTextureUnit = LOCAL_GL_TEXTURE0,
-                                         GLenum aTextureTarget = LOCAL_GL_TEXTURE_2D);
 
     void TexImage2D(GLenum target, GLint level, GLint internalformat,
                     GLsizei width, GLsizei height, GLsizei stride,
@@ -1056,7 +1026,6 @@ public:
         OES_element_index_uint,
         OES_vertex_array_object,
         ARB_vertex_array_object,
-        APPLE_vertex_array_object,
         ARB_draw_buffers,
         EXT_draw_buffers,
         Extensions_Max

@@ -159,7 +159,7 @@ JSClass global_class = {
 };
 
 SkJS::SkJS(void* hwnd) : SkOSWindow(hwnd) {
-    if ((fRuntime = JS_NewRuntime(0x100000)) == NULL) {
+    if ((fRuntime = JS_NewRuntime(0x100000, JS_NO_HELPER_THREADS)) == NULL) {
         SkASSERT(0);
         return;
     }
@@ -226,3 +226,4 @@ void SkJS::Test(void* hwnd) {
     SkASSERT(success);
 }
 #endifASSERT(success);
+
