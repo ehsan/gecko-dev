@@ -258,28 +258,37 @@ nsCoreUtils::IsAncestorOf(nsINode *aPossibleAncestorNode,
 }
 
 nsresult
-nsCoreUtils::ScrollSubstringTo(nsIFrame* aFrame, nsRange* aRange,
+nsCoreUtils::ScrollSubstringTo(nsIFrame *aFrame,
+                               nsIDOMNode *aStartNode, PRInt32 aStartIndex,
+                               nsIDOMNode *aEndNode, PRInt32 aEndIndex,
                                PRUint32 aScrollType)
 {
   nsIPresShell::ScrollAxis vertical, horizontal;
   ConvertScrollTypeToPercents(aScrollType, &vertical, &horizontal);
 
-  return ScrollSubstringTo(aFrame, aRange, vertical, horizontal);
+  return ScrollSubstringTo(aFrame, aStartNode, aStartIndex, aEndNode, aEndIndex,
+                           vertical, horizontal);
 }
 
 nsresult
-nsCoreUtils::ScrollSubstringTo(nsIFrame* aFrame, nsRange* aRange,
+nsCoreUtils::ScrollSubstringTo(nsIFrame *aFrame,
+                               nsIDOMNode *aStartNode, PRInt32 aStartIndex,
+                               nsIDOMNode *aEndNode, PRInt32 aEndIndex,
                                nsIPresShell::ScrollAxis aVertical,
                                nsIPresShell::ScrollAxis aHorizontal)
 {
-  if (!aFrame)
+  if (!aFrame || !aStartNode || !aEndNode)
     return NS_ERROR_FAILURE;
 
   nsPresContext *presContext = aFrame->PresContext();
 
+  nsRefPtr<nsIDOMRange> scrollToRange = new nsRange();
   nsCOMPtr<nsISelectionController> selCon;
   aFrame->GetSelectionController(presContext, getter_AddRefs(selCon));
   NS_ENSURE_TRUE(selCon, NS_ERROR_FAILURE);
+
+  scrollToRange->SetStart(aStartNode, aStartIndex);
+  scrollToRange->SetEnd(aEndNode, aEndIndex);
 
   nsCOMPtr<nsISelection> selection;
   selCon->GetSelection(nsISelectionController::SELECTION_ACCESSIBILITY,
@@ -287,7 +296,7 @@ nsCoreUtils::ScrollSubstringTo(nsIFrame* aFrame, nsRange* aRange,
 
   nsCOMPtr<nsISelectionPrivate> privSel(do_QueryInterface(selection));
   selection->RemoveAllRanges();
-  selection->AddRange(aRange);
+  selection->AddRange(scrollToRange);
 
   privSel->ScrollIntoViewInternal(
     nsISelectionController::SELECTION_ANCHOR_REGION,

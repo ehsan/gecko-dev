@@ -135,14 +135,16 @@ class CallObject : public ScopeObject
     static CallObject *createForFunction(JSContext *cx, StackFrame *fp);
     static CallObject *createForStrictEval(JSContext *cx, StackFrame *fp);
 
-    /* True if this is for a strict mode eval frame. */
+    /* True if this is for a strict mode eval frame or for a function call. */
     inline bool isForEval() const;
 
     /*
-     * Returns the function for which this CallObject was created. (This may
-     * only be called if !isForEval.)
+     * The callee function if this CallObject was created for a function
+     * invocation, or null if it was created for a strict mode eval frame.
      */
-    inline JSFunction &callee() const;
+    inline JSObject *getCallee() const;
+    inline JSFunction *getCalleeFunction() const;
+    inline void setCallee(JSObject *callee);
 
     /* Returns the formal argument at the given index. */
     inline const Value &arg(unsigned i, MaybeCheckAliasing = CHECK_ALIASING) const;

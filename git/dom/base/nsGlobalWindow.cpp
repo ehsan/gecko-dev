@@ -8715,11 +8715,11 @@ nsGlobalWindow::RegisterIdleObserver(nsIIdleObserver* aIdleObserver)
     return NS_OK;
   }
 
+  MOZ_ASSERT(mIdleCallbackIndex >= 0);
+
   if (!mCurrentlyIdle) {
     return NS_OK;
   }
-
-  MOZ_ASSERT(mIdleCallbackIndex >= 0);
 
   if (static_cast<PRInt32>(insertAtIndex) < mIdleCallbackIndex) {
     NotifyIdleObserver(tmpIdleObserver.mIdleObserver,
@@ -8784,6 +8784,7 @@ nsresult
 nsGlobalWindow::UnregisterIdleObserver(nsIIdleObserver* aIdleObserver)
 {
   MOZ_ASSERT(IsInnerWindow(), "Must be an inner window!");
+  MOZ_ASSERT(mIdleTimer);
 
   PRInt32 removeElementIndex;
   nsresult rv = FindIndexOfElementToRemove(aIdleObserver, &removeElementIndex);
@@ -8793,13 +8794,11 @@ nsGlobalWindow::UnregisterIdleObserver(nsIIdleObserver* aIdleObserver)
   }
   mIdleObservers.RemoveElementAt(removeElementIndex);
 
-  MOZ_ASSERT(mIdleTimer);
   if (mIdleObservers.IsEmpty() && mIdleService) {
     rv = mIdleService->RemoveIdleObserver(mObserver, MIN_IDLE_NOTIFICATION_TIME_S);
     NS_ENSURE_SUCCESS(rv, rv);
     mIdleService = nsnull;
 
-    mIdleTimer->Cancel();
     mIdleCallbackIndex = -1;
     return NS_OK;
   }
@@ -10678,9 +10677,22 @@ nsGlobalWindow::SetIsApp(bool aValue)
 bool
 nsGlobalWindow::IsPartOfApp()
 {
-  nsCOMPtr<mozIDOMApplication> app;
+  FORWARD_TO_OUTER(IsPartOfApp, (), TriState_False);
 
-  return NS_SUCCEEDED(GetApp(getter_AddRefs(app))) ? app != nsnull : false;
+  // We go trough all window parents until we find one with |mIsApp| set to
+  // something. If none is found, we are not part of an application.
+  for (nsGlobalWindow* w = this; w;
+       w = static_cast<nsGlobalWindow*>(w->GetParentInternal())) {
+    if (w->mIsApp == TriState_True) {
+      // The window should be part of an application.
+      MOZ_ASSERT(w->mApp);
+      return true;
+    } else if (w->mIsApp == TriState_False) {
+      return false;
+    }
+  }
+
+  return false;
 }
 
 nsresult
@@ -10706,30 +10718,6 @@ nsGlobalWindow::SetApp(const nsAString& aManifestURL)
   }
 
   mApp = app.forget();
-
-  return NS_OK;
-}
-
-nsresult
-nsGlobalWindow::GetApp(mozIDOMApplication** aApplication)
-{
-  *aApplication = nsnull;
-
-  FORWARD_TO_OUTER(GetApp, (aApplication), NS_OK);
-
-  // We go trough all window parents until we find one with |mIsApp| set to
-  // something. If none is found, we are not part of an application.
-  for (nsGlobalWindow* w = this; w;
-       w = static_cast<nsGlobalWindow*>(w->GetParentInternal())) {
-    if (w->mIsApp == TriState_True) {
-      // The window should be part of an application.
-      MOZ_ASSERT(w->mApp);
-      NS_IF_ADDREF(*aApplication = w->mApp);
-      return NS_OK;
-    } else if (w->mIsApp == TriState_False) {
-      return NS_OK;
-    }
-  }
 
   return NS_OK;
 }

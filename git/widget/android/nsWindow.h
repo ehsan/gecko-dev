@@ -148,6 +148,7 @@ public:
     NS_IMETHOD ReparentNativeWidget(nsIWidget* aNewParent);
 
 #ifdef MOZ_JAVA_COMPOSITOR
+    virtual bool NeedsPaint();
     virtual void DrawWindowUnderlay(LayerManager* aManager, nsIntRect aRect);
     virtual void DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect);
 
@@ -158,7 +159,7 @@ public:
     static void SchedulePauseComposition();
     static void ScheduleResumeComposition(int width, int height);
 
-    virtual bool WidgetPaintsBackground() { return true; }
+    virtual bool WidgetPaintsBackground();
 #endif
 
 protected:

@@ -35,7 +35,6 @@
 #include "nsStackWalk.h"
 #include "nsTraceMallocCallbacks.h"
 #include "nsTypeInfo.h"
-#include "mozilla/mozPoisonWrite.h"
 
 #if defined(XP_MACOSX)
 
@@ -1330,9 +1329,6 @@ NS_TraceMallocStartup(int logfd)
     PR_ASSERT(logfp == &default_logfile);
     tracing_enabled = (logfd >= 0);
 
-    if (logfd >= 3)
-        MozillaRegisterDebugFD(logfd);
-
     /* stacks are disabled if this env var is set to a non-empty value */
     stack_disable_env = PR_GetEnv("NS_TRACE_MALLOC_DISABLE_STACKS");
     stacks_enabled = !stack_disable_env || !*stack_disable_env;
@@ -1531,7 +1527,6 @@ NS_TraceMallocShutdown(void)
         log_tmstats(fp);
         flush_logfile(fp);
         if (fp->fd >= 0) {
-            MozillaUnRegisterDebugFD(fp->fd);
             close(fp->fd);
             fp->fd = -1;
         }
@@ -1668,7 +1663,6 @@ NS_TraceMallocCloseLogFD(int fd)
     }
 
     TM_EXIT_LOCK_AND_UNSUPPRESS_TRACING(t);
-    MozillaUnRegisterDebugFD(fd);
     close(fd);
 }
 
@@ -1763,7 +1757,6 @@ NS_TraceMallocDumpAllocations(const char *pathname)
 {
     FILE *ofp;
     int rv;
-    int fd;
 
     tm_thread *t = tm_get_thread();
 
@@ -1771,15 +1764,12 @@ NS_TraceMallocDumpAllocations(const char *pathname)
 
     ofp = fopen(pathname, WRITE_FLAGS);
     if (ofp) {
-        MozillaRegisterDebugFD(fileno(ofp));
         if (allocations) {
             PL_HashTableEnumerateEntries(allocations, allocation_enumerator,
                                          ofp);
         }
         rv = ferror(ofp) ? -1 : 0;
-        fd = fileno(ofp);
-        fclose(ofp); /* May call write. */
-        MozillaUnRegisterDebugFD(fd);
+        fclose(ofp);
     } else {
         rv = -1;
     }

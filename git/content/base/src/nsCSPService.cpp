@@ -57,7 +57,6 @@ CSPService::ShouldLoad(PRUint32 aContentType,
                        nsISupports *aRequestContext,
                        const nsACString &aMimeTypeGuess,
                        nsISupports *aExtra,
-                       nsIPrincipal *aRequestPrincipal,
                        PRInt16 *aDecision)
 {
     if (!aContentLocation)
@@ -124,7 +123,6 @@ CSPService::ShouldProcess(PRUint32         aContentType,
                           nsISupports      *aRequestContext,
                           const nsACString &aMimeTypeGuess,
                           nsISupports      *aExtra,
-                          nsIPrincipal     *aRequestPrincipal,
                           PRInt16          *aDecision)
 {
     if (!aContentLocation)

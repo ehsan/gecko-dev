@@ -26,7 +26,6 @@ nsNoDataProtocolContentPolicy::ShouldLoad(PRUint32 aContentType,
                                           nsISupports *aRequestingContext,
                                           const nsACString &aMimeGuess,
                                           nsISupports *aExtra,
-                                          nsIPrincipal *aRequestPrincipal,
                                           PRInt16 *aDecision)
 {
   *aDecision = nsIContentPolicy::ACCEPT;
@@ -71,10 +70,8 @@ nsNoDataProtocolContentPolicy::ShouldProcess(PRUint32 aContentType,
                                              nsISupports *aRequestingContext,
                                              const nsACString &aMimeGuess,
                                              nsISupports *aExtra,
-                                             nsIPrincipal *aRequestPrincipal,
                                              PRInt16 *aDecision)
 {
   return ShouldLoad(aContentType, aContentLocation, aRequestingLocation,
-                    aRequestingContext, aMimeGuess, aExtra, aRequestPrincipal,
-                    aDecision);
+                    aRequestingContext, aMimeGuess, aExtra, aDecision);
 }

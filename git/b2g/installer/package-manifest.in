@@ -178,7 +178,6 @@
 @BINPATH@/components/dom_mms.xpt
 #endif
 @BINPATH@/components/dom_browserelement.xpt
-@BINPATH@/components/dom_messages.xpt
 @BINPATH@/components/dom_power.xpt
 @BINPATH@/components/dom_range.xpt
 @BINPATH@/components/dom_settings.xpt
@@ -463,10 +462,6 @@
 @BINPATH@/components/Webapps.manifest
 @BINPATH@/components/AppsService.js
 @BINPATH@/components/AppsService.manifest
-
-@BINPATH@/components/SystemMessageInternal.js
-@BINPATH@/components/SystemMessageManager.js
-@BINPATH@/components/SystemMessageManager.manifest
 
 ; Modules
 @BINPATH@/modules/*

@@ -64,7 +64,6 @@
 #include "sampler.h"
 #include "nsDOMBlobBuilder.h"
 #include "nsIDOMFileHandle.h"
-#include "nsIDOMApplicationRegistry.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -207,12 +206,10 @@ nsDOMWindowUtils::Redraw(PRUint32 aCount, PRUint32 *aDurationOut)
     nsIFrame *rootFrame = presShell->GetRootFrame();
 
     if (rootFrame) {
-      nsRect r(nsPoint(0, 0), rootFrame->GetSize());
-
       PRIntervalTime iStart = PR_IntervalNow();
 
       for (PRUint32 i = 0; i < aCount; i++)
-        rootFrame->InvalidateWithFlags(r, nsIFrame::INVALIDATE_IMMEDIATE);
+        rootFrame->InvalidateFrame();
 
 #if defined(MOZ_X11) && defined(MOZ_WIDGET_GTK)
       XSync(GDK_DISPLAY_XDISPLAY(gdk_display_get_default()), False);
@@ -357,14 +354,7 @@ nsDOMWindowUtils::SetDisplayPortForElement(float aXPx, float aYPx,
 
   nsIFrame* rootFrame = presShell->FrameManager()->GetRootFrame();
   if (rootFrame) {
-    nsIContent* rootContent =
-      rootScrollFrame ? rootScrollFrame->GetContent() : nsnull;
-    nsRect rootDisplayport;
-    bool usingDisplayport = rootContent &&
-      nsLayoutUtils::GetDisplayPort(rootContent, &rootDisplayport);
-    rootFrame->InvalidateWithFlags(
-      usingDisplayport ? rootDisplayport : rootFrame->GetVisualOverflowRect(),
-      nsIFrame::INVALIDATE_NO_THEBES_LAYERS);
+    rootFrame->InvalidateFrame();
 
     // If we are hiding something that is a display root then send empty paint
     // transaction in order to release retained layers because it won't get
@@ -2578,17 +2568,4 @@ nsDOMWindowUtils::SetApp(const nsAString& aManifestURL)
   NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);
 
   return static_cast<nsGlobalWindow*>(window.get())->SetApp(aManifestURL);
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::GetApp(mozIDOMApplication** aApplication)
-{
-  if (!IsUniversalXPConnectCapable()) {
-    return NS_ERROR_DOM_SECURITY_ERR;
-  }
-
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
-  NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);
-
-  return static_cast<nsGlobalWindow*>(window.get())->GetApp(aApplication);
 }

@@ -4260,6 +4260,8 @@ JS::CheckStackRoots(JSContext *cx)
     // could happen.)
     JS_ASSERT(!cx->rootingUnnecessary);
 
+        return;
+
     AutoCopyFreeListToArenas copy(rt);
 
     JSTracer checker;

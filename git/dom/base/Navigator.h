@@ -38,8 +38,6 @@ class nsIDOMTelephony;
 #include "nsIDOMNavigatorBluetooth.h"
 #endif
 
-#include "nsIDOMNavigatorSystemMessages.h"
-
 //*****************************************************************************
 // Navigator: Script "navigator" object
 //*****************************************************************************
@@ -81,7 +79,7 @@ class Navigator : public nsIDOMNavigator
 #ifdef MOZ_B2G_BT
                 , public nsIDOMNavigatorBluetooth
 #endif
-                , public nsIDOMNavigatorSystemMessages
+
 {
 public:
   Navigator(nsPIDOMWindow *aInnerWindow);
@@ -106,7 +104,6 @@ public:
 #ifdef MOZ_B2G_BT
   NS_DECL_NSIDOMNAVIGATORBLUETOOTH
 #endif
-  NS_DECL_NSIDOMNAVIGATORSYSTEMMESSAGES
 
   static void Init();
 
@@ -129,11 +126,6 @@ public:
    */
   void OnNavigation();
 
-#ifdef MOZ_SYS_MSG
-  // Helper to initialize mMessagesManager.
-  nsresult EnsureMessagesManager();
-#endif
-
 private:
   bool IsSmsAllowed() const;
   bool IsSmsSupported() const;
@@ -153,7 +145,6 @@ private:
 #ifdef MOZ_B2G_BT
   nsCOMPtr<nsIDOMBluetoothManager> mBluetooth;
 #endif
-  nsCOMPtr<nsIDOMNavigatorSystemMessages> mMessagesManager;
   nsWeakPtr mWindow;
 };
 

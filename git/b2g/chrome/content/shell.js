@@ -334,17 +334,6 @@ nsBrowserAccess.prototype = {
   }
 };
 
-// Listen for system messages and relay them to Gaia.
-Services.obs.addObserver(function(aSubject, aTopic, aData) {
-  let msg = JSON.parse(aData);
-  let origin = Services.io.newURI(msg.manifest, null, null).prePath;
-  shell.sendEvent(shell.contentBrowser.contentWindow,
-                  "mozChromeEvent", { type: "open-app",
-                                      url: msg.uri,
-                                      origin: origin,
-                                      manifest: msg.manifest } );
-}, "system-messages-open-app", false);
-
 (function Repl() {
   if (!Services.prefs.getBoolPref('b2g.remote-js.enabled')) {
     return;
@@ -401,7 +390,7 @@ var CustomEventManager = {
 
   handleEvent: function custevt_handleEvent(evt) {
     let detail = evt.detail;
-    dump('XXX FIXME : Got a mozContentEvent: ' + detail.type + "\n");
+    dump('XXX FIXME : Got a mozContentEvent: ' + detail.type);
 
     switch(detail.type) {
       case 'desktop-notification-click':

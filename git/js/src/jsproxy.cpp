@@ -1682,7 +1682,7 @@ JS_FRIEND_DATA(Class) js::FunctionProxyClass = {
     JS_EnumerateStub,
     JS_ResolveStub,
     JS_ConvertStub,
-    proxy_Finalize,          /* finalize */
+    NULL,                    /* finalize */
     NULL,                    /* checkAccess */
     proxy_Call,
     FunctionClass.hasInstance,

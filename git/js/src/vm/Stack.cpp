@@ -300,10 +300,11 @@ StackFrame::epilogue(JSContext *cx)
 
     JS_ASSERT(isNonEvalFunctionFrame());
     if (fun()->isHeavyweight()) {
-        JS_ASSERT_IF(hasCallObj(), scopeChain()->asCall().callee().script() == script());
+        JS_ASSERT_IF(hasCallObj(),
+                     scopeChain()->asCall().getCalleeFunction()->script() == script());
     } else {
         JS_ASSERT(!scopeChain()->isCall() || scopeChain()->asCall().isForEval() ||
-                  scopeChain()->asCall().callee().script() != script());
+                  scopeChain()->asCall().getCalleeFunction()->script() != script());
     }
 
     if (cx->compartment->debugMode())
