@@ -125,13 +125,6 @@ var SpecialPowers = {
     return !this._getTopChromeWindow(window).document
                                       .getElementById("Browser:Back")
                                       .hasAttribute("disabled");
-  },
-
-  addChromeEventListener: function(type, listener, capture, allowUntrusted) {
-    addEventListener(type, listener, capture, allowUntrusted);
-  },
-  removeChromeEventListener: function(type, listener, capture) {
-    removeEventListener(type, listener, capture);
   }
 };
 

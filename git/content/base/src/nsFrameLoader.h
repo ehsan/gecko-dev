@@ -164,6 +164,7 @@ private:
 
 
 class nsFrameLoader : public nsIFrameLoader,
+                      public nsIFrameLoader_MOZILLA_2_0_BRANCH,
                       public nsIContentViewManager
 {
   friend class AutoResetInShow;
@@ -195,6 +196,7 @@ public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsFrameLoader, nsIFrameLoader)
   NS_DECL_NSIFRAMELOADER
+  NS_DECL_NSIFRAMELOADER_MOZILLA_2_0_BRANCH
   NS_DECL_NSICONTENTVIEWMANAGER
   NS_HIDDEN_(nsresult) CheckForRecursiveLoad(nsIURI* aURI);
   nsresult ReallyStartLoading();

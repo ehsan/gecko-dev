@@ -1271,7 +1271,7 @@ public:
   };
 
   struct SurfaceFromElementResult {
-    SurfaceFromElementResult() : mIsWriteOnly(PR_TRUE), mIsStillLoading(PR_FALSE) {}
+    SurfaceFromElementResult() : mIsStillLoading(PR_FALSE) {}
 
     /* mSurface will contain the resulting surface, or will be NULL on error */
     nsRefPtr<gfxASurface> mSurface;
@@ -1279,13 +1279,11 @@ public:
     gfxIntSize mSize;
     /* The principal associated with the element whose surface was returned */
     nsCOMPtr<nsIPrincipal> mPrincipal;
-    /* The image request, if the element is an nsIImageLoadingContent */
-    nsCOMPtr<imgIRequest> mImageRequest;
     /* Whether the element was "write only", that is, the bits should not be exposed to content */
-    PRPackedBool mIsWriteOnly;
+    PRBool mIsWriteOnly;
     /* Whether the element was still loading.  Some consumers need to handle
        this case specially. */
-    PRPackedBool mIsStillLoading;
+    PRBool mIsStillLoading;
   };
 
   static SurfaceFromElementResult SurfaceFromElement(nsIDOMElement *aElement,

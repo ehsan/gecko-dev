@@ -297,6 +297,7 @@ private:
 
 //-------------------------------------------------------------
 class DocumentViewerImpl : public nsIDocumentViewer,
+                           public nsIContentViewer_MOZILLA_2_0_BRANCH,
                            public nsIContentViewerEdit,
                            public nsIContentViewerFile,
                            public nsIMarkupDocumentViewer_MOZILLA_2_0_BRANCH,
@@ -359,6 +360,8 @@ public:
   // nsIDocumentViewerPrint Printing Methods
   NS_DECL_NSIDOCUMENTVIEWERPRINT
 
+  // nsIContentViewer_MOZILLA_2_0_BRANCH interface...
+  NS_DECL_NSICONTENTVIEWER_MOZILLA_2_0_BRANCH
 protected:
   virtual ~DocumentViewerImpl();
 
@@ -591,6 +594,7 @@ NS_INTERFACE_MAP_BEGIN(DocumentViewerImpl)
 #ifdef NS_PRINTING
     NS_INTERFACE_MAP_ENTRY(nsIWebBrowserPrint)
 #endif
+    NS_INTERFACE_MAP_ENTRY(nsIContentViewer_MOZILLA_2_0_BRANCH)
 NS_INTERFACE_MAP_END
 
 DocumentViewerImpl::~DocumentViewerImpl()

@@ -169,7 +169,7 @@ static PRBool DoneReadingHeaders(nsTArray<nsOggCodecState*>& aBitstreams) {
   return PR_TRUE;
 }
 
-nsresult nsOggReader::ReadMetadata(nsVideoInfo* aInfo)
+nsresult nsOggReader::ReadMetadata()
 {
   NS_ASSERTION(mDecoder->OnStateMachineThread(), "Should be on play state machine thread.");
   MonitorAutoEnter mon(mMonitor);
@@ -352,8 +352,6 @@ nsresult nsOggReader::ReadMetadata(nsVideoInfo* aInfo)
     memcpy(&mTheoraInfo, &mTheoraState->mInfo, sizeof(mTheoraInfo));
     mTheoraSerial = mTheoraState->mSerial;
   }
-
-  *aInfo = mInfo;
 
   LOG(PR_LOG_DEBUG, ("Done loading headers, data offset %lld", mDataOffset));
 
@@ -563,10 +561,6 @@ nsresult nsOggReader::DecodeTheora(nsTArray<nsAutoPtr<VideoData> >& aFrames,
       b.mPlanes[i].mWidth = buffer[i].width;
       b.mPlanes[i].mStride = buffer[i].stride;
     }
-
-    // Need the monitor to be held to be able to use mInfo. This
-    // is held by our caller.
-    mMonitor.AssertCurrentThreadIn();
     VideoData *v = VideoData::Create(mInfo,
                                      mDecoder->GetImageContainer(),
                                      mPageOffset,
@@ -634,7 +628,7 @@ PRBool nsOggReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
         // packets we read subsequently.
         mTheoraGranulepos = packet.granulepos;
       }
-
+    
       if (DecodeTheora(frames, &packet) == NS_ERROR_OUT_OF_MEMORY) {
         NS_WARNING("Theora decode memory allocation failure!");
         return PR_FALSE;
@@ -747,7 +741,6 @@ PRBool nsOggReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
 
     PRInt64 time = mTheoraState->StartTime(mTheoraGranulepos);
     NS_ASSERTION(packet.granulepos != -1, "Must know packet granulepos");
-
     if (!aKeyframeSkip ||
         (th_packet_iskeyframe(&packet) == 1 && time >= aTimeThreshold))
     {
@@ -761,17 +754,13 @@ PRBool nsOggReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
   // Push decoded data into the video frame queue.
   for (PRUint32 i = 0; i < frames.Length(); i++) {
     nsAutoPtr<VideoData> data(frames[i].forget());
-    // Don't use the frame if it's outside the bounds of the presentation
-    // start time in the skeleton track.
-    if (!mSkeletonState || mSkeletonState->IsPresentable(data->mTime)) {
-      if (aKeyframeSkip && data->mKeyframe) {
-        aKeyframeSkip = PR_FALSE;
-      }
- 
-      if (!aKeyframeSkip && data->mEndTime >= aTimeThreshold) {
-        mVideoQueue.Push(data.forget());
-        decoded++;
-      }
+    if (aKeyframeSkip && data->mKeyframe) {
+      aKeyframeSkip = PR_FALSE;
+    }
+
+    if (!aKeyframeSkip && data->mEndTime >= aTimeThreshold) {
+      mVideoQueue.Push(data.forget());
+      decoded++;
     }
   }
 

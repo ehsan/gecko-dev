@@ -1517,8 +1517,6 @@ public:
   // state is unlocked/false.
   virtual nsresult SetImageLockingState(PRBool aLocked) = 0;
 
-  virtual nsresult GetMozCurrentStateObject(nsIVariant** aResult) = 0;
-
 protected:
   ~nsIDocument()
   {

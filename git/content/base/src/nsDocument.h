@@ -517,7 +517,8 @@ class nsDocument : public nsIDocument,
                    public nsIScriptObjectPrincipal,
                    public nsIRadioGroupContainer_MOZILLA_2_0_BRANCH,
                    public nsIApplicationCacheContainer,
-                   public nsStubMutationObserver
+                   public nsStubMutationObserver,
+                   public nsIDOMNSDocument_MOZILLA_2_0_BRANCH
 {
 public:
   typedef mozilla::dom::Element Element;
@@ -813,6 +814,7 @@ public:
 
   // nsIDOMNSDocument
   NS_DECL_NSIDOMNSDOCUMENT
+  NS_DECL_NSIDOMNSDOCUMENT_MOZILLA_2_0_BRANCH
 
   // nsIDOMDocumentEvent
   NS_DECL_NSIDOMDOCUMENTEVENT
@@ -990,8 +992,6 @@ public:
   virtual NS_HIDDEN_(nsresult) AddImage(imgIRequest* aImage);
   virtual NS_HIDDEN_(nsresult) RemoveImage(imgIRequest* aImage);
   virtual NS_HIDDEN_(nsresult) SetImageLockingState(PRBool aLocked);
-
-  virtual nsresult GetMozCurrentStateObject(nsIVariant** aResult);
 
 protected:
   friend class nsNodeUtils;

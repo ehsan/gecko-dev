@@ -269,17 +269,6 @@ nsView::~nsView()
   }
 
   // Destroy and release the widget
-  DestroyWidget();
-
-  delete mDirtyRegion;
-
-  if (mDeletionObserver) {
-    mDeletionObserver->Clear();
-  }
-}
-
-void nsView::DestroyWidget()
-{
   if (mWindow)
   {
     // Release memory for the view wrapper
@@ -302,6 +291,11 @@ void nsView::DestroyWidget()
     }
 
     NS_RELEASE(mWindow);
+  }
+  delete mDirtyRegion;
+
+  if (mDeletionObserver) {
+    mDeletionObserver->Clear();
   }
 }
 
@@ -702,11 +696,6 @@ nsresult nsIView::CreateWidgetForPopup(nsWidgetInitData *aWidgetInitData,
 {
   return Impl()->CreateWidgetForPopup(aWidgetInitData, aParentWidget,
                                       aEnableDragDrop, aResetVisibility);
-}
-
-void nsIView::DestroyWidget()
-{
-  Impl()->DestroyWidget();
 }
 
 struct DefaultWidgetInitData : public nsWidgetInitData {

@@ -90,7 +90,7 @@ public:
     return mTheoraState != 0 && mTheoraState->mActive;
   }
 
-  virtual nsresult ReadMetadata(nsVideoInfo* aInfo);
+  virtual nsresult ReadMetadata();
   virtual nsresult Seek(PRInt64 aTime, PRInt64 aStartTime, PRInt64 aEndTime, PRInt64 aCurrentTime);
   virtual nsresult GetBuffered(nsTimeRanges* aBuffered, PRInt64 aStartTime);
 
@@ -194,8 +194,7 @@ private:
   nsresult DecodeVorbis(nsTArray<nsAutoPtr<SoundData> >& aChunks,
                         ogg_packet* aPacket);
 
-  // May return NS_ERROR_OUT_OF_MEMORY. Caller must have obtained the
-  // reader's monitor.
+  // May return NS_ERROR_OUT_OF_MEMORY.
   nsresult DecodeTheora(nsTArray<nsAutoPtr<VideoData> >& aFrames,
                         ogg_packet* aPacket);
 
