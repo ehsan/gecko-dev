@@ -273,19 +273,7 @@ PendingDBLookup::LookupSpecInternal(const nsACString& aSpec)
   LOG(("Checking DB service for principal %s [this = %p]", mSpec.get(), this));
   nsCOMPtr<nsIUrlClassifierDBService> dbService =
     do_GetService(NS_URLCLASSIFIERDBSERVICE_CONTRACTID, &rv);
-  nsAutoCString tables;
-  nsAutoCString allowlist;
-  Preferences::GetCString(PREF_DOWNLOAD_ALLOW_TABLE, &allowlist);
-  if (!allowlist.IsEmpty()) {
-    tables.Append(allowlist);
-  }
-  nsAutoCString blocklist;
-  Preferences::GetCString(PREF_DOWNLOAD_BLOCK_TABLE, &blocklist);
-  if (!mAllowlistOnly && !blocklist.IsEmpty()) {
-    tables.Append(",");
-    tables.Append(blocklist);
-  }
-  return dbService->Lookup(principal, tables, this);
+  return dbService->Lookup(principal, this);
 }
 
 NS_IMETHODIMP

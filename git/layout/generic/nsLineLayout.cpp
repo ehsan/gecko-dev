@@ -1945,7 +1945,7 @@ nsLineLayout::BlockDirAlignFrames(PerSpanData* psd)
           nscoord parentDescent = fm->MaxDescent();
           if (frameSpan) {
             pfd->mBounds.BStart(lineWM) = baselineBCoord + parentDescent -
-                                          pfd->mBounds.BSize(lineWM) +
+                                          pfd->mBounds.BStart(lineWM) +
                                           pfd->mBorderPadding.BEnd(frameWM) -
                                           frameSpan->mBEndLeading;
           }

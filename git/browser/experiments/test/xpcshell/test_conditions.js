@@ -74,20 +74,6 @@ add_task(function* test_setup() {
   let experiments = new Experiments.Experiments();
 });
 
-function arraysEqual(a, b) {
-  if (a.length !== b.length) {
-    return false;
-  }
-
-  for (let i=0; i<a.length; ++i) {
-    if (a[i] !== b[i]) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
 // This function exists solely to be .toSource()d
 const sanityFilter = function filter(c) {
   if (c.telemetryPayload === undefined) {
@@ -108,18 +94,18 @@ const sanityFilter = function filter(c) {
 add_task(function* test_simpleFields() {
   let testData = [
     // "expected applicable?", failure reason or null, manifest data
-    [false, ["os"], {os: ["42", "abcdef"]}],
+    [false, "os", {os: ["42", "abcdef"]}],
     [true,  null, {os: [gAppInfo.OS, "plan9"]}],
-    [false, ["buildIDs"], {buildIDs: ["not-a-build-id", gAppInfo.platformBuildID + "-invalid"]}],
+    [false, "buildIDs", {buildIDs: ["not-a-build-id", gAppInfo.platformBuildID + "-invalid"]}],
     [true,  null, {buildIDs: ["not-a-build-id", gAppInfo.platformBuildID]}],
     [true,  null, {jsfilter: "function filter(c) { return true; }"}],
-    [false, ["jsfilter-false"], {jsfilter: "function filter(c) { return false; }"}],
+    [false, null, {jsfilter: "function filter(c) { return false; }"}],
     [true,  null, {jsfilter: "function filter(c) { return 123; }"}], // truthy
-    [false, ["jsfilter-false"], {jsfilter: "function filter(c) { return ''; }"}], // falsy
-    [false, ["jsfilter-false"], {jsfilter: "function filter(c) { var a = []; }"}], // undefined
-    [false, ["jsfilter-threw", "some error"], {jsfilter: "function filter(c) { throw new Error('some error'); }"}],
-    [false, ["jsfilter-evalfailed"], {jsfilter: "123, this won't work"}],
-    [true,  null, {jsfilter: "var filter = " + sanityFilter.toSource()}],
+    [false, null, {jsfilter: "function filter(c) { return ''; }"}], // falsy
+    [false, null, {jsfilter: "function filter(c) { var a = []; }"}], // undefined
+    [false, "jsfilter:rejected some error", {jsfilter: "function filter(c) { throw new Error('some error'); }"}],
+    [false, "jsfilter:evalFailure", {jsfilter: "123, this won't work"}],
+    [true,  {jsfilter: "var filter = " + sanityFilter.toSource()}],
   ];
 
   for (let i=0; i<testData.length; ++i) {
@@ -138,13 +124,8 @@ add_task(function* test_simpleFields() {
     Assert.equal(applicable, entry[0],
       "Experiment entry applicability should match for test "
       + i + ": " + JSON.stringify(entry[2]));
-
-    let expectedReason = entry[1];
-    if (!applicable && expectedReason) {
-      Assert.ok(arraysEqual(reason, expectedReason),
-        "Experiment rejection reasons should match for test " + i + ". "
-        + "Got " + JSON.stringify(reason) + ", expected "
-        + JSON.stringify(expectedReason));
+    if (!applicable) {
+      Assert.equal(reason, entry[1], "Experiment rejection reason should match for test " + i);
     }
   }
 });
