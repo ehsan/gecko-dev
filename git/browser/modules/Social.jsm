@@ -262,8 +262,8 @@ this.Social = {
     SocialService.installProvider(doc, data, installCallback);
   },
 
-  uninstallProvider: function(origin, aCallback) {
-    SocialService.uninstallProvider(origin, aCallback);
+  uninstallProvider: function(origin) {
+    SocialService.uninstallProvider(origin);
   },
 
   // Activation functionality

@@ -1333,13 +1333,11 @@ class XPCShellTests(object):
                     break
                 test.start()
                 test.join()
-                self.addTestResults(test)
                 # did the test encounter any exception?
                 if test.exception:
-                    exceptions.append(test.exception)
-                    tracebacks.append(test.traceback)
-                    break
+                    raise test.exception
                 keep_going = test.keep_going
+                self.addTestResults(test)
 
         # restore default SIGINT behaviour
         signal.signal(signal.SIGINT, signal.SIG_DFL)

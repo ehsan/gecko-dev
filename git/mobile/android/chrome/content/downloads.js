@@ -11,8 +11,6 @@ function dump(a) {
 
 const URI_GENERIC_ICON_DOWNLOAD = "drawable://alert_download";
 
-XPCOMUtils.defineLazyModuleGetter(this, "OS", "resource://gre/modules/osfile.jsm");
-
 var Downloads = {
   _initialized: false,
   _dlmgr: null,
@@ -56,8 +54,8 @@ var Downloads = {
     
     let fileURI = aDownload.target.spec;
     let f = this._getLocalFile(fileURI);
-
-    OS.File.remove(f.path);
+    if (f.exists())
+      f.remove(false);
   },
 
   showAlert: function dl_showAlert(aDownload, aMessage, aTitle, aIcon) { 

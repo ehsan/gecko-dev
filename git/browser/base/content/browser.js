@@ -3886,7 +3886,8 @@ var XULBrowserWindow = {
       if (this.hideChromeForLocation(location)) {
         document.documentElement.setAttribute("disablechrome", "true");
       } else {
-        if (SessionStore.getTabValue(gBrowser.selectedTab, "appOrigin"))
+        let ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
+        if (ss.getTabValue(gBrowser.selectedTab, "appOrigin"))
           document.documentElement.setAttribute("disablechrome", "true");
         else
           document.documentElement.removeAttribute("disablechrome");
@@ -6230,7 +6231,7 @@ function convertFromUnicode(charset, str)
 /**
  * Re-open a closed tab.
  * @param aIndex
- *        The index of the tab (via SessionStore.getClosedTabData)
+ *        The index of the tab (via nsSessionStore.getClosedTabData)
  * @returns a reference to the reopened tab.
  */
 function undoCloseTab(aIndex) {
@@ -6239,15 +6240,17 @@ function undoCloseTab(aIndex) {
   if (gBrowser.tabs.length == 1 && isTabEmpty(gBrowser.selectedTab))
     blankTabToRemove = gBrowser.selectedTab;
 
+  var ss = Cc["@mozilla.org/browser/sessionstore;1"].
+           getService(Ci.nsISessionStore);
   let numberOfTabsToUndoClose = 0;
   let index = Number(aIndex);
 
 
   if (isNaN(index)) {
     index = 0;
-    numberOfTabsToUndoClose = SessionStore.getNumberOfTabsClosedLast(window);
+    numberOfTabsToUndoClose = ss.getNumberOfTabsClosedLast(window);
   } else {
-    if (0 > index || index >= SessionStore.getClosedTabCount(window))
+    if (0 > index || index >= ss.getClosedTabCount(window))
       return null;
     numberOfTabsToUndoClose = 1;
   }
@@ -6256,7 +6259,7 @@ function undoCloseTab(aIndex) {
   while (numberOfTabsToUndoClose > 0 &&
          numberOfTabsToUndoClose--) {
     TabView.prepareUndoCloseTab(blankTabToRemove);
-    tab = SessionStore.undoCloseTab(window, index);
+    tab = ss.undoCloseTab(window, index);
     TabView.afterUndoCloseTab();
     if (blankTabToRemove) {
       gBrowser.removeTab(blankTabToRemove);
@@ -6265,20 +6268,22 @@ function undoCloseTab(aIndex) {
   }
 
   // Reset the number of tabs closed last time to the default.
-  SessionStore.setNumberOfTabsClosedLast(window, 1);
+  ss.setNumberOfTabsClosedLast(window, 1);
   return tab;
 }
 
 /**
  * Re-open a closed window.
  * @param aIndex
- *        The index of the window (via SessionStore.getClosedWindowData)
+ *        The index of the window (via nsSessionStore.getClosedWindowData)
  * @returns a reference to the reopened window.
  */
 function undoCloseWindow(aIndex) {
+  let ss = Cc["@mozilla.org/browser/sessionstore;1"].
+           getService(Ci.nsISessionStore);
   let window = null;
-  if (SessionStore.getClosedWindowCount() > (aIndex || 0))
-    window = SessionStore.undoCloseWindow(aIndex || 0);
+  if (ss.getClosedWindowCount() > (aIndex || 0))
+    window = ss.undoCloseWindow(aIndex || 0);
 
   return window;
 }
@@ -7031,7 +7036,9 @@ function switchToTabHavingURI(aURI, aOpenNew) {
 }
 
 function restoreLastSession() {
-  SessionStore.restoreLastSession();
+  let ss = Cc["@mozilla.org/browser/sessionstore;1"].
+           getService(Ci.nsISessionStore);
+  ss.restoreLastSession();
 }
 
 var TabContextMenu = {
@@ -7055,8 +7062,10 @@ var TabContextMenu = {
       menuItem.disabled = disabled;
 
     // Session store
+    let ss = Cc["@mozilla.org/browser/sessionstore;1"].
+               getService(Ci.nsISessionStore);
     let undoCloseTabElement = document.getElementById("context_undoCloseTab");
-    let closedTabCount = SessionStore.getNumberOfTabsClosedLast(window);
+    let closedTabCount = ss.getNumberOfTabsClosedLast(window);
     undoCloseTabElement.disabled = closedTabCount == 0;
     // Change the label of "Undo Close Tab" to specify if it will undo a batch-close
     // or a single close.
@@ -7140,7 +7149,9 @@ function safeModeRestart()
  * delta is the offset to the history entry that you want to load.
  */
 function duplicateTabIn(aTab, where, delta) {
-  let newTab = SessionStore.duplicateTab(window, aTab, delta);
+  let newTab = Cc['@mozilla.org/browser/sessionstore;1']
+                 .getService(Ci.nsISessionStore)
+                 .duplicateTab(window, aTab, delta);
 
   switch (where) {
     case "window":
