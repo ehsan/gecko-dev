@@ -3240,6 +3240,11 @@ js_GC(JSContext *cx, JSGCInvocationKind gckind)
 
     JS_UNLOCK_GC(rt);
 
+#ifdef JS_TRACER
+    if (JS_ON_TRACE(cx))
+        goto out;
+#endif
+
     /* Reset malloc counter. */
     rt->gcMallocBytes = 0;
 
@@ -3545,6 +3550,9 @@ js_GC(JSContext *cx, JSGCInvocationKind gckind)
   }
 #endif /* JS_DUMP_LOOP_STATS */
 
+#ifdef JS_TRACER
+out:
+#endif
     JS_LOCK_GC(rt);
 
     /*
