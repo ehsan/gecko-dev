@@ -61,10 +61,6 @@ ifeq (sparc,$(TARGET_CPU))
 nanojit_cpu_cxxsrc := NativeSparc.cpp
 endif
 
-ifeq (mips,$(TARGET_CPU))
-nanojit_cpu_cxxsrc := NativeMIPS.cpp
-endif
-
 avmplus_CXXSRCS := $(avmplus_CXXSRCS) \
   $(curdir)/Allocator.cpp \
   $(curdir)/Assembler.cpp \

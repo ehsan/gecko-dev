@@ -54,8 +54,6 @@
     #define NANOJIT_SPARC
 #elif defined AVMPLUS_AMD64
     #define NANOJIT_X64
-#elif defined AVMPLUS_MIPS
-    #define NANOJIT_MIPS
 #else
     #error "unknown nanojit architecture"
 #endif
