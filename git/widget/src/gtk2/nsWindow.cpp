@@ -720,6 +720,8 @@ nsWindow::Destroy(void)
     }
     mLayerManager = nsnull;
 
+    ClearCachedResources();
+
     g_signal_handlers_disconnect_by_func(gtk_settings_get_default(),
                                          FuncToGpointer(theme_changed_cb),
                                          this);
@@ -1036,6 +1038,11 @@ nsWindow::Show(PRBool aState)
 {
     if (aState == mIsShown)
         return NS_OK;
+
+    // Clear our cached resources when the window is hidden.
+    if (mIsShown && !aState) {
+        ClearCachedResources();
+    }
 
     mIsShown = aState;
 
@@ -6269,13 +6276,15 @@ get_inner_gdk_window (GdkWindow *aWindow,
         GList * child = g_list_nth(children, num - i - 1) ;
         if (child) {
             GdkWindow * childWindow = (GdkWindow *) child->data;
-            gdk_window_get_geometry (childWindow, &cx, &cy, &cw, &ch, &cd);
-            if ((cx < x) && (x < (cx + cw)) &&
-                (cy < y) && (y < (cy + ch)) &&
-                gdk_window_is_visible (childWindow)) {
-                return get_inner_gdk_window (childWindow,
-                                             x - cx, y - cy,
-                                             retx, rety);
+            if (get_window_for_gdk_window(childWindow)) {
+                gdk_window_get_geometry (childWindow, &cx, &cy, &cw, &ch, &cd);
+                if ((cx < x) && (x < (cx + cw)) &&
+                    (cy < y) && (y < (cy + ch)) &&
+                    gdk_window_is_visible (childWindow)) {
+                    return get_inner_gdk_window (childWindow,
+                                                 x - cx, y - cy,
+                                                 retx, rety);
+                }
             }
         }
     }
@@ -6743,4 +6752,22 @@ nsWindow::BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVert
                                  screenX, screenY, aEvent->time);
 
     return NS_OK;
+}
+
+void
+nsWindow::ClearCachedResources()
+{
+    if (mLayerManager &&
+        mLayerManager->GetBackendType() == LayerManager::LAYERS_BASIC) {
+        static_cast<BasicLayerManager*> (mLayerManager.get())->
+            ClearCachedResources();
+    }
+
+    GList* children = gdk_window_peek_children(mGdkWindow);
+    for (GList* list = children; list; list = list->next) {
+        nsWindow* window = get_window_for_gdk_window(GDK_WINDOW(list->data));
+        if (window) {
+            window->ClearCachedResources();
+        }
+    }
 }
