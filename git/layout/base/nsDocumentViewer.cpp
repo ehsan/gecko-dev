@@ -398,6 +398,9 @@ private:
 
   nsresult GetDocumentSelection(nsISelection **aSelection);
 
+  nsresult GetClipboardEventTarget(nsIDOMNode **aEventTarget);
+  nsresult FireClipboardEvent(PRUint32 msg, PRBool* aPreventDefault);
+
   void DestroyPresShell();
 
 #ifdef NS_PRINTING
@@ -428,7 +431,7 @@ protected:
   nsCOMPtr<nsIDocument>    mDocument;
   nsCOMPtr<nsIWidget>      mWindow;      // may be null
   nsCOMPtr<nsIViewManager> mViewManager;
-  nsRefPtr<nsPresContext>  mPresContext;
+  nsCOMPtr<nsPresContext> mPresContext;
   nsCOMPtr<nsIPresShell>   mPresShell;
 
   nsCOMPtr<nsISelectionListener> mSelectionListener;
@@ -943,12 +946,9 @@ DocumentViewerImpl::InitInternal(nsIWidget* aParentWidget,
                               getter_AddRefs(window));
 
       if (window) {
-        nsCOMPtr<nsIDocument> curDoc =
-          do_QueryInterface(window->GetExtantDocument());
-        if (!mIsPageMode || curDoc != mDocument) {
-          window->SetNewDocument(mDocument, aState);
-          nsJSContext::LoadStart();
-        }
+        window->SetNewDocument(mDocument, aState);
+
+        nsJSContext::LoadStart();
       }
     }
   }
@@ -1086,7 +1086,7 @@ DocumentViewerImpl::LoadComplete(nsresult aStatus)
   }
 #endif
 
-  if (!mStopped && window) {
+  if (!mStopped) {
     window->DispatchSyncPopState();
   }
 
@@ -1277,7 +1277,7 @@ DocumentViewerImpl::PageHide(PRBool aIsUnload)
 
     if (!window) {
       // Fail if no window is available...
-      NS_WARNING("window not set for document!");
+      NS_ERROR("window not set for document!");
       return NS_ERROR_NULL_POINTER;
     }
 
@@ -1315,7 +1315,7 @@ AttachContainerRecurse(nsIDocShell* aShell)
     if (doc) {
       doc->SetContainer(aShell);
     }
-    nsRefPtr<nsPresContext> pc;
+    nsCOMPtr<nsPresContext> pc;
     docViewer->GetPresContext(getter_AddRefs(pc));
     if (pc) {
       pc->SetContainer(aShell);
@@ -1443,7 +1443,7 @@ DetachContainerRecurse(nsIDocShell *aShell)
     if (doc) {
       doc->SetContainer(nsnull);
     }
-    nsRefPtr<nsPresContext> pc;
+    nsCOMPtr<nsPresContext> pc;
     docViewer->GetPresContext(getter_AddRefs(pc));
     if (pc) {
       pc->SetContainer(nsnull);
@@ -2371,7 +2371,7 @@ DocumentViewerImpl::FindContainerView()
 nsresult
 DocumentViewerImpl::CreateDeviceContext(nsIView* aContainerView)
 {
-  NS_PRECONDITION(!mPresShell && !mWindow,
+  NS_PRECONDITION(!mPresShell && !mPresContext && !mWindow,
                   "This will screw up our existing presentation");
   NS_PRECONDITION(mDocument, "Gotta have a document here");
   
@@ -2410,7 +2410,8 @@ DocumentViewerImpl::CreateDeviceContext(nsIView* aContainerView)
 }
 
 // Return the selection for the document. Note that text fields have their
-// own selection, which cannot be accessed with this method.
+// own selection, which cannot be accessed with this method. Use
+// mPresShell->GetSelectionForCopy() instead.
 nsresult DocumentViewerImpl::GetDocumentSelection(nsISelection **aSelection)
 {
   NS_ENSURE_ARG_POINTER(aSelection);
@@ -2430,12 +2431,25 @@ nsresult DocumentViewerImpl::GetDocumentSelection(nsISelection **aSelection)
  * nsIContentViewerEdit
  * ======================================================================================== */
 
+NS_IMETHODIMP DocumentViewerImpl::Search()
+{
+  // Nothing to do here.
+  return NS_OK;
+}
+
+NS_IMETHODIMP DocumentViewerImpl::GetSearchable(PRBool *aSearchable)
+{
+  // Nothing to do here.
+  *aSearchable = PR_FALSE;
+  return NS_OK;
+}
+
 NS_IMETHODIMP DocumentViewerImpl::ClearSelection()
 {
   nsresult rv;
   nsCOMPtr<nsISelection> selection;
 
-  // use nsCopySupport::GetSelectionForCopy() ?
+  // use mPresShell->GetSelectionForCopy() ?
   rv = GetDocumentSelection(getter_AddRefs(selection));
   if (NS_FAILED(rv)) return rv;
 
@@ -2450,7 +2464,7 @@ NS_IMETHODIMP DocumentViewerImpl::SelectAll()
   nsCOMPtr<nsISelection> selection;
   nsresult rv;
 
-  // use nsCopySupport::GetSelectionForCopy() ?
+  // use mPresShell->GetSelectionForCopy() ?
   rv = GetDocumentSelection(getter_AddRefs(selection));
   if (NS_FAILED(rv)) return rv;
 
@@ -2480,8 +2494,12 @@ NS_IMETHODIMP DocumentViewerImpl::SelectAll()
 
 NS_IMETHODIMP DocumentViewerImpl::CopySelection()
 {
-  nsCopySupport::FireClipboardEvent(NS_COPY, mPresShell, nsnull);
-  return NS_OK;
+  PRBool preventDefault;
+  nsresult rv = FireClipboardEvent(NS_COPY, &preventDefault);
+  if (NS_FAILED(rv) || preventDefault)
+    return rv;
+
+  return mPresShell->DoCopy();
 }
 
 NS_IMETHODIMP DocumentViewerImpl::CopyLinkLocation()
@@ -2514,47 +2532,118 @@ NS_IMETHODIMP DocumentViewerImpl::CopyImage(PRInt32 aCopyFlags)
   return nsCopySupport::ImageCopy(node, aCopyFlags);
 }
 
+nsresult DocumentViewerImpl::GetClipboardEventTarget(nsIDOMNode** aEventTarget)
+{
+  NS_ENSURE_ARG_POINTER(aEventTarget);
+  *aEventTarget = nsnull;
+
+  if (!mPresShell)
+    return NS_ERROR_NOT_INITIALIZED;
+
+  nsCOMPtr<nsISelection> sel;
+  nsresult rv = mPresShell->GetSelectionForCopy(getter_AddRefs(sel));
+  if (NS_FAILED(rv))
+    return rv;
+  if (!sel)
+    return NS_ERROR_FAILURE;
+
+  return nsCopySupport::GetClipboardEventTarget(sel, aEventTarget);
+}
+
+nsresult DocumentViewerImpl::FireClipboardEvent(PRUint32 msg,
+                                                PRBool* aPreventDefault)
+{
+  *aPreventDefault = PR_FALSE;
+
+  NS_ENSURE_TRUE(mPresContext, NS_ERROR_NOT_INITIALIZED);
+  NS_ENSURE_TRUE(mPresShell, NS_ERROR_NOT_INITIALIZED);
+
+  // It seems to be unsafe to fire an event handler during reflow (bug 393696)
+  PRBool isReflowing = PR_TRUE;
+  nsresult rv = mPresShell->IsReflowLocked(&isReflowing);
+  if (NS_FAILED(rv) || isReflowing)
+    return NS_OK;
+
+  nsCOMPtr<nsIDOMNode> eventTarget;
+  rv = GetClipboardEventTarget(getter_AddRefs(eventTarget));
+  if (NS_FAILED(rv))
+    // On failure to get event target, just forget about it and don't fire.
+    return NS_OK;
+
+  nsEventStatus status = nsEventStatus_eIgnore;
+  nsEvent evt(PR_TRUE, msg);
+  nsEventDispatcher::Dispatch(eventTarget, mPresContext, &evt, nsnull,
+                              &status);
+  // if event handler return'd false (PreventDefault)
+  if (status == nsEventStatus_eConsumeNoDefault)
+    *aPreventDefault = PR_TRUE;
+
+  // Ensure that the calling function can use mPresShell -- if the event
+  // handler closed this window, mPresShell will be gone.
+  NS_ENSURE_STATE(mPresShell);
+
+  return NS_OK;
+}
 
 NS_IMETHODIMP DocumentViewerImpl::GetCopyable(PRBool *aCopyable)
 {
   NS_ENSURE_ARG_POINTER(aCopyable);
-  *aCopyable = nsCopySupport::CanCopy(mDocument);
+  *aCopyable = PR_FALSE;
+
+  NS_ENSURE_STATE(mPresShell);
+  nsCOMPtr<nsISelection> selection;
+  nsresult rv = mPresShell->GetSelectionForCopy(getter_AddRefs(selection));
+  if (NS_FAILED(rv))
+    return rv;
+
+  PRBool isCollapsed;
+  selection->GetIsCollapsed(&isCollapsed);
+
+  *aCopyable = !isCollapsed;
+  return NS_OK;
+}
+
+NS_IMETHODIMP DocumentViewerImpl::CutSelection()
+{
+  // preventDefault's value is ignored because cut from the document has no
+  // default behaviour.
+  PRBool preventDefault;
+  return FireClipboardEvent(NS_CUT, &preventDefault);
+}
+
+NS_IMETHODIMP DocumentViewerImpl::GetCutable(PRBool *aCutable)
+{
+  NS_ENSURE_ARG_POINTER(aCutable);
+  *aCutable = PR_FALSE;
+  return NS_OK;
+}
+
+NS_IMETHODIMP DocumentViewerImpl::Paste()
+{
+  // preventDefault's value is ignored because paste into the document has no
+  // default behaviour.
+  PRBool preventDefault;
+  return FireClipboardEvent(NS_PASTE, &preventDefault);
+}
+
+NS_IMETHODIMP DocumentViewerImpl::GetPasteable(PRBool *aPasteable)
+{
+  NS_ENSURE_ARG_POINTER(aPasteable);
+  *aPasteable = PR_FALSE;
   return NS_OK;
 }
 
 /* AString getContents (in string mimeType, in boolean selectionOnly); */
 NS_IMETHODIMP DocumentViewerImpl::GetContents(const char *mimeType, PRBool selectionOnly, nsAString& aOutValue)
 {
-  aOutValue.Truncate();
-
   NS_ENSURE_TRUE(mPresShell, NS_ERROR_NOT_INITIALIZED);
-  NS_ENSURE_TRUE(mDocument, NS_ERROR_NOT_INITIALIZED);
-
-  // Now we have the selection.  Make sure it's nonzero:
-  nsCOMPtr<nsISelection> sel;
-  if (selectionOnly) {
-    nsCopySupport::GetSelectionForCopy(mDocument, getter_AddRefs(sel));
-    NS_ENSURE_TRUE(sel, NS_ERROR_FAILURE);
-  
-    PRBool isCollapsed;
-    sel->GetIsCollapsed(&isCollapsed);
-    if (isCollapsed)
-      return NS_OK;
-  }
-
-  // call the copy code
-  return nsCopySupport::GetContents(nsDependentCString(mimeType), 0, sel,
-                                    mDocument, aOutValue);
+  return mPresShell->DoGetContents(nsDependentCString(mimeType), 0, selectionOnly, aOutValue);
 }
 
 /* readonly attribute boolean canGetContents; */
 NS_IMETHODIMP DocumentViewerImpl::GetCanGetContents(PRBool *aCanGetContents)
 {
-  NS_ENSURE_ARG_POINTER(aCanGetContents);
-  *aCanGetContents = PR_FALSE;
-  NS_ENSURE_STATE(mDocument);
-  *aCanGetContents = nsCopySupport::CanCopy(mDocument);
-  return NS_OK;
+  return GetCopyable(aCanGetContents);
 }
 
 #ifdef XP_MAC
@@ -2790,7 +2879,8 @@ DocumentViewerImpl::SetFullZoom(float aFullZoom)
 
     mPrintPreviewZoom = aFullZoom;
     pc->SetPrintPreviewScale(aFullZoom * mOriginalPrintPreviewScale);
-    nsIPageSequenceFrame* pf = shell->GetPageSequenceFrame();
+    nsIPageSequenceFrame* pf = nsnull;
+    shell->GetPageSequenceFrame(&pf);
     if (pf) {
       nsIFrame* f = do_QueryFrame(pf);
       shell->FrameNeedsReflow(f, nsIPresShell::eResize, NS_FRAME_IS_DIRTY);
@@ -3181,7 +3271,7 @@ NS_IMETHODIMP DocumentViewerImpl::SizeToContent()
   nsresult rv = presShell->ResizeReflow(prefWidth, NS_UNCONSTRAINEDSIZE);
   NS_ENSURE_SUCCESS(rv, rv);
 
-   nsRefPtr<nsPresContext> presContext;
+   nsCOMPtr<nsPresContext> presContext;
    GetPresContext(getter_AddRefs(presContext));
    NS_ENSURE_TRUE(presContext, NS_ERROR_FAILURE);
 

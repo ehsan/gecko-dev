@@ -65,12 +65,7 @@ namespace nanojit
 // only d0-d6 are actually used; we'll use d7 as s14-s15 for i2f/u2f/etc.
 #define NJ_VFP_MAX_REGISTERS            8
 #define NJ_MAX_REGISTERS                (11 + NJ_VFP_MAX_REGISTERS)
-
-// fixme: bug 556175: this cant be over 1024, because
-// the ARM backend cannot support more than 12-bit displacements
-// in a single load/store instruction, for spilling.  see asm_spill().
-#define NJ_MAX_STACK_ENTRY              1024
-
+#define NJ_MAX_STACK_ENTRY              256
 #define NJ_MAX_PARAMETERS               16
 #define NJ_ALIGN_STACK                  8
 
@@ -126,7 +121,7 @@ typedef enum {
 
     FirstReg = R0,
     LastReg = D6,
-    deprecated_UnknownReg = 32,     // XXX: remove eventually, see bug 538924
+    deprecated_UnknownReg = 32,
 
     S14 = 24
 } Register;
@@ -224,15 +219,15 @@ verbose_only( extern const char* shiftNames[]; )
     void        underrunProtect(int bytes);                                     \
     void        nativePageReset();                                              \
     void        nativePageSetup();                                              \
-    void        asm_immf_nochk(Register, int32_t, int32_t);                     \
-    void        asm_regarg(ArgType, LInsp, Register);                           \
+    void        asm_quad_nochk(Register, int32_t, int32_t);                     \
+    void        asm_regarg(ArgSize, LInsp, Register);                           \
     void        asm_stkarg(LInsp p, int stkd);                                  \
     void        asm_cmpi(Register, int32_t imm);                                \
     void        asm_ldr_chk(Register d, Register b, int32_t off, bool chk);     \
     void        asm_cmp(LIns *cond);                                            \
     void        asm_fcmp(LIns *cond);                                           \
     void        asm_ld_imm(Register d, int32_t imm, bool chk = true);           \
-    void        asm_arg(ArgType ty, LInsp arg, Register& r, int& stkd);         \
+    void        asm_arg(ArgSize sz, LInsp arg, Register& r, int& stkd);         \
     void        asm_arg_64(LInsp arg, Register& r, int& stkd);                  \
     void        asm_add_imm(Register rd, Register rn, int32_t imm, int stat = 0);   \
     void        asm_sub_imm(Register rd, Register rn, int32_t imm, int stat = 0);   \

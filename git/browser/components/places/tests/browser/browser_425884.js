@@ -118,12 +118,12 @@ function populate(aFolderId) {
 }
 
 function validate(aNode) {
-  PlacesUtils.asContainer(aNode);
+  asContainer(aNode);
   aNode.containerOpen = true;
   is(aNode.childCount, 1, "confirm child count match");
   var folderNode = aNode.getChild(0);
   is(folderNode.title, "test folder", "confirm folder title");
-  PlacesUtils.asContainer(folderNode);
+  asContainer(folderNode);
   folderNode.containerOpen = true;
   is(folderNode.childCount, 2, "confirm child count match");
   var bookmarkNode = folderNode.getChild(0);

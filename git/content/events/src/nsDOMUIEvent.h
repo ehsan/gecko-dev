@@ -42,11 +42,13 @@
 #include "nsIDOMUIEvent.h"
 #include "nsIDOMNSUIEvent.h"
 #include "nsIDOMAbstractView.h"
+#include "nsIPrivateCompositionEvent.h"
 #include "nsDOMEvent.h"
 
 class nsDOMUIEvent : public nsDOMEvent,
                      public nsIDOMUIEvent,
-                     public nsIDOMNSUIEvent
+                     public nsIDOMNSUIEvent,
+                     public nsIPrivateCompositionEvent
 {
 public:
   nsDOMUIEvent(nsPresContext* aPresContext, nsGUIEvent* aEvent);
@@ -66,6 +68,8 @@ public:
   virtual void Serialize(IPC::Message* aMsg, PRBool aSerializeInterfaceType);
   virtual PRBool Deserialize(const IPC::Message* aMsg, void** aIter);
 #endif
+  // nsIPrivateCompositionEvent interface
+  NS_IMETHOD GetCompositionReply(nsTextEventReply** aReply);
   
   // Forward to nsDOMEvent
   NS_FORWARD_TO_NSDOMEVENT

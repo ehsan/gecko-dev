@@ -73,10 +73,6 @@ public:
         return mGlobalHolder.ToJSObject();
     }
 
-    JSContext* GetContext() {
-        return mCx;
-    }
-
     void SetExitCode(int aExitCode) {
         mExitCode = aExitCode;
     }

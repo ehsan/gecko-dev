@@ -249,15 +249,13 @@ struct nsCSSSelectorList {
   ~nsCSSSelectorList(void);
 
   /**
-   * Create a new selector and push it onto the beginning of |mSelectors|,
-   * setting its |mNext| to the current value of |mSelectors|.  If there is an
-   * earlier selector, set its |mOperator| to |aOperator|; else |aOperator|
-   * must be PRUnichar(0).
-   * Returns the new selector.
-   * The list owns the new selector.
+   * Push the selector pointed to by |aSelector| on to the beginning of
+   * |mSelectors|, setting its |mNext| to the current value of |mSelectors|.
+   * This nulls out aSelector.
+   *
    * The caller is responsible for updating |mWeight|.
    */
-  nsCSSSelector* AddSelector(PRUnichar aOperator);
+  void AddSelector(nsAutoPtr<nsCSSSelector>& aSelector);
 
   /**
    * Should be used only on the first in the list

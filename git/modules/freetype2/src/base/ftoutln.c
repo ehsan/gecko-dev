@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    FreeType outline management (body).                                  */
 /*                                                                         */
-/*  Copyright 1996-2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2010 by */
+/*  Copyright 1996-2001, 2002, 2003, 2004, 2005, 2006, 2007 by             */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -26,7 +26,6 @@
 #include <ft2build.h>
 #include FT_OUTLINE_H
 #include FT_INTERNAL_OBJECTS_H
-#include FT_INTERNAL_DEBUG_H
 #include FT_TRIGONOMETRY_H
 
 
@@ -84,25 +83,21 @@
       FT_Int  last;  /* index of last point in contour */
 
 
-      FT_TRACE5(( "FT_Outline_Decompose: Outline %d\n", n ));
-
       last = outline->contours[n];
       if ( last < 0 )
         goto Invalid_Outline;
       limit = outline->points + last;
 
-      v_start   = outline->points[first];
-      v_start.x = SCALED( v_start.x );
-      v_start.y = SCALED( v_start.y );
+      v_start = outline->points[first];
+      v_last  = outline->points[last];
 
-      v_last   = outline->points[last];
-      v_last.x = SCALED( v_last.x );
-      v_last.y = SCALED( v_last.y );
+      v_start.x = SCALED( v_start.x ); v_start.y = SCALED( v_start.y );
+      v_last.x  = SCALED( v_last.x );  v_last.y  = SCALED( v_last.y );
 
       v_control = v_start;
 
       point = outline->points + first;
-      tags  = outline->tags   + first;
+      tags  = outline->tags  + first;
       tag   = FT_CURVE_TAG( tags[0] );
 
       /* A contour cannot start with a cubic control point! */
@@ -133,8 +128,6 @@
         tags--;
       }
 
-      FT_TRACE5(( "  move to (%.2f, %.2f)\n",
-                  v_start.x / 64.0, v_start.y / 64.0 ));
       error = func_interface->move_to( &v_start, user );
       if ( error )
         goto Exit;
@@ -155,8 +148,6 @@
             vec.x = SCALED( point->x );
             vec.y = SCALED( point->y );
 
-            FT_TRACE5(( "  line to (%.2f, %.2f)\n",
-                        vec.x / 64.0, vec.y / 64.0 ));
             error = func_interface->line_to( &vec, user );
             if ( error )
               goto Exit;
@@ -183,10 +174,6 @@
 
             if ( tag == FT_CURVE_TAG_ON )
             {
-              FT_TRACE5(( "  conic to (%.2f, %.2f)"
-                          " with control (%.2f, %.2f)\n",
-                          vec.x / 64.0, vec.y / 64.0,
-                          v_control.x / 64.0, v_control.y / 64.0 ));
               error = func_interface->conic_to( &v_control, &vec, user );
               if ( error )
                 goto Exit;
@@ -199,10 +186,6 @@
             v_middle.x = ( v_control.x + vec.x ) / 2;
             v_middle.y = ( v_control.y + vec.y ) / 2;
 
-            FT_TRACE5(( "  conic to (%.2f, %.2f)"
-                        " with control (%.2f, %.2f)\n",
-                        v_middle.x / 64.0, v_middle.y / 64.0,
-                        v_control.x / 64.0, v_control.y / 64.0 ));
             error = func_interface->conic_to( &v_control, &v_middle, user );
             if ( error )
               goto Exit;
@@ -211,10 +194,6 @@
             goto Do_Conic;
           }
 
-          FT_TRACE5(( "  conic to (%.2f, %.2f)"
-                      " with control (%.2f, %.2f)\n",
-                      v_start.x / 64.0, v_start.y / 64.0,
-                      v_control.x / 64.0, v_control.y / 64.0 ));
           error = func_interface->conic_to( &v_control, &v_start, user );
           goto Close;
 
@@ -230,11 +209,8 @@
             point += 2;
             tags  += 2;
 
-            vec1.x = SCALED( point[-2].x );
-            vec1.y = SCALED( point[-2].y );
-
-            vec2.x = SCALED( point[-1].x );
-            vec2.y = SCALED( point[-1].y );
+            vec1.x = SCALED( point[-2].x ); vec1.y = SCALED( point[-2].y );
+            vec2.x = SCALED( point[-1].x ); vec2.y = SCALED( point[-1].y );
 
             if ( point <= limit )
             {
@@ -244,22 +220,12 @@
               vec.x = SCALED( point->x );
               vec.y = SCALED( point->y );
 
-              FT_TRACE5(( "  cubic to (%.2f, %.2f)"
-                          " with controls (%.2f, %.2f) and (%.2f, %.2f)\n",
-                          vec.x / 64.0, vec.y / 64.0,
-                          vec1.x / 64.0, vec1.y / 64.0,
-                          vec2.x / 64.0, vec2.y / 64.0 ));
               error = func_interface->cubic_to( &vec1, &vec2, &vec, user );
               if ( error )
                 goto Exit;
               continue;
             }
 
-            FT_TRACE5(( "  cubic to (%.2f, %.2f)"
-                        " with controls (%.2f, %.2f) and (%.2f, %.2f)\n",
-                        v_start.x / 64.0, v_start.y / 64.0,
-                        vec1.x / 64.0, vec1.y / 64.0,
-                        vec2.x / 64.0, vec2.y / 64.0 ));
             error = func_interface->cubic_to( &vec1, &vec2, &v_start, user );
             goto Close;
           }
@@ -267,8 +233,6 @@
       }
 
       /* close the contour with a line segment */
-      FT_TRACE5(( "  line to (%.2f, %.2f)\n",
-                  v_start.x / 64.0, v_start.y / 64.0 ));
       error = func_interface->line_to( &v_start, user );
 
     Close:
@@ -278,11 +242,9 @@
       first = last + 1;
     }
 
-    FT_TRACE5(( "FT_Outline_Decompose: Done\n", n ));
-    return FT_Err_Ok;
+    return 0;
 
   Exit:
-    FT_TRACE5(( "FT_Outline_Decompose: Error %d\n", error ));
     return error;
 
   Invalid_Outline:
@@ -304,9 +266,9 @@
 
     *anoutline = null_outline;
 
-    if ( FT_NEW_ARRAY( anoutline->points,   numPoints   ) ||
-         FT_NEW_ARRAY( anoutline->tags,     numPoints   ) ||
-         FT_NEW_ARRAY( anoutline->contours, numContours ) )
+    if ( FT_NEW_ARRAY( anoutline->points,   numPoints * 2L ) ||
+         FT_NEW_ARRAY( anoutline->tags,     numPoints      ) ||
+         FT_NEW_ARRAY( anoutline->contours, numContours    ) )
       goto Fail;
 
     anoutline->n_points    = (FT_UShort)numPoints;
@@ -596,7 +558,7 @@
                      FT_Raster_Params*  params )
   {
     FT_Error     error;
-    FT_Bool      update = FALSE;
+    FT_Bool      update = 0;
     FT_Renderer  renderer;
     FT_ListNode  node;
 
@@ -627,7 +589,7 @@
       /* format                                                */
       renderer = FT_Lookup_Renderer( library, FT_GLYPH_FORMAT_OUTLINE,
                                      &node );
-      update   = TRUE;
+      update   = 1;
     }
 
     /* if we changed the current renderer for the glyph image format */
@@ -1045,7 +1007,7 @@
       }
     }
 
-    if ( xmin == 32768L )
+    if ( xmin == 32768 )
       return FT_ORIENTATION_TRUETYPE;
 
     ray_y[0] = ( xmin_ymin * 3 + xmin_ymax     ) >> 2;

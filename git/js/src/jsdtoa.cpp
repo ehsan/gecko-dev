@@ -44,12 +44,15 @@
 #include "jsstdint.h"
 #include "jsdtoa.h"
 #include "jsprf.h"
-#include "jsapi.h"
+#include "jsutil.h" /* Added by JSIFY */
 #include "jsprvtd.h"
 #include "jsnum.h"
 #include "jsbit.h"
 #include "jslibmath.h"
-#include "jscntxt.h"
+
+#ifdef JS_THREADSAFE
+#include "jslock.h"
+#endif
 
 #ifdef IS_LITTLE_ENDIAN
 #define IEEE_8087
@@ -75,10 +78,45 @@
 #endif
 */
 
-#define NO_GLOBAL_STATE
-#define MALLOC js_malloc
-#define FREE js_free
+#ifdef JS_THREADSAFE
+static PRLock *dtoalock;
+static JSBool _dtoainited = JS_FALSE;
+
+#define LOCK_DTOA() PR_Lock(dtoalock);
+#define UNLOCK_DTOA() PR_Unlock(dtoalock)
+#else
+#define LOCK_DTOA()
+#define UNLOCK_DTOA()
+#endif
 #include "dtoa.c"
+
+JS_FRIEND_API(JSBool)
+js_InitDtoa()
+{
+#ifdef JS_THREADSAFE
+    if (!_dtoainited) {
+        dtoalock = PR_NewLock();
+        JS_ASSERT(dtoalock);
+        _dtoainited = JS_TRUE;
+    }
+
+    return (dtoalock != 0);
+#else
+    return JS_TRUE;
+#endif
+}
+
+JS_FRIEND_API(void)
+js_FinishDtoa()
+{
+#ifdef JS_THREADSAFE
+    if (_dtoainited) {
+        PR_DestroyLock(dtoalock);
+        dtoalock = NULL;
+        _dtoainited = JS_FALSE;
+    }
+#endif
+}
 
 /* Mapping of JSDToStrMode -> js_dtoa mode */
 static const uint8 dtoaModes[] = {
@@ -88,19 +126,20 @@ static const uint8 dtoaModes[] = {
     2,   /* DTOSTR_EXPONENTIAL, */
     2};  /* DTOSTR_PRECISION */
 
-double
-js_strtod_harder(DtoaState *state, const char *s00, char **se, int *err)
+JS_FRIEND_API(double)
+JS_strtod(const char *s00, char **se, int *err)
 {
     double retval;
     if (err)
         *err = 0;
-    retval = _strtod(state, s00, se);
+    LOCK_DTOA();
+    retval = _strtod(s00, se);
+    UNLOCK_DTOA();
     return retval;
 }
 
-char *
-js_dtostr(DtoaState *state, char *buffer, size_t bufferSize, JSDToStrMode mode, int precision,
-          double dinput)
+JS_FRIEND_API(char *)
+JS_dtostr(char *buffer, size_t bufferSize, JSDToStrMode mode, int precision, double dinput)
 {
     U d;
     int decPt;        /* Offset of decimal point from first digit */
@@ -120,20 +159,24 @@ js_dtostr(DtoaState *state, char *buffer, size_t bufferSize, JSDToStrMode mode, 
     if (mode == DTOSTR_FIXED && (dinput >= 1e21 || dinput <= -1e21))
         mode = DTOSTR_STANDARD;
 
+    LOCK_DTOA();
     dval(d) = dinput;
-    numBegin = dtoa(PASS_STATE d, dtoaModes[mode], precision, &decPt, &sign, &numEnd);
+    numBegin = dtoa(d, dtoaModes[mode], precision, &decPt, &sign, &numEnd);
     if (!numBegin) {
+        UNLOCK_DTOA();
         return NULL;
     }
 
     nDigits = numEnd - numBegin;
     JS_ASSERT((size_t) nDigits <= bufferSize - 2);
     if ((size_t) nDigits > bufferSize - 2) {
+        UNLOCK_DTOA();
         return NULL;
     }
 
     memcpy(buffer + 2, numBegin, nDigits);
-    freedtoa(PASS_STATE numBegin);
+    freedtoa(numBegin);
+    UNLOCK_DTOA();
     numBegin = buffer + 2; /* +2 leaves space for sign and/or decimal point */
     numEnd = numBegin + nDigits;
     *numEnd = '\0';
@@ -310,8 +353,8 @@ static uint32 quorem2(Bigint *b, int32 k)
 #define DTOBASESTR_BUFFER_SIZE 1078
 #define BASEDIGIT(digit) ((char)(((digit) >= 10) ? 'a' - 10 + (digit) : '0' + (digit)))
 
-char *
-js_dtobasestr(DtoaState *state, int base, double dinput)
+JS_FRIEND_API(char *)
+JS_dtobasestr(int base, double dinput)
 {
     U d;
     char *buffer;        /* The output string */
@@ -343,6 +386,7 @@ js_dtobasestr(DtoaState *state, int base, double dinput)
             return buffer;
         }
 
+        LOCK_DTOA();
         /* Output the integer part of d with the digits in reverse order. */
         pInt = p;
         dval(di) = floor(dval(d));
@@ -360,13 +404,14 @@ js_dtobasestr(DtoaState *state, int base, double dinput)
         } else {
             int e;
             int bits;  /* Number of significant bits in di; not used. */
-            Bigint *b = d2b(PASS_STATE di, &e, &bits);
+            Bigint *b = d2b(di, &e, &bits);
             if (!b)
                 goto nomem1;
-            b = lshift(PASS_STATE b, e);
+            b = lshift(b, e);
             if (!b) {
               nomem1:
-                Bfree(PASS_STATE b);
+                Bfree(b);
+                UNLOCK_DTOA();
                 js_free(buffer);
                 return NULL;
             }
@@ -375,7 +420,7 @@ js_dtobasestr(DtoaState *state, int base, double dinput)
                 JS_ASSERT(digit < (uint32)base);
                 *p++ = BASEDIGIT(digit);
             } while (b->wds);
-            Bfree(PASS_STATE b);
+            Bfree(b);
         }
         /* Reverse the digits of the integer part of d. */
         q = p-1;
@@ -395,14 +440,15 @@ js_dtobasestr(DtoaState *state, int base, double dinput)
             b = s = mlo = mhi = NULL;
 
             *p++ = '.';
-            b = d2b(PASS_STATE df, &e, &bbits);
+            b = d2b(df, &e, &bbits);
             if (!b) {
               nomem2:
-                Bfree(PASS_STATE b);
-                Bfree(PASS_STATE s);
+                Bfree(b);
+                Bfree(s);
                 if (mlo != mhi)
-                    Bfree(PASS_STATE mlo);
-                Bfree(PASS_STATE mhi);
+                    Bfree(mlo);
+                Bfree(mhi);
+                UNLOCK_DTOA();
                 js_free(buffer);
                 return NULL;
             }
@@ -417,7 +463,7 @@ js_dtobasestr(DtoaState *state, int base, double dinput)
             s2 += Bias + P;
             /* 1/2^s2 = (nextDouble(d) - d)/2 */
             JS_ASSERT(-s2 < e);
-            mlo = i2b(PASS_STATE 1);
+            mlo = i2b(1);
             if (!mlo)
                 goto nomem2;
             mhi = mlo;
@@ -429,17 +475,17 @@ js_dtobasestr(DtoaState *state, int base, double dinput)
                 /* The special case.  Here we want to be within a quarter of the last input
                    significant digit instead of one half of it when the output string's value is less than d.  */
                 s2 += Log2P;
-                mhi = i2b(PASS_STATE 1<<Log2P);
+                mhi = i2b(1<<Log2P);
                 if (!mhi)
                     goto nomem2;
             }
-            b = lshift(PASS_STATE b, e + s2);
+            b = lshift(b, e + s2);
             if (!b)
                 goto nomem2;
-            s = i2b(PASS_STATE 1);
+            s = i2b(1);
             if (!s)
                 goto nomem2;
-            s = lshift(PASS_STATE s, s2);
+            s = lshift(s, s2);
             if (!s)
                 goto nomem2;
             /* At this point we have the following:
@@ -453,20 +499,20 @@ js_dtobasestr(DtoaState *state, int base, double dinput)
                 int32 j, j1;
                 Bigint *delta;
 
-                b = multadd(PASS_STATE b, base, 0);
+                b = multadd(b, base, 0);
                 if (!b)
                     goto nomem2;
                 digit = quorem2(b, s2);
                 if (mlo == mhi) {
-                    mlo = mhi = multadd(PASS_STATE mlo, base, 0);
+                    mlo = mhi = multadd(mlo, base, 0);
                     if (!mhi)
                         goto nomem2;
                 }
                 else {
-                    mlo = multadd(PASS_STATE mlo, base, 0);
+                    mlo = multadd(mlo, base, 0);
                     if (!mlo)
                         goto nomem2;
-                    mhi = multadd(PASS_STATE mhi, base, 0);
+                    mhi = multadd(mhi, base, 0);
                     if (!mhi)
                         goto nomem2;
                 }
@@ -474,11 +520,11 @@ js_dtobasestr(DtoaState *state, int base, double dinput)
                 /* Do we yet have the shortest string that will round to d? */
                 j = cmp(b, mlo);
                 /* j is b/2^s2 compared with mlo/2^s2. */
-                delta = diff(PASS_STATE s, mhi);
+                delta = diff(s, mhi);
                 if (!delta)
                     goto nomem2;
                 j1 = delta->sign ? 1 : cmp(b, delta);
-                Bfree(PASS_STATE delta);
+                Bfree(delta);
                 /* j1 is b/2^s2 compared with 1 - mhi/2^s2. */
 
 #ifndef ROUND_BIASED
@@ -496,7 +542,7 @@ js_dtobasestr(DtoaState *state, int base, double dinput)
                     if (j1 > 0) {
                         /* Either dig or dig+1 would work here as the least significant digit.
                            Use whichever would produce an output value closer to d. */
-                        b = lshift(PASS_STATE b, 1);
+                        b = lshift(b, 1);
                         if (!b)
                             goto nomem2;
                         j1 = cmp(b, s);
@@ -512,26 +558,15 @@ js_dtobasestr(DtoaState *state, int base, double dinput)
                 JS_ASSERT(digit < (uint32)base);
                 *p++ = BASEDIGIT(digit);
             } while (!done);
-            Bfree(PASS_STATE b);
-            Bfree(PASS_STATE s);
+            Bfree(b);
+            Bfree(s);
             if (mlo != mhi)
-                Bfree(PASS_STATE mlo);
-            Bfree(PASS_STATE mhi);
+                Bfree(mlo);
+            Bfree(mhi);
         }
         JS_ASSERT(p < buffer + DTOBASESTR_BUFFER_SIZE);
         *p = '\0';
+        UNLOCK_DTOA();
     }
     return buffer;
-}
-
-DtoaState *
-js_NewDtoaState()
-{
-    return newdtoa();
-}
-
-void
-js_DestroyDtoaState(DtoaState *state)
-{
-    destroydtoa(state);
 }

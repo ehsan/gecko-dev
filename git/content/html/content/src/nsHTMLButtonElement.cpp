@@ -161,8 +161,6 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLButtonElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLButtonElement, nsGenericElement)
 
 
-DOMCI_DATA(HTMLButtonElement, nsHTMLButtonElement)
-
 // QueryInterface implementation for nsHTMLButtonElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLButtonElement)
   NS_HTML_CONTENT_INTERFACE_TABLE2(nsHTMLButtonElement,
@@ -219,7 +217,7 @@ nsHTMLButtonElement::Click()
   if (doc) {
     nsIPresShell *shell = doc->GetPrimaryShell();
     if (shell) {
-      nsRefPtr<nsPresContext> context = shell->GetPresContext();
+      nsCOMPtr<nsPresContext> context = shell->GetPresContext();
       if (context) {
         // Click() is never called from native code, but it may be
         // called from chrome JS. Mark this event trusted if Click()
@@ -227,7 +225,6 @@ nsHTMLButtonElement::Click()
         nsMouseEvent event(nsContentUtils::IsCallerChrome(),
                            NS_MOUSE_CLICK, nsnull,
                            nsMouseEvent::eReal);
-        event.inputSource = nsIDOMNSMouseEvent::MOZ_SOURCE_UNKNOWN;
         nsEventStatus status = nsEventStatus_eIgnore;
         nsEventDispatcher::Dispatch(static_cast<nsIContent*>(this), context,
                                     &event, nsnull, &status);
@@ -381,7 +378,6 @@ nsHTMLButtonElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
             nsMouseEvent event(NS_IS_TRUSTED_EVENT(aVisitor.mEvent),
                                NS_MOUSE_CLICK, nsnull,
                                nsMouseEvent::eReal);
-            event.inputSource = nsIDOMNSMouseEvent::MOZ_SOURCE_KEYBOARD;
             nsEventDispatcher::Dispatch(static_cast<nsIContent*>(this),
                                         aVisitor.mPresContext, &event, nsnull,
                                         &status);

@@ -1275,12 +1275,12 @@ gfxFont::SanitizeMetrics(gfxFont::Metrics *aMetrics, PRBool aIsBadUnderlineFont)
     // MS (P)Gothic and MS (P)Mincho are not having suitable values in their super script offset.
     // If the values are not suitable, we should use x-height instead of them.
     // See https://bugzilla.mozilla.org/show_bug.cgi?id=353632
-    if (aMetrics->superscriptOffset <= 0 ||
+    if (aMetrics->superscriptOffset == 0 ||
         aMetrics->superscriptOffset >= aMetrics->maxAscent) {
         aMetrics->superscriptOffset = aMetrics->xHeight;
     }
     // And also checking the case of sub script offset. The old gfx for win has checked this too.
-    if (aMetrics->subscriptOffset <= 0 ||
+    if (aMetrics->subscriptOffset == 0 ||
         aMetrics->subscriptOffset >= aMetrics->maxAscent) {
         aMetrics->subscriptOffset = aMetrics->xHeight;
     }
@@ -1483,47 +1483,13 @@ gfxFontGroup::BuildFontList()
 
     if (mFonts.Length() == 0) {
         PRBool needsBold;
-        gfxPlatformFontList *pfl = gfxPlatformFontList::PlatformFontList();
-        gfxFontEntry *defaultFont = pfl->GetDefaultFont(&mStyle, needsBold);
+        gfxFontEntry *defaultFont = 
+            gfxPlatformFontList::PlatformFontList()->GetDefaultFont(&mStyle, needsBold);
         NS_ASSERTION(defaultFont, "invalid default font returned by GetDefaultFont");
 
-        if (defaultFont) {
-            nsRefPtr<gfxFont> font = defaultFont->FindOrMakeFont(&mStyle,
-                                                                 needsBold);
-            if (font) {
-                mFonts.AppendElement(font);
-            }
-        }
-
-        if (mFonts.Length() == 0) {
-            // Try for a "font of last resort...."
-            // Because an empty font list would be Really Bad for later code
-            // that assumes it will be able to get valid metrics for layout,
-            // just look for the first usable font and put in the list.
-            // (see bug 554544)
-            nsAutoTArray<nsRefPtr<gfxFontFamily>,200> families;
-            pfl->GetFontFamilyList(families);
-            for (PRUint32 i = 0; i < families.Length(); ++i) {
-                gfxFontEntry *fe = families[i]->FindFontForStyle(mStyle,
-                                                                 needsBold);
-                if (fe) {
-                    nsRefPtr<gfxFont> font = fe->FindOrMakeFont(&mStyle,
-                                                                needsBold);
-                    if (font) {
-                        mFonts.AppendElement(font);
-                        break;
-                    }
-                }
-            }
-        }
-
-        if (mFonts.Length() == 0) {
-            // an empty font list at this point is fatal; we're not going to
-            // be able to do even the most basic layout operations
-            char msg[256]; // CHECK buffer length if revising message below
-            sprintf(msg, "unable to find a usable font (%.220s)",
-                    NS_ConvertUTF16toUTF8(mFamilies).get());
-            NS_RUNTIMEABORT(msg);
+        nsRefPtr<gfxFont> font = defaultFont->FindOrMakeFont(&mStyle, needsBold);
+        if (font) {
+            mFonts.AppendElement(font);
         }
     }
 
@@ -1683,7 +1649,7 @@ gfxFontGroup::ForEachFontInternal(const nsAString& aFamilies,
     nsXPIDLCString value;
 
     while (p < p_end) {
-        while (nsCRT::IsAsciiSpace(*p) || *p == kComma)
+        while (nsCRT::IsAsciiSpace(*p))
             if (++p == p_end)
                 return PR_TRUE;
 

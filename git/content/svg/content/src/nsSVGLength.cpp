@@ -38,7 +38,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsSVGLength.h"
-#include "nsSVGUtils.h"
 #include "nsGkAtoms.h"
 #include "nsSVGValue.h"
 #include "nsTextFormatter.h"
@@ -150,8 +149,6 @@ nsSVGLength::nsSVGLength()
 
 NS_IMPL_ADDREF(nsSVGLength)
 NS_IMPL_RELEASE(nsSVGLength)
-
-DOMCI_DATA(SVGLength, nsSVGLength)
 
 NS_INTERFACE_MAP_BEGIN(nsSVGLength)
   NS_INTERFACE_MAP_ENTRY(nsISVGValue)
@@ -364,8 +361,8 @@ nsSVGLength::SetValueAsString(const nsAString & aValueAsString)
   if (*number) {
     char *rest;
     float value = float(PR_strtod(number, &rest));
-    if (rest != number) {
-      const char* unitStr = nsCRT::strtok(rest, SVG_WSP_DELIM, &rest);
+    if (rest!=number) {
+      const char* unitStr = nsCRT::strtok(rest, "\x20\x9\xD\xA", &rest);
       PRUint16 unitType = SVG_LENGTHTYPE_UNKNOWN;
       if (!unitStr || *unitStr=='\0') {
         unitType = SVG_LENGTHTYPE_NUMBER;

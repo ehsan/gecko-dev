@@ -39,17 +39,12 @@
 
 include protocol "PContentProcess.ipdl";
 include protocol "PDocumentRenderer.ipdl";
-include protocol "PDocumentRendererShmem.ipdl";
-include protocol "PObjectWrapper.ipdl";
-include protocol "PContextWrapper.ipdl";
 
 include "mozilla/TabTypes.h";
 include "TabMessageUtils.h";
-include "gfxMatrix.h";
 
 using MagicWindowHandle;
 using RemoteDOMEvent;
-using gfxMatrix;
 
 namespace mozilla {
 namespace dom {
@@ -58,8 +53,6 @@ rpc protocol PIFrameEmbedding
 {
     manager PContentProcess;
     manages PDocumentRenderer;
-    manages PDocumentRendererShmem;
-    manages PContextWrapper;
 
 child:
     __delete__();
@@ -73,31 +66,9 @@ parent:
 
     sendEvent(RemoteDOMEvent aEvent);
 
-    notifyStateChange(PRUint32 stateFlags, nsresult status);
-
-    notifyProgressChange(PRInt64 curSelfProgress,
-                         PRInt64 maxSelfProgress,
-                         PRInt64 curTotalProgress,
-                         PRInt64 maxTotalProgress);
-
-    notifyLocationChange(nsCString uri);
-
-    notifyStatusChange(nsresult status,
-                       nsString message);
-
-    notifySecurityChange(PRUint32 aState);
-
-    sync refreshAttempted(nsCString uri, PRInt32 millis,
-                          bool sameURI) returns (bool retval);
-
-
     rpc createWindow() returns (PIFrameEmbedding window);
 
-    PContextWrapper();
-
-    rpc sendSyncMessageToParent(nsString aMessage, nsString aJSON, PObjectWrapper[] aObjects)
-      returns (nsString[] retval);
-
+    sync sendSyncMessageToParent(nsString aMessage, nsString aJSON) returns (nsString[] retval);
     sendAsyncMessageToParent(nsString aMessage, nsString aJSON);
 child:
     createWidget(MagicWindowHandle parentWidget);
@@ -144,13 +115,6 @@ child:
     sendAsyncMessageToChild(nsString aMessage, nsString aJSON);
 
     PDocumentRenderer(PRInt32 x, PRInt32 y, PRInt32 w, PRInt32 h, nsString bgcolor, PRUint32 flags, bool flush);
-
-    // @param matrix the transformation matrix the context we're going to draw into should have.
-    // @param bufw the width of @buf, in pixels
-    // @param bufh the height of @buf, in pixels
-    PDocumentRendererShmem(PRInt32 x, PRInt32 y, PRInt32 w, PRInt32 h, nsString bgcolor, PRUint32 flags, bool flush,
-                           gfxMatrix matrix, PRInt32 bufw, PRInt32 bufh, Shmem buf);
-
 };
 
 }

@@ -91,9 +91,6 @@ CSS_STATE_PSEUDO_CLASS(target, ":target", NS_EVENT_STATE_URLTARGET)
 CSS_STATE_PSEUDO_CLASS(indeterminate, ":indeterminate",
                        NS_EVENT_STATE_INDETERMINATE)
 
-// Matches if the element is focused and should show a focus ring
-CSS_STATE_PSEUDO_CLASS(mozFocusRing, ":-moz-focusring", NS_EVENT_STATE_FOCUSRING)
-
 CSS_PSEUDO_CLASS(firstChild, ":first-child")
 CSS_PSEUDO_CLASS(firstNode, ":-moz-first-node")
 CSS_PSEUDO_CLASS(lastChild, ":last-child")
@@ -143,9 +140,6 @@ CSS_PSEUDO_CLASS(mozLWThemeBrightText, ":-moz-lwtheme-brighttext")
 
 // -moz-lwtheme-darktext matches a document that has a bright lightweight theme
 CSS_PSEUDO_CLASS(mozLWThemeDarkText, ":-moz-lwtheme-darktext")
-
-// Matches anything when the containing window is inactive
-CSS_PSEUDO_CLASS(mozWindowInactive, ":-moz-window-inactive")
 
 #ifdef MOZ_MATHML
 CSS_STATE_PSEUDO_CLASS(mozMathIncrementScriptLevel,

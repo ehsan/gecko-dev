@@ -109,9 +109,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMAttribute)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_LISTENERMANAGER
   NS_IMPL_CYCLE_COLLECTION_UNLINK_USERDATA
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-DOMCI_DATA(Attr, nsDOMAttribute)
-
 // QueryInterface implementation for nsDOMAttribute
 NS_INTERFACE_TABLE_HEAD(nsDOMAttribute)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
@@ -542,10 +539,9 @@ NS_IMETHODIMP
 nsDOMAttribute::IsEqualNode(nsIDOMNode* aOther,
                             PRBool* aReturn)
 {
-  *aReturn = PR_FALSE;
+  NS_ENSURE_ARG_POINTER(aOther);
 
-  if (!aOther)
-    return NS_OK;
+  *aReturn = PR_FALSE;
 
   // Node type check by QI.  We also reuse this later.
   nsCOMPtr<nsIAttribute> aOtherAttr = do_QueryInterface(aOther);

@@ -1,4 +1,4 @@
-// Copyright (c) 2010 Google Inc.
+// Copyright (c) 2006, Google Inc.
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -242,22 +242,22 @@ class MinidumpMemoryRegion : public MinidumpObject,
   // Returns a pointer to the base of the memory region.  Returns the
   // cached value if available, otherwise, reads the minidump file and
   // caches the memory region.
-  const u_int8_t* GetMemory() const;
+  const u_int8_t* GetMemory();
 
   // The address of the base of the memory region.
-  u_int64_t GetBase() const;
+  u_int64_t GetBase();
 
   // The size, in bytes, of the memory region.
-  u_int32_t GetSize() const;
+  u_int32_t GetSize();
 
   // Frees the cached memory region, if cached.
   void FreeMemory();
 
   // Obtains the value of memory at the pointer specified by address.
-  bool GetMemoryAtAddress(u_int64_t address, u_int8_t*  value) const;
-  bool GetMemoryAtAddress(u_int64_t address, u_int16_t* value) const;
-  bool GetMemoryAtAddress(u_int64_t address, u_int32_t* value) const;
-  bool GetMemoryAtAddress(u_int64_t address, u_int64_t* value) const;
+  bool GetMemoryAtAddress(u_int64_t address, u_int8_t*  value);
+  bool GetMemoryAtAddress(u_int64_t address, u_int16_t* value);
+  bool GetMemoryAtAddress(u_int64_t address, u_int32_t* value);
+  bool GetMemoryAtAddress(u_int64_t address, u_int64_t* value);
 
   // Print a human-readable representation of the object to stdout.
   void Print();
@@ -274,7 +274,7 @@ class MinidumpMemoryRegion : public MinidumpObject,
 
   // Implementation for GetMemoryAtAddress
   template<typename T> bool GetMemoryAtAddressInternal(u_int64_t address,
-                                                       T*        value) const;
+                                                       T*        value);
 
   // The largest memory region that will be read from a minidump.  The
   // default is 1MB.
@@ -285,7 +285,7 @@ class MinidumpMemoryRegion : public MinidumpObject,
   MDMemoryDescriptor* descriptor_;
 
   // Cached memory.
-  mutable vector<u_int8_t>* memory_;
+  vector<u_int8_t>*   memory_;
 };
 
 

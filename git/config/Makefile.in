@@ -131,31 +131,10 @@ export::
 		-DMOZ_NATIVE_ZLIB=$(MOZ_NATIVE_ZLIB) \
 		-DMOZ_NATIVE_PNG=$(MOZ_NATIVE_PNG) \
 		-DMOZ_NATIVE_JPEG=$(MOZ_NATIVE_JPEG) \
-		-DMOZ_NATIVE_LIBEVENT=$(MOZ_NATIVE_LIBEVENT) \
 		$(srcdir)/system-headers | $(PERL) $(topsrcdir)/nsprpub/config/make-system-wrappers.pl system_wrappers
 	$(INSTALL) system_wrappers $(DIST)
 
 GARBAGE_DIRS += system_wrappers
-endif
-
-ifdef WRAP_STL_INCLUDES
-ifdef GCC_VERSION
-stl_compiler = gcc
-else
-stl_compiler = msvc
-endif
-endif
-
-ifdef stl_compiler
-stl-wrappers-sentinel: $(srcdir)/make-stl-wrappers.py $(srcdir)/$(stl_compiler)-stl-wrapper.template.h $(srcdir)/stl-headers $(GLOBAL_DEPS)
-	$(PYTHON) $(srcdir)/make-stl-wrappers.py stl_wrappers $(stl_compiler) $(srcdir)/$(stl_compiler)-stl-wrapper.template.h $(srcdir)/stl-headers
-	$(PYTHON) $(srcdir)/nsinstall.py stl_wrappers $(DIST)
-	touch stl-wrappers-sentinel
-
-export:: stl-wrappers-sentinel
-
-GARBAGE += stl-wrappers-sentinel
-GARBAGE_DIRS += stl_wrappers
 endif
 
 install::

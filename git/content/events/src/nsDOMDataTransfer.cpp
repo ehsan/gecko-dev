@@ -49,14 +49,11 @@
 #include "nsIDragService.h"
 #include "nsIScriptableRegion.h"
 #include "nsContentUtils.h"
-#include "nsIContent.h"
 
 NS_IMPL_CYCLE_COLLECTION_2(nsDOMDataTransfer, mDragTarget, mDragImage)
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDOMDataTransfer)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsDOMDataTransfer)
-
-DOMCI_DATA(DataTransfer, nsDOMDataTransfer)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMDataTransfer)
   NS_INTERFACE_MAP_ENTRY(nsIDOMDataTransfer)
@@ -560,10 +557,6 @@ nsDOMDataTransfer::SetDragImage(nsIDOMElement* aImage, PRInt32 aX, PRInt32 aY)
   if (mReadOnly)
     return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR;
 
-  if (aImage) {
-    nsCOMPtr<nsIContent> content = do_QueryInterface(aImage);
-    NS_ENSURE_TRUE(content, NS_ERROR_INVALID_ARG);
-  }
   mDragImage = aImage;
   mDragImageX = aX;
   mDragImageY = aY;

@@ -81,7 +81,6 @@
 #include "base/message_loop.h"
 #include "base/process_util.h"
 #include "chrome/common/child_process.h"
-#include "chrome/common/notification_service.h"
 
 #include "mozilla/ipc/GeckoChildProcessHost.h"
 #include "mozilla/ipc/BrowserProcessSubThread.h"
@@ -91,8 +90,6 @@
 #include "mozilla/dom/ContentProcessThread.h"
 #include "mozilla/dom/ContentProcessParent.h"
 #include "mozilla/dom/ContentProcessChild.h"
-
-#include "mozilla/jsipc/ContextWrapperParent.h"
 
 #include "mozilla/ipc/TestShellParent.h"
 #include "mozilla/ipc/XPCShellEnvironment.h"
@@ -113,10 +110,6 @@ using mozilla::plugins::PluginThreadChild;
 using mozilla::dom::ContentProcessThread;
 using mozilla::dom::ContentProcessParent;
 using mozilla::dom::ContentProcessChild;
-
-using mozilla::jsipc::PContextWrapperParent;
-using mozilla::jsipc::ContextWrapperParent;
-
 using mozilla::ipc::TestShellParent;
 using mozilla::ipc::TestShellCommandParent;
 using mozilla::ipc::XPCShellEnvironment;
@@ -202,11 +195,10 @@ XRE_InitEmbedding(nsILocalFile *aLibXULDirectory,
   if (NS_FAILED(rv))
     return rv;
 
-  // We do not need to autoregister components here. The CheckCompatibility()
-  // bits in nsAppRunner.cpp check for an invalidation flag in
-  // compatibility.ini.
-  // If the app wants to autoregister every time (for instance, if it's debug),
-  // it can do so after we return from this function.
+  // We do not need to autoregister components here. The CheckUpdateFile()
+  // bits in NS_InitXPCOM3 check for an .autoreg file. If the app wants
+  // to autoregister every time (for instance, if it's debug), it can do
+  // so after we return from this function.
 
   nsCOMPtr<nsIObserver> startupNotifier
     (do_CreateInstance(NS_APPSTARTUPNOTIFIER_CONTRACTID));
@@ -274,12 +266,11 @@ static MessageLoop* sIOMessageLoop;
 // IPDL wants access to this crashreporter interface, and
 // crashreporter is built in such a way to make that awkward
 PRBool
-XRE_TakeMinidumpForChild(PRUint32 aChildPid, nsILocalFile** aDump)
+XRE_GetMinidumpForChild(PRUint32 aChildPid, nsIFile** aDump)
 {
-  return CrashReporter::TakeMinidumpForChild(aChildPid, aDump);
+  return CrashReporter::GetMinidumpForChild(aChildPid, aDump);
 }
 
-#if !defined(XP_MACOSX)
 PRBool
 XRE_SetRemoteExceptionHandler(const char* aPipe/*= 0*/)
 {
@@ -291,7 +282,6 @@ XRE_SetRemoteExceptionHandler(const char* aPipe/*= 0*/)
 #  error "OOP crash reporter unsupported on this platform"
 #endif
 }
-#endif // !XP_MACOSX
 #endif // if defined(MOZ_CRASHREPORTER)
 
 nsresult
@@ -339,7 +329,6 @@ XRE_InitChildProcess(int aArgc,
   NS_ABORT_IF_FALSE(ok, "can't open handle to parent");
 
   base::AtExitManager exitManager;
-  NotificationService notificationService;
 
   NS_LogInit();
 
@@ -525,16 +514,6 @@ XRE_ShutdownChildProcess()
 
 namespace {
 TestShellParent* gTestShellParent = nsnull;
-TestShellParent* GetOrCreateTestShellParent()
-{
-    if (!gTestShellParent) {
-        ContentProcessParent* parent = ContentProcessParent::GetSingleton();
-        NS_ENSURE_TRUE(parent, nsnull);
-        gTestShellParent = parent->CreateTestShell();
-        NS_ENSURE_TRUE(gTestShellParent, nsnull);
-    }
-    return gTestShellParent;
-}
 }
 
 bool
@@ -542,30 +521,28 @@ XRE_SendTestShellCommand(JSContext* aCx,
                          JSString* aCommand,
                          void* aCallback)
 {
-    TestShellParent* tsp = GetOrCreateTestShellParent();
-    NS_ENSURE_TRUE(tsp, false);
+    if (!gTestShellParent) {
+        ContentProcessParent* parent = ContentProcessParent::GetSingleton();
+        NS_ENSURE_TRUE(parent, false);
+
+        gTestShellParent = parent->CreateTestShell();
+        NS_ENSURE_TRUE(gTestShellParent, false);
+    }
 
     nsDependentString command((PRUnichar*)JS_GetStringChars(aCommand),
                               JS_GetStringLength(aCommand));
     if (!aCallback) {
-        return tsp->SendExecuteCommand(command);
+        return gTestShellParent->SendExecuteCommand(command);
     }
 
     TestShellCommandParent* callback = static_cast<TestShellCommandParent*>(
-        tsp->SendPTestShellCommandConstructor(command));
+        gTestShellParent->SendPTestShellCommandConstructor(command));
     NS_ENSURE_TRUE(callback, false);
 
     jsval callbackVal = *reinterpret_cast<jsval*>(aCallback);
     NS_ENSURE_TRUE(callback->SetCallback(aCx, callbackVal), false);
 
     return true;
-}
-
-bool
-XRE_GetChildGlobalObject(JSContext* aCx, JSObject** aGlobalP)
-{
-    TestShellParent* tsp = GetOrCreateTestShellParent();
-    return tsp && tsp->GetGlobalJSObject(aCx, aGlobalP);
 }
 
 bool

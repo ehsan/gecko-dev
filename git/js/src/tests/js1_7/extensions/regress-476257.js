@@ -50,14 +50,10 @@ jit(true);
 function f1() {
   try
   {
-    Object.defineProperty(__proto__, "functional",
-    {
-      enumerable: true, configurable: true,
-      get: function ()
+    __proto__.functional getter = function ()
       {
         if (typeof gczeal == 'function') { gczeal(0); }
       }
-    });
     for each (let [[]] in [true, new Boolean(true), new Boolean(true)]) {}
   }
   catch(ex)
@@ -69,14 +65,10 @@ function f1() {
 function f2() {
   try
   {
-    Object.defineProperty(__proto__, "functional",
-    {
-      enumerable: true, configurable: true,
-      get: function () 
+    __proto__.functional getter = function () 
       { 
         if (typeof dis == 'function') { dis(); } 
       }
-    });
     for each (let [[]] in [true, new Boolean(true), new Boolean(true)]) {}
   }
   catch(ex)

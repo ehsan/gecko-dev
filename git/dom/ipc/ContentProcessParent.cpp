@@ -48,11 +48,14 @@
 #include "nsCOMPtr.h"
 #include "nsServiceManagerUtils.h"
 #include "nsThreadUtils.h"
-#include "nsChromeRegistryChrome.h"
 
 using namespace mozilla::ipc;
 using namespace mozilla::net;
 using mozilla::MonitorAutoEnter;
+
+namespace {
+PRBool gSingletonDied = PR_FALSE;
+}
 
 namespace mozilla {
 namespace dom {
@@ -62,10 +65,7 @@ ContentProcessParent* ContentProcessParent::gSingleton;
 ContentProcessParent*
 ContentProcessParent::GetSingleton()
 {
-    if (gSingleton && !gSingleton->IsAlive())
-        gSingleton = nsnull;
-    
-    if (!gSingleton) {
+    if (!gSingleton && !gSingletonDied) {
         nsRefPtr<ContentProcessParent> parent = new ContentProcessParent();
         if (parent) {
             nsCOMPtr<nsIObserverService> obs =
@@ -102,8 +102,6 @@ ContentProcessParent::ActorDestroy(ActorDestroyReason why)
         threadInt->SetObserver(mOldObserver);
     if (mRunToCompletionDepth)
         mRunToCompletionDepth = 0;
-
-    mIsAlive = false;
 }
 
 TabParent*
@@ -127,33 +125,19 @@ ContentProcessParent::DestroyTestShell(TestShellParent* aTestShell)
 ContentProcessParent::ContentProcessParent()
     : mMonitor("ContentProcessParent::mMonitor")
     , mRunToCompletionDepth(0)
-    , mShouldCallUnblockChild(false)
-    , mIsAlive(true)
 {
     NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
     mSubprocess = new GeckoChildProcessHost(GeckoProcessType_Content);
     mSubprocess->AsyncLaunch();
     Open(mSubprocess->GetChannel(), mSubprocess->GetChildProcessHandle());
-
-    nsCOMPtr<nsIChromeRegistry> registrySvc = nsChromeRegistry::GetService();
-    nsChromeRegistryChrome* chromeRegistry =
-        static_cast<nsChromeRegistryChrome*>(registrySvc.get());
-    chromeRegistry->SendRegisteredChrome(this);
 }
 
 ContentProcessParent::~ContentProcessParent()
 {
     NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-    //If the previous content process has died, a new one could have
-    //been started since.
-    if (gSingleton == this)
-        gSingleton = nsnull;
-}
-
-bool
-ContentProcessParent::IsAlive()
-{
-    return mIsAlive;
+    NS_ASSERTION(gSingleton == this, "More than one singleton?!");
+    gSingletonDied = PR_TRUE;
+    gSingleton = nsnull;
 }
 
 NS_IMPL_THREADSAFE_ISUPPORTS2(ContentProcessParent,
@@ -186,18 +170,13 @@ ContentProcessParent::Observe(nsISupports* aSubject,
 PIFrameEmbeddingParent*
 ContentProcessParent::AllocPIFrameEmbedding()
 {
-  TabParent* parent = new TabParent();
-  if (parent){
-    NS_ADDREF(parent);
-  }
-  return parent;
+    return new TabParent();
 }
 
 bool
 ContentProcessParent::DeallocPIFrameEmbedding(PIFrameEmbeddingParent* frame)
 {
-  TabParent* parent = static_cast<TabParent*>(frame);
-  NS_RELEASE(parent);
+  delete frame;
   return true;
 }
 
@@ -227,18 +206,6 @@ ContentProcessParent::DeallocPNecko(PNeckoParent* necko)
     return true;
 }
 
-void
-ContentProcessParent::ReportChildAlreadyBlocked()
-{
-    if (!mRunToCompletionDepth) {
-#ifdef DEBUG
-        printf("Running to completion...\n");
-#endif
-        mRunToCompletionDepth = 1;
-        mShouldCallUnblockChild = false;
-    }
-}
-    
 bool
 ContentProcessParent::RequestRunToCompletion()
 {
@@ -248,8 +215,8 @@ ContentProcessParent::RequestRunToCompletion()
         printf("Running to completion...\n");
 #endif
         mRunToCompletionDepth = 1;
-        mShouldCallUnblockChild = true;
     }
+
     return !!mRunToCompletionDepth;
 }
 
@@ -288,10 +255,7 @@ ContentProcessParent::AfterProcessNextEvent(nsIThreadInternal *thread,
 #ifdef DEBUG
             printf("... ran to completion.\n");
 #endif
-            if (mShouldCallUnblockChild) {
-                mShouldCallUnblockChild = false;
-                UnblockChild();
-            }
+            UnblockChild();
     }
 
     if (mOldObserver)

@@ -4,10 +4,8 @@
 #include <QtGui/QApplication>
 #include <QtGui/QGraphicsView>
 #include <QtGui/QGraphicsWidget>
-#include <QtOpenGL/QGLWidget>
 
 #include "nsIWidget.h"
-#include "prenv.h"
 
 class QEvent;
 class QPixmap;
@@ -149,8 +147,6 @@ public:
      : QGraphicsView (new QGraphicsScene(), aParent)
      , mEventHandler(this, aTopLevel)
     {
-        if (PR_GetEnv("MOZ_QT_GL"))
-            setViewport(new QGLWidget());
         scene()->addItem(aTopLevel);
     }
 

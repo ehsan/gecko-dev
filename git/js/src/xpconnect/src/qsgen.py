@@ -835,7 +835,7 @@ def writeQuickStub(f, customMethodCalls, member, stubName, isSetter=False):
         if isGetter:
             pthisval = 'vp'
         elif isSetter:
-            f.write("    js::AutoValueRooter tvr(cx);\n")
+            f.write("    JSAutoTempValueRooter tvr(cx);\n")
             pthisval = 'tvr.addr()'
         else:
             pthisval = '&vp[1]' # as above, ok to overwrite vp[1]
@@ -865,17 +865,10 @@ def writeQuickStub(f, customMethodCalls, member, stubName, isSetter=False):
         if len(member.params) > 0:
             f.write("    jsval *argv = JS_ARGV(cx, vp);\n")
         for i, param in enumerate(member.params):
-            argName = 'arg%d' % i
-            argTypeKey = argName + 'Type'
-            if customMethodCall is None or not argTypeKey in customMethodCall:
-                validateParam(member, param)
-                realtype = param.realtype
-            else:
-                realtype = xpidl.Forward(name=customMethodCall[argTypeKey],
-                                         location='', doccomments='')
+            validateParam(member, param)
             # Emit code to convert this argument from jsval.
             rvdeclared = writeArgumentUnboxing(
-                f, i, argName, realtype,
+                f, i, 'arg%d' % i, param.realtype,
                 haveCcx=haveCcx,
                 optional=param.optional,
                 rvdeclared=rvdeclared,
@@ -1262,17 +1255,12 @@ def writeTraceableQuickStub(f, customMethodCalls, member, stubName):
     # Convert in-parameters.
     rvdeclared = False
     for i, param in enumerate(member.params):
+        validateParam(member, param)
+        type = unaliasType(param.realtype)
         argName = "arg%d" % i
-        argTypeKey = argName + 'Type'
-        if customMethodCall is None or not argTypeKey in customMethodCall:
-            validateParam(member, param)
-            realtype = unaliasType(param.realtype)
-        else:
-            realtype = xpidl.Forward(name=customMethodCall[argTypeKey],
-                                     location='', doccomments='')
         rvdeclared = writeTraceableArgumentConversion(f, member, i, argName,
-                                                      realtype, haveCcx,
-                                                      rvdeclared)
+                                                      param.realtype,
+                                                      haveCcx, rvdeclared)
         argNames.append(argName)
 
     if customMethodCall is not None:
@@ -1317,7 +1305,7 @@ def writeTraceableQuickStub(f, customMethodCalls, member, stubName):
 
     # Write the JS_DEFINE_TRCINFO block
     f.write("JS_DEFINE_TRCINFO_1(%s,\n" % stubName)
-    f.write("    (%d, (static, %s, %s, %s, 0, nanojit::ACC_STORE_ANY)))\n\n"
+    f.write("    (%d, (static, %s, %s, %s, 0, 0)))\n\n"
             % (len(traceInfo["params"]), traceInfo["type"], stubName + "_tn",
                ", ".join(traceInfo["params"])))
 
@@ -1667,7 +1655,7 @@ def main():
     if options.cachedir != '':
         sys.path.append(options.cachedir)
         if not os.path.isdir(options.cachedir):
-            os.makedirs(options.cachedir)
+            os.mkdir(options.cachedir)
 
     try:
         includePath = options.idlpath.split(':')

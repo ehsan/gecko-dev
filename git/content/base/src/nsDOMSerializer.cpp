@@ -58,7 +58,6 @@ nsDOMSerializer::~nsDOMSerializer()
 {
 }
 
-DOMCI_DATA(XMLSerializer, nsDOMSerializer)
 
 // QueryInterface implementation for nsDOMSerializer
 NS_INTERFACE_MAP_BEGIN(nsDOMSerializer)

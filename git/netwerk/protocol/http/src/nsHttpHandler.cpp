@@ -99,8 +99,8 @@
 #endif
 
 //-----------------------------------------------------------------------------
-using namespace mozilla::net;
 #ifdef MOZ_IPC
+using namespace mozilla::net;
 #include "mozilla/net/HttpChannelChild.h"
 #endif 
 
@@ -1524,7 +1524,7 @@ nsHttpHandler::NewProxiedChannel(nsIURI *uri,
                                  nsIProxyInfo* givenProxyInfo,
                                  nsIChannel **result)
 {
-    nsRefPtr<HttpBaseChannel> httpChannel;
+    nsHttpChannel *httpChannel = nsnull;
 
     LOG(("nsHttpHandler::NewProxiedChannel [proxyInfo=%p]\n",
         givenProxyInfo));
@@ -1540,15 +1540,36 @@ nsHttpHandler::NewProxiedChannel(nsIURI *uri,
     if (NS_FAILED(rv))
         return rv;
 
-#ifdef MOZ_IPC
+#if MOZ_IPC
     if (IsNeckoChild()) {
         LOG(("NECKO_E10S_HTTP set: using experimental interprocess HTTP\n"));
-        httpChannel = new HttpChannelChild();
-    } else
-#endif
-    {
-        httpChannel = new nsHttpChannel();
+        // TODO_JCD: 
+        // - Create a common BaseHttpChannel so can share logic?
+        HttpChannelChild *childChannel = nsnull;
+        NS_NEWXPCOM(childChannel, HttpChannelChild);
+        if (!childChannel)
+            return NS_ERROR_OUT_OF_MEMORY;
+        NS_ADDREF(childChannel);
+        // TODO:  Just ignore HTTPS and proxying for now
+        if (https)
+            DROP_DEAD();
+        if (givenProxyInfo)
+            DROP_DEAD();
+        // TODO: Init caps, etc, as below?
+        rv = childChannel->Init(uri);
+        if (NS_FAILED(rv)) {
+            NS_RELEASE(childChannel);
+            return rv;
+        }
+        *result = childChannel;
+        return NS_OK;
     }
+#endif
+
+    NS_NEWXPCOM(httpChannel, nsHttpChannel);
+    if (!httpChannel)
+        return NS_ERROR_OUT_OF_MEMORY;
+    NS_ADDREF(httpChannel);
 
     // select proxy caps if using a non-transparent proxy.  SSL tunneling
     // should not use proxy settings.
@@ -1573,10 +1594,13 @@ nsHttpHandler::NewProxiedChannel(nsIURI *uri,
     }
 
     rv = httpChannel->Init(uri, caps, proxyInfo);
-    if (NS_FAILED(rv))
-        return rv;
 
-    httpChannel.forget(result);
+    if (NS_FAILED(rv)) {
+        NS_RELEASE(httpChannel);
+        return rv;
+    }
+
+    *result = httpChannel;
     return NS_OK;
 }
 

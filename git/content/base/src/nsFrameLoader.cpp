@@ -59,6 +59,7 @@
 #include "nsIDOMHTMLIFrameElement.h"
 #include "nsIDOMHTMLFrameElement.h"
 #include "nsIDOMWindow.h"
+#include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsIContent.h"
 #include "nsIContentViewer.h"
@@ -67,7 +68,6 @@
 #include "nsIDOMWindow.h"
 #include "nsPIDOMWindow.h"
 #include "nsIWebNavigation.h"
-#include "nsIWebProgress.h"
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIDocShellTreeNode.h"
@@ -75,8 +75,6 @@
 #include "nsIDocShellLoadInfo.h"
 #include "nsIBaseWindow.h"
 #include "nsContentUtils.h"
-#include "nsIXPConnect.h"
-#include "nsIJSContextStack.h"
 #include "nsUnicharUtils.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIScriptSecurityManager.h"
@@ -124,8 +122,6 @@
 using namespace mozilla;
 using namespace mozilla::dom;
 #endif
-
-#include "jsapi.h"
 
 class nsAsyncDocShellDestroyer : public nsRunnable
 {
@@ -408,34 +404,6 @@ nsFrameLoader::GetDocShell(nsIDocShell **aDocShell)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsFrameLoader::GetWebProgress(nsIWebProgress **aWebProgress)
-{
-  nsresult rv;
-  *aWebProgress = nsnull;
-#ifdef MOZ_IPC
-  if (mRemoteFrame) {
-    if (!mChildProcess) {
-      TryNewProcess();
-    }
-    if (!mChildProcess) {
-      return NS_ERROR_UNEXPECTED;
-    }
-    *aWebProgress = mChildProcess;
-    NS_ADDREF(*aWebProgress);
-    return NS_OK;
-  }
-#endif
-
-  nsCOMPtr<nsIDocShell> shell;
-  rv = GetDocShell(getter_AddRefs(shell));
-  if (NS_SUCCEEDED(rv)) {
-    nsCOMPtr<nsIWebProgress> progress(do_QueryInterface(shell));
-    progress.swap(*aWebProgress);
-  }
-  return rv;
-}
-
 void
 nsFrameLoader::Finalize()
 {
@@ -711,10 +679,7 @@ nsFrameLoader::ShowRemoteFrame(nsIFrameFrame* frame, nsIView* view)
 {
   NS_ASSERTION(mRemoteFrame, "ShowRemote only makes sense on remote frames.");
 
-  if (!mChildProcess) {
-    TryNewProcess();
-  }
-
+  TryNewProcess();
   if (!mChildProcess) {
     NS_ERROR("Couldn't create child process.");
     return false;
@@ -1068,18 +1033,6 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
   return NS_OK;
 }
 
-void
-nsFrameLoader::DestroyChild()
-{
-#ifdef MOZ_IPC
-  if (mChildProcess) {
-    mChildProcess->SetOwnerElement(nsnull);
-    PIFrameEmbeddingParent::Send__delete__(mChildProcess);
-    mChildProcess = nsnull;
-  }
-#endif
-}
-
 NS_IMETHODIMP
 nsFrameLoader::Destroy()
 {
@@ -1098,8 +1051,14 @@ nsFrameLoader::Destroy()
 
     mOwnerContent = nsnull;
   }
-  DestroyChild();
-  
+#ifdef MOZ_IPC
+  if (mChildProcess) {
+    mChildProcess->SetOwnerElement(nsnull);
+    PIFrameEmbeddingParent::Send__delete__(mChildProcess);
+    mChildProcess = nsnull;
+  }
+#endif
+
   // Let the tree owner know we're gone.
   if (mIsTopLevelContent) {
     nsCOMPtr<nsIDocShellTreeItem> ourItem = do_QueryInterface(mDocShell);
@@ -1547,9 +1506,7 @@ nsFrameLoader::TryNewProcess()
     return false;
   }
 
-  ContentProcessParent* parent = ContentProcessParent::GetSingleton();
-  NS_ASSERTION(parent->IsAlive(), "Process parent should be alive; something is very wrong!");
-  mChildProcess = parent->CreateTab();
+  mChildProcess = ContentProcessParent::GetSingleton()->CreateTab();
   if (mChildProcess) {
     nsCOMPtr<nsIDOMElement> element = do_QueryInterface(mOwnerContent);
     mChildProcess->SetOwnerElement(element);
@@ -1563,8 +1520,6 @@ nsFrameLoader::TryNewProcess()
     nsCOMPtr<nsIBrowserDOMWindow> browserDOMWin;
     rootChromeWin->GetBrowserDOMWindow(getter_AddRefs(browserDOMWin));
     mChildProcess->SetBrowserDOMWindow(browserDOMWin);
-    
-    mChildHost = parent;
   }
   return true;
 }
@@ -1637,25 +1592,6 @@ nsFrameLoader::SendCrossProcessKeyEvent(const nsAString& aType,
   }
 #endif
   return NS_ERROR_FAILURE;
-}
-
-NS_IMETHODIMP
-nsFrameLoader::GetCrossProcessObjectWrapper(nsIVariant** cpow)
-{
-#ifdef MOZ_IPC
-   nsIXPConnect* xpc;
-   nsIThreadJSContextStack* stack;
-   JSContext* cx;
-   JSObject* global;
- 
-   if ((xpc = nsContentUtils::XPConnect()) &&
-       (stack = nsContentUtils::ThreadJSContextStack()) &&
-       NS_SUCCEEDED(stack->Peek(&cx)) && cx &&
-       mChildProcess->GetGlobalJSObject(cx, &global)) {
-     return xpc->JSToVariant(cx, OBJECT_TO_JSVAL(global), cpow);
-   }
-#endif
-   return NS_ERROR_NOT_AVAILABLE;
 }
 
 nsresult

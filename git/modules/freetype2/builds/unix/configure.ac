@@ -2,7 +2,7 @@
 #
 # Process this file with autoconf to produce a configure script.
 #
-# Copyright 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010 by
+# Copyright 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008 by
 # David Turner, Robert Wilhelm, and Werner Lemberg.
 #
 # This file is part of the FreeType project, and may only be used, modified,
@@ -11,13 +11,13 @@
 # indicate that you have read the license and understand and accept it
 # fully.
 
-AC_INIT([FreeType], [2.3.12], [freetype@nongnu.org], [freetype])
+AC_INIT([FreeType], [2.3.7], [freetype@nongnu.org], [freetype])
 AC_CONFIG_SRCDIR([ftconfig.in])
 
 
 # Don't forget to update docs/VERSION.DLL!
 
-version_info='10:0:4'
+version_info='9:18:3'
 AC_SUBST([version_info])
 ft_version=`echo $version_info | tr : .`
 AC_SUBST([ft_version])
@@ -25,7 +25,9 @@ AC_SUBST([ft_version])
 
 # checks for system type
 
+AC_CANONICAL_BUILD
 AC_CANONICAL_HOST
+AC_CANONICAL_TARGET
 
 
 # checks for programs
@@ -53,15 +55,18 @@ if test ${cross_compiling} = yes; then
   elif test -x a_out.exe -o -x conftest.exe; then
     EXEEXT_BUILD=".exe"
   elif test -x conftest.* ; then
-    EXEEXT_BUILD=`echo conftest.* | sed -n '1s/^.*\././'`
+    EXEEXT_BUILD=`echo conftest.* | sed -n '1s/^.*\.//g'`
   fi
-  rm -f a.* b.* a_out.exe conftest.*
   AC_MSG_RESULT($EXEEXT_BUILD)
 else
   CC_BUILD=${CC}
   EXEEXT_BUILD=${EXEEXT}
 fi
 
+
+if test ! -z ${EXEEXT_BUILD}; then
+  EXEEXT_BUILD=."${EXEEXT_BUILD}"
+fi
 AC_SUBST(CC_BUILD)
 AC_SUBST(EXEEXT_BUILD)
 
@@ -69,7 +74,7 @@ AC_SUBST(EXEEXT_BUILD)
 
 # get compiler flags right
 
-if test "x$GCC" = xyes; then
+if test "x$CC" = xgcc; then
   XX_CFLAGS="-Wall"
   XX_ANSIFLAGS="-pedantic -ansi"
 else
@@ -121,70 +126,6 @@ AC_CHECK_SIZEOF([int])
 AC_CHECK_SIZEOF([long])
 
 
-# check whether cpp computation of size of int and long in ftconfig.in works
-
-AC_MSG_CHECKING([cpp computation of bit length in ftconfig.in works])
-orig_CPPFLAGS="${CPPFLAGS}"
-CPPFLAGS="-I${srcdir} -I. ${CPPFLAGS}"
-ac_clean_files="ft2build.h ftoption.h ftstdlib.h"
-touch ft2build.h ftoption.h ftstdlib.h
-
-cat > conftest.c <<\_ACEOF
-#include <limits.h>
-#define FT_CONFIG_OPTIONS_H "ftoption.h"
-#define FT_CONFIG_STANDARD_LIBRARY_H "ftstdlib.h"
-#define FT_UINT_MAX  UINT_MAX
-#define FT_ULONG_MAX ULONG_MAX
-#include "ftconfig.in"
-_ACEOF
-echo >> conftest.c "#if FT_SIZEOF_INT == "${ac_cv_sizeof_int}
-echo >> conftest.c "ac_cpp_ft_sizeof_int="${ac_cv_sizeof_int}
-echo >> conftest.c "#endif"
-echo >> conftest.c "#if FT_SIZEOF_LONG == "${ac_cv_sizeof_long}
-echo >> conftest.c "ac_cpp_ft_sizeof_long="${ac_cv_sizeof_long}
-echo >> conftest.c "#endif"
-
-${CPP} ${CPPFLAGS} conftest.c | ${GREP} ac_cpp_ft > conftest.sh
-eval `cat conftest.sh`
-${RMF} conftest.c conftest.sh confft2build.h ftoption.h ftstdlib.h
-
-if test x != "x${ac_cpp_ft_sizeof_int}" \
-   -a x != x"${ac_cpp_ft_sizeof_long}"; then
-  unset ft_use_autoconf_sizeof_types
-else
-  ft_use_autoconf_sizeof_types=yes
-fi
-
-AC_ARG_ENABLE(biarch-config,
-[  --enable-biarch-config  install biarch ftconfig.h to support multiple
-                          architectures by single file], [], [])
-
-case :${ft_use_autoconf_sizeof_types}:${enable_biarch_config}: in
-  :yes:yes:)
-    AC_MSG_RESULT([broken but use it])
-    unset ft_use_autoconf_sizeof_types
-    ;;
-  ::no:)
-    AC_MSG_RESULT([works but ignore it])
-    ft_use_autoconf_sizeof_types=yes
-    ;;
-  ::yes: | :::)
-    AC_MSG_RESULT([yes])
-    unset ft_use_autoconf_sizeof_types
-    ;;
-  *)
-    AC_MSG_RESULT([no])
-    ft_use_autoconf_sizeof_types=yes
-    ;;
-esac
-
-if test x"${ft_use_autoconf_sizeof_types}" = xyes; then
-  AC_DEFINE([FT_USE_AUTOCONF_SIZEOF_TYPES])
-fi
-
-CPPFLAGS="${orig_CPPFLAGS}"
-
-
 # checks for library functions
 
 # Here we check whether we can use our mmap file component.
@@ -230,53 +171,33 @@ if test x$with_zlib != xno && test -n "$LIBZ"; then
 fi
 
 
-# Some options handling SDKs/archs in CFLAGS should be copied
-# to LDFLAGS. Apple TechNote 2137 recommends to include these
-# options in CFLAGS but not in LDFLAGS.
+# check Apple's `-isysroot' option and duplicate it to LDFLAGS if required --
+# Apple TechNote 2137 recommends to include it in CFLAGS but not in LDFLAGS
 
-save_config_args=$*
-set dummy ${CFLAGS}
-i=1
-while test $i -lt $#
-do
-  c=$1
-
-  case "${c}" in
-  -isysroot|-arch) # options taking 1 argument
-    a=$2
-    AC_MSG_CHECKING([whether CFLAGS and LDFLAGS share ${c} ${a}])
-    if expr " ${LDFLAGS} " : ".* ${c} *${a}.*" > /dev/null
-    then
-      AC_MSG_RESULT([yes])
-    else
-      AC_MSG_RESULT([no, copy to LDFLAGS])
-      LDFLAGS="${LDFLAGS} ${c} ${a}"
-    fi
-    shift 1
+AC_MSG_CHECKING([whether CFLAGS includes -isysroot option])
+case "$CFLAGS" in
+*sysroot* )
+  AC_MSG_RESULT([yes])
+  AC_MSG_CHECKING([whether LDFLAGS includes -isysroot option])
+  case "$LDFLAGS" in
+  *sysroot* )
+    AC_MSG_RESULT([yes])
     ;;
-  -m32|-m64) # options taking no argument
-    AC_MSG_RESULT([whether CFLAGS and LDFLAGS share ${c}])
-    if expr " ${LDFLAGS} " : ".* ${c} *${a}.*" > /dev/null
-    then
-      AC_MSG_RESULT([yes])
-    else
-      AC_MSG_RESULT([no, copy to LDFLAGS])
-      LDFLAGS="${LDFLAGS} ${c}"
-    fi
+  *)
+    AC_MSG_RESULT([no])
+    isysroot_dir=`echo ${CFLAGS} | tr '\t' ' ' | sed 's/^.*-isysroot *//;s/ .*//'`
+    AC_MSG_WARN(-isysroot ${isysroot_dir} is added to LDFLAGS)
+    LDFLAGS="-isysroot ${isysroot_dir} ${LDFLAGS}"
     ;;
-  # *)
-  #   AC_MSG_RESULT([${c} is not copied to LDFLAGS])
-  #   ;;
   esac
-
-  shift 1
-done
-set ${save_config_args}
+  ;;
+*)
+  AC_MSG_RESULT([no])
+  ;;
+esac
 
 
 # Whether to use Mac OS resource-based fonts.
-
-ftmac_c="" # src/base/ftmac.c should not be included in makefiles by default
 
 # don't quote AS_HELP_STRING!
 AC_ARG_WITH([old-mac-fonts],
@@ -291,7 +212,7 @@ if test x$with_old_mac_fonts = xyes; then
     AC_LANG_PROGRAM([
 
 #if defined(__GNUC__) && defined(__APPLE_CC__)
-# include <CoreServices/CoreServices.h>
+# include <Carbon/Carbon.h>
 # include <ApplicationServices/ApplicationServices.h>
 #else
 # include <ConditionalMacros.h>
@@ -308,7 +229,6 @@ if test x$with_old_mac_fonts = xyes; then
 
       ])],
     [AC_MSG_RESULT([ok])
-     ftmac_c='ftmac.c'
      AC_MSG_CHECKING([OS_INLINE macro is ANSI compatible])
      orig_CFLAGS="$CFLAGS"
      CFLAGS="$CFLAGS $XX_CFLAGS $XX_ANSIFLAGS"
@@ -316,7 +236,7 @@ if test x$with_old_mac_fonts = xyes; then
        AC_LANG_PROGRAM([
 
 #if defined(__GNUC__) && defined(__APPLE_CC__)
-# include <CoreServices/CoreServices.h>
+# include <Carbon/Carbon.h>
 # include <ApplicationServices/ApplicationServices.h>
 #else
 # include <ConditionalMacros.h>
@@ -348,7 +268,7 @@ if test x$with_old_mac_fonts = xyes; then
        AC_LANG_PROGRAM([
 
 #if defined(__GNUC__) && defined(__APPLE_CC__)
-# include <CoreServices/CoreServices.h>
+# include <Carbon/Carbon.h>
 # include <ApplicationServices/ApplicationServices.h>
 #else
 # include <ConditionalMacros.h>
@@ -365,20 +285,18 @@ if test x$with_old_mac_fonts = xyes; then
          ])],
        [AC_MSG_RESULT([ok])
         CFLAGS="$orig_CFLAGS"
-        CFLAGS="$CFLAGS -DHAVE_TYPE_RESOURCE_INDEX=1"
+        CFLAGS="$CFLAGS -DHAVE_TYPE_RESOURCE_INDEX"
        ],
        [AC_MSG_RESULT([no])
         CFLAGS="$orig_CFLAGS"
-        CFLAGS="$CFLAGS -DHAVE_TYPE_RESOURCE_INDEX=0"
        ])],
     [AC_MSG_RESULT([not found])
-     FT2_EXTRA_LIBS=""
      LDFLAGS="${orig_LDFLAGS}"
      CFLAGS="$CFLAGS -DDARWIN_NO_CARBON"])
 else
-  case x$host_os in
+  case x$target_os in
   xdarwin*)
-    dnl AC_MSG_WARN([host system is MacOS but configured to build without Carbon])
+    dnl AC_MSG_WARN([target system is MacOS but configured to build without Carbon])
     CFLAGS="$CFLAGS -DDARWIN_NO_CARBON"
     ;;
   *) ;;
@@ -399,7 +317,7 @@ elif test x$with_old_mac_fonts = xyes -a x$with_fsspec != x; then
     AC_LANG_PROGRAM([
 
 #if defined(__GNUC__) && defined(__APPLE_CC__)
-# include <CoreServices/CoreServices.h>
+# include <Carbon/Carbon.h>
 # include <ApplicationServices/ApplicationServices.h>
 #else
 # include <ConditionalMacros.h>
@@ -446,7 +364,7 @@ elif test x$with_old_mac_fonts = xyes -a x$with_fsref != x; then
     AC_LANG_PROGRAM([
 
 #if defined(__GNUC__) && defined(__APPLE_CC__)
-# include <CoreServices/CoreServices.h>
+# include <Carbon/Carbon.h>
 # include <ApplicationServices/ApplicationServices.h>
 #else
 # include <ConditionalMacros.h>
@@ -509,7 +427,7 @@ elif test x$with_old_mac_fonts = xyes -a x$with_quickdraw_toolbox != x; then
     AC_LANG_PROGRAM([
 
 #if defined(__GNUC__) && defined(__APPLE_CC__)
-# include <CoreServices/CoreServices.h>
+# include <Carbon/Carbon.h>
 # include <ApplicationServices/ApplicationServices.h>
 #else
 # include <ConditionalMacros.h>
@@ -551,7 +469,7 @@ elif test x$with_old_mac_fonts = xyes -a x$with_quickdraw_carbon != x; then
     AC_LANG_PROGRAM([
 
 #if defined(__GNUC__) && defined(__APPLE_CC__)
-# include <CoreServices/CoreServices.h>
+# include <Carbon/Carbon.h>
 # include <ApplicationServices/ApplicationServices.h>
 #else
 # include <ConditionalMacros.h>
@@ -602,13 +520,7 @@ elif test x$with_old_mac_fonts = xyes -a x$with_ats != x ; then
   AC_LINK_IFELSE([
     AC_LANG_PROGRAM([
 
-#if defined(__GNUC__) && defined(__APPLE_CC__)
-# include <CoreServices/CoreServices.h>
-# include <ApplicationServices/ApplicationServices.h>
-#else
-# include <ConditionalMacros.h>
-# include <Files.h>
-#endif
+#include <Carbon/Carbon.h>
 
       ],
       [
@@ -642,7 +554,6 @@ case "$CFLAGS" in
 esac
 
 
-AC_SUBST([ftmac_c])
 AC_SUBST([LIBZ])
 AC_SUBST([CFLAGS])
 AC_SUBST([LDFLAGS])

@@ -312,7 +312,7 @@
       
       <property name="webProgress"
                 readonly="true"
-                onget="return this.QueryInterface(Components.interfaces.nsIFrameLoaderOwner).frameLoader.webProgress;"/>
+                onget="return this.docShell.QueryInterface(Components.interfaces.nsIInterfaceRequestor).getInterface(Components.interfaces.nsIWebProgress);"/>
 
       <field name="_contentWindow">null</field>
 
@@ -535,6 +535,10 @@
 
       <field name="pageReport">null</field>
 
+      <field name="mDragDropHandler">
+        null
+      </field>
+
       <property name="securityUI">
         <getter>
           <![CDATA[
@@ -617,14 +621,7 @@
         false
       </field>
 
-      <field name="droppedLinkHandler">
-        null
-      </field>
-
       <field name="mIconURL">null</field>
-
-      <!-- This is managed by the tabbrowser -->
-      <field name="lastURI">null</field>
 
       <field name="mDestroyed">false</field>
 
@@ -645,6 +642,12 @@
           }
           catch (e) {
             Components.utils.reportError(e);
+          }
+          try {
+            this.mDragDropHandler = Components.classes["@mozilla.org:/content/content-area-dragdrop;1"].createInstance(Components.interfaces.nsIDragDropHandler);
+            this.mDragDropHandler.hookupTo(this, null);
+          }
+          catch (e) {
           }
           try {
             var securityUI = this.securityUI;
@@ -684,6 +687,10 @@
             }
           }
 
+          if (this.mDragDropHandler)
+            this.mDragDropHandler.detach();
+          this.mDragDropHandler = null;
+
           this.detachFormFill();
           
           this._fastFind = null;
@@ -691,8 +698,6 @@
           
           // The feeds cache can keep the document inside this browser alive.
           this.feeds = null;
-
-          this.lastURI = null;
 
           this.removeEventListener("pageshow", this.onPageShow, true);
           this.removeEventListener("pagehide", this.onPageHide, true);
@@ -800,9 +805,6 @@
               this._autoScrollPopup.setAttribute("translucent", /Win|Mac/.test(navigator.platform));
             }
 
-            // this is a list of overflow property values that allow scrolling
-            const scrollingAllowed = ['scroll', 'auto'];
-
             // go upward in the DOM and find any parent element that has a overflow
             // area and can therefore be scrolled
             for (this._scrollable = event.originalTarget; this._scrollable;
@@ -822,18 +824,14 @@
               var overflowy = this._scrollable.ownerDocument.defaultView
                                   .getComputedStyle(this._scrollable, '')
                                   .getPropertyValue('overflow-y');
-              // we already discarded non-multiline selects so allow vertical
-              // scroll for multiline ones directly without checking for a
-              // overflow property
               var scrollVert = this._scrollable.scrollHeight > this._scrollable.clientHeight &&
-                               (this._scrollable instanceof HTMLSelectElement ||
-                                scrollingAllowed.indexOf(overflowy) >= 0);
+                               overflowy != 'hidden' && overflowy != 'visible';
 
               // do not allow horizontal scrolling for select elements, it leads
               // to visual artifacts and is not the expected behavior anyway
               if (!(this._scrollable instanceof HTMLSelectElement) &&
                   this._scrollable.scrollWidth > this._scrollable.clientWidth &&
-                  scrollingAllowed.indexOf(overflowx) >= 0) {
+                  overflowx != 'hidden' && overflowx != 'visible') {
                 this._autoScrollPopup.setAttribute("scrolldir", scrollVert ? "NSEW" : "EW");
                 break;
               }
@@ -1133,43 +1131,6 @@
             this.startScroll(event);
           }
         ]]>
-      </handler>
-      <handler event="dragover" group="system">
-      <![CDATA[
-        if (event.getPreventDefault())
-          return;
-
-        let linkHandler = Components.classes["@mozilla.org/content/dropped-link-handler;1"].
-                            getService(Components.interfaces.nsIDroppedLinkHandler);
-        if (linkHandler.canDropLink(event, false))
-          event.preventDefault();
-      ]]>
-      </handler>
-      <handler event="drop" group="system">
-      <![CDATA[
-        if (event.getPreventDefault())
-          return;
-
-        let name = { };
-        let linkHandler = Components.classes["@mozilla.org/content/dropped-link-handler;1"].
-                            getService(Components.interfaces.nsIDroppedLinkHandler);
-        try {
-          var uri = linkHandler.dropLink(event, name);
-        } catch (ex) {
-          return;
-        }
-
-        // don't allow dropping javascript or data urls
-        if (/^\s*(javascript|data):/.test(uri))
-          return;
-
-        if (uri) {
-          if (this.droppedLinkHandler)
-            this.droppedLinkHandler(event, uri, name.value);
-          else
-            this.loadURI(uri, null, "");
-        }
-      ]]>
       </handler>
     </handlers>
 

@@ -683,14 +683,8 @@ TestRunner.prototype =
         {
           ReimplTest.defineProperty(reimplObj, "foo", desc);
         }
-        catch (e2)
+        catch (e)
         {
-          if (e.constructor !== e2.constructor)
-          {
-            this._log("Difference when comparing native/reimplementation " +
-                      "behavior for new descriptor " + desc.toSource() +
-                      ", native threw " + e + ", reimpl threw " + e2);
-          }
           return;
         }
         this._log("Difference when comparing native/reimplementation " +
@@ -735,7 +729,8 @@ TestRunner.prototype =
       }
       catch (e)
       {
-        if (!SameValue(NativeTest.getDescriptor(nativeObj, "foo"), undefined))
+        if (!SameValue(NativeTest.getDescriptor(nativeObj, "foo"),
+                       undefined))
         {
           this._log("defining bad property descriptor: " + old.toSource());
           return;
@@ -753,14 +748,6 @@ TestRunner.prototype =
             this._log("defining bad property descriptor: " + old.toSource() +
                       "; reimplObj: " + uneval(reimplObj));
           }
-
-          if (e.constructor !== e2.constructor)
-          {
-            this._log("Different errors defining bad property descriptor: " +
-                      old.toSource() + "; native threw " + e + ", reimpl " +
-                      "threw " + e2);
-          }
-
           return;
         }
 
@@ -793,13 +780,6 @@ TestRunner.prototype =
         }
         catch (e2)
         {
-          if (e.constructor !== e2.constructor)
-          {
-            this._log("Difference when comparing native/reimplementation " +
-                      "behavior for descriptor " + add.toSource() +
-                      " overwriting descriptor " + old.toSource() + "; " +
-                      "native threw " + e + ", reimpl threw " + e2);
-          }
           return;
         }
         this._log("Difference when comparing native/reimplementation " +
@@ -857,14 +837,8 @@ TestRunner.prototype =
         {
           ReimplTest.defineProperty(reimplObj, "length", desc);
         }
-        catch (e2)
+        catch (e)
         {
-          if (e.constructor !== e2.constructor)
-          {
-            this._log("Difference when comparing native/reimplementation " +
-                      "behavior defining fun.length with " + desc.toSource() +
-                      "; native threw " + e + ", reimpl threw " + e2);
-          }
           return;
         }
         this._log("Difference when comparing Function.length native/reimpl " +

@@ -38,11 +38,10 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include "nsHttp.h"
 #include "mozilla/net/HttpChannelParent.h"
 #include "nsHttpChannel.h"
-#include "nsHttpHandler.h"
 #include "nsNetUtil.h"
-#include "nsISupportsPriority.h"
 
 namespace mozilla {
 namespace net {
@@ -50,15 +49,10 @@ namespace net {
 // C++ file contents
 HttpChannelParent::HttpChannelParent()
 {
-  // Ensure gHttpHandler is initialized: we need the atom table up and running.
-  nsIHttpProtocolHandler* handler;
-  CallGetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "http", &handler);
-  NS_ASSERTION(handler, "no http handler");
 }
 
 HttpChannelParent::~HttpChannelParent()
 {
-  gHttpHandler->Release();
 }
 
 //-----------------------------------------------------------------------------
@@ -75,80 +69,66 @@ NS_IMPL_ISUPPORTS3(HttpChannelParent,
 //-----------------------------------------------------------------------------
 
 bool 
-HttpChannelParent::RecvAsyncOpen(const IPC::URI&            aURI,
-                                 const IPC::URI&            aOriginalURI,
-                                 const IPC::URI&            aDocURI,
-                                 const IPC::URI&            aReferrerURI,
-                                 const PRUint32&            loadFlags,
-                                 const RequestHeaderTuples& requestHeaders,
-                                 const nsHttpAtom&          requestMethod,
-                                 const PRUint16&            priority,
-                                 const PRUint8&             redirectionLimit,
-                                 const PRBool&              allowPipelining,
-                                 const PRBool&              forceAllowThirdPartyCookie)
+HttpChannelParent::RecvAsyncOpen(const nsCString& uriSpec, 
+                                 const nsCString& charset,
+                                 const nsCString& originalUriSpec, 
+                                 const nsCString& originalCharset,
+                                 const nsCString& docUriSpec, 
+                                 const nsCString& docCharset,
+                                 const PRUint32&  loadFlags)
 {
-  nsCOMPtr<nsIURI> uri = aURI;
-  nsCOMPtr<nsIURI> originalUri = aOriginalURI;
-  nsCOMPtr<nsIURI> docUri = aDocURI;
-  nsCOMPtr<nsIURI> referrerUri = aReferrerURI;
-  
-  nsCString uriSpec;
-  uri->GetSpec(uriSpec);
-  LOG(("HttpChannelParent RecvAsyncOpen [this=%x uri=%s]\n", 
-       this, uriSpec.get()));
-
   nsresult rv;
 
   nsCOMPtr<nsIIOService> ios(do_GetIOService(&rv));
   if (NS_FAILED(rv))
     return false;       // TODO: send fail msg to child, return true
 
+  nsCOMPtr<nsIURI> uri;
+  rv = NS_NewURI(getter_AddRefs(uri), uriSpec, charset.get(), nsnull, ios);
+  if (NS_FAILED(rv))
+    return false;       // TODO: send fail msg to child, return true
+
+  // Delay log to here, as gHttpLog may not exist in parent until we init
+  // gHttpHandler via above call to NS_NewURI.  Avoids segfault :)
+  LOG(("HttpChannelParent RecvAsyncOpen [this=%x uri=%s (%s)]\n", 
+       this, uriSpec.get(), charset.get()));
+
   nsCOMPtr<nsIChannel> chan;
   rv = NS_NewChannel(getter_AddRefs(chan), uri, ios, nsnull, nsnull, loadFlags);
   if (NS_FAILED(rv))
     return false;       // TODO: send fail msg to child, return true
 
-  nsHttpChannel *httpChan = static_cast<nsHttpChannel *>(chan.get());
-
-  if (originalUri)
-    httpChan->SetOriginalURI(originalUri);
-  if (docUri)
-    httpChan->SetDocumentURI(docUri);
-  if (referrerUri)
-    httpChan->SetReferrerInternal(referrerUri);
+  if (!originalUriSpec.IsEmpty()) {
+    nsCOMPtr<nsIURI> originalUri;
+    rv = NS_NewURI(getter_AddRefs(originalUri), originalUriSpec, 
+                   originalCharset.get(), nsnull, ios);
+    if (!NS_FAILED(rv))
+      chan->SetOriginalURI(originalUri);
+  }
+  if (!docUriSpec.IsEmpty()) {
+    nsCOMPtr<nsIURI> docUri;
+    rv = NS_NewURI(getter_AddRefs(docUri), docUriSpec, 
+                   docCharset.get(), nsnull, ios);
+    if (!NS_FAILED(rv)) {
+      nsCOMPtr<nsIHttpChannelInternal> iChan(do_QueryInterface(chan));
+      if (iChan) 
+        iChan->SetDocumentURI(docUri);
+    }
+  }
   if (loadFlags != nsIRequest::LOAD_NORMAL)
-    httpChan->SetLoadFlags(loadFlags);
-
-  for (PRUint32 i = 0; i < requestHeaders.Length(); i++)
-    httpChan->SetRequestHeader(requestHeaders[i].mHeader,
-                               requestHeaders[i].mValue,
-                               requestHeaders[i].mMerge);
-
+    chan->SetLoadFlags(loadFlags);
+ 
   // TODO: implement needed interfaces, and either proxy calls back to child
   // process, or rig up appropriate hacks.
-  //  httpChan->SetNotificationCallbacks(this);
+//  chan->SetNotificationCallbacks(this);
 
-  httpChan->SetRequestMethod(nsDependentCString(requestMethod.get()));
-  if (priority != nsISupportsPriority::PRIORITY_NORMAL)
-    httpChan->SetPriority(priority);
-  httpChan->SetRedirectionLimit(redirectionLimit);
-  httpChan->SetAllowPipelining(allowPipelining);
-  httpChan->SetForceAllowThirdPartyCookie(forceAllowThirdPartyCookie);
-
-  rv = httpChan->AsyncOpen(this, nsnull);
+  rv = chan->AsyncOpen(this, nsnull);
   if (NS_FAILED(rv))
     return false;       // TODO: send fail msg to child, return true
 
   return true;
 }
 
-bool 
-HttpChannelParent::RecvSetPriority(const PRUint16& priority)
-{
-  // FIXME: bug XXX: once we figure out how to keep a ref to the nsHttpChannel,
-  // call SetPriority on it here.
-  return true;
-}
 
 //-----------------------------------------------------------------------------
 // HttpChannelParent::nsIRequestObserver
@@ -159,11 +139,26 @@ HttpChannelParent::OnStartRequest(nsIRequest *aRequest, nsISupports *aContext)
 {
   LOG(("HttpChannelParent::OnStartRequest [this=%x]\n", this));
 
-  nsHttpChannel *chan = static_cast<nsHttpChannel *>(aRequest);
-  nsHttpResponseHead *responseHead = chan->GetResponseHead();
-  NS_ABORT_IF_FALSE(responseHead, "Missing HTTP responseHead!");
+  nsCOMPtr<nsIHttpChannel> chan(do_QueryInterface(aRequest));
+  NS_ENSURE_TRUE(chan, NS_ERROR_FAILURE);
 
-  if (!SendOnStartRequest(*responseHead)) {
+  /*
+   * - TODO: Need to send all or most of mResponseHead
+   * - TODO: if getting vals fails, still need to call OnStartRequest on child,
+   *   not just fail here?
+   */
+  PRInt32 contentLength_HACK;
+  chan->GetContentLength(&contentLength_HACK);
+  nsCAutoString contentType_HACK;
+  chan->GetContentType(contentType_HACK);
+  PRUint32 status_HACK;
+  chan->GetResponseStatus(&status_HACK);
+  nsCAutoString statusText_HACK;
+  chan->GetResponseStatusText(statusText_HACK);
+
+  if (!SendOnStartRequest(contentLength_HACK, contentType_HACK,
+                          status_HACK, statusText_HACK)) 
+  {
     // IPDL error--child dead/dying & our own destructor will be called
     // automatically
     // -- TODO: verify that that's the case :)

@@ -60,7 +60,6 @@
 #include "nsITransferable.h"
 #include "nsIDragService.h"
 #include "nsIDOMNSUIEvent.h"
-#include "nsCopySupport.h"
 
 // Misc
 #include "nsEditorUtils.h"
@@ -410,11 +409,14 @@ NS_IMETHODIMP nsPlaintextEditor::DoDrag(nsIDOMEvent *aDragEvent)
 
 NS_IMETHODIMP nsPlaintextEditor::Paste(PRInt32 aSelectionType)
 {
-  if (!FireClipboardEvent(NS_PASTE))
-    return NS_OK;
+  ForceCompositionEnd();
+
+  PRBool preventDefault;
+  nsresult rv = FireClipboardEvent(NS_PASTE, &preventDefault);
+  if (NS_FAILED(rv) || preventDefault)
+    return rv;
 
   // Get Clipboard Service
-  nsresult rv;
   nsCOMPtr<nsIClipboard> clipboard(do_GetService("@mozilla.org/widget/clipboard;1", &rv));
   if ( NS_FAILED(rv) )
     return rv;
@@ -444,8 +446,12 @@ NS_IMETHODIMP nsPlaintextEditor::Paste(PRInt32 aSelectionType)
 
 NS_IMETHODIMP nsPlaintextEditor::PasteTransferable(nsITransferable *aTransferable)
 {
-  if (!FireClipboardEvent(NS_PASTE))
-    return NS_OK;
+  ForceCompositionEnd();
+
+  PRBool preventDefault;
+  nsresult rv = FireClipboardEvent(NS_PASTE, &preventDefault);
+  if (NS_FAILED(rv) || preventDefault)
+    return rv;
 
   if (!IsModifiable())
     return NS_OK;
@@ -458,7 +464,9 @@ NS_IMETHODIMP nsPlaintextEditor::PasteTransferable(nsITransferable *aTransferabl
 
   // Beware! This may flush notifications via synchronous
   // ScrollSelectionIntoView.
-  return InsertTextFromTransferable(aTransferable, nsnull, nsnull, PR_TRUE);
+  rv = InsertTextFromTransferable(aTransferable, nsnull, nsnull, PR_TRUE);
+
+  return rv;
 }
 
 NS_IMETHODIMP nsPlaintextEditor::CanPaste(PRInt32 aSelectionType, PRBool *aCanPaste)
@@ -526,10 +534,16 @@ nsPlaintextEditor::SetupDocEncoder(nsIDocumentEncoder **aDocEncoder)
   if (NS_FAILED(rv)) return rv;
 
   // find out if we're a plaintext control or not
+  PRUint32 editorFlags = 0;
+  rv = GetFlags(&editorFlags);
+  if (NS_FAILED(rv)) return rv;
+
+  PRBool bIsPlainTextControl = ((editorFlags & eEditorPlaintextMask) != 0);
+
   // get correct mimeType and document encoder flags set
   nsAutoString mimeType;
   PRUint32 docEncoderFlags = 0;
-  if (IsPlaintextEditor())
+  if (bIsPlainTextControl)
   {
     docEncoderFlags |= nsIDocumentEncoder::OutputBodyOnly | nsIDocumentEncoder::OutputPreformatted;
     mimeType.AssignLiteral(kUnicodeMime);
@@ -587,7 +601,12 @@ nsPlaintextEditor::PutDragDataInTransferable(nsITransferable **aTransferable)
   NS_ENSURE_SUCCESS(rv, rv);
 
   // find out if we're a plaintext control or not
-  if (IsPlaintextEditor())
+  PRUint32 editorFlags = 0;
+  rv = GetFlags(&editorFlags);
+  if (NS_FAILED(rv)) return rv;
+
+  PRBool bIsPlainTextControl = ((editorFlags & eEditorPlaintextMask) != 0);
+  if (bIsPlainTextControl)
   {
     // Add the unicode flavor to the transferable
     rv = trans->AddDataFlavor(kUnicodeMime);
@@ -608,7 +627,7 @@ nsPlaintextEditor::PutDragDataInTransferable(nsITransferable **aTransferable)
   // QI the data object an |nsISupports| so that when the transferable holds
   // onto it, it will addref the correct interface.
   nsCOMPtr<nsISupports> nsisupportsDataWrapper = do_QueryInterface(dataWrapper);
-  rv = trans->SetTransferData(IsPlaintextEditor() ? kUnicodeMime : kHTMLMime,
+  rv = trans->SetTransferData(bIsPlainTextControl ? kUnicodeMime : kHTMLMime,
                    nsisupportsDataWrapper, buffer.Length() * sizeof(PRUnichar));
   if (NS_FAILED(rv)) return rv;
 

@@ -26,7 +26,6 @@
 #   Dietrich Ayala <dietrich@mozilla.com>
 #   Ehsan Akhgari <ehsan.akhgari@gmail.com>
 #   Nils Maier <maierman@web.de>
-#   Robert Strong <robert.bugzilla@gmail.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -50,7 +49,6 @@ const Cu = Components.utils;
 const XULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://gre/modules/Services.jsm");
 
 const PREF_EM_NEW_ADDONS_LIST = "extensions.newAddons";
 const PREF_PLUGINS_NOTIFYUSER = "plugins.update.notifyUser";
@@ -78,6 +76,14 @@ const BrowserGlueServiceFactory = {
 // Constructor
 
 function BrowserGlue() {
+  XPCOMUtils.defineLazyServiceGetter(this, "_prefs",
+                                     "@mozilla.org/preferences-service;1",
+                                     "nsIPrefBranch");
+
+  XPCOMUtils.defineLazyServiceGetter(this, "_bundleService",
+                                     "@mozilla.org/intl/stringbundle;1",
+                                     "nsIStringBundleService");
+
   XPCOMUtils.defineLazyServiceGetter(this, "_idleService",
                                      "@mozilla.org/widget/idleservice;1",
                                      "nsIIdleService");
@@ -90,9 +96,16 @@ function BrowserGlue() {
   XPCOMUtils.defineLazyGetter(this, "_sanitizer",
     function() {
       let sanitizerScope = {};
-      Services.scriptloader.loadSubScript("chrome://browser/content/sanitize.js", sanitizerScope);
+      Cc["@mozilla.org/moz/jssubscript-loader;1"].
+      getService(Ci.mozIJSSubScriptLoader).
+      loadSubScript("chrome://browser/content/sanitize.js", sanitizerScope);
       return sanitizerScope.Sanitizer;
     });
+
+  // The observer service is immediately used in _init(), so there's no reason
+  // to have a getter.
+  this._observerService = Cc["@mozilla.org/observer-service;1"].
+                          getService(Ci.nsIObserverService);
 
   this._init();
 }
@@ -108,19 +121,18 @@ BrowserGlue.prototype = {
   _isIdleObserver: false,
   _isPlacesInitObserver: false,
   _isPlacesLockedObserver: false,
-  _isPlacesShutdownObserver: false,
   _isPlacesDatabaseLocked: false,
 
   _setPrefToSaveSession: function BG__setPrefToSaveSession(aForce) {
     if (!this._saveSession && !aForce)
       return;
 
-    Services.prefs.setBoolPref("browser.sessionstore.resume_session_once", true);
+    this._prefs.setBoolPref("browser.sessionstore.resume_session_once", true);
 
     // This method can be called via [NSApplication terminate:] on Mac, which
     // ends up causing prefs not to be flushed to disk, so we need to do that
     // explicitly here. See bug 497652.
-    Services.prefs.savePrefFile(null);
+    this._prefs.QueryInterface(Ci.nsIPrefService).savePrefFile(null);
   },
 
   // nsIObserver implementation 
@@ -140,8 +152,10 @@ BrowserGlue.prototype = {
         break;
       case "browser:purge-session-history":
         // reset the console service's error buffer
-        Services.console.logStringMessage(null); // clear the console (in case it's open)
-        Services.console.reset();
+        const cs = Cc["@mozilla.org/consoleservice;1"].
+                   getService(Ci.nsIConsoleService);
+        cs.logStringMessage(null); // clear the console (in case it's open)
+        cs.reset();
         break;
       case "quit-application-requested":
         this._onQuitRequest(subject, data);
@@ -150,6 +164,7 @@ BrowserGlue.prototype = {
         // This pref must be set here because SessionStore will use its value
         // on quit-application.
         this._setPrefToSaveSession();
+        this._onProfileShutdown();
         break;
 #ifdef OBSERVE_LASTWINDOW_CLOSE_TOPICS
       case "browser-lastwindow-close-requested":
@@ -168,10 +183,10 @@ BrowserGlue.prototype = {
         break;
       case "places-init-complete":
         this._initPlaces();
-        Services.obs.removeObserver(this, "places-init-complete");
+        this._observerService.removeObserver(this, "places-init-complete");
         this._isPlacesInitObserver = false;
         // no longer needed, since history was initialized completely.
-        Services.obs.removeObserver(this, "places-database-locked");
+        this._observerService.removeObserver(this, "places-database-locked");
         this._isPlacesLockedObserver = false;
 
         // Now apply distribution customized bookmarks.
@@ -182,91 +197,67 @@ BrowserGlue.prototype = {
         this._isPlacesDatabaseLocked = true;
         // Stop observing, so further attempts to load history service
         // will not show the prompt.
-        Services.obs.removeObserver(this, "places-database-locked");
+        this._observerService.removeObserver(this, "places-database-locked");
         this._isPlacesLockedObserver = false;
-        break;
-      case "places-shutdown":
-        if (this._isPlacesShutdownObserver) {
-          Services.obs.removeObserver(this, "places-shutdown");
-          this._isPlacesShutdownObserver = false;
-        }
-        // places-shutdown is fired on profile-before-change, but before
-        // Places executes the last flush and closes connection.
-        this._onProfileShutdown();
         break;
       case "idle":
         if (this._idleService.idleTime > BOOKMARKS_BACKUP_IDLE_TIME * 1000)
           this._backupBookmarks();
         break;
       case "distribution-customization-complete":
-        Services.obs.removeObserver(this, "distribution-customization-complete");
+        this._observerService
+            .removeObserver(this, "distribution-customization-complete");
         // Customization has finished, we don't need the customizer anymore.
         delete this._distributionCustomizer;
-        break;
-      case "bookmarks-restore-success":
-      case "bookmarks-restore-failed":
-        Services.obs.removeObserver(this, "bookmarks-restore-success");
-        Services.obs.removeObserver(this, "bookmarks-restore-failed");
-        if (topic == "bookmarks-restore-success" && data == "html-initial")
-          this.ensurePlacesDefaultQueriesInitialized();
-        break;
-      case "browser-glue-test": // used by tests
-        if (data == "post-update-notification") {
-          if (Services.prefs.prefHasUserValue("app.update.postupdate"))
-            this._showUpdateNotification();
-          break;
-        }
         break;
     }
   }, 
 
   // initialization (called on application startup) 
   _init: function BG__init() {
-    let os = Services.obs;
-    os.addObserver(this, "xpcom-shutdown", false);
-    os.addObserver(this, "prefservice:after-app-defaults", false);
-    os.addObserver(this, "final-ui-startup", false);
-    os.addObserver(this, "sessionstore-windows-restored", false);
-    os.addObserver(this, "browser:purge-session-history", false);
-    os.addObserver(this, "quit-application-requested", false);
-    os.addObserver(this, "quit-application-granted", false);
+    // observer registration
+    const osvr = this._observerService;
+    osvr.addObserver(this, "xpcom-shutdown", false);
+    osvr.addObserver(this, "prefservice:after-app-defaults", false);
+    osvr.addObserver(this, "final-ui-startup", false);
+    osvr.addObserver(this, "sessionstore-windows-restored", false);
+    osvr.addObserver(this, "browser:purge-session-history", false);
+    osvr.addObserver(this, "quit-application-requested", false);
+    osvr.addObserver(this, "quit-application-granted", false);
 #ifdef OBSERVE_LASTWINDOW_CLOSE_TOPICS
-    os.addObserver(this, "browser-lastwindow-close-requested", false);
-    os.addObserver(this, "browser-lastwindow-close-granted", false);
+    osvr.addObserver(this, "browser-lastwindow-close-requested", false);
+    osvr.addObserver(this, "browser-lastwindow-close-granted", false);
 #endif
-    os.addObserver(this, "session-save", false);
-    os.addObserver(this, "places-init-complete", false);
+    osvr.addObserver(this, "session-save", false);
+    osvr.addObserver(this, "places-init-complete", false);
     this._isPlacesInitObserver = true;
-    os.addObserver(this, "places-database-locked", false);
+    osvr.addObserver(this, "places-database-locked", false);
     this._isPlacesLockedObserver = true;
-    os.addObserver(this, "distribution-customization-complete", false);
-    os.addObserver(this, "places-shutdown", false);
-    this._isPlacesShutdownObserver = true;
+    osvr.addObserver(this, "distribution-customization-complete", false);
   },
 
   // cleanup (called on application shutdown)
   _dispose: function BG__dispose() {
-    let os = Services.obs;
-    os.removeObserver(this, "xpcom-shutdown");
-    os.removeObserver(this, "prefservice:after-app-defaults");
-    os.removeObserver(this, "final-ui-startup");
-    os.removeObserver(this, "sessionstore-windows-restored");
-    os.removeObserver(this, "browser:purge-session-history");
-    os.removeObserver(this, "quit-application-requested");
-    os.removeObserver(this, "quit-application-granted");
+    // observer removal 
+    const osvr = this._observerService;
+    osvr.removeObserver(this, "xpcom-shutdown");
+    osvr.removeObserver(this, "prefservice:after-app-defaults");
+    osvr.removeObserver(this, "final-ui-startup");
+    osvr.removeObserver(this, "sessionstore-windows-restored");
+    osvr.removeObserver(this, "browser:purge-session-history");
+    osvr.removeObserver(this, "quit-application-requested");
+    osvr.removeObserver(this, "quit-application-granted");
 #ifdef OBSERVE_LASTWINDOW_CLOSE_TOPICS
-    os.removeObserver(this, "browser-lastwindow-close-requested");
-    os.removeObserver(this, "browser-lastwindow-close-granted");
+    osvr.removeObserver(this, "browser-lastwindow-close-requested");
+    osvr.removeObserver(this, "browser-lastwindow-close-granted");
 #endif
-    os.removeObserver(this, "session-save");
+    osvr.removeObserver(this, "session-save");
     if (this._isIdleObserver)
       this._idleService.removeIdleObserver(this, BOOKMARKS_BACKUP_IDLE_TIME);
     if (this._isPlacesInitObserver)
-      os.removeObserver(this, "places-init-complete");
+      osvr.removeObserver(this, "places-init-complete");
     if (this._isPlacesLockedObserver)
-      os.removeObserver(this, "places-database-locked");
-    if (this._isPlacesShutdownObserver)
-      os.removeObserver(this, "places-shutdown");
+      osvr.removeObserver(this, "places-database-locked");
   },
 
   _onAppDefaults: function BG__onAppDefaults() {
@@ -279,9 +270,13 @@ BrowserGlue.prototype = {
   _onProfileStartup: function BG__onProfileStartup() {
     this._sanitizer.onStartup();
     // check if we're in safe mode
-    if (Services.appinfo.inSafeMode) {
-      Services.ww.openWindow(null, "chrome://browser/content/safeMode.xul", 
-                             "_blank", "chrome,centerscreen,modal,resizable=no", null);
+    var app = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULAppInfo).
+              QueryInterface(Ci.nsIXULRuntime);
+    if (app.inSafeMode) {
+      var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
+               getService(Ci.nsIWindowWatcher);
+      ww.openWindow(null, "chrome://browser/content/safeMode.xul", 
+                    "_blank", "chrome,centerscreen,modal,resizable=no", null);
     }
 
     // apply distribution customizations
@@ -291,20 +286,24 @@ BrowserGlue.prototype = {
     // handle any UI migration
     this._migrateUI();
 
+    var ioService = Cc["@mozilla.org/network/io-service;1"].
+                    getService(Ci.nsIIOService2);
+
     // if ioService is managing the offline status, then ioservice.offline
     // is already set correctly. We will continue to allow the ioService
     // to manage its offline state until the user uses the "Work Offline" UI.
-    if (!Services.io.manageOfflineStatus) {
+    if (!ioService.manageOfflineStatus) {
       // set the initial state
       try {
-        Services.io.offline = Services.prefs.getBoolPref("browser.offline");
+        ioService.offline = this._prefs.getBoolPref("browser.offline");
       }
       catch (e) {
-        Services.io.offline = false;
+        ioService.offline = false;
       }
     }
 
-    Services.obs.notifyObservers(null, "browser-ui-startup-complete", "");
+    this._observerService
+        .notifyObservers(null, "browser-ui-startup-complete", "");
   },
 
   // profile shutdown handler (contains profile cleanup routines)
@@ -322,6 +321,8 @@ BrowserGlue.prototype = {
     } catch (e) { }
 #endif
     this._shutdownPlaces();
+    this._idleService.removeIdleObserver(this, BOOKMARKS_BACKUP_IDLE_TIME);
+    this._isIdleObserver = false;
     this._sanitizer.onShutdown();
   },
 
@@ -331,12 +332,8 @@ BrowserGlue.prototype = {
     if (this._shouldShowRights())
       this._showRightsNotification();
 
-    // Show update notification, if needed.
-    if (Services.prefs.prefHasUserValue("app.update.postupdate"))
-      this._showUpdateNotification();
-
     // If new add-ons were installed during startup open the add-ons manager.
-    if (Services.prefs.prefHasUserValue(PREF_EM_NEW_ADDONS_LIST)) {
+    if (this._prefs.prefHasUserValue(PREF_EM_NEW_ADDONS_LIST)) {
       var args = Cc["@mozilla.org/supports-array;1"].
                  createInstance(Ci.nsISupportsArray);
       var str = Cc["@mozilla.org/supports-string;1"].
@@ -345,12 +342,14 @@ BrowserGlue.prototype = {
       args.AppendElement(str);
       var str = Cc["@mozilla.org/supports-string;1"].
                 createInstance(Ci.nsISupportsString);
-      str.data = Services.prefs.getCharPref(PREF_EM_NEW_ADDONS_LIST);
+      str.data = this._prefs.getCharPref(PREF_EM_NEW_ADDONS_LIST);
       args.AppendElement(str);
       const EMURL = "chrome://mozapps/content/extensions/extensions.xul";
       const EMFEATURES = "chrome,menubar,extra-chrome,toolbar,dialog=no,resizable";
-      Services.ww.openWindow(null, EMURL, "_blank", EMFEATURES, args);
-      Services.prefs.clearUserPref(PREF_EM_NEW_ADDONS_LIST);
+      var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
+               getService(Ci.nsIWindowWatcher);
+      ww.openWindow(null, EMURL, "_blank", EMFEATURES, args);
+      this._prefs.clearUserPref(PREF_EM_NEW_ADDONS_LIST);
     }
 
     // Load the "more info" page for a locked places.sqlite
@@ -364,7 +363,7 @@ BrowserGlue.prototype = {
 
     // If there are plugins installed that are outdated, and the user hasn't
     // been warned about them yet, open the plugins update page.
-    if (Services.prefs.getBoolPref(PREF_PLUGINS_NOTIFYUSER))
+    if (this._prefs.getBoolPref(PREF_PLUGINS_NOTIFYUSER))
       this._showPluginUpdatePage();
 
 #ifdef XP_WIN
@@ -386,9 +385,12 @@ BrowserGlue.prototype = {
     if ((aCancelQuit instanceof Ci.nsISupportsPRBool) && aCancelQuit.data)
       return;
 
+    var wm = Cc["@mozilla.org/appshell/window-mediator;1"].
+             getService(Ci.nsIWindowMediator);
+
     var windowcount = 0;
     var pagecount = 0;
-    var browserEnum = Services.wm.getEnumerator("navigator:browser");
+    var browserEnum = wm.getEnumerator("navigator:browser");
     while (browserEnum.hasMoreElements()) {
       windowcount++;
 
@@ -411,14 +413,14 @@ BrowserGlue.prototype = {
       // browser.warnOnRestart specifically covers app-initiated restarts where we restart the app
       // browser.tabs.warnOnClose is the global "warn when closing multiple tabs" pref
 
-      var sessionWillBeSaved = Services.prefs.getIntPref("browser.startup.page") == 3 ||
-                               Services.prefs.getBoolPref("browser.sessionstore.resume_session_once");
-      if (sessionWillBeSaved || !Services.prefs.getBoolPref("browser.warnOnQuit"))
+      var sessionWillBeSaved = this._prefs.getIntPref("browser.startup.page") == 3 ||
+                               this._prefs.getBoolPref("browser.sessionstore.resume_session_once");
+      if (sessionWillBeSaved || !this._prefs.getBoolPref("browser.warnOnQuit"))
         showPrompt = false;
       else if (aQuitType == "restart")
-        showPrompt = Services.prefs.getBoolPref("browser.warnOnRestart");
+        showPrompt = this._prefs.getBoolPref("browser.warnOnRestart");
       else
-        showPrompt = Services.prefs.getBoolPref("browser.tabs.warnOnClose");
+        showPrompt = this._prefs.getBoolPref("browser.tabs.warnOnClose");
     } catch (ex) {}
 
     // Never show a prompt inside the private browsing mode
@@ -428,8 +430,8 @@ BrowserGlue.prototype = {
     if (!showPrompt || inPrivateBrowsing)
       return false;
 
-    var quitBundle = Services.strings.createBundle("chrome://browser/locale/quitDialog.properties");
-    var brandBundle = Services.strings.createBundle("chrome://branding/locale/brand.properties");
+    var quitBundle = this._bundleService.createBundle("chrome://browser/locale/quitDialog.properties");
+    var brandBundle = this._bundleService.createBundle("chrome://branding/locale/brand.properties");
 
     var appName = brandBundle.GetStringFromName("brandShortName");
     var quitDialogTitle = quitBundle.formatStringFromName(aQuitType + "DialogTitle",
@@ -446,7 +448,8 @@ BrowserGlue.prototype = {
       message = quitBundle.formatStringFromName("message",
                                                 [appName], 1);
 
-    var promptService = Services.prompt;
+    var promptService = Cc["@mozilla.org/embedcomp/prompt-service;1"].
+                        getService(Ci.nsIPromptService);
 
     var flags = promptService.BUTTON_TITLE_IS_STRING * promptService.BUTTON_POS_0 +
                 promptService.BUTTON_TITLE_IS_STRING * promptService.BUTTON_POS_1 +
@@ -465,7 +468,7 @@ BrowserGlue.prototype = {
       button2Title = quitBundle.GetStringFromName("quitTitle");
     }
 
-    var mostRecentBrowserWindow = Services.wm.getMostRecentWindow("navigator:browser");
+    var mostRecentBrowserWindow = wm.getMostRecentWindow("navigator:browser");
     var buttonChoice =
       promptService.confirmEx(mostRecentBrowserWindow, quitDialogTitle, message,
                               flags, button0Title, button1Title, button2Title,
@@ -474,7 +477,7 @@ BrowserGlue.prototype = {
     switch (buttonChoice) {
     case 2: // Quit
       if (neverAsk.value)
-        Services.prefs.setBoolPref("browser.tabs.warnOnClose", false);
+        this._prefs.setBoolPref("browser.tabs.warnOnClose", false);
       break;
     case 1: // Cancel
       aCancelQuit.QueryInterface(Ci.nsISupportsPRBool);
@@ -484,10 +487,10 @@ BrowserGlue.prototype = {
       this._saveSession = true;
       if (neverAsk.value) {
         if (aQuitType == "restart")
-          Services.prefs.setBoolPref("browser.warnOnRestart", false);
+          this._prefs.setBoolPref("browser.warnOnRestart", false);
         else {
           // always save state when shutting down
-          Services.prefs.setIntPref("browser.startup.page", 3);
+          this._prefs.setIntPref("browser.startup.page", 3);
         }
       }
       break;
@@ -506,11 +509,11 @@ BrowserGlue.prototype = {
     // Look for an unconditional override pref. If set, do what it says.
     // (true --> never show, false --> always show)
     try {
-      return !Services.prefs.getBoolPref("browser.rights.override");
+      return !this._prefs.getBoolPref("browser.rights.override");
     } catch (e) { }
     // Ditto, for the legacy EULA pref.
     try {
-      return !Services.prefs.getBoolPref("browser.EULA.override");
+      return !this._prefs.getBoolPref("browser.EULA.override");
     } catch (e) { }
 
 #ifndef OFFICIAL_BUILD
@@ -519,15 +522,15 @@ BrowserGlue.prototype = {
 #endif
 
     // Look to see if the user has seen the current version or not.
-    var currentVersion = Services.prefs.getIntPref("browser.rights.version");
+    var currentVersion = this._prefs.getIntPref("browser.rights.version");
     try {
-      return !Services.prefs.getBoolPref("browser.rights." + currentVersion + ".shown");
+      return !this._prefs.getBoolPref("browser.rights." + currentVersion + ".shown");
     } catch (e) { }
 
     // Legacy: If the user accepted a EULA, we won't annoy them with the
     // equivalent about:rights page until the version changes.
     try {
-      return !Services.prefs.getBoolPref("browser.EULA." + currentVersion + ".accepted");
+      return !this._prefs.getBoolPref("browser.EULA." + currentVersion + ".accepted");
     } catch (e) { }
 
     // We haven't shown the notification before, so do so now.
@@ -540,8 +543,8 @@ BrowserGlue.prototype = {
     var browser = win.gBrowser; // for closure in notification bar callback
     var notifyBox = browser.getNotificationBox();
 
-    var brandBundle  = Services.strings.createBundle("chrome://branding/locale/brand.properties");
-    var rightsBundle = Services.strings.createBundle("chrome://global/locale/aboutRights.properties");
+    var brandBundle  = this._bundleService.createBundle("chrome://branding/locale/brand.properties");
+    var rightsBundle = this._bundleService.createBundle("chrome://global/locale/aboutRights.properties");
 
     var buttonLabel      = rightsBundle.GetStringFromName("buttonLabel");
     var buttonAccessKey  = rightsBundle.GetStringFromName("buttonAccessKey");
@@ -560,129 +563,15 @@ BrowserGlue.prototype = {
                   ];
 
     // Set pref to indicate we've shown the notification.
-    var currentVersion = Services.prefs.getIntPref("browser.rights.version");
-    Services.prefs.setBoolPref("browser.rights." + currentVersion + ".shown", true);
+    var currentVersion = this._prefs.getIntPref("browser.rights.version");
+    this._prefs.setBoolPref("browser.rights." + currentVersion + ".shown", true);
 
     var box = notifyBox.appendNotification(notifyRightsText, "about-rights", null, notifyBox.PRIORITY_INFO_LOW, buttons);
     box.persistence = 3; // arbitrary number, just so bar sticks around for a bit
   },
-
-  _showUpdateNotification: function BG__showUpdateNotification() {
-    Services.prefs.clearUserPref("app.update.postupdate");
-
-    var um = Cc["@mozilla.org/updates/update-manager;1"].
-             getService(Ci.nsIUpdateManager);
-    try {
-      // If the updates.xml file is deleted then getUpdateAt will throw.
-      var update = um.getUpdateAt(0).QueryInterface(Ci.nsIPropertyBag);
-    }
-    catch (e) {
-      // This should never happen.
-      Cu.reportError("Unable to find update: " + e);
-      return;
-    }
-
-    var actions = update.getProperty("actions");
-    if (!actions || actions.indexOf("silent") != -1)
-      return;
-
-    var formatter = Cc["@mozilla.org/toolkit/URLFormatterService;1"].
-                    getService(Ci.nsIURLFormatter);
-    var browserBundle = Services.strings.createBundle("chrome://browser/locale/browser.properties");
-    var brandBundle = Services.strings.createBundle("chrome://branding/locale/brand.properties");
-    var appName = brandBundle.GetStringFromName("brandShortName");
-
-    function getNotifyString(aPropData) {
-      var propValue = update.getProperty(aPropData.propName);
-      if (!propValue) {
-        if (aPropData.prefName)
-          propValue = formatter.formatURLPref(aPropData.prefName);
-        else if (aPropData.stringParams)
-          propValue = browserBundle.formatStringFromName(aPropData.stringName,
-                                                         aPropData.stringParams,
-                                                         aPropData.stringParams.length);
-        else
-          propValue = browserBundle.GetStringFromName(aPropData.stringName);
-      }
-      return propValue;
-    }
-
-    if (actions.indexOf("showNotification") != -1) {
-      let text = getNotifyString({propName: "notificationText",
-                                  stringName: "puNotifyText",
-                                  stringParams: [appName]});
-      let url = getNotifyString({propName: "notificationURL",
-                                 prefName: "startup.homepage_override_url"});
-      let label = getNotifyString({propName: "notificationButtonLabel",
-                                   stringName: "pu.notifyButton.label"});
-      let key = getNotifyString({propName: "notificationButtonAccessKey",
-                                 stringName: "pu.notifyButton.accesskey"});
-
-      let win = this.getMostRecentBrowserWindow();
-      let browser = win.gBrowser; // for closure in notification bar callback
-      let notifyBox = browser.getNotificationBox();
-
-      let buttons = [
-                      {
-                        label:     label,
-                        accessKey: key,
-                        popup:     null,
-                        callback: function(aNotificationBar, aButton) {
-                          browser.selectedTab = browser.addTab(url);
-                        }
-                      }
-                    ];
-
-      let box = notifyBox.appendNotification(text, "post-update-notification",
-                                             null, notifyBox.PRIORITY_INFO_LOW,
-                                             buttons);
-      box.persistence = 3;
-    }
-
-    if (actions.indexOf("showAlert") == -1)
-      return;
-
-    let notifier;
-    try {
-      notifier = Cc["@mozilla.org/alerts-service;1"].
-                 getService(Ci.nsIAlertsService);
-    }
-    catch (e) {
-      // nsIAlertsService is not available for this platform
-      return;
-    }
-
-    let title = getNotifyString({propName: "alertTitle",
-                                 stringName: "puAlertTitle",
-                                 stringParams: [appName]});
-    let text = getNotifyString({propName: "alertText",
-                                stringName: "puAlertText",
-                                stringParams: [appName]});
-    let url = getNotifyString({propName: "alertURL",
-                               prefName: "startup.homepage_override_url"});
-
-    var self = this;
-    function clickCallback(subject, topic, data) {
-      // This callback will be called twice but only once with this topic
-      if (topic != "alertclickcallback")
-        return;
-      let win = self.getMostRecentBrowserWindow();
-      let browser = win.gBrowser;
-      browser.selectedTab = browser.addTab(data);
-    }
-
-    try {
-      // This will throw NS_ERROR_NOT_AVAILABLE if the notification cannot
-      // be displayed per the idl.
-      notifier.showAlertNotification("post-update-notification", title, text,
-                                     true, url, clickCallback);
-    }
-    catch (e) {
-    }
-  },
-
+  
   _showPluginUpdatePage: function BG__showPluginUpdatePage() {
-    Services.prefs.setBoolPref(PREF_PLUGINS_NOTIFYUSER, false);
+    this._prefs.setBoolPref(PREF_PLUGINS_NOTIFYUSER, false);
 
     var formatter = Cc["@mozilla.org/toolkit/URLFormatterService;1"].
                     getService(Ci.nsIURLFormatter);
@@ -742,7 +631,7 @@ BrowserGlue.prototype = {
     var importBookmarksHTML = false;
     try {
       importBookmarksHTML =
-        Services.prefs.getBoolPref("browser.places.importBookmarksHTML");
+        this._prefs.getBoolPref("browser.places.importBookmarksHTML");
       if (importBookmarksHTML)
         importBookmarks = true;
     } catch(ex) {}
@@ -752,7 +641,7 @@ BrowserGlue.prototype = {
     var restoreDefaultBookmarks = false;
     try {
       restoreDefaultBookmarks =
-        Services.prefs.getBoolPref("browser.bookmarks.restore_default_bookmarks");
+        this._prefs.getBoolPref("browser.bookmarks.restore_default_bookmarks");
       if (restoreDefaultBookmarks) {
         // Ensure that we already have a bookmarks backup for today.
         this._backupBookmarks();
@@ -788,28 +677,25 @@ BrowserGlue.prototype = {
       }
     }
 
-    // If bookmarks are not imported, then initialize smart bookmarks.  This
-    // happens during a common startup.
-    // Otherwise, if any kind of import runs, smart bookmarks creation should be
-    // delayed till the import operations has finished.  Not doing so would
-    // cause them to be overwritten by the newly imported bookmarks.
     if (!importBookmarks) {
+      // Call it here for Fx3 profiles created before the Places folder
+      // has been added, otherwise it's called during import.
       this.ensurePlacesDefaultQueriesInitialized();
     }
     else {
-      // An import operation is about to run.
+      // ensurePlacesDefaultQueriesInitialized() is called by import.
       // Don't try to recreate smart bookmarks if autoExportHTML is true or
       // smart bookmarks are disabled.
       var autoExportHTML = false;
       try {
-        autoExportHTML = Services.prefs.getBoolPref("browser.bookmarks.autoExportHTML");
+        autoExportHTML = this._prefs.getBoolPref("browser.bookmarks.autoExportHTML");
       } catch(ex) {}
       var smartBookmarksVersion = 0;
       try {
-        smartBookmarksVersion = Services.prefs.getIntPref("browser.places.smartBookmarksVersion");
+        smartBookmarksVersion = this._prefs.getIntPref("browser.places.smartBookmarksVersion");
       } catch(ex) {}
       if (!autoExportHTML && smartBookmarksVersion != -1)
-        Services.prefs.setIntPref("browser.places.smartBookmarksVersion", 0);
+        this._prefs.setIntPref("browser.places.smartBookmarksVersion", 0);
 
       // Get bookmarks.html file location
       var dirService = Cc["@mozilla.org/file/directory_service;1"].
@@ -825,12 +711,7 @@ BrowserGlue.prototype = {
         bookmarksFile = dirService.get("BMarks", Ci.nsILocalFile);
 
       if (bookmarksFile.exists()) {
-        // Add an import observer.  It will ensure that smart bookmarks are
-        // created once the operation is complete.
-        Services.obs.addObserver(this, "bookmarks-restore-success", false);
-        Services.obs.addObserver(this, "bookmarks-restore-failed", false);
-
-        // Import from bookmarks.html file.
+        // import the file
         try {
           var importer = Cc["@mozilla.org/browser/places/import-export-service;1"].
                          getService(Ci.nsIPlacesImportExportService);
@@ -838,8 +719,6 @@ BrowserGlue.prototype = {
         } catch (err) {
           // Report the error, but ignore it.
           Cu.reportError("Bookmarks.html file could be corrupt. " + err);
-          Services.obs.removeObserver(this, "bookmarks-restore-success");
-          Services.obs.removeObserver(this, "bookmarks-restore-failed");
         }
       }
       else
@@ -847,10 +726,10 @@ BrowserGlue.prototype = {
 
       // Reset preferences, so we won't try to import again at next run
       if (importBookmarksHTML)
-        Services.prefs.setBoolPref("browser.places.importBookmarksHTML", false);
+        this._prefs.setBoolPref("browser.places.importBookmarksHTML", false);
       if (restoreDefaultBookmarks)
-        Services.prefs.setBoolPref("browser.bookmarks.restore_default_bookmarks",
-                                   false);
+        this._prefs.setBoolPref("browser.bookmarks.restore_default_bookmarks",
+                                false);
     }
 
     // Initialize bookmark archiving on idle.
@@ -870,17 +749,13 @@ BrowserGlue.prototype = {
    *       so replace this method with a no-op when first called.
    */
   _shutdownPlaces: function BG__shutdownPlaces() {
-    if (this._isIdleObserver) {
-      this._idleService.removeIdleObserver(this, BOOKMARKS_BACKUP_IDLE_TIME);
-      this._isIdleObserver = false;
-    }
     this._backupBookmarks();
 
     // Backup bookmarks to bookmarks.html to support apps that depend
     // on the legacy format.
     var autoExportHTML = false;
     try {
-      autoExportHTML = Services.prefs.getBoolPref("browser.bookmarks.autoExportHTML");
+      autoExportHTML = this._prefs.getBoolPref("browser.bookmarks.autoExportHTML");
     } catch(ex) { /* Don't export */ }
 
     if (autoExportHTML) {
@@ -904,7 +779,7 @@ BrowserGlue.prototype = {
         new Date() - PlacesUtils.backups.getDateForFile(lastBackupFile) > BOOKMARKS_BACKUP_INTERVAL) {
       let maxBackups = BOOKMARKS_BACKUP_MAX_BACKUPS;
       try {
-        maxBackups = Services.prefs.getIntPref("browser.bookmarks.max_backups");
+        maxBackups = this._prefs.getIntPref("browser.bookmarks.max_backups");
       }
       catch(ex) { /* Use default. */ }
 
@@ -916,9 +791,9 @@ BrowserGlue.prototype = {
    * Show the notificationBox for a locked places database.
    */
   _showPlacesLockedNotificationBox: function BG__showPlacesLockedNotificationBox() {
-    var brandBundle  = Services.strings.createBundle("chrome://branding/locale/brand.properties");
+    var brandBundle  = this._bundleService.createBundle("chrome://branding/locale/brand.properties");
     var applicationName = brandBundle.GetStringFromName("brandShortName");
-    var placesBundle = Services.strings.createBundle("chrome://browser/locale/places/places.properties");
+    var placesBundle = this._bundleService.createBundle("chrome://browser/locale/places/places.properties");
     var title = placesBundle.GetStringFromName("lockPrompt.title");
     var text = placesBundle.formatStringFromName("lockPrompt.text", [applicationName], 1);
     var buttonText = placesBundle.GetStringFromName("lockPromptInfoButton.label");
@@ -953,7 +828,7 @@ BrowserGlue.prototype = {
   _migrateUI: function BG__migrateUI() {
     var migration = 0;
     try {
-      migration = Services.prefs.getIntPref("browser.migration.version");
+      migration = this._prefs.getIntPref("browser.migration.version");
     } catch(ex) {}
 
     if (migration == 0) {
@@ -997,7 +872,7 @@ BrowserGlue.prototype = {
       this._dataSource = null;
 
       // update the migration version
-      Services.prefs.setIntPref("browser.migration.version", 1);
+      this._prefs.setIntPref("browser.migration.version", 1);
     }
   },
 
@@ -1052,7 +927,7 @@ BrowserGlue.prototype = {
     // By default, if the pref is not set up, we must create Smart Bookmarks
     var smartBookmarksCurrentVersion = 0;
     try {
-      smartBookmarksCurrentVersion = Services.prefs.getIntPref(SMART_BOOKMARKS_PREF);
+      smartBookmarksCurrentVersion = this._prefs.getIntPref(SMART_BOOKMARKS_PREF);
     } catch(ex) { /* no version set, new profile */ }
 
     // bail out if we don't have to create or update Smart Bookmarks
@@ -1067,7 +942,9 @@ BrowserGlue.prototype = {
 
     var callback = {
       _uri: function BG_EPDQI__uri(aSpec) {
-        return Services.io.newURI(aSpec, null, null);
+        return Cc["@mozilla.org/network/io-service;1"].
+               getService(Ci.nsIIOService).
+               newURI(aSpec, null, null);
       },
 
       runBatched: function BG_EPDQI_runBatched() {
@@ -1075,7 +952,9 @@ BrowserGlue.prototype = {
         var bookmarksMenuIndex = 0;
         var bookmarksToolbarIndex = 0;
 
-        var placesBundle = Services.strings.createBundle("chrome://browser/locale/places/places.properties");
+        var placesBundle = Cc["@mozilla.org/intl/stringbundle;1"].
+                           getService(Ci.nsIStringBundleService).
+                           createBundle("chrome://browser/locale/places/places.properties");
 
         // MOST VISITED
         var smart = {queryId: "MostVisited", // don't change this
@@ -1183,8 +1062,8 @@ BrowserGlue.prototype = {
       Components.utils.reportError(ex);
     }
     finally {
-      Services.prefs.setIntPref(SMART_BOOKMARKS_PREF, SMART_BOOKMARKS_VERSION);
-      Services.prefs.savePrefFile(null);
+      this._prefs.setIntPref(SMART_BOOKMARKS_PREF, SMART_BOOKMARKS_VERSION);
+      this._prefs.QueryInterface(Ci.nsIPrefService).savePrefFile(null);
     }
   },
 
@@ -1194,18 +1073,21 @@ BrowserGlue.prototype = {
 
   // this returns the most recent non-popup browser window
   getMostRecentBrowserWindow: function BG_getMostRecentBrowserWindow() {
+    var wm = Cc["@mozilla.org/appshell/window-mediator;1"].
+             getService(Ci.nsIWindowMediator);
+
     function isFullBrowserWindow(win) {
       return !win.closed &&
              !win.document.documentElement.getAttribute("chromehidden");
     }
 
 #ifdef BROKEN_WM_Z_ORDER
-    var win = Services.wm.getMostRecentWindow("navigator:browser");
+    var win = wm.getMostRecentWindow("navigator:browser");
 
     // if we're lucky, this isn't a popup, and we can just return this
     if (win && !isFullBrowserWindow(win)) {
       win = null;
-      let windowList = Services.wm.getEnumerator("navigator:browser");
+      let windowList = wm.getEnumerator("navigator:browser");
       // this is oldest to newest, so this gets a bit ugly
       while (windowList.hasMoreElements()) {
         let nextWin = windowList.getNext();
@@ -1215,7 +1097,7 @@ BrowserGlue.prototype = {
     }
     return win;
 #else
-    var windowList = Services.wm.getZOrderDOMWindowEnumerator("navigator:browser", true);
+    var windowList = wm.getZOrderDOMWindowEnumerator("navigator:browser", true);
     while (windowList.hasMoreElements()) {
       let win = windowList.getNext();
       if (isFullBrowserWindow(win))
@@ -1255,7 +1137,9 @@ GeolocationPrompt.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIGeolocationPrompt]),
  
   prompt: function GP_prompt(request) {
-    var result = Services.perms.testExactPermission(request.requestingURI, "geo");
+    var pm = Cc["@mozilla.org/permissionmanager;1"].getService(Ci.nsIPermissionManager);
+
+    var result = pm.testExactPermission(request.requestingURI, "geo");
 
     if (result == Ci.nsIPermissionManager.ALLOW_ACTION) {
       request.allow();
@@ -1269,9 +1153,9 @@ GeolocationPrompt.prototype = {
 
     function setPagePermission(uri, allow) {
       if (allow == true)
-        Services.perms.add(uri, "geo", Ci.nsIPermissionManager.ALLOW_ACTION);
+        pm.add(uri, "geo", Ci.nsIPermissionManager.ALLOW_ACTION);
       else
-        Services.perms.add(uri, "geo", Ci.nsIPermissionManager.DENY_ACTION);
+        pm.add(uri, "geo", Ci.nsIPermissionManager.DENY_ACTION);
     }
 
     function getChromeWindow(aWindow) {
@@ -1294,7 +1178,8 @@ GeolocationPrompt.prototype = {
 
     var notification = notificationBox.getNotificationWithValue("geolocation");
     if (!notification) {
-      var browserBundle = Services.strings.createBundle("chrome://browser/locale/browser.properties");
+      var bundleService = Cc["@mozilla.org/intl/stringbundle;1"].getService(Ci.nsIStringBundleService);
+      var browserBundle = bundleService.createBundle("chrome://browser/locale/browser.properties");
 
       var buttons = [{
               label: browserBundle.GetStringFromName("geolocation.shareLocation"),

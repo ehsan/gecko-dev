@@ -79,8 +79,6 @@ public:
 
   void SetDragEndPoint(nsIntPoint aEndDragPoint) { mEndDragPoint = aEndDragPoint; }
 
-  PRUint16 GetInputSource() { return mInputSource; }
-
 protected:
 
   /**
@@ -163,9 +161,6 @@ protected:
   nsIntPoint mEndDragPoint;
 
   PRUint32 mSuppressLevel;
-
-  // The input source of the drag event. Possible values are from nsIDOMNSMouseEvent.
-  PRUint16 mInputSource;
 };
 
 #endif // nsBaseDragService_h__

@@ -1,3 +1,5 @@
+var obs = Cc["@mozilla.org/observer-service;1"].getService(Ci.nsIObserverService);
+
 function test() {
   waitForExplicitFinish();
 
@@ -6,7 +8,7 @@ function test() {
   gBrowser.selectedBrowser.addEventListener("load", function () {
     gBrowser.selectedBrowser.removeEventListener("load", arguments.callee, true);
     pageInfo = BrowserPageInfo();
-    Services.obs.addObserver(observer, "page-info-dialog-loaded", false);
+    obs.addObserver(observer, "page-info-dialog-loaded", false);
   }, true);
   content.location =
     "https://example.com/browser/browser/base/content/test/feed_tab.html";
@@ -27,7 +29,7 @@ function test() {
         break;
       case 2:
         atTest++;
-        Services.obs.removeObserver(observer, "page-info-dialog-loaded");
+        obs.removeObserver(observer, "page-info-dialog-loaded");
         testLockDoubleClick();
         break;
     }
@@ -74,7 +76,9 @@ function test() {
   }
 
   function testLockDoubleClick() {
-    var pageInfoDialogs = Services.wm.getEnumerator("Browser:page-info");
+    var pageInfoDialogs = Cc["@mozilla.org/appshell/window-mediator;1"]
+                            .getService(Ci.nsIWindowMediator)
+                            .getEnumerator("Browser:page-info");
     var i = 0;
     while (pageInfoDialogs.hasMoreElements()) {
       i++;

@@ -40,7 +40,6 @@
 
 #include "gfxTypes.h"
 #include "gfxPoint.h"
-#include "nsDebug.h" 
 
 struct THEBES_API gfxCorner {
     typedef int Corner;
@@ -149,10 +148,6 @@ struct THEBES_API gfxRect {
     // If you need similar method which is using NS_round(), you should create
     // new |RoundAwayFromZero()| method.
     void Round();
-    
-    // Snap the rectangle edges to integer coordinates, such that the
-    // original rectangle contains the resulting rectangle.
-    void RoundIn();
     
     // Snap the rectangle edges to integer coordinates, such that the
     // resulting rectangle contains the original rectangle.

@@ -83,6 +83,7 @@ public:
 
     void Clear();
 
+private:
     struct nsEntry
     {
         nsEntry() {}
@@ -97,12 +98,10 @@ public:
         };
     };
 
-    nsTArray<nsEntry> &Headers() { return mHeaders; }
-
-private:
     PRInt32 LookupEntry(nsHttpAtom header, nsEntry **);
     PRBool  CanAppendToHeader(nsHttpAtom header);
 
+private:
     nsTArray<nsEntry> mHeaders;
 };
 

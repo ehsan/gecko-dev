@@ -83,10 +83,7 @@ public:
     TestShellParent* CreateTestShell();
     bool DestroyTestShell(TestShellParent* aTestShell);
 
-    void ReportChildAlreadyBlocked();
     bool RequestRunToCompletion();
-
-    bool IsAlive();
 
 protected:
     virtual void ActorDestroy(ActorDestroyReason why);
@@ -116,10 +113,8 @@ private:
     GeckoChildProcessHost* mSubprocess;
 
     int mRunToCompletionDepth;
-    bool mShouldCallUnblockChild;
     nsCOMPtr<nsIThreadObserver> mOldObserver;
 
-    bool mIsAlive;
 };
 
 } // namespace dom

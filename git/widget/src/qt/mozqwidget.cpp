@@ -18,12 +18,12 @@ MozQWidget::MozQWidget(nsWindow* aReceiver, QGraphicsItem* aParent)
     : QGraphicsWidget(aParent),
       mReceiver(aReceiver)
 {
-#if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
+ #if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
      setFlag(QGraphicsItem::ItemAcceptsInputMethod);
 
      setAcceptTouchEvents(true);
      grabGesture(Qt::PinchGesture);
-#endif
+ #endif
 }
 
 MozQWidget::~MozQWidget()
@@ -39,15 +39,11 @@ void MozQWidget::paint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOpti
 
 void MozQWidget::activate()
 {
-    // ensure that the keyboard is hidden when we activate the window
-    hideVKB();
     mReceiver->DispatchActivateEvent();
 }
 
 void MozQWidget::deactivate()
 {
-    // ensure that the keyboard is hidden when we deactivate the window
-    hideVKB();
     mReceiver->DispatchDeactivateEvent();
 }
 
@@ -290,7 +286,7 @@ void MozQWidget::showVKB()
 
 void MozQWidget::hideVKB()
 {
-#if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
+ #if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
     QInputContext *inputContext = qApp->inputContext();
     if (!inputContext) {
         NS_WARNING("Closing SIP: but no input context");
@@ -305,10 +301,26 @@ void MozQWidget::hideVKB()
 #endif
 }
 
+/**
+    This method checks the state of the virtual keyboard by checking the list
+    of occupied rectangles. If this list is empty, the keyboard is considered
+    to be closed.
+
+    @return true, if opened; false if closed
+*/
 bool MozQWidget::isVKBOpen()
 {
-    // There is no clear API in Pure QT about how to get OPEN/CLOSED vkb state
-    // FIXME in bug 555019.
+#if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
+    QVariantList areas;
+    QInputContext* input_context = qApp->inputContext();
+
+    if (input_context)
+        areas = input_context->property("InputMethodArea").toList();
+
+    // if it is empty, no VKB visible; otherwise it is
+    return areas.empty();
+#else
     return PR_FALSE;
+#endif
 }
 

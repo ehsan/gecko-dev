@@ -37,17 +37,15 @@
 
 include protocol "PContentProcess.ipdl";
 include protocol "PTestShellCommand.ipdl";
-include protocol "PContextWrapper.ipdl";
 
 namespace mozilla {
 namespace ipc {
 
-rpc protocol PTestShell
+protocol PTestShell
 {
   manager PContentProcess;
 
   manages PTestShellCommand;
-  manages PContextWrapper;
 
 child:
   __delete__();
@@ -55,10 +53,6 @@ child:
   ExecuteCommand(nsString aCommand);
 
   PTestShellCommand(nsString aCommand);
-
-parent:
-  PContextWrapper();
-
 };
 
 } // namespace ipc

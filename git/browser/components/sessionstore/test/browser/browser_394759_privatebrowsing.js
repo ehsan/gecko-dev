@@ -39,7 +39,9 @@
 
 function browserWindowsCount() {
   let count = 0;
-  let e = Services.wm.getEnumerator("navigator:browser");
+  let e = Cc["@mozilla.org/appshell/window-mediator;1"]
+            .getService(Ci.nsIWindowMediator)
+            .getEnumerator("navigator:browser");
   while (e.hasMoreElements()) {
     if (!e.getNext().closed)
       ++count;
@@ -72,8 +74,10 @@ function test() {
   // Wait for the sessionstore.js file to be written before going on.
   // Note: we don't wait for the complete event, since if asyncCopy fails we
   // would timeout.
-  Services.obs.addObserver(function (aSubject, aTopic, aData) {
-    Services.obs.removeObserver(arguments.callee, aTopic);
+  let os = Cc["@mozilla.org/observer-service;1"].
+           getService(Ci.nsIObserverService);
+  os.addObserver(function (aSubject, aTopic, aData) {
+    os.removeObserver(arguments.callee, aTopic);
     info("sessionstore.js is being written");
     executeSoon(continue_test);
   }, "sessionstore-state-write", false);

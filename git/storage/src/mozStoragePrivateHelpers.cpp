@@ -48,11 +48,9 @@
 #include "nsError.h"
 #include "nsThreadUtils.h"
 
-#include "Variant.h"
 #include "mozStoragePrivateHelpers.h"
 #include "mozIStorageStatement.h"
 #include "mozIStorageCompletionCallback.h"
-#include "mozIStorageBindingParams.h"
 
 namespace mozilla {
 namespace storage {
@@ -92,13 +90,6 @@ convertResultCode(int aSQLiteResultCode)
   }
 
   // generic error
-#ifdef DEBUG
-  nsCAutoString message;
-  message.AppendLiteral("SQLite returned error code ");
-  message.AppendInt(aSQLiteResultCode);
-  message.AppendLiteral(" , Storage will convert it to NS_ERROR_FAILURE");
-  NS_WARNING(message.get());
-#endif
   return NS_ERROR_FAILURE;
 }
 
@@ -131,16 +122,23 @@ checkAndLogStatementPerformance(sqlite3_stmt *aStatement)
   NS_WARNING(message.get());
 }
 
-nsIVariant *
-convertJSValToVariant(
-  JSContext *aCtx,
-  jsval aValue)
+bool
+bindJSValue(JSContext *aCtx,
+            mozIStorageStatement *aStatement,
+            int aIdx,
+            jsval aValue)
 {
-  if (JSVAL_IS_INT(aValue))
-    return new IntegerVariant(JSVAL_TO_INT(aValue));
+  if (JSVAL_IS_INT(aValue)) {
+    int v = JSVAL_TO_INT(aValue);
+    (void)aStatement->BindInt32Parameter(aIdx, v);
+    return true;
+  }
 
-  if (JSVAL_IS_DOUBLE(aValue))
-    return new FloatVariant(*JSVAL_TO_DOUBLE(aValue));
+  if (JSVAL_IS_DOUBLE(aValue)) {
+    double d = *JSVAL_TO_DOUBLE(aValue);
+    (void)aStatement->BindDoubleParameter(aIdx, d);
+    return true;
+  }
 
   if (JSVAL_IS_STRING(aValue)) {
     JSString *str = JSVAL_TO_STRING(aValue);
@@ -148,32 +146,37 @@ convertJSValToVariant(
       reinterpret_cast<PRUnichar *>(::JS_GetStringChars(str)),
       ::JS_GetStringLength(str)
     );
-    return new TextVariant(value);
+    (void)aStatement->BindStringParameter(aIdx, value);
+    return true;
   }
 
-  if (JSVAL_IS_BOOLEAN(aValue))
-    return new IntegerVariant((aValue == JSVAL_TRUE) ? 1 : 0);
+  if (JSVAL_IS_BOOLEAN(aValue)) {
+    (void)aStatement->BindInt32Parameter(aIdx, (aValue == JSVAL_TRUE) ? 1 : 0);
+    return true;
+  }
 
-  if (JSVAL_IS_NULL(aValue))
-    return new NullVariant();
+  if (JSVAL_IS_NULL(aValue)) {
+    (void)aStatement->BindNullParameter(aIdx);
+    return true;
+  }
 
   if (JSVAL_IS_OBJECT(aValue)) {
     JSObject *obj = JSVAL_TO_OBJECT(aValue);
-    // We only support Date instances, all others fail.
+    // some special things
     if (!::js_DateIsValid(aCtx, obj))
-      return nsnull;
+      return false;
 
     double msecd = ::js_DateGetMsecSinceEpoch(aCtx, obj);
     msecd *= 1000.0;
     PRInt64 msec;
     LL_D2L(msec, msecd);
 
-    return new IntegerVariant(msec);
+    (void)aStatement->BindInt64Parameter(aIdx, msec);
+    return true;
   }
 
-  return nsnull;
+  return false;
 }
-
 
 namespace {
 class CallbackEvent : public nsRunnable

@@ -54,8 +54,6 @@
 #define NS_TARGET_CHAIN_WANTS_WILL_HANDLE_EVENT (1 << 1)
 #define NS_TARGET_CHAIN_MAY_HAVE_MANAGER        (1 << 2)
 
-static nsEventTargetChainItem* gCachedETCI = nsnull;
-
 // nsEventTargetChainItem represents a single item in the event target chain.
 class nsEventTargetChainItem
 {
@@ -68,13 +66,7 @@ public:
                                         nsPIDOMEventTarget* aTarget,
                                         nsEventTargetChainItem* aChild = nsnull)
   {
-    void* place = nsnull;
-    if (gCachedETCI) {
-      place = gCachedETCI;
-      gCachedETCI = gCachedETCI->mNext;
-    } else {
-      place = aAllocator->Alloc(sizeof(nsEventTargetChainItem));
-    }
+    void* place = aAllocator->Alloc(sizeof(nsEventTargetChainItem));
     return place
       ? ::new (place) nsEventTargetChainItem(aTarget, aChild)
       : nsnull;
@@ -92,8 +84,7 @@ public:
     while (item) {
       nsEventTargetChainItem* parent = item->mParent;
       item->~nsEventTargetChainItem();
-      item->mNext = gCachedETCI;
-      gCachedETCI = item;
+      aAllocator->Free(item, sizeof(nsEventTargetChainItem));
       --sCurrentEtciCount;
       item = parent;
     }
@@ -105,7 +96,7 @@ public:
     return !!(mTarget);
   }
 
-  nsPIDOMEventTarget* GetNewTarget()
+  nsISupports* GetNewTarget()
   {
     return mNewTarget;
   }
@@ -198,8 +189,7 @@ public:
       if (!MayHaveListenerManager() && !aMayHaveNewListenerManagers) {
         return NS_OK;
       }
-      mManager =
-        static_cast<nsEventListenerManager*>(mTarget->GetListenerManager(PR_FALSE));
+      mManager = mTarget->GetListenerManager(PR_FALSE);
     }
     if (mManager) {
       NS_ASSERTION(aVisitor.mEvent->currentTarget == nsnull,
@@ -230,18 +220,14 @@ public:
 
   nsCOMPtr<nsPIDOMEventTarget>      mTarget;
   nsEventTargetChainItem*           mChild;
-  union {
-    nsEventTargetChainItem*         mParent;
-     // This is used only when caching ETCI objects.
-    nsEventTargetChainItem*         mNext;
-  };
+  nsEventTargetChainItem*           mParent;
   PRUint16                          mFlags;
   PRUint16                          mItemFlags;
   nsCOMPtr<nsISupports>             mItemData;
   // Event retargeting must happen whenever mNewTarget is non-null.
   nsCOMPtr<nsPIDOMEventTarget>      mNewTarget;
   // Cache mTarget's event listener manager.
-  nsRefPtr<nsEventListenerManager>  mManager;
+  nsCOMPtr<nsIEventListenerManager> mManager;
 
   static PRUint32                   sMaxEtciCount;
   static PRUint32                   sCurrentEtciCount;
@@ -294,7 +280,7 @@ nsEventTargetChainItem::HandleEventTargetChain(nsEventChainPostVisitor& aVisitor
 {
   PRUint32 createdELMs = nsEventListenerManager::sCreatedCount;
   // Save the target so that it can be restored later.
-  nsCOMPtr<nsPIDOMEventTarget> firstTarget = aVisitor.mEvent->target;
+  nsCOMPtr<nsISupports> firstTarget = aVisitor.mEvent->target;
 
   // Capture
   nsEventTargetChainItem* item = this;
@@ -314,7 +300,7 @@ nsEventTargetChainItem::HandleEventTargetChain(nsEventChainPostVisitor& aVisitor
       // item is at anonymous boundary. Need to retarget for the child items.
       nsEventTargetChainItem* nextTarget = item->mChild;
       while (nextTarget) {
-        nsPIDOMEventTarget* newTarget = nextTarget->GetNewTarget();
+        nsISupports* newTarget = nextTarget->GetNewTarget();
         if (newTarget) {
           aVisitor.mEvent->target = newTarget;
           break;
@@ -347,7 +333,7 @@ nsEventTargetChainItem::HandleEventTargetChain(nsEventChainPostVisitor& aVisitor
   aVisitor.mEvent->flags &= ~NS_EVENT_FLAG_CAPTURE;
   item = item->mParent;
   while (item) {
-    nsPIDOMEventTarget* newTarget = item->GetNewTarget();
+    nsISupports* newTarget = item->GetNewTarget();
     if (newTarget) {
       // Item is at anonymous boundary. Need to retarget for the current item
       // and for parent items.
@@ -428,7 +414,6 @@ public:
     }
     if (!sEtciPoolUsers) {
       if (nsEventTargetChainItem::MaxEtciCount() > NS_CHAIN_POOL_SIZE) {
-        gCachedETCI = nsnull;
         delete sEtciPool;
         sEtciPool = nsnull;
         nsEventTargetChainItem::ResetMaxEtciCount();
@@ -439,7 +424,6 @@ public:
   static void Shutdown()
   {
     if (!sEtciPoolUsers) {
-      gCachedETCI = nsnull;
       delete sEtciPool;
       sEtciPool = nsnull;
       nsEventTargetChainItem::ResetMaxEtciCount();
@@ -470,7 +454,6 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
   NS_ENSURE_TRUE(!NS_IS_EVENT_IN_DISPATCH(aEvent),
                  NS_ERROR_ILLEGAL_VALUE);
   NS_ASSERTION(!aTargets || !aEvent->message, "Wrong parameters!");
-  nsCOMPtr<nsPIDOMEventTarget> target = do_QueryInterface(aTarget);
 
   if (aEvent->flags & NS_EVENT_FLAG_ONLY_CHROME_DISPATCH) {
     nsCOMPtr<nsINode> node = do_QueryInterface(aTarget);
@@ -488,23 +471,19 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
       // If we can't dispatch the event to chrome, do nothing.
       NS_ENSURE_TRUE(win && win->GetChromeEventHandler(), NS_OK);
       // Set the target to be the original dispatch target,
-      aEvent->target = target;
+      aEvent->target = aTarget;
       // but use chrome event handler for event target chain.
-      target = do_QueryInterface(win->GetChromeEventHandler());
+      aTarget = win->GetChromeEventHandler();
     }
   }
 
+  nsCOMPtr<nsPIDOMEventTarget> target = do_QueryInterface(aTarget);
 #ifdef DEBUG
   if (!nsContentUtils::IsSafeToRunScript()) {
     nsresult rv = NS_ERROR_FAILURE;
     if (target->GetContextForEventHandlers(&rv) ||
         NS_FAILED(rv)) {
-      nsCOMPtr<nsINode> node = do_QueryInterface(target);
-      if (node && nsContentUtils::IsChromeDoc(node->GetOwnerDoc())) {
-        NS_WARNING("Fix the caller!");
-      } else {
-        NS_ERROR("This is unsafe! Fix the caller!");
-      }
+      NS_ERROR("This is unsafe!");
     }
   }
 
@@ -523,7 +502,7 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
 
   // If we have a PresContext, make sure it doesn't die before
   // event dispatching is finished.
-  nsRefPtr<nsPresContext> kungFuDeathGrip(aPresContext);
+  nsCOMPtr<nsPresContext> kungFuDeathGrip(aPresContext);
   ChainItemPool pool;
   NS_ENSURE_TRUE(pool.GetPool(), NS_ERROR_OUT_OF_MEMORY);
 
@@ -548,7 +527,9 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
     //     which are dispatched to |window| but have document as their target.
     //
     // Make sure that the event target points to the right object.
-    aEvent->target = aEvent->target->GetTargetForEventTargetChain();
+    nsCOMPtr<nsPIDOMEventTarget> t = do_QueryInterface(aEvent->target);
+    NS_ENSURE_STATE(t);
+    aEvent->target = t->GetTargetForEventTargetChain();
     NS_ENSURE_STATE(aEvent->target);
   }
   aEvent->originalTarget = aEvent->target;

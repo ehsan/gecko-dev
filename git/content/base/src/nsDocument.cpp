@@ -477,8 +477,6 @@ nsDOMStyleSheetList::~nsDOMStyleSheetList()
   }
 }
 
-DOMCI_DATA(StyleSheetList, nsDOMStyleSheetList)
-
 // XXX couldn't we use the GetIIDs method from CSSStyleSheetList here?
 // QueryInterface implementation for nsDOMStyleSheetList
 NS_INTERFACE_TABLE_HEAD(nsDOMStyleSheetList)
@@ -1270,8 +1268,6 @@ nsDOMImplementation::nsDOMImplementation(nsIScriptGlobalObject* aScriptObject,
 nsDOMImplementation::~nsDOMImplementation()
 {
 }
-
-DOMCI_DATA(DOMImplementation, nsDOMImplementation)
 
 // QueryInterface implementation for nsDOMImplementation
 NS_INTERFACE_MAP_BEGIN(nsDOMImplementation)
@@ -2626,13 +2622,13 @@ nsDocument::GetActiveElement(nsIDOMElement **aElement)
 }
 
 NS_IMETHODIMP
-nsDocument::ElementFromPoint(float aX, float aY, nsIDOMElement** aReturn)
+nsDocument::ElementFromPoint(PRInt32 aX, PRInt32 aY, nsIDOMElement** aReturn)
 {
   return ElementFromPointHelper(aX, aY, PR_FALSE, PR_TRUE, aReturn);
 }
 
 nsresult
-nsDocument::ElementFromPointHelper(float aX, float aY,
+nsDocument::ElementFromPointHelper(PRInt32 aX, PRInt32 aY,
                                    PRBool aIgnoreRootScrollFrame,
                                    PRBool aFlushLayout,
                                    nsIDOMElement** aReturn)
@@ -2687,94 +2683,6 @@ nsDocument::ElementFromPointHelper(float aX, float aY,
  
   if (ptContent)
     CallQueryInterface(ptContent, aReturn);
-  return NS_OK;
-}
-
-nsresult
-nsDocument::NodesFromRectHelper(float aX, float aY,
-                                float aTopSize, float aRightSize,
-                                float aBottomSize, float aLeftSize,
-                                PRBool aIgnoreRootScrollFrame,
-                                PRBool aFlushLayout,
-                                nsIDOMNodeList** aReturn)
-{
-  NS_ENSURE_ARG_POINTER(aReturn);
-  
-  nsBaseContentList* elements = new nsBaseContentList();
-  NS_ADDREF(elements);
-  *aReturn = elements;
-
-  // Following the same behavior of elementFromPoint,
-  // we don't return anything if either coord is negative
-  if (!aIgnoreRootScrollFrame && (aX < 0 || aY < 0))
-    return NS_OK;
-
-  nscoord x = nsPresContext::CSSPixelsToAppUnits(aX - aLeftSize);
-  nscoord y = nsPresContext::CSSPixelsToAppUnits(aY - aTopSize);
-  nscoord w = nsPresContext::CSSPixelsToAppUnits(aLeftSize + aRightSize) + 1;
-  nscoord h = nsPresContext::CSSPixelsToAppUnits(aTopSize + aBottomSize) + 1;
-
-  nsRect rect(x, y, w, h);
-
-  // Make sure the layout information we get is up-to-date, and
-  // ensure we get a root frame (for everything but XUL)
-  if (aFlushLayout) {
-    FlushPendingNotifications(Flush_Layout);
-  }
-
-  nsIPresShell *ps = GetPrimaryShell();
-  NS_ENSURE_STATE(ps);
-  nsIFrame *rootFrame = ps->GetRootFrame();
-
-  // XUL docs, unlike HTML, have no frame tree until everything's done loading
-  if (!rootFrame)
-    return NS_OK; // return nothing to premature XUL callers as a reminder to wait
-
-  nsTArray<nsIFrame*> outFrames;
-  nsLayoutUtils::GetFramesForArea(rootFrame, rect, outFrames,
-                                  PR_TRUE, aIgnoreRootScrollFrame);
-
-  PRInt32 length = outFrames.Length();
-  if (!length)
-    return NS_OK;
-
-  // Used to filter out repeated elements in sequence.
-  nsIContent* lastAdded = nsnull;
-
-  for (PRInt32 i = 0; i < length; i++) {
-
-    nsIContent* ptContent = outFrames.ElementAt(i)->GetContent();
-    NS_ENSURE_STATE(ptContent);
-
-    // If the content is in a subdocument, try to get the element from |this| doc
-    nsIDocument *currentDoc = ptContent->GetCurrentDoc();
-    if (currentDoc && (currentDoc != this)) {
-      // XXX felipe: I can't get this type right without the intermediate vars
-      nsCOMPtr<nsIDOMElement> x = CheckAncestryAndGetFrame(currentDoc);
-      nsCOMPtr<nsIContent> elementDoc = do_QueryInterface(x);
-      if (elementDoc != lastAdded) {
-        elements->AppendElement(elementDoc);
-        lastAdded = elementDoc;
-      }
-      continue;
-    }
-
-    // If we have an anonymous element (such as an internal div from a textbox),
-    // or a node that isn't an element or a text node,
-    // replace it with the first non-anonymous parent node.
-    while (ptContent &&
-           (!(ptContent->IsNodeOfType(nsINode::eELEMENT) ||
-              ptContent->IsNodeOfType(nsINode::eTEXT)) ||
-            ptContent->IsInAnonymousSubtree())) {
-      // XXXldb: Faster to jump to GetBindingParent if non-null?
-      ptContent = ptContent->GetParent();
-    }
-   
-    if (ptContent && ptContent != lastAdded) {
-      elements->AppendElement(ptContent);
-      lastAdded = ptContent;
-    }
-  }
   return NS_OK;
 }
 
@@ -3810,10 +3718,11 @@ nsDocument::GetWindow()
 }
 
 nsPIDOMWindow *
-nsDocument::GetInnerWindowInternal()
+nsDocument::GetInnerWindow()
 {
-  NS_ASSERTION(mRemovedFromDocShell,
-               "This document should have been removed from docshell!");
+  if (!mRemovedFromDocShell) {
+    return mWindow;
+  }
 
   nsCOMPtr<nsPIDOMWindow> win(do_QueryInterface(GetScriptGlobalObject()));
 
@@ -4089,7 +3998,7 @@ nsDocument::DispatchContentLoadedEvents()
 
           nsIPresShell *shell = parent->GetPrimaryShell();
           if (shell) {
-            nsRefPtr<nsPresContext> context = shell->GetPresContext();
+            nsCOMPtr<nsPresContext> context = shell->GetPresContext();
 
             if (context) {
               nsEventDispatcher::Dispatch(parent, context, innerEvent, event,
@@ -4144,16 +4053,6 @@ nsDocument::ContentStatesChanged(nsIContent* aContent1, nsIContent* aContent2,
 {
   NS_DOCUMENT_NOTIFY_OBSERVERS(ContentStatesChanged,
                                (this, aContent1, aContent2, aStateMask));
-}
-
-void
-nsDocument::DocumentStatesChanged(PRInt32 aStateMask)
-{
-  // Invalidate our cached state.
-  mGotDocumentState &= ~aStateMask;
-  mDocumentState &= ~aStateMask;
-
-  NS_DOCUMENT_NOTIFY_OBSERVERS(DocumentStatesChanged, (this, aStateMask));
 }
 
 void
@@ -5759,10 +5658,9 @@ nsDocument::IsSameNode(nsIDOMNode* aOther, PRBool* aReturn)
 NS_IMETHODIMP
 nsDocument::IsEqualNode(nsIDOMNode* aOther, PRBool* aReturn)
 {
-  *aReturn = PR_FALSE;
+  NS_ENSURE_ARG_POINTER(aOther);
 
-  if (!aOther)
-    return NS_OK;
+  *aReturn = PR_FALSE;
 
   // Node type check by QI.  We also reuse this later.
   nsCOMPtr<nsIDocument> aOtherDoc = do_QueryInterface(aOther);
@@ -6289,7 +6187,7 @@ nsDocument::DispatchEvent(nsIDOMEvent* aEvent, PRBool *_retval)
 {
   // Obtain a presentation context
   nsIPresShell *shell = GetPrimaryShell();
-  nsRefPtr<nsPresContext> context;
+  nsCOMPtr<nsPresContext> context;
   if (shell) {
      context = shell->GetPresContext();
   }
@@ -6442,26 +6340,6 @@ nsDocument::FlushPendingNotifications(mozFlushType aType)
   if (shell) {
     shell->FlushPendingNotifications(aType);
   }
-}
-
-static PRBool
-Flush(nsIDocument* aDocument, void* aData)
-{
-  const mozFlushType* type = static_cast<const mozFlushType*>(aData);
-  aDocument->FlushPendingNotifications(*type);
-  return PR_TRUE;
-}
-
-void
-nsDocument::FlushExternalResources(mozFlushType aType)
-{
-  NS_ASSERTION(aType >= Flush_Style,
-    "should only need to flush for style or higher in external resources");
-
-  if (GetDisplayDocument()) {
-    return;
-  }
-  EnumerateExternalResources(Flush, &aType);
 }
 
 nsIScriptEventManager*
@@ -6868,11 +6746,12 @@ nsDocument::CreateElem(nsIAtom *aName, nsIAtom *aPrefix, PRInt32 aNamespaceID,
 PRBool
 nsDocument::IsSafeToFlush() const
 {
+  PRBool isSafeToFlush = PR_TRUE;
   nsCOMPtr<nsIPresShell> shell = GetPrimaryShell();
-  if (!shell)
-    return PR_TRUE;
-
-  return shell->IsSafeToFlush();
+  if (shell) {
+    shell->IsSafeToFlush(isSafeToFlush);
+  }
+  return isSafeToFlush;
 }
 
 nsresult
@@ -7118,34 +6997,6 @@ nsDocument::GetLayoutHistoryState() const
   }
 
   return state;
-}
-
-void
-nsDocument::EnsureOnloadBlocker()
-{
-  // If mScriptGlobalObject is null, we shouldn't be messing with the loadgroup
-  // -- it's not ours.
-  if (mOnloadBlockCount != 0 && mScriptGlobalObject) {
-    nsCOMPtr<nsILoadGroup> loadGroup = GetDocumentLoadGroup();
-    if (loadGroup) {
-      // Check first to see if mOnloadBlocker is in the loadgroup.
-      nsCOMPtr<nsISimpleEnumerator> requests;
-      loadGroup->GetRequests(getter_AddRefs(requests));
-
-      PRBool hasMore = PR_FALSE;
-      while (NS_SUCCEEDED(requests->HasMoreElements(&hasMore)) && hasMore) {
-        nsCOMPtr<nsISupports> elem;
-        requests->GetNext(getter_AddRefs(elem));
-        nsCOMPtr<nsIRequest> request = do_QueryInterface(elem);
-        if (request && request == mOnloadBlocker) {
-          return;
-        }
-      }
-
-      // Not in the loadgroup, so add it.
-      loadGroup->AddRequest(mOnloadBlocker, nsnull);
-    }
-  }
 }
 
 void
@@ -7764,26 +7615,6 @@ nsDocument::MaybePreLoadImage(nsIURI* uri)
   if (NS_SUCCEEDED(rv)) {
     mPreloadingImages.AppendObject(request);
   }
-}
-
-PRInt32
-nsDocument::GetDocumentState()
-{
-  if (!(mGotDocumentState & NS_DOCUMENT_STATE_RTL_LOCALE)) {
-    if (IsDocumentRightToLeft()) {
-      mDocumentState |= NS_DOCUMENT_STATE_RTL_LOCALE;
-    }
-    mGotDocumentState |= NS_DOCUMENT_STATE_RTL_LOCALE;
-  }
-  if (!(mGotDocumentState & NS_DOCUMENT_STATE_WINDOW_INACTIVE)) {
-    nsIPresShell* shell = GetPrimaryShell();
-    if (shell && shell->GetPresContext() &&
-        shell->GetPresContext()->IsTopLevelWindowInactive()) {
-      mDocumentState |= NS_DOCUMENT_STATE_WINDOW_INACTIVE;
-    }
-    mGotDocumentState |= NS_DOCUMENT_STATE_WINDOW_INACTIVE;
-  }
-  return mDocumentState;
 }
 
 namespace {

@@ -65,15 +65,13 @@ struct JSRegExpStatics {
     JSSubString rightContext;   /* input to right of last match (perl $') */
 };
 
-namespace js { class AutoValueRooter; }
-
 extern JS_FRIEND_API(void)
 js_SaveAndClearRegExpStatics(JSContext *cx, JSRegExpStatics *statics,
-                             js::AutoValueRooter *tvr);
+                             JSTempValueRooter *tvr);
 
 extern JS_FRIEND_API(void)
 js_RestoreRegExpStatics(JSContext *cx, JSRegExpStatics *statics,
-                        js::AutoValueRooter *tvr);
+                        JSTempValueRooter *tvr);
 
 /*
  * This struct holds a bitmap representation of a class from a regexp.
@@ -120,7 +118,7 @@ struct JSRegExp {
 };
 
 extern JSRegExp *
-js_NewRegExp(JSContext *cx, js::TokenStream *ts,
+js_NewRegExp(JSContext *cx, JSTokenStream *ts,
              JSString *str, uintN flags, JSBool flat);
 
 extern JSRegExp *
@@ -186,14 +184,24 @@ js_regexp_toString(JSContext *cx, JSObject *obj, jsval *vp);
  * Create, serialize/deserialize, or clone a RegExp object.
  */
 extern JSObject *
-js_NewRegExpObject(JSContext *cx, js::TokenStream *ts,
-                   const jschar *chars, size_t length, uintN flags);
+js_NewRegExpObject(JSContext *cx, JSTokenStream *ts,
+                   jschar *chars, size_t length, uintN flags);
 
 extern JSBool
 js_XDRRegExpObject(JSXDRState *xdr, JSObject **objp);
 
 extern JS_FRIEND_API(JSObject *) JS_FASTCALL
 js_CloneRegExpObject(JSContext *cx, JSObject *obj, JSObject *proto);
+
+const uint32 JSSLOT_REGEXP_LAST_INDEX = JSSLOT_PRIVATE + 1;
+const uint32 REGEXP_CLASS_FIXED_RESERVED_SLOTS = 1;
+
+static inline void
+js_ClearRegExpLastIndex(JSObject *obj)
+{
+    JS_ASSERT(obj->getClass() == &js_RegExpClass);
+    obj->fslots[JSSLOT_REGEXP_LAST_INDEX] = JSVAL_ZERO;
+}
 
 /* Return whether the given character array contains RegExp meta-characters. */
 extern bool

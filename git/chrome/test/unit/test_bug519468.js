@@ -56,9 +56,8 @@ else if (systemLocale == "fr-FR")
 else
   locales = [ "en-US", systemLocale, "fr-FR" ];
 
-do_get_profile();
 var workingDir = Cc["@mozilla.org/file/directory_service;1"].
-                 getService(Ci.nsIProperties).get("ProfD", Ci.nsIFile);
+                 getService(Ci.nsIProperties).get("TmpD", Ci.nsIFile);
 var manifest = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsILocalFile);
 manifest.initWithFile(workingDir);
 manifest.append("test_bug519468.manifest");
@@ -79,7 +78,6 @@ registerManifests(MANIFESTS);
 var chromeReg = Cc["@mozilla.org/chrome/chrome-registry;1"]
                 .getService(Ci.nsIXULChromeRegistry)
                 .QueryInterface(Ci.nsIToolkitChromeRegistry);
-chromeReg.checkForNewChrome();
 
 var prefService = Cc["@mozilla.org/preferences-service;1"]
                   .getService(Ci.nsIPrefService)
@@ -118,4 +116,5 @@ function run_test()
       test.package = "testmatchos";
     test_locale(test);
   }
+  manifest.remove(false);
 }

@@ -39,6 +39,7 @@
 #include "nsContentUtils.h"
 #include "nsIXPConnect.h"
 #include "jsapi.h"
+#include "jsnum.h"
 #include "jsarray.h"
 #include "jsinterp.h"
 #include "nsJSUtils.h"
@@ -283,7 +284,6 @@ nsresult
 nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
                                       const nsAString& aMessage,
                                       PRBool aSync, const nsAString& aJSON,
-                                      JSObject* aObjectsArray,
                                       nsTArray<nsString>* aJSONRetVal)
 {
   if (mListeners.Length()) {
@@ -347,8 +347,6 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
         JS_DefineProperty(mContext, param, "sync",
                           BOOLEAN_TO_JSVAL(aSync), NULL, NULL, JSPROP_ENUMERATE);
         JS_DefineProperty(mContext, param, "json", json, NULL, NULL, JSPROP_ENUMERATE);
-        JS_DefineProperty(mContext, param, "objects", OBJECT_TO_JSVAL(aObjectsArray),
-                          NULL, NULL, JSPROP_ENUMERATE);
 
         jsval thisValue = JSVAL_VOID;
         nsAutoGCRoot resultGCRoot3(&thisValue, &rv);
@@ -399,7 +397,7 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
     }
   }
   return mParentManager ? mParentManager->ReceiveMessage(aTarget, aMessage,
-                                                         aSync, aJSON, aObjectsArray,
+                                                         aSync, aJSON,
                                                          aJSONRetVal) : NS_OK;
 }
 

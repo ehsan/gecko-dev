@@ -300,7 +300,7 @@ private:
 
 protected:
 
-  virtual void ContinueInterruptedParsingAsync();
+  void ContinueInterruptedParsingAsync();
   void ContinueInterruptedParsingIfEnabled();
 
   nsCOMPtr<nsIDocument>         mDocument;

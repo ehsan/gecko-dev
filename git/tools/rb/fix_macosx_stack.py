@@ -132,8 +132,7 @@ def cxxfilt(sym):
     cxxfilt_proc.stdin.write(sym[1:] + "\n")
     return cxxfilt_proc.stdout.readline().rstrip("\n")
 
-line_re = re.compile("^(.*) ?\[([^ ]*) \+(0x[0-9A-F]{1,8})\](.*)$")
-balance_tree_re = re.compile("^([ \|0-9-]*)")
+line_re = re.compile("^([ \|0-9-]*)(.*) ?\[([^ ]*) \+(0x[0-9A-F]{1,8})\](.*)$")
 atos_sym_re = re.compile("^(\S+) \(in ([^)]+)\) \((.+)\)$")
 
 def fixSymbols(line):
@@ -141,21 +140,12 @@ def fixSymbols(line):
     if result is not None:
         # before allows preservation of balance trees
         # after allows preservation of counts
-        (before, file, address, after) = result.groups()
+        (before, badsymbol, file, address, after) = result.groups()
         address = int(address, 16)
 
         if os.path.exists(file) and os.path.isfile(file):
             address += address_adjustment(file)
-            try:
-                info = addressToSymbol(file, address)
-                if info.startswith("atos cannot"):
-                    # This can happen due to bug 550335 or bug 558947.
-                    sys.stderr.write("fix_macosx_stack will not convert some stack-trace addresses because: " + info + "\n")
-                    return line
-            except IOError:
-                # IOError can be the result of attempting to continue to use an
-                # atos process that has exited (e.g. due to the error above)
-                return line
+            info = addressToSymbol(file, address)
 
             # atos output seems to have three forms:
             #   address
@@ -167,9 +157,6 @@ def fixSymbols(line):
                 (symbol, library, fileline) = symresult.groups()
                 symbol = cxxfilt(symbol)
                 info = "%s (%s, in %s)" % (symbol, fileline, library)
-
-             # throw away the bad symbol, but keep balance tree structure
-            before = balance_tree_re.match(before).groups()[0]
 
             return before + info + after + "\n"
         else:

@@ -61,8 +61,6 @@ public:
 protected:
   virtual PHttpChannelChild* AllocPHttpChannel();
   virtual bool DeallocPHttpChannel(PHttpChannelChild*);
-  virtual PCookieServiceChild* AllocPCookieService();
-  virtual bool DeallocPCookieService(PCookieServiceChild*);
 };
 
 /**

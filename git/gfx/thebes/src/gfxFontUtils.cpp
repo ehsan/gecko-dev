@@ -277,8 +277,6 @@ gfxFontUtils::ReadCMAPTableFormat12(PRUint8 *aBuf, PRUint32 aLength, gfxSparseBi
         prevEndCharCode = endCharCode;
     }
 
-    aCharacterMap.mBlocks.Compact();
-
     return NS_OK;
 }
 
@@ -353,8 +351,6 @@ gfxFontUtils::ReadCMAPTableFormat4(PRUint8 *aBuf, PRUint32 aLength, gfxSparseBit
             }
         }
     }
-
-    aCharacterMap.mBlocks.Compact();
 
     return NS_OK;
 }
@@ -487,7 +483,7 @@ typedef struct {
 
     AutoSwap_PRUint16 arrays[1];
 } Format4Cmap;
-#pragma pack()
+
 PRUint32
 gfxFontUtils::MapCharToGlyphFormat4(const PRUint8 *aBuf, PRUnichar aCh)
 {
@@ -773,7 +769,6 @@ struct KernTableSubtableHeaderVersion1 {
     AutoSwap_PRUint16    tupleIndex;
 };
 
-#pragma pack()
 static PRBool
 IsValidSFNTVersion(PRUint32 version)
 {
@@ -1803,8 +1798,8 @@ gfxFontUtils::MakeEOTHeader(const PRUint8 *aFontData, PRUint32 aFontDataLength,
             break;
     }
 
-    // the Version name is allowed to be null
-    if ((needNames & ~(1 << EOTFixedHeader::EOT_VERSION_NAME_INDEX)) != 0) {
+    if (needNames != 0) 
+    {
         return NS_ERROR_FAILURE;
     }
 

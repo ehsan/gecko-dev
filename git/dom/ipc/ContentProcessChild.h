@@ -44,10 +44,6 @@
 #include "nsTArray.h"
 #include "nsAutoPtr.h"
 
-struct ChromePackage;
-struct ResourceMapping;
-struct OverrideMapping;
-
 namespace mozilla {
 namespace dom {
 
@@ -66,22 +62,14 @@ public:
         return sSingleton;
     }
 
-    /* if you remove this, please talk to cjones or dougt */
-    virtual bool RecvDummy(Shmem& foo) { return true; }
-
     virtual PIFrameEmbeddingChild* AllocPIFrameEmbedding();
     virtual bool DeallocPIFrameEmbedding(PIFrameEmbeddingChild*);
 
     virtual PTestShellChild* AllocPTestShell();
     virtual bool DeallocPTestShell(PTestShellChild*);
-    virtual bool RecvPTestShellConstructor(PTestShellChild*);
 
     virtual PNeckoChild* AllocPNecko();
     virtual bool DeallocPNecko(PNeckoChild*);
-
-    virtual bool RecvRegisterChrome(const nsTArray<ChromePackage>& packages,
-                                    const nsTArray<ResourceMapping>& resources,
-                                    const nsTArray<OverrideMapping>& overrides);
 
 private:
     NS_OVERRIDE

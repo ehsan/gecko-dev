@@ -1728,13 +1728,11 @@ nsContentSink::WillBuildModelImpl()
 void
 nsContentSink::ContinueInterruptedParsingIfEnabled()
 {
-  // This shouldn't be called in the HTML5 case.
   if (mParser && mParser->IsParserEnabled()) {
     mParser->ContinueInterruptedParsing();
   }
 }
 
-// Overridden in the HTML5 case
 void
 nsContentSink::ContinueInterruptedParsingAsync()
 {
@@ -1767,9 +1765,6 @@ nsIAtom** const kDefaultAllowedTags [] = {
   &nsGkAtoms::acronym,
   &nsGkAtoms::address,
   &nsGkAtoms::area,
-#ifdef MOZ_MEDIA
-  &nsGkAtoms::audio,
-#endif
   &nsGkAtoms::b,
   &nsGkAtoms::bdo,
   &nsGkAtoms::big,
@@ -1822,9 +1817,6 @@ nsIAtom** const kDefaultAllowedTags [] = {
   &nsGkAtoms::samp,
   &nsGkAtoms::select,
   &nsGkAtoms::small,
-#ifdef MOZ_MEDIA
-  &nsGkAtoms::source,
-#endif
   &nsGkAtoms::span,
   &nsGkAtoms::strike,
   &nsGkAtoms::strong,
@@ -1842,9 +1834,6 @@ nsIAtom** const kDefaultAllowedTags [] = {
   &nsGkAtoms::u,
   &nsGkAtoms::ul,
   &nsGkAtoms::var,
-#ifdef MOZ_MEDIA
-  &nsGkAtoms::video,
-#endif
   nsnull
 };
 
@@ -1857,10 +1846,6 @@ nsIAtom** const kDefaultAllowedAttributes [] = {
   &nsGkAtoms::align,
   &nsGkAtoms::alt,
   &nsGkAtoms::autocomplete,
-#ifdef MOZ_MEDIA
-  &nsGkAtoms::autobuffer,
-  &nsGkAtoms::autoplay,
-#endif
   &nsGkAtoms::axis,
   &nsGkAtoms::background,
   &nsGkAtoms::bgcolor,
@@ -1877,9 +1862,6 @@ nsIAtom** const kDefaultAllowedAttributes [] = {
   &nsGkAtoms::cols,
   &nsGkAtoms::colspan,
   &nsGkAtoms::color,
-#ifdef MOZ_MEDIA
-  &nsGkAtoms::controls,
-#endif
   &nsGkAtoms::compact,
   &nsGkAtoms::coords,
   &nsGkAtoms::datetime,
@@ -1898,10 +1880,6 @@ nsIAtom** const kDefaultAllowedAttributes [] = {
   &nsGkAtoms::label,
   &nsGkAtoms::lang,
   &nsGkAtoms::longdesc,
-#ifdef MOZ_MEDIA
-  &nsGkAtoms::loopend,
-  &nsGkAtoms::loopstart,
-#endif
   &nsGkAtoms::maxlength,
   &nsGkAtoms::media,
   &nsGkAtoms::method,
@@ -1910,15 +1888,7 @@ nsIAtom** const kDefaultAllowedAttributes [] = {
   &nsGkAtoms::nohref,
   &nsGkAtoms::noshade,
   &nsGkAtoms::nowrap,
-#ifdef MOZ_MEDIA
-  &nsGkAtoms::pixelratio,
-  &nsGkAtoms::playbackrate,
-  &nsGkAtoms::playcount,
-#endif
   &nsGkAtoms::pointSize,
-#ifdef MOZ_MEDIA
-  &nsGkAtoms::poster,
-#endif
   &nsGkAtoms::prompt,
   &nsGkAtoms::readonly,
   &nsGkAtoms::rel,

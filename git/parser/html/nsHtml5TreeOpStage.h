@@ -42,7 +42,6 @@
 #include "nsHtml5TreeOperation.h"
 #include "nsTArray.h"
 #include "nsAHtml5TreeOpSink.h"
-#include "nsHtml5SpeculativeLoad.h"
 
 class nsHtml5TreeOpStage : public nsAHtml5TreeOpSink {
   public:
@@ -58,20 +57,9 @@ class nsHtml5TreeOpStage : public nsAHtml5TreeOpSink {
     virtual void MoveOpsFrom(nsTArray<nsHtml5TreeOperation>& aOpQueue);
     
     /**
-     * Retrieve the staged operations and speculative loads into the arguments.
+     * Retrieve the staged operations into the argument.
      */
-    void MoveOpsAndSpeculativeLoadsTo(nsTArray<nsHtml5TreeOperation>& aOpQueue,
-        nsTArray<nsHtml5SpeculativeLoad>& aSpeculativeLoadQueue);
-
-    /**
-     * Move the speculative loads from the argument into the staging queue.
-     */
-    void MoveSpeculativeLoadsFrom(nsTArray<nsHtml5SpeculativeLoad>& aSpeculativeLoadQueue);
-
-    /**
-     * Retrieve the staged speculative loads into the argument.
-     */
-    void MoveSpeculativeLoadsTo(nsTArray<nsHtml5SpeculativeLoad>& aSpeculativeLoadQueue);
+    void MoveOpsTo(nsTArray<nsHtml5TreeOperation>& aOpQueue);
 
 #ifdef DEBUG
     void AssertEmpty();
@@ -79,8 +67,7 @@ class nsHtml5TreeOpStage : public nsAHtml5TreeOpSink {
 
   private:
     nsTArray<nsHtml5TreeOperation> mOpQueue;
-    nsTArray<nsHtml5SpeculativeLoad> mSpeculativeLoadQueue;
-    mozilla::Mutex mMutex;
+    mozilla::Mutex                 mMutex;
     
 };
 

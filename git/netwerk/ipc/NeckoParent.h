@@ -58,8 +58,6 @@ public:
 protected:
   virtual PHttpChannelParent* AllocPHttpChannel();
   virtual bool DeallocPHttpChannel(PHttpChannelParent*);
-  virtual PCookieServiceParent* AllocPCookieService();
-  virtual bool DeallocPCookieService(PCookieServiceParent*);
 };
 
 } // namespace net

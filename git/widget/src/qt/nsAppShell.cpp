@@ -45,7 +45,6 @@
 #include <qabstracteventdispatcher.h>
 
 #include "prenv.h"
-#include "nsQAppInstance.h"
 
 #ifdef MOZ_LOGGING
 #define FORCE_PR_LOG
@@ -63,7 +62,6 @@ static int sPokeEvent;
 
 nsAppShell::~nsAppShell()
 {
-    nsQAppInstance::Release();
 }
 
 nsresult

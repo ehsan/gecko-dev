@@ -23,7 +23,6 @@
  *
  * Contributor(s):
  *   Jason Duell <jduell.mcbugs@gmail.com>
- *   Daniel Witte <dwitte@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -48,27 +47,146 @@
 #include "nsMimeTypes.h"
 #include "nsNetUtil.h"
 
+// - TODO: Can we add these checks to nsHttpChannel.cpp too?
+#define ENSURE_CALLED_BEFORE_ASYNC_OPEN()                                      \
+  if (mIsPending)                                                              \
+    DROP_DEAD();                                                               \
+  if (mWasOpened)                                                              \
+    DROP_DEAD();                                                               \
+  NS_ENSURE_TRUE(!mIsPending, NS_ERROR_IN_PROGRESS);                           \
+  NS_ENSURE_TRUE(!mWasOpened, NS_ERROR_ALREADY_OPENED);
+
+
 namespace mozilla {
 namespace net {
 
 // C++ file contents
 HttpChannelChild::HttpChannelChild()
   : mState(HCC_NEW)
+  // FIELDS COPIED FROM nsHttpChannel.h
+  , mLoadFlags(LOAD_NORMAL)
+  , mStatus(NS_OK)
+  , mIsPending(PR_FALSE)
+  , mWasOpened(PR_FALSE)
 {
   LOG(("Creating HttpChannelChild @%x\n", this));
+
+  // grab a reference to the handler to ensure that it doesn't go away.
+  NS_ADDREF(gHttpHandler);
 }
 
 HttpChannelChild::~HttpChannelChild()
 {
   LOG(("Destroying HttpChannelChild @%x\n", this));
+
+  // release our reference to the handler
+  NS_RELEASE(gHttpHandler);
+}
+
+nsresult
+HttpChannelChild::Init(nsIURI *uri)
+{
+  /**
+   * COPIED from nsHttpChannel and tweaked: merge into base class?
+   */
+  LOG(("HttpChannelChild::Init [this=%x]\n", this));
+
+  NS_PRECONDITION(uri, "null uri");
+
+  nsresult rv = nsHashPropertyBag::Init();
+  if (NS_FAILED(rv))
+    return rv;
+
+  mURI = uri;
+  mOriginalURI = uri;
+  mDocumentURI = nsnull;
+//  mCaps = caps;
+
+  //
+  // Construct connection info object
+  //
+  nsCAutoString host;
+  PRInt32 port = -1;
+  PRBool usingSSL = PR_FALSE;
+  
+  rv = mURI->SchemeIs("https", &usingSSL);
+  if (NS_FAILED(rv)) return rv;
+
+  rv = mURI->GetAsciiHost(host);
+  if (NS_FAILED(rv)) return rv;
+
+  // reject the URL if it doesn't specify a host
+  if (host.IsEmpty())
+    return NS_ERROR_MALFORMED_URI;
+
+  rv = mURI->GetPort(&port);
+  if (NS_FAILED(rv)) return rv;
+
+  LOG(("host=%s port=%d\n", host.get(), port));
+
+  rv = mURI->GetAsciiSpec(mSpec);
+  if (NS_FAILED(rv)) return rv;
+  LOG(("uri=%s\n", mSpec.get()));
+
+#if 0
+  // Not yet clear that we need this in child
+  mConnectionInfo = new nsHttpConnectionInfo(host, port,
+                                             proxyInfo, usingSSL);
+  if (!mConnectionInfo)
+    return NS_ERROR_OUT_OF_MEMORY;
+  NS_ADDREF(mConnectionInfo);
+#endif
+
+  // Set default request method
+  mRequestHead.SetMethod(nsHttp::Get);
+
+#if 0
+  // FIXME (bug 541017): split this out into a separate function so we can share
+  //  with nsHttpChannel.  
+  //  - Make sure not to set any headers twice on parent.
+
+  //
+  // Set request headers
+  //
+  nsCAutoString hostLine;
+  if (strchr(host.get(), ':')) {
+    // host is an IPv6 address literal and must be encapsulated in []'s
+    hostLine.Assign('[');
+    // scope id is not needed for Host header.
+    int scopeIdPos = host.FindChar('%');
+    if (scopeIdPos == kNotFound)
+      hostLine.Append(host);
+    else if (scopeIdPos > 0)
+      hostLine.Append(Substring(host, 0, scopeIdPos));
+    else
+      return NS_ERROR_MALFORMED_URI;
+    hostLine.Append(']');
+  }
+  else
+    hostLine.Assign(host);
+  if (port != -1) {
+    hostLine.Append(':');
+    hostLine.AppendInt(port);
+  }
+
+  rv = mRequestHead.SetHeader(nsHttp::Host, hostLine);
+  if (NS_FAILED(rv)) return rv;
+
+  rv = gHttpHandler->
+    AddStandardRequestHeaders(&mRequestHead.Headers(), caps,
+                              !mConnectionInfo->UsingSSL() &&
+                              mConnectionInfo->UsingHttpProxy());
+#endif /* 0 */
+
+  return rv;
 }
 
 //-----------------------------------------------------------------------------
 // HttpChannelChild::nsISupports
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ADDREF_INHERITED(HttpChannelChild, HttpBaseChannel)
-NS_IMPL_RELEASE_INHERITED(HttpChannelChild, HttpBaseChannel)
+NS_IMPL_ADDREF_INHERITED(HttpChannelChild, nsHashPropertyBag)
+NS_IMPL_RELEASE_INHERITED(HttpChannelChild, nsHashPropertyBag)
 
 NS_INTERFACE_MAP_BEGIN(HttpChannelChild)
   NS_INTERFACE_MAP_ENTRY(nsIRequest)
@@ -85,22 +203,28 @@ NS_INTERFACE_MAP_BEGIN(HttpChannelChild)
   NS_INTERFACE_MAP_ENTRY(nsITraceableChannel)
   NS_INTERFACE_MAP_ENTRY(nsIApplicationCacheContainer)
   NS_INTERFACE_MAP_ENTRY(nsIApplicationCacheChannel)
-NS_INTERFACE_MAP_END_INHERITING(HttpBaseChannel)
+NS_INTERFACE_MAP_END_INHERITING(nsHashPropertyBag)
 
 //-----------------------------------------------------------------------------
 // HttpChannelChild::PHttpChannelChild
 //-----------------------------------------------------------------------------
 
 bool 
-HttpChannelChild::RecvOnStartRequest(const nsHttpResponseHead& responseHead)
+HttpChannelChild::RecvOnStartRequest(const PRInt32& HACK_ContentLength,
+                                     const nsCString& HACK_ContentType,
+                                     const PRUint32& HACK_Status,
+                                     const nsCString& HACK_StatusText)
 {
   LOG(("HttpChannelChild::RecvOnStartRequest [this=%x]\n", this));
 
   mState = HCC_ONSTART;
 
-  mResponseHead = new nsHttpResponseHead(responseHead);
+  mContentLength_HACK = HACK_ContentLength;
+  mContentType_HACK = HACK_ContentType;
+  mResponseStatus_HACK = HACK_Status;
+  mResponseStatusText_HACK = HACK_StatusText;
 
-  nsresult rv = mListener->OnStartRequest(this, mListenerContext);
+  nsresult rv = mChildListener->OnStartRequest(this, mChildListenerContext);
   if (!NS_SUCCEEDED(rv)) {
     // TODO: Cancel request:
     //  - Send Cancel msg to parent 
@@ -135,8 +259,8 @@ HttpChannelChild::RecvOnDataAvailable(const nsCString& data,
     // TODO:  what to do here?  Cancel request?  Very unlikely to fail.
     return false;  
   }
-  rv = mListener->OnDataAvailable(this, mListenerContext,
-                                  stringStream, offset, count);
+  rv = mChildListener->OnDataAvailable(this, mChildListenerContext,
+                                       stringStream, offset, count);
   stringStream->Close();
   if (!NS_SUCCEEDED(rv)) {
     // TODO: Cancel request: see notes in OnStartRequest
@@ -155,9 +279,10 @@ HttpChannelChild::RecvOnStopRequest(const nsresult& statusCode)
 
   mIsPending = PR_FALSE;
   mStatus = statusCode;
-  nsresult rv = mListener->OnStopRequest(this, mListenerContext, statusCode);
-  mListener = 0;
-  mListenerContext = 0;
+  nsresult rv = mChildListener->OnStopRequest(this, mChildListenerContext, 
+                                              statusCode);
+  mChildListener = 0;
+  mChildListenerContext = 0;
   if (!NS_SUCCEEDED(rv)) {
     // TODO: Cancel request: see notes in OnStartRequest
     return false;  
@@ -170,10 +295,37 @@ HttpChannelChild::RecvOnStopRequest(const nsresult& statusCode)
 //-----------------------------------------------------------------------------
 
 NS_IMETHODIMP
-HttpChannelChild::Cancel(nsresult status)
+HttpChannelChild::GetName(nsACString& aName)
 {
-  // FIXME: bug 536317
+  DROP_DEAD();
+}
+
+NS_IMETHODIMP
+HttpChannelChild::IsPending(PRBool *retval)
+{
+  /**
+   * COPIED from nsHttpChannel.cpp: move to shared base class?
+   */
+  NS_ENSURE_ARG_POINTER(retval);
+  *retval = mIsPending;
   return NS_OK;
+}
+
+NS_IMETHODIMP
+HttpChannelChild::GetStatus(nsresult *aStatus)
+{
+  /**
+   * COPIED from nsHttpChannel.cpp: move to shared base class?
+   */
+  NS_ENSURE_ARG_POINTER(aStatus);
+  *aStatus = mStatus;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+HttpChannelChild::Cancel(nsresult aStatus)
+{
+  DROP_DEAD();
 }
 
 NS_IMETHODIMP
@@ -188,17 +340,165 @@ HttpChannelChild::Resume()
   DROP_DEAD();
 }
 
+NS_IMETHODIMP
+HttpChannelChild::GetLoadGroup(nsILoadGroup **aLoadGroup)
+{
+  DROP_DEAD();
+}
+NS_IMETHODIMP
+HttpChannelChild::SetLoadGroup(nsILoadGroup *aLoadGroup)
+{
+  DROP_DEAD();
+}
+
+NS_IMETHODIMP
+HttpChannelChild::GetLoadFlags(nsLoadFlags *aLoadFlags)
+{
+  /**
+   * COPIED from nsHttpChannel.cpp: move to shared base class?
+   */
+  NS_ENSURE_ARG_POINTER(aLoadFlags);
+  *aLoadFlags = mLoadFlags;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+HttpChannelChild::SetLoadFlags(nsLoadFlags aLoadFlags)
+{
+  ENSURE_CALLED_BEFORE_ASYNC_OPEN();
+  /**
+   * COPIED from nsHttpChannel.cpp: move to shared base class?
+   */
+  mLoadFlags = aLoadFlags;
+  return NS_OK;
+}
+
 //-----------------------------------------------------------------------------
 // HttpChannelChild::nsIChannel
 //-----------------------------------------------------------------------------
 
 NS_IMETHODIMP
+HttpChannelChild::GetOriginalURI(nsIURI **originalURI)
+{
+  /**
+   * COPIED from nsHttpChannel.cpp: move to shared base class?
+   */
+  NS_ENSURE_ARG_POINTER(originalURI);
+  *originalURI = mOriginalURI;
+  NS_ADDREF(*originalURI);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+HttpChannelChild::SetOriginalURI(nsIURI *originalURI)
+{
+  ENSURE_CALLED_BEFORE_ASYNC_OPEN();
+  /**
+   * COPIED from nsHttpChannel.cpp: move to shared base class?
+   */
+  NS_ENSURE_ARG_POINTER(originalURI);
+  mOriginalURI = originalURI;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+HttpChannelChild::GetURI(nsIURI **URI)
+{
+  /**
+   * COPIED from nsHttpChannel.cpp: move to shared base class?
+   */
+  NS_ENSURE_ARG_POINTER(URI);
+  *URI = mURI;
+  NS_IF_ADDREF(*URI);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+HttpChannelChild::GetOwner(nsISupports **aOwner)
+{
+  DROP_DEAD();
+}
+NS_IMETHODIMP
+HttpChannelChild::SetOwner(nsISupports *aOwner)
+{
+  DROP_DEAD();
+}
+
+NS_IMETHODIMP
+HttpChannelChild::GetNotificationCallbacks(nsIInterfaceRequestor **callbacks)
+{
+  /**
+   * COPIED from nsHttpChannel.cpp: move to shared base class?
+   */
+  NS_IF_ADDREF(*callbacks = mCallbacks);
+  return NS_OK;
+}
+NS_IMETHODIMP
+HttpChannelChild::SetNotificationCallbacks(nsIInterfaceRequestor *callbacks)
+{
+  /**
+   * COPIED from nsHttpChannel.cpp: move to shared base class?
+   */
+  mCallbacks = callbacks;
+  mProgressSink = nsnull;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 HttpChannelChild::GetSecurityInfo(nsISupports **aSecurityInfo)
 {
-  // FIXME: Stub for bug 536301 .
-  NS_ENSURE_ARG_POINTER(aSecurityInfo);
-  *aSecurityInfo = 0;
+  DROP_DEAD();
+}
+
+NS_IMETHODIMP
+HttpChannelChild::GetContentType(nsACString& value)
+{
+  if (mState < HCC_ONSTART) {
+    value.Truncate();
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+  if (mContentType_HACK.IsEmpty()) {
+    value.AssignLiteral(UNKNOWN_CONTENT_TYPE);
+  } else {
+    value = mContentType_HACK;
+  }
   return NS_OK;
+}
+NS_IMETHODIMP
+HttpChannelChild::SetContentType(const nsACString& aContentType)
+{
+  DROP_DEAD();
+}
+
+NS_IMETHODIMP
+HttpChannelChild::GetContentCharset(nsACString& aContentCharset)
+{
+  DROP_DEAD();
+}
+NS_IMETHODIMP
+HttpChannelChild::SetContentCharset(const nsACString& aContentCharset)
+{
+  DROP_DEAD();
+}
+
+NS_IMETHODIMP
+HttpChannelChild::GetContentLength(PRInt32 *aContentLength)
+{
+  *aContentLength = mContentLength_HACK;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+HttpChannelChild::SetContentLength(PRInt32 aContentLength)
+{
+  DROP_DEAD();
+}
+
+NS_IMETHODIMP
+HttpChannelChild::Open(nsIInputStream **retval)
+{
+  NS_ENSURE_TRUE(!mWasOpened, NS_ERROR_IN_PROGRESS);
+  return NS_ImplementChannelOpen(this, retval);
 }
 
 NS_IMETHODIMP
@@ -222,15 +522,12 @@ HttpChannelChild::AsyncOpen(nsIStreamListener *listener, nsISupports *aContext)
   this->AddRef();
 
   // TODO: Combine constructor and AsyncOpen to save one IPC msg
-  gNeckoChild->SendPHttpChannelConstructor(this);
-  mListener = listener;
-  mListenerContext = aContext;
-
-  // TODO: serialize mConnectionInfo across to the parent, and set it on
-  // the new channel somehow?
-
-  // TODO: serialize mCaps across to the parent, and set it on
-  // the new channel somehow?
+  if (!gNeckoChild->SendPHttpChannelConstructor(this)) {
+    // TODO: currently means "this" has been deleted! bug 529693
+    DROP_DEAD();
+  }
+  mChildListener = listener;
+  mChildListenerContext = aContext;
 
   // TODO: need to dupe cookies logic from nsHttpChannel.cpp?
 
@@ -238,10 +535,29 @@ HttpChannelChild::AsyncOpen(nsIStreamListener *listener, nsISupports *aContext)
 
   // TODO: add self to loadgroup? 
 
-  SendAsyncOpen(IPC::URI(mURI), IPC::URI(mOriginalURI), IPC::URI(mDocumentURI),
-                IPC::URI(mReferrer), mLoadFlags, mRequestHeaders,
-                mRequestHead.Method(), mPriority, mRedirectionLimit,
-                mAllowPipelining, mForceAllowThirdPartyCookie);
+  // TODO: smartest way to pass nsURI == (spec, charset)? 
+  nsCAutoString charset;
+  mURI->GetOriginCharset(charset);
+  nsCAutoString originalSpec;
+  mOriginalURI->GetSpec(originalSpec);
+  nsCAutoString originalCharset;
+  mOriginalURI->GetOriginCharset(originalCharset);
+
+  nsCAutoString docSpec;
+  nsCAutoString docCharset;
+  if (mDocumentURI) {
+    mDocumentURI->GetSpec(docSpec);
+    mDocumentURI->GetOriginCharset(docCharset);
+  }
+
+  if (!SendAsyncOpen(mSpec, charset, originalSpec, originalCharset, 
+                     docSpec, docCharset, mLoadFlags)) {
+    // IPDL error: our destructor will be called automatically
+    // -- TODO: verify that that's the case :)
+    mChildListener = 0;
+    mChildListenerContext = 0;
+    return NS_ERROR_FAILURE;
+  }
 
   mIsPending = PR_TRUE;
   mWasOpened = PR_TRUE;
@@ -255,22 +571,150 @@ HttpChannelChild::AsyncOpen(nsIStreamListener *listener, nsISupports *aContext)
 //-----------------------------------------------------------------------------
 
 NS_IMETHODIMP
+HttpChannelChild::GetRequestMethod(nsACString& method)
+{
+  /**
+   * COPIED from nsHttpChannel.cpp: move to shared base class?
+   */
+  method = mRequestHead.Method();
+  return NS_OK;
+}
+NS_IMETHODIMP
+HttpChannelChild::SetRequestMethod(const nsACString& method)
+{
+  /**
+   * COPIED from nsHttpChannel.cpp: move to shared base class?
+   * - TODO: pass along to parent in AsyncOpen
+   */
+  NS_ENSURE_TRUE(!mIsPending, NS_ERROR_IN_PROGRESS);
+
+  const nsCString& flatMethod = PromiseFlatCString(method);
+
+  // Method names are restricted to valid HTTP tokens.
+  if (!nsHttp::IsValidToken(flatMethod))
+    return NS_ERROR_INVALID_ARG;
+
+  nsHttpAtom atom = nsHttp::ResolveAtom(flatMethod.get());
+  if (!atom)
+    return NS_ERROR_FAILURE;
+
+  mRequestHead.SetMethod(atom);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+HttpChannelChild::GetReferrer(nsIURI **aReferrer)
+{
+  DROP_DEAD();
+}
+NS_IMETHODIMP
+HttpChannelChild::SetReferrer(nsIURI *aReferrer)
+{
+  DROP_DEAD();
+}
+
+NS_IMETHODIMP
+HttpChannelChild::GetRequestHeader(const nsACString& hdr, nsACString& val)
+{
+  DROP_DEAD();
+}
+
+NS_IMETHODIMP
 HttpChannelChild::SetRequestHeader(const nsACString& aHeader, 
                                    const nsACString& aValue, 
                                    PRBool aMerge)
 {
-  nsresult rv = HttpBaseChannel::SetRequestHeader(aHeader, aValue, aMerge);
-  if (NS_FAILED(rv))
-    return rv;
+  DROP_DEAD();
+}
 
-  RequestHeaderTuple* tuple = mRequestHeaders.AppendElement();
-  if (!tuple)
-    return NS_ERROR_OUT_OF_MEMORY;
+NS_IMETHODIMP
+HttpChannelChild::VisitRequestHeaders(nsIHttpHeaderVisitor *aVisitor)
+{
+  DROP_DEAD();
+}
 
-  tuple->mHeader = aHeader;
-  tuple->mValue = aValue;
-  tuple->mMerge = aMerge;
+NS_IMETHODIMP
+HttpChannelChild::GetAllowPipelining(PRBool *aAllowPipelining)
+{
+  DROP_DEAD();
+}
+NS_IMETHODIMP
+HttpChannelChild::SetAllowPipelining(PRBool aAllowPipelining)
+{
+  DROP_DEAD();
+}
+
+NS_IMETHODIMP
+HttpChannelChild::GetRedirectionLimit(PRUint32 *aRedirectionLimit)
+{
+  DROP_DEAD();
+}
+NS_IMETHODIMP
+HttpChannelChild::SetRedirectionLimit(PRUint32 aRedirectionLimit)
+{
+  DROP_DEAD();
+}
+
+NS_IMETHODIMP
+HttpChannelChild::GetResponseStatus(PRUint32 *value)
+{
+  NS_ENSURE_ARG_POINTER(value);
+  if (mState < HCC_ONSTART) 
+    return NS_ERROR_NOT_AVAILABLE;
+  *value = mResponseStatus_HACK;
   return NS_OK;
+}
+
+NS_IMETHODIMP
+HttpChannelChild::GetResponseStatusText(nsACString& value)
+{
+  if (mState < HCC_ONSTART) 
+    return NS_ERROR_NOT_AVAILABLE;
+  value = mResponseStatusText_HACK;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+HttpChannelChild::GetRequestSucceeded(PRBool *value)
+{
+  NS_PRECONDITION(value, "Don't ever pass a null arg to this function");
+  if (mState < HCC_ONSTART) 
+    return NS_ERROR_NOT_AVAILABLE;
+  PRUint32 status = mResponseStatus_HACK;
+  *value = (status / 100 == 2);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+HttpChannelChild::GetResponseHeader(const nsACString& header, nsACString& val)
+{
+  DROP_DEAD();
+}
+
+NS_IMETHODIMP
+HttpChannelChild::SetResponseHeader(const nsACString& header, 
+                                    const nsACString& value, 
+                                    PRBool merge)
+{
+  DROP_DEAD();
+}
+
+NS_IMETHODIMP
+HttpChannelChild::VisitResponseHeaders(nsIHttpHeaderVisitor *aVisitor)
+{
+  DROP_DEAD();
+}
+
+NS_IMETHODIMP
+HttpChannelChild::IsNoStoreResponse(PRBool *retval)
+{
+  DROP_DEAD();
+}
+
+NS_IMETHODIMP
+HttpChannelChild::IsNoCacheResponse(PRBool *retval)
+{
+  DROP_DEAD();
 }
 
 //-----------------------------------------------------------------------------
@@ -278,11 +722,62 @@ HttpChannelChild::SetRequestHeader(const nsACString& aHeader,
 //-----------------------------------------------------------------------------
 
 NS_IMETHODIMP
+HttpChannelChild::GetDocumentURI(nsIURI **aDocumentURI)
+{
+  /**
+   * COPIED from nsHttpChannel.cpp: move to shared base class?
+   */
+  NS_ENSURE_ARG_POINTER(aDocumentURI);
+  *aDocumentURI = mDocumentURI;
+  NS_IF_ADDREF(*aDocumentURI);
+  return NS_OK;
+}
+NS_IMETHODIMP
+HttpChannelChild::SetDocumentURI(nsIURI *aDocumentURI)
+{
+  ENSURE_CALLED_BEFORE_ASYNC_OPEN();
+  /**
+   * COPIED from nsHttpChannel.cpp: move to shared base class?
+   */
+  mDocumentURI = aDocumentURI;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+HttpChannelChild::GetRequestVersion(PRUint32 *major, PRUint32 *minor)
+{
+  DROP_DEAD();
+}
+
+NS_IMETHODIMP
+HttpChannelChild::GetResponseVersion(PRUint32 *major, PRUint32 *minor)
+{
+  DROP_DEAD();
+}
+
+NS_IMETHODIMP
+HttpChannelChild::SetCookie(const char *aCookieHeader)
+{
+  DROP_DEAD();
+}
+
+NS_IMETHODIMP
 HttpChannelChild::SetupFallbackChannel(const char *aFallbackKey)
 {
   DROP_DEAD();
 }
 
+NS_IMETHODIMP
+HttpChannelChild::GetForceAllowThirdPartyCookie(PRBool *force)
+{
+  DROP_DEAD();
+}
+
+NS_IMETHODIMP
+HttpChannelChild::SetForceAllowThirdPartyCookie(PRBool force)
+{
+  DROP_DEAD();
+}
 
 //-----------------------------------------------------------------------------
 // HttpChannelChild::nsICachingChannel
@@ -291,8 +786,7 @@ HttpChannelChild::SetupFallbackChannel(const char *aFallbackKey)
 NS_IMETHODIMP
 HttpChannelChild::GetCacheToken(nsISupports **aCacheToken)
 {
-  // FIXME: stub for bug 537164
-  return NS_ERROR_NOT_AVAILABLE;
+  DROP_DEAD();
 }
 NS_IMETHODIMP
 HttpChannelChild::SetCacheToken(nsISupports *aCacheToken)
@@ -314,10 +808,7 @@ HttpChannelChild::SetOfflineCacheToken(nsISupports *aOfflineCacheToken)
 NS_IMETHODIMP
 HttpChannelChild::GetCacheKey(nsISupports **aCacheKey)
 {
-  // FIXME: stub for bug 537164
-  NS_ENSURE_ARG_POINTER(aCacheKey);
-  *aCacheKey = 0;
-  return NS_OK;
+  DROP_DEAD();
 }
 NS_IMETHODIMP
 HttpChannelChild::SetCacheKey(nsISupports *aCacheKey)
@@ -365,14 +856,9 @@ HttpChannelChild::GetCacheFile(nsIFile **aCacheFile)
 }
 
 NS_IMETHODIMP
-HttpChannelChild::IsFromCache(PRBool *value)
+HttpChannelChild::IsFromCache(PRBool *retval)
 {
-  if (!mIsPending)
-    return NS_ERROR_NOT_AVAILABLE;
-
-  // FIXME: stub for bug 537164
-  *value = false;
-  return NS_OK;
+  DROP_DEAD();
 }
 
 //-----------------------------------------------------------------------------
@@ -388,12 +874,9 @@ HttpChannelChild::SetUploadStream(nsIInputStream *aStream,
 }
 
 NS_IMETHODIMP
-HttpChannelChild::GetUploadStream(nsIInputStream **stream)
+HttpChannelChild::GetUploadStream(nsIInputStream **aUploadStream)
 {
-  // FIXME: stub for bug 536273
-  NS_ENSURE_ARG_POINTER(stream);
-  *stream = 0;
-  return NS_OK;
+  DROP_DEAD();
 }
 
 //-----------------------------------------------------------------------------
@@ -454,15 +937,20 @@ HttpChannelChild::GetEntityID(nsACString& aEntityID)
 //-----------------------------------------------------------------------------
 
 NS_IMETHODIMP
+HttpChannelChild::GetPriority(PRInt32 *aPriority)
+{
+  DROP_DEAD();
+}
+NS_IMETHODIMP
 HttpChannelChild::SetPriority(PRInt32 aPriority)
 {
-  PRInt16 newValue = CLAMP(aPriority, PR_INT16_MIN, PR_INT16_MAX);
-  if (mPriority == newValue)
-    return NS_OK;
-  mPriority = newValue;
-  if (mWasOpened) 
-    SendSetPriority(mPriority);
-  return NS_OK;
+  DROP_DEAD();
+}
+
+NS_IMETHODIMP
+HttpChannelChild::AdjustPriority(PRInt32 delta)
+{
+  DROP_DEAD();
 }
 
 //-----------------------------------------------------------------------------
@@ -508,9 +996,7 @@ HttpChannelChild::SetApplicationCache(nsIApplicationCache *aApplicationCache)
 NS_IMETHODIMP
 HttpChannelChild::GetLoadedFromApplicationCache(PRBool *retval)
 {
-  // FIXME: stub for bug 536295
-  *retval = 0;
-  return NS_OK;
+  DROP_DEAD();
 }
 
 NS_IMETHODIMP

@@ -84,7 +84,6 @@
 #include "nsLayoutUtils.h"
 #include "nsVideoFrame.h"
 #include "BasicLayers.h"
-#include <limits>
 
 #ifdef MOZ_OGG
 #include "nsOggDecoder.h"
@@ -820,7 +819,7 @@ NS_IMETHODIMP nsHTMLMediaElement::SetCurrentTime(float aCurrentTime)
 /* readonly attribute float duration; */
 NS_IMETHODIMP nsHTMLMediaElement::GetDuration(float *aDuration)
 {
-  *aDuration = mDecoder ? mDecoder->GetDuration() : std::numeric_limits<float>::quiet_NaN();
+  *aDuration =  mDecoder ? mDecoder->GetDuration() : 0.0;
   return NS_OK;
 }
 

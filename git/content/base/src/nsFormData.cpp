@@ -49,8 +49,6 @@ nsFormData::nsFormData()
 // -------------------------------------------------------------------------
 // nsISupports
 
-DOMCI_DATA(FormData, nsFormData)
-
 NS_IMPL_ADDREF(nsFormData)
 NS_IMPL_RELEASE(nsFormData)
 NS_INTERFACE_MAP_BEGIN(nsFormData)

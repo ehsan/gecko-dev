@@ -181,7 +181,7 @@ BrowserTab.prototype = {
   },
 
   get index() {
-    var tabs = this._tabbrowser.tabs;
+    var tabs = this._tabbrowser.mTabs;
     for (var i=0; i<tabs.length; i++) {
       if (tabs[i].linkedBrowser == this._browser)
         return i;
@@ -229,7 +229,7 @@ BrowserTab.prototype = {
    * Helper used to determine the index offset of the browsertab
    */
   _getTab : function bt_gettab() {
-    var tabs = this._tabbrowser.tabs;
+    var tabs = this._tabbrowser.mTabs;
     return tabs[this.index] || null;
   },
 

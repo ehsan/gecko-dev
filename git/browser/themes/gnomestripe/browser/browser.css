@@ -800,17 +800,6 @@ toolbar[iconsize="small"] #fullscreen-button {
   display: none;
 }
 
-#urlbar-display {
-  margin-top: -2px;
-  margin-bottom: -2px;
-  padding-top: 3px;
-  padding-bottom: 2px;
-  -moz-padding-end: 3px;
-  color: GrayText;
-  -moz-border-end: 1px solid #AAA;
-  -moz-margin-end: 3px;
-}
-
 #PopupAutoComplete,
 #PopupAutoCompleteRichResult {
   direction: ltr !important;
@@ -1007,10 +996,6 @@ toolbar[iconsize="small"] #fullscreen-button {
 
 .ac-url-text {
   color: -moz-nativehyperlinktext;
-}
-
-richlistitem[type="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-icon {
-  list-style-image: url("chrome://browser/skin/actionicon-tab.png");
 }
 
 .autocomplete-treebody::-moz-tree-cell-text(treecolAutoCompleteComment) {
@@ -1388,17 +1373,24 @@ toolbar[mode="text"] toolbarbutton.chevron > .toolbarbutton-icon {
   -moz-box-shadow: none;
 }
 
+.ctrlTab-favicon[src],
+.allTabs-favicon[src] {
+  background-color: white;
+  padding: 2px;
+/* XXX: Upscaling images is ugly on Linux (bug 422179)
+  width: 24px;
+  height: 24px;
+  opacity: .7;
+*/
+  width: 20px;
+  height: 20px;
+  opacity: .8;
+}
+
 /* Ctrl-Tab */
 
 #ctrlTab-panel {
   padding: 10px;
-}
-
-.ctrlTab-favicon[src] {
-  background-color: white;
-  width: 20px;
-  height: 20px;
-  padding: 2px;
 }
 
 .ctrlTab-preview:not(#ctrlTab-showAll) .tabPreview-canvas {
@@ -1415,7 +1407,13 @@ toolbar[mode="text"] toolbarbutton.chevron > .toolbarbutton-icon {
 /* All Tabs */
 
 #allTabs-panel {
-  padding-bottom: 10px;
+  /* compensate for the widget border and padding to center the panel correctly */
+  margin-left: -13px;
+}
+
+#allTabs-tab-close-button {
+  /*XXX without this, the closebutton can cause the panel to expand horizontally */
+  margin-right: -16px;
 }
 
 #allTabs-meta {
@@ -1427,9 +1425,8 @@ toolbar[mode="text"] toolbarbutton.chevron > .toolbarbutton-icon {
   -moz-margin-end: 0;
 }
 
-.allTabs-favicon {
-  margin-top: 1px;
-  -moz-margin-start: 1px;
+#allTabs-stack {
+  margin: 10px;
 }
 
 .allTabs-preview-label {

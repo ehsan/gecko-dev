@@ -50,11 +50,13 @@ function test() {
   aboutBrowser.addEventListener("load", function () {
     aboutBrowser.removeEventListener("load", arguments.callee, true);
 
+    let ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
+             getService(Ci.nsIWindowWatcher);
     function observer(aSubject, aTopic, aData) {
       if (aTopic != "domwindowopened")
         return;
 
-      Services.ww.unregisterNotification(observer);
+      ww.unregisterNotification(observer);
 
       let win = aSubject.QueryInterface(Ci.nsIDOMEventTarget);
       win.addEventListener("load", function () {
@@ -69,7 +71,7 @@ function test() {
         }, true);
       }, false);
     }
-    Services.ww.registerNotification(observer);
+    ww.registerNotification(observer);
 
     openViewSource();
 
@@ -82,14 +84,14 @@ function test() {
       function observer(aSubject, aTopic, aData) {
         if (aTopic == "domwindowclosed") {
           ok(true, "Entering the private browsing mode should close the view source window");
-          Services.ww.unregisterNotification(observer);
+          ww.unregisterNotification(observer);
 
           step2();
         }
         else if (aTopic == "domwindowopened")
           ok(false, "Entering the private browsing mode should not open any view source window");
       }
-      Services.ww.registerNotification(observer);
+      ww.registerNotification(observer);
 
       gBrowser.addTabsProgressListener({
         onLocationChange: function() {},
@@ -122,7 +124,7 @@ function test() {
         if (aTopic != "domwindowopened")
           return;
 
-        Services.ww.unregisterNotification(observer);
+        ww.unregisterNotification(observer);
 
         let win = aSubject.QueryInterface(Ci.nsIDOMEventTarget);
         win.addEventListener("load", function () {
@@ -137,7 +139,7 @@ function test() {
           }, true);
         }, false);
       }
-      Services.ww.registerNotification(observer);
+      ww.registerNotification(observer);
 
       openViewSource();
     }
@@ -149,12 +151,12 @@ function test() {
         if (aTopic == "domwindowclosed") {
           ok(true, "Leaving the private browsing mode should close the existing view source window");
           if (++events == 2)
-            Services.ww.unregisterNotification(observer);
+            ww.unregisterNotification(observer);
         }
         else if (aTopic == "domwindowopened") {
           ok(true, "Leaving the private browsing mode should restore the previous view source window");
           if (++events == 2)
-            Services.ww.unregisterNotification(observer);
+            ww.unregisterNotification(observer);
 
           let win = aSubject.QueryInterface(Ci.nsIDOMEventTarget);
           win.addEventListener("load", function () {
@@ -175,7 +177,7 @@ function test() {
           }, false);
         }
       }
-      Services.ww.registerNotification(observer);
+      ww.registerNotification(observer);
 
       // exit private browsing mode
       pb.privateBrowsingEnabled = false;

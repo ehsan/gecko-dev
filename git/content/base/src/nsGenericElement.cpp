@@ -631,23 +631,6 @@ nsIContent::FindFirstNonNativeAnonymous() const
   return nsnull;
 }
 
-nsIContent*
-nsIContent::GetFlattenedTreeParent() const
-{
-  nsIContent *parent = GetParent();
-  if (parent && parent->HasFlag(NODE_MAY_BE_IN_BINDING_MNGR)) {
-    nsIDocument *doc = parent->GetOwnerDoc();
-    if (doc) {
-      nsIContent* insertionElement =
-        doc->BindingManager()->GetNestedInsertionPoint(parent, this);
-      if (insertionElement) {
-        parent = insertionElement;
-      }
-    }
-  }
-  return parent;
-}
-
 //----------------------------------------------------------------------
 
 NS_IMPL_ADDREF(nsChildContentList)
@@ -911,10 +894,9 @@ nsNode3Tearoff::AreNodesEqual(nsIContent* aContent1,
 NS_IMETHODIMP
 nsNode3Tearoff::IsEqualNode(nsIDOMNode* aOther, PRBool* aReturn)
 {
-  *aReturn = PR_FALSE;
+  NS_ENSURE_ARG_POINTER(aOther);
 
-  if (!aOther)
-    return NS_OK;
+  *aReturn = PR_FALSE;
 
   // Since we implement nsIContent, aOther must as well.
   nsCOMPtr<nsIContent> aOtherContent = do_QueryInterface(aOther);
@@ -2609,9 +2591,7 @@ nsGenericElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
     mParentPtrBits |= PARENT_BIT_INDOCUMENT;
 
     // Unset this flag since we now really are in a document.
-    UnsetFlags(NODE_FORCE_XBL_BINDINGS |
-               // And clear the lazy frame construction bits.
-               NODE_NEEDS_FRAME | NODE_DESCENDANTS_NEED_FRAMES);
+    UnsetFlags(NODE_FORCE_XBL_BINDINGS);
   }
 
   // If NODE_FORCE_XBL_BINDINGS was set we might have anonymous children
@@ -2937,17 +2917,15 @@ nsGenericElement::doPreHandleEvent(nsIContent* aContent,
 
   // check for an anonymous parent
   // XXX XBL2/sXBL issue
-  if (aContent->HasFlag(NODE_MAY_BE_IN_BINDING_MNGR)) {
-    nsIDocument* ownerDoc = aContent->GetOwnerDoc();
-    if (ownerDoc) {
-      nsIContent* insertionParent = ownerDoc->BindingManager()->
-        GetInsertionParent(aContent);
-      NS_ASSERTION(!(aVisitor.mEventTargetAtParent && insertionParent &&
-                     aVisitor.mEventTargetAtParent != insertionParent),
-                   "Retargeting and having insertion parent!");
-      if (insertionParent) {
-        parent = insertionParent;
-      }
+  nsIDocument* ownerDoc = aContent->GetOwnerDoc();
+  if (ownerDoc) {
+    nsIContent* insertionParent = ownerDoc->BindingManager()->
+      GetInsertionParent(aContent);
+    NS_ASSERTION(!(aVisitor.mEventTargetAtParent && insertionParent &&
+                   aVisitor.mEventTargetAtParent != insertionParent),
+                 "Retargeting and having insertion parent!");
+    if (insertionParent) {
+      parent = insertionParent;
     }
   }
 
@@ -3508,17 +3486,12 @@ nsGenericElement::DispatchClickEvent(nsPresContext* aPresContext,
   event.refPoint = aSourceEvent->refPoint;
   PRUint32 clickCount = 1;
   float pressure = 0;
-  PRUint16 inputSource = 0;
   if (aSourceEvent->eventStructType == NS_MOUSE_EVENT) {
     clickCount = static_cast<nsMouseEvent*>(aSourceEvent)->clickCount;
     pressure = static_cast<nsMouseEvent*>(aSourceEvent)->pressure;
-    inputSource = static_cast<nsMouseEvent*>(aSourceEvent)->inputSource;
-  } else if (aSourceEvent->eventStructType == NS_KEY_EVENT) {
-    inputSource = nsIDOMNSMouseEvent::MOZ_SOURCE_KEYBOARD;
   }
   event.pressure = pressure;
   event.clickCount = clickCount;
-  event.inputSource = inputSource;
   event.isShift = aSourceEvent->isShift;
   event.isControl = aSourceEvent->isControl;
   event.isAlt = aSourceEvent->isAlt;

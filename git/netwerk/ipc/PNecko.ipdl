@@ -40,24 +40,21 @@
 
 include protocol "PContentProcess.ipdl";
 include protocol "PHttpChannel.ipdl";
-include protocol "PCookieService.ipdl";
 
 namespace mozilla {
 namespace net {
 
 
 //-------------------------------------------------------------------
-sync protocol PNecko
+protocol PNecko
 {
   manager PContentProcess;
   manages PHttpChannel;
-  manages PCookieService;
 
 parent:
   __delete__();
 
   PHttpChannel();
-  PCookieService();
 };
 
 

@@ -78,9 +78,9 @@ class HashTable : AllocPolicy
         NonConstT t;
 
         bool isFree() const           { return keyHash == 0; }
-        void setFree()                { keyHash = 0; assignT(t, T()); }
+        void setFree()                { keyHash = 0; t = T(); }
         bool isRemoved() const        { return keyHash == 1; }
-        void setRemoved()             { keyHash = 1; assignT(t, T()); }
+        void setRemoved()             { keyHash = 1; t = T(); }
         bool isLive() const           { return keyHash > 1; }
         void setLive(HashNumber hn)   { JS_ASSERT(hn > 1); keyHash = hn; }
 
@@ -109,13 +109,11 @@ class HashTable : AllocPolicy
         Ptr(Entry &entry) : entry(&entry) {}
 
       public:
-        bool found() const                    { return entry->isLive(); }
-        operator ConvertibleToBool() const    { return found() ? &Ptr::nonNull : 0; }
-        bool operator==(const Ptr &rhs) const { JS_ASSERT(found() && rhs.found()); return entry == rhs.entry; }
-        bool operator!=(const Ptr &rhs) const { return !(*this == rhs); }
+        bool found() const           { return entry->isLive(); }
+        operator ConvertibleToBool() { return found() ? &Ptr::nonNull : 0; }
 
-        T &operator*() const                  { return entry->t; }
-        T *operator->() const                 { return &entry->t; }
+        T &operator*() const         { return entry->t; }
+        T *operator->() const        { return &entry->t; }
     };
 
     /* A Ptr that can be used to add a key after a failed lookup. */
@@ -142,7 +140,7 @@ class HashTable : AllocPolicy
                 ++cur;
         }
 
-        Entry *cur, *end;
+        Entry *cur, * const end;
 
       public:
         bool empty() const {
@@ -181,15 +179,22 @@ class HashTable : AllocPolicy
         void operator=(const Enum &);
 
       public:
-        template<class Map>
-        Enum(Map &map) : Range(map.all()), table(map.impl), removed(false) {}
+        /* Type returned from hash table used to initialize Enum object. */
+        struct Init {
+            Init(Range r, HashTable &t) : range(r), table(t) {}
+            Range range;
+            HashTable &table;
+        };
+
+        /* Initialize with the return value of enumerate. */
+        Enum(Init i) : Range(i.range), table(i.table), removed(false) {}
 
         /*
          * Removes the |front()| element from the table, leaving |front()|
          * invalid until the next call to |popFront()|. For example:
          *
          *   HashSet<int> s;
-         *   for (HashSet<int>::Enum e(s); !e.empty(); e.popFront())
+         *   for (HashSet<int>::Enum e(s.enumerate()); !e.empty(); e.popFront())
          *     if (e.front() == 42)
          *       e.removeFront();
          */
@@ -524,6 +529,10 @@ class HashTable : AllocPolicy
         return Range(table, table + tableCapacity);
     }
 
+    typename Enum::Init enumerate() {
+        return typename Enum::Init(all(), *this);
+    }
+
     bool empty() const {
         return !entryCount;
     }
@@ -706,8 +715,6 @@ class HashMap
     };
     typedef detail::HashTable<Entry, MapHashPolicy, AllocPolicy> Impl;
 
-    friend class Impl::Enum;
-
     /* Not implicitly copyable (expensive). May add explicit |clone| later. */
     HashMap(const HashMap &);
     HashMap &operator=(const HashMap &);
@@ -778,12 +785,12 @@ class HashMap
     size_t count() const                              { return impl.count(); }
 
     /*
-     * Typedef for the enumeration class. An Enum may be used to examine and
-     * remove table entries:
+     * Returns a value that may be used to initialize an Enum. An Enum may be
+     * used to examine and remove table entries:
      *
      *   typedef HashMap<int,char> HM;
      *   HM s;
-     *   for (HM::Enum e(s); !e.empty(); e.popFront())
+     *   for (HM::Enum e(s.enumerate()); !e.empty(); e.popFront())
      *     if (e.front().value == 'l')
      *       e.removeFront();
      *
@@ -791,6 +798,7 @@ class HashMap
      * Enum in HashTable above (with T = Entry).
      */
     typedef typename Impl::Enum Enum;
+    typename Enum::Init enumerate()                   { return impl.enumerate(); }
 
     /* Remove all entries. */
     void clear()                                      { impl.clear(); }
@@ -852,8 +860,6 @@ class HashSet
         static const KeyType &getKey(const T &t) { return t; }
     };
     typedef detail::HashTable<const T, SetOps, AllocPolicy> Impl;
-
-    friend class Impl::Enum;
 
     /* Not implicitly copyable (expensive). May add explicit |clone| later. */
     HashSet(const HashSet &);
@@ -921,12 +927,12 @@ class HashSet
     size_t count() const                              { return impl.count(); }
 
     /*
-     * Typedef for the enumeration class. An Enum may be used to examine and
-     * remove table entries:
+     * Returns a value that may be used to initialize an Enum. An Enum may be
+     * used to examine and remove table entries.
      *
      *   typedef HashSet<int> HS;
      *   HS s;
-     *   for (HS::Enum e(s); !e.empty(); e.popFront())
+     *   for (HS::Enum e(s.enumerate()); !e.empty(); e.popFront())
      *     if (e.front() == 42)
      *       e.removeFront();
      *
@@ -934,6 +940,7 @@ class HashSet
      * Enum in HashTable above.
      */
     typedef typename Impl::Enum Enum;
+    typename Enum::Init enumerate()                   { return impl.enumerate(); }
 
     /* Remove all entries. */
     void clear()                                      { impl.clear(); }

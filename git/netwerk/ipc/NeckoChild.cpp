@@ -42,7 +42,6 @@
 #include "mozilla/net/NeckoChild.h"
 #include "mozilla/dom/ContentProcessChild.h"
 #include "mozilla/net/HttpChannelChild.h"
-#include "mozilla/net/CookieServiceChild.h"
 
 namespace mozilla {
 namespace net {
@@ -100,24 +99,6 @@ NeckoChild::DeallocPHttpChannel(PHttpChannelChild* channel)
   NS_ABORT_IF_FALSE(IsNeckoChild(), "DeallocPHttpChannel called by non-child!");
 
   HttpChannelChild *p = static_cast<HttpChannelChild*>(channel);
-  p->Release();
-  return true;
-}
-
-PCookieServiceChild* 
-NeckoChild::AllocPCookieService()
-{
-  // We don't allocate here: see nsCookieService::GetSingleton()
-  NS_NOTREACHED("AllocPCookieService should not be called");
-  return nsnull;
-}
-
-bool 
-NeckoChild::DeallocPCookieService(PCookieServiceChild* cs)
-{
-  NS_ASSERTION(IsNeckoChild(), "DeallocPCookieService called by non-child!");
-
-  CookieServiceChild *p = static_cast<CookieServiceChild*>(cs);
   p->Release();
   return true;
 }

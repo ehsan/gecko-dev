@@ -143,21 +143,9 @@ var DownloadTaskbarProgressUpdater =
                getService(Ci.nsIDownloadManager);
     this._dm.addListener(this);
 
-    this._os = Cc["@mozilla.org/observer-service;1"].
-               getService(Ci.nsIObserverService);
-    this._os.addObserver(this, "quit-application-granted", false);
-
     this._updateStatus();
     // onBrowserWindowLoad/onDownloadWindowLoad are going to set the active
     // window, so don't do it here.
-  },
-
-  /**
-   * Unregisters ourselves as a download progress listener.
-   */
-  _uninit: function DTPU_uninit() {
-    this._dm.removeListener(this);
-    this._os.removeObserver(this, "quit-application-granted");
   },
 
   /**
@@ -380,12 +368,6 @@ var DownloadTaskbarProgressUpdater =
   onSecurityChange: function() { },
 
   onStateChange: function() { },
-
-  observe: function DTPU_observe(aSubject, aTopic, aData) {
-    if (aTopic == "quit-application-granted") {
-      this._uninit();
-    }
-  }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

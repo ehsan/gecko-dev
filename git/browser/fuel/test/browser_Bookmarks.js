@@ -1,8 +1,12 @@
+const Ci = Components.interfaces;
+const Cc = Components.classes;
+
 var gLastFolderAction = "";
 var gLastBookmarkAction = "";
 
 function url(spec) {
-  return Services.io.newURI(spec, null, null);
+  var ios = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
+  return ios.newURI(spec, null, null);
 }
 
 function test() {

@@ -61,6 +61,7 @@
 #include "nsIEventStateManager.h"
 #include "nsLinebreakConverter.h"
 #include "nsIDocument.h"
+#include "nsIPresShell.h"
 #include "nsIFrame.h"
 #include "nsIFormControlFrame.h"
 #include "nsIPrivateDOMEvent.h"
@@ -259,8 +260,6 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLTextAreaElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLTextAreaElement, nsGenericElement) 
 
 
-DOMCI_DATA(HTMLTextAreaElement, nsHTMLTextAreaElement)
-
 // QueryInterface implementation for nsHTMLTextAreaElement
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLTextAreaElement)
   NS_HTML_CONTENT_INTERFACE_TABLE5(nsHTMLTextAreaElement,
@@ -314,7 +313,7 @@ nsHTMLTextAreaElement::Select()
 
   nsIFocusManager* fm = nsFocusManager::GetFocusManager();
 
-  nsRefPtr<nsPresContext> presContext = GetPresContext();
+  nsCOMPtr<nsPresContext> presContext = GetPresContext();
   if (state == eInactiveWindow) {
     if (fm)
       fm->SetFocus(this, nsIFocusManager::FLAG_NOSCROLL);
@@ -434,9 +433,7 @@ nsHTMLTextAreaElement::TakeTextFrameValue(const nsAString& aValue)
   if (mValue) {
     nsMemory::Free(mValue);
   }
-  nsString value(aValue);
-  nsContentUtils::PlatformToDOMLineBreaks(value);
-  mValue = ToNewUTF8String(value);
+  mValue = ToNewUTF8String(aValue);
   return NS_OK;
 }
 

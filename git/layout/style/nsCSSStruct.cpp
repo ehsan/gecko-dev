@@ -206,6 +206,14 @@ nsCSSCornerSizes::~nsCSSCornerSizes()
 }
 
 void
+nsCSSCornerSizes::SetAllCornersTo(const nsCSSValue& aValue)
+{
+  NS_FOR_CSS_FULL_CORNERS(corner) {
+    this->GetFullCorner(corner).SetBothValuesTo(aValue);
+  }
+}
+
+void
 nsCSSCornerSizes::Reset()
 {
   NS_FOR_CSS_FULL_CORNERS(corner) {

@@ -51,9 +51,6 @@
 #endif
 #include "nsExceptionHandler.h"
 
-#include "nsDirectoryServiceDefs.h"
-#include "nsIFile.h"
-
 #include "mozilla/ipc/BrowserProcessSubThread.h"
 
 using mozilla::MonitorAutoEnter;
@@ -78,7 +75,8 @@ GeckoChildProcessHost::GeckoChildProcessHost(GeckoProcessType aProcessType,
 {
     MOZ_COUNT_CTOR(GeckoChildProcessHost);
     
-    MessageLoop* ioLoop = XRE_GetIOMessageLoop();
+    MessageLoop* ioLoop = 
+      BrowserProcessSubThread::GetMessageLoop(BrowserProcessSubThread::IO);
     ioLoop->PostTask(FROM_HERE,
                      NewRunnableMethod(this,
                                        &GeckoChildProcessHost::InitializeChannel));
@@ -102,7 +100,8 @@ GeckoChildProcessHost::~GeckoChildProcessHost()
 bool
 GeckoChildProcessHost::SyncLaunch(std::vector<std::string> aExtraOpts)
 {
-  MessageLoop* ioLoop = XRE_GetIOMessageLoop();
+  MessageLoop* ioLoop = 
+    BrowserProcessSubThread::GetMessageLoop(BrowserProcessSubThread::IO);
   NS_ASSERTION(MessageLoop::current() != ioLoop, "sync launch from the IO thread NYI");
 
   ioLoop->PostTask(FROM_HERE,
@@ -123,7 +122,8 @@ GeckoChildProcessHost::SyncLaunch(std::vector<std::string> aExtraOpts)
 bool
 GeckoChildProcessHost::AsyncLaunch(std::vector<std::string> aExtraOpts)
 {
-  MessageLoop* ioLoop = XRE_GetIOMessageLoop();
+  MessageLoop* ioLoop = 
+    BrowserProcessSubThread::GetMessageLoop(BrowserProcessSubThread::IO);
   ioLoop->PostTask(FROM_HERE,
                    NewRunnableMethod(this,
                                      &GeckoChildProcessHost::PerformAsyncLaunch,
@@ -180,22 +180,18 @@ GeckoChildProcessHost::PerformAsyncLaunch(std::vector<std::string> aExtraOpts)
   // we split the logic here.
 
   FilePath exePath;
-#ifdef OS_LINUX
-  base::environment_map newEnvVars;
-#endif
 
   nsCOMPtr<nsIProperties> directoryService(do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID));
   nsCOMPtr<nsIFile> greDir;
   nsresult rv = directoryService->Get(NS_GRE_DIR, NS_GET_IID(nsIFile), getter_AddRefs(greDir));
-  if (NS_SUCCEEDED(rv)) {
+  if (NS_SUCCEEDED(rv))
+  {
     nsCString path;
     greDir->GetNativePath(path);
     exePath = FilePath(path.get());
-#ifdef OS_LINUX
-    newEnvVars["LD_LIBRARY_PATH"] = path.get();
-#endif
   }
-  else {
+  else
+  {
     exePath = FilePath(CommandLine::ForCurrentProcess()->argv()[0]);
     exePath = exePath.DirName();
   }
@@ -220,7 +216,6 @@ GeckoChildProcessHost::PerformAsyncLaunch(std::vector<std::string> aExtraOpts)
   childArgv.push_back(childProcessType);
 
 #if defined(MOZ_CRASHREPORTER)
-#  if defined(OS_LINUX)
   int childCrashFd, childCrashRemapFd;
   if (!CrashReporter::CreateNotificationPipeForChild(
         &childCrashFd, &childCrashRemapFd))
@@ -234,18 +229,9 @@ GeckoChildProcessHost::PerformAsyncLaunch(std::vector<std::string> aExtraOpts)
     // "false" == crash reporting disabled
     childArgv.push_back("false");
   }
-#  elif defined(XP_MACOSX)
-  // Call the stub for initialization side effects.  Eventually this
-  // code will be unified with that above.
-  CrashReporter::CreateNotificationPipeForChild();
-#  endif  // OS_LINUX
 #endif
 
-  base::LaunchApp(childArgv, mFileMap,
-#ifdef OS_LINUX
-                  newEnvVars,
-#endif
-                  false, &process);
+  base::LaunchApp(childArgv, mFileMap, false, &process);
 
 //--------------------------------------------------
 #elif defined(OS_WIN)
@@ -292,7 +278,7 @@ GeckoChildProcessHost::OnChannelConnected(int32 peer_pid)
   MonitorAutoEnter mon(mMonitor);
   mLaunched = true;
 
-  if (!base::OpenPrivilegedProcessHandle(peer_pid, &mChildProcessHandle))
+  if (!base::OpenProcessHandle(peer_pid, &mChildProcessHandle))
       NS_RUNTIMEABORT("can't open handle to child process");
 
   mon.Notify();

@@ -48,12 +48,11 @@
 @BINPATH@/@DLL_PREFIX@mozalloc@DLL_SUFFIX@
 #ifdef XP_MACOSX
 @BINPATH@/XUL
-@BINPATH@/@MOZ_CHILD_PROCESS_NAME@
 #else
 @BINPATH@/@DLL_PREFIX@xul@DLL_SUFFIX@
-#ifdef MOZ_IPC
-@BINPATH@/@MOZ_CHILD_PROCESS_NAME@
 #endif
+#ifdef MOZ_IPC
+@BINPATH@/mozilla-runtime@BIN_SUFFIX@
 #endif
 #ifdef WINCE
 @BINPATH@/mozce_shunt.dll
@@ -82,7 +81,7 @@
 #ifdef XP_MACOSX
 @BINPATH@/plugins/DefaultPlugin.plugin/
 #elifdef XP_UNIX
-@BINPATH@/plugins/libnullplugin@DLL_SUFFIX@
+@BINPATH@/plugins/libnullplugin.so
 #elifdef XP_WIN32
 #ifndef WINCE
 @BINPATH@/plugins/npnul32.dll
@@ -96,6 +95,7 @@
 @BINPATH@/mozsqlt3@DLL_SUFFIX@
 #endif
 @BINPATH@/README.txt
+@BINPATH@/LICENSE
 @BINPATH@/blocklist.xml
 #ifdef XP_UNIX
 @BINPATH@/run-mozilla.sh
@@ -189,8 +189,14 @@
 #endif
 @BINPATH@/components/layout_xul_tree.xpt
 @BINPATH@/components/layout_xul.xpt
+#ifdef XP_UNIX
+#ifndef XP_MACOSX
+@BINPATH@/components/libimgicon.so
+#endif
+#endif
 @BINPATH@/components/locale.xpt
 @BINPATH@/components/lwbrk.xpt
+@BINPATH@/components/microsummaries.xpt
 #ifndef WINCE
 @BINPATH@/components/migration.xpt
 #endif
@@ -326,7 +332,6 @@
 @BINPATH@/components/nsBadCertHandler.js
 @BINPATH@/components/nsFormAutoComplete.js
 @BINPATH@/components/contentSecurityPolicy.js
-@BINPATH@/components/contentAreaDropListener.js
 #ifdef XP_MACOSX
 @BINPATH@/components/libalerts_s.dylib
 #endif

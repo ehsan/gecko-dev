@@ -101,10 +101,9 @@
  *	directly -- and assumed always to succeed.  Similarly, if you
  *	want something other than the system's free() to be called to
  *	recycle memory acquired from MALLOC, #define FREE to be the
- *	name of the alternate routine.  (Unless you #define
- *	NO_GLOBAL_STATE and call destroydtoa, FREE or free is only
- *	called in pathological cases, e.g., in a dtoa call after a dtoa
- *	return in mode 3 with thousands of digits requested.)
+ *	name of the alternate routine.  (FREE or free is only called in
+ *	pathological cases, e.g., in a dtoa call after a dtoa return in
+ *	mode 3 with thousands of digits requested.)
  * #define Omit_Private_Memory to omit logic (added Jan. 1998) for making
  *	memory allocations from a private pool of memory when possible.
  *	When used, the private pool is PRIVATE_MEM bytes long:  2304 bytes,
@@ -165,12 +164,6 @@
  *	inexact or when it is a numeric value rounded to +-infinity).
  * #define NO_ERRNO if strtod should not assign errno = ERANGE when
  *	the result overflows to +-Infinity or underflows to 0.
- * #define NO_GLOBAL_STATE to avoid defining any non-const global or
- *	static variables. Instead the necessary state is stored in an
- *	opaque struct, DtoaState, a pointer to which must be passed to
- *	every entry point. Two new functions are added to the API:
- *		DtoaState *newdtoa(void);
- *		void destroydtoa(DtoaState *);
  */
 
 #ifndef Long
@@ -202,15 +195,12 @@ extern void *MALLOC(size_t);
 #define MALLOC malloc
 #endif
 
-#ifndef FREE
-#define FREE free
-#endif
-
 #ifndef Omit_Private_Memory
 #ifndef PRIVATE_MEM
 #define PRIVATE_MEM 2304
 #endif
 #define PRIVATE_mem ((PRIVATE_MEM+sizeof(double)-1)/sizeof(double))
+static double private_mem[PRIVATE_mem], *pmem_next = private_mem;
 #endif
 
 #undef IEEE_Arith
@@ -489,87 +479,14 @@ Bigint {
 
  typedef struct Bigint Bigint;
 
-#ifdef NO_GLOBAL_STATE
-#ifdef MULTIPLE_THREADS
-#error "cannot have both NO_GLOBAL_STATE and MULTIPLE_THREADS"
-#endif
- struct
-DtoaState {
-#define DECLARE_GLOBAL_STATE  /* nothing */
-#else
-#define DECLARE_GLOBAL_STATE static
-#endif
-
-	DECLARE_GLOBAL_STATE Bigint *freelist[Kmax+1];
-	DECLARE_GLOBAL_STATE Bigint *p5s;
-#ifndef Omit_Private_Memory
-	DECLARE_GLOBAL_STATE double private_mem[PRIVATE_mem];
-	DECLARE_GLOBAL_STATE double *pmem_next
-#ifndef NO_GLOBAL_STATE
-	                                       = private_mem
-#endif
-	                                                    ;
-#endif
-#ifdef NO_GLOBAL_STATE
-	};
- typedef struct DtoaState DtoaState;
-#ifdef KR_headers
-#define STATE_PARAM state,
-#define STATE_PARAM_DECL DtoaState *state;
-#else
-#define STATE_PARAM DtoaState *state,
-#endif
-#define PASS_STATE state,
-#define GET_STATE(field) (state->field)
-
- static DtoaState *
-newdtoa(void)
-{
-	DtoaState *state = (DtoaState *) MALLOC(sizeof(DtoaState));
-	if (state) {
-		memset(state, 0, sizeof(DtoaState));
-		state->pmem_next = state->private_mem;
-		}
-	return state;
-}
-
- static void
-destroydtoa
-#ifdef KR_headers
-	(state) STATE_PARAM_DECL
-#else
-	(DtoaState *state)
-#endif
-{
-	int i;
-	Bigint *v, *next;
-
-	for (i = 0; i <= Kmax; i++) {
-		for (v = GET_STATE(freelist)[i]; v; v = next) {
-			next = v->next;
-#ifndef Omit_Private_Memory
-			if ((double*)v < GET_STATE(private_mem) ||
-			    (double*)v >= GET_STATE(private_mem) + PRIVATE_mem)
-#endif
-				FREE((void*)v);
-			}
-		}
-	FREE((void *)state);
-}
-
-#else
-#define STATE_PARAM      /* nothing */
-#define STATE_PARAM_DECL /* nothing */
-#define PASS_STATE       /* nothing */
-#define GET_STATE(name) name
-#endif
+ static Bigint *freelist[Kmax+1];
 
  static Bigint *
 Balloc
 #ifdef KR_headers
-	(STATE_PARAM k) STATE_PARAM_DECL int k;
+	(k) int k;
 #else
-	(STATE_PARAM int k)
+	(int k)
 #endif
 {
 	int x;
@@ -581,8 +498,8 @@ Balloc
 	ACQUIRE_DTOA_LOCK(0);
 	/* The k > Kmax case does not need ACQUIRE_DTOA_LOCK(0), */
 	/* but this case seems very unlikely. */
-	if (k <= Kmax && (rv = GET_STATE(freelist)[k]))
-		GET_STATE(freelist)[k] = rv->next;
+	if (k <= Kmax && (rv = freelist[k]))
+		freelist[k] = rv->next;
 	else {
 		x = 1 << k;
 #ifdef Omit_Private_Memory
@@ -590,9 +507,9 @@ Balloc
 #else
 		len = (sizeof(Bigint) + (x-1)*sizeof(ULong) + sizeof(double) - 1)
 			/sizeof(double);
-		if (k <= Kmax && GET_STATE(pmem_next) - GET_STATE(private_mem) + len <= PRIVATE_mem) {
-			rv = (Bigint*)GET_STATE(pmem_next);
-			GET_STATE(pmem_next) += len;
+		if (k <= Kmax && pmem_next - private_mem + len <= PRIVATE_mem) {
+			rv = (Bigint*)pmem_next;
+			pmem_next += len;
 			}
 		else
 			rv = (Bigint*)MALLOC(len*sizeof(double));
@@ -608,18 +525,22 @@ Balloc
  static void
 Bfree
 #ifdef KR_headers
-	(STATE_PARAM v) STATE_PARAM_DECL Bigint *v;
+	(v) Bigint *v;
 #else
-	(STATE_PARAM Bigint *v)
+	(Bigint *v)
 #endif
 {
 	if (v) {
 		if (v->k > Kmax)
+#ifdef FREE
 			FREE((void*)v);
+#else
+			free((void*)v);
+#endif
 		else {
 			ACQUIRE_DTOA_LOCK(0);
-			v->next = GET_STATE(freelist)[v->k];
-			GET_STATE(freelist)[v->k] = v;
+			v->next = freelist[v->k];
+			freelist[v->k] = v;
 			FREE_DTOA_LOCK(0);
 			}
 		}
@@ -631,9 +552,9 @@ y->wds*sizeof(Long) + 2*sizeof(int))
  static Bigint *
 multadd
 #ifdef KR_headers
-	(STATE_PARAM b, m, a) STATE_PARAM_DECL Bigint *b; int m, a;
+	(b, m, a) Bigint *b; int m, a;
 #else
-	(STATE_PARAM Bigint *b, int m, int a)	/* multiply by m and add a */
+	(Bigint *b, int m, int a)	/* multiply by m and add a */
 #endif
 {
 	int i, wds;
@@ -674,9 +595,9 @@ multadd
 		while(++i < wds);
 	if (carry) {
 		if (wds >= b->maxwds) {
-			b1 = Balloc(PASS_STATE b->k+1);
+			b1 = Balloc(b->k+1);
 			Bcopy(b1, b);
-			Bfree(PASS_STATE b);
+			Bfree(b);
 			b = b1;
 			}
 		b->x[wds++] = (ULong) carry;
@@ -688,9 +609,9 @@ multadd
  static Bigint *
 s2b
 #ifdef KR_headers
-	(STATE_PARAM s, nd0, nd, y9) STATE_PARAM_DECL CONST char *s; int nd0, nd; ULong y9;
+	(s, nd0, nd, y9) CONST char *s; int nd0, nd; ULong y9;
 #else
-	(STATE_PARAM CONST char *s, int nd0, int nd, ULong y9)
+	(CONST char *s, int nd0, int nd, ULong y9)
 #endif
 {
 	Bigint *b;
@@ -700,11 +621,11 @@ s2b
 	x = (nd + 8) / 9;
 	for(k = 0, y = 1; x > y; y <<= 1, k++) ;
 #ifdef Pack_32
-	b = Balloc(PASS_STATE k);
+	b = Balloc(k);
 	b->x[0] = y9;
 	b->wds = 1;
 #else
-	b = Balloc(PASS_STATE k+1);
+	b = Balloc(k+1);
 	b->x[0] = y9 & 0xffff;
 	b->wds = (b->x[1] = y9 >> 16) ? 2 : 1;
 #endif
@@ -712,14 +633,14 @@ s2b
 	i = 9;
 	if (9 < nd0) {
 		s += 9;
-		do b = multadd(PASS_STATE b, 10, *s++ - '0');
+		do b = multadd(b, 10, *s++ - '0');
 			while(++i < nd0);
 		s++;
 		}
 	else
 		s += 10;
 	for(; i < nd; i++)
-		b = multadd(PASS_STATE b, 10, *s++ - '0');
+		b = multadd(b, 10, *s++ - '0');
 	return b;
 	}
 
@@ -808,14 +729,14 @@ lo0bits
  static Bigint *
 i2b
 #ifdef KR_headers
-	(STATE_PARAM i) STATE_PARAM_DECL int i;
+	(i) int i;
 #else
-	(STATE_PARAM int i)
+	(int i)
 #endif
 {
 	Bigint *b;
 
-	b = Balloc(PASS_STATE 1);
+	b = Balloc(1);
 	b->x[0] = i;
 	b->wds = 1;
 	return b;
@@ -824,9 +745,9 @@ i2b
  static Bigint *
 mult
 #ifdef KR_headers
-	(STATE_PARAM a, b) STATE_PARAM_DECL Bigint *a, *b;
+	(a, b) Bigint *a, *b;
 #else
-	(STATE_PARAM Bigint *a, Bigint *b)
+	(Bigint *a, Bigint *b)
 #endif
 {
 	Bigint *c;
@@ -853,7 +774,7 @@ mult
 	wc = wa + wb;
 	if (wc > a->maxwds)
 		k++;
-	c = Balloc(PASS_STATE k);
+	c = Balloc(k);
 	for(x = c->x, xa = x + wc; x < xa; x++)
 		*x = 0;
 	xa = a->x;
@@ -931,24 +852,26 @@ mult
 	return c;
 	}
 
+ static Bigint *p5s;
+
  static Bigint *
 pow5mult
 #ifdef KR_headers
-	(STATE_PARAM b, k) STATE_PARAM_DECL Bigint *b; int k;
+	(b, k) Bigint *b; int k;
 #else
-	(STATE_PARAM Bigint *b, int k)
+	(Bigint *b, int k)
 #endif
 {
 	Bigint *b1, *p5, *p51;
 	int i;
-	static CONST int p05[3] = { 5, 25, 125 };
+	static int p05[3] = { 5, 25, 125 };
 
 	if ((i = k & 3))
-		b = multadd(PASS_STATE b, p05[i-1], 0);
+		b = multadd(b, p05[i-1], 0);
 
 	if (!(k >>= 2))
 		return b;
-	if (!(p5 = GET_STATE(p5s))) {
+	if (!(p5 = p5s)) {
 		/* first time */
 #ifdef MULTIPLE_THREADS
 		ACQUIRE_DTOA_LOCK(1);
@@ -958,14 +881,14 @@ pow5mult
 			}
 		FREE_DTOA_LOCK(1);
 #else
-		p5 = GET_STATE(p5s) = i2b(PASS_STATE 625);
+		p5 = p5s = i2b(625);
 		p5->next = 0;
 #endif
 		}
 	for(;;) {
 		if (k & 1) {
-			b1 = mult(PASS_STATE b, p5);
-			Bfree(PASS_STATE b);
+			b1 = mult(b, p5);
+			Bfree(b);
 			b = b1;
 			}
 		if (!(k >>= 1))
@@ -979,7 +902,7 @@ pow5mult
 				}
 			FREE_DTOA_LOCK(1);
 #else
-			p51 = p5->next = mult(PASS_STATE p5,p5);
+			p51 = p5->next = mult(p5,p5);
 			p51->next = 0;
 #endif
 			}
@@ -991,9 +914,9 @@ pow5mult
  static Bigint *
 lshift
 #ifdef KR_headers
-	(STATE_PARAM b, k) STATE_PARAM_DECL Bigint *b; int k;
+	(b, k) Bigint *b; int k;
 #else
-	(STATE_PARAM Bigint *b, int k)
+	(Bigint *b, int k)
 #endif
 {
 	int i, k1, n, n1;
@@ -1009,7 +932,7 @@ lshift
 	n1 = n + b->wds + 1;
 	for(i = b->maxwds; n1 > i; i <<= 1)
 		k1++;
-	b1 = Balloc(PASS_STATE k1);
+	b1 = Balloc(k1);
 	x1 = b1->x;
 	for(i = 0; i < n; i++)
 		*x1++ = 0;
@@ -1044,7 +967,7 @@ lshift
 		*x1++ = *x++;
 		while(x < xe);
 	b1->wds = n1 - 1;
-	Bfree(PASS_STATE b);
+	Bfree(b);
 	return b1;
 	}
 
@@ -1085,9 +1008,9 @@ cmp
  static Bigint *
 diff
 #ifdef KR_headers
-	(STATE_PARAM a, b) STATE_PARAM_DECL Bigint *a, *b;
+	(a, b) Bigint *a, *b;
 #else
-	(STATE_PARAM Bigint *a, Bigint *b)
+	(Bigint *a, Bigint *b)
 #endif
 {
 	Bigint *c;
@@ -1104,7 +1027,7 @@ diff
 
 	i = cmp(a,b);
 	if (!i) {
-		c = Balloc(PASS_STATE 0);
+		c = Balloc(0);
 		c->wds = 1;
 		c->x[0] = 0;
 		return c;
@@ -1117,7 +1040,7 @@ diff
 		}
 	else
 		i = 0;
-	c = Balloc(PASS_STATE a->k);
+	c = Balloc(a->k);
 	c->sign = i;
 	wa = a->wds;
 	xa = a->x;
@@ -1291,9 +1214,9 @@ b2d
  static Bigint *
 d2b
 #ifdef KR_headers
-	(STATE_PARAM d, e, bits) STATE_PARAM_DECL U d; int *e, *bits;
+	(d, e, bits) U d; int *e, *bits;
 #else
-	(STATE_PARAM U d, int *e, int *bits)
+	(U d, int *e, int *bits)
 #endif
 {
 	Bigint *b;
@@ -1312,9 +1235,9 @@ d2b
 #endif
 
 #ifdef Pack_32
-	b = Balloc(PASS_STATE 1);
+	b = Balloc(1);
 #else
-	b = Balloc(PASS_STATE 2);
+	b = Balloc(2);
 #endif
 	x = b->x;
 
@@ -1606,9 +1529,9 @@ hexnan
  static double
 _strtod
 #ifdef KR_headers
-	(STATE_PARAM s00, se) STATE_PARAM_DECL CONST char *s00; char **se;
+	(s00, se) CONST char *s00; char **se;
 #else
-	(STATE_PARAM CONST char *s00, char **se)
+	(CONST char *s00, char **se)
 #endif
 {
 #ifdef Avoid_Underflow
@@ -2030,13 +1953,13 @@ _strtod
 
 	/* Put digits into bd: true value = bd * 10^e */
 
-	bd0 = s2b(PASS_STATE s0, nd0, nd, y);
+	bd0 = s2b(s0, nd0, nd, y);
 
 	for(;;) {
-		bd = Balloc(PASS_STATE bd0->k);
+		bd = Balloc(bd0->k);
 		Bcopy(bd, bd0);
-		bb = d2b(PASS_STATE rv, &bbe, &bbbits);	/* rv = bb * 2^bbe */
-		bs = i2b(PASS_STATE 1);
+		bb = d2b(rv, &bbe, &bbbits);	/* rv = bb * 2^bbe */
+		bs = i2b(1);
 
 		if (e >= 0) {
 			bb2 = bb5 = 0;
@@ -2092,20 +2015,20 @@ _strtod
 			bs2 -= i;
 			}
 		if (bb5 > 0) {
-			bs = pow5mult(PASS_STATE bs, bb5);
-			bb1 = mult(PASS_STATE bs, bb);
-			Bfree(PASS_STATE bb);
+			bs = pow5mult(bs, bb5);
+			bb1 = mult(bs, bb);
+			Bfree(bb);
 			bb = bb1;
 			}
 		if (bb2 > 0)
-			bb = lshift(PASS_STATE bb, bb2);
+			bb = lshift(bb, bb2);
 		if (bd5 > 0)
-			bd = pow5mult(PASS_STATE bd, bd5);
+			bd = pow5mult(bd, bd5);
 		if (bd2 > 0)
-			bd = lshift(PASS_STATE bd, bd2);
+			bd = lshift(bd, bd2);
 		if (bs2 > 0)
-			bs = lshift(PASS_STATE bs, bs2);
-		delta = diff(PASS_STATE bb, bd);
+			bs = lshift(bs, bs2);
+		delta = diff(bb, bd);
 		dsign = delta->sign;
 		delta->sign = 0;
 		i = cmp(delta, bs);
@@ -2137,7 +2060,7 @@ _strtod
 						if (y)
 #endif
 						  {
-						  delta = lshift(PASS_STATE delta,Log2P);
+						  delta = lshift(delta,Log2P);
 						  if (cmp(delta, bs) <= 0)
 							adj = -0.5;
 						  }
@@ -2226,7 +2149,7 @@ _strtod
 #endif
 				break;
 				}
-			delta = lshift(PASS_STATE delta,Log2P);
+			delta = lshift(delta,Log2P);
 			if (cmp(delta, bs) > 0)
 				goto drop_down;
 			break;
@@ -2451,10 +2374,10 @@ _strtod
 			}
 #endif
  cont:
-		Bfree(PASS_STATE bb);
-		Bfree(PASS_STATE bd);
-		Bfree(PASS_STATE bs);
-		Bfree(PASS_STATE delta);
+		Bfree(bb);
+		Bfree(bd);
+		Bfree(bs);
+		Bfree(delta);
 		}
 #ifdef SET_INEXACT
 	if (inexact) {
@@ -2487,11 +2410,11 @@ _strtod
 		}
 #endif
  retfree:
-	Bfree(PASS_STATE bb);
-	Bfree(PASS_STATE bd);
-	Bfree(PASS_STATE bs);
-	Bfree(PASS_STATE bd0);
-	Bfree(PASS_STATE delta);
+	Bfree(bb);
+	Bfree(bd);
+	Bfree(bs);
+	Bfree(bd0);
+	Bfree(delta);
  ret:
 	if (se)
 		*se = (char *)s;
@@ -2616,16 +2539,15 @@ quorem
 	return q;
 	}
 
-#if !defined(MULTIPLE_THREADS) && !defined(NO_GLOBAL_STATE)
-#define USE_DTOA_RESULT 1
+#ifndef MULTIPLE_THREADS
  static char *dtoa_result;
 #endif
 
  static char *
 #ifdef KR_headers
-rv_alloc(STATE_PARAM i) STATE_PARAM_DECL int i;
+rv_alloc(i) int i;
 #else
-rv_alloc(STATE_PARAM int i)
+rv_alloc(int i)
 #endif
 {
 	int j, k, *r;
@@ -2635,10 +2557,10 @@ rv_alloc(STATE_PARAM int i)
 		sizeof(Bigint) - sizeof(ULong) - sizeof(int) + j <= (unsigned) i;
 		j <<= 1)
 			k++;
-	r = (int*)Balloc(PASS_STATE k);
+	r = (int*)Balloc(k);
 	*r = k;
 	return
-#ifdef USE_DTOA_RESULT
+#ifndef MULTIPLE_THREADS
 	dtoa_result =
 #endif
 		(char *)(r+1);
@@ -2646,14 +2568,14 @@ rv_alloc(STATE_PARAM int i)
 
  static char *
 #ifdef KR_headers
-nrv_alloc(STATE_PARAM s, rve, n) STATE_PARAM_DECL char *s, **rve; int n;
+nrv_alloc(s, rve, n) char *s, **rve; int n;
 #else
-nrv_alloc(STATE_PARAM CONST char *s, char **rve, int n)
+nrv_alloc(CONST char *s, char **rve, int n)
 #endif
 {
 	char *rv, *t;
 
-	t = rv = rv_alloc(PASS_STATE n);
+	t = rv = rv_alloc(n);
 	while((*t = *s++)) t++;
 	if (rve)
 		*rve = t;
@@ -2668,15 +2590,15 @@ nrv_alloc(STATE_PARAM CONST char *s, char **rve, int n)
 
  static void
 #ifdef KR_headers
-freedtoa(STATE_PARAM s) STATE_PARAM_DECL char *s;
+freedtoa(s) char *s;
 #else
-freedtoa(STATE_PARAM char *s)
+freedtoa(char *s)
 #endif
 {
 	Bigint *b = (Bigint *)((int *)s - 1);
 	b->maxwds = 1 << (b->k = *(int*)b);
-	Bfree(PASS_STATE b);
-#ifdef USE_DTOA_RESULT
+	Bfree(b);
+#ifndef MULTIPLE_THREADS
 	if (s == dtoa_result)
 		dtoa_result = 0;
 #endif
@@ -2719,10 +2641,10 @@ freedtoa(STATE_PARAM char *s)
  static char *
 dtoa
 #ifdef KR_headers
-	(STATE_PARAM d, mode, ndigits, decpt, sign, rve)
-	STATE_PARAM_DECL U d; int mode, ndigits, *decpt, *sign; char **rve;
+	(d, mode, ndigits, decpt, sign, rve)
+	U d; int mode, ndigits, *decpt, *sign; char **rve;
 #else
-	(STATE_PARAM U d, int mode, int ndigits, int *decpt, int *sign, char **rve)
+	(U d, int mode, int ndigits, int *decpt, int *sign, char **rve)
 #endif
 {
  /*	Arguments ndigits, decpt, sign are similar to those
@@ -2783,9 +2705,9 @@ dtoa
 	mlo = NULL;
 #endif
 
-#ifdef USE_DTOA_RESULT
+#ifndef MULTIPLE_THREADS
 	if (dtoa_result) {
-		freedtoa(PASS_STATE dtoa_result);
+		freedtoa(dtoa_result);
 		dtoa_result = 0;
 		}
 #endif
@@ -2809,9 +2731,9 @@ dtoa
 		*decpt = 9999;
 #ifdef IEEE_Arith
 		if (!word1(d) && !(word0(d) & 0xfffff))
-			return nrv_alloc(PASS_STATE "Infinity", rve, 8);
+			return nrv_alloc("Infinity", rve, 8);
 #endif
-		return nrv_alloc(PASS_STATE "NaN", rve, 3);
+		return nrv_alloc("NaN", rve, 3);
 		}
 #endif
 #ifdef IBM
@@ -2819,7 +2741,7 @@ dtoa
 #endif
 	if (!dval(d)) {
 		*decpt = 1;
-		return nrv_alloc(PASS_STATE "0", rve, 1);
+		return nrv_alloc("0", rve, 1);
 		}
 
 #ifdef SET_INEXACT
@@ -2836,7 +2758,7 @@ dtoa
 		}
 #endif
 
-	b = d2b(PASS_STATE d, &be, &bbits);
+	b = d2b(d, &be, &bbits);
 #ifdef Sudden_Underflow
 	i = (int)(word0(d) >> Exp_shift1 & (Exp_mask>>Exp_shift1));
 #else
@@ -2962,7 +2884,7 @@ dtoa
 			if (i <= 0)
 				i = 1;
 		}
-	s = s0 = rv_alloc(PASS_STATE i);
+	s = s0 = rv_alloc(i);
 
 #ifdef Honor_FLT_ROUNDS
 	if (mode > 1 && rounding != 1)
@@ -3139,7 +3061,7 @@ dtoa
 #endif
 		b2 += i;
 		s2 += i;
-		mhi = i2b(PASS_STATE 1);
+		mhi = i2b(1);
 		}
 	if (m2 > 0 && s2 > 0) {
 		i = m2 < s2 ? m2 : s2;
@@ -3150,20 +3072,20 @@ dtoa
 	if (b5 > 0) {
 		if (leftright) {
 			if (m5 > 0) {
-				mhi = pow5mult(PASS_STATE mhi, m5);
-				b1 = mult(PASS_STATE mhi, b);
-				Bfree(PASS_STATE b);
+				mhi = pow5mult(mhi, m5);
+				b1 = mult(mhi, b);
+				Bfree(b);
 				b = b1;
 				}
 			if ((j = b5 - m5))
-				b = pow5mult(PASS_STATE b, j);
+				b = pow5mult(b, j);
 			}
 		else
-			b = pow5mult(PASS_STATE b, b5);
+			b = pow5mult(b, b5);
 		}
-	S = i2b(PASS_STATE 1);
+	S = i2b(1);
 	if (s5 > 0)
-		S = pow5mult(PASS_STATE S, s5);
+		S = pow5mult(S, s5);
 
 	/* Check for special case that d is a normalized power of 2. */
 
@@ -3212,20 +3134,20 @@ dtoa
 		s2 += i;
 		}
 	if (b2 > 0)
-		b = lshift(PASS_STATE b, b2);
+		b = lshift(b, b2);
 	if (s2 > 0)
-		S = lshift(PASS_STATE S, s2);
+		S = lshift(S, s2);
 	if (k_check) {
 		if (cmp(b,S) < 0) {
 			k--;
-			b = multadd(PASS_STATE b, 10, 0);	/* we botched the k estimate */
+			b = multadd(b, 10, 0);	/* we botched the k estimate */
 			if (leftright)
-				mhi = multadd(PASS_STATE mhi, 10, 0);
+				mhi = multadd(mhi, 10, 0);
 			ilim = ilim1;
 			}
 		}
 	if (ilim <= 0 && (mode == 3 || mode == 5)) {
-		if (ilim < 0 || cmp(b,S = multadd(PASS_STATE S,5,0)) < 0) {
+		if (ilim < 0 || cmp(b,S = multadd(S,5,0)) < 0) {
 			/* no digits, fcvt style */
  no_digits:
 			/* MOZILLA CHANGE: Always return a non-empty string. */
@@ -3240,7 +3162,7 @@ dtoa
 		}
 	if (leftright) {
 		if (m2 > 0)
-			mhi = lshift(PASS_STATE mhi, m2);
+			mhi = lshift(mhi, m2);
 
 		/* Compute mlo -- check for special case
 		 * that d is a normalized power of 2.
@@ -3248,9 +3170,9 @@ dtoa
 
 		mlo = mhi;
 		if (spec_case) {
-			mhi = Balloc(PASS_STATE mhi->k);
+			mhi = Balloc(mhi->k);
 			Bcopy(mhi, mlo);
-			mhi = lshift(PASS_STATE mhi, Log2P);
+			mhi = lshift(mhi, Log2P);
 			}
 
 		for(i = 1;;i++) {
@@ -3259,9 +3181,9 @@ dtoa
 			 * that will round to d?
 			 */
 			j = cmp(b, mlo);
-			delta = diff(PASS_STATE S, mhi);
+			delta = diff(S, mhi);
 			j1 = delta->sign ? 1 : cmp(b, delta);
-			Bfree(PASS_STATE delta);
+			Bfree(delta);
 #ifndef ROUND_BIASED
 			if (j1 == 0 && mode != 1 && !(word1(d) & 1)
 #ifdef Honor_FLT_ROUNDS
@@ -3299,7 +3221,7 @@ dtoa
 				  }
 #endif /*Honor_FLT_ROUNDS*/
 				if (j1 > 0) {
-					b = lshift(PASS_STATE b, 1);
+					b = lshift(b, 1);
 					j1 = cmp(b, S);
 					if ((j1 > 0 || (j1 == 0 && dig & 1))
 					&& dig++ == '9')
@@ -3328,12 +3250,12 @@ dtoa
 			*s++ = dig;
 			if (i == ilim)
 				break;
-			b = multadd(PASS_STATE b, 10, 0);
+			b = multadd(b, 10, 0);
 			if (mlo == mhi)
-				mlo = mhi = multadd(PASS_STATE mhi, 10, 0);
+				mlo = mhi = multadd(mhi, 10, 0);
 			else {
-				mlo = multadd(PASS_STATE mlo, 10, 0);
-				mhi = multadd(PASS_STATE mhi, 10, 0);
+				mlo = multadd(mlo, 10, 0);
+				mhi = multadd(mhi, 10, 0);
 				}
 			}
 		}
@@ -3348,7 +3270,7 @@ dtoa
 				}
 			if (i >= ilim)
 				break;
-			b = multadd(PASS_STATE b, 10, 0);
+			b = multadd(b, 10, 0);
 			}
 
 	/* Round off last digit */
@@ -3359,7 +3281,7 @@ dtoa
 	  case 2: goto roundoff;
 	  }
 #endif
-	b = lshift(PASS_STATE b, 1);
+	b = lshift(b, 1);
 	j = cmp(b, S);
 	if (j >= 0) {  /* ECMA compatible rounding needed by Spidermonkey */
  roundoff:
@@ -3379,11 +3301,11 @@ dtoa
 		s++;
 		}
  ret:
-	Bfree(PASS_STATE S);
+	Bfree(S);
 	if (mhi) {
 		if (mlo && mlo != mhi)
-			Bfree(PASS_STATE mlo);
-		Bfree(PASS_STATE mhi);
+			Bfree(mlo);
+		Bfree(mhi);
 		}
  ret1:
 #ifdef SET_INEXACT
@@ -3397,7 +3319,7 @@ dtoa
 	else if (!oldinexact)
 		clear_inexact();
 #endif
-	Bfree(PASS_STATE b);
+	Bfree(b);
 	*s = 0;
 	*decpt = k + 1;
 	if (rve)

@@ -604,8 +604,7 @@
         <parameter name="aParentPopup"/>
         <parameter name="aBefore"/>
         <body><![CDATA[
-          let element = PlacesUIUtils.createMenuItemForNode(aChild,
-                                                            aParentPopup.ownerDocument);
+          let element = PlacesUIUtils.createMenuItemForNode(aChild);
           if (aBefore)
             aParentPopup.insertBefore(element, aBefore);
           else {
@@ -878,9 +877,6 @@
           this.invalidateContainer(aNode);
         },
 
-        containerStateChanged:
-        function PMV_containerStateChanged(aNode, aOldState, aNewState) {},
-
         invalidateContainer: function PMV_invalidateContainer(aContainer) {
           // Do nothing if the entire view is already marked un-built.
           if (!this._self.parentNode._built)
@@ -982,7 +978,7 @@
           // so bail out now and save a lot of work when updating commands
           var resultNode = this._resultNode;
           if (PlacesUtils.nodeIsQuery(resultNode) &&
-              PlacesUtils.asQuery(resultNode).queryOptions.queryType ==
+              asQuery(resultNode).queryOptions.queryType ==
                 Ci.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY)
               return null;
 

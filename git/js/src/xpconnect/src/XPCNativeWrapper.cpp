@@ -112,33 +112,7 @@ namespace XPCNativeWrapper { namespace internal {
 // JS class for XPCNativeWrapper (and this doubles as the constructor
 // for XPCNativeWrapper for the moment too...)
 
-JSExtendedClass NW_NoCall_Class = {
-  // JSClass (JSExtendedClass.base) initialization
-  { "XPCNativeWrapper",
-    JSCLASS_HAS_PRIVATE | JSCLASS_PRIVATE_IS_NSISUPPORTS |
-    // Our one reserved slot holds a jsint of flag bits
-    JSCLASS_NEW_RESOLVE | JSCLASS_HAS_RESERVED_SLOTS(1) |
-    JSCLASS_MARK_IS_TRACE | JSCLASS_IS_EXTENDED | JSCLASS_CONSTRUCT_PROTOTYPE,
-    XPC_NW_AddProperty, XPC_NW_DelProperty,
-    XPC_NW_GetProperty, XPC_NW_SetProperty,
-    XPC_NW_Enumerate,   (JSResolveOp)XPC_NW_NewResolve,
-    XPC_NW_Convert,     XPC_NW_Finalize,
-    nsnull,             XPC_NW_CheckAccess,
-    nsnull,             XPC_NW_Construct,
-    nsnull,             XPC_NW_HasInstance,
-    JS_CLASS_TRACE(XPC_NW_Trace), nsnull
-  },
-
-  // JSExtendedClass initialization
-  XPC_NW_Equality,
-  nsnull,             // outerObject
-  nsnull,             // innerObject
-  XPC_NW_Iterator,
-  nsnull,             // wrappedObject
-  JSCLASS_NO_RESERVED_MEMBERS
-};
-
-JSExtendedClass NW_Call_Class = {
+JSExtendedClass NWClass = {
   // JSClass (JSExtendedClass.base) initialization
   { "XPCNativeWrapper",
     JSCLASS_HAS_PRIVATE | JSCLASS_PRIVATE_IS_NSISUPPORTS |
@@ -308,10 +282,10 @@ using namespace XPCNativeWrapper;
 // in the call from XPC_NW_Convert, for example.
 
 #define XPC_NW_CALL_HOOK(obj, hook, args)                                 \
-  return obj->getClass()->hook args;
+  return STOBJ_GET_CLASS(obj)->hook args;
 
 #define XPC_NW_CAST_HOOK(obj, type, hook, args)                           \
-  return ((type) obj->getClass()->hook) args;
+  return ((type) STOBJ_GET_CLASS(obj)->hook) args;
 
 static JSBool
 ShouldBypassNativeWrapper(JSContext *cx, JSObject *obj)
@@ -355,7 +329,7 @@ ShouldBypassNativeWrapper(JSContext *cx, JSObject *obj)
 
 #define XPC_NW_BYPASS_TEST(cx, obj, hook, args)                               \
   XPC_NW_BYPASS_BASE(cx, obj,                                                 \
-    JSClass *clasp_ = obj->getClass();                                        \
+    JSClass *clasp_ = STOBJ_GET_CLASS(obj);                                  \
     return !clasp_->hook || clasp_->hook args;                                \
   )
 
@@ -426,7 +400,7 @@ EnsureLegalActivity(JSContext *cx, JSObject *obj,
           (accessType & (sSecMgrSetProp | sSecMgrGetProp)) &&
           (flatObj = wn->GetFlatJSObject())) {
         rv = ssm->CheckPropertyAccess(cx, flatObj,
-                                      flatObj->getClass()->name,
+                                      STOBJ_GET_CLASS(flatObj)->name,
                                       id, accessType);
         return NS_SUCCEEDED(rv);
       }
@@ -536,7 +510,7 @@ XPC_NW_FunctionWrapper(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
   }
 
   while (obj && !XPCNativeWrapper::IsNativeWrapper(obj)) {
-    obj = obj->getProto();
+    obj = STOBJ_GET_PROTO(obj);
   }
 
   if (!obj) {
@@ -545,7 +519,7 @@ XPC_NW_FunctionWrapper(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
 
   // The real method we're going to call is the parent of this
   // function's JSObject.
-  JSObject *methodToCallObj = funObj->getParent();
+  JSObject *methodToCallObj = STOBJ_GET_PARENT(funObj);
   XPCWrappedNative* wrappedNative = nsnull;
 
   jsval isAllAccess;
@@ -611,7 +585,7 @@ XPC_NW_GetOrSetProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp,
   }
 
   while (!XPCNativeWrapper::IsNativeWrapper(obj)) {
-    obj = obj->getProto();
+    obj = STOBJ_GET_PROTO(obj);
     if (!obj) {
       return ThrowException(NS_ERROR_UNEXPECTED, cx);
     }
@@ -715,7 +689,7 @@ XPC_NW_NewResolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
     }
 
     JSObject *funobj = JS_GetFunctionObject(fun);
-    funobj->setParent(obj);
+    STOBJ_SET_PARENT(funobj, obj);
 
     return JS_DefineProperty(cx, obj, "toString", OBJECT_TO_JSVAL(funobj),
                              nsnull, nsnull, 0);
@@ -763,7 +737,7 @@ XPC_NW_NewResolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
   }
 
   while (!XPCNativeWrapper::IsNativeWrapper(obj)) {
-    obj = obj->getProto();
+    obj = STOBJ_GET_PROTO(obj);
     if (!obj) {
       return ThrowException(NS_ERROR_UNEXPECTED, cx);
     }
@@ -831,7 +805,7 @@ XPC_NW_CheckAccess(JSContext *cx, JSObject *obj, jsval id,
 
   JSObject *wrapperJSObject = wrappedNative->GetFlatJSObject();
 
-  JSClass *clazz = wrapperJSObject->getClass();
+  JSClass *clazz = STOBJ_GET_CLASS(wrapperJSObject);
   return !clazz->checkAccess ||
     clazz->checkAccess(cx, wrapperJSObject, id, mode, vp);
 }
@@ -915,7 +889,7 @@ static JSBool
 MirrorWrappedNativeParent(JSContext *cx, XPCWrappedNative *wrapper,
                           JSObject **result NS_OUTPARAM)
 {
-  JSObject *wn_parent = wrapper->GetFlatJSObject()->getParent();
+  JSObject *wn_parent = STOBJ_GET_PARENT(wrapper->GetFlatJSObject());
   if (!wn_parent) {
     *result = nsnull;
   } else {
@@ -946,7 +920,7 @@ XPCNativeWrapperCtor(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
   if (JS_FrameIterator(cx, &fp) && JS_IsConstructorFrame(cx, fp)) {
     constructing = JS_TRUE;
 
-    JSObject *proto = obj->getProto();
+    JSObject *proto = STOBJ_GET_PROTO(obj);
     if (proto && !XPCNativeWrapper::IsNativeWrapper(proto)) {
       // Deal with our prototype object specially.
 
@@ -1131,13 +1105,13 @@ XPC_NW_Iterator(JSContext *cx, JSObject *obj, JSBool keysonly)
   }
 
   JSObject *wrapperIter =
-    JS_NewObjectWithGivenProto(cx, XPCNativeWrapper::GetJSClass(false), nsnull,
-                               obj->getParent());
+    JS_NewObjectWithGivenProto(cx, XPCNativeWrapper::GetJSClass(), nsnull,
+                               STOBJ_GET_PARENT(obj));
   if (!wrapperIter) {
     return nsnull;
   }
 
-  js::AutoObjectRooter tvr(cx, wrapperIter);
+  JSAutoTempValueRooter tvr(cx, OBJECT_TO_JSVAL(wrapperIter));
 
   // Initialize our native wrapper.
   XPCWrappedNative *wn = static_cast<XPCWrappedNative *>(JS_GetPrivate(cx, obj));
@@ -1156,7 +1130,7 @@ XPC_NW_toString(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
                 jsval *rval)
 {
   while (!XPCNativeWrapper::IsNativeWrapper(obj)) {
-    obj = obj->getProto();
+    obj = STOBJ_GET_PROTO(obj);
     if (!obj) {
       return ThrowException(NS_ERROR_UNEXPECTED, cx);
     }
@@ -1227,7 +1201,7 @@ XPCNativeWrapper::AttachNewConstructorObject(XPCCallContext &ccx,
                                              JSObject *aGlobalObject)
 {
   JSObject *class_obj =
-    ::JS_InitClass(ccx, aGlobalObject, nsnull, &internal::NW_Call_Class.base,
+    ::JS_InitClass(ccx, aGlobalObject, nsnull, &internal::NWClass.base,
                    XPCNativeWrapperCtor, 0, nsnull, nsnull,
                    nsnull, static_functions);
   if (!class_obj) {
@@ -1245,7 +1219,7 @@ XPCNativeWrapper::AttachNewConstructorObject(XPCCallContext &ccx,
 
   JSBool found;
   return ::JS_SetPropertyAttributes(ccx, aGlobalObject,
-                                    internal::NW_Call_Class.base.name,
+                                    internal::NWClass.base.name,
                                     JSPROP_READONLY | JSPROP_PERMANENT,
                                     &found);
 }
@@ -1314,9 +1288,7 @@ XPCNativeWrapper::GetNewOrUsed(JSContext *cx, XPCWrappedNative *wrapper,
     ::JS_LockGCThing(cx, nw_parent);
   }
 
-  bool call = NATIVE_HAS_FLAG(wrapper, WantCall) ||
-              NATIVE_HAS_FLAG(wrapper, WantConstruct);
-  obj = ::JS_NewObjectWithGivenProto(cx, GetJSClass(call), nsnull, nw_parent);
+  obj = ::JS_NewObjectWithGivenProto(cx, GetJSClass(), nsnull, nw_parent);
 
   if (lock) {
     ::JS_UnlockGCThing(cx, nw_parent);
@@ -1359,10 +1331,8 @@ XPCNativeWrapper::CreateExplicitWrapper(JSContext *cx,
   printf("Creating new JSObject\n");
 #endif
 
-  bool call = NATIVE_HAS_FLAG(wrappedNative, WantCall) ||
-              NATIVE_HAS_FLAG(wrappedNative, WantConstruct);
   JSObject *wrapperObj =
-    JS_NewObjectWithGivenProto(cx, XPCNativeWrapper::GetJSClass(call), nsnull,
+    JS_NewObjectWithGivenProto(cx, XPCNativeWrapper::GetJSClass(), nsnull,
                                wrappedNative->GetScope()->GetGlobalJSObject());
 
   if (!wrapperObj) {

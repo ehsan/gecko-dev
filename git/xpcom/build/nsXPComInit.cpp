@@ -142,7 +142,6 @@ NS_DECL_CLASSINFO(nsStringInputStream)
 #include "nsMemoryReporterManager.h"
 
 #include <locale.h>
-#include "mozilla/Services.h"
 
 #ifdef MOZ_IPC
 #include "base/at_exit.h"
@@ -163,6 +162,8 @@ static BrowserProcessSubThread* sIOThread;
 
 } /* anonymous namespace */
 #endif
+
+using mozilla::TimeStamp;
 
 // Registry Factory creation function defined in nsRegistry.cpp
 // We hook into this function locally to create and register the registry
@@ -517,6 +518,10 @@ NS_InitXPCOM3(nsIServiceManager* *result,
     }
 #endif
 
+    // Set up TimeStamp
+    rv = TimeStamp::Startup();
+    NS_ENSURE_SUCCESS(rv, rv);
+
     // Establish the main thread here.
     rv = nsThreadManager::get()->Init();
     if (NS_FAILED(rv)) return rv;
@@ -797,7 +802,7 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
     // XPCOM is officially in shutdown mode NOW
     // Set this only after the observers have been notified as this
     // will cause servicemanager to become inaccessible.
-    mozilla::services::Shutdown();
+    gXPCOMShuttingDown = PR_TRUE;
 
 #ifdef DEBUG_dougt
     fprintf(stderr, "* * * * XPCOM shutdown. Access will be denied * * * * \n");
@@ -878,6 +883,8 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
     NS_PurgeAtomTable();
 
     NS_IF_RELEASE(gDebug);
+
+    TimeStamp::Shutdown();
 
 #ifdef MOZ_IPC
     if (sIOThread) {

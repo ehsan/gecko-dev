@@ -41,7 +41,6 @@
 #include "nsHttp.h"
 #include "mozilla/net/NeckoParent.h"
 #include "mozilla/net/HttpChannelParent.h"
-#include "mozilla/net/CookieServiceParent.h"
 
 namespace mozilla {
 namespace net {
@@ -71,18 +70,6 @@ NeckoParent::DeallocPHttpChannel(PHttpChannelParent* channel)
   return true;
 }
 
-PCookieServiceParent* 
-NeckoParent::AllocPCookieService()
-{
-  return new CookieServiceParent();
-}
-
-bool 
-NeckoParent::DeallocPCookieService(PCookieServiceParent* cs)
-{
-  delete cs;
-  return true;
-}
 
 }} // mozilla::net
 

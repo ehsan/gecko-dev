@@ -244,9 +244,10 @@ public:
    * Parse a string value into a non-negative integer.
    * This method follows the rules for parsing non-negative integer from:
    * http://dev.w3.org/html5/spec/infrastructure.html#rules-for-parsing-non-negative-integers
+   * If the parsed value is negative, the value will be set to -1.
    *
-   * @param  aString the string to parse
-   * @return whether the value is valid
+   * @param aString the string to parse
+   * @return whether the value could be parsed
    */
   PRBool ParseNonNegativeIntValue(const nsAString& aString);
 

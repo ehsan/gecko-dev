@@ -76,7 +76,7 @@ public:
     if (mModule)
       return;
 
-    mModule = LoadLibraryExA(modulename, NULL, 0);
+    mModule = LoadLibraryEx(modulename, NULL, 0);
     if (!mModule) {
       //printf("LoadLibraryEx for '%s' failed\n", modulename);
       return;

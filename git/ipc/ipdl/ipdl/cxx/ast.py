@@ -71,9 +71,6 @@ class Visitor:
     def visitTypedef(self, tdef):
         tdef.fromtype.accept(self)
 
-    def visitUsing(self, us):
-        us.type.accept(self)
-
     def visitForwardDecl(self, fd):
         pass
 
@@ -387,11 +384,6 @@ class Typedef(Node):
         self.fromtype = fromtype
         self.totypename = totypename
 
-class Using(Node):
-    def __init__(self, type):
-        Node.__init__(self)
-        self.type = type
-
 class ForwardDecl(Node):
     def __init__(self, pqname, cls=0, struct=0):
         assert (not cls and struct) or (cls and not struct)
@@ -625,7 +617,6 @@ class ExprCall(Node):
     def __init__(self, func, args=[ ]):
         assert hasattr(func, 'accept')
         assert isinstance(args, list)
-        for arg in args:  assert not isinstance(arg, str)
 
         Node.__init__(self)
         self.func = func

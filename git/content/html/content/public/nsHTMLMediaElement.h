@@ -35,9 +35,6 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-#if !defined(nsHTMLMediaElement_h__)
-#define nsHTMLMediaElement_h__
-
 #include "nsIDOMHTMLMediaElement.h"
 #include "nsGenericHTMLElement.h"
 #include "nsMediaDecoder.h"
@@ -541,5 +538,3 @@ protected:
 
   nsRefPtr<gfxASurface> mPrintSurface;
 };
-
-#endif

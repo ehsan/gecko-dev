@@ -47,8 +47,6 @@
 #include "nsWeakReference.h"
 #include "nsStandardURL.h"
 
-struct ResourceMapping;
-
 // nsResURL : overrides nsStandardURL::GetFile to provide nsIFile resolution
 class nsResURL : public nsStandardURL
 {
@@ -70,10 +68,6 @@ public:
     virtual ~nsResProtocolHandler();
 
     nsresult Init();
-
-#ifdef MOZ_IPC    
-    void CollectSubstitutions(nsTArray<ResourceMapping>& aResources);
-#endif
 
 private:
     nsresult AddSpecialDir(const char* aSpecialDir, const nsACString& aSubstitution);

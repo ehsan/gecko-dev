@@ -37,7 +37,9 @@
 
 function browserWindowsCount() {
   let count = 0;
-  let e = Services.wm.getEnumerator("navigator:browser");
+  let e = Cc["@mozilla.org/appshell/window-mediator;1"]
+            .getService(Ci.nsIWindowMediator)
+            .getEnumerator("navigator:browser");
   while (e.hasMoreElements()) {
     if (!e.getNext().closed)
       ++count;
@@ -102,7 +104,7 @@ function test() {
               newWin2.gBrowser.tabContainer.addEventListener("SSTabRestored", function(aEvent) {
                 newWin2.gBrowser.tabContainer.removeEventListener("SSTabRestored", arguments.callee, true);
 
-                is(newWin2.gBrowser.tabs.length, 2,
+                is(newWin2.gBrowser.tabContainer.childNodes.length, 2,
                    "The window correctly restored 2 tabs");
                 is(newWin2.gBrowser.currentURI.spec, testURL,
                    "The window correctly restored the URL");

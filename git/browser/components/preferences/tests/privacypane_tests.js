@@ -36,26 +36,28 @@
  * ***** END LICENSE BLOCK ***** */
 
 function runTestOnPrivacyPrefPane(testFunc) {
+  let ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
+           getService(Ci.nsIWindowWatcher);
   let observer = {
     observe: function(aSubject, aTopic, aData) {
       if (aTopic == "domwindowopened") {
-        Services.ww.unregisterNotification(this);
+        ww.unregisterNotification(this);
 
         let win = aSubject.QueryInterface(Ci.nsIDOMEventTarget);
         win.addEventListener("load", function() {
           win.removeEventListener("load", arguments.callee, false);
           testFunc(dialog.document.defaultView);
 
-          Services.ww.registerNotification(observer);
+          ww.registerNotification(observer);
           dialog.close();
         }, false);
       } else if (aTopic == "domwindowclosed") {
-        Services.ww.unregisterNotification(this);
+        ww.unregisterNotification(this);
         testRunner.runNext();
       }
     }
   };
-  Services.ww.registerNotification(observer);
+  ww.registerNotification(observer);
 
   let dialog = openDialog("chrome://browser/content/preferences/preferences.xul", "Preferences",
                           "chrome,titlebar,toolbar,centerscreen,dialog=no", "panePrivacy");
@@ -526,8 +528,10 @@ function reset_preferences(win) {
 
 let testRunner;
 function run_test_subset(subset) {
-  let instantApplyOrig = Services.prefs.getBoolPref("browser.preferences.instantApply");
-  Services.prefs.setBoolPref("browser.preferences.instantApply", true);
+  let psvc = Cc["@mozilla.org/preferences-service;1"].
+             getService(Ci.nsIPrefBranch);
+  let instantApplyOrig = psvc.getBoolPref("browser.preferences.instantApply");
+  psvc.setBoolPref("browser.preferences.instantApply", true);
 
   waitForExplicitFinish();
 
@@ -537,7 +541,7 @@ function run_test_subset(subset) {
     runNext: function() {
       if (this.counter == this.tests.length) {
         // cleanup
-        Services.prefs.setBoolPref("browser.preferences.instantApply", instantApplyOrig);
+        psvc.setBoolPref("browser.preferences.instantApply", instantApplyOrig);
         finish();
       } else {
         let self = this;

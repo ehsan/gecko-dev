@@ -92,8 +92,7 @@ AsyncChannel::AsyncChannel(AsyncListener* aListener)
     mIOLoop(),
     mWorkerLoop(),
     mChild(false),
-    mChannelErrorTask(NULL),
-    mExistingListener(NULL)
+    mChannelErrorTask(NULL)
 {
     MOZ_COUNT_CTOR(AsyncChannel);
 }
@@ -113,7 +112,7 @@ AsyncChannel::Open(Transport* aTransport, MessageLoop* aIOLoop)
     // FIXME need to check for valid channel
 
     mTransport = aTransport;
-    mExistingListener = mTransport->set_listener(this);
+    mTransport->set_listener(this);
 
     // FIXME figure out whether we're in parent or child, grab IO loop
     // appropriately
@@ -121,7 +120,8 @@ AsyncChannel::Open(Transport* aTransport, MessageLoop* aIOLoop)
     if(!aIOLoop) {
         // parent
         needOpen = false;
-        aIOLoop = XRE_GetIOMessageLoop();
+        aIOLoop = BrowserProcessSubThread
+                  ::GetMessageLoop(BrowserProcessSubThread::IO);
         // FIXME assuming that the parent waits for the OnConnected event.
         // FIXME see GeckoChildProcessHost.cpp.  bad assumption!
         mChannelState = ChannelConnected;
@@ -432,14 +432,9 @@ AsyncChannel::OnChannelConnected(int32 peer_pid)
 {
     AssertIOThread();
 
-    {
-        MutexAutoLock lock(mMutex);
-        mChannelState = ChannelConnected;
-        mCvar.Notify();
-    }
-
-    if(mExistingListener)
-        mExistingListener->OnChannelConnected(peer_pid);
+    MutexAutoLock lock(mMutex);
+    mChannelState = ChannelConnected;
+    mCvar.Notify();
 }
 
 void
@@ -449,17 +444,10 @@ AsyncChannel::OnChannelError()
 
     MutexAutoLock lock(mMutex);
 
+    // NB: this can race with the `Goodbye' event being processed by
+    // the worker thread
     if (ChannelClosing != mChannelState)
         mChannelState = ChannelError;
-
-    PostErrorNotifyTask();
-}
-
-void
-AsyncChannel::PostErrorNotifyTask()
-{
-    AssertIOThread();
-    mMutex.AssertCurrentThreadOwns();
 
     NS_ASSERTION(!mChannelErrorTask, "OnChannelError called twice?");
 
