@@ -5,6 +5,8 @@
 
 package org.mozilla.gecko.db;
 
+import java.io.ByteArrayOutputStream;
+
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.database.ContentObserver;
@@ -19,8 +21,6 @@ import android.os.Build;
 import android.provider.Browser;
 import android.provider.Browser.BookmarkColumns;
 import android.util.Log;
-
-import java.io.ByteArrayOutputStream;
 
 public class AndroidBrowserDB implements BrowserDB.BrowserDBIface {
     private static final String LOGTAG = "AndroidBrowserDB";

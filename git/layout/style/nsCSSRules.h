@@ -12,11 +12,9 @@
 #include "mozilla/Attributes.h"
 
 #include "mozilla/css/GroupRule.h"
-#include "mozilla/Preferences.h"
-#include "nsIDOMCSSFontFaceRule.h"
 #include "nsIDOMCSSMediaRule.h"
 #include "nsIDOMCSSMozDocumentRule.h"
-#include "nsIDOMCSSSupportsRule.h"
+#include "nsIDOMCSSFontFaceRule.h"
 #include "nsIDOMMozCSSKeyframeRule.h"
 #include "nsIDOMMozCSSKeyframesRule.h"
 #include "nsIDOMCSSStyleDeclaration.h"
@@ -133,11 +131,11 @@ public:
     nsCString url;
     URL *next;
 
-    URL() : next(nullptr) {}
+    URL() : next(nsnull) {}
     URL(const URL& aOther)
       : func(aOther.func)
       , url(aOther.url)
-      , next(aOther.next ? new URL(*aOther.next) : nullptr)
+      , next(aOther.next ? new URL(*aOther.next) : nsnull)
     {
     }
     ~URL();
@@ -295,7 +293,7 @@ public:
   virtual ~nsCSSKeyframeStyleDeclaration();
 
   NS_IMETHOD GetParentRule(nsIDOMCSSRule **aParent);
-  void DropReference() { mRule = nullptr; }
+  void DropReference() { mRule = nsnull; }
   virtual mozilla::css::Declaration* GetCSSDeclaration(bool aAllocate);
   virtual nsresult SetCSSDeclaration(mozilla::css::Declaration* aDecl);
   virtual void GetCSSParsingEnvironment(CSSParsingEnvironment& aCSSParseEnv);
@@ -306,7 +304,7 @@ public:
 
   virtual nsINode *GetParentObject()
   {
-    return nullptr;
+    return nsnull;
   }
 
 protected:
@@ -411,51 +409,5 @@ private:
 
   nsString                                   mName;
 };
-
-namespace mozilla {
-
-class CSSSupportsRule : public css::GroupRule,
-                        public nsIDOMCSSSupportsRule
-{
-public:
-  CSSSupportsRule(bool aConditionMet, const nsString& aCondition);
-  CSSSupportsRule(const CSSSupportsRule& aCopy);
-
-  // nsIStyleRule methods
-#ifdef DEBUG
-  virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
-#endif
-
-  // Rule methods
-  virtual PRInt32 GetType() const;
-  virtual already_AddRefed<mozilla::css::Rule> Clone() const;
-  virtual bool UseForPresentation(nsPresContext* aPresContext,
-                                  nsMediaQueryResultCacheKey& aKey);
-  virtual nsIDOMCSSRule* GetDOMRule()
-  {
-    return this;
-  }
-
-  NS_DECL_ISUPPORTS_INHERITED
-
-  // nsIDOMCSSRule interface
-  NS_DECL_NSIDOMCSSRULE
-
-  // nsIDOMCSSSupportsRule interface
-  NS_DECL_NSIDOMCSSSUPPORTSRULE
-
-  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
-
-  static bool PrefEnabled()
-  {
-    return Preferences::GetBool("layout.css.supports-rule.enabled");
-  }
-
-protected:
-  bool mUseGroup;
-  nsString mCondition;
-};
-
-} // namespace mozilla
 
 #endif /* !defined(nsCSSRules_h_) */

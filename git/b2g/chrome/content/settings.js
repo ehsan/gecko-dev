@@ -65,7 +65,14 @@ SettingsListener.observe('language.current', 'en-US', function(value) {
 
 // =================== RIL ====================
 (function RILSettingsToPrefs() {
-  let strPrefs = ['ril.data.mmsc', 'ril.data.mmsproxy'];
+  ['ril.data.enabled', 'ril.data.roaming.enabled'].forEach(function(key) {
+    SettingsListener.observe(key, false, function(value) {
+      Services.prefs.setBoolPref(key, value);
+    });
+  });
+
+  let strPrefs = ['ril.data.apn', 'ril.data.user', 'ril.data.passwd',
+                  'ril.data.mmsc', 'ril.data.mmsproxy'];
   strPrefs.forEach(function(key) {
     SettingsListener.observe(key, "", function(value) {
       Services.prefs.setCharPref(key, value);

@@ -335,14 +335,12 @@ public:
   void PassString(const nsAString&, ErrorResult&);
   void PassNullableString(const nsAString&, ErrorResult&);
   void PassOptionalString(const Optional<nsAString>&, ErrorResult&);
-  void PassOptionalStringWithDefaultValue(const nsAString&, ErrorResult&);
   void PassOptionalNullableString(const Optional<nsAString>&, ErrorResult&);
   void PassOptionalNullableStringWithDefaultValue(const nsAString&, ErrorResult&);
 
   // Enumarated types
   void PassEnum(TestEnum, ErrorResult&);
   void PassOptionalEnum(const Optional<TestEnum>&, ErrorResult&);
-  void PassEnumWithDefault(TestEnum, ErrorResult&);
   TestEnum ReceiveEnum(ErrorResult&);
   TestEnum GetEnumAttribute(ErrorResult&);
   TestEnum GetReadonlyEnumAttribute(ErrorResult&);
@@ -363,7 +361,6 @@ public:
   // Any types
   void PassAny(JSContext*, JS::Value, ErrorResult&);
   void PassOptionalAny(JSContext*, const Optional<JS::Value>&, ErrorResult&);
-  void PassAnyDefaultNull(JSContext*, JS::Value, ErrorResult&);
   JS::Value ReceiveAny(JSContext*, ErrorResult&);
 
   // object types
@@ -552,7 +549,6 @@ private:
   void PassString(nsAString&, ErrorResult&) MOZ_DELETE;
   void PassNullableString(nsAString&, ErrorResult&) MOZ_DELETE;
   void PassOptionalString(Optional<nsAString>&, ErrorResult&) MOZ_DELETE;
-  void PassOptionalStringWithDefaultValue(nsAString&, ErrorResult&) MOZ_DELETE;
   void PassOptionalNullableString(Optional<nsAString>&, ErrorResult&) MOZ_DELETE;
   void PassOptionalNullableStringWithDefaultValue(nsAString&, ErrorResult&) MOZ_DELETE;
 

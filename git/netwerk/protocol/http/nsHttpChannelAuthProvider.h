@@ -35,7 +35,7 @@ public:
 
 private:
     const char *ProxyHost() const
-    { return mProxyInfo ? mProxyInfo->Host().get() : nullptr; }
+    { return mProxyInfo ? mProxyInfo->Host().get() : nsnull; }
 
     PRInt32     ProxyPort() const
     { return mProxyInfo ? mProxyInfo->Port() : -1; }

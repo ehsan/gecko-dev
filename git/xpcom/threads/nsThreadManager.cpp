@@ -71,7 +71,7 @@ nsThreadManager::Init()
 
   nsresult rv = mMainThread->InitCurrentThread();
   if (NS_FAILED(rv)) {
-    mMainThread = nullptr;
+    mMainThread = nsnull;
     return rv;
   }
 
@@ -142,15 +142,15 @@ nsThreadManager::Shutdown()
   // Normally thread shutdown clears the observer for the thread, but since the
   // main thread is special we do it manually here after we're sure all events
   // have been processed.
-  mMainThread->SetObserver(nullptr);
+  mMainThread->SetObserver(nsnull);
   mMainThread->ClearObservers();
 
   // Release main thread object.
-  mMainThread = nullptr;
-  mLock = nullptr;
+  mMainThread = nsnull;
+  mLock = nsnull;
 
   // Remove the TLS entry for the main thread.
-  PR_SetThreadPrivate(mCurThreadIndex, nullptr);
+  PR_SetThreadPrivate(mCurThreadIndex, nsnull);
 }
 
 void
@@ -175,7 +175,7 @@ nsThreadManager::UnregisterCurrentThread(nsThread *thread)
 
   mThreadsByPRThread.Remove(thread->GetPRThread());
 
-  PR_SetThreadPrivate(mCurThreadIndex, nullptr);
+  PR_SetThreadPrivate(mCurThreadIndex, nsnull);
   // Ref-count balanced via ReleaseObject
 }
 
@@ -188,13 +188,13 @@ nsThreadManager::GetCurrentThread()
     return static_cast<nsThread *>(data);
 
   if (!mInitialized) {
-    return nullptr;
+    return nsnull;
   }
 
   // OK, that's fine.  We'll dynamically create one :-)
   nsRefPtr<nsThread> thread = new nsThread(nsThread::NOT_MAIN_THREAD, 0);
   if (!thread || NS_FAILED(thread->InitCurrentThread()))
-    return nullptr;
+    return nsnull;
 
   return thread.get();  // reference held in TLS
 }

@@ -49,13 +49,14 @@ function getContentWindow() {
 }
 
 // FIXME Bug 707625
-// Please don't add more permissions here.
+// until we have a proper security model, add some rights to
+// the pre-installed web applications
 // XXX never grant 'content-camera' to non-gaia apps
 function addPermissions(urls) {
   let permissions = [
     'indexedDB-unlimited', 'webapps-manage', 'offline-app', 'pin-app',
     'websettings-read', 'websettings-readwrite',
-    'content-camera', 'wifi-manage', 'desktop-notification',
+    'content-camera', 'webcontacts-manage', 'wifi-manage', 'desktop-notification',
     'geolocation', 'device-storage', 'alarms'
   ];
 
@@ -206,7 +207,6 @@ var shell = {
         type = 'home-button';
         break;
       case evt.DOM_VK_SLEEP:        // Sleep button
-      case evt.DOM_VK_END:          // On desktop we don't have a sleep button
         type = 'sleep-button';
         break;
       case evt.DOM_VK_PAGE_UP:      // Volume up button
@@ -381,12 +381,6 @@ Services.obs.addObserver(function onSystemMessage(subject, topic, data) {
     manifest: msg.manifest
   });
 }, 'system-messages-open-app', false);
-
-Services.obs.addObserver(function(aSubject, aTopic, aData) {
-  shell.sendEvent(shell.contentBrowser.contentWindow,
-                  "mozChromeEvent", { type: "fullscreenoriginchange",
-                                      fullscreenorigin: aData } );
-}, "fullscreen-origin-change", false);
 
 (function Repl() {
   if (!Services.prefs.getBoolPref('b2g.remote-js.enabled')) {

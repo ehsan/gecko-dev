@@ -581,7 +581,7 @@ private:
     bool constantFoldBranch(jsbytecode *target, bool taken);
     bool emitStubCmpOp(BoolStub stub, jsbytecode *target, JSOp fused);
     bool iter(unsigned flags);
-    void iterNext();
+    void iterNext(ptrdiff_t offset);
     bool iterMore(jsbytecode *target);
     void iterEnd();
     MaybeJump loadDouble(FrameEntry *fe, FPRegisterID *fpReg, bool *allocated);
@@ -653,7 +653,6 @@ private:
     bool jsop_setprop(PropertyName *name, bool popGuaranteed);
     void jsop_setprop_slow(PropertyName *name);
     bool jsop_instanceof();
-    void jsop_intrinsicname(PropertyName *name, JSValueType type);
     void jsop_name(PropertyName *name, JSValueType type);
     bool jsop_xname(PropertyName *name);
     void enterBlock(StaticBlockObject *block);

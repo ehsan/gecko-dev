@@ -19,10 +19,7 @@ function test()
   browser.addEventListener("load", function onLoad1(aEvent) {
     browser.removeEventListener(aEvent.type, onLoad1, true);
 
-    openConsole(null, function(aHud) {
-      info("iframe1 height " + aHud.iframe.clientHeight);
-      info("iframe1 root height " + aHud.ui.rootElement.clientHeight);
-
+    openConsole(null, function() {
       // open tab 2
       addTab("data:text/html;charset=utf-8,Web Console test for bug 602572: log bodies checkbox. tab 2");
       tabs.push(tab);
@@ -30,11 +27,7 @@ function test()
       browser.addEventListener("load", function onLoad2(aEvent) {
         browser.removeEventListener(aEvent.type, onLoad2, true);
 
-        openConsole(null, function(aHud) {
-          info("iframe2 height " + aHud.iframe.clientHeight);
-          info("iframe2 root height " + aHud.ui.rootElement.clientHeight);
-          waitForFocus(startTest, aHud.iframeWindow);
-        });
+        openConsole(null, startTest);
       }, true);
     });
   }, true);
@@ -48,14 +41,12 @@ function startTest()
   huds[1] = HUDService.hudReferences[hudId2];
   HUDService.disableAnimation(hudId2);
 
-  menuitems[1] = huds[1].ui.rootElement.querySelector("#saveBodies");
-  menupopups[1] = huds[1].ui.rootElement.querySelector("menupopup");
+  menuitems[1] = huds[1].HUDBox.querySelector("menuitem[buttonType=saveBodies]");
+  menupopups[1] = huds[1].HUDBox.querySelector("menupopup");
 
   // Open the context menu from tab 2.
   menupopups[1].addEventListener("popupshown", onpopupshown2, false);
-  executeSoon(function() {
-    menupopups[1].openPopup();
-  });
+  menupopups[1].openPopup(huds[1].outputNode, "overlap", 10, 10, true, false);
 }
 
 function onpopupshown2(aEvent)
@@ -66,24 +57,19 @@ function onpopupshown2(aEvent)
   isnot(menuitems[1].getAttribute("checked"), "true",
         "menuitems[1] is not checked");
 
-  ok(!huds[1].ui.saveRequestAndResponseBodies, "bodies are not logged");
+  ok(!huds[1].saveRequestAndResponseBodies, "bodies are not logged");
 
   // Enable body logging.
-  huds[1].ui.saveRequestAndResponseBodies = true;
+  huds[1].saveRequestAndResponseBodies = true;
 
   menupopups[1].addEventListener("popuphidden", function _onhidden(aEvent) {
     menupopups[1].removeEventListener(aEvent.type, _onhidden, false);
 
     // Reopen the context menu.
     menupopups[1].addEventListener("popupshown", onpopupshown2b, false);
-    executeSoon(function() {
-      menupopups[1].openPopup();
-    });
+    menupopups[1].openPopup(huds[1].outputNode, "overlap", 11, 11, true, false);
   }, false);
-
-  executeSoon(function() {
-    menupopups[1].hidePopup();
-  });
+  menupopups[1].hidePopup();
 }
 
 function onpopupshown2b(aEvent)
@@ -103,20 +89,14 @@ function onpopupshown2b(aEvent)
       huds[0] = HUDService.hudReferences[hudId1];
       HUDService.disableAnimation(hudId1);
 
-      info("iframe1 height " + huds[0].iframe.clientHeight);
-      info("iframe1 root height " + huds[0].ui.rootElement.clientHeight);
-
-      menuitems[0] = huds[0].ui.rootElement.querySelector("#saveBodies");
-      menupopups[0] = huds[0].ui.rootElement.querySelector("menupopup");
+      menuitems[0] = huds[0].HUDBox.querySelector("menuitem[buttonType=saveBodies]");
+      menupopups[0] = huds[0].HUDBox.querySelector("menupopup");
 
       menupopups[0].addEventListener("popupshown", onpopupshown1, false);
-      menupopups[0].openPopup();
+      menupopups[0].openPopup(huds[0].outputNode, "overlap", 12, 12, true, false);
     }, tabs[0].linkedBrowser.contentWindow);
   }, false);
-
-  executeSoon(function() {
-    menupopups[1].hidePopup();
-  });
+  menupopups[1].hidePopup();
 }
 
 function onpopupshown1(aEvent)
@@ -128,7 +108,7 @@ function onpopupshown1(aEvent)
         "menuitems[0] is not checked");
 
   // Enable body logging for tab 1 as well.
-  huds[0].ui.saveRequestAndResponseBodies = true;
+  huds[0].saveRequestAndResponseBodies = true;
 
   // Close the menu, and switch back to tab 2.
   menupopups[0].addEventListener("popuphidden", function _onhidden(aEvent) {
@@ -138,13 +118,10 @@ function onpopupshown1(aEvent)
     waitForFocus(function() {
       // Reopen the context menu from tab 2.
       menupopups[1].addEventListener("popupshown", onpopupshown2c, false);
-      menupopups[1].openPopup();
+      menupopups[1].openPopup(huds[1].outputNode, "overlap", 13, 13, true, false);
     }, tabs[1].linkedBrowser.contentWindow);
   }, false);
-
-  executeSoon(function() {
-    menupopups[0].hidePopup();
-  });
+  menupopups[0].hidePopup();
 }
 
 function onpopupshown2c(aEvent)
@@ -163,8 +140,5 @@ function onpopupshown2c(aEvent)
       executeSoon(finishTest);
     });
   }, false);
-
-  executeSoon(function() {
-    menupopups[1].hidePopup();
-  });
+  menupopups[1].hidePopup();
 }

@@ -46,8 +46,8 @@ char *npl=
    printf(npl);
 }
 //---------------------------------------------------------------------------
-static nsIUnicodeEncoder* gKOI8REncoder = nullptr;
-static nsICharsetConverterManager* gCCM = nullptr;
+static nsIUnicodeEncoder* gKOI8REncoder = nsnull;
+static nsICharsetConverterManager* gCCM = nsnull;
 
 //---------------------------------------------------------------------------
 PRUint8 CyrillicClass(nsIUnicodeDecoder* decoder, PRUint8 byte)
@@ -76,7 +76,7 @@ PRUint8 CyrillicClass(nsIUnicodeDecoder* decoder, PRUint8 byte)
 //---------------------------------------------------------------------------
 void genCyrillicClass(const char* name, const char* charset)
 {
-   nsIUnicodeDecoder *decoder = nullptr;
+   nsIUnicodeDecoder *decoder = nsnull;
    nsresult res = NS_OK;
    nsAutoString str(charset);
    res = gCCM->GetUnicodeDecoder(&str, &decoder);
@@ -103,18 +103,18 @@ void genCyrillicClass(const char* name, const char* charset)
 
 
 int main(int argc, char** argv) {
-  nsresult res = nullptr;
+  nsresult res = nsnull;
 
   nsCOMPtr<nsICharsetConverterManager> gCCM = do_GetService(kCharsetConverterManagerCID, &res);
 
-  if(NS_FAILED(res) && (nullptr != gCCM))
+  if(NS_FAILED(res) && (nsnull != gCCM))
    {
       printf("cannot locate CharsetConverterManager\n");
       return(-1);
    }
    nsAutoString koi8r("KOI8-R");
    res = gCCM->GetUnicodeEncoder(&koi8r,&gKOI8REncoder);
-   if(NS_FAILED(res) && (nullptr != gKOI8REncoder))
+   if(NS_FAILED(res) && (nsnull != gKOI8REncoder))
    {
       printf("cannot locate KOI8-R Encoder\n");
       return(-1);

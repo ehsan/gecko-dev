@@ -6,16 +6,12 @@
 #ifndef nsTextAttrs_h_
 #define nsTextAttrs_h_
 
-#include "nsCOMPtr.h"
-#include "nsColor.h"
+#include "nsIContent.h"
+#include "nsIFrame.h"
+#include "nsIPersistentProperties2.h"
 #include "nsStyleConsts.h"
 
 class HyperTextAccessible;
-class nsIFrame;
-class nsIPersistentProperties;
-class nsIContent;
-class Accessible;
-class nsDeviceContext;
 
 namespace mozilla {
 namespace a11y {
@@ -34,7 +30,7 @@ public:
    * Constructor. Used to expose default text attributes.
    */
   TextAttrsMgr(HyperTextAccessible* aHyperTextAcc) :
-    mOffsetAcc(nullptr),  mHyperTextAcc(aHyperTextAcc),
+    mOffsetAcc(nsnull),  mHyperTextAcc(aHyperTextAcc),
     mOffsetAccIdx(-1), mIncludeDefAttrs(true) { }
 
   /**
@@ -68,8 +64,8 @@ public:
    * @param aEndHTOffset   [out, optional] end hyper text offset
    */
   void GetAttributes(nsIPersistentProperties* aAttributes,
-                     PRInt32* aStartHTOffset = nullptr,
-                     PRInt32* aEndHTOffset = nullptr);
+                     PRInt32* aStartHTOffset = nsnull,
+                     PRInt32* aEndHTOffset = nsnull);
 
 protected:
   /**
@@ -197,7 +193,7 @@ protected:
   public:
     LangTextAttr(HyperTextAccessible* aRoot, nsIContent* aRootElm,
                  nsIContent* aElm);
-    virtual ~LangTextAttr();
+    virtual ~LangTextAttr() { }
 
   protected:
 

@@ -174,7 +174,7 @@ class SVGLengthListAndInfo : public SVGLengthList
 public:
 
   SVGLengthListAndInfo()
-    : mElement(nullptr)
+    : mElement(nsnull)
     , mAxis(0)
     , mCanZeroPadList(false)
   {}
@@ -295,7 +295,7 @@ class NS_STACK_CLASS SVGUserUnitList
 public:
 
   SVGUserUnitList()
-    : mList(nullptr)
+    : mList(nsnull)
   {}
 
   void Init(const SVGLengthList *aList, nsSVGElement *aElement, PRUint8 aAxis) {
@@ -305,7 +305,7 @@ public:
   }
 
   void Clear() {
-    mList = nullptr;
+    mList = nsnull;
   }
 
   bool IsEmpty() const {

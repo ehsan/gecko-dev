@@ -110,8 +110,8 @@ nsStyleFont::nsStyleFont(const nsStyleFont& aSrc)
 }
 
 nsStyleFont::nsStyleFont(nsPresContext* aPresContext)
-  // passing nullptr to GetDefaultFont make it use the doc language
-  : mFont(*(aPresContext->GetDefaultFont(kPresContext_DefaultVariableFont_ID, nullptr))),
+  // passing nsnull to GetDefaultFont make it use the doc language
+  : mFont(*(aPresContext->GetDefaultFont(kPresContext_DefaultVariableFont_ID, nsnull))),
     mGenericID(kGenericFont_NONE)
 {
   MOZ_COUNT_CTOR(nsStyleFont);
@@ -266,7 +266,7 @@ void nsStyleMargin::RecalcData()
 {
   if (IsFixedData(mMargin, false)) {
     NS_FOR_CSS_SIDES(side) {
-      mCachedMargin.Side(side) = CalcCoord(mMargin.Get(side), nullptr, 0);
+      mCachedMargin.Side(side) = CalcCoord(mMargin.Get(side), nsnull, 0);
     }
     mHasCachedMargin = true;
   }
@@ -331,7 +331,7 @@ void nsStylePadding::RecalcData()
     NS_FOR_CSS_SIDES(side) {
       // Clamp negative calc() to 0.
       mCachedPadding.Side(side) =
-        NS_MAX(CalcCoord(mPadding.Get(side), nullptr, 0), 0);
+        NS_MAX(CalcCoord(mPadding.Get(side), nsnull, 0), 0);
     }
     mHasCachedPadding = true;
   }
@@ -362,12 +362,12 @@ nsChangeHint nsStylePadding::MaxDifference()
 #endif
 
 nsStyleBorder::nsStyleBorder(nsPresContext* aPresContext)
-  : mBorderColors(nullptr),
-    mBoxShadow(nullptr),
+  : mBorderColors(nsnull),
+    mBoxShadow(nsnull),
 #ifdef DEBUG
     mImageTracked(false),
 #endif
-    mBorderImageSource(nullptr),
+    mBorderImageSource(nsnull),
     mBorderImageFill(NS_STYLE_BORDER_IMAGE_SLICE_NOFILL),
     mBorderImageRepeatH(NS_STYLE_BORDER_IMAGE_REPEAT_STRETCH),
     mBorderImageRepeatV(NS_STYLE_BORDER_IMAGE_REPEAT_STRETCH),
@@ -412,7 +412,7 @@ nsBorderColors::Clone(bool aDeep) const
 }
 
 nsStyleBorder::nsStyleBorder(const nsStyleBorder& aSrc)
-  : mBorderColors(nullptr),
+  : mBorderColors(nsnull),
     mBoxShadow(aSrc.mBoxShadow),
 #ifdef DEBUG
     mImageTracked(false),
@@ -437,7 +437,7 @@ nsStyleBorder::nsStyleBorder(const nsStyleBorder& aSrc)
       if (aSrc.mBorderColors[i])
         mBorderColors[i] = aSrc.mBorderColors[i]->Clone();
       else
-        mBorderColors[i] = nullptr;
+        mBorderColors[i] = nsnull;
   }
 
   NS_FOR_CSS_SIDES(side) {
@@ -774,7 +774,6 @@ nsStyleColumn::nsStyleColumn(nsPresContext* aPresContext)
   mColumnCount = NS_STYLE_COLUMN_COUNT_AUTO;
   mColumnWidth.SetAutoValue();
   mColumnGap.SetNormalValue();
-  mColumnFill = NS_STYLE_COLUMN_FILL_BALANCE;
 
   mColumnRuleWidth = (aPresContext->GetBorderWidthTable())[NS_STYLE_BORDER_WIDTH_MEDIUM];
   mColumnRuleStyle = NS_STYLE_BORDER_STYLE_NONE;
@@ -806,8 +805,7 @@ nsChangeHint nsStyleColumn::CalcDifference(const nsStyleColumn& aOther) const
     return NS_STYLE_HINT_FRAMECHANGE;
 
   if (mColumnWidth != aOther.mColumnWidth ||
-      mColumnGap != aOther.mColumnGap ||
-      mColumnFill != aOther.mColumnFill)
+      mColumnGap != aOther.mColumnGap)
     return NS_STYLE_HINT_REFLOW;
 
   if (GetComputedColumnRuleWidth() != aOther.GetComputedColumnRuleWidth() ||
@@ -839,7 +837,7 @@ nsStyleSVG::nsStyleSVG()
     mStroke.mType            = eStyleSVGPaintType_None;
     mStroke.mPaint.mColor    = NS_RGB(0,0,0);
     mStroke.mFallbackColor   = NS_RGB(0,0,0);
-    mStrokeDasharray         = nullptr;
+    mStrokeDasharray         = nsnull;
 
     mStrokeDashoffset.SetCoordValue(0);
     mStrokeWidth.SetCoordValue(nsPresContext::CSSPixelsToAppUnits(1));
@@ -887,7 +885,7 @@ nsStyleSVG::nsStyleSVG(const nsStyleSVG& aSource)
     else
       mStrokeDasharrayLength = 0;
   } else {
-    mStrokeDasharray = nullptr;
+    mStrokeDasharray = nsnull;
   }
 
   mStrokeDashoffset = aSource.mStrokeDashoffset;
@@ -999,9 +997,9 @@ nsStyleSVGReset::nsStyleSVGReset()
     mStopColor               = NS_RGB(0,0,0);
     mFloodColor              = NS_RGB(0,0,0);
     mLightingColor           = NS_RGB(255,255,255);
-    mClipPath                = nullptr;
-    mFilter                  = nullptr;
-    mMask                    = nullptr;
+    mClipPath                = nsnull;
+    mFilter                  = nsnull;
+    mMask                    = nsnull;
     mStopOpacity             = 1.0f;
     mFloodOpacity            = 1.0f;
     mDominantBaseline        = NS_STYLE_DOMINANT_BASELINE_AUTO;
@@ -1038,15 +1036,13 @@ nsChangeHint nsStyleSVGReset::CalcDifference(const nsStyleSVGReset& aOther) cons
     NS_UpdateHint(hint, nsChangeHint_UpdateEffects);
     NS_UpdateHint(hint, nsChangeHint_ReflowFrame);
     NS_UpdateHint(hint, nsChangeHint_RepaintFrame);
-  } else if (mDominantBaseline != aOther.mDominantBaseline) {
-    NS_UpdateHint(hint, nsChangeHint_NeedReflow);
-    NS_UpdateHint(hint, nsChangeHint_NeedDirtyReflow);
-  } else if (mStopColor     != aOther.mStopColor     ||
-             mFloodColor    != aOther.mFloodColor    ||
-             mLightingColor != aOther.mLightingColor ||
-             mStopOpacity   != aOther.mStopOpacity   ||
-             mFloodOpacity  != aOther.mFloodOpacity  ||
-             mVectorEffect  != aOther.mVectorEffect)
+  } else if (mStopColor        != aOther.mStopColor     ||
+             mFloodColor       != aOther.mFloodColor    ||
+             mLightingColor    != aOther.mLightingColor ||
+             mStopOpacity      != aOther.mStopOpacity   ||
+             mFloodOpacity     != aOther.mFloodOpacity  ||
+             mDominantBaseline != aOther.mDominantBaseline ||
+             mVectorEffect     != aOther.mVectorEffect)
     NS_UpdateHint(hint, nsChangeHint_RepaintFrame);
 
   return hint;
@@ -1447,7 +1443,7 @@ nsStyleGradient::IsOpaque()
 
 nsStyleImage::nsStyleImage()
   : mType(eStyleImageType_Null)
-  , mCropRect(nullptr)
+  , mCropRect(nsnull)
 #ifdef DEBUG
   , mImageTracked(false)
 #endif
@@ -1464,7 +1460,7 @@ nsStyleImage::~nsStyleImage()
 
 nsStyleImage::nsStyleImage(const nsStyleImage& aOther)
   : mType(eStyleImageType_Null)
-  , mCropRect(nullptr)
+  , mCropRect(nsnull)
 #ifdef DEBUG
   , mImageTracked(false)
 #endif
@@ -1513,7 +1509,7 @@ nsStyleImage::SetNull()
     NS_Free(mElementId);
 
   mType = eStyleImageType_Null;
-  mCropRect = nullptr;
+  mCropRect = nsnull;
 }
 
 void
@@ -1605,7 +1601,7 @@ nsStyleImage::SetCropRect(nsStyleSides* aCropRect)
     mCropRect = new nsStyleSides(*aCropRect);
     // There is really not much we can do if 'new' fails
   } else {
-    mCropRect = nullptr;
+    mCropRect = nsnull;
   }
 }
 
@@ -2156,7 +2152,7 @@ nsStyleDisplay::nsStyleDisplay()
   mClipFlags = NS_STYLE_CLIP_AUTO;
   mClip.SetRect(0,0,0,0);
   mOpacity = 1.0f;
-  mSpecifiedTransform = nullptr;
+  mSpecifiedTransform = nsnull;
   mTransformOrigin[0].SetPercentValue(0.5f); // Transform is centered on origin
   mTransformOrigin[1].SetPercentValue(0.5f);
   mTransformOrigin[2].SetCoordValue(0);
@@ -2425,7 +2421,7 @@ nsStyleContentData& nsStyleContentData::operator=(const nsStyleContentData& aOth
   } else if (aOther.mContent.mString) {
     mContent.mString = NS_strdup(aOther.mContent.mString);
   } else {
-    mContent.mString = nullptr;
+    mContent.mString = nsnull;
   }
   return *this;
 }
@@ -2501,9 +2497,9 @@ nsStyleContentData::UntrackImage(nsPresContext* aContext)
 
 nsStyleContent::nsStyleContent(void)
   : mMarkerOffset(),
-    mContents(nullptr),
-    mIncrements(nullptr),
-    mResets(nullptr),
+    mContents(nsnull),
+    mIncrements(nsnull),
+    mResets(nsnull),
     mContentCount(0),
     mIncrementCount(0),
     mResetCount(0)
@@ -2537,9 +2533,9 @@ nsStyleContent::Destroy(nsPresContext* aContext)
 
 nsStyleContent::nsStyleContent(const nsStyleContent& aSource)
    :mMarkerOffset(),
-    mContents(nullptr),
-    mIncrements(nullptr),
-    mResets(nullptr),
+    mContents(nsnull),
+    mIncrements(nsnull),
+    mResets(nsnull),
     mContentCount(0),
     mIncrementCount(0),
     mResetCount(0)
@@ -2654,7 +2650,7 @@ nsresult nsStyleContent::AllocateContents(PRUint32 aCount)
 
 nsStyleQuotes::nsStyleQuotes(void)
   : mQuotesCount(0),
-    mQuotes(nullptr)
+    mQuotes(nsnull)
 {
   MOZ_COUNT_CTOR(nsStyleQuotes);
   SetInitial();
@@ -2668,7 +2664,7 @@ nsStyleQuotes::~nsStyleQuotes(void)
 
 nsStyleQuotes::nsStyleQuotes(const nsStyleQuotes& aSource)
   : mQuotesCount(0),
-    mQuotes(nullptr)
+    mQuotes(nsnull)
 {
   MOZ_COUNT_CTOR(nsStyleQuotes);
   CopyFrom(aSource);
@@ -2850,7 +2846,7 @@ nsStyleText::nsStyleText(void)
   mTextIndent.SetCoordValue(0);
   mWordSpacing = 0;
 
-  mTextShadow = nullptr;
+  mTextShadow = nsnull;
   mTabSize = NS_STYLE_TABSIZE_INITIAL;
 }
 
@@ -2932,7 +2928,7 @@ nsCursorImage::nsCursorImage(const nsCursorImage& aOther)
 
 nsCursorImage::~nsCursorImage()
 {
-  SetImage(nullptr);
+  SetImage(nsnull);
 }
 
 nsCursorImage&
@@ -2958,7 +2954,7 @@ nsStyleUserInterface::nsStyleUserInterface(void)
   mCursor = NS_STYLE_CURSOR_AUTO; // fix for bugzilla bug 51113
 
   mCursorArrayLength = 0;
-  mCursorArray = nullptr;
+  mCursorArray = nsnull;
 }
 
 nsStyleUserInterface::nsStyleUserInterface(const nsStyleUserInterface& aSource) :
@@ -3013,7 +3009,7 @@ nsChangeHint nsStyleUserInterface::MaxDifference()
 void
 nsStyleUserInterface::CopyCursorArrayFrom(const nsStyleUserInterface& aSource)
 {
-  mCursorArray = nullptr;
+  mCursorArray = nsnull;
   mCursorArrayLength = 0;
   if (aSource.mCursorArrayLength) {
     mCursorArray = new nsCursorImage[aSource.mCursorArrayLength];

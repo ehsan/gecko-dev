@@ -71,11 +71,11 @@ public:
    * Construct from an object pointer (may be null).
    */
   explicit
-  nsTWeakRef(Type *obj = nullptr) {
+  nsTWeakRef(Type *obj = nsnull) {
     if (obj) {
       mRef = new Inner(obj);
     } else {
-      mRef = nullptr;
+      mRef = nsnull;
     }
   }
 
@@ -97,7 +97,7 @@ public:
     if (obj) {
       mRef = new Inner(obj);
     } else {
-      mRef = nullptr;
+      mRef = nsnull;
     }
     return *this;
   }
@@ -119,7 +119,7 @@ public:
    * has been cleared or if an out-of-memory error occurred at assignment.
    */
   Type *get() const {
-    return mRef ? mRef->mObj : nullptr;
+    return mRef ? mRef->mObj : nsnull;
   }
 
   /**
@@ -131,11 +131,11 @@ public:
     Type *obj;
     if (mRef) {
       obj = mRef->mObj;
-      mRef->mObj = nullptr;
+      mRef->mObj = nsnull;
       mRef->Release();
-      mRef = nullptr;
+      mRef = nsnull;
     } else {
-      obj = nullptr;
+      obj = nsnull;
     }
     return obj;
   }

@@ -560,7 +560,7 @@ nsMIMEInfoWin::GetPossibleLocalHandlers(nsIArray **_retval)
 {
   nsresult rv;
 
-  *_retval = nullptr;
+  *_retval = nsnull;
 
   nsCOMPtr<nsIMutableArray> appList =
     do_CreateInstance("@mozilla.org/array;1");

@@ -119,8 +119,7 @@ nsresult nsWaveReader::Init(nsBuiltinDecoderReader* aCloneDonor)
   return NS_OK;
 }
 
-nsresult nsWaveReader::ReadMetadata(nsVideoInfo* aInfo,
-                                    nsHTMLMediaElement::MetadataTags** aTags)
+nsresult nsWaveReader::ReadMetadata(nsVideoInfo* aInfo)
 {
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
 
@@ -135,8 +134,6 @@ nsresult nsWaveReader::ReadMetadata(nsVideoInfo* aInfo,
   mInfo.mAudioChannels = mChannels;
 
   *aInfo = mInfo;
-
-  *aTags = nullptr;
 
   ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
 

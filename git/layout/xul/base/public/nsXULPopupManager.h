@@ -142,8 +142,8 @@ public:
       mIsContext(aIsContext),
       mOnMenuBar(false),
       mIgnoreKeys(false),
-      mParent(nullptr),
-      mChild(nullptr)
+      mParent(nsnull),
+      mChild(nsnull)
   {
     NS_ASSERTION(aFrame, "null frame passed to nsMenuChainItem constructor");
     MOZ_COUNT_CTOR(nsMenuChainItem);
@@ -304,6 +304,13 @@ public:
 
   void AdjustPopupsOnWindowChange(nsPIDOMWindow* aWindow);
 
+  // get the frame for a content node aContent if the frame's type
+  // matches aFrameType. Otherwise, return null. If aShouldFlush is true,
+  // then the frames are flushed before retrieving the frame.
+  nsIFrame* GetFrameOfTypeForContent(nsIContent* aContent,
+                                     nsIAtom* aFrameType,
+                                     bool aShouldFlush);
+
   // given a menu frame, find the prevous or next menu frame. If aPopup is
   // true then navigate a menupopup, from one item on the menu to the previous
   // or next one. This is used for cursor navigation between items in a popup
@@ -438,7 +445,7 @@ public:
                  bool aHideChain,
                  bool aDeselectMenu,
                  bool aAsynchronous,
-                 nsIContent* aLastPopup = nullptr);
+                 nsIContent* aLastPopup = nsnull);
 
   /**
    * Hide the popup aFrame. This method is called by the view manager when the
@@ -587,7 +594,7 @@ public:
   bool HandleKeyboardNavigationInPopup(nsMenuPopupFrame* aFrame,
                                          nsNavigationDirection aDir)
   {
-    return HandleKeyboardNavigationInPopup(nullptr, aFrame, aDir);
+    return HandleKeyboardNavigationInPopup(nsnull, aFrame, aDir);
   }
 
   nsresult KeyUp(nsIDOMKeyEvent* aKeyEvent);
@@ -597,6 +604,9 @@ public:
 protected:
   nsXULPopupManager();
   ~nsXULPopupManager();
+
+  // get the nsMenuFrame, if any, for the given content node
+  nsMenuFrame* GetMenuFrameForContent(nsIContent* aContent);
 
   // get the nsMenuPopupFrame, if any, for the given content node
   nsMenuPopupFrame* GetPopupFrameForContent(nsIContent* aContent, bool aShouldFlush);

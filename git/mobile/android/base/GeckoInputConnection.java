@@ -5,13 +5,11 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.gfx.InputConnectionHandler;
-import org.mozilla.gecko.gfx.LayerController;
-
 import android.R;
 import android.content.Context;
 import android.os.Build;
 import android.os.SystemClock;
+import android.provider.Settings.Secure;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.Selection;
@@ -39,6 +37,9 @@ import android.view.inputmethod.ExtractedText;
 import android.view.inputmethod.ExtractedTextRequest;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputMethodManager;
+
+import org.mozilla.gecko.gfx.InputConnectionHandler;
+import org.mozilla.gecko.gfx.LayerController;
 
 import java.util.Timer;
 import java.util.TimerTask;
@@ -840,7 +841,7 @@ public class GeckoInputConnection
             outAttrs.actionLabel = mIMEActionHint;
 
         GeckoApp app = GeckoApp.mAppContext;
-        DisplayMetrics metrics = app.getResources().getDisplayMetrics();
+        DisplayMetrics metrics = app.getDisplayMetrics();
         if (Math.min(metrics.widthPixels, metrics.heightPixels) > INLINE_IME_MIN_DISPLAY_SIZE) {
             // prevent showing full-screen keyboard only when the screen is tall enough
             // to show some reasonable amount of the page (see bug 752709)

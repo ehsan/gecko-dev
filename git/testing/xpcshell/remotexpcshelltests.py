@@ -101,11 +101,6 @@ class XPCShellRemote(xpcshell.XPCShellTests, object):
 
         self.device.pushFile(self.options.localAPK, self.remoteBinDir)
 
-        self.pushLibs()
-
-        self.device.chmodDir(self.remoteBinDir)
-
-    def pushLibs(self):
         if self.options.localAPK:
           localLib = os.path.join(self.options.objdir, "dist/fennec")
           if not os.path.exists(localLib):
@@ -131,6 +126,7 @@ class XPCShellRemote(xpcshell.XPCShellTests, object):
               if (file.endswith(".so")):
                 self.device.pushFile(os.path.join(root, file), self.remoteBinDir)
 
+        self.device.chmodDir(self.remoteBinDir)
 
     def setupTestDir(self):
         xpcDir = os.path.join(self.options.objdir, "_tests/xpcshell")
@@ -201,13 +197,10 @@ class XPCShellRemote(xpcshell.XPCShellTests, object):
           self.log.info("TEST-INFO | profile dir is %s" % self.profileDir)
         return self.profileDir
 
-    def setLD_LIBRARY_PATH(self, env):
-        env["LD_LIBRARY_PATH"]=self.remoteBinDir
-
     def launchProcess(self, cmd, stdout, stderr, env, cwd):
         cmd[0] = self.remoteJoin(self.remoteBinDir, "xpcshell")
-        env = {}
-        self.setLD_LIBRARY_PATH(env)
+        env = dict()
+        env["LD_LIBRARY_PATH"]=self.remoteBinDir
         env["MOZ_LINKER_CACHE"]=self.remoteBinDir
         if self.options.localAPK and self.appRoot:
           env["GRE_HOME"]=self.appRoot

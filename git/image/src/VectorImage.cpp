@@ -561,7 +561,7 @@ nsIFrame*
 VectorImage::GetRootLayoutFrame()
 {
   if (mError)
-    return nullptr;
+    return nsnull;
 
   return mSVGDocumentWrapper->GetRootLayoutFrame();
 }
@@ -633,7 +633,7 @@ VectorImage::OnStartRequest(nsIRequest* aRequest, nsISupports* aCtxt)
   mSVGDocumentWrapper = new SVGDocumentWrapper();
   nsresult rv = mSVGDocumentWrapper->OnStartRequest(aRequest, aCtxt);
   if (NS_FAILED(rv)) {
-    mSVGDocumentWrapper = nullptr;
+    mSVGDocumentWrapper = nsnull;
     mError = true;
   }
 
@@ -673,11 +673,11 @@ VectorImage::OnStopRequest(nsIRequest* aRequest, nsISupports* aCtxt,
   nsCOMPtr<imgIDecoderObserver> observer = do_QueryReferent(mObserver);
   if (observer) {
     // NOTE: This signals that width/height are available.
-    observer->OnStartContainer(nullptr, this);
+    observer->OnStartContainer(nsnull, this);
 
-    observer->FrameChanged(nullptr, this, &nsIntRect::GetMaxSizedIntRect());
-    observer->OnStopFrame(nullptr, 0);
-    observer->OnStopDecode(nullptr, NS_OK, nullptr);
+    observer->FrameChanged(nsnull, this, &nsIntRect::GetMaxSizedIntRect());
+    observer->OnStopFrame(nsnull, 0);
+    observer->OnStopDecode(nsnull, NS_OK, nsnull);
   }
   EvaluateAnimation();
 
@@ -714,12 +714,12 @@ VectorImage::InvalidateObserver()
 
   nsCOMPtr<imgIContainerObserver> containerObs(do_QueryReferent(mObserver));
   if (containerObs) {
-    containerObs->FrameChanged(nullptr, this, &nsIntRect::GetMaxSizedIntRect());
+    containerObs->FrameChanged(nsnull, this, &nsIntRect::GetMaxSizedIntRect());
   }
 
   nsCOMPtr<imgIDecoderObserver> decoderObs(do_QueryReferent(mObserver));
   if (decoderObs) {
-    decoderObs->OnStopFrame(nullptr, imgIContainer::FRAME_CURRENT);
+    decoderObs->OnStopFrame(nsnull, imgIContainer::FRAME_CURRENT);
   }
 }
 

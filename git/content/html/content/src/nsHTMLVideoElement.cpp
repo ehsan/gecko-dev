@@ -82,7 +82,7 @@ void
 nsHTMLVideoElement::GetItemValueText(nsAString& aValue)
 {
   // Can't call GetSrc because we don't have a JSContext
-  GetURIAttr(nsGkAtoms::src, nullptr, aValue);
+  GetURIAttr(nsGkAtoms::src, nsnull, aValue);
 }
 
 void
@@ -131,7 +131,7 @@ nsHTMLVideoElement::IsAttributeMapped(const nsIAtom* aAttribute) const
   static const MappedAttributeEntry attributes[] = {
     { &nsGkAtoms::width },
     { &nsGkAtoms::height },
-    { nullptr }
+    { nsnull }
   };
 
   static const MappedAttributeEntry* const map[] = {

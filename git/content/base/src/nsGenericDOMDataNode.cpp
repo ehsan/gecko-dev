@@ -240,7 +240,7 @@ nsGenericDOMDataNode::InsertData(PRUint32 aOffset,
 nsresult
 nsGenericDOMDataNode::DeleteData(PRUint32 aOffset, PRUint32 aCount)
 {
-  return SetTextInternal(aOffset, aCount, nullptr, 0, true);
+  return SetTextInternal(aOffset, aCount, nsnull, 0, true);
 }
 
 nsresult
@@ -535,7 +535,7 @@ nsGenericDOMDataNode::UnbindFromTree(bool aDeep, bool aNullParent)
     if (GetParent()) {
       NS_RELEASE(mParent);
     } else {
-      mParent = nullptr;
+      mParent = nsnull;
     }
     SetParentIsContent(false);
   }
@@ -546,7 +546,7 @@ nsGenericDOMDataNode::UnbindFromTree(bool aDeep, bool aNullParent)
 
   nsDataSlots *slots = GetExistingDataSlots();
   if (slots) {
-    slots->mBindingParent = nullptr;
+    slots->mBindingParent = nsnull;
   }
 
   nsNodeUtils::ParentChainChanged(this);
@@ -555,19 +555,19 @@ nsGenericDOMDataNode::UnbindFromTree(bool aDeep, bool aNullParent)
 already_AddRefed<nsINodeList>
 nsGenericDOMDataNode::GetChildren(PRUint32 aFilter)
 {
-  return nullptr;
+  return nsnull;
 }
 
 nsIAtom *
 nsGenericDOMDataNode::GetIDAttributeName() const
 {
-  return nullptr;
+  return nsnull;
 }
 
 already_AddRefed<nsINodeInfo>
 nsGenericDOMDataNode::GetExistingAttrNameFromQName(const nsAString& aStr) const
 {
-  return nullptr;
+  return nsnull;
 }
 
 nsresult
@@ -603,7 +603,7 @@ nsGenericDOMDataNode::HasAttr(PRInt32 aNameSpaceID, nsIAtom *aAttribute) const
 const nsAttrName*
 nsGenericDOMDataNode::GetAttrNameAt(PRUint32 aIndex) const
 {
-  return nullptr;
+  return nsnull;
 }
 
 PRUint32
@@ -621,14 +621,14 @@ nsGenericDOMDataNode::GetChildCount() const
 nsIContent *
 nsGenericDOMDataNode::GetChildAt(PRUint32 aIndex) const
 {
-  return nullptr;
+  return nsnull;
 }
 
 nsIContent * const *
 nsGenericDOMDataNode::GetChildArray(PRUint32* aChildCount) const
 {
   *aChildCount = 0;
-  return nullptr;
+  return nsnull;
 }
 
 PRInt32
@@ -653,7 +653,7 @@ nsIContent *
 nsGenericDOMDataNode::GetBindingParent() const
 {
   nsDataSlots *slots = GetExistingDataSlots();
-  return slots ? slots->mBindingParent : nullptr;
+  return slots ? slots->mBindingParent : nsnull;
 }
 
 bool
@@ -691,7 +691,7 @@ nsGenericDOMDataNode::DumpContent(FILE* out, PRInt32 aIndent,
 bool
 nsGenericDOMDataNode::IsLink(nsIURI** aURI) const
 {
-  *aURI = nullptr;
+  *aURI = nsnull;
   return false;
 }
 
@@ -709,7 +709,7 @@ nsresult
 nsGenericDOMDataNode::SplitData(PRUint32 aOffset, nsIContent** aReturn,
                                 bool aCloneAfterOriginal)
 {
-  *aReturn = nullptr;
+  *aReturn = nsnull;
   nsresult rv = NS_OK;
   nsAutoString cutText;
   PRUint32 length = TextLength();
@@ -739,8 +739,8 @@ nsGenericDOMDataNode::SplitData(PRUint32 aOffset, nsIContent** aReturn,
   CharacterDataChangeInfo::Details details = {
     CharacterDataChangeInfo::Details::eSplit, newContent
   };
-  rv = SetTextInternal(cutStartOffset, cutLength, nullptr, 0, true,
-                       aCloneAfterOriginal ? &details : nullptr);
+  rv = SetTextInternal(cutStartOffset, cutLength, nsnull, 0, true,
+                       aCloneAfterOriginal ? &details : nsnull);
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -900,14 +900,14 @@ nsGenericDOMDataNode::GetCurrentValueAtom()
 nsIAtom*
 nsGenericDOMDataNode::DoGetID() const
 {
-  return nullptr;
+  return nsnull;
 }
 
 const nsAttrValue*
 nsGenericDOMDataNode::DoGetClasses() const
 {
   NS_NOTREACHED("Shouldn't ever be called");
-  return nullptr;
+  return nsnull;
 }
 
 NS_IMETHODIMP
@@ -933,7 +933,7 @@ nsGenericDOMDataNode::GetAttributeChangeHint(const nsIAtom* aAttribute,
 nsIAtom*
 nsGenericDOMDataNode::GetClassAttributeName() const
 {
-  return nullptr;
+  return nsnull;
 }
 
 size_t

@@ -29,7 +29,7 @@ USING_INDEXEDDB_NAMESPACE
 
 IDBRequest::IDBRequest()
 : mResultVal(JSVAL_VOID),
-  mActorParent(nullptr),
+  mActorParent(nsnull),
   mErrorCode(NS_OK),
   mHaveResultOrErrorCode(false),
   mLineNo(0)
@@ -56,7 +56,7 @@ IDBRequest::Create(nsISupports* aSource,
   request->mTransaction = aTransaction;
   request->BindToOwner(aOwnerCache);
   if (!request->SetScriptOwner(aOwnerCache->GetScriptOwner())) {
-    return nullptr;
+    return nsnull;
   }
 
   request->CaptureCaller(aCallingCx);
@@ -70,7 +70,7 @@ IDBRequest::Reset()
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   mResultVal = JSVAL_VOID;
   mHaveResultOrErrorCode = false;
-  mError = nullptr;
+  mError = nsnull;
 }
 
 nsresult
@@ -124,7 +124,7 @@ IDBRequest::NotifyHelperCompleted(HelperBase* aHelper)
   }
 
   if (NS_SUCCEEDED(rv)) {
-    mError = nullptr;
+    mError = nsnull;
   }
   else {
     SetError(rv);
@@ -189,15 +189,15 @@ IDBRequest::GetJSContext()
     NS_ASSERTION(cxStack, "Failed to get thread context stack!");
 
     cx = cxStack->GetSafeJSContext();
-    NS_ENSURE_TRUE(cx, nullptr);
+    NS_ENSURE_TRUE(cx, nsnull);
 
     return cx;
   }
 
   nsresult rv;
   nsIScriptContext* sc = GetContextForEventHandlers(&rv);
-  NS_ENSURE_SUCCESS(rv, nullptr);
-  NS_ENSURE_TRUE(sc, nullptr);
+  NS_ENSURE_SUCCESS(rv, nsnull);
+  NS_ENSURE_TRUE(sc, nsnull);
 
   cx = sc->GetNativeContext();
   NS_ASSERTION(cx, "Failed to get a context!");
@@ -214,7 +214,7 @@ IDBRequest::CaptureCaller(JSContext* aCx)
     return;
   }
 
-  const char* filename = nullptr;
+  const char* filename = nsnull;
   PRUint32 lineNo = 0;
   if (!nsJSUtils::GetCallingLocation(aCx, &filename, &lineNo)) {
     NS_WARNING("Failed to get caller.");
@@ -359,7 +359,7 @@ IDBOpenDBRequest::Create(nsPIDOMWindow* aOwner,
 
   request->BindToOwner(aOwner);
   if (!request->SetScriptOwner(aScriptOwner)) {
-    return nullptr;
+    return nsnull;
   }
 
   request->CaptureCaller(aCallingCx);

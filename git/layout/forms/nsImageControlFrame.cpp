@@ -141,7 +141,7 @@ nsImageControlFrame::CreateAccessible()
     }
   }
 
-  return nullptr;
+  return nsnull;
 }
 #endif
 

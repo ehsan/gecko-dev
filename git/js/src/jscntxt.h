@@ -541,9 +541,6 @@ struct JSRuntime : js::RuntimeFriendFields
     /* The gcNumber at the time of the most recent GC's first slice. */
     uint64_t            gcStartNumber;
 
-    /* Whether the currently running GC can finish in multiple slices. */
-    int                 gcIsIncremental;
-
     /* Whether all compartments are being collected in first GC slice. */
     bool                gcIsFull;
 
@@ -1705,7 +1702,7 @@ namespace js {
 
 /* |callee| requires a usage string provided by JS_DefineFunctionsWithHelp. */
 extern void
-ReportUsageError(JSContext *cx, HandleObject callee, const char *msg);
+ReportUsageError(JSContext *cx, JSObject *callee, const char *msg);
 
 } /* namespace js */
 

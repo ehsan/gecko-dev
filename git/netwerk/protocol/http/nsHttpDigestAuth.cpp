@@ -79,7 +79,7 @@ nsHttpDigestAuth::GetMethodAndPath(nsIHttpAuthenticableChannel *authChannel,
                                    nsCString                   &httpMethod,
                                    nsCString                   &path)
 {
-  nsresult rv, rv2;
+  nsresult rv;
   nsCOMPtr<nsIURI> uri;
   rv = authChannel->GetURI(getter_AddRefs(uri));
   if (NS_SUCCEEDED(rv)) {
@@ -94,17 +94,17 @@ nsHttpDigestAuth::GetMethodAndPath(nsIHttpAuthenticableChannel *authChannel,
         // just call it.)
         //
         PRInt32 port;
-        rv = uri->GetAsciiHost(path);
-        rv2 = uri->GetPort(&port);
-        if (NS_SUCCEEDED(rv) && NS_SUCCEEDED(rv2)) {
+        rv  = uri->GetAsciiHost(path);
+        rv |= uri->GetPort(&port);
+        if (NS_SUCCEEDED(rv)) {
           path.Append(':');
           path.AppendInt(port < 0 ? NS_HTTPS_DEFAULT_PORT : port);
         }
       }
       else { 
-        rv = authChannel->GetRequestMethod(httpMethod);
-        rv2 = uri->GetPath(path);
-        if (NS_SUCCEEDED(rv) && NS_SUCCEEDED(rv2)) {
+        rv  = authChannel->GetRequestMethod(httpMethod);
+        rv |= uri->GetPath(path);
+        if (NS_SUCCEEDED(rv)) {
           //
           // strip any fragment identifier from the URL path.
           //
@@ -224,7 +224,7 @@ nsHttpDigestAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChannel,
      * TODO: somehow?
      */
 #if 0
-    if (http_channel != nullptr)
+    if (http_channel != nsnull)
     {
       nsIInputStream * upload;
       nsCOMPtr<nsIUploadChannel> uc = do_QueryInterface(http_channel);

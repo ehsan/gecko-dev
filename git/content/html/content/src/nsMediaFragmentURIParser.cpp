@@ -106,7 +106,7 @@ bool nsMediaFragmentURIParser::ParseNPTSec(nsDependentSubstring& aString, double
   }
 
   nsDependentSubstring n(aString, 0, index);
-  nsresult ec;
+  PRInt32 ec;
   PRInt32 s = PromiseFlatString(n).ToInteger(&ec);
   if (NS_FAILED(ec)) {
     return false;
@@ -162,7 +162,7 @@ bool nsMediaFragmentURIParser::ParseNPTFraction(nsDependentSubstring& aString, d
 
     if (index > 1) {
       nsDependentSubstring number(aString, 0, index);
-      nsresult ec;
+      PRInt32 ec;
       fraction = PromiseFlatString(number).ToDouble(&ec);
       if (NS_FAILED(ec)) {
         return false;
@@ -211,7 +211,7 @@ bool nsMediaFragmentURIParser::ParseNPTHH(nsDependentSubstring& aString, PRUint3
   }
 
   nsDependentSubstring n(aString, 0, index);
-  nsresult ec;
+  PRInt32 ec;
   PRInt32 u = PromiseFlatString(n).ToInteger(&ec);
   if (NS_FAILED(ec)) {
     return false;
@@ -235,7 +235,8 @@ bool nsMediaFragmentURIParser::ParseNPTSS(nsDependentSubstring& aString, PRUint3
 
   if (IsDigit(aString[0]) && IsDigit(aString[1])) {
     nsDependentSubstring n(aString, 0, 2);
-    nsresult ec;
+    PRInt32 ec;
+
     PRInt32 u = PromiseFlatString(n).ToInteger(&ec);
     if (NS_FAILED(ec)) {
       return false;

@@ -111,7 +111,7 @@ nsRefreshDriver::AdvanceTimeAndRefresh(PRInt64 aMilliseconds)
   mMostRecentRefresh += TimeDuration::FromMilliseconds(aMilliseconds);
   nsCxPusher pusher;
   if (pusher.PushNull()) {
-    Notify(nullptr);
+    Notify(nsnull);
     pusher.Pop();
   }
 }
@@ -122,7 +122,7 @@ nsRefreshDriver::RestoreNormalRefresh()
   mTestControllingRefreshes = false;
   nsCxPusher pusher;
   if (pusher.PushNull()) {
-    Notify(nullptr); // will call UpdateMostRecentRefresh()
+    Notify(nsnull); // will call UpdateMostRecentRefresh()
     pusher.Pop();
   }
 }
@@ -148,7 +148,7 @@ nsRefreshDriver::AddRefreshObserver(nsARefreshObserver *aObserver,
                                     mozFlushType aFlushType)
 {
   ObserverArray& array = ArrayFor(aFlushType);
-  bool success = array.AppendElement(aObserver) != nullptr;
+  bool success = array.AppendElement(aObserver) != nsnull;
 
   EnsureTimerStarted(false);
 
@@ -217,7 +217,7 @@ nsRefreshDriver::EnsureTimerStarted(bool aAdjustingTimer)
                                          GetRefreshTimerInterval(),
                                          timerType);
   if (NS_FAILED(rv)) {
-    mTimer = nullptr;
+    mTimer = nsnull;
   }
 }
 
@@ -229,7 +229,7 @@ nsRefreshDriver::StopTimer()
   }
 
   mTimer->Cancel();
-  mTimer = nullptr;
+  mTimer = nsnull;
 }
 
 PRUint32
@@ -281,7 +281,7 @@ nsRefreshDriver::ArrayFor(mozFlushType aFlushType)
       return mObservers[2];
     default:
       NS_ABORT_IF_FALSE(false, "bad flush type");
-      return *static_cast<ObserverArray*>(nullptr);
+      return *static_cast<ObserverArray*>(nsnull);
   }
 }
 
@@ -495,7 +495,7 @@ nsRefreshDriver::DoRefresh()
 {
   // Don't do a refresh unless we're in a state where we should be refreshing.
   if (!mFrozen && mPresContext && mTimer) {
-    Notify(nullptr);
+    Notify(nsnull);
   }
 }
 

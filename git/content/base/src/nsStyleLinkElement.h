@@ -55,7 +55,7 @@ public:
 
   static PRUint32 ParseLinkTypes(const nsAString& aTypes);
   
-  void UpdateStyleSheetInternal() { UpdateStyleSheetInternal(nullptr); }
+  void UpdateStyleSheetInternal() { UpdateStyleSheetInternal(nsnull); }
 protected:
   /**
    * @param aOldDocument should be non-null only if we're updating because we

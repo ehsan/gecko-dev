@@ -55,19 +55,19 @@ nsTArrayToJSArray(JSContext* aCx, JSObject* aGlobal,
   JSObject* arrayObj;
 
   if (aSourceArray.IsEmpty()) {
-    arrayObj = JS_NewArrayObject(aCx, 0, nullptr);
+    arrayObj = JS_NewArrayObject(aCx, 0, nsnull);
   } else {
-    uint32_t valLength = aSourceArray.Length();
-    mozilla::ScopedDeleteArray<jsval> valArray(new jsval[valLength]);
-    JS::AutoArrayRooter tvr(aCx, valLength, valArray);
-    for (PRUint32 index = 0; index < valLength; index++) {
+    nsTArray<jsval> valArray;
+    valArray.SetLength(aSourceArray.Length());
+
+    for (PRUint32 index = 0; index < valArray.Length(); index++) {
       nsISupports* obj = aSourceArray[index]->ToISupports();
       nsresult rv =
         nsContentUtils::WrapNative(aCx, aGlobal, obj, &valArray[index]);
       NS_ENSURE_SUCCESS(rv, rv);
     }
 
-    arrayObj = JS_NewArrayObject(aCx, valLength, valArray);
+    arrayObj = JS_NewArrayObject(aCx, valArray.Length(), valArray.Elements());
   }
 
   if (!arrayObj) {
@@ -86,7 +86,7 @@ nsTArrayToJSArray(JSContext* aCx, JSObject* aGlobal,
 } // anonymous namespace
 
 Telephony::Telephony()
-: mActiveCall(nullptr), mCallsArray(nullptr), mRooted(false)
+: mActiveCall(nsnull), mCallsArray(nsnull), mRooted(false)
 {
   if (!gTelephonyList) {
     gTelephonyList = new TelephonyList();
@@ -110,7 +110,7 @@ Telephony::~Telephony()
 
   if (gTelephonyList->Length() == 1) {
     delete gTelephonyList;
-    gTelephonyList = nullptr;
+    gTelephonyList = nsnull;
   }
   else {
     gTelephonyList->RemoveElement(this);
@@ -125,10 +125,10 @@ Telephony::Create(nsPIDOMWindow* aOwner, nsIRILContentHelper* aRIL)
   NS_ASSERTION(aRIL, "Null RIL!");
 
   nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(aOwner);
-  NS_ENSURE_TRUE(sgo, nullptr);
+  NS_ENSURE_TRUE(sgo, nsnull);
 
   nsCOMPtr<nsIScriptContext> scriptContext = sgo->GetContext();
-  NS_ENSURE_TRUE(scriptContext, nullptr);
+  NS_ENSURE_TRUE(scriptContext, nsnull);
 
   nsRefPtr<Telephony> telephony = new Telephony();
 
@@ -138,10 +138,10 @@ Telephony::Create(nsPIDOMWindow* aOwner, nsIRILContentHelper* aRIL)
   telephony->mRILTelephonyCallback = new RILTelephonyCallback(telephony);
 
   nsresult rv = aRIL->EnumerateCalls(telephony->mRILTelephonyCallback);
-  NS_ENSURE_SUCCESS(rv, nullptr);
+  NS_ENSURE_SUCCESS(rv, nsnull);
 
   rv = aRIL->RegisterTelephonyCallback(telephony->mRILTelephonyCallback);
-  NS_ENSURE_SUCCESS(rv, nullptr);
+  NS_ENSURE_SUCCESS(rv, nsnull);
 
   return telephony.forget();
 }
@@ -247,8 +247,8 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(Telephony,
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(incoming)
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(callschanged)
   tmp->mCalls.Clear();
-  tmp->mActiveCall = nullptr;
-  tmp->mCallsArray = nullptr;
+  tmp->mActiveCall = nsnull;
+  tmp->mCallsArray = nsnull;
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(Telephony)
@@ -418,7 +418,7 @@ Telephony::CallStateChanged(PRUint32 aCallIndex, PRUint16 aCallState,
     } else if (tempCall->CallIndex() == aCallIndex) {
       // We already know about this call so just update its state.
       modifiedCall = tempCall;
-      outgoingCall = nullptr;
+      outgoingCall = nsnull;
       break;
     }
   }
@@ -438,13 +438,13 @@ Telephony::CallStateChanged(PRUint32 aCallIndex, PRUint16 aCallState,
     // See if this should replace our current active call.
     if (aIsActive) {
       if (aCallState == nsIRadioInterfaceLayer::CALL_STATE_DISCONNECTED) {
-        mActiveCall = nullptr;
+        mActiveCall = nsnull;
       } else {
         mActiveCall = modifiedCall;
       }
     } else {
       if (mActiveCall && mActiveCall->CallIndex() == aCallIndex) {
-        mActiveCall = nullptr;
+        mActiveCall = nsnull;
       }
     }
 
@@ -529,7 +529,7 @@ Telephony::NotifyError(PRInt32 aCallIndex,
   }
 
   if (mActiveCall && mActiveCall->CallIndex() == callToNotify->CallIndex()) {
-    mActiveCall = nullptr;
+    mActiveCall = nsnull;
   }
 
   // Set the call state to 'disconnected' and remove it from the calls list.
@@ -556,7 +556,7 @@ NS_NewTelephony(nsPIDOMWindow* aWindow, nsIDOMTelephony** aTelephony)
   NS_ENSURE_SUCCESS(rv, rv);
   
   if (!allowed) {
-    *aTelephony = nullptr;
+    *aTelephony = nsnull;
     return NS_OK;
   }
 

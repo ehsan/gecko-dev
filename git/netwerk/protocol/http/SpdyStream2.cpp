@@ -32,8 +32,8 @@ SpdyStream2::SpdyStream2(nsAHttpTransaction *httpTransaction,
     mTransaction(httpTransaction),
     mSession(spdySession),
     mSocketTransport(socketTransport),
-    mSegmentReader(nullptr),
-    mSegmentWriter(nullptr),
+    mSegmentReader(nsnull),
+    mSegmentWriter(nsnull),
     mStreamID(0),
     mChunkSize(chunkSize),
     mSynFrameComplete(0),
@@ -89,7 +89,7 @@ SpdyStream2::ReadSegments(nsAHttpSegmentReader *reader,
     // stream. That stream will show up in OnReadSegment().
     mSegmentReader = reader;
     rv = mTransaction->ReadSegments(this, count, countRead);
-    mSegmentReader = nullptr;
+    mSegmentReader = nsnull;
 
     // Check to see if the transaction's request could be written out now.
     // If not, mark the stream for callback when writing can proceed.
@@ -130,8 +130,8 @@ SpdyStream2::ReadSegments(nsAHttpSegmentReader *reader,
     // We were trying to send the SYN-STREAM but were blocked from trying
     // to transmit it the first time(s).
     mSegmentReader = reader;
-    rv = TransmitFrame(nullptr, nullptr);
-    mSegmentReader = nullptr;
+    rv = TransmitFrame(nsnull, nsnull);
+    mSegmentReader = nsnull;
     *countRead = 0;
     if (NS_SUCCEEDED(rv)) {
       NS_ABORT_IF_FALSE(!mTxInlineFrameUsed,
@@ -154,8 +154,8 @@ SpdyStream2::ReadSegments(nsAHttpSegmentReader *reader,
     // sending it out - try again.
     if (!mSentFinOnData) {
       mSegmentReader = reader;
-      rv = TransmitFrame(nullptr, nullptr);
-      mSegmentReader = nullptr;
+      rv = TransmitFrame(nsnull, nsnull);
+      mSegmentReader = nsnull;
       NS_ABORT_IF_FALSE(NS_FAILED(rv) || !mTxInlineFrameUsed,
                         "Transmit Frame should be all or nothing");
       if (NS_SUCCEEDED(rv))
@@ -203,7 +203,7 @@ SpdyStream2::WriteSegments(nsAHttpSegmentWriter *writer,
 
   mSegmentWriter = writer;
   nsresult rv = mTransaction->WriteSegments(writer, count, countWritten);
-  mSegmentWriter = nullptr;
+  mSegmentWriter = nsnull;
   return rv;
 }
 
@@ -382,7 +382,7 @@ SpdyStream2::ParseHttpRequestHeaders(const char *buf,
 
     if (name.Equals("content-length")) {
       PRInt64 len;
-      if (nsHttp::ParseInt64(val->get(), nullptr, &len))
+      if (nsHttp::ParseInt64(val->get(), nsnull, &len))
         mRequestBodyLenRemaining = len;
     }
   }
@@ -792,7 +792,7 @@ SpdyStream2::OnReadSegment(const char *buf,
     if (mSynFrameComplete) {
       NS_ABORT_IF_FALSE(mTxInlineFrameUsed,
                         "OnReadSegment SynFrameComplete 0b");
-      rv = TransmitFrame(nullptr, nullptr);
+      rv = TransmitFrame(nsnull, nsnull);
       NS_ABORT_IF_FALSE(NS_FAILED(rv) || !mTxInlineFrameUsed,
                         "Transmit Frame should be all or nothing");
 

@@ -19,10 +19,10 @@
 #define NOTIFY_TOKEN 0xFA
 
 #ifdef PR_LOGGING
-PRLogModuleInfo *gWidgetLog = nullptr;
-PRLogModuleInfo *gWidgetFocusLog = nullptr;
-PRLogModuleInfo *gWidgetDragLog = nullptr;
-PRLogModuleInfo *gWidgetDrawLog = nullptr;
+PRLogModuleInfo *gWidgetLog = nsnull;
+PRLogModuleInfo *gWidgetFocusLog = nsnull;
+PRLogModuleInfo *gWidgetDragLog = nsnull;
+PRLogModuleInfo *gWidgetDrawLog = nsnull;
 #endif
 
 static GPollFunc sPollFunc;
@@ -107,7 +107,7 @@ nsAppShell::Init()
 
     ioc = g_io_channel_unix_new(mPipeFDs[0]);
     mTag = g_io_add_watch_full(ioc, G_PRIORITY_DEFAULT, G_IO_IN,
-                               EventProcessorCallback, this, nullptr);
+                               EventProcessorCallback, this, nsnull);
     g_io_channel_unref(ioc);
 
     return nsBaseAppShell::Init();

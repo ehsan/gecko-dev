@@ -84,12 +84,12 @@ gfxSharedImageSurface::Open(const Shmem& aShmem)
     SharedImageInfo* shmInfo = GetShmInfoPtr(aShmem);
     gfxIntSize size(shmInfo->width, shmInfo->height);
     if (!CheckSurfaceSize(size))
-        return nullptr;
+        return nsnull;
 
     nsRefPtr<gfxSharedImageSurface> s =
         new gfxSharedImageSurface(size,
                                   (gfxImageFormat)shmInfo->format,
                                   aShmem);
     // We didn't create this Shmem and so don't free it on errors
-    return (s->CairoStatus() != 0) ? nullptr : s.forget();
+    return (s->CairoStatus() != 0) ? nsnull : s.forget();
 }

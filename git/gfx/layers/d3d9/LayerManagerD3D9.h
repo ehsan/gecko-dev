@@ -167,7 +167,7 @@ public:
 
   static void OnDeviceManagerDestroy(DeviceManagerD3D9 *aDeviceManager) {
     if(aDeviceManager == mDefaultDeviceManager)
-      mDefaultDeviceManager = nullptr;
+      mDefaultDeviceManager = nsnull;
   }
 
 #ifdef MOZ_LAYERS_HAVE_LOG
@@ -233,7 +233,7 @@ class LayerD3D9
 public:
   LayerD3D9(LayerManagerD3D9 *aManager);
 
-  virtual LayerD3D9 *GetFirstChildD3D9() { return nullptr; }
+  virtual LayerD3D9 *GetFirstChildD3D9() { return nsnull; }
 
   void SetFirstChild(LayerD3D9 *aParent);
 
@@ -284,7 +284,7 @@ public:
    */
   virtual already_AddRefed<IDirect3DTexture9> GetAsTexture(gfxIntSize* aSize)
   {
-    return nullptr;
+    return nsnull;
   }
  
 protected:

@@ -5,11 +5,11 @@
 
 package org.mozilla.gecko;
 
-import org.json.JSONException;
-import org.json.JSONObject;
-
 import android.os.SystemClock;
 import android.util.Log;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 public class Telemetry {
     private static final String LOGTAG = "Telemetry";

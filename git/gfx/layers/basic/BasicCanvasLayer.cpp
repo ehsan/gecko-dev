@@ -10,6 +10,7 @@
 
 #include "BasicLayersImpl.h"
 #include "nsXULAppAPI.h"
+#include "LayersBackend.h"
 
 using namespace mozilla::gfx;
 
@@ -49,7 +50,7 @@ protected:
   {
     return static_cast<BasicLayerManager*>(mManager);
   }
-  void UpdateSurface(gfxASurface* aDestSurface = nullptr, Layer* aMaskLayer = nullptr);
+  void UpdateSurface(gfxASurface* aDestSurface = nsnull, Layer* aMaskLayer = nsnull);
 
   nsRefPtr<gfxASurface> mSurface;
   nsRefPtr<mozilla::gl::GLContext> mGLContext;
@@ -81,18 +82,18 @@ protected:
 
   void DiscardTempSurface()
   {
-    mCachedTempSurface = nullptr;
+    mCachedTempSurface = nsnull;
   }
 };
 
 void
 BasicCanvasLayer::Initialize(const Data& aData)
 {
-  NS_ASSERTION(mSurface == nullptr, "BasicCanvasLayer::Initialize called twice!");
+  NS_ASSERTION(mSurface == nsnull, "BasicCanvasLayer::Initialize called twice!");
 
   if (aData.mSurface) {
     mSurface = aData.mSurface;
-    NS_ASSERTION(aData.mGLContext == nullptr,
+    NS_ASSERTION(aData.mGLContext == nsnull,
                  "CanvasLayer can't have both surface and GLContext");
     mNeedsYFlip = false;
   } else if (aData.mGLContext) {
@@ -117,8 +118,6 @@ BasicCanvasLayer::UpdateSurface(gfxASurface* aDestSurface, Layer* aMaskLayer)
 {
   if (mDrawTarget) {
     mDrawTarget->Flush();
-    // TODO Fix me before turning accelerated quartz canvas by default
-    //mSurface = gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(mDrawTarget);
   }
 
   if (!mGLContext && aDestSurface) {
@@ -421,9 +420,9 @@ BasicShadowableCanvasLayer::Paint(gfxContext* aContext, Layer* aMaskLayer)
 
   if (aMaskLayer) {
     static_cast<BasicImplData*>(aMaskLayer->ImplData())
-      ->Paint(aContext, nullptr);
+      ->Paint(aContext, nsnull);
   }
-  UpdateSurface(autoBackSurface.Get(), nullptr);
+  UpdateSurface(autoBackSurface.Get(), nsnull);
   FireDidTransactionCallback();
 
   BasicManager()->PaintedCanvas(BasicManager()->Hold(this),

@@ -172,11 +172,8 @@ class AddonManager(object):
         # if the addon is a directory, install all addons in it
         addons = [path]
         if not path.endswith('.xpi') and not os.path.exists(os.path.join(path, 'install.rdf')):
-            # If the path doesn't exist, then we don't really care, just return
-            if not os.path.isdir(path):
-                return
-            addons = [os.path.join(path, x) for x in os.listdir(path) if
-                    os.path.isdir(os.path.join(path, x))]
+            assert os.path.isdir(path), "Addon '%s' cannot be installed" % path
+            addons = [os.path.join(path, x) for x in os.listdir(path)]
 
         # install each addon
         for addon in addons:
@@ -204,7 +201,7 @@ class AddonManager(object):
             assert addon_id, 'The addon id could not be found: %s' % addon
 
             # copy the addon to the profile
-            extensions_path = os.path.join(self.profile, 'extensions', 'staged')
+            extensions_path = os.path.join(self.profile, 'extensions')
             addon_path = os.path.join(extensions_path, addon_id)
             if not unpack and not addon_details['unpack'] and xpifile:
                 if not os.path.exists(extensions_path):

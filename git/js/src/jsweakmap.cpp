@@ -140,12 +140,12 @@ WeakMap_has_impl(JSContext *cx, CallArgs args)
 
     if (ObjectValueMap *map = GetObjectMap(&args.thisv().toObject())) {
         if (ObjectValueMap::Ptr ptr = map->lookup(key)) {
-            args.rval().setBoolean(true);
+            args.rval() = BooleanValue(true);
             return true;
         }
     }
 
-    args.rval().setBoolean(false);
+    args.rval() = BooleanValue(false);
     return true;
 }
 
@@ -172,12 +172,12 @@ WeakMap_get_impl(JSContext *cx, CallArgs args)
 
     if (ObjectValueMap *map = GetObjectMap(&args.thisv().toObject())) {
         if (ObjectValueMap::Ptr ptr = map->lookup(key)) {
-            args.rval().set(ptr->value);
+            args.rval() = ptr->value;
             return true;
         }
     }
 
-    args.rval().set((args.length() > 1) ? args[1] : UndefinedValue());
+    args.rval() = (args.length() > 1) ? args[1] : UndefinedValue();
     return true;
 }
 
@@ -205,12 +205,12 @@ WeakMap_delete_impl(JSContext *cx, CallArgs args)
     if (ObjectValueMap *map = GetObjectMap(&args.thisv().toObject())) {
         if (ObjectValueMap::Ptr ptr = map->lookup(key)) {
             map->remove(ptr);
-            args.rval().setBoolean(true);
+            args.rval() = BooleanValue(true);
             return true;
         }
     }
 
-    args.rval().setBoolean(false);
+    args.rval() = BooleanValue(false);
     return true;
 }
 
@@ -231,7 +231,7 @@ WeakMap_set_impl(JSContext *cx, CallArgs args)
                              "WeakMap.set", "0", "s");
         return false;
     }
-    RootedObject key(cx, GetKeyArg(cx, args));
+    JSObject *key = GetKeyArg(cx, args);
     if (!key)
         return false;
 
@@ -286,9 +286,9 @@ JS_NondeterministicGetWeakMapKeys(JSContext *cx, JSObject *obj, JSObject **ret)
     ObjectValueMap *map = GetObjectMap(obj);
     if (map) {
         for (ObjectValueMap::Range r = map->nondeterministicAll(); !r.empty(); r.popFront()) {
-            RootedObject key(cx, r.front().key);
+            JSObject *key = r.front().key;
             // Re-wrapping the key (see comment of GetKeyArg)
-            if (!JS_WrapObject(cx, key.address()))
+            if (!JS_WrapObject(cx, &key))
                 return false;
 
             if (!js_NewbornArrayPush(cx, arr, ObjectValue(*key)))

@@ -772,7 +772,7 @@ private:
 class THEBES_API gfxContextAutoSaveRestore
 {
 public:
-  gfxContextAutoSaveRestore() : mContext(nullptr) {}
+  gfxContextAutoSaveRestore() : mContext(nsnull) {}
 
   gfxContextAutoSaveRestore(gfxContext *aContext) : mContext(aContext) {
     mContext->Save();
@@ -814,7 +814,7 @@ private:
 class THEBES_API gfxContextPathAutoSaveRestore
 {
 public:
-    gfxContextPathAutoSaveRestore() : mContext(nullptr) {}
+    gfxContextPathAutoSaveRestore() : mContext(nsnull) {}
 
     gfxContextPathAutoSaveRestore(gfxContext *aContext, bool aSave = true) : mContext(aContext)
     {
@@ -854,7 +854,7 @@ public:
         if (mPath) {
             mContext->NewPath();
             mContext->AppendPath(mPath);
-            mPath = nullptr;
+            mPath = nsnull;
         }
     }
 

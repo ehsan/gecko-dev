@@ -81,11 +81,11 @@ SurfaceDescriptorX11::OpenForeign() const
     unsigned int depth;
     XVisualIDToInfo(display, mFormat, &visual, &depth);
     if (!visual)
-      return nullptr;
+      return nsnull;
 
     surf = new gfxXlibSurface(display, mId, visual, mSize);
   }
-  return surf->CairoStatus() ? nullptr : surf.forget();
+  return surf->CairoStatus() ? nsnull : surf.forget();
 }
 
 bool
@@ -127,7 +127,7 @@ ShadowLayerForwarder::PlatformOpenDescriptor(OpenMode aMode,
                                              const SurfaceDescriptor& aSurface)
 {
   if (SurfaceDescriptor::TSurfaceDescriptorX11 != aSurface.type()) {
-    return nullptr;
+    return nsnull;
   }
   return aSurface.get_SurfaceDescriptorX11().OpenForeign();
 }
@@ -187,7 +187,7 @@ ShadowLayerManager::PlatformSyncBeforeReplyUpdate()
     // the child, even though they will be read operations.
     // Otherwise, the child might start scribbling on new back buffers
     // that are still participating in requests as old front buffers.
-    FinishX(DefaultXDisplay());
+    XSync(DefaultXDisplay(), False);
   }
 }
 
@@ -197,7 +197,7 @@ ShadowLayerManager::OpenDescriptorForDirectTexturing(GLContext*,
                                                      GLenum)
 {
   // FIXME/bug XXXXXX: implement this using texture-from-pixmap
-  return nullptr;
+  return nsnull;
 }
 
 bool

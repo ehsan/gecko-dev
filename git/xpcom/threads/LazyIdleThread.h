@@ -57,7 +57,7 @@ public:
   LazyIdleThread(PRUint32 aIdleTimeoutMS,
                  const nsCSubstring& aName,
                  ShutdownMethod aShutdownMethod = AutomaticShutdown,
-                 nsIObserver* aIdleObserver = nullptr);
+                 nsIObserver* aIdleObserver = nsnull);
 
   /**
    * Add an observer that will be notified when the thread is idle and about to

@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -49,7 +49,7 @@ public:
 
     ~nsShmImage() {
         if (mImage) {
-            mozilla::FinishX(DISPLAY());
+            XSync(DISPLAY(), False);
             if (mXAttached) {
                 XShmDetach(DISPLAY(), &mInfo);
             }
@@ -71,7 +71,7 @@ public:
 
 private:
     nsShmImage()
-        : mImage(nullptr)
+        : mImage(nsnull)
         , mXAttached(false)
     { mInfo.shmid = SharedMemorySysV::NULLHandle(); }
 

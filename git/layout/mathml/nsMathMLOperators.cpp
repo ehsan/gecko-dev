@@ -33,10 +33,10 @@ struct OperatorData {
 
 static PRInt32         gTableRefCount = 0;
 static PRUint32        gOperatorCount = 0;
-static OperatorData*   gOperatorArray = nullptr;
-static nsHashtable*    gOperatorTable = nullptr;
+static OperatorData*   gOperatorArray = nsnull;
+static nsHashtable*    gOperatorTable = nsnull;
 static bool            gInitialized   = false;
-static nsTArray<nsString>*      gInvariantCharArray    = nullptr;
+static nsTArray<nsString>*      gInvariantCharArray    = nsnull;
 
 static const PRUnichar kNullCh  = PRUnichar('\0');
 static const PRUnichar kDashCh  = PRUnichar('#');
@@ -114,7 +114,7 @@ SetProperty(OperatorData* aOperatorData,
     else return;  // input is not applicable
 
     // aValue is assumed to be a digit from 0 to 7
-    nsresult error = NS_OK;
+    PRInt32 error = 0;
     float space = aValue.ToFloat(&error) / 18.0;
     if (error) return;
 
@@ -337,15 +337,15 @@ nsMathMLOperators::CleanUp()
 {
   if (gInvariantCharArray) {
     delete gInvariantCharArray;
-    gInvariantCharArray = nullptr;
+    gInvariantCharArray = nsnull;
   }
   if (gOperatorArray) {
     delete[] gOperatorArray;
-    gOperatorArray = nullptr;
+    gOperatorArray = nsnull;
   }
   if (gOperatorTable) {
     delete gOperatorTable;
-    gOperatorTable = nullptr;
+    gOperatorTable = nsnull;
   }
 }
 

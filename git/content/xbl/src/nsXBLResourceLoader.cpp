@@ -49,8 +49,8 @@ nsXBLResourceLoader::nsXBLResourceLoader(nsXBLPrototypeBinding* aBinding,
                                          nsXBLPrototypeResources* aResources)
 :mBinding(aBinding),
  mResources(aResources),
- mResourceList(nullptr),
- mLastResource(nullptr),
+ mResourceList(nsnull),
+ mLastResource(nsnull),
  mLoadingResources(false),
  mInLoadResourcesFunc(false),
  mPendingSheets(0)
@@ -103,7 +103,7 @@ nsXBLResourceLoader::LoadResources(bool* aResult)
       // Passing NULL for pretty much everything -- cause we don't care!
       // XXX: initialDocumentURI is NULL! 
       nsCOMPtr<imgIRequest> req;
-      nsContentUtils::LoadImage(url, doc, docPrincipal, docURL, nullptr,
+      nsContentUtils::LoadImage(url, doc, docPrincipal, docURL, nsnull,
                                 nsIRequest::LOAD_BACKGROUND,
                                 getter_AddRefs(req));
     }
@@ -144,7 +144,7 @@ nsXBLResourceLoader::LoadResources(bool* aResult)
   
   // Destroy our resource list.
   delete mResourceList;
-  mResourceList = nullptr;
+  mResourceList = nsnull;
 }
 
 // nsICSSLoaderObserver

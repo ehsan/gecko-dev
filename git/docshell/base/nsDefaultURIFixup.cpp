@@ -117,7 +117,7 @@ nsDefaultURIFixup::CreateFixupURI(const nsACString& aStringURI, PRUint32 aFixupF
     NS_ENSURE_ARG_POINTER(aURI);
 
     nsresult rv;
-    *aURI = nullptr;
+    *aURI = nsnull;
 
     nsCAutoString uriString(aStringURI);
     uriString.Trim(" ");  // Cleanup the empty spaces that might be on each end.
@@ -220,7 +220,7 @@ nsDefaultURIFixup::CreateFixupURI(const nsACString& aStringURI, PRUint32 aFixupF
     if (ourHandler != extHandler || !PossiblyHostPortUrl(uriString)) {
         // Just try to create an URL out of it
         rv = NS_NewURI(aURI, uriString,
-                       bUseNonDefaultCharsetForURI ? GetCharsetForUrlBar() : nullptr);
+                       bUseNonDefaultCharsetForURI ? GetCharsetForUrlBar() : nsnull);
 
         if (!*aURI && rv != NS_ERROR_MALFORMED_URI) {
             return rv;
@@ -294,7 +294,7 @@ nsDefaultURIFixup::CreateFixupURI(const nsACString& aStringURI, PRUint32 aFixupF
           bUseNonDefaultCharsetForURI = true;
     } // end if checkprotocol
 
-    rv = NS_NewURI(aURI, uriString, bUseNonDefaultCharsetForURI ? GetCharsetForUrlBar() : nullptr);
+    rv = NS_NewURI(aURI, uriString, bUseNonDefaultCharsetForURI ? GetCharsetForUrlBar() : nsnull);
 
     // Did the caller want us to try an alternative URI?
     // If so, attempt to fixup http://foo into http://www.foo.com
@@ -318,7 +318,7 @@ nsDefaultURIFixup::CreateFixupURI(const nsACString& aStringURI, PRUint32 aFixupF
 NS_IMETHODIMP nsDefaultURIFixup::KeywordToURI(const nsACString& aKeyword,
                                               nsIURI **aURI)
 {
-    *aURI = nullptr;
+    *aURI = nsnull;
     NS_ENSURE_STATE(Preferences::GetRootBranch());
 
     // Strip leading "?" and leading/trailing spaces from aKeyword
@@ -537,7 +537,7 @@ nsresult nsDefaultURIFixup::FileURIFixup(const nsACString& aStringURI,
     if (NS_SUCCEEDED(rv))
     {
         // if this is file url, uriSpecOut is already in FS charset
-        if(NS_SUCCEEDED(NS_NewURI(aURI, uriSpecOut.get(), nullptr)))
+        if(NS_SUCCEEDED(NS_NewURI(aURI, uriSpecOut.get(), nsnull)))
             return NS_OK;
     } 
     return NS_ERROR_FAILURE;
@@ -821,7 +821,7 @@ nsresult nsDefaultURIFixup::KeywordURIFixup(const nsACString & aURIString,
 nsresult NS_NewURIFixup(nsIURIFixup **aURIFixup)
 {
     nsDefaultURIFixup *fixup = new nsDefaultURIFixup;
-    if (fixup == nullptr)
+    if (fixup == nsnull)
     {
         return NS_ERROR_OUT_OF_MEMORY;
     }

@@ -81,7 +81,7 @@ nsDOMCSSAttributeDeclaration::SetCSSDeclaration(css::Declaration* aDecl)
 
   return
     mIsSMILOverride ? mElement->SetSMILOverrideStyleRule(newRule, true) :
-    mElement->SetInlineStyleRule(newRule, nullptr, true);
+    mElement->SetInlineStyleRule(newRule, nsnull, true);
 }
 
 nsIDocument*
@@ -106,7 +106,7 @@ css::Declaration*
 nsDOMCSSAttributeDeclaration::GetCSSDeclaration(bool aAllocate)
 {
   if (!mElement)
-    return nullptr;
+    return nsnull;
 
   css::StyleRule* cssRule;
   if (mIsSMILOverride)
@@ -118,23 +118,23 @@ nsDOMCSSAttributeDeclaration::GetCSSDeclaration(bool aAllocate)
     return cssRule->GetDeclaration();
   }
   if (!aAllocate) {
-    return nullptr;
+    return nsnull;
   }
 
   // cannot fail
   css::Declaration *decl = new css::Declaration();
   decl->InitializeEmpty();
-  nsRefPtr<css::StyleRule> newRule = new css::StyleRule(nullptr, decl);
+  nsRefPtr<css::StyleRule> newRule = new css::StyleRule(nsnull, decl);
 
   // this *can* fail (inside SetAttrAndNotify, at least).
   nsresult rv;
   if (mIsSMILOverride)
     rv = mElement->SetSMILOverrideStyleRule(newRule, false);
   else
-    rv = mElement->SetInlineStyleRule(newRule, nullptr, false);
+    rv = mElement->SetInlineStyleRule(newRule, nsnull, false);
 
   if (NS_FAILED(rv)) {
-    return nullptr; // the decl will be destroyed along with the style rule
+    return nsnull; // the decl will be destroyed along with the style rule
   }
 
   return decl;
@@ -157,7 +157,7 @@ nsDOMCSSAttributeDeclaration::GetParentRule(nsIDOMCSSRule **aParent)
 {
   NS_ENSURE_ARG_POINTER(aParent);
 
-  *aParent = nullptr;
+  *aParent = nsnull;
   return NS_OK;
 }
 

@@ -38,7 +38,7 @@ nsDOMPopupBlockedEvent::InitPopupBlockedEvent(const nsAString & aTypeArg,
 NS_IMETHODIMP
 nsDOMPopupBlockedEvent::GetRequestingWindow(nsIDOMWindow **aRequestingWindow)
 {
-  *aRequestingWindow = nullptr;
+  *aRequestingWindow = nsnull;
   if (mRequestingWindow)
     CallQueryReferent(mRequestingWindow.get(), aRequestingWindow);
 
@@ -75,7 +75,7 @@ nsresult NS_NewDOMPopupBlockedEvent(nsIDOMEvent** aInstancePtrResult,
                                     nsEvent *aEvent) 
 {
   nsDOMPopupBlockedEvent* it = new nsDOMPopupBlockedEvent(aPresContext, aEvent);
-  if (nullptr == it) {
+  if (nsnull == it) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 

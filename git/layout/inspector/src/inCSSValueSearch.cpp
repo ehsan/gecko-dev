@@ -16,15 +16,13 @@
 #include "nsIDOMCSSStyleDeclaration.h"
 #include "nsIDOMCSSImportRule.h"
 #include "nsIDOMCSSMediaRule.h"
-#include "nsIDOMCSSSupportsRule.h"
 #include "nsIURI.h"
-#include "nsIDocument.h"
 #include "nsNetUtil.h"
 
 ///////////////////////////////////////////////////////////////////////////////
 inCSSValueSearch::inCSSValueSearch()
-  : mResults(nullptr),
-    mProperties(nullptr),
+  : mResults(nsnull),
+    mProperties(nsnull),
     mResultCount(0),
     mPropertyCount(0),
     mIsActive(false),
@@ -281,7 +279,7 @@ inCSSValueSearch::SearchStyleSheet(nsIDOMCSSStyleSheet* aStyleSheet, nsIURI* aBa
   if (href.IsEmpty())
     baseURL = aBaseURL;
   else
-    NS_NewURI(getter_AddRefs(baseURL), href, nullptr, aBaseURL);
+    NS_NewURI(getter_AddRefs(baseURL), href, nsnull, aBaseURL);
 
   nsCOMPtr<nsIDOMCSSRuleList> rules;
   nsresult rv = aStyleSheet->GetCssRules(getter_AddRefs(rules));
@@ -316,12 +314,6 @@ inCSSValueSearch::SearchRuleList(nsIDOMCSSRuleList* aRuleList, nsIURI* aBaseURL)
         nsCOMPtr<nsIDOMCSSMediaRule> mediaRule = do_QueryInterface(rule);
         nsCOMPtr<nsIDOMCSSRuleList> childRules;
         mediaRule->GetCssRules(getter_AddRefs(childRules));
-        SearchRuleList(childRules, aBaseURL);
-      } break;
-      case nsIDOMCSSRule::SUPPORTS_RULE: {
-        nsCOMPtr<nsIDOMCSSSupportsRule> supportsRule = do_QueryInterface(rule);
-        nsCOMPtr<nsIDOMCSSRuleList> childRules;
-        supportsRule->GetCssRules(getter_AddRefs(childRules));
         SearchRuleList(childRules, aBaseURL);
       } break;
       default:
@@ -361,7 +353,7 @@ inCSSValueSearch::SearchStyleValue(const nsAFlatString& aValue, nsIURI* aBaseURL
       Substring(aValue, 4, aValue.Length() - 5);
     // XXXldb Need to do more with |mReturnRelativeURLs|, perhaps?
     nsCOMPtr<nsIURI> uri;
-    nsresult rv = NS_NewURI(getter_AddRefs(uri), url, nullptr, aBaseURL);
+    nsresult rv = NS_NewURI(getter_AddRefs(uri), url, nsnull, aBaseURL);
     NS_ENSURE_SUCCESS(rv, rv);
     nsCAutoString spec;
     uri->GetSpec(spec);

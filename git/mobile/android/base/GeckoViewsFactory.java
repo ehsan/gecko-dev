@@ -4,8 +4,6 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.gfx.LayerView;
-
 import android.content.Context;
 import android.text.TextUtils;
 import android.util.AttributeSet;
@@ -52,10 +50,6 @@ public final class GeckoViewsFactory implements LayoutInflater.Factory {
                 return new TabsPanel(context, attrs);
             else if (TextUtils.equals(viewName, "TextSelectionHandle"))
                 return new TextSelectionHandle(context, attrs);
-            else if (TextUtils.equals(viewName, "gfx.LayerView"))
-                return new LayerView(context, attrs);
-            else
-                Log.e(LOGTAG, "Error: unknown custom view: " + viewName);
         }
 
         return null;

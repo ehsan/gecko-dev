@@ -127,7 +127,6 @@ public:
   NS_IMETHOD GetExtendedOrigin(nsACString& aExtendedOrigin);
   NS_IMETHOD GetAppStatus(PRUint16* aAppStatus);
   NS_IMETHOD GetAppId(PRUint32* aAppStatus);
-  NS_IMETHOD GetIsInBrowserElement(bool* aIsInBrowserElement);
 #ifdef DEBUG
   virtual void dumpImpl();
 #endif
@@ -206,7 +205,6 @@ public:
   NS_IMETHOD GetExtendedOrigin(nsACString& aExtendedOrigin);
   NS_IMETHOD GetAppStatus(PRUint16* aAppStatus);
   NS_IMETHOD GetAppId(PRUint32* aAppStatus);
-  NS_IMETHOD GetIsInBrowserElement(bool* aIsInBrowserElement);
 #ifdef DEBUG
   virtual void dumpImpl();
 #endif

@@ -16,9 +16,10 @@
 #include "mozilla/mozalloc.h"
 #include "mozilla/Mutex.h"
 #include "gfxPlatform.h"
+#include "LayersBackend.h"
 
 #ifdef XP_MACOSX
-#include "mozilla/gfx/MacIOSurface.h"
+#include "nsIOSurface.h"
 #endif
 #ifdef XP_WIN
 struct ID3D10Texture2D;
@@ -222,7 +223,7 @@ public:
  * image container. This is usually done by the layer system internally and
  * not explicitly by users. For PlanarYCbCr or Cairo images the default
  * implementation will creates images whose data lives in system memory, for
- * MacIOSurfaces the default implementation will be a simple MacIOSurface
+ * MacIOSurfaces the default implementation will be a simple nsIOSurface
  * wrapper.
  */
 
@@ -301,23 +302,6 @@ struct RemoteImageData {
  * (because layers can only be used on the main thread) and we want to
  * be able to set the current Image from any thread, to facilitate
  * video playback without involving the main thread, for example.
- *
- * An ImageContainer can operate in one of three modes:
- * 1) Normal. Triggered by constructing the ImageContainer with
- * DISABLE_ASYNC or when compositing is happening on the main thread.
- * SetCurrentImage changes ImageContainer state but nothing is sent to the
- * compositor until the next layer transaction.
- * 2) Asynchronous. Initiated by constructing the ImageContainer with
- * ENABLE_ASYNC when compositing is happening on the main thread.
- * SetCurrentImage sends a message through the ImageBridge to the compositor
- * thread to update the image, without going through the main thread or
- * a layer transaction.
- * 3) Remote. Initiated by calling SetRemoteImageData on the ImageContainer
- * before any other activity.
- * The ImageContainer uses a shared memory block containing a cross-process mutex
- * to communicate with the compositor thread. SetCurrentImage synchronously
- * updates the shared state to point to the new image and the old image
- * is immediately released (not true in Normal or Asynchronous modes).
  */
 class THEBES_API ImageContainer {
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(ImageContainer)
@@ -450,7 +434,7 @@ public:
    * image.
    */
   already_AddRefed<gfxASurface> LockCurrentAsSurface(gfxIntSize* aSizeResult,
-                                                     Image** aCurrentImage = nullptr);
+                                                     Image** aCurrentImage = nsnull);
 
   /**
    * Returns the size of the image in pixels.
@@ -624,9 +608,9 @@ public:
 
   void Unlock() { 
     if (mContainer) {
-      mImage = nullptr;
+      mImage = nsnull;
       mContainer->UnlockCurrentImage();
-      mContainer = nullptr;
+      mContainer = nsnull;
     }
   }
 
@@ -703,8 +687,8 @@ public:
     // was drawn into a ThebesLayer (gfxContext would snap using the local
     // transform, then we'd snap again when compositing the ThebesLayer).
     mEffectiveTransform =
-        SnapTransform(GetLocalTransform(), snap, nullptr)*
-        SnapTransform(aTransformToSurface, gfxRect(0, 0, 0, 0), nullptr);
+        SnapTransform(GetLocalTransform(), snap, nsnull)*
+        SnapTransform(aTransformToSurface, gfxRect(0, 0, 0, 0), nsnull);
     ComputeEffectiveTransformForMaskLayer(aTransformToSurface);
   }
 
@@ -890,7 +874,7 @@ public:
 class THEBES_API MacIOSurfaceImage : public Image {
 public:
   struct Data {
-    MacIOSurface* mIOSurface;
+    nsIOSurface* mIOSurface;
   };
 
   MacIOSurfaceImage()
@@ -938,7 +922,7 @@ public:
     return mSize;
   }
 
-  MacIOSurface* GetIOSurface()
+  nsIOSurface* GetIOSurface()
   {
     return mIOSurface;
   }
@@ -949,7 +933,7 @@ public:
 
 private:
   gfxIntSize mSize;
-  RefPtr<MacIOSurface> mIOSurface;
+  nsRefPtr<nsIOSurface> mIOSurface;
   void* mPluginInstanceOwner;
   UpdateSurfaceCallback mUpdateCallback;
   DestroyCallback mDestroyCallback;
@@ -1018,7 +1002,7 @@ public:
   virtual already_AddRefed<gfxASurface> GetAsSurface()
   {
     // We need to fix this and return a ASurface at some point.
-    return nullptr;
+    return nsnull;
   }
 
   void* GetNativeBuffer()

@@ -579,8 +579,7 @@ public:
   // Call on the main thread only.
   void MetadataLoaded(PRUint32 aChannels,
                       PRUint32 aRate,
-                      bool aHasAudio,
-                      const nsHTMLMediaElement::MetadataTags* aTags);
+                      bool aHasAudio);
 
   // Called when the first frame has been loaded.
   // Call on the main thread only.
@@ -633,7 +632,7 @@ public:
   nsDecoderStateMachine::State GetDecodeState() { return mDecoderStateMachine->GetState(); }
 
   // Drop reference to state machine.  Only called during shutdown dance.
-  void ReleaseStateMachine() { mDecoderStateMachine = nullptr; }
+  void ReleaseStateMachine() { mDecoderStateMachine = nsnull; }
 
    // Called when a "MozAudioAvailable" event listener is added to the media
    // element. Called on the main thread.

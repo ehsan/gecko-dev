@@ -15,7 +15,7 @@
 //
 // set NSPR_LOG_MODULES=Test:5
 //
-static PRLogModuleInfo *gTestLog = nullptr;
+static PRLogModuleInfo *gTestLog = nsnull;
 #endif
 #define LOG(args) PR_LOG(gTestLog, PR_LOG_DEBUG, args)
 
@@ -63,7 +63,7 @@ int main(int argc, char **argv)
     gTestLog = PR_NewLogModule("Test");
 #endif
 
-    rv = NS_InitXPCOM2(nullptr, nullptr, nullptr);
+    rv = NS_InitXPCOM2(nsnull, nsnull, nsnull);
     if (NS_FAILED(rv))
         return rv;
 
@@ -74,6 +74,6 @@ int main(int argc, char **argv)
     LOG(("sleeping main thread for 2 seconds...\n"));
     PR_Sleep(PR_SecondsToInterval(2));
     
-    NS_ShutdownXPCOM(nullptr);
+    NS_ShutdownXPCOM(nsnull);
     return 0;
 }

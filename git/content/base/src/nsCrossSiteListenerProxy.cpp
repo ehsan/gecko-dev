@@ -104,7 +104,7 @@ private:
 };
 
 // Will be initialized in EnsurePreflightCache.
-static nsPreflightCache* sPreflightCache = nullptr;
+static nsPreflightCache* sPreflightCache = nsnull;
 
 static bool EnsurePreflightCache()
 {
@@ -179,7 +179,7 @@ nsPreflightCache::GetEntry(nsIURI* aURI,
   nsCString key;
   if (!GetCacheKey(aURI, aPrincipal, aWithCredentials, key)) {
     NS_WARNING("Invalid cache key!");
-    return nullptr;
+    return nsnull;
   }
 
   CacheEntry* entry;
@@ -195,7 +195,7 @@ nsPreflightCache::GetEntry(nsIURI* aURI,
   }
 
   if (!aCreate) {
-    return nullptr;
+    return nsnull;
   }
 
   // This is a new entry, allocate and insert into the table now so that any
@@ -203,7 +203,7 @@ nsPreflightCache::GetEntry(nsIURI* aURI,
   entry = new CacheEntry(key);
   if (!entry) {
     NS_WARNING("Failed to allocate new cache entry!");
-    return nullptr;
+    return nsnull;
   }
 
   NS_ASSERTION(mTable.Count() <= PREFLIGHT_CACHE_SIZE,
@@ -341,7 +341,7 @@ void
 nsCORSListenerProxy::Shutdown()
 {
   delete sPreflightCache;
-  sPreflightCache = nullptr;
+  sPreflightCache = nsnull;
 }
 
 nsCORSListenerProxy::nsCORSListenerProxy(nsIStreamListener* aOuter,
@@ -361,9 +361,9 @@ nsCORSListenerProxy::nsCORSListenerProxy(nsIStreamListener* aOuter,
 
   *aResult = UpdateChannel(aChannel);
   if (NS_FAILED(*aResult)) {
-    mOuterListener = nullptr;
-    mRequestingPrincipal = nullptr;
-    mOuterNotificationCallbacks = nullptr;
+    mOuterListener = nsnull;
+    mRequestingPrincipal = nsnull;
+    mOuterNotificationCallbacks = nsnull;
   }
 }
 
@@ -385,9 +385,9 @@ nsCORSListenerProxy::nsCORSListenerProxy(nsIStreamListener* aOuter,
 
   *aResult = UpdateChannel(aChannel, aAllowDataURI);
   if (NS_FAILED(*aResult)) {
-    mOuterListener = nullptr;
-    mRequestingPrincipal = nullptr;
-    mOuterNotificationCallbacks = nullptr;
+    mOuterListener = nsnull;
+    mRequestingPrincipal = nsnull;
+    mOuterNotificationCallbacks = nsnull;
   }
 }
 
@@ -417,9 +417,9 @@ nsCORSListenerProxy::nsCORSListenerProxy(nsIStreamListener* aOuter,
 
   *aResult = UpdateChannel(aChannel);
   if (NS_FAILED(*aResult)) {
-    mOuterListener = nullptr;
-    mRequestingPrincipal = nullptr;
-    mOuterNotificationCallbacks = nullptr;
+    mOuterListener = nsnull;
+    mRequestingPrincipal = nsnull;
+    mOuterNotificationCallbacks = nsnull;
   }
 }
 
@@ -602,11 +602,11 @@ nsCORSListenerProxy::OnStopRequest(nsIRequest* aRequest,
                                    nsresult aStatusCode)
 {
   nsresult rv = mOuterListener->OnStopRequest(aRequest, aContext, aStatusCode);
-  mOuterListener = nullptr;
-  mOuterNotificationCallbacks = nullptr;
-  mRedirectCallback = nullptr;
-  mOldRedirectChannel = nullptr;
-  mNewRedirectChannel = nullptr;
+  mOuterListener = nsnull;
+  mOuterNotificationCallbacks = nsnull;
+  mRedirectCallback = nsnull;
+  mOldRedirectChannel = nsnull;
+  mNewRedirectChannel = nsnull;
   return rv;
 }
 
@@ -672,9 +672,9 @@ nsCORSListenerProxy::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
     rv = outer->AsyncOnChannelRedirect(aOldChannel, aNewChannel, aFlags, this);
     if (NS_FAILED(rv)) {
         aOldChannel->Cancel(rv); // is this necessary...?
-        mRedirectCallback = nullptr;
-        mOldRedirectChannel = nullptr;
-        mNewRedirectChannel = nullptr;
+        mRedirectCallback = nsnull;
+        mOldRedirectChannel = nsnull;
+        mNewRedirectChannel = nsnull;
     }
     return rv;  
   }
@@ -703,10 +703,10 @@ nsCORSListenerProxy::OnRedirectVerifyCallback(nsresult result)
     mOldRedirectChannel->Cancel(result);
   }
 
-  mOldRedirectChannel = nullptr;
-  mNewRedirectChannel = nullptr;
+  mOldRedirectChannel = nsnull;
+  mNewRedirectChannel = nsnull;
   mRedirectCallback->OnRedirectVerifyCallback(result);
-  mRedirectCallback   = nullptr;
+  mRedirectCallback   = nsnull;
   return NS_OK;
 }
 
@@ -994,9 +994,9 @@ nsCORSPreflightListener::OnStopRequest(nsIRequest *aRequest,
                                        nsISupports *aContext,
                                        nsresult aStatus)
 {
-  mOuterChannel = nullptr;
-  mOuterListener = nullptr;
-  mOuterContext = nullptr;
+  mOuterChannel = nsnull;
+  mOuterListener = nsnull;
+  mOuterContext = nsnull;
   return NS_OK;
 }
 
@@ -1010,7 +1010,7 @@ nsCORSPreflightListener::OnDataAvailable(nsIRequest *aRequest,
                                          PRUint32 count)
 {
   PRUint32 totalRead;
-  return inStr->ReadSegments(NS_DiscardSegment, nullptr, count, &totalRead);
+  return inStr->ReadSegments(NS_DiscardSegment, nsnull, count, &totalRead);
 }
 
 NS_IMETHODIMP
@@ -1042,7 +1042,7 @@ NS_StartCORSPreflight(nsIChannel* aRequestChannel,
                       nsTArray<nsCString>& aUnsafeHeaders,
                       nsIChannel** aPreflightChannel)
 {
-  *aPreflightChannel = nullptr;
+  *aPreflightChannel = nsnull;
 
   nsCAutoString method;
   nsCOMPtr<nsIHttpChannel> httpChannel(do_QueryInterface(aRequestChannel));
@@ -1056,11 +1056,11 @@ NS_StartCORSPreflight(nsIChannel* aRequestChannel,
   nsPreflightCache::CacheEntry* entry =
     sPreflightCache ?
     sPreflightCache->GetEntry(uri, aPrincipal, aWithCredentials, false) :
-    nullptr;
+    nsnull;
 
   if (entry && entry->CheckRequest(method, aUnsafeHeaders)) {
     // We have a cached preflight result, just start the original channel
-    return aRequestChannel->AsyncOpen(aListener, nullptr);
+    return aRequestChannel->AsyncOpen(aListener, nsnull);
   }
 
   // Either it wasn't cached or the cached result has expired. Build a
@@ -1075,8 +1075,8 @@ NS_StartCORSPreflight(nsIChannel* aRequestChannel,
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIChannel> preflightChannel;
-  rv = NS_NewChannel(getter_AddRefs(preflightChannel), uri, nullptr,
-                     loadGroup, nullptr, loadFlags);
+  rv = NS_NewChannel(getter_AddRefs(preflightChannel), uri, nsnull,
+                     loadGroup, nsnull, loadFlags);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIHttpChannel> preHttp = do_QueryInterface(preflightChannel);
@@ -1087,7 +1087,7 @@ NS_StartCORSPreflight(nsIChannel* aRequestChannel,
   
   // Set up listener which will start the original channel
   nsCOMPtr<nsIStreamListener> preflightListener =
-    new nsCORSPreflightListener(aRequestChannel, aListener, nullptr, aPrincipal,
+    new nsCORSPreflightListener(aRequestChannel, aListener, nsnull, aPrincipal,
                                 method, aWithCredentials);
   NS_ENSURE_TRUE(preflightListener, NS_ERROR_OUT_OF_MEMORY);
 
@@ -1099,7 +1099,7 @@ NS_StartCORSPreflight(nsIChannel* aRequestChannel,
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Start preflight
-  rv = preflightChannel->AsyncOpen(preflightListener, nullptr);
+  rv = preflightChannel->AsyncOpen(preflightListener, nsnull);
   NS_ENSURE_SUCCESS(rv, rv);
   
   // Return newly created preflight channel

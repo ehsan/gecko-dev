@@ -78,8 +78,8 @@ public:
     // transform, then we'd snap again when compositing the ThebesLayer).
     mEffectiveTransform =
         SnapTransform(GetLocalTransform(), gfxRect(0, 0, mSize.width, mSize.height),
-                      nullptr)*
-        SnapTransform(aTransformToSurface, gfxRect(0, 0, 0, 0), nullptr);
+                      nsnull)*
+        SnapTransform(aTransformToSurface, gfxRect(0, 0, 0, 0), nsnull);
   }
 
   /**
@@ -120,13 +120,13 @@ public:
 
   void NotifyRemoved() {
     SetUnknown();
-    mSink = nullptr;
+    mSink = nsnull;
   }
 
   void NotifyThebesLayerRemoved(ThebesLayer* aLayer)
   {
     if (mBackgroundLayer == aLayer) {
-      mBackgroundLayer = nullptr;
+      mBackgroundLayer = nsnull;
     }
   }
 
@@ -140,7 +140,7 @@ public:
       if (mSink) {
         mSink->SetUnknown(AllocateSequenceNumber());
       }
-      mBackgroundLayer = nullptr;
+      mBackgroundLayer = nsnull;
       mBackgroundColor = gfxRGBA(0,0,0,0);
     }
   }
@@ -152,7 +152,7 @@ protected:
     Layer(aManager, aImplData),
     mSequenceCounter(0),
     mSize(0,0),
-    mBackgroundLayer(nullptr),
+    mBackgroundLayer(nsnull),
     mBackgroundLayerOffset(0, 0),
     mBackgroundColor(gfxRGBA(0,0,0,0))
   {}

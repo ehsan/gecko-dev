@@ -94,10 +94,10 @@ protected:
   };
 
 #define SNIFFER_ENTRY(_bytes, _type) \
-  { _bytes, sizeof(_bytes) - 1, _type, nullptr }
+  { _bytes, sizeof(_bytes) - 1, _type, nsnull }
 
 #define SNIFFER_ENTRY_WITH_FUNC(_bytes, _func) \
-  { _bytes, sizeof(_bytes) - 1, nullptr, _func }
+  { _bytes, sizeof(_bytes) - 1, nsnull, _func }
 
   static nsSnifferEntry sSnifferEntries[];
   static PRUint32 sSnifferEntryNum;

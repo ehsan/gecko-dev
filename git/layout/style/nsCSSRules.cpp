@@ -72,7 +72,7 @@ Rule::GetParentRule(nsIDOMCSSRule** aParentRule)
   if (mParentRule) {
     NS_IF_ADDREF(*aParentRule = mParentRule->GetDOMRule());
   } else {
-    *aParentRule = nullptr;
+    *aParentRule = nsnull;
   }
   return NS_OK;
 }
@@ -109,7 +109,7 @@ public:
 
   virtual nsIDOMCSSRule* GetItemAt(PRUint32 aIndex, nsresult* aResult);
 
-  void DropReference() { mGroupRule = nullptr; }
+  void DropReference() { mGroupRule = nsnull; }
 
 private:
   ~GroupRuleRuleList();
@@ -165,7 +165,7 @@ GroupRuleRuleList::GetItemAt(PRUint32 aIndex, nsresult* aResult)
     }
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 NS_IMETHODIMP
@@ -174,7 +174,7 @@ GroupRuleRuleList::Item(PRUint32 aIndex, nsIDOMCSSRule** aReturn)
   nsresult rv;
   nsIDOMCSSRule* rule = GetItemAt(aIndex, &rv);
   if (!rule) {
-    *aReturn = nullptr;
+    *aReturn = nsnull;
     return rv;
   }
 
@@ -331,7 +331,7 @@ ImportRule::ImportRule(const ImportRule& aCopy)
   // sheet failed security checks.
   if (aCopy.mChildSheet) {
     nsRefPtr<nsCSSStyleSheet> sheet =
-      aCopy.mChildSheet->Clone(nullptr, this, nullptr, nullptr);
+      aCopy.mChildSheet->Clone(nsnull, this, nsnull, nsnull);
     SetSheet(sheet);
     // SetSheet sets mMedia appropriately
   }
@@ -340,7 +340,7 @@ ImportRule::ImportRule(const ImportRule& aCopy)
 ImportRule::~ImportRule()
 {
   if (mChildSheet) {
-    mChildSheet->SetOwnerRule(nullptr);
+    mChildSheet->SetOwnerRule(nsnull);
   }
 }
 
@@ -528,7 +528,7 @@ GroupRule::GroupRule(const GroupRule& aCopy)
 GroupRule::~GroupRule()
 {
   NS_ABORT_IF_FALSE(!mSheet, "SetStyleSheet should have been called");
-  mRules.EnumerateForwards(SetParentRuleReference, nullptr);
+  mRules.EnumerateForwards(SetParentRuleReference, nsnull);
   if (mRuleCollection) {
     mRuleCollection->DropReference();
   }
@@ -599,8 +599,8 @@ GroupRule::DeleteStyleRuleAt(PRUint32 aIndex)
 {
   Rule* rule = mRules.SafeObjectAt(aIndex);
   if (rule) {
-    rule->SetStyleSheet(nullptr);
-    rule->SetParentRule(nullptr);
+    rule->SetStyleSheet(nsnull);
+    rule->SetParentRule(nsnull);
   }
   return mRules.RemoveObjectAt(aIndex) ? NS_OK : NS_ERROR_ILLEGAL_VALUE;
 }
@@ -625,8 +625,8 @@ GroupRule::ReplaceStyleRule(Rule* aOld, Rule* aNew)
   mRules.ReplaceObjectAt(aNew, index);
   aNew->SetStyleSheet(mSheet);
   aNew->SetParentRule(this);
-  aOld->SetStyleSheet(nullptr);
-  aOld->SetParentRule(nullptr);
+  aOld->SetStyleSheet(nsnull);
+  aOld->SetParentRule(nsnull);
   return NS_OK;
 }
 
@@ -727,7 +727,7 @@ MediaRule::MediaRule(const MediaRule& aCopy)
 MediaRule::~MediaRule()
 {
   if (mMedia) {
-    mMedia->SetStyleSheet(nullptr);
+    mMedia->SetStyleSheet(nsnull);
   }
 }
 
@@ -748,7 +748,7 @@ MediaRule::SetStyleSheet(nsCSSStyleSheet* aSheet)
 {
   if (mMedia) {
     // Set to null so it knows it's leaving one sheet and joining another.
-    mMedia->SetStyleSheet(nullptr);
+    mMedia->SetStyleSheet(nsnull);
     mMedia->SetStyleSheet(aSheet);
   }
 
@@ -1740,7 +1740,7 @@ nsCSSKeyframeStyleDeclaration::GetCSSDeclaration(bool aAllocate)
   if (mRule) {
     return mRule->Declaration();
   } else {
-    return nullptr;
+    return nsnull;
   }
 }
 
@@ -1770,7 +1770,7 @@ nsCSSKeyframeStyleDeclaration::SetCSSDeclaration(css::Declaration* aDecl)
 nsIDocument*
 nsCSSKeyframeStyleDeclaration::DocToUpdate()
 {
-  return nullptr;
+  return nsnull;
 }
 
 // -------------------------------------------
@@ -1906,7 +1906,7 @@ nsCSSKeyframeRule::SetKeyText(const nsAString& aKeyText)
 
   InfallibleTArray<float> newSelectors;
   // FIXME: pass filename and line number
-  if (parser.ParseKeyframeSelectorString(aKeyText, nullptr, 0, newSelectors)) {
+  if (parser.ParseKeyframeSelectorString(aKeyText, nsnull, 0, newSelectors)) {
     newSelectors.SwapElements(mKeys);
   } else {
     // for now, we don't do anything if the parse fails
@@ -2085,7 +2085,7 @@ nsCSSKeyframesRule::InsertRule(const nsAString& aRule)
 
   // FIXME: pass filename and line number
   nsRefPtr<nsCSSKeyframeRule> rule =
-    parser.ParseKeyframeRule(aRule, nullptr, 0);
+    parser.ParseKeyframeRule(aRule, nsnull, 0);
   if (rule) {
     AppendStyleRule(rule);
   }
@@ -2102,7 +2102,7 @@ nsCSSKeyframesRule::FindRuleIndexForKey(const nsAString& aKey)
 
   InfallibleTArray<float> keys;
   // FIXME: pass filename and line number
-  if (parser.ParseKeyframeSelectorString(aKey, nullptr, 0, keys)) {
+  if (parser.ParseKeyframeSelectorString(aKey, nsnull, 0, keys)) {
     // The spec isn't clear, but we'll match on the key list, which
     // mostly matches what WebKit does, except we'll do last-match
     // instead of first-match, and handling parsing differences better.
@@ -2137,7 +2137,7 @@ nsCSSKeyframesRule::FindRule(const nsAString& aKey,
 {
   PRUint32 index = FindRuleIndexForKey(aKey);
   if (index == RULE_NOT_FOUND) {
-    *aResult = nullptr;
+    *aResult = nsnull;
   } else {
     NS_ADDREF(*aResult = static_cast<nsCSSKeyframeRule*>(mRules[index]));
   }
@@ -2166,132 +2166,4 @@ nsCSSKeyframesRule::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
   return n;
 }
 
-namespace mozilla {
 
-CSSSupportsRule::CSSSupportsRule(bool aConditionMet,
-                                 const nsString& aCondition)
-  : mUseGroup(aConditionMet),
-    mCondition(aCondition)
-{
-}
-
-CSSSupportsRule::CSSSupportsRule(const CSSSupportsRule& aCopy)
-  : css::GroupRule(aCopy),
-    mUseGroup(aCopy.mUseGroup),
-    mCondition(aCopy.mCondition)
-{
-}
-
-#ifdef DEBUG
-/* virtual */ void
-CSSSupportsRule::List(FILE* out, PRInt32 aIndent) const
-{
-  for (PRInt32 indent = aIndent; --indent >= 0; ) fputs("  ", out);
-
-  nsAutoString buffer;
-
-  fputs("@supports ", out);
-
-  fputs(NS_LossyConvertUTF16toASCII(mCondition).get(), out);
-
-  css::GroupRule::List(out, aIndent);
-}
-#endif
-
-/* virtual */ PRInt32
-CSSSupportsRule::GetType() const
-{
-  return Rule::SUPPORTS_RULE;
-}
-
-/* virtual */ already_AddRefed<mozilla::css::Rule>
-CSSSupportsRule::Clone() const
-{
-  nsRefPtr<css::Rule> clone = new CSSSupportsRule(*this);
-  return clone.forget();
-}
-
-/* virtual */ bool
-CSSSupportsRule::UseForPresentation(nsPresContext* aPresContext,
-                                   nsMediaQueryResultCacheKey& aKey)
-{
-  return mUseGroup;
-}
-
-NS_IMPL_ADDREF_INHERITED(CSSSupportsRule, css::GroupRule)
-NS_IMPL_RELEASE_INHERITED(CSSSupportsRule, css::GroupRule)
-
-// QueryInterface implementation for CSSSupportsRule
-NS_INTERFACE_MAP_BEGIN(CSSSupportsRule)
-  NS_INTERFACE_MAP_ENTRY(nsIStyleRule)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMCSSRule)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMCSSSupportsRule)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIStyleRule)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CSSSupportsRule)
-NS_INTERFACE_MAP_END
-
-// nsIDOMCSSRule methods
-NS_IMETHODIMP
-CSSSupportsRule::GetType(PRUint16* aType)
-{
-  *aType = nsIDOMCSSRule::SUPPORTS_RULE;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-CSSSupportsRule::GetCssText(nsAString& aCssText)
-{
-  aCssText.AssignLiteral("@supports ");
-  aCssText.Append(mCondition);
-  return css::GroupRule::AppendRulesToCssText(aCssText);
-}
-
-NS_IMETHODIMP
-CSSSupportsRule::SetCssText(const nsAString& aCssText)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-CSSSupportsRule::GetParentStyleSheet(nsIDOMCSSStyleSheet** aSheet)
-{
-  return css::GroupRule::GetParentStyleSheet(aSheet);
-}
-
-NS_IMETHODIMP
-CSSSupportsRule::GetParentRule(nsIDOMCSSRule** aParentRule)
-{
-  return css::GroupRule::GetParentRule(aParentRule);
-}
-
-/* virtual */ size_t
-CSSSupportsRule::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
-{
-  size_t n = aMallocSizeOf(this);
-  n += css::GroupRule::SizeOfExcludingThis(aMallocSizeOf);
-  n += mCondition.SizeOfExcludingThisIfUnshared(aMallocSizeOf);
-  return n;
-}
-
-NS_IMETHODIMP
-CSSSupportsRule::GetCssRules(nsIDOMCSSRuleList* *aRuleList)
-{
-  return css::GroupRule::GetCssRules(aRuleList);
-}
-
-NS_IMETHODIMP
-CSSSupportsRule::InsertRule(const nsAString & aRule, PRUint32 aIndex, PRUint32* _retval)
-{
-  return css::GroupRule::InsertRule(aRule, aIndex, _retval);
-}
-
-NS_IMETHODIMP
-CSSSupportsRule::DeleteRule(PRUint32 aIndex)
-{
-  return css::GroupRule::DeleteRule(aIndex);
-}
-
-} // namespace mozilla
-
-// Must be outside namespace
-DOMCI_DATA(CSSSupportsRule, mozilla::CSSSupportsRule)

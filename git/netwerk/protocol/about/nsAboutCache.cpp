@@ -44,7 +44,7 @@ nsAboutCache::NewChannel(nsIURI *aURI, nsIChannel **result)
     nsresult rv;
     PRUint32 bytesWritten;
 
-    *result = nullptr;
+    *result = nsnull;
     // Get the cache manager service
     nsCOMPtr<nsICacheService> cacheService = 
              do_GetService(NS_CACHESERVICE_CONTRACTID, &rv);
@@ -348,7 +348,7 @@ nsresult
 nsAboutCache::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult)
 {
     nsAboutCache* about = new nsAboutCache();
-    if (about == nullptr)
+    if (about == nsnull)
         return NS_ERROR_OUT_OF_MEMORY;
     NS_ADDREF(about);
     nsresult rv = about->QueryInterface(aIID, aResult);

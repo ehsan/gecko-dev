@@ -684,7 +684,7 @@ GetClosestInterestingAccessible(id anObject)
 
   [self invalidateChildren];
 
-  mGeckoAccessible = nullptr;
+  mGeckoAccessible = nsnull;
   
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }

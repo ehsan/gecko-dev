@@ -310,16 +310,16 @@ bool nsDoubleBufferCARenderer::InitFrontSurface(size_t aWidth, size_t aHeight,
     return false;
   }
 
-  mFrontSurface = MacIOSurface::CreateIOSurface(aWidth, aHeight);
+  mFrontSurface = nsIOSurface::CreateIOSurface(aWidth, aHeight);
   if (!mFrontSurface) {
-    mCARenderer = nullptr;
+    mCARenderer = nsnull;
     return false;
   }
 
   if (!mCARenderer) {
     mCARenderer = new nsCARenderer();
     if (!mCARenderer) {
-      mFrontSurface = nullptr;
+      mFrontSurface = nsnull;
       return false;
     }
 
@@ -331,8 +331,8 @@ bool nsDoubleBufferCARenderer::InitFrontSurface(size_t aWidth, size_t aHeight,
                         aAllowOfflineRenderer);
 
     if (result != NS_OK) {
-      mCARenderer = nullptr;
-      mFrontSurface = nullptr;
+      mCARenderer = nsnull;
+      mFrontSurface = nsnull;
       return false;
     }
   } else {
@@ -347,11 +347,11 @@ void nsDoubleBufferCARenderer::Render() {
     return;
   }
 
-  mCARenderer->Render(GetFrontSurfaceWidth(), GetFrontSurfaceHeight(), nullptr);
+  mCARenderer->Render(GetFrontSurfaceWidth(), GetFrontSurfaceHeight(), nsnull);
 }
 
 void nsDoubleBufferCARenderer::SwapSurfaces() {
-  RefPtr<MacIOSurface> prevFrontSurface = mFrontSurface;
+  nsRefPtr<nsIOSurface> prevFrontSurface = mFrontSurface;
   mFrontSurface = mBackSurface;
   mBackSurface = prevFrontSurface;
 
@@ -361,16 +361,16 @@ void nsDoubleBufferCARenderer::SwapSurfaces() {
 }
 
 void nsDoubleBufferCARenderer::ClearFrontSurface() {
-  mFrontSurface = nullptr;
+  mFrontSurface = nsnull;
   if (!mFrontSurface && !mBackSurface) {
-    mCARenderer = nullptr;
+    mCARenderer = nsnull;
   }
 }
 
 void nsDoubleBufferCARenderer::ClearBackSurface() {
-  mBackSurface = nullptr;
+  mBackSurface = nsnull;
   if (!mFrontSurface && !mBackSurface) {
-    mCARenderer = nullptr;
+    mCARenderer = nsnull;
   }
 }
 

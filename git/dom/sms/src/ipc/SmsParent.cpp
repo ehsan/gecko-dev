@@ -18,7 +18,7 @@ namespace mozilla {
 namespace dom {
 namespace sms {
 
-nsTArray<SmsParent*>* SmsParent::gSmsParents = nullptr;
+nsTArray<SmsParent*>* SmsParent::gSmsParents = nsnull;
 
 NS_IMPL_ISUPPORTS1(SmsParent, nsIObserver)
 
@@ -67,7 +67,7 @@ SmsParent::ActorDestroy(ActorDestroyReason why)
   gSmsParents->RemoveElement(this);
   if (gSmsParents->Length() == 0) {
     delete gSmsParents;
-    gSmsParents = nullptr;
+    gSmsParents = nsnull;
   }
 }
 

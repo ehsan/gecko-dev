@@ -118,8 +118,6 @@ GetBackendName(mozilla::gfx::BackendType aBackend)
   switch (aBackend) {
       case mozilla::gfx::BACKEND_DIRECT2D:
         return "direct2d";
-      case mozilla::gfx::BACKEND_COREGRAPHICS_ACCELERATED:
-        return "quartz accelerated";
       case mozilla::gfx::BACKEND_COREGRAPHICS:
         return "quartz";
       case mozilla::gfx::BACKEND_CAIRO:
@@ -197,16 +195,12 @@ public:
       CreateDrawTargetForData(unsigned char* aData, const mozilla::gfx::IntSize& aSize, 
                               int32_t aStride, mozilla::gfx::SurfaceFormat aFormat);
 
-    bool SupportsAzureCanvas();
+    // aBackend will be set to the preferred backend for Azure canvas
+    bool SupportsAzureCanvas(mozilla::gfx::BackendType& aBackend);
 
-    void GetAzureBackendInfo(mozilla::widget::InfoObject &aObj) {
-      aObj.DefineProperty("AzureCanvasBackend", GetBackendName(mPreferredCanvasBackend));
-      aObj.DefineProperty("AzureFallbackCanvasBackend", GetBackendName(mFallbackCanvasBackend));
-      aObj.DefineProperty("AzureContentBackend", GetBackendName(GetContentBackend()));
-    }
-
-    mozilla::gfx::BackendType GetPreferredCanvasBackend() {
-      return mPreferredCanvasBackend;
+    // aObj will contain the preferred backend for Azure canvas
+    void GetAzureCanvasBackendInfo(mozilla::widget::InfoObject &aObj) {
+      aObj.DefineProperty("AzureBackend", GetBackendName(mPreferredCanvasBackend));
     }
 
     /*
@@ -236,7 +230,7 @@ public:
      */
     virtual gfxPlatformFontList *CreatePlatformFontList() {
         NS_NOTREACHED("oops, this platform doesn't have a gfxPlatformFontList implementation");
-        return nullptr;
+        return nsnull;
     }
 
     /**
@@ -274,7 +268,7 @@ public:
      */
     virtual gfxFontEntry* LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
                                           const nsAString& aFontName)
-    { return nullptr; }
+    { return nsnull; }
 
     /**
      * Activate a platform font.  (Needed to support @font-face src url().)
@@ -483,11 +477,6 @@ protected:
      */
     static mozilla::gfx::BackendType GetCanvasBackendPref(PRUint32 aBackendBitmask);
     static mozilla::gfx::BackendType BackendTypeForName(const nsCString& aName);
-
-    virtual mozilla::gfx::BackendType GetContentBackend()
-    {
-      return mozilla::gfx::BACKEND_NONE;
-    }
 
     PRInt8  mAllowDownloadableFonts;
     PRInt8  mDownloadableFontsSanitize;

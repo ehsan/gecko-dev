@@ -9,7 +9,7 @@ namespace mozilla {
 namespace gfx {
 
 SharedDIB::SharedDIB() :
-  mShMem(nullptr)
+  mShMem(nsnull)
 {
 }
 
@@ -44,7 +44,7 @@ SharedDIB::Close()
 {
   delete mShMem;
 
-  mShMem = nullptr;
+  mShMem = nsnull;
 
   return NS_OK;
 }

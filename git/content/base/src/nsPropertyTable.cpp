@@ -166,7 +166,7 @@ nsPropertyTable::GetPropertyInternal(nsPropertyOwner aObject,
 {
   NS_PRECONDITION(aPropertyName && aObject, "unexpected null param");
   nsresult rv = NS_PROPTABLE_PROP_NOT_THERE;
-  void *propValue = nullptr;
+  void *propValue = nsnull;
 
   PropertyList* propertyList = GetPropertyListFor(aPropertyName);
   if (propertyList) {
@@ -241,7 +241,7 @@ nsPropertyTable::SetPropertyInternal(nsPropertyOwner     aObject,
     result = NS_PROPTABLE_PROP_OVERWRITTEN;
   }
   else if (aOldValue) {
-    *aOldValue = nullptr;
+    *aOldValue = nsnull;
   }
   entry->key = aObject;
   entry->value = aPropertyValue;
@@ -288,7 +288,7 @@ nsPropertyTable::PropertyList::PropertyList(nsIAtom            *aName,
     mDtorFunc(aDtorFunc),
     mDtorData(aDtorData),
     mTransfer(aTransfer),
-    mNext(nullptr)
+    mNext(nsnull)
 {
   PL_DHashTableInit(&mObjectValueMap, PL_DHashGetStubOps(), this,
                     sizeof(PropertyListMapEntry), 16);
@@ -319,7 +319,7 @@ nsPropertyTable::PropertyList::Destroy()
   // Enumerate any remaining object/value pairs and destroy the value object
   if (mDtorFunc)
     PL_DHashTableEnumerate(&mObjectValueMap, DestroyPropertyEnumerator,
-                           nullptr);
+                           nsnull);
 }
 
 bool

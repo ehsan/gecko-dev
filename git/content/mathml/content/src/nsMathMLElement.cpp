@@ -113,7 +113,7 @@ nsMathMLElement::ParseAttribute(PRInt32 aNamespaceID,
 
 static nsGenericElement::MappedAttributeEntry sMtableStyles[] = {
   { &nsGkAtoms::width },
-  { nullptr }
+  { nsnull }
 };
 
 static nsGenericElement::MappedAttributeEntry sTokenStyles[] = {
@@ -121,7 +121,7 @@ static nsGenericElement::MappedAttributeEntry sTokenStyles[] = {
   { &nsGkAtoms::fontsize_ },
   { &nsGkAtoms::color },
   { &nsGkAtoms::fontfamily_ },
-  { nullptr }
+  { nsnull }
 };
 
 static nsGenericElement::MappedAttributeEntry sEnvironmentStyles[] = {
@@ -129,13 +129,13 @@ static nsGenericElement::MappedAttributeEntry sEnvironmentStyles[] = {
   { &nsGkAtoms::scriptminsize_ },
   { &nsGkAtoms::scriptsizemultiplier_ },
   { &nsGkAtoms::background },
-  { nullptr }
+  { nsnull }
 };
 
 static nsGenericElement::MappedAttributeEntry sCommonPresStyles[] = {
   { &nsGkAtoms::mathcolor_ },
   { &nsGkAtoms::mathbackground_ },
-  { nullptr }
+  { nsnull }
 };
 
 bool
@@ -334,7 +334,7 @@ nsMathMLElement::ParseNumericValue(const nsString& aString,
   }
 
   // Convert number to floating point
-  nsresult errorCode;
+  PRInt32 errorCode;
   float floatValue = number.ToFloat(&errorCode);
   if (NS_FAILED(errorCode))
     return false;
@@ -397,7 +397,7 @@ nsMathMLElement::MapMathMLAttributesInto(const nsMappedAttributes* aAttributes,
       str.CompressWhitespace();
       // MathML numbers can't have leading '+'
       if (str.Length() > 0 && str.CharAt(0) != '+') {
-        nsresult errorCode;
+        PRInt32 errorCode;
         float floatValue = str.ToFloat(&errorCode);
         // Negative scriptsizemultipliers are not parsed
         if (NS_SUCCEEDED(errorCode) && floatValue >= 0.0f) {
@@ -443,7 +443,7 @@ nsMathMLElement::MapMathMLAttributesInto(const nsMappedAttributes* aAttributes,
       nsAutoString str(value->GetStringValue());
       str.CompressWhitespace();
       if (str.Length() > 0) {
-        nsresult errorCode;
+        PRInt32 errorCode;
         PRInt32 intValue = str.ToInteger(&errorCode);
         if (NS_SUCCEEDED(errorCode)) {
           // This is kind of cheesy ... if the scriptlevel has a sign,
@@ -673,7 +673,7 @@ nsMathMLElement::IsLink(nsIURI** aURI) const
       tag == nsGkAtoms::none         ||
       tag == nsGkAtoms::malignmark_  ||
       tag == nsGkAtoms::maligngroup_) {
-    *aURI = nullptr;
+    *aURI = nsnull;
     return false;
   }
 
@@ -697,13 +697,13 @@ nsMathMLElement::IsLink(nsIURI** aURI) const
     // result is poorly specified. Either way, we return false.
     
     static nsIContent::AttrValuesArray sTypeVals[] =
-      { &nsGkAtoms::_empty, &nsGkAtoms::simple, nullptr };
+      { &nsGkAtoms::_empty, &nsGkAtoms::simple, nsnull };
     
     static nsIContent::AttrValuesArray sShowVals[] =
-      { &nsGkAtoms::_empty, &nsGkAtoms::_new, &nsGkAtoms::replace, nullptr };
+      { &nsGkAtoms::_empty, &nsGkAtoms::_new, &nsGkAtoms::replace, nsnull };
     
     static nsIContent::AttrValuesArray sActuateVals[] =
-      { &nsGkAtoms::_empty, &nsGkAtoms::onRequest, nullptr };
+      { &nsGkAtoms::_empty, &nsGkAtoms::onRequest, nsnull };
     
     // Optimization: check for href first for early return
     href = mAttrsAndChildren.GetAttr(nsGkAtoms::href,
@@ -733,7 +733,7 @@ nsMathMLElement::IsLink(nsIURI** aURI) const
     return !!*aURI;
   }
 
-  *aURI = nullptr;
+  *aURI = nsnull;
   return false;
 }
 
@@ -749,7 +749,7 @@ nsMathMLElement::GetLinkTarget(nsAString& aTarget)
   if (aTarget.IsEmpty()) {
 
     static nsIContent::AttrValuesArray sShowVals[] =
-      { &nsGkAtoms::_new, &nsGkAtoms::replace, nullptr };
+      { &nsGkAtoms::_new, &nsGkAtoms::replace, nsnull };
     
     switch (FindAttrValueIn(kNameSpaceID_XLink, nsGkAtoms::show,
                             sShowVals, eCaseMatters)) {
@@ -773,7 +773,7 @@ already_AddRefed<nsIURI>
 nsMathMLElement::GetHrefURI() const
 {
   nsCOMPtr<nsIURI> hrefURI;
-  return IsLink(getter_AddRefs(hrefURI)) ? hrefURI.forget() : nullptr;
+  return IsLink(getter_AddRefs(hrefURI)) ? hrefURI.forget() : nsnull;
 }
 
 nsresult

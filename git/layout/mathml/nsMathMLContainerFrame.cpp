@@ -1311,7 +1311,7 @@ nsMathMLContainerFrame::PositionRowChildFrames(nscoord aOffsetX,
   while (child.Frame()) {
     nscoord dx = aOffsetX + child.X();
     nscoord dy = aBaseline - child.Ascent();
-    FinishReflowChild(child.Frame(), PresContext(), nullptr,
+    FinishReflowChild(child.Frame(), PresContext(), nsnull,
                       child.ReflowMetrics(), dx, dy, 0);
     ++child;
   }
@@ -1434,9 +1434,9 @@ nsMathMLContainerFrame::DidReflowChildren(nsIFrame* aFirst, nsIFrame* aStop)
       // finish off principal descendants, too
       nsIFrame* grandchild = frame->GetFirstPrincipalChild();
       if (grandchild)
-        DidReflowChildren(grandchild, nullptr);
+        DidReflowChildren(grandchild, nsnull);
 
-      frame->DidReflow(frame->PresContext(), nullptr,
+      frame->DidReflow(frame->PresContext(), nsnull,
                        NS_FRAME_REFLOW_FINISHED);
     }
   }
@@ -1500,9 +1500,9 @@ nsMathMLContainerFrame::TransmitAutomaticDataForMrowLikeElement()
 
   if (childFrame || !embellishedOpFound) {
     // The element is not embellished operator
-    mPresentationData.baseFrame = nullptr;
+    mPresentationData.baseFrame = nsnull;
     mEmbellishData.flags = 0;
-    mEmbellishData.coreFrame = nullptr;
+    mEmbellishData.coreFrame = nsnull;
     mEmbellishData.direction = NS_STRETCH_DIRECTION_UNSUPPORTED;
     mEmbellishData.leadingSpace = 0;
     mEmbellishData.trailingSpace = 0;

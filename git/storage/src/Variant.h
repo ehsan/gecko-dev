@@ -22,7 +22,7 @@
  * nsString  -> TEXT (use TextVariant)
  * nsCString -> TEXT (use UTF8TextVariant)
  * PRUint8[] -> BLOB (use BlobVariant)
- * nullptr    -> NULL (use NullVariant)
+ * nsnull    -> NULL (use NullVariant)
  */
 
 namespace mozilla {
@@ -255,9 +255,9 @@ struct variant_blob_traits<PRUint8[]>
                                  PRUint32 *_size,
                                  void **_result)
   {
-    // For empty blobs, we return nullptr.
+    // For empty blobs, we return nsnull.
     if (aData.Length() == 0) {
-      *_result = nullptr;
+      *_result = nsnull;
       *_type = nsIDataType::VTYPE_UINT8;
       *_size = 0;
       return NS_OK;

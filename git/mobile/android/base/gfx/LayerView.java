@@ -9,20 +9,14 @@ import org.mozilla.gecko.GeckoApp;
 import org.mozilla.gecko.GeckoInputConnection;
 
 import android.content.Context;
-import android.graphics.PixelFormat;
-import android.graphics.SurfaceTexture;
-import android.os.Build;
-import android.util.AttributeSet;
-import android.util.Log;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
-import android.view.SurfaceHolder;
-import android.view.SurfaceView;
-import android.view.TextureView;
-import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
-import android.widget.FrameLayout;
+import android.util.Log;
+import android.graphics.PixelFormat;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
 
 import java.nio.IntBuffer;
 
@@ -34,9 +28,10 @@ import java.nio.IntBuffer;
  *
  * Note that LayerView is accessed by Robocop via reflection.
  */
-public class LayerView extends FrameLayout {
+public class LayerView extends SurfaceView implements SurfaceHolder.Callback {
     private static String LOGTAG = "GeckoLayerView";
 
+    private Context mContext;
     private LayerController mController;
     private TouchEventHandler mTouchEventHandler;
     private GLController mGLController;
@@ -44,9 +39,6 @@ public class LayerView extends FrameLayout {
     private LayerRenderer mRenderer;
     /* Must be a PAINT_xxx constant */
     private int mPaintState = PAINT_NONE;
-
-    private SurfaceView mSurfaceView;
-    private TextureView mTextureView;
 
     private Listener mListener;
 
@@ -56,29 +48,18 @@ public class LayerView extends FrameLayout {
     public static final int PAINT_BEFORE_FIRST = 1;
     public static final int PAINT_AFTER_FIRST = 2;
 
-    public LayerView(Context context, AttributeSet attrs) {
-        super(context, attrs);
 
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.ICE_CREAM_SANDWICH) {
-            mSurfaceView = new SurfaceView(context);
-            addView(mSurfaceView, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+    public LayerView(Context context, LayerController controller) {
+        super(context);
 
-            SurfaceHolder holder = mSurfaceView.getHolder();
-            holder.addCallback(new SurfaceListener());
-            holder.setFormat(PixelFormat.RGB_565);
-        } else {
-            mTextureView = new TextureView(context);
-            mTextureView.setSurfaceTextureListener(new SurfaceTextureListener());
-
-            addView(mTextureView, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
-        }
+        SurfaceHolder holder = getHolder();
+        holder.addCallback(this);
+        holder.setFormat(PixelFormat.RGB_565);
 
         mGLController = new GLController(this);
-    }
-
-    void connect(LayerController controller) {
+        mContext = context;
         mController = controller;
-        mTouchEventHandler = new TouchEventHandler(getContext(), this, mController);
+        mTouchEventHandler = new TouchEventHandler(context, this, mController);
         mRenderer = new LayerRenderer(this);
         mInputConnectionHandler = null;
 
@@ -220,7 +201,9 @@ public class LayerView extends FrameLayout {
         return mGLController;
     }
 
-    private void onSizeChanged(int width, int height) {
+    /** Implementation of SurfaceHolder.Callback */
+    public synchronized void surfaceChanged(SurfaceHolder holder, int format, int width,
+                                            int height) {
         mGLController.surfaceChanged(width, height);
 
         if (mListener != null) {
@@ -228,19 +211,17 @@ public class LayerView extends FrameLayout {
         }
     }
 
-    private void onDestroyed() {
+    /** Implementation of SurfaceHolder.Callback */
+    public synchronized void surfaceCreated(SurfaceHolder holder) {
+    }
+
+    /** Implementation of SurfaceHolder.Callback */
+    public synchronized void surfaceDestroyed(SurfaceHolder holder) {
         mGLController.surfaceDestroyed();
 
         if (mListener != null) {
             mListener.compositionPauseRequested();
         }
-    }
-
-    public Object getNativeWindow() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.ICE_CREAM_SANDWICH)
-            return mSurfaceView.getHolder();
-
-        return mTextureView.getSurfaceTexture();
     }
 
     /** This function is invoked by Gecko (compositor thread) via JNI; be careful when modifying signature. */
@@ -263,38 +244,5 @@ public class LayerView extends FrameLayout {
         void surfaceChanged(int width, int height);
     }
 
-    private class SurfaceListener implements SurfaceHolder.Callback {
-        public void surfaceChanged(SurfaceHolder holder, int format, int width,
-                                                int height) {
-            onSizeChanged(width, height);
-        }
 
-        public void surfaceCreated(SurfaceHolder holder) {
-        }
-
-        public void surfaceDestroyed(SurfaceHolder holder) {
-            onDestroyed();
-        }
-    }
-
-    private class SurfaceTextureListener implements TextureView.SurfaceTextureListener {
-        public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
-            // We don't do this for surfaceCreated above because it is always followed by a surfaceChanged,
-            // but that is not the case here.
-            onSizeChanged(width, height);
-        }
-
-        public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
-            onDestroyed();
-            return true; // allow Android to call release() on the SurfaceTexture, we are done drawing to it
-        }
-
-        public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
-            onSizeChanged(width, height);
-        }
-
-        public void onSurfaceTextureUpdated(SurfaceTexture surface) {
-
-        }
-    }
 }

@@ -75,7 +75,7 @@ nsSVGTextPathFrame::GetDxDy(SVGUserUnitList *aDx, SVGUserUnitList *aDy)
 const SVGNumberList*
 nsSVGTextPathFrame::GetRotate()
 {
-  return nullptr;
+  return nsnull;
 }
 
 //----------------------------------------------------------------------
@@ -92,7 +92,7 @@ nsSVGTextPathFrame::GetPathFrame()
     nsAutoString href;
     tp->mStringAttributes[nsSVGTextPathElement::HREF].GetAnimValue(href, tp);
     if (href.IsEmpty()) {
-      return nullptr; // no URL
+      return nsnull; // no URL
     }
 
     nsCOMPtr<nsIURI> targetURI;
@@ -103,10 +103,10 @@ nsSVGTextPathFrame::GetPathFrame()
     property =
       nsSVGEffects::GetTextPathProperty(targetURI, this, nsSVGEffects::HrefProperty());
     if (!property)
-      return nullptr;
+      return nsnull;
   }
 
-  return property->GetReferencedFrame(nsGkAtoms::svgPathGeometryFrame, nullptr);
+  return property->GetReferencedFrame(nsGkAtoms::svgPathGeometryFrame, nsnull);
 }
 
 already_AddRefed<gfxFlattenedPath>
@@ -120,7 +120,7 @@ nsSVGTextPathFrame::GetFlattenedPath()
 
     return element->GetFlattenedPath(element->PrependLocalTransformsTo(gfxMatrix()));
   }
-  return nullptr;
+  return nsnull;
 }
  
 gfxFloat

@@ -1725,7 +1725,11 @@ class IDLValue(IDLObject):
             return IDLValue(self.location, type, innerValue.value)
 
         # Else, see if we can coerce to 'type'.
-        if self.type.isInteger() and type.isInteger():
+        if self.type.isInteger():
+            if not type.isInteger():
+                raise WebIDLError("Cannot coerce type %s to type %s." %
+                                  (self.type, type), [location])
+
             # We're both integer types.  See if we fit.
 
             (min, max) = integerTypeSizes[type._typeTag]
@@ -1735,16 +1739,10 @@ class IDLValue(IDLObject):
             else:
                 raise WebIDLError("Value %s is out of range for type %s." %
                                   (self.value, type), [location])
-        elif self.type.isString() and type.isEnum():
-            # Just keep our string, but make sure it's a valid value for this enum
-            if self.value not in type.inner.values():
-                raise WebIDLError("'%s' is not a valid default value for enum %s"
-                                  % (self.value, type.inner.identifier.name),
-                                  [location, type.inner.location])
-            return self
         else:
-            raise WebIDLError("Cannot coerce type %s to type %s." %
-                              (self.type, type), [location])
+            pass
+
+        assert False # Not implemented!
 
 class IDLNullValue(IDLObject):
     def __init__(self, location):
@@ -1755,8 +1753,7 @@ class IDLNullValue(IDLObject):
     def coerceToType(self, type, location):
         if (not isinstance(type, IDLNullableType) and
             not (type.isUnion() and type.hasNullableType) and
-            not type.isDictionary() and
-            not type.isAny()):
+            not type.isDictionary()):
             raise WebIDLError("Cannot coerce null value to type %s." % type,
                               [location])
 
@@ -2769,9 +2766,8 @@ class Parser(Tokenizer):
         """
             ConstValue : STRING
         """
-        location = self.getLocation(p, 1)
-        stringType = BuiltinTypes[IDLBuiltinType.Types.domstring]
-        p[0] = IDLValue(location, stringType, p[1])
+        assert False
+        pass
 
     def p_ConstValueNull(self, p):
         """

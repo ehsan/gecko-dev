@@ -6,13 +6,12 @@
 #ifndef NS_ISMILATTR_H_
 #define NS_ISMILATTR_H_
 
-#include "nscore.h"
+#include "nsStringFwd.h"
 
 class nsSMILValue;
 class nsISMILType;
 class nsISMILAnimationElement;
 class nsIContent;
-class nsAString;
 
 ////////////////////////////////////////////////////////////////////////
 // nsISMILAttr: A variable targeted by SMIL for animation and can therefore have
@@ -80,9 +79,9 @@ public:
    * null.
    *
    * @return the targeted content node, if this nsISMILAttr implementation
-   * wishes to make it avaiable.  Otherwise, nullptr.
+   * wishes to make it avaiable.  Otherwise, nsnull.
    */
-  virtual const nsIContent* GetTargetNode() const { return nullptr; }
+  virtual const nsIContent* GetTargetNode() const { return nsnull; }
 
   /**
    * Virtual destructor, to make sure subclasses can clean themselves up.

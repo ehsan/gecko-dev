@@ -107,7 +107,7 @@ protected:
     }
 
     mFind->SetCaseSensitive(mCaseSensitive);
-    mFind->SetWordBreaker(nullptr);
+    mFind->SetWordBreaker(nsnull);
 
     return true;
   }

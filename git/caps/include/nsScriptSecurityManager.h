@@ -184,7 +184,7 @@ ClearClassPolicyEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
     if (cp->key)
     {
         PL_strfree(cp->key);
-        cp->key = nullptr;
+        cp->key = nsnull;
     }
     PL_DHashTableDestroy(cp->mPolicy);
 }
@@ -214,15 +214,15 @@ InitClassPolicyEntry(PLDHashTable *table,
     };
 
     ClassPolicy* cp = (ClassPolicy*)entry;
-    cp->mDomainWeAreWildcardFor = nullptr;
+    cp->mDomainWeAreWildcardFor = nsnull;
     cp->key = PL_strdup((const char*)key);
     if (!cp->key)
         return false;
-    cp->mPolicy = PL_NewDHashTable(&classPolicyOps, nullptr,
+    cp->mPolicy = PL_NewDHashTable(&classPolicyOps, nsnull,
                                    sizeof(PropertyPolicy), 16);
     if (!cp->mPolicy) {
         PL_strfree(cp->key);
-        cp->key = nullptr;
+        cp->key = nsnull;
         return false;
     }
     return true;
@@ -232,7 +232,7 @@ InitClassPolicyEntry(PLDHashTable *table,
 class DomainPolicy : public PLDHashTable
 {
 public:
-    DomainPolicy() : mWildcardPolicy(nullptr),
+    DomainPolicy() : mWildcardPolicy(nsnull),
                      mRefCount(0)
     {
         mGeneration = sGeneration;
@@ -258,7 +258,7 @@ public:
             InitClassPolicyEntry
         };
 
-        return PL_DHashTableInit(this, &domainPolicyOps, nullptr,
+        return PL_DHashTableInit(this, &domainPolicyOps, nsnull,
                                  sizeof(ClassPolicy), 16);
     }
 

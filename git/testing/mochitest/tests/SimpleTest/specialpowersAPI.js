@@ -756,13 +756,7 @@ SpecialPowersAPI.prototype = {
     var consoleListener = {
       userListener: listener,
       observe: function(consoleMessage) {
-        var fileName;
-        try {
-          fileName = consoleMessage.QueryInterface(Ci.nsIScriptError)
-                                   .sourceName;
-        } catch (e) {
-        }
-        this.userListener(consoleMessage.message, fileName);
+        this.userListener(consoleMessage.message);
       }
     };
 

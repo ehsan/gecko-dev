@@ -93,7 +93,7 @@ nsDOMEventTargetHelper::BindToOwner(nsPIDOMWindow* aOwner)
 {
   if (mOwner) {
     static_cast<nsGlobalWindow*>(mOwner)->RemoveEventTargetObject(this);
-    mOwner = nullptr;
+    mOwner = nsnull;
     mHasOrHasHadOwner = false;
   }
   if (aOwner) {
@@ -108,7 +108,7 @@ nsDOMEventTargetHelper::BindToOwner(nsDOMEventTargetHelper* aOther)
 {
   if (mOwner) {
     static_cast<nsGlobalWindow*>(mOwner)->RemoveEventTargetObject(this);
-    mOwner = nullptr;
+    mOwner = nsnull;
     mHasOrHasHadOwner = false;
   }
   if (aOther) {
@@ -124,11 +124,11 @@ nsDOMEventTargetHelper::BindToOwner(nsDOMEventTargetHelper* aOther)
 void
 nsDOMEventTargetHelper::DisconnectFromOwner()
 {
-  mOwner = nullptr;
+  mOwner = nsnull;
   // Event listeners can't be handled anymore, so we can release them here.
   if (mListenerManager) {
     mListenerManager->Disconnect();
-    mListenerManager = nullptr;
+    mListenerManager = nsnull;
   }
 }
 
@@ -204,7 +204,7 @@ nsDOMEventTargetHelper::DispatchEvent(nsIDOMEvent* aEvent, bool* aRetVal)
 {
   nsEventStatus status = nsEventStatus_eIgnore;
   nsresult rv =
-    nsEventDispatcher::DispatchDOMEvent(this, nullptr, aEvent, nullptr, &status);
+    nsEventDispatcher::DispatchDOMEvent(this, nsnull, aEvent, nsnull, &status);
 
   *aRetVal = (status != nsEventStatus_eConsumeNoDefault);
   return rv;
@@ -217,7 +217,7 @@ nsDOMEventTargetHelper::RemoveAddEventListener(const nsAString& aType,
 {
   if (aCurrent) {
     RemoveEventListener(aType, aCurrent, false);
-    aCurrent = nullptr;
+    aCurrent = nsnull;
   }
   if (aNew) {
     aCurrent = new nsDOMEventListenerWrapper(aNew);
@@ -235,7 +235,7 @@ nsDOMEventTargetHelper::GetInnerEventListener(nsRefPtr<nsDOMEventListenerWrapper
   if (aWrapper) {
     NS_IF_ADDREF(*aListener = aWrapper->GetInner());
   } else {
-    *aListener = nullptr;
+    *aListener = nsnull;
   }
   return NS_OK;
 }
@@ -245,7 +245,7 @@ nsresult
 nsDOMEventTargetHelper::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
   aVisitor.mCanHandle = true;
-  aVisitor.mParentTarget = nullptr;
+  aVisitor.mParentTarget = nsnull;
   return NS_OK;
 }
 
@@ -281,10 +281,10 @@ nsDOMEventTargetHelper::GetContextForEventHandlers(nsresult* aRv)
 {
   *aRv = CheckInnerWindowCorrectness();
   if (NS_FAILED(*aRv)) {
-    return nullptr;
+    return nsnull;
   }
   return mOwner ? static_cast<nsGlobalWindow*>(mOwner)->GetContextInternal()
-                : nullptr;
+                : nsnull;
 }
 
 void

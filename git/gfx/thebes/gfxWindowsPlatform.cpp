@@ -357,7 +357,7 @@ gfxWindowsPlatform::gfxWindowsPlatform()
 #ifdef CAIRO_HAS_D2D_SURFACE
     NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(D2DCache));
     NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(D2DVram));
-    mD2DDevice = nullptr;
+    mD2DDevice = nsnull;
 #endif
     NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(D2DVRAMDT));
     NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(D2DVRAMSS));
@@ -477,7 +477,7 @@ gfxWindowsPlatform::UpdateRenderMode()
             mUseDirectWrite = true;
         }
     } else {
-        mD2DDevice = nullptr;
+        mD2DDevice = nsnull;
     }
 #endif
 
@@ -535,7 +535,7 @@ gfxWindowsPlatform::VerifyD2DDevice(bool aAttemptForce)
         if (SUCCEEDED(device->GetDeviceRemovedReason())) {
             return;
         }
-        mD2DDevice = nullptr;
+        mD2DDevice = nsnull;
     }
 
     mozilla::ScopedGfxFeatureReporter reporter("D2D", aAttemptForce);
@@ -568,7 +568,7 @@ gfxWindowsPlatform::VerifyD2DDevice(bool aAttemptForce)
 
             if (SUCCEEDED(hr) && adapter1) {
                 hr = adapter1->CheckInterfaceSupport(__uuidof(ID3D10Device),
-                                                     nullptr);
+                                                     nsnull);
                 if (FAILED(hr)) {
                     // We should return and not accelerate if we don't have
                     // D3D 10.0 support.
@@ -726,14 +726,14 @@ gfxWindowsPlatform::CreatePlatformFontList()
     }
 
     gfxPlatformFontList::Shutdown();
-    return nullptr;
+    return nsnull;
 }
 
 already_AddRefed<gfxASurface>
 gfxWindowsPlatform::CreateOffscreenSurface(const gfxIntSize& size,
                                            gfxASurface::gfxContentType contentType)
 {
-    nsRefPtr<gfxASurface> surf = nullptr;
+    gfxASurface *surf = nsnull;
 
 #ifdef CAIRO_HAS_WIN32_SURFACE
     if (mRenderMode == RENDER_GDI)
@@ -745,11 +745,12 @@ gfxWindowsPlatform::CreateOffscreenSurface(const gfxIntSize& size,
         surf = new gfxD2DSurface(size, OptimalFormatForContent(contentType));
 #endif
 
-    if (!surf || surf->CairoStatus()) {
+    if (surf == nsnull)
         surf = new gfxImageSurface(size, OptimalFormatForContent(contentType));
-    }
 
-    return surf.forget();
+    NS_IF_ADDREF(surf);
+
+    return surf;
 }
 
 already_AddRefed<gfxASurface>
@@ -1125,7 +1126,7 @@ gfxWindowsPlatform::FindFontEntry(const nsAString& aName, const gfxFontStyle& aF
 {
     nsRefPtr<gfxFontFamily> ff = FindFontFamily(aName);
     if (!ff)
-        return nullptr;
+        return nsnull;
 
     bool aNeedsBold;
     return ff->FindFontForStyle(aFontStyle, aNeedsBold);
@@ -1138,9 +1139,9 @@ gfxWindowsPlatform::GetPlatformCMSOutputProfile()
     DWORD size = MAX_PATH;
     BOOL res;
 
-    HDC dc = GetDC(nullptr);
+    HDC dc = GetDC(nsnull);
     if (!dc)
-        return nullptr;
+        return nsnull;
 
 #if _MSC_VER
     __try {
@@ -1152,9 +1153,9 @@ gfxWindowsPlatform::GetPlatformCMSOutputProfile()
     res = GetICMProfileW(dc, &size, (LPWSTR)&str);
 #endif
 
-    ReleaseDC(nullptr, dc);
+    ReleaseDC(nsnull, dc);
     if (!res)
-        return nullptr;
+        return nsnull;
 
     qcms_profile* profile = qcms_profile_from_unicode_path(str);
 #ifdef DEBUG_tor
@@ -1246,11 +1247,11 @@ gfxWindowsPlatform::GetDLLVersion(const PRUnichar *aDLLPath, nsAString& aVersion
     } 
 
     UINT len = 0;
-    VS_FIXEDFILEINFO *fileInfo = nullptr;
+    VS_FIXEDFILEINFO *fileInfo = nsnull;
     if (!VerQueryValue(LPBYTE(versionInfo.Elements()), TEXT("\\"),
            (LPVOID *)&fileInfo, &len) ||
         len == 0 ||
-        fileInfo == nullptr)
+        fileInfo == nsnull)
     {
         return;
     }

@@ -62,10 +62,10 @@ CanvasLayerOGL::Destroy()
 void
 CanvasLayerOGL::Initialize(const Data& aData)
 {
-  NS_ASSERTION(mCanvasSurface == nullptr, "BasicCanvasLayer::Initialize called twice!");
+  NS_ASSERTION(mCanvasSurface == nsnull, "BasicCanvasLayer::Initialize called twice!");
 
-  if (aData.mGLContext != nullptr &&
-      aData.mSurface != nullptr)
+  if (aData.mGLContext != nsnull &&
+      aData.mSurface != nsnull)
   {
     NS_WARNING("CanvasLayerOGL can't have both surface and GLContext");
     return;
@@ -110,7 +110,7 @@ CanvasLayerOGL::Initialize(const Data& aData)
   }
 
   mBounds.SetRect(0, 0, aData.mSize.width, aData.mSize.height);
-      
+
   // Check the maximum texture size supported by GL. glTexImage2D supports
   // images of up to 2 + GL_MAX_TEXTURE_SIZE
   GLint texSize = gl()->GetMaxTextureSize();
@@ -119,47 +119,10 @@ CanvasLayerOGL::Initialize(const Data& aData)
     MakeTextureIfNeeded(gl(), mTexture);
     // This should only ever occur with 2d canvas, WebGL can't already have a texture
     // of this size can it?
-    NS_ABORT_IF_FALSE(mCanvasSurface || mDrawTarget, 
+    NS_ABORT_IF_FALSE(mCanvasSurface || mDrawTarget,
                       "Invalid texture size when WebGL surface already exists at that size?");
   }
 }
-
-#ifdef XP_MACOSX
-static GLuint
-MakeIOSurfaceTexture(void* aCGIOSurfaceContext, mozilla::gl::GLContext* aGL)
-{
-  GLuint ioSurfaceTexture;
-
-  aGL->fGenTextures(1, &ioSurfaceTexture);
-
-  aGL->fActiveTexture(LOCAL_GL_TEXTURE0);
-  aGL->fBindTexture(LOCAL_GL_TEXTURE_RECTANGLE_ARB, ioSurfaceTexture);
-
-  aGL->fTexParameteri(LOCAL_GL_TEXTURE_RECTANGLE_ARB, LOCAL_GL_TEXTURE_MIN_FILTER, LOCAL_GL_LINEAR);
-  aGL->fTexParameteri(LOCAL_GL_TEXTURE_RECTANGLE_ARB, LOCAL_GL_TEXTURE_MAG_FILTER, LOCAL_GL_LINEAR);
-  aGL->fTexParameteri(LOCAL_GL_TEXTURE_RECTANGLE_ARB, LOCAL_GL_TEXTURE_WRAP_S, LOCAL_GL_CLAMP_TO_EDGE);
-  aGL->fTexParameteri(LOCAL_GL_TEXTURE_RECTANGLE_ARB, LOCAL_GL_TEXTURE_WRAP_T, LOCAL_GL_CLAMP_TO_EDGE);
-
-  RefPtr<MacIOSurface> ioSurface = MacIOSurface::IOSurfaceContextGetSurface((CGContextRef)aCGIOSurfaceContext);
-  void *nativeCtx = aGL->GetNativeData(GLContext::NativeGLContext);
-
-  ioSurface->CGLTexImageIOSurface2D(nativeCtx,
-                                    LOCAL_GL_RGBA, LOCAL_GL_BGRA,
-                                    LOCAL_GL_UNSIGNED_INT_8_8_8_8_REV, 0);
-
-  aGL->fBindTexture(LOCAL_GL_TEXTURE_RECTANGLE_ARB, 0);
-
-  return ioSurfaceTexture;
-}
-
-#else
-static GLuint
-MakeIOSurfaceTexture(void* aCGIOSurfaceContext, mozilla::gl::GLContext* aGL)
-{
-  NS_RUNTIMEABORT("Not implemented");
-  return 0;
-}
-#endif
 
 /**
  * Following UpdateSurface(), mTexture on context this->gl() should contain the data we want,
@@ -240,10 +203,10 @@ CanvasLayerOGL::RenderLayer(int aPreviousDestination,
   gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
 
   if (mTexture) {
-    gl()->fBindTexture(mTextureTarget, mTexture);
+    gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
   }
 
-  ShaderProgramOGL *program = nullptr;
+  ShaderProgramOGL *program = nsnull;
 
   bool useGLContext = mCanvasGLContext &&
     mCanvasGLContext->GetContextType() == gl()->GetContextType();
@@ -281,10 +244,6 @@ CanvasLayerOGL::RenderLayer(int aPreviousDestination,
   gl()->ApplyFilterToBoundTexture(mFilter);
 
   program->Activate();
-  if (mLayerProgram == gl::RGBARectLayerProgramType) {
-    // This is used by IOSurface that use 0,0...w,h coordinate rather then 0,0..1,1.
-    program->SetTexCoordMultiplier(mDrawTarget->GetSize().width, mDrawTarget->GetSize().height);
-  }
   program->SetLayerQuadRect(drawRect);
   program->SetLayerTransform(GetEffectiveTransform());
   program->SetLayerOpacity(GetEffectiveOpacity());
@@ -325,7 +284,7 @@ IsValidSharedTexDescriptor(const SurfaceDescriptor& aDescriptor)
 }
 
 ShadowCanvasLayerOGL::ShadowCanvasLayerOGL(LayerManagerOGL* aManager)
-  : ShadowCanvasLayer(aManager, nullptr)
+  : ShadowCanvasLayer(aManager, nsnull)
   , LayerOGL(aManager)
   , mNeedsYFlip(false)
   , mTexture(0)
@@ -389,7 +348,7 @@ ShadowCanvasLayerOGL::Swap(const CanvasSurface& aNewFront,
 void
 ShadowCanvasLayerOGL::DestroyFrontBuffer()
 {
-  mTexImage = nullptr;
+  mTexImage = nsnull;
   if (mTexture) {
     gl()->MakeCurrent();
     gl()->fDeleteTextures(1, &mTexture);

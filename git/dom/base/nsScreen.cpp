@@ -40,12 +40,12 @@ nsScreen::Create(nsPIDOMWindow* aWindow)
   MOZ_ASSERT(aWindow);
 
   if (!aWindow->GetDocShell()) {
-    return nullptr;
+    return nsnull;
   }
 
   nsCOMPtr<nsIScriptGlobalObject> sgo =
     do_QueryInterface(static_cast<nsPIDOMWindow*>(aWindow));
-  NS_ENSURE_TRUE(sgo, nullptr);
+  NS_ENSURE_TRUE(sgo, nsnull);
 
   nsRefPtr<nsScreen> screen = new nsScreen();
   screen->BindToOwner(aWindow);
@@ -59,7 +59,7 @@ nsScreen::Create(nsPIDOMWindow* aWindow)
 }
 
 nsScreen::nsScreen()
-  : mEventListener(nullptr)
+  : mEventListener(nsnull)
 {
 }
 
@@ -75,7 +75,7 @@ nsScreen::Reset()
                                         mEventListener, true);
     }
 
-    mEventListener = nullptr;
+    mEventListener = nsnull;
   }
 }
 
@@ -285,7 +285,7 @@ nsScreen::Notify(const hal::ScreenConfiguration& aConfiguration)
 
   if (mOrientation != previousOrientation) {
     // TODO: use an helper method, see bug 720768.
-    nsRefPtr<nsDOMEvent> event = new nsDOMEvent(nullptr, nullptr);
+    nsRefPtr<nsDOMEvent> event = new nsDOMEvent(nsnull, nsnull);
     nsresult rv = event->InitEvent(NS_LITERAL_STRING("mozorientationchange"), false, false);
     if (NS_FAILED(rv)) {
       return;

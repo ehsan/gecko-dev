@@ -37,8 +37,7 @@ public:
   virtual const gfxMatrix* GetAnimateMotionTransform() const;
   virtual void SetAnimateMotionTransform(const gfxMatrix* aMatrix);
 
-  virtual mozilla::SVGAnimatedTransformList*
-    GetAnimatedTransformList(PRUint32 aFlags = 0);
+  virtual mozilla::SVGAnimatedTransformList* GetAnimatedTransformList();
   virtual nsIAtom* GetTransformListAttrName() const {
     return nsGkAtoms::transform;
   }

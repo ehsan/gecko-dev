@@ -40,7 +40,7 @@ nsXULTemplateResultSetStorage::nsXULTemplateResultSetStorage(mozIStorageStatemen
     PRUint32 count;
     nsresult rv = aStatement->GetColumnCount(&count);
     if (NS_FAILED(rv)) {
-        mStatement = nullptr;
+        mStatement = nsnull;
         return;
     }
     for (PRUint32 c = 0; c < count; c++) {
@@ -67,7 +67,7 @@ nsXULTemplateResultSetStorage::HasMoreElements(bool *aResult)
     // it could live longer than it needed to get results.
     // So we destroy the statement to free resources when all results are fetched
     if (!*aResult) {
-        mStatement = nullptr;
+        mStatement = nsnull;
     }
     return NS_OK;
 }
@@ -157,7 +157,7 @@ nsXULTemplateQueryProcessorStorage::GetDatasource(nsIArray* aDataSources,
                                                   bool* aShouldDelayBuilding,
                                                   nsISupports** aReturn)
 {
-    *aReturn = nullptr;
+    *aReturn = nsnull;
     *aShouldDelayBuilding = false;
 
     if (!aIsTrusted) {
@@ -327,7 +327,7 @@ nsXULTemplateQueryProcessorStorage::CompileQuery(nsIXULTemplateBuilder* aBuilder
 
             static nsIContent::AttrValuesArray sTypeValues[] =
                 { &nsGkAtoms::int32, &nsGkAtoms::integer, &nsGkAtoms::int64,
-                  &nsGkAtoms::null, &nsGkAtoms::double_, &nsGkAtoms::string, nullptr };
+                  &nsGkAtoms::null, &nsGkAtoms::double_, &nsGkAtoms::string, nsnull };
 
             PRInt32 typeError = 1;
             PRInt32 typeValue = child->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::type,
@@ -422,7 +422,7 @@ nsXULTemplateQueryProcessorStorage::TranslateRef(nsISupports* aDatasource,
                                                  nsIXULTemplateResult** aRef)
 {
     nsXULTemplateResultStorage* result =
-        new nsXULTemplateResultStorage(nullptr);
+        new nsXULTemplateResultStorage(nsnull);
     if (!result)
         return NS_ERROR_OUT_OF_MEMORY;
 

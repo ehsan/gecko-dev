@@ -138,7 +138,7 @@ xpc_FastGetCachedWrapper(nsWrapperCache *cache, JSObject *scope, jsval *vp)
         }
     }
 
-    return nullptr;
+    return nsnull;
 }
 
 // The JS GC marks objects gray that are held alive directly or

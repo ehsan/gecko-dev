@@ -50,7 +50,7 @@ GetDOMWindow(nsIXULWindow* inWindow, nsCOMPtr<nsIDOMWindow>& outDOMWindow)
 }
 
 nsWindowMediator::nsWindowMediator() :
-  mEnumeratorList(), mOldestWindow(nullptr), mTopmostWindow(nullptr),
+  mEnumeratorList(), mOldestWindow(nsnull), mTopmostWindow(nsnull),
   mTimeStamp(0), mSortingZOrder(false), mReady(false),
   mListLock("nsWindowMediator.mListLock")
 {
@@ -92,13 +92,13 @@ NS_IMETHODIMP nsWindowMediator::RegisterWindow(nsIXULWindow* inWindow)
     return NS_ERROR_OUT_OF_MEMORY;
 
   if (mListeners) {
-    WindowTitleData winData = { inWindow, nullptr };
+    WindowTitleData winData = { inWindow, nsnull };
     mListeners->EnumerateForwards(notifyOpenWindow, (void*)&winData);
   }
   
   MutexAutoLock lock(mListLock);
   if (mOldestWindow)
-    windowInfo->InsertAfter(mOldestWindow->mOlder, nullptr);
+    windowInfo->InsertAfter(mOldestWindow->mOlder, nsnull);
   else
     mOldestWindow = windowInfo;
 
@@ -127,7 +127,7 @@ nsWindowMediator::UnregisterWindow(nsWindowInfo *inInfo)
   }
   
   if (mListeners) {
-    WindowTitleData winData = { inInfo->mWindow.get(), nullptr };
+    WindowTitleData winData = { inInfo->mWindow.get(), nsnull };
     mListeners->EnumerateForwards(notifyCloseWindow, (void*)&winData);
   }
 
@@ -138,9 +138,9 @@ nsWindowMediator::UnregisterWindow(nsWindowInfo *inInfo)
     mTopmostWindow = inInfo->mLower;
   inInfo->Unlink(true, true);
   if (inInfo == mOldestWindow)
-    mOldestWindow = nullptr;
+    mOldestWindow = nsnull;
   if (inInfo == mTopmostWindow)
-    mTopmostWindow = nullptr;
+    mTopmostWindow = nsnull;
   delete inInfo;  
 
   return NS_OK;
@@ -153,17 +153,17 @@ nsWindowMediator::GetInfoFor(nsIXULWindow *aWindow)
                *listEnd;
 
   if (!aWindow)
-    return nullptr;
+    return nsnull;
 
   info = mOldestWindow;
-  listEnd = nullptr;
+  listEnd = nsnull;
   while (info != listEnd) {
     if (info->mWindow.get() == aWindow)
       return info;
     info = info->mYounger;
     listEnd = mOldestWindow;
   }
-  return nullptr;
+  return nsnull;
 }
 
 nsWindowInfo*
@@ -173,10 +173,10 @@ nsWindowMediator::GetInfoFor(nsIWidget *aWindow)
                *listEnd;
 
   if (!aWindow)
-    return nullptr;
+    return nsnull;
 
   info = mOldestWindow;
-  listEnd = nullptr;
+  listEnd = nsnull;
 
   nsCOMPtr<nsIWidget> scanWidget;
   while (info != listEnd) {
@@ -188,7 +188,7 @@ nsWindowMediator::GetInfoFor(nsIWidget *aWindow)
     info = info->mYounger;
     listEnd = mOldestWindow;
   }
-  return nullptr;
+  return nsnull;
 }
 
 NS_IMETHODIMP
@@ -258,7 +258,7 @@ nsWindowMediator::GetZOrderXULWindowEnumerator(
 PRInt32
 nsWindowMediator::AddEnumerator(nsAppShellWindowEnumerator * inEnumerator)
 {
-  return mEnumeratorList.AppendElement(inEnumerator) != nullptr;
+  return mEnumeratorList.AppendElement(inEnumerator) != nsnull;
 }
 
 PRInt32
@@ -273,7 +273,7 @@ NS_IMETHODIMP
 nsWindowMediator::GetMostRecentWindow(const PRUnichar* inType, nsIDOMWindow** outWindow)
 {
   NS_ENSURE_ARG_POINTER(outWindow);
-  *outWindow = nullptr;
+  *outWindow = nsnull;
   if (!mReady)
     return NS_OK;
 
@@ -307,10 +307,10 @@ nsWindowMediator::MostRecentWindowInfo(const PRUnichar* inType)
   // the requested type
   nsWindowInfo *searchInfo,
                *listEnd,
-               *foundInfo = nullptr;
+               *foundInfo = nsnull;
 
   searchInfo = mOldestWindow;
-  listEnd = nullptr;
+  listEnd = nsnull;
   while (searchInfo != listEnd) {
     if ((allWindows || searchInfo->TypeEquals(typeString)) &&
         searchInfo->mTimeStamp >= lastTimeStamp) {
@@ -370,7 +370,7 @@ nsWindowMediator::CalculateZPosition(
   NS_ENSURE_ARG_POINTER(outBelow);
   NS_ENSURE_STATE(mReady);
 
-  *outBelow = nullptr;
+  *outBelow = nsnull;
 
   if (!inWindow || !outPosition || !outAltered)
     return NS_ERROR_NULL_POINTER;
@@ -381,7 +381,7 @@ nsWindowMediator::CalculateZPosition(
     return NS_ERROR_INVALID_ARG;
 
   nsWindowInfo *info = mTopmostWindow;
-  nsIXULWindow *belowWindow = nullptr;
+  nsIXULWindow *belowWindow = nsnull;
   bool          found = false;
   nsresult      result = NS_OK;
 
@@ -527,7 +527,7 @@ nsWindowMediator::SetZPosition(
     // it had better also be in the z-order list
     if (belowInfo &&
         belowInfo->mYounger != belowInfo && belowInfo->mLower == belowInfo) {
-      belowInfo = nullptr;
+      belowInfo = nsnull;
     }
     if (!belowInfo) {
       if (inBelow)
@@ -538,11 +538,11 @@ nsWindowMediator::SetZPosition(
   }
   if (inPosition == nsIWindowMediator::zLevelTop ||
       inPosition == nsIWindowMediator::zLevelBottom)
-    belowInfo = mTopmostWindow ? mTopmostWindow->mHigher : nullptr;
+    belowInfo = mTopmostWindow ? mTopmostWindow->mHigher : nsnull;
 
   if (inInfo != belowInfo) {
     inInfo->Unlink(false, true);
-    inInfo->InsertAfter(nullptr, belowInfo);
+    inInfo->InsertAfter(nsnull, belowInfo);
   }
   if (inPosition == nsIWindowMediator::zLevelTop)
     mTopmostWindow = inInfo;
@@ -632,7 +632,7 @@ nsWindowMediator::SortZOrderFrontToBack()
         if (scan == mTopmostWindow)
           mTopmostWindow = scan->mLower;
         scan->Unlink(false, true);
-        scan->InsertAfter(nullptr, prev);
+        scan->InsertAfter(nsnull, prev);
 
         // fix actual window order
         nsCOMPtr<nsIBaseWindow> base;
@@ -688,7 +688,7 @@ nsWindowMediator::SortZOrderBackToFront()
         // reposition |scan| within the list
         if (scan != search && scan != search->mLower) {
           scan->Unlink(false, true);
-          scan->InsertAfter(nullptr, search);
+          scan->InsertAfter(nsnull, search);
         }
         if (search == lowest)
           mTopmostWindow = scan;
@@ -757,19 +757,9 @@ nsWindowMediator::Observe(nsISupports* aSubject,
                           const PRUnichar* aData)
 {
   if (!strcmp(aTopic, "xpcom-shutdown") && mReady) {
-    // Unregistering a window may cause its destructor to run, causing it to
-    // call into the window mediator, try to acquire mListLock, and deadlock.
-    // Our solution is to hold strong refs to all windows until we release
-    // mListLock.
-    nsTArray<nsCOMPtr<nsIXULWindow> > windows;
-
-    {
-      MutexAutoLock lock(mListLock);
-      while (mOldestWindow) {
-        windows.AppendElement(mOldestWindow->mWindow);
-        UnregisterWindow(mOldestWindow);
-      }
-    }
+    MutexAutoLock lock(mListLock);
+    while (mOldestWindow)
+      UnregisterWindow(mOldestWindow);
     mReady = false;
   }
   return NS_OK;

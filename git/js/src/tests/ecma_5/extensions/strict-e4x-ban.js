@@ -1,4 +1,4 @@
-// |reftest| pref(javascript.options.xml.content,true) skip-if(!xulRuntime.shell)
+// |reftest| skip-if(!xulRuntime.shell)
 /*
  * Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/licenses/publicdomain/

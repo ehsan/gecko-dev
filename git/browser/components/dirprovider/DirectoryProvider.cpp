@@ -37,14 +37,14 @@ DirectoryProvider::GetFile(const char *aKey, bool *aPersist, nsIFile* *aResult)
 {
   nsresult rv;
 
-  *aResult = nullptr;
+  *aResult = nsnull;
 
   // NOTE: This function can be reentrant through the NS_GetSpecialDirectory
   // call, so be careful not to cause infinite recursion.
 
   nsCOMPtr<nsIFile> file;
 
-  char const* leafName = nullptr;
+  char const* leafName = nsnull;
 
   if (!strcmp(aKey, NS_APP_BOOKMARKS_50_FILE)) {
     leafName = "bookmarks.html";
@@ -251,7 +251,7 @@ DirectoryProvider::GetFiles(const char *aKey, nsISimpleEnumerator* *aResult)
     if (NS_FAILED(rv))
       return rv;
 
-    static char const *const kAppendSPlugins[] = {"searchplugins", nullptr};
+    static char const *const kAppendSPlugins[] = {"searchplugins", nsnull};
 
     nsCOMPtr<nsISimpleEnumerator> extEnum =
       new AppendingEnumerator(list, kAppendSPlugins);
@@ -279,7 +279,7 @@ DirectoryProvider::AppendingEnumerator::GetNext(nsISupports* *aResult)
   if (aResult)
     NS_ADDREF(*aResult = mNext);
 
-  mNext = nullptr;
+  mNext = nsnull;
 
   nsresult rv;
 
@@ -309,7 +309,7 @@ DirectoryProvider::AppendingEnumerator::GetNext(nsISupports* *aResult)
     if (NS_SUCCEEDED(rv) && exists)
       break;
 
-    mNext = nullptr;
+    mNext = nsnull;
   }
 
   return NS_OK;
@@ -322,7 +322,7 @@ DirectoryProvider::AppendingEnumerator::AppendingEnumerator
   mAppendList(aAppendList)
 {
   // Initialize mNext to begin.
-  GetNext(nullptr);
+  GetNext(nsnull);
 }
 
 } // namespace browser

@@ -57,8 +57,7 @@ function openConsoles() {
     let tab = openTabs[i];
     openConsole(tab, function(index, hud) {
       ok(hud, "HUD is open for tab " + index);
-      let window = hud.tab.linkedBrowser.contentWindow;
-      window.console.log("message for tab " + index);
+      hud.browser.contentWindow.console.log("message for tab " + index);
       consolesOpen++;
     }.bind(null, i));
   }

@@ -18,7 +18,7 @@ MetadataHelper::DoAsyncRun(nsISupports* aStream)
   nsRefPtr<AsyncMetadataGetter> getter =
     new AsyncMetadataGetter(aStream, mParams, readWrite);
 
-  nsresult rv = getter->AsyncWork(this, nullptr);
+  nsresult rv = getter->AsyncWork(this, nsnull);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
@@ -28,13 +28,23 @@ nsresult
 MetadataHelper::GetSuccessResult(JSContext* aCx,
                                  jsval* aVal)
 {
-  JSObject* obj = JS_NewObject(aCx, nullptr, nullptr, nullptr);
+  JSObject* obj = JS_NewObject(aCx, nsnull, nsnull, nsnull);
   NS_ENSURE_TRUE(obj, NS_ERROR_OUT_OF_MEMORY);
 
   if (mParams->SizeRequested()) {
-    jsval val = JS_NumberValue(mParams->Size());
+    jsval val;
 
-    if (!JS_DefineProperty(aCx, obj, "size", val, nullptr, nullptr,
+    if (mParams->Size() <= JSVAL_INT_MAX) {
+      val = INT_TO_JSVAL(mParams->Size());
+    }
+    else {
+      double size = mParams->Size();
+      if (!JS_NewNumberValue(aCx, size, &val)) {
+        return NS_ERROR_FAILURE;
+      }
+    }
+
+    if (!JS_DefineProperty(aCx, obj, "size", val, nsnull, nsnull,
                            JSPROP_ENUMERATE)) {
       return NS_ERROR_FAILURE;
     }
@@ -46,7 +56,7 @@ MetadataHelper::GetSuccessResult(JSContext* aCx,
     NS_ENSURE_TRUE(date, NS_ERROR_OUT_OF_MEMORY);
 
     if (!JS_DefineProperty(aCx, obj, "lastModified", OBJECT_TO_JSVAL(date),
-                           nullptr, nullptr, JSPROP_ENUMERATE)) {
+                           nsnull, nsnull, JSPROP_ENUMERATE)) {
       return NS_ERROR_FAILURE;
     }
   }

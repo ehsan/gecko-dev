@@ -208,7 +208,7 @@ nsDiskCacheMap::Close(bool flush)
         if ((PR_Close(mMapFD) != PR_SUCCESS) && (NS_SUCCEEDED(rv)))
             rv = NS_ERROR_UNEXPECTED;
 
-        mMapFD = nullptr;
+        mMapFD = nsnull;
     }
     PR_FREEIF(mRecordArray);
     PR_FREEIF(mBuffer);
@@ -720,11 +720,11 @@ nsDiskCacheMap::ReadDiskCacheEntry(nsDiskCacheRecord * record)
     CACHE_LOG_DEBUG(("CACHE: ReadDiskCacheEntry [%x]\n", record->HashNumber()));
 
     nsresult            rv         = NS_ERROR_UNEXPECTED;
-    nsDiskCacheEntry *  diskEntry  = nullptr;
+    nsDiskCacheEntry *  diskEntry  = nsnull;
     PRUint32            metaFile   = record->MetaFile();
     PRInt32             bytesRead  = 0;
     
-    if (!record->MetaLocationInitialized())  return nullptr;
+    if (!record->MetaLocationInitialized())  return nsnull;
     
     if (metaFile == 0) {  // entry/metadata stored in separate file
         // open and read the file
@@ -733,16 +733,16 @@ nsDiskCacheMap::ReadDiskCacheEntry(nsDiskCacheRecord * record)
                                             nsDiskCache::kMetaData,
                                             false,
                                             getter_AddRefs(file));
-        NS_ENSURE_SUCCESS(rv, nullptr);
+        NS_ENSURE_SUCCESS(rv, nsnull);
 
         CACHE_LOG_DEBUG(("CACHE: nsDiskCacheMap::ReadDiskCacheEntry"
                          "[this=%p] reading disk cache entry", this));
 
-        PRFileDesc * fd = nullptr;
+        PRFileDesc * fd = nsnull;
 
         // open the file - restricted to user, the data could be confidential
         rv = file->OpenNSPRFileDesc(PR_RDONLY, 00600, &fd);
-        NS_ENSURE_SUCCESS(rv, nullptr);
+        NS_ENSURE_SUCCESS(rv, nsnull);
         
         PRInt32 fileSize = PR_Available(fd);
         if (fileSize < 0) {
@@ -758,7 +758,7 @@ nsDiskCacheMap::ReadDiskCacheEntry(nsDiskCacheRecord * record)
             }
         }
         PR_Close(fd);
-        NS_ENSURE_SUCCESS(rv, nullptr);
+        NS_ENSURE_SUCCESS(rv, nsnull);
 
     } else if (metaFile < (kNumBlockFiles + 1)) {
         // entry/metadata stored in cache block file
@@ -768,7 +768,7 @@ nsDiskCacheMap::ReadDiskCacheEntry(nsDiskCacheRecord * record)
         bytesRead = blockCount * GetBlockSizeForIndex(metaFile);
 
         rv = EnsureBuffer(bytesRead);
-        NS_ENSURE_SUCCESS(rv, nullptr);
+        NS_ENSURE_SUCCESS(rv, nsnull);
         
         // read diskEntry, note when the blocks are at the end of file, 
         // bytesRead may be less than blockSize*blockCount.
@@ -777,13 +777,13 @@ nsDiskCacheMap::ReadDiskCacheEntry(nsDiskCacheRecord * record)
                                                  record->MetaStartBlock(),
                                                  blockCount, 
                                                  &bytesRead);
-        NS_ENSURE_SUCCESS(rv, nullptr);
+        NS_ENSURE_SUCCESS(rv, nsnull);
     }
     diskEntry = (nsDiskCacheEntry *)mBuffer;
     diskEntry->Unswap();    // disk to memory
     // Check if calculated size agrees with bytesRead
     if (bytesRead < 0 || (PRUint32)bytesRead < diskEntry->Size())
-        return nullptr;
+        return nsnull;
 
     // Return the buffer containing the diskEntry structure
     return diskEntry;
@@ -800,18 +800,18 @@ nsDiskCacheMap::CreateDiskCacheEntry(nsDiskCacheBinding *  binding,
                                      PRUint32 * aSize)
 {
     nsCacheEntry * entry = binding->mCacheEntry;
-    if (!entry)  return nullptr;
+    if (!entry)  return nsnull;
     
     // Store security info, if it is serializable
     nsCOMPtr<nsISupports> infoObj = entry->SecurityInfo();
     nsCOMPtr<nsISerializable> serializable = do_QueryInterface(infoObj);
-    if (infoObj && !serializable) return nullptr;
+    if (infoObj && !serializable) return nsnull;
     if (serializable) {
         nsCString info;
         nsresult rv = NS_SerializeToString(serializable, info);
-        if (NS_FAILED(rv)) return nullptr;
+        if (NS_FAILED(rv)) return nsnull;
         rv = entry->SetMetaDataElement("security-info", info.get());
-        if (NS_FAILED(rv)) return nullptr;
+        if (NS_FAILED(rv)) return nsnull;
     }
 
     PRUint32  keySize  = entry->Key()->Length() + 1;
@@ -821,7 +821,7 @@ nsDiskCacheMap::CreateDiskCacheEntry(nsDiskCacheBinding *  binding,
     if (aSize) *aSize = size;
     
     nsresult rv = EnsureBuffer(size);
-    if (NS_FAILED(rv)) return nullptr;
+    if (NS_FAILED(rv)) return nsnull;
 
     nsDiskCacheEntry *diskEntry = (nsDiskCacheEntry *)mBuffer;
     diskEntry->mHeaderVersion   = nsDiskCache::kCurrentVersion;
@@ -837,7 +837,7 @@ nsDiskCacheMap::CreateDiskCacheEntry(nsDiskCacheBinding *  binding,
     memcpy(diskEntry->Key(), entry->Key()->get(), keySize);
     
     rv = entry->FlattenMetaData(diskEntry->MetaData(), metaSize);
-    if (NS_FAILED(rv)) return nullptr;
+    if (NS_FAILED(rv)) return nsnull;
     
     return diskEntry;
 }

@@ -741,11 +741,11 @@ nsCSSBorderRenderer::DrawBorderSides(PRIntn aSides)
 
   PRUint8 borderRenderStyle;
   nscolor borderRenderColor;
-  const nsBorderColors *compositeColors = nullptr;
+  const nsBorderColors *compositeColors = nsnull;
 
   PRUint32 borderColorStyleCount = 0;
   BorderColorStyle borderColorStyleTopLeft[3], borderColorStyleBottomRight[3];
-  BorderColorStyle *borderColorStyle = nullptr;
+  BorderColorStyle *borderColorStyle = nsnull;
 
   NS_FOR_CSS_SIDES (i) {
     if ((aSides & (1 << i)) == 0)
@@ -1028,7 +1028,7 @@ nsCSSBorderRenderer::AllBordersSolid(bool *aHasCompositeColors)
 {
   *aHasCompositeColors = false;
   NS_FOR_CSS_SIDES(i) {
-    if (mCompositeColors[i] != nullptr) {
+    if (mCompositeColors[i] != nsnull) {
       *aHasCompositeColors = true;
     }
     if (mBorderStyles[i] == NS_STYLE_BORDER_STYLE_SOLID ||
@@ -1530,7 +1530,7 @@ nsCSSBorderRenderer::DrawBorders()
   // If we have composite colors -and- border radius,
   // then use separate corners so we get OPERATOR_ADD for the corners.
   // Otherwise, we'll get artifacts as we draw stacked 1px-wide curves.
-  if (allBordersSame && mCompositeColors[0] != nullptr && !mNoBorderRadius)
+  if (allBordersSame && mCompositeColors[0] != nsnull && !mNoBorderRadius)
     forceSeparateCorners = true;
 
   S(" mOuterRect: "), S(mOuterRect), SN();

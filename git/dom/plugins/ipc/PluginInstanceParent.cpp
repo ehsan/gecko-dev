@@ -69,7 +69,7 @@ PluginInstanceParent::PluginInstanceParent(PluginModuleParent* parent,
 #if defined(XP_MACOSX)
     , mShWidth(0)
     , mShHeight(0)
-    , mShColorSpace(nullptr)
+    , mShColorSpace(nsnull)
 #endif
 {
 #ifdef OS_WIN
@@ -98,8 +98,8 @@ PluginInstanceParent::~PluginInstanceParent()
             GetImageContainer();
 
         if (container) {
-            container->SetRemoteImageData(nullptr, nullptr);
-            container->SetCompositionNotifySink(nullptr);
+            container->SetRemoteImageData(nsnull, nsnull);
+            container->SetCompositionNotifySink(nsnull);
             DeallocShmem(mRemoteImageDataShmem);
         }
     }
@@ -133,7 +133,7 @@ PluginInstanceParent::ActorDestroy(ActorDestroyReason why)
         const NPRect rect = {0, 0, 0, 0};
         RecvNPN_InvalidateRect(rect);
 #ifdef MOZ_X11
-        FinishX(DefaultXDisplay());
+        XSync(DefaultXDisplay(), False);
 #endif
     }
 }
@@ -259,7 +259,7 @@ PluginInstanceParent::InternalGetValueForNPObject(
         result = NPERR_GENERIC_ERROR;
     }
 
-    *aValue = nullptr;
+    *aValue = nsnull;
     *aResult = result;
     return true;
 }
@@ -319,7 +319,7 @@ bool
 PluginInstanceParent::AnswerNPN_GetValue_NPNVdocumentOrigin(nsCString* value,
                                                             NPError* result)
 {
-    void *v = nullptr;
+    void *v = nsnull;
     *result = mNPNIface->getvalue(mNPP, NPNVdocumentOrigin, &v);
     if (*result == NPERR_NO_ERROR && v) {
         value->Adopt(static_cast<char*>(v));
@@ -452,8 +452,8 @@ PluginInstanceParent::AnswerNPN_SetValue_NPPVpluginDrawingModel(
                                       (void*)drawingModel);
 
         if (mRemoteImageDataShmem.IsWritable()) {
-            container->SetRemoteImageData(nullptr, nullptr);
-            container->SetCompositionNotifySink(nullptr);
+            container->SetRemoteImageData(nsnull, nsnull);
+            container->SetCompositionNotifySink(nsnull);
             DeallocShmem(mRemoteImageDataShmem);
             mRemoteImageDataMutex = NULL;
         }
@@ -591,7 +591,7 @@ PluginInstanceParent::RecvShow(const NPRect& updatedRect,
     else if (newSurface.type() == SurfaceDescriptor::TIOSurfaceDescriptor) {
         IOSurfaceDescriptor iodesc = newSurface.get_IOSurfaceDescriptor();
     
-        RefPtr<MacIOSurface> newIOSurface = MacIOSurface::LookupSurface(iodesc.surfaceId());
+        nsRefPtr<nsIOSurface> newIOSurface = nsIOSurface::LookupSurface(iodesc.surfaceId());
 
         if (!newIOSurface) {
             NS_WARNING("Got bad IOSurfaceDescriptor in RecvShow");
@@ -634,7 +634,7 @@ PluginInstanceParent::RecvShow(const NPRect& updatedRect,
         // referencing it, so we XSync here to let them finish before
         // the plugin starts scribbling on it again, or worse,
         // destroys it.
-        FinishX(DefaultXDisplay());
+        XSync(DefaultXDisplay(), False);
 #endif
 
     if (mFrontSurface && gfxSharedImageSurface::IsSharedImage(mFrontSurface))
@@ -709,7 +709,7 @@ nsresult
 PluginInstanceParent::GetImageContainer(ImageContainer** aContainer)
 {
 #ifdef XP_MACOSX
-    MacIOSurface* ioSurface = NULL;
+    nsIOSurface* ioSurface = NULL;
   
     if (mFrontIOSurface) {
       ioSurface = mFrontIOSurface;
@@ -838,7 +838,7 @@ PluginInstanceParent::BeginUpdateBackground(const nsIntRect& aRect,
         NS_ABORT_IF_FALSE(aRect.TopLeft() == nsIntPoint(0, 0),
                           "Expecting rect for whole frame");
         if (!CreateBackground(aRect.Size())) {
-            *aCtx = nullptr;
+            *aCtx = nsnull;
             return NS_OK;
         }
     }
@@ -905,7 +905,7 @@ PluginInstanceParent::CreateBackground(const nsIntSize& aSize)
             gfxASurface::ImageFormatRGB24);
     return !!mBackground;
 #else
-    return nullptr;
+    return nsnull;
 #endif
 }
 
@@ -919,7 +919,7 @@ PluginInstanceParent::DestroyBackground()
     // Relinquish ownership of |mBackground| to its destroyer
     PPluginBackgroundDestroyerParent* pbd =
         new PluginBackgroundDestroyerParent(mBackground);
-    mBackground = nullptr;
+    mBackground = nsnull;
 
     // If this fails, there's no problem: |bd| will be destroyed along
     // with the old background surface.
@@ -966,7 +966,7 @@ PPluginBackgroundDestroyerParent*
 PluginInstanceParent::AllocPPluginBackgroundDestroyer()
 {
     NS_RUNTIMEABORT("'Power-user' ctor is used exclusively");
-    return nullptr;
+    return nsnull;
 }
 
 bool
@@ -1019,7 +1019,7 @@ PluginInstanceParent::NPP_SetWindow(const NPWindow* aWindow)
     if (mShWidth != window.width || mShHeight != window.height) {
         if (mDrawingModel == NPDrawingModelCoreAnimation || 
             mDrawingModel == NPDrawingModelInvalidatingCoreAnimation) {
-            mIOSurface = MacIOSurface::CreateIOSurface(window.width, window.height);
+            mIOSurface = nsIOSurface::CreateIOSurface(window.width, window.height);
         } else if (mShWidth * mShHeight != window.width * window.height) {
             if (mShWidth != 0 && mShHeight != 0) {
                 DeallocShmem(mShSurface);
@@ -1260,7 +1260,7 @@ PluginInstanceParent::NPP_HandleEvent(void* event)
         // process does not need to wait; the child is the process that needs
         // to wait.  A possibly-slightly-better alternative would be to send
         // an X event to the child that the child would wait for.
-        FinishX(DefaultXDisplay());
+        XSync(DefaultXDisplay(), False);
 
         return CallPaint(npremoteevent, &handled) ? handled : 0;
 
@@ -1492,7 +1492,7 @@ PluginInstanceParent::DeallocPPluginScriptableObject(
 
     NPObject* object = actor->GetObject(false);
     if (object) {
-        NS_ASSERTION(mScriptableObjects.Get(object, nullptr),
+        NS_ASSERTION(mScriptableObjects.Get(object, nsnull),
                      "NPObject not in the hash!");
         mScriptableObjects.Remove(object);
     }
@@ -1544,7 +1544,7 @@ PluginInstanceParent::RegisterNPObjectForActor(
 {
     NS_ASSERTION(aObject && aActor, "Null pointers!");
     NS_ASSERTION(mScriptableObjects.IsInitialized(), "Hash not initialized!");
-    NS_ASSERTION(!mScriptableObjects.Get(aObject, nullptr), "Duplicate entry!");
+    NS_ASSERTION(!mScriptableObjects.Get(aObject, nsnull), "Duplicate entry!");
     mScriptableObjects.Put(aObject, aActor);
     return true;
 }
@@ -1554,7 +1554,7 @@ PluginInstanceParent::UnregisterNPObject(NPObject* aObject)
 {
     NS_ASSERTION(aObject, "Null pointer!");
     NS_ASSERTION(mScriptableObjects.IsInitialized(), "Hash not initialized!");
-    NS_ASSERTION(mScriptableObjects.Get(aObject, nullptr), "Unknown entry!");
+    NS_ASSERTION(mScriptableObjects.Get(aObject, nsnull), "Unknown entry!");
     mScriptableObjects.Remove(aObject);
 }
 
@@ -1578,12 +1578,12 @@ PluginInstanceParent::GetActorForNPObject(NPObject* aObject)
     actor = new PluginScriptableObjectParent(LocalObject);
     if (!actor) {
         NS_ERROR("Out of memory!");
-        return nullptr;
+        return nsnull;
     }
 
     if (!SendPPluginScriptableObjectConstructor(actor)) {
         NS_WARNING("Failed to send constructor message!");
-        return nullptr;
+        return nsnull;
     }
 
     actor->InitializeLocal(aObject);
@@ -1695,8 +1695,8 @@ PluginInstanceParent::AnswerNPN_ConvertPoint(const double& sourceX,
                                              bool *result)
 {
     *result = mNPNIface->convertpoint(mNPP, sourceX, sourceY, sourceSpace,
-                                      ignoreDestX ? nullptr : destX,
-                                      ignoreDestY ? nullptr : destY,
+                                      ignoreDestX ? nsnull : destX,
+                                      ignoreDestY ? nsnull : destY,
                                       destSpace);
 
     return true;

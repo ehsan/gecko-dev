@@ -36,7 +36,7 @@ CreateIframe(Element* aOpenerFrameElement)
 
   nsCOMPtr<nsINodeInfo> nodeInfo =
     nodeInfoManager->GetNodeInfo(nsGkAtoms::iframe,
-                                 /* aPrefix = */ nullptr,
+                                 /* aPrefix = */ nsnull,
                                  kNameSpaceID_XHTML,
                                  nsIDOMNode::ELEMENT_NODE);
 
@@ -91,7 +91,7 @@ DispatchOpenWindowEvent(Element* aOpenerFrameElement,
   }
 
   nsCOMPtr<nsIDOMEvent> domEvent;
-  nsEventDispatcher::CreateEvent(presContext, nullptr,
+  nsEventDispatcher::CreateEvent(presContext, nsnull,
                                  NS_LITERAL_STRING("customevent"),
                                  getter_AddRefs(domEvent));
   NS_ENSURE_TRUE(domEvent, false);
@@ -106,7 +106,7 @@ DispatchOpenWindowEvent(Element* aOpenerFrameElement,
 
   // Dispatch the event.
   nsEventStatus status = nsEventStatus_eIgnore;
-  rv = nsEventDispatcher::DispatchDOMEvent(aOpenerFrameElement, nullptr,
+  rv = nsEventDispatcher::DispatchDOMEvent(aOpenerFrameElement, nsnull,
                                            domEvent, presContext, &status);
   NS_ENSURE_SUCCESS(rv, false);
 
@@ -193,9 +193,7 @@ BrowserElementParent::OpenWindowInProcess(nsIDOMWindow* aOpenerWindow,
   NS_ENSURE_TRUE(popupFrameElement, false);
 
   nsCAutoString spec;
-  if (aURI) {
-    aURI->GetSpec(spec);
-  }
+  aURI->GetSpec(spec);
   bool dispatchSucceeded =
     DispatchOpenWindowEvent(openerFrameElement, popupFrameElement,
                             NS_ConvertUTF8toUTF16(spec),

@@ -100,7 +100,7 @@ inDOMUtils::GetParentForNode(nsIDOMNode* aNode,
   } else if (aShowingAnonymousContent) {
     nsCOMPtr<nsIContent> content = do_QueryInterface(aNode);
     if (content) {
-      nsIContent* bparent = nullptr;
+      nsIContent* bparent = nsnull;
       nsRefPtr<nsBindingManager> bindingManager = inLayoutUtils::GetBindingManagerFor(aNode);
       if (bindingManager) {
         bparent = bindingManager->GetInsertionParent(content);
@@ -158,14 +158,14 @@ inDOMUtils::GetCSSStyleRules(nsIDOMElement *aElement,
 {
   NS_ENSURE_ARG_POINTER(aElement);
 
-  *_retval = nullptr;
+  *_retval = nsnull;
 
   nsCOMPtr<nsIAtom> pseudoElt;
   if (!aPseudo.IsEmpty()) {
     pseudoElt = do_GetAtom(aPseudo);
   }
 
-  nsRuleNode* ruleNode = nullptr;
+  nsRuleNode* ruleNode = nsnull;
   nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
   NS_ENSURE_STATE(content);
   nsRefPtr<nsStyleContext> styleContext;
@@ -207,7 +207,7 @@ inDOMUtils::GetRuleLine(nsIDOMCSSStyleRule *aRule, PRUint32 *_retval)
   nsRefPtr<mozilla::css::StyleRule> cssrule;
   nsresult rv = rule->GetCSSStyleRule(getter_AddRefs(cssrule));
   NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(cssrule != nullptr, NS_ERROR_FAILURE);
+  NS_ENSURE_TRUE(cssrule != nsnull, NS_ERROR_FAILURE);
   *_retval = cssrule->GetLineNumber();
   return NS_OK;
 }
@@ -236,7 +236,7 @@ inDOMUtils::GetBindingURLs(nsIDOMElement *aElement, nsIArray **_retval)
 {
   NS_ENSURE_ARG_POINTER(aElement);
 
-  *_retval = nullptr;
+  *_retval = nsnull;
 
   nsCOMPtr<nsIMutableArray> urls = do_CreateInstance(NS_ARRAY_CONTRACTID);
   if (!urls)
@@ -267,8 +267,7 @@ inDOMUtils::SetContentState(nsIDOMElement *aElement, nsEventStates::InternalType
     nsCOMPtr<nsIContent> content;
     content = do_QueryInterface(aElement);
 
-    // XXX Invalid cast of bool to nsresult (bug 778108)
-    return (nsresult)esm->SetContentState(content, nsEventStates(aState));
+    return esm->SetContentState(content, nsEventStates(aState));
   }
 
   return NS_ERROR_FAILURE;
@@ -293,8 +292,8 @@ inDOMUtils::GetRuleNodeForContent(nsIContent* aContent,
                                   nsStyleContext** aStyleContext,
                                   nsRuleNode** aRuleNode)
 {
-  *aRuleNode = nullptr;
-  *aStyleContext = nullptr;
+  *aRuleNode = nsnull;
+  *aStyleContext = nsnull;
 
   if (!aContent->IsElement()) {
     return NS_ERROR_UNEXPECTED;

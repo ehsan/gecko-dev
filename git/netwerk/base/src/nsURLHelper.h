@@ -90,7 +90,7 @@ NS_HIDDEN_(nsresult) net_ResolveRelativePath(const nsACString &relativePath,
 NS_HIDDEN_(nsresult) net_ExtractURLScheme(const nsACString &inURI,
                                           PRUint32 *startPos, 
                                           PRUint32 *endPos,
-                                          nsACString *scheme = nullptr);
+                                          nsACString *scheme = nsnull);
 
 /* check that the given scheme conforms to RFC 2396 */
 NS_HIDDEN_(bool) net_IsValidScheme(const char *scheme, PRUint32 schemeLen);

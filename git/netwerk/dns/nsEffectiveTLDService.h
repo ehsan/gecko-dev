@@ -61,8 +61,8 @@ public:
   static PLDHashNumber HashKey(KeyTypePointer aKey)
   {
     // PL_DHashStringKey doesn't use the table parameter, so we can safely
-    // pass nullptr
-    return PL_DHashStringKey(nullptr, aKey);
+    // pass nsnull
+    return PL_DHashStringKey(nsnull, aKey);
   }
 
   enum { ALLOW_MEMMOVE = true };

@@ -25,7 +25,7 @@ public:
 
   bool Add(const nsAString& aName)
   {
-    return mNames.AppendElement(aName) != nullptr;
+    return mNames.AppendElement(aName) != nsnull;
   }
 
   void Clear()

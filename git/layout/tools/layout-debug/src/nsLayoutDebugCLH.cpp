@@ -68,7 +68,7 @@ nsLayoutDebugCLH::Handle(nsICommandLine* aCmdLine)
     NS_ENSURE_TRUE(wwatch, NS_ERROR_FAILURE);
 
     nsCOMPtr<nsIDOMWindow> opened;
-    wwatch->OpenWindow(nullptr, "chrome://layoutdebug/content/",
+    wwatch->OpenWindow(nsnull, "chrome://layoutdebug/content/",
                        "_blank", "chrome,dialog=no,all", argsArray,
                        getter_AddRefs(opened));
     aCmdLine->SetPreventDefault(true);

@@ -7,14 +7,15 @@ const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/br
 
 function test() {
   addTab(TEST_URI);
-  browser.addEventListener("load", function onLoad() {
-    browser.removeEventListener("load", onLoad, true);
-    openConsole(null, testCompletion);
-  }, true);
+  browser.addEventListener("DOMContentLoaded", testCompletion, false);
 }
 
-function testCompletion(hud) {
-  var jsterm = hud.jsterm;
+function testCompletion() {
+  browser.removeEventListener("DOMContentLoaded", testCompletion, false);
+
+  openConsole();
+
+  var jsterm = HUDService.getHudByWindow(content).jsterm;
   var input = jsterm.inputNode;
 
   jsterm.setInputValue("");

@@ -10,16 +10,16 @@
 
 BEGIN_TEST(testFunctionProperties)
 {
-    JS::RootedValue x(cx);
-    EVAL("(function f() {})", x.address());
+    jsvalRoot x(cx);
+    EVAL("(function f() {})", x.addr());
 
-    JS::RootedObject obj(cx, JSVAL_TO_OBJECT(x));
+    JSObject *obj = JSVAL_TO_OBJECT(x.value());
+    jsvalRoot y(cx);
 
-    JS::RootedValue y(cx);
-    CHECK(JS_GetProperty(cx, obj, "arguments", y.address()));
+    CHECK(JS_GetProperty(cx, obj, "arguments", y.addr()));
     CHECK_SAME(y, JSVAL_NULL);
 
-    CHECK(JS_GetProperty(cx, obj, "caller", y.address()));
+    CHECK(JS_GetProperty(cx, obj, "caller", y.addr()));
     CHECK_SAME(y, JSVAL_NULL);
 
     return true;

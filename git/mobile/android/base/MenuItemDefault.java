@@ -4,15 +4,16 @@
 
 package org.mozilla.gecko;
 
+import android.app.Activity;
 import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.drawable.Drawable;
 import android.util.AttributeSet;
 import android.view.View;
-import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.LinearLayout.LayoutParams;
 import android.widget.TextView;
+import android.widget.ImageView;
 
 public class MenuItemDefault extends LinearLayout
                              implements GeckoMenuItem.Layout {

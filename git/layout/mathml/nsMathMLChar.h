@@ -68,10 +68,10 @@ class nsMathMLChar
 {
 public:
   // constructor and destructor
-  nsMathMLChar(nsMathMLChar* aParent = nullptr) {
+  nsMathMLChar(nsMathMLChar* aParent = nsnull) {
     MOZ_COUNT_CTOR(nsMathMLChar);
-    mStyleContext = nullptr;
-    mSibling = nullptr;
+    mStyleContext = nsnull;
+    mSibling = nsnull;
     mParent = aParent;
     mUnscaledAscent = 0;
     mScaleX = mScaleY = 1.0;
@@ -96,7 +96,7 @@ public:
           nsIFrame*               aForFrame,
           const nsDisplayListSet& aLists,
           PRUint32                aIndex,
-          const nsRect*           aSelectedRect = nullptr);
+          const nsRect*           aSelectedRect = nsnull);
           
   void PaintForeground(nsPresContext* aPresContext,
                        nsRenderingContext& aRenderingContext,

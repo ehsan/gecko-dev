@@ -49,7 +49,7 @@ public:
     }
     if (sExpirationTracker->IsEmpty()) {
       delete sExpirationTracker;
-      sExpirationTracker = nullptr;
+      sExpirationTracker = nsnull;
     }
   }
 
@@ -58,7 +58,7 @@ private:
 };
 
 CachedSurfaceExpirationTracker*
-CachedSurfaceExpirationTracker::sExpirationTracker = nullptr;
+CachedSurfaceExpirationTracker::sExpirationTracker = nsnull;
 
 gfxCachedTempSurface::~gfxCachedTempSurface()
 {
@@ -74,7 +74,7 @@ gfxCachedTempSurface::Get(gfxASurface::gfxContentType aContentType,
     /* Verify the current buffer is valid for this purpose */
     if (mSize.width < aRect.width || mSize.height < aRect.height
         || mSurface->GetContentType() != aContentType) {
-      mSurface = nullptr;
+      mSurface = nsnull;
     } else {
       NS_ASSERTION(mType == aSimilarTo->GetType(),
                    "Unexpected surface type change");
@@ -86,7 +86,7 @@ gfxCachedTempSurface::Get(gfxASurface::gfxContentType aContentType,
     mSize = gfxIntSize(PRInt32(ceil(aRect.width)), PRInt32(ceil(aRect.height)));
     mSurface = aSimilarTo->CreateSimilarSurface(aContentType, mSize);
     if (!mSurface)
-      return nullptr;
+      return nsnull;
 
     cleared = true;
 #ifdef DEBUG

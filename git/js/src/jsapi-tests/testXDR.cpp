@@ -10,7 +10,7 @@
 #include "jsscript.h"
 
 static JSScript *
-CompileScriptForPrincipalsVersionOrigin(JSContext *cx, JS::HandleObject obj,
+CompileScriptForPrincipalsVersionOrigin(JSContext *cx, JSObject *obj,
                                         JSPrincipals *principals, JSPrincipals *originPrincipals,
                                         const char *bytes, size_t nbytes,
                                         const char *filename, unsigned lineno,
@@ -47,13 +47,13 @@ FreezeThaw(JSContext *cx, JSScript *script)
 }
 
 static JSScript *
-GetScript(JSContext *cx, JS::HandleObject funobj)
+GetScript(JSContext *cx, JSObject *funobj)
 {
     return JS_GetFunctionScript(cx, JS_GetObjectFunction(funobj));
 }
 
 JSObject *
-FreezeThaw(JSContext *cx, JS::HandleObject funobj)
+FreezeThaw(JSContext *cx, JSObject *funobj)
 {
     // freeze
     uint32_t nbytes;
@@ -63,10 +63,10 @@ FreezeThaw(JSContext *cx, JS::HandleObject funobj)
 
     // thaw
     JSScript *script = GetScript(cx, funobj);
-    JSObject *funobj2 = JS_DecodeInterpretedFunction(cx, memory, nbytes,
+    funobj = JS_DecodeInterpretedFunction(cx, memory, nbytes,
                                           script->principals, script->originPrincipals);
     js_free(memory);
-    return funobj2;
+    return funobj;
 }
 
 static JSPrincipals testPrincipals[] = {
@@ -126,7 +126,6 @@ JSScript *createScriptViaXDR(JSPrincipals *prin, JSPrincipals *orig, int testCas
         "function f() { return 1; }\n"
         "f;\n";
 
-    JS::RootedObject global(cx, JS_GetGlobalObject(cx));
     JSScript *script = CompileScriptForPrincipalsVersionOrigin(cx, global, prin, orig,
                                                                src, strlen(src), "test", 1,
                                                                JSVERSION_DEFAULT);
@@ -145,7 +144,7 @@ JSScript *createScriptViaXDR(JSPrincipals *prin, JSPrincipals *orig, int testCas
     JSBool ok = JS_ExecuteScript(cx, global, script, &v);
     if (!ok || !v.isObject())
         return NULL;
-    JS::RootedObject funobj(cx, &v.toObject());
+    JSObject *funobj = &v.toObject();
     if (testCase == TEST_FUNCTION) {
         funobj = FreezeThaw(cx, funobj);
         if (!funobj)
@@ -177,7 +176,7 @@ BEGIN_TEST(testXDR_atline)
     CHECK(ok);
     CHECK(v.isObject());
 
-    JS::RootedObject funobj(cx, &v.toObject());
+    JSObject *funobj = &v.toObject();
     script = JS_GetFunctionScript(cx, JS_GetObjectFunction(funobj));
     CHECK(!strcmp("foo", JS_GetScriptFilename(cx, script)));
 
@@ -203,15 +202,15 @@ BEGIN_TEST(testXDR_bug506491)
     CHECK(script);
 
     // execute
-    JS::RootedValue v2(cx);
-    CHECK(JS_ExecuteScript(cx, global, script, v2.address()));
+    jsvalRoot v2(cx);
+    CHECK(JS_ExecuteScript(cx, global, script, v2.addr()));
 
     // try to break the Block object that is the parent of f
     JS_GC(rt);
 
     // confirm
-    EVAL("f() === 'ok';\n", v2.address());
-    JS::RootedValue trueval(cx, JSVAL_TRUE);
+    EVAL("f() === 'ok';\n", v2.addr());
+    jsvalRoot trueval(cx, JSVAL_TRUE);
     CHECK_SAME(v2, trueval);
     return true;
 }

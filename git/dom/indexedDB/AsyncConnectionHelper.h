@@ -123,7 +123,7 @@ public:
 
   nsISupports* GetSource()
   {
-    return mRequest ? mRequest->Source() : nullptr;
+    return mRequest ? mRequest->Source() : nsnull;
   }
 
   virtual nsresult GetResultCode() MOZ_OVERRIDE

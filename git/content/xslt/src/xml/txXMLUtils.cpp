@@ -38,7 +38,7 @@ txExpandedName::init(const nsAString& aQName, txNamespaceMap* aResolver,
         mLocalName = do_GetAtom(Substring(colon + 1, end));
     }
     else {
-        mNamespaceID = aUseDefault ? aResolver->lookupNamespace(nullptr) :
+        mNamespaceID = aUseDefault ? aResolver->lookupNamespace(nsnull) :
                                      kNameSpaceID_None;
         mLocalName = do_GetAtom(aQName);
     }
@@ -61,8 +61,8 @@ XMLUtils::splitExpatName(const PRUnichar *aExpatName, nsIAtom **aPrefix,
      *    namespaceURI<separator>localName<separator>prefix
      */
 
-    const PRUnichar *uriEnd = nullptr;
-    const PRUnichar *nameEnd = nullptr;
+    const PRUnichar *uriEnd = nsnull;
+    const PRUnichar *nameEnd = nsnull;
     const PRUnichar *pos;
     for (pos = aExpatName; *pos; ++pos) {
         if (*pos == kExpatSeparatorChar) {
@@ -94,14 +94,14 @@ XMLUtils::splitExpatName(const PRUnichar *aExpatName, nsIAtom **aPrefix,
         }
         else {
             nameEnd = pos;
-            *aPrefix = nullptr;
+            *aPrefix = nsnull;
         }
     }
     else {
         *aNameSpaceID = kNameSpaceID_None;
         nameStart = aExpatName;
         nameEnd = pos;
-        *aPrefix = nullptr;
+        *aPrefix = nsnull;
     }
 
     *aLocalName = NS_NewAtom(Substring(nameStart, nameEnd));
@@ -128,7 +128,7 @@ XMLUtils::splitQName(const nsAString& aName, nsIAtom** aPrefix,
         *aLocalName = NS_NewAtom(Substring(colon + 1, end));
     }
     else {
-        *aPrefix = nullptr;
+        *aPrefix = nsnull;
         *aLocalName = NS_NewAtom(aName);
     }
 

@@ -90,15 +90,15 @@ NS_IMETHODIMP nsScrollBoxObject::ScrollByLine(PRInt32 dlines)
 static nsIFrame* GetScrolledBox(nsBoxObject* aScrollBox) {
   nsIFrame* frame = aScrollBox->GetFrame(false);
   if (!frame) 
-    return nullptr;
+    return nsnull;
   nsIScrollableFrame* scrollFrame = do_QueryFrame(frame);
   if (!scrollFrame) {
     NS_WARNING("nsIScrollBoxObject attached to something that's not a scroll frame!");
-    return nullptr;
+    return nsnull;
   }
   nsIFrame* scrolledFrame = scrollFrame->GetScrolledFrame();
   if (!scrolledFrame)
-    return nullptr;
+    return nsnull;
   return scrolledFrame->GetChildBox();
 }
 

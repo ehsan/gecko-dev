@@ -76,7 +76,7 @@ public:
         if (sCurrentStore)
             delete sCurrentStore;
 
-        sCurrentStore = nullptr;
+        sCurrentStore = nsnull;
     }
 
 protected:

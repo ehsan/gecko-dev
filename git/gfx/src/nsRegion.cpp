@@ -123,7 +123,7 @@ public:
 RgnRectMemoryAllocator::RgnRectMemoryAllocator (PRUint32 aNumOfEntries)
 {
   InitLock ();
-  mChunkListHead = AllocChunk (aNumOfEntries, nullptr, nullptr);
+  mChunkListHead = AllocChunk (aNumOfEntries, nsnull, nsnull);
   mFreeEntries   = aNumOfEntries;
   mFreeListHead  = ChunkHead (mChunkListHead);
 }
@@ -205,7 +205,7 @@ void nsRegion::ShutdownStatic()
 
   delete allocator;
 
-  gRectPoolTlsIndex.set(nullptr);
+  gRectPoolTlsIndex.set(nsnull);
 }
 
 void* nsRegion::RgnRect::operator new (size_t) CPP_THROW_NEW

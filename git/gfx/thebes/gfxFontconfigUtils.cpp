@@ -22,14 +22,14 @@
 
 using namespace mozilla;
 
-/* static */ gfxFontconfigUtils* gfxFontconfigUtils::sUtils = nullptr;
-static nsILanguageAtomService* gLangService = nullptr;
+/* static */ gfxFontconfigUtils* gfxFontconfigUtils::sUtils = nsnull;
+static nsILanguageAtomService* gLangService = nsnull;
 
 /* static */ void
 gfxFontconfigUtils::Shutdown() {
     if (sUtils) {
         delete sUtils;
-        sUtils = nullptr;
+        sUtils = nsnull;
     }
     NS_IF_RELEASE(gLangService);
 }
@@ -434,9 +434,9 @@ TryLangForGroup(const nsACString& aOSLang, nsIAtom *aLangGroup,
 gfxFontconfigUtils::GetSampleLangForGroup(nsIAtom *aLangGroup,
                                           nsACString *aFcLang)
 {
-    NS_PRECONDITION(aFcLang != nullptr, "aFcLang must not be NULL");
+    NS_PRECONDITION(aFcLang != nsnull, "aFcLang must not be NULL");
 
-    const MozLangGroupData *langGroup = nullptr;
+    const MozLangGroupData *langGroup = nsnull;
 
     for (unsigned int i = 0; i < ArrayLength(MozLangGroups); ++i) {
         if (aLangGroup == MozLangGroups[i].mozLangGroup) {
@@ -790,7 +790,7 @@ gfxFontconfigUtils::ResolveFontName(const nsAString& aFontName,
 bool
 gfxFontconfigUtils::IsExistingFamily(const nsCString& aFamilyName)
 {
-    return mFontsByFamily.GetEntry(ToFcChar8(aFamilyName)) != nullptr;
+    return mFontsByFamily.GetEntry(ToFcChar8(aFamilyName)) != nsnull;
 }
 
 const nsTArray< nsCountedRef<FcPattern> >&
@@ -989,7 +989,7 @@ gfxFontconfigUtils::GetLangSupportEntry(const FcChar8 *aLang, bool aWithFonts)
 
     LangSupportEntry *entry = mLangSupportTable.PutEntry(aLang);
     if (!entry)
-        return nullptr;
+        return nsnull;
 
     FcLangResult best = FcLangDifferentLang;
 

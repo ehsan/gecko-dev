@@ -21,7 +21,7 @@ BEGIN_TEST(testGCOutOfMemory)
 {
     JS_SetErrorReporter(cx, ErrorCounter);
 
-    JS::RootedValue root(cx);
+    jsvalRoot root(cx);
 
     static const char source[] =
         "var max = 0; (function() {"
@@ -31,7 +31,7 @@ BEGIN_TEST(testGCOutOfMemory)
         "    array = []; array.push(0);"
         "})();";
     JSBool ok = JS_EvaluateScript(cx, global, source, strlen(source), "", 1,
-                                  root.address());
+                                  root.addr());
 
     /* Check that we get OOM. */
     CHECK(!ok);
@@ -44,7 +44,7 @@ BEGIN_TEST(testGCOutOfMemory)
          "        --i;"
          "        array.push({});"
          "    }"
-         "})();", root.address());
+         "})();", root.addr());
     CHECK_EQUAL(errorCount, 1);
     return true;
 }

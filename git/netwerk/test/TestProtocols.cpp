@@ -63,7 +63,7 @@ namespace TestProtocols {
 //
 // set NSPR_LOG_MODULES=Test:5
 //
-static PRLogModuleInfo *gTestLog = nullptr;
+static PRLogModuleInfo *gTestLog = nsnull;
 #endif
 #define LOG(args) PR_LOG(gTestLog, PR_LOG_DEBUG, args)
 
@@ -579,7 +579,7 @@ public:
           TestChannelEventSink *sink;
 
           sink = new TestChannelEventSink();
-          if (sink == nullptr)
+          if (sink == nsnull)
             return NS_ERROR_OUT_OF_MEMORY;
           NS_ADDREF(sink);
           rv = sink->QueryInterface(iid, result);
@@ -590,7 +590,7 @@ public:
           TestAuthPrompt *prompt;
 
           prompt = new TestAuthPrompt();
-          if (prompt == nullptr)
+          if (prompt == nsnull)
             return NS_ERROR_OUT_OF_MEMORY;
           NS_ADDREF(prompt);
           rv = prompt->QueryInterface(iid, result);
@@ -614,7 +614,7 @@ nsresult StartLoadingURL(const char* aUrlString)
     if (pService) {
         nsCOMPtr<nsIURI> pURL;
 
-        rv = pService->NewURI(nsDependentCString(aUrlString), nullptr, nullptr, getter_AddRefs(pURL));
+        rv = pService->NewURI(nsDependentCString(aUrlString), nsnull, nsnull, getter_AddRefs(pURL));
         if (NS_FAILED(rv)) {
             LOG(("ERROR: NewURI failed for %s [rv=%x]\n", aUrlString));
             return rv;
@@ -630,7 +630,7 @@ nsresult StartLoadingURL(const char* aUrlString)
 
         // Async reading thru the calls of the event sink interface
         rv = NS_NewChannel(getter_AddRefs(pChannel), pURL, pService,
-                           nullptr,     // loadGroup
+                           nsnull,     // loadGroup
                            callbacks); // notificationCallbacks
         NS_RELEASE(callbacks);
         if (NS_FAILED(rv)) {
@@ -828,7 +828,7 @@ main(int argc, char* argv[])
       up the event queues. Copied from TestSocketIO.cpp
     */
 
-    rv = NS_InitXPCOM2(nullptr, nullptr, nullptr);
+    rv = NS_InitXPCOM2(nsnull, nsnull, nsnull);
     if (NS_FAILED(rv)) return rv;
 
     {
@@ -880,6 +880,6 @@ main(int argc, char* argv[])
         PumpEvents();
     } // this scopes the nsCOMPtrs
     // no nsCOMPtrs are allowed to be alive when you call NS_ShutdownXPCOM
-    NS_ShutdownXPCOM(nullptr);
+    NS_ShutdownXPCOM(nsnull);
     return rv;
 }

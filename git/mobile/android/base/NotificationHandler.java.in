@@ -7,14 +7,17 @@
 package @ANDROID_PACKAGE_NAME@;
 
 import android.app.NotificationManager;
+import android.content.Intent;
 import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.Intent;
-import android.net.Uri;
+import android.os.Bundle;
 import android.util.Log;
+import android.net.Uri;
 
-public class NotificationHandler extends BroadcastReceiver {
+public class NotificationHandler
+    extends BroadcastReceiver
+{
     private static final String LOGTAG = "GeckoNotificationHandler";
 
     @Override

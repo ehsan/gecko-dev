@@ -55,7 +55,7 @@ nsLanguageAtomService::LookupCharSet(const char *aCharSet, nsresult *aError)
       if (aError)
         *aError = NS_ERROR_FAILURE;
 
-      return nullptr;
+      return nsnull;
     }
   }
 
@@ -65,11 +65,11 @@ nsLanguageAtomService::LookupCharSet(const char *aCharSet, nsresult *aError)
     if (aError)
       *aError = NS_ERROR_FAILURE;
 
-    return nullptr;
+    return nsnull;
   }
 
   // transfer reference to raw pointer
-  nsIAtom *raw = nullptr;
+  nsIAtom *raw = nsnull;
   langGroup.swap(raw);
 
   if (aError)
@@ -128,7 +128,7 @@ nsLanguageAtomService::GetLanguageGroup(nsIAtom *aLanguage,
         if (aError) {
           *aError = NS_ERROR_FAILURE;
         }
-        return nullptr;
+        return nsnull;
       }
     }
 

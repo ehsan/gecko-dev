@@ -23,7 +23,7 @@ public:
   virtual ~ApplicationAccessibleWrap();
 
   // nsAccessNode
-  virtual void Init();
+  virtual bool Init();
 
   // Accessible
   virtual mozilla::a11y::ENameValueFlag Name(nsString& aName);

@@ -5,14 +5,12 @@
 
 package org.mozilla.gecko.gfx;
 
-import org.mozilla.gecko.util.FloatUtils;
-
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Region;
-
 import java.nio.FloatBuffer;
 import java.util.concurrent.locks.ReentrantLock;
+import org.mozilla.gecko.FloatUtils;
 
 public abstract class Layer {
     private final ReentrantLock mTransactionLock;

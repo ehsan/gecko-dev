@@ -12,19 +12,16 @@
 #include "nsDOMMediaStream.h"
 #include "nsComponentManagerUtils.h"
 
+#include "Layers.h"
 #include "VideoUtils.h"
 #include "MediaEngine.h"
+#include "ImageLayers.h"
 #include "VideoSegment.h"
 #include "AudioSegment.h"
 #include "StreamBuffer.h"
 #include "MediaStreamGraph.h"
 
 namespace mozilla {
-
-namespace layers {
-class ImageContainer;
-class PlanarYCbCrImage;
-}
 
 /**
  * The default implementation of the MediaEngine interface.
@@ -41,8 +38,8 @@ class MediaEngineDefaultVideoSource : public nsITimerCallback,
                                       public MediaEngineVideoSource
 {
 public:
-  MediaEngineDefaultVideoSource();
-  ~MediaEngineDefaultVideoSource();
+  MediaEngineDefaultVideoSource() : mTimer(nsnull), mState(kReleased) {}
+  ~MediaEngineDefaultVideoSource(){};
 
   virtual void GetName(nsAString&);
   virtual void GetUUID(nsAString&);
@@ -72,7 +69,7 @@ class MediaEngineDefaultAudioSource : public nsITimerCallback,
                                       public MediaEngineAudioSource
 {
 public:
-  MediaEngineDefaultAudioSource() : mTimer(nullptr), mState(kReleased) {}
+  MediaEngineDefaultAudioSource() : mTimer(nsnull), mState(kReleased) {}
   ~MediaEngineDefaultAudioSource(){};
 
   virtual void GetName(nsAString&);

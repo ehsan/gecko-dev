@@ -16,9 +16,9 @@ DIRS = \
   interfaces/base \
   interfaces/canvas \
   interfaces/core \
+  interfaces/devicestorage \
   interfaces/html \
   interfaces/events \
-  interfaces/devicestorage \
   interfaces/contacts \
   interfaces/settings \
   interfaces/stylesheets \
@@ -70,7 +70,6 @@ DIRS += \
   ipc \
   identity \
   workers \
-  camera \
   $(NULL)
 
 ifdef MOZ_B2G_RIL

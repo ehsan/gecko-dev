@@ -47,7 +47,7 @@ let AlarmService = {
     }.bind(this));
 
     // set the indexeddb database
-    let idbManager = Cc["@mozilla.org/dom/indexeddb/manager;1"].getService(Ci.nsIIndexedDatabaseManager);
+    let idbManager = Components.classes["@mozilla.org/dom/indexeddb/manager;1"].getService(Ci.nsIIndexedDatabaseManager);
     idbManager.initWindowless(myGlobal);
     this._db = new AlarmDB(myGlobal);
     this._db.init(myGlobal);
@@ -80,7 +80,6 @@ let AlarmService = {
     switch (aMessage.name) {
       case "AlarmsManager:GetAll":
         this._db.getAll(
-          json.manifestURL,
           function getAllSuccessCb(aAlarms) {
             debug("Callback after getting alarms from database: " + JSON.stringify(aAlarms));
             this._sendAsyncMessage(mm, "GetAll", true, json.requestId, aAlarms);
@@ -101,20 +100,20 @@ let AlarmService = {
           manifestURL: json.manifestURL
         };
 
-        let newAlarmTime = this._getAlarmTime(newAlarm);
-        if (newAlarmTime <= Date.now()) {
-          debug("Adding a alarm that has past time. Return DOMError.");
-          this._debugCurrentAlarm();
-          this._sendAsyncMessage(mm, "Add", false, json.requestId, "InvalidStateError");
-          break;
-        }
-
         this._db.add(
           newAlarm,
           function addSuccessCb(aNewId) {
             debug("Callback after adding alarm in database.");
 
             newAlarm['id'] = aNewId;
+            let newAlarmTime = this._getAlarmTime(newAlarm);
+
+            if (newAlarmTime <= Date.now()) {
+              debug("Adding a alarm that has past time. Don't set it in system.");
+              this._debugCurrentAlarm();
+              this._sendAsyncMessage(mm, "Add", true, json.requestId, aNewId);
+              return;
+            }
 
             // if there is no alarm being set in system, set the new alarm
             if (this._currentAlarm == null) {
@@ -149,9 +148,8 @@ let AlarmService = {
         break;
 
       case "AlarmsManager:Remove":
-        this._removeAlarmFromDb(
+        this._db.remove(
           json.id,
-          json.manifestURL,
           function removeSuccessCb() {
             debug("Callback after removing alarm from database.");
 
@@ -162,13 +160,10 @@ let AlarmService = {
             }
 
             // check if the alarm to be removed is in the queue
-            // by ID and whether it belongs to the requesting app
             let alarmQueue = this._alarmQueue;
-            if (this._currentAlarm.id != json.id || 
-                this._currentAlarm.manifestURL != json.manifestURL) {
+            if (this._currentAlarm.id != json.id) {
               for (let i = 0; i < alarmQueue.length; i++) {
-                if (alarmQueue[i].id == json.id && 
-                    alarmQueue[i].manifestURL == json.manifestURL) {
+                if (alarmQueue[i].id == json.id) {
                   alarmQueue.splice(i, 1);
                   break;
                 }
@@ -188,7 +183,10 @@ let AlarmService = {
             // no alarm waiting to be set in the queue
             this._currentAlarm = null;
             this._debugCurrentAlarm();
-          }.bind(this)
+          }.bind(this),
+          function removeErrorCb(aErrorMsg) {
+            throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
+          }
         );
         break;
 
@@ -229,53 +227,29 @@ let AlarmService = {
     aMessageManager.sendAsyncMessage("AlarmsManager:" + aMessageName + ":Return:" + (aSuccess ? "OK" : "KO"), json);
   },
 
-  _removeAlarmFromDb: function _removeAlarmFromDb(aId, aManifestURL, aRemoveSuccessCb) {
-    debug("_removeAlarmFromDb()");
-
-    // If the aRemoveSuccessCb is undefined or null, set a 
-    // dummy callback for it which is needed for _db.remove()
-    if (!aRemoveSuccessCb) {
-      aRemoveSuccessCb = function removeSuccessCb() {
-        debug("Remove alarm from DB successfully.");
-      };
-    }
-
-    this._db.remove(
-      aId,
-      aManifestURL,
-      aRemoveSuccessCb,
-      function removeErrorCb(aErrorMsg) {
-        throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
-      }
-    );
-  },
-
-  _fireSystemMessage: function _fireSystemMessage(aAlarm) {
-    debug("Fire system message: " + JSON.stringify(aAlarm));
-    let manifestURI = Services.io.newURI(aAlarm.manifestURL, null, null);
-    messenger.sendMessage("alarm", aAlarm, manifestURI);
-  },
-
   _onAlarmFired: function _onAlarmFired() {
     debug("_onAlarmFired()");
 
     if (this._currentAlarm) {
-      this._fireSystemMessage(this._currentAlarm);
-      this._removeAlarmFromDb(this._currentAlarm.id, null);
+      debug("Fire system intent: " + JSON.stringify(this._currentAlarm));
+      let manifestURI = Services.io.newURI(this._currentAlarm.manifestURL, null, null);
+      messenger.sendMessage("alarm", this._currentAlarm, manifestURI);
       this._currentAlarm = null;
     }
 
-    // Reset the next alarm from the queue.
+    // reset the next alarm from the queue
+    let nowTime = Date.now();
     let alarmQueue = this._alarmQueue;
     while (alarmQueue.length > 0) {
       let nextAlarm = alarmQueue.shift();
       let nextAlarmTime = this._getAlarmTime(nextAlarm);
 
-      // If the next alarm has been expired, directly 
-      // fire system message for it instead of setting it.
-      if (nextAlarmTime <= Date.now()) {
-        this._fireSystemMessage(nextAlarm);
-        this._removeAlarmFromDb(nextAlarm.id, null);
+      // if the next alarm has been expired, directly 
+      // fire system intent for it instead of setting it
+      if (nextAlarmTime <= nowTime) {
+        debug("Fire system intent: " + JSON.stringify(nextAlarm));
+        let manifestURI = Services.io.newURI(nextAlarm.manifestURL, null, null);
+        messenger.sendMessage("alarm", nextAlarm, manifestURI);
       } else {
         this._currentAlarm = nextAlarm;
         break;
@@ -295,7 +269,6 @@ let AlarmService = {
     debug("_restoreAlarmsFromDb()");
 
     this._db.getAll(
-      null,
       function getAllSuccessCb(aAlarms) {
         debug("Callback after getting alarms from database: " + JSON.stringify(aAlarms));
 

@@ -62,7 +62,7 @@ static const struct PLDHashTableOps property_HashTableOps = {
   PL_DHashMoveEntryStub,
   PL_DHashClearEntryStub,
   PL_DHashFinalizeStub,
-  nullptr,
+  nsnull,
 };
 
 //
@@ -361,7 +361,7 @@ nsresult nsPropertiesParser::ParseBuffer(const PRUnichar* aBuffer,
   const PRUnichar* end = aBuffer + aBufferLength;
 
   // points to the start/end of the current key or value
-  const PRUnichar* tokenStart = nullptr;
+  const PRUnichar* tokenStart = nsnull;
 
   // if we're in the middle of parsing a key or value, make sure
   // the current token points to the beginning of the current buffer
@@ -450,10 +450,10 @@ nsresult nsPropertiesParser::ParseBuffer(const PRUnichar* aBuffer,
 }
 
 nsPersistentProperties::nsPersistentProperties()
-: mIn(nullptr)
+: mIn(nsnull)
 {
   mSubclass = static_cast<nsIPersistentProperties*>(this);
-  mTable.ops = nullptr;
+  mTable.ops = nsnull;
   PL_INIT_ARENA_POOL(&mArena, "PersistentPropertyArena", 2048);
 }
 
@@ -467,9 +467,9 @@ nsPersistentProperties::~nsPersistentProperties()
 nsresult
 nsPersistentProperties::Init()
 {
-  if (!PL_DHashTableInit(&mTable, &property_HashTableOps, nullptr,
+  if (!PL_DHashTableInit(&mTable, &property_HashTableOps, nsnull,
                          sizeof(PropertyTableEntry), 20)) {
-    mTable.ops = nullptr;
+    mTable.ops = nsnull;
     return NS_ERROR_OUT_OF_MEMORY;
   }
   return NS_OK;
@@ -481,7 +481,7 @@ nsPersistentProperties::Create(nsISupports *aOuter, REFNSIID aIID, void **aResul
   if (aOuter)
     return NS_ERROR_NO_AGGREGATION;
   nsPersistentProperties* props = new nsPersistentProperties();
-  if (props == nullptr)
+  if (props == nsnull)
     return NS_ERROR_OUT_OF_MEMORY;
 
   NS_ADDREF(props);
@@ -513,7 +513,7 @@ nsPersistentProperties::Load(nsIInputStream *aIn)
   // the bug121341.properties test file accordingly.
   while (NS_SUCCEEDED(rv = mIn->ReadSegments(nsPropertiesParser::SegmentWriter, &parser, 4096, &nProcessed)) &&
          nProcessed != 0);
-  mIn = nullptr;
+  mIn = nsnull;
   if (NS_FAILED(rv))
     return rv;
 
@@ -675,7 +675,7 @@ nsPropertyElement::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult)
   if (aOuter)
     return NS_ERROR_NO_AGGREGATION;
   nsPropertyElement* propElem = new nsPropertyElement();
-  if (propElem == nullptr)
+  if (propElem == nsnull)
     return NS_ERROR_OUT_OF_MEMORY;
   NS_ADDREF(propElem);
   nsresult rv = propElem->QueryInterface(aIID, aResult);

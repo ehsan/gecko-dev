@@ -107,7 +107,7 @@ private:
   // Checks if the children of aContainer in the range [aStartChild, aEndChild)
   // can be inserted/appended to one insertion point together. If so, returns
   // that insertion point. If not, returns null and issues single
-  // ContentInserted calls for each child.  aEndChild = nullptr indicates that we
+  // ContentInserted calls for each child.  aEndChild = nsnull indicates that we
   // are dealing with an append.
   nsIFrame* GetRangeInsertionPoint(nsIContent* aContainer,
                                    nsIFrame* aParentFrame,
@@ -344,7 +344,7 @@ public:
   nsresult GetInsertionPoint(nsIFrame*     aParentFrame,
                              nsIContent*   aChildContent,
                              nsIFrame**    aInsertionPoint,
-                             bool*       aMultiple = nullptr);
+                             bool*       aMultiple = nsnull);
 
   nsresult CreateListBoxContent(nsPresContext* aPresContext,
                                 nsIFrame*       aParentFrame,
@@ -695,9 +695,6 @@ private:
      using the FrameConstructionData's mPseudoAtom for its anonymous
      box type. */
 #define FCDATA_CREATE_BLOCK_WRAPPER_FOR_ALL_KIDS 0x40000
-  /* If FCDATA_IS_SVG_TEXT is set, then this text frame is a descendant of
-     an SVG text frame. */
-#define FCDATA_IS_SVG_TEXT 0x80000
 
   /* Structure representing information about how a frame should be
      constructed.  */
@@ -1376,7 +1373,7 @@ private:
      changes, make this static */
   const FrameConstructionData*
     FindDisplayData(const nsStyleDisplay* aDisplay, Element* aElement,
-                    nsIFrame* aParentFrame, nsStyleContext* aStyleContext);
+                    nsStyleContext* aStyleContext);
 
   /**
    * Construct a scrollable block frame
@@ -1437,7 +1434,7 @@ private:
                            nsFrameItems&            aFrameItems,
                            const bool               aAllowBlockStyles,
                            PendingBinding*          aPendingBinding,
-                           nsIFrame*                aPossiblyLeafFrame = nullptr);
+                           nsIFrame*                aPossiblyLeafFrame = nsnull);
 
   nsIFrame* GetFrameFor(nsIContent* aContent);
 
@@ -1802,8 +1799,8 @@ private:
                                     nsIContent* aChild,
                                     bool* aIsAppend,
                                     bool* aIsRangeInsertSafe,
-                                    nsIContent* aStartSkipChild = nullptr,
-                                    nsIContent *aEndSkipChild = nullptr);
+                                    nsIContent* aStartSkipChild = nsnull,
+                                    nsIContent *aEndSkipChild = nsnull);
 
   // see if aContent and aSibling are legitimate siblings due to restrictions
   // imposed by table columns

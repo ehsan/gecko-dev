@@ -16,7 +16,7 @@ namespace {
 typedef nsDataHashtable<nsISupportsHashKey, DatabaseInfo*>
         DatabaseHash;
 
-DatabaseHash* gDatabaseHash = nullptr;
+DatabaseHash* gDatabaseHash = nsnull;
 
 PLDHashOperator
 EnumerateObjectStoreNames(const nsAString& aKey,
@@ -155,7 +155,7 @@ DatabaseInfo::Put(DatabaseInfo* aInfo)
     gDatabaseHash = databaseHash.forget();
   }
 
-  if (gDatabaseHash->Get(aInfo->id, nullptr)) {
+  if (gDatabaseHash->Get(aInfo->id, nsnull)) {
     NS_ERROR("Already know about this database!");
     return false;
   }
@@ -176,7 +176,7 @@ DatabaseInfo::Remove(nsIAtom* aId)
 
     if (!gDatabaseHash->Count()) {
       delete gDatabaseHash;
-      gDatabaseHash = nullptr;
+      gDatabaseHash = nsnull;
     }
   }
 }
@@ -223,7 +223,7 @@ DatabaseInfo::ContainsStoreName(const nsAString& aName)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  return objectStoreHash && objectStoreHash->Get(aName, nullptr);
+  return objectStoreHash && objectStoreHash->Get(aName, nsnull);
 }
 
 ObjectStoreInfo*
@@ -235,7 +235,7 @@ DatabaseInfo::GetObjectStore(const nsAString& aName)
     return objectStoreHash->GetWeak(aName);
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 bool
@@ -250,7 +250,7 @@ DatabaseInfo::PutObjectStore(ObjectStoreInfo* aInfo)
     objectStoreHash = hash.forget();
   }
 
-  if (objectStoreHash->Get(aInfo->name, nullptr)) {
+  if (objectStoreHash->Get(aInfo->name, nsnull)) {
     NS_ERROR("Already have an entry for this objectstore!");
     return false;
   }

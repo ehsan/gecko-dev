@@ -18,7 +18,7 @@ extern PRThread *gSocketThread;
 void
 nsHttpConnectionMgr::PrintDiagnostics()
 {
-  PostEvent(&nsHttpConnectionMgr::OnMsgPrintDiagnostics, 0, nullptr);
+  PostEvent(&nsHttpConnectionMgr::OnMsgPrintDiagnostics, 0, nsnull);
 }
 
 void

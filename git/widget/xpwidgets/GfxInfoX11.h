@@ -57,7 +57,7 @@ protected:
                                         PRInt32 *aStatus, 
                                         nsAString & aSuggestedDriverVersion, 
                                         const nsTArray<GfxDriverInfo>& aDriverInfo, 
-                                        OperatingSystem* aOS = nullptr);
+                                        OperatingSystem* aOS = nsnull);
   virtual const nsTArray<GfxDriverInfo>& GetGfxDriverInfo();
 
 private:
@@ -67,7 +67,7 @@ private:
   nsCString mAdapterDescription;
   nsCString mOS;
   nsCString mOSRelease;
-  bool mIsMesa, mIsNVIDIA, mIsFGLRX, mIsNouveau, mIsIntel;
+  bool mIsMesa, mIsNVIDIA, mIsFGLRX, mIsNouveau;
   bool mHasTextureFromPixmap;
   int mGLMajorVersion, mMajorVersion, mMinorVersion, mRevisionVersion;
 

@@ -86,7 +86,7 @@ nsHTMLButtonControlFrame::CreateAccessible()
                                                   PresContext()->PresShell()); 
   }
 
-  return nullptr;
+  return nsnull;
 }
 #endif
 

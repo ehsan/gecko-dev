@@ -12,7 +12,7 @@ class nsRawDecoder : public nsBuiltinDecoder
 public:
   virtual nsMediaDecoder* Clone() { 
     if (!nsHTMLMediaElement::IsRawEnabled()) {
-      return nullptr;
+      return nsnull;
     }    
     return new nsRawDecoder();
   }

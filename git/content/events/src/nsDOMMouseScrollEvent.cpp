@@ -9,7 +9,7 @@
 nsDOMMouseScrollEvent::nsDOMMouseScrollEvent(nsPresContext* aPresContext,
                                              nsInputEvent* aEvent)
   : nsDOMMouseEvent(aPresContext, aEvent ? aEvent :
-                                  new nsMouseScrollEvent(false, 0, nullptr))
+                                  new nsMouseScrollEvent(false, 0, nsnull))
 {
   if (aEvent) {
     mEventIsInternal = false;
@@ -38,7 +38,7 @@ nsDOMMouseScrollEvent::~nsDOMMouseScrollEvent()
         delete mEvent;
         break;
     }
-    mEvent = nullptr;
+    mEvent = nsnull;
   }
 }
 

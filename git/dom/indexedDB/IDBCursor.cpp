@@ -42,7 +42,7 @@ class CursorHelper : public AsyncConnectionHelper
 public:
   CursorHelper(IDBCursor* aCursor)
   : AsyncConnectionHelper(aCursor->Transaction(), aCursor->Request()),
-    mCursor(aCursor), mActor(nullptr)
+    mCursor(aCursor), mActor(nsnull)
   {
     NS_ASSERTION(aCursor, "Null cursor!");
   }
@@ -320,7 +320,7 @@ IDBCursor::CreateCommon(IDBRequest* aRequest,
 
   if (cursor->mScriptOwner) {
     if (NS_FAILED(NS_HOLD_JS_OBJECTS(cursor, IDBCursor))) {
-      return nullptr;
+      return nsnull;
     }
 
     cursor->mRooted = true;
@@ -338,14 +338,14 @@ IDBCursor::CreateCommon(IDBRequest* aRequest,
 }
 
 IDBCursor::IDBCursor()
-: mScriptOwner(nullptr),
+: mScriptOwner(nsnull),
   mType(OBJECTSTORE),
   mDirection(IDBCursor::NEXT),
   mCachedKey(JSVAL_VOID),
   mCachedPrimaryKey(JSVAL_VOID),
   mCachedValue(JSVAL_VOID),
-  mActorChild(nullptr),
-  mActorParent(nullptr),
+  mActorChild(nsnull),
+  mActorParent(nsnull),
   mHaveCachedKey(false),
   mHaveCachedPrimaryKey(false),
   mHaveCachedValue(false),
@@ -457,7 +457,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(IDBCursor)
   // Don't unlink mObjectStore, mIndex, or mTransaction!
   if (tmp->mRooted) {
     NS_DROP_JS_OBJECTS(tmp, IDBCursor);
-    tmp->mScriptOwner = nullptr;
+    tmp->mScriptOwner = nsnull;
     tmp->mCachedKey = JSVAL_VOID;
     tmp->mCachedPrimaryKey = JSVAL_VOID;
     tmp->mCachedValue = JSVAL_VOID;
@@ -749,13 +749,13 @@ IDBCursor::Advance(PRInt64 aCount)
   }
 
   Key key;
-  return ContinueInternal(key, PRInt32(aCount));
+  return ContinueInternal(key, aCount);
 }
 
 void
 CursorHelper::ReleaseMainThreadObjects()
 {
-  mCursor = nullptr;
+  mCursor = nsnull;
   AsyncConnectionHelper::ReleaseMainThreadObjects();
 }
 
@@ -876,26 +876,9 @@ ContinueHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
     return Success_NotSent;
   }
 
-  InfallibleTArray<PBlobParent*> blobsParent;
-
-  if (NS_SUCCEEDED(aResultCode)) {
-    IDBDatabase* database = mTransaction->Database();
-    NS_ASSERTION(database, "This should never be null!");
-
-    ContentParent* contentParent = database->GetContentParent();
-    NS_ASSERTION(contentParent, "This should never be null!");
-
-    FileManager* fileManager = database->Manager();
-    NS_ASSERTION(fileManager, "This should never be null!");
-
-    const nsTArray<StructuredCloneFile>& files = mCloneReadInfo.mFiles;
-
-    aResultCode =
-      IDBObjectStore::ConvertBlobsToActors(contentParent, fileManager, files,
-                                           blobsParent);
-    if (NS_FAILED(aResultCode)) {
-      NS_WARNING("ConvertBlobsToActors failed!");
-    }
+  if (!mCloneReadInfo.mFileInfos.IsEmpty()) {
+    NS_WARNING("No support for transferring blobs across processes yet!");
+    return Error;
   }
 
   ResponseValue response;
@@ -907,7 +890,6 @@ ContinueHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
     continueResponse.key() = mKey;
     continueResponse.objectKey() = mObjectKey;
     continueResponse.cloneInfo() = mCloneReadInfo;
-    continueResponse.blobsParent().SwapElements(blobsParent);
     response = continueResponse;
   }
 
@@ -943,8 +925,6 @@ ContinueHelper::UnpackResponseFromParentProcess(
     return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }
 
-  IDBObjectStore::ConvertActorsToBlobs(response.blobsChild(),
-                                       mCloneReadInfo.mFiles);
   return NS_OK;
 }
 

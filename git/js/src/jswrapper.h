@@ -64,9 +64,9 @@ class JS_FRIEND_API(Wrapper)
     static JSObject *New(JSContext *cx, JSObject *obj, JSObject *proto,
                          JSObject *parent, Wrapper *handler);
 
-    static Wrapper *wrapperHandler(RawObject wrapper);
+    static Wrapper *wrapperHandler(const JSObject *wrapper);
 
-    static JSObject *wrappedObject(RawObject wrapper);
+    static JSObject *wrappedObject(const JSObject *wrapper);
 
     explicit Wrapper(unsigned flags);
 
@@ -343,7 +343,7 @@ TransparentObjectWrapper(JSContext *cx, JSObject *obj, JSObject *wrappedProto, J
 extern JS_FRIEND_DATA(int) sWrapperFamily;
 
 inline bool
-IsWrapper(RawObject obj)
+IsWrapper(const JSObject *obj)
 {
     return IsProxy(obj) && GetProxyHandler(obj)->family() == &sWrapperFamily;
 }
@@ -368,7 +368,7 @@ JS_FRIEND_API(JSObject *)
 UnwrapOneChecked(JSContext *cx, JSObject *obj);
 
 JS_FRIEND_API(bool)
-IsCrossCompartmentWrapper(RawObject obj);
+IsCrossCompartmentWrapper(const JSObject *obj);
 
 void
 NukeCrossCompartmentWrapper(JSObject *wrapper);

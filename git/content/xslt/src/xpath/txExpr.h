@@ -178,7 +178,7 @@ TX_IMPL_EXPR_STUBS_BASE(_class, _ReturnType)                  \
 Expr*                                                         \
 _class::getSubExprAt(PRUint32 aPos)                           \
 {                                                             \
-    return nullptr;                                            \
+    return nsnull;                                            \
 }                                                             \
 void                                                          \
 _class::setSubExprAt(PRUint32 aPos, Expr* aExpr)              \
@@ -194,7 +194,7 @@ _class::getSubExprAt(PRUint32 aPos)                           \
     if (aPos == 0) {                                          \
         return _Expr1;                                        \
     }                                                         \
-    return nullptr;                                            \
+    return nsnull;                                            \
 }                                                             \
 void                                                          \
 _class::setSubExprAt(PRUint32 aPos, Expr* aExpr)              \
@@ -217,7 +217,7 @@ _class::getSubExprAt(PRUint32 aPos)                           \
         default:                                              \
             break;                                            \
     }                                                         \
-    return nullptr;                                            \
+    return nsnull;                                            \
 }                                                             \
 void                                                          \
 _class::setSubExprAt(PRUint32 aPos, Expr* aExpr)              \
@@ -665,11 +665,11 @@ private:
 class txLiteralExpr : public Expr {
 public:
     txLiteralExpr(double aDbl)
-        : mValue(new NumberResult(aDbl, nullptr))
+        : mValue(new NumberResult(aDbl, nsnull))
     {
     }
     txLiteralExpr(const nsAString& aStr)
-        : mValue(new StringResult(aStr, nullptr))
+        : mValue(new StringResult(aStr, nsnull))
     {
     }
     txLiteralExpr(txAExprResult* aValue)

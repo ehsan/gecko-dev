@@ -239,8 +239,8 @@ nsHistory::Go(PRInt32 aDelta)
 
   PRInt32 curIndex=-1;
   PRInt32 len = 0;
-  session_history->GetIndex(&curIndex);
-  session_history->GetCount(&len);
+  nsresult rv = session_history->GetIndex(&curIndex);
+  rv = session_history->GetCount(&len);
 
   PRInt32 index = curIndex + aDelta;
   if (index > -1  &&  index < len)
@@ -313,7 +313,7 @@ nsHistory::ReplaceState(nsIVariant *aData, const nsAString& aTitle,
 NS_IMETHODIMP
 nsHistory::GetState(nsIVariant **aState)
 {
-  *aState = nullptr;
+  *aState = nsnull;
 
   nsCOMPtr<nsPIDOMWindow> win(do_QueryReferent(mInnerWindow));
   if (!win)

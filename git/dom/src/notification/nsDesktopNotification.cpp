@@ -134,13 +134,13 @@ nsDOMDesktopNotification::DispatchNotificationEvent(const nsString& aName)
   }
 
   nsCOMPtr<nsIDOMEvent> event;
-  nsresult rv = NS_NewDOMEvent(getter_AddRefs(event), nullptr, nullptr);
+  nsresult rv = NS_NewDOMEvent(getter_AddRefs(event), nsnull, nsnull);
   if (NS_SUCCEEDED(rv)) {
     // it doesn't bubble, and it isn't cancelable
     rv = event->InitEvent(aName, false, false);
     if (NS_SUCCEEDED(rv)) {
       event->SetTrusted(true);
-      DispatchDOMEvent(nullptr, event, nullptr, nullptr);
+      DispatchDOMEvent(nsnull, event, nsnull, nsnull);
     }
   }
 }
@@ -278,7 +278,7 @@ NS_IMETHODIMP
 nsDesktopNotificationRequest::Cancel()
 {
   mDesktopNotification->SetAllow(false);
-  mDesktopNotification = nullptr;
+  mDesktopNotification = nsnull;
   return NS_OK;
 }
 
@@ -286,7 +286,7 @@ NS_IMETHODIMP
 nsDesktopNotificationRequest::Allow()
 {
   mDesktopNotification->SetAllow(true);
-  mDesktopNotification = nullptr;
+  mDesktopNotification = nsnull;
   return NS_OK;
 }
 

@@ -68,7 +68,7 @@ NS_IMPL_ISUPPORTS1(nsScreenManagerAndroid, nsIScreenManager)
 
 nsScreenManagerAndroid::nsScreenManagerAndroid()
 {
-    mOneScreen = new nsScreenAndroid(nullptr);
+    mOneScreen = new nsScreenAndroid(nsnull);
 }
 
 nsScreenManagerAndroid::~nsScreenManagerAndroid()

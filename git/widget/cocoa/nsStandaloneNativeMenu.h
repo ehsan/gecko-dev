@@ -21,7 +21,7 @@ public:
 
   // nsMenuObjectX
   nsMenuObjectTypeX MenuObjectType() { return eStandaloneNativeMenuObjectType; }
-  void * NativeData() { return mMenu != nullptr ? mMenu->NativeData() : nullptr; }
+  void * NativeData() { return mMenu != nsnull ? mMenu->NativeData() : nsnull; }
 
   nsMenuX * GetMenuXObject() { return mMenu; }
 

@@ -122,7 +122,7 @@ ArgumentsObject::createUnexpected(JSContext *cx, StackFrame *fp)
 }
 
 static JSBool
-args_delProperty(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp)
+args_delProperty(JSContext *cx, HandleObject obj, HandleId id, Value *vp)
 {
     ArgumentsObject &argsobj = obj->asArguments();
     if (JSID_IS_INT(id)) {
@@ -138,7 +138,7 @@ args_delProperty(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValu
 }
 
 static JSBool
-ArgGetter(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp)
+ArgGetter(JSContext *cx, HandleObject obj, HandleId id, Value *vp)
 {
     if (!obj->isNormalArguments())
         return true;
@@ -151,20 +151,20 @@ ArgGetter(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp)
          */
         unsigned arg = unsigned(JSID_TO_INT(id));
         if (arg < argsobj.initialLength() && !argsobj.isElementDeleted(arg))
-            vp.set(argsobj.element(arg));
+            *vp = argsobj.element(arg);
     } else if (JSID_IS_ATOM(id, cx->runtime->atomState.lengthAtom)) {
         if (!argsobj.hasOverriddenLength())
-            vp.setInt32(argsobj.initialLength());
+            *vp = Int32Value(argsobj.initialLength());
     } else {
         JS_ASSERT(JSID_IS_ATOM(id, cx->runtime->atomState.calleeAtom));
         if (!argsobj.callee().isMagic(JS_OVERWRITTEN_CALLEE))
-            vp.set(argsobj.callee());
+            *vp = argsobj.callee();
     }
     return true;
 }
 
 static JSBool
-ArgSetter(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, MutableHandleValue vp)
+ArgSetter(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, Value *vp)
 {
     if (!obj->isNormalArguments())
         return true;
@@ -175,11 +175,11 @@ ArgSetter(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, MutableHa
     if (JSID_IS_INT(id)) {
         unsigned arg = unsigned(JSID_TO_INT(id));
         if (arg < argsobj.initialLength() && !argsobj.isElementDeleted(arg)) {
-            argsobj.setElement(arg, vp);
+            argsobj.setElement(arg, *vp);
             if (arg < script->function()->nargs) {
                 if (!script->ensureHasTypes(cx))
                     return false;
-                types::TypeScript::SetArgument(cx, script, arg, vp);
+                types::TypeScript::SetArgument(cx, script, arg, *vp);
             }
             return true;
         }
@@ -197,7 +197,7 @@ ArgSetter(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, MutableHa
      * that has a setter for this id.
      */
     RootedValue value(cx);
-    return baseops::DeleteGeneric(cx, obj, id, &value, false) &&
+    return baseops::DeleteGeneric(cx, obj, id, value.address(), false) &&
            baseops::DefineGeneric(cx, obj, id, vp, NULL, NULL, JSPROP_ENUMERATE);
 }
 
@@ -227,8 +227,8 @@ args_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
             return true;
     }
 
-    RootedValue undef(cx, UndefinedValue());
-    if (!baseops::DefineGeneric(cx, argsobj, id, undef, ArgGetter, ArgSetter, attrs))
+    Value undef = UndefinedValue();
+    if (!baseops::DefineGeneric(cx, argsobj, id, &undef, ArgGetter, ArgSetter, attrs))
         return JS_FALSE;
 
     objp.set(argsobj);
@@ -262,7 +262,7 @@ args_enumerate(JSContext *cx, HandleObject obj)
 }
 
 static JSBool
-StrictArgGetter(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp)
+StrictArgGetter(JSContext *cx, HandleObject obj, HandleId id, Value *vp)
 {
     if (!obj->isStrictArguments())
         return true;
@@ -276,17 +276,17 @@ StrictArgGetter(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue
          */
         unsigned arg = unsigned(JSID_TO_INT(id));
         if (arg < argsobj.initialLength() && !argsobj.isElementDeleted(arg))
-            vp.set(argsobj.element(arg));
+            *vp = argsobj.element(arg);
     } else {
         JS_ASSERT(JSID_IS_ATOM(id, cx->runtime->atomState.lengthAtom));
         if (!argsobj.hasOverriddenLength())
-            vp.setInt32(argsobj.initialLength());
+            vp->setInt32(argsobj.initialLength());
     }
     return true;
 }
 
 static JSBool
-StrictArgSetter(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, MutableHandleValue vp)
+StrictArgSetter(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, Value *vp)
 {
     if (!obj->isStrictArguments())
         return true;
@@ -296,7 +296,7 @@ StrictArgSetter(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, Mut
     if (JSID_IS_INT(id)) {
         unsigned arg = unsigned(JSID_TO_INT(id));
         if (arg < argsobj->initialLength()) {
-            argsobj->setElement(arg, vp);
+            argsobj->setElement(arg, *vp);
             return true;
         }
     } else {
@@ -310,7 +310,7 @@ StrictArgSetter(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, Mut
      * collect its value.
      */
     RootedValue value(cx);
-    return baseops::DeleteGeneric(cx, argsobj, id, &value, strict) &&
+    return baseops::DeleteGeneric(cx, argsobj, id, value.address(), strict) &&
            baseops::SetPropertyHelper(cx, argsobj, argsobj, id, 0, vp, strict);
 }
 
@@ -346,8 +346,8 @@ strictargs_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
         setter = CastAsStrictPropertyOp(argsobj->global().getThrowTypeError());
     }
 
-    RootedValue undef(cx, UndefinedValue());
-    if (!baseops::DefineGeneric(cx, argsobj, id, undef, getter, setter, attrs))
+    Value undef = UndefinedValue();
+    if (!baseops::DefineGeneric(cx, argsobj, id, &undef, getter, setter, attrs))
         return false;
 
     objp.set(argsobj);

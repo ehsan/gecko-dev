@@ -81,7 +81,7 @@ public:
     ~XPCShellDirProvider() { }
 
     bool SetGREDir(const char *dir);
-    void ClearGREDir() { mGREDir = nullptr; }
+    void ClearGREDir() { mGREDir = nsnull; }
 
 private:
     nsCOMPtr<nsIFile> mGREDir;
@@ -108,14 +108,14 @@ ScriptErrorReporter(JSContext *cx,
 
     // Don't report an exception from inner JS frames as the callers may intend
     // to handle it.
-    if (JS_DescribeScriptedCaller(cx, nullptr, nullptr)) {
+    if (JS_DescribeScriptedCaller(cx, nsnull, nsnull)) {
         return;
     }
 
     // In some cases cx->fp is null here so use XPConnect to tell us about inner
     // frames.
     if ((xpc = do_GetService(nsIXPConnect::GetCID()))) {
-        nsAXPCNativeCallContext *cc = nullptr;
+        nsAXPCNativeCallContext *cc = nsnull;
         xpc->GetCurrentNativeCallContext(&cc);
         if (cc) {
             nsAXPCNativeCallContext *prev = cc;
@@ -506,7 +506,7 @@ JSFunctionSpec gGlobalFunctions[] =
 #ifdef DEBUG
     {"dumpHeap",        DumpHeap,       5,0},
 #endif
-    {nullptr,nullptr,0,0}
+    {nsnull,nsnull,0,0}
 };
 
 typedef enum JSShellErrNum
@@ -884,7 +884,7 @@ NS_IMETHODIMP_(nsIPrincipal *)
 FullTrustSecMan::GetCxSubjectPrincipalAndFrame(JSContext *cx,
                                                JSStackFrame **fp)
 {
-    *fp = nullptr;
+    *fp = nsnull;
     return mSystemPrincipal;
 }
 
@@ -959,7 +959,7 @@ XPCShellEnvironment::CreateEnvironment()
     XPCShellEnvironment* env = new XPCShellEnvironment();
     if (env && !env->Init()) {
         delete env;
-        env = nullptr;
+        env = nsnull;
     }
     return env;
 }
@@ -988,7 +988,7 @@ XPCShellEnvironment::~XPCShellEnvironment()
         JSRuntime *rt = JS_GetRuntime(mCx);
         JS_GC(rt);
 
-        mCxStack = nullptr;
+        mCxStack = nsnull;
 
         if (mJSPrincipals) {
             JS_DropPrincipals(rt, mJSPrincipals);

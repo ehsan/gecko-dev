@@ -60,7 +60,7 @@ function testConsoleLoggingAPI(aMethod) {
 
   hud.jsterm.clearOutput();
 
-  setStringFilter("foo");
+  setStringFilter(hudId, "foo");
   console[aMethod]("foo-bar-baz");
   console[aMethod]("bar-baz");
 
@@ -85,8 +85,8 @@ function testConsoleLoggingAPI(aMethod) {
   // now toggle the current method off - make sure no visible message
 
   // TODO: move all filtering tests into a separate test file: see bug 608135
-  setStringFilter("");
-  hud.setFilterState(aMethod, false);
+  setStringFilter(hudId, "");
+  HUDService.setFilterState(hudId, aMethod, false);
   console[aMethod]("foo-bar-baz");
 
   waitForSuccess({
@@ -102,7 +102,7 @@ function testConsoleLoggingAPI(aMethod) {
   yield;
 
   hud.jsterm.clearOutput();
-  hud.setFilterState(aMethod, true);
+  HUDService.setFilterState(hudId, aMethod, true);
   console[aMethod]("foo-bar-baz");
 
   waitForSuccess({
@@ -118,7 +118,7 @@ function testConsoleLoggingAPI(aMethod) {
   yield;
 
   hud.jsterm.clearOutput();
-  setStringFilter("");
+  setStringFilter(hudId, "");
 
   // test for multiple arguments.
   console[aMethod]("foo", "bar");
@@ -139,8 +139,8 @@ function testConsoleLoggingAPI(aMethod) {
   yield;
 }
 
-function setStringFilter(aValue) {
-  hud.ui.filterBox.value = aValue;
-  hud.ui.adjustVisibilityOnSearchStringChange();
+function setStringFilter(aId, aValue) {
+  hud.filterBox.value = aValue;
+  HUDService.adjustVisibilityOnSearchStringChange(aId, aValue);
 }
 

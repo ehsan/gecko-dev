@@ -121,7 +121,7 @@ static bool test_basic_array(ElementType *data,
     return false;
 
   ary.Clear();
-  if (!ary.IsEmpty() || ary.Elements() == nullptr)
+  if (!ary.IsEmpty() || ary.Elements() == nsnull)
     return false;
   if (!(ary == nsTArray<ElementType>()))
     return false;
@@ -250,7 +250,7 @@ static bool test_autoptr_array() {
     nsAutoPtr<Object> obj(new Object(x,i));
     if (!objArray.AppendElement(obj))  // XXX does not call copy-constructor for nsAutoPtr!!!
       return false;
-    if (obj.get() == nullptr)
+    if (obj.get() == nsnull)
       return false;
     obj.forget();  // the array now owns the reference
   }
@@ -398,9 +398,9 @@ static bool test_refptr_array() {
 
 static bool test_ptrarray() {
   nsTArray<PRUint32*> ary;
-  if (ary.SafeElementAt(0) != nullptr)
+  if (ary.SafeElementAt(0) != nsnull)
     return false;
-  if (ary.SafeElementAt(1000) != nullptr)
+  if (ary.SafeElementAt(1000) != nsnull)
     return false;
   PRUint32 a = 10;
   ary.AppendElement(&a);
@@ -410,9 +410,9 @@ static bool test_ptrarray() {
     return false;
 
   nsTArray<const PRUint32*> cary;
-  if (cary.SafeElementAt(0) != nullptr)
+  if (cary.SafeElementAt(0) != nsnull)
     return false;
-  if (cary.SafeElementAt(1000) != nullptr)
+  if (cary.SafeElementAt(1000) != nsnull)
     return false;
   const PRUint32 b = 14;
   cary.AppendElement(&a);
@@ -890,7 +890,7 @@ static const struct Test {
   DECL_TEST(test_heap),
   DECL_TEST(test_swap),
   DECL_TEST(test_fallible),
-  { nullptr, nullptr }
+  { nsnull, nsnull }
 };
 
 }
@@ -902,12 +902,12 @@ int main(int argc, char **argv) {
   if (argc > 1)
     count = atoi(argv[1]);
 
-  if (NS_FAILED(NS_InitXPCOM2(nullptr, nullptr, nullptr)))
+  if (NS_FAILED(NS_InitXPCOM2(nsnull, nsnull, nsnull)))
     return -1;
 
   bool success = true;
   while (count--) {
-    for (const Test* t = tests; t->name != nullptr; ++t) {
+    for (const Test* t = tests; t->name != nsnull; ++t) {
       bool test_result = t->func();
       printf("%25s : %s\n", t->name, test_result ? "SUCCESS" : "FAILURE");
       if (!test_result)
@@ -915,6 +915,6 @@ int main(int argc, char **argv) {
     }
   }
   
-  NS_ShutdownXPCOM(nullptr);
+  NS_ShutdownXPCOM(nsnull);
   return success ? 0 : -1;
 }

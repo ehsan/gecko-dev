@@ -120,15 +120,15 @@ public:
 
   virtual already_AddRefed<ImageLayer> CreateImageLayer();
   virtual already_AddRefed<ShadowImageLayer> CreateShadowImageLayer()
-  { return nullptr; }
+  { return nsnull; }
 
   virtual already_AddRefed<ColorLayer> CreateColorLayer();
   virtual already_AddRefed<ShadowColorLayer> CreateShadowColorLayer()
-  { return nullptr; }
+  { return nsnull; }
 
   virtual already_AddRefed<CanvasLayer> CreateCanvasLayer();
   virtual already_AddRefed<ShadowCanvasLayer> CreateShadowCanvasLayer()
-  { return nullptr; }
+  { return nsnull; }
 
   virtual already_AddRefed<ReadbackLayer> CreateReadbackLayer();
 
@@ -241,7 +241,7 @@ class LayerD3D10
 public:
   LayerD3D10(LayerManagerD3D10 *aManager);
 
-  virtual LayerD3D10 *GetFirstChildD3D10() { return nullptr; }
+  virtual LayerD3D10 *GetFirstChildD3D10() { return nsnull; }
 
   void SetFirstChild(LayerD3D10 *aParent);
 
@@ -277,7 +277,7 @@ public:
    */
   virtual already_AddRefed<ID3D10ShaderResourceView> GetAsTexture(gfxIntSize* aSize)
   {
-    return nullptr;
+    return nsnull;
   }
 
   void SetEffectTransformAndOpacity()

@@ -87,7 +87,7 @@ static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 #include "AndroidBridge.h"
 #include "nsWindow.h"
 
-static nsPluginInstanceOwner* sFullScreenInstance = nullptr;
+static nsPluginInstanceOwner* sFullScreenInstance = nsnull;
 
 using namespace mozilla::dom;
 
@@ -221,7 +221,7 @@ nsPluginInstanceOwner::GetImageContainer()
       return container.forget();
     }
   }
-  return nullptr;
+  return nsnull;
 }
 
 void
@@ -241,7 +241,7 @@ nsPluginInstanceOwner::BeginUpdateBackground(const nsIntRect& aRect)
       NS_SUCCEEDED(mInstance->BeginUpdateBackground(&rect, getter_AddRefs(ctx)))) {
     return ctx.forget();
   }
-  return nullptr;
+  return nsnull;
 }
 
 void
@@ -301,11 +301,11 @@ nsPluginInstanceOwner::nsPluginInstanceOwner()
   if (mPluginHost)
     mPluginHost->NewPluginNativeWindow(&mPluginWindow);
   else
-    mPluginWindow = nullptr;
+    mPluginWindow = nsnull;
 
-  mObjectFrame = nullptr;
-  mContent = nullptr;
-  mTagText = nullptr;
+  mObjectFrame = nsnull;
+  mContent = nsnull;
+  mTagText = nsnull;
   mWidgetCreationComplete = false;
 #ifdef XP_MACOSX
   memset(&mCGPluginPortCopy, 0, sizeof(NP_CGContext));
@@ -314,7 +314,7 @@ nsPluginInstanceOwner::nsPluginInstanceOwner()
 #endif
   mInCGPaintLevel = 0;
   mSentInitialTopLevelWindowEvent = false;
-  mColorProfile = nullptr;
+  mColorProfile = nsnull;
   mPluginPortChanged = false;
 #endif
   mContentFocused = false;
@@ -323,8 +323,8 @@ nsPluginInstanceOwner::nsPluginInstanceOwner()
   mPluginDocumentActiveState = true;
   mNumCachedAttrs = 0;
   mNumCachedParams = 0;
-  mCachedAttrParamNames = nullptr;
-  mCachedAttrParamValues = nullptr;
+  mCachedAttrParamNames = nsnull;
+  mCachedAttrParamValues = nsnull;
 
 #ifdef XP_MACOSX
 #ifndef NP_NO_QUICKDRAW
@@ -339,7 +339,7 @@ nsPluginInstanceOwner::nsPluginInstanceOwner()
 
 #ifdef MOZ_WIDGET_ANDROID
   mFullScreen = false;
-  mJavaView = nullptr;
+  mJavaView = nsnull;
 #endif
 }
 
@@ -358,37 +358,37 @@ nsPluginInstanceOwner::~nsPluginInstanceOwner()
   CancelTimer();
 #endif
 
-  mObjectFrame = nullptr;
+  mObjectFrame = nsnull;
 
   for (cnt = 0; cnt < (mNumCachedAttrs + 1 + mNumCachedParams); cnt++) {
     if (mCachedAttrParamNames && mCachedAttrParamNames[cnt]) {
       NS_Free(mCachedAttrParamNames[cnt]);
-      mCachedAttrParamNames[cnt] = nullptr;
+      mCachedAttrParamNames[cnt] = nsnull;
     }
 
     if (mCachedAttrParamValues && mCachedAttrParamValues[cnt]) {
       NS_Free(mCachedAttrParamValues[cnt]);
-      mCachedAttrParamValues[cnt] = nullptr;
+      mCachedAttrParamValues[cnt] = nsnull;
     }
   }
 
   if (mCachedAttrParamNames) {
     NS_Free(mCachedAttrParamNames);
-    mCachedAttrParamNames = nullptr;
+    mCachedAttrParamNames = nsnull;
   }
 
   if (mCachedAttrParamValues) {
     NS_Free(mCachedAttrParamValues);
-    mCachedAttrParamValues = nullptr;
+    mCachedAttrParamValues = nsnull;
   }
 
   if (mTagText) {
     NS_Free(mTagText);
-    mTagText = nullptr;
+    mTagText = nsnull;
   }
 
   PLUG_DeletePluginNativeWindow(mPluginWindow);
-  mPluginWindow = nullptr;
+  mPluginWindow = nsnull;
 
 #ifdef MOZ_WIDGET_ANDROID
   RemovePluginView();
@@ -482,7 +482,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetAttribute(const char* name, const char* 
   nsresult rv = EnsureCachedAttrParamArrays();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  *result = nullptr;
+  *result = nsnull;
 
   for (int i = 0; i < mNumCachedAttrs; i++) {
     if (0 == PL_strcasecmp(mCachedAttrParamNames[i], name)) {
@@ -741,7 +741,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetNetscapeWindow(void *value)
     if (win) {
       nsIView *view = nsIView::GetViewFor(win);
       NS_ASSERTION(view, "No view for widget");
-      nsPoint offset = view->GetOffsetTo(nullptr);
+      nsPoint offset = view->GetOffsetTo(nsnull);
       
       if (offset.x || offset.y) {
         // in the case the two windows are offset from eachother, we do go ahead and return the correct enclosing window
@@ -852,7 +852,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetTagType(nsPluginTagType *result)
 NS_IMETHODIMP nsPluginInstanceOwner::GetTagText(const char* *result)
 {
   NS_ENSURE_ARG_POINTER(result);
-  if (nullptr == mTagText) {
+  if (nsnull == mTagText) {
     nsresult rv;
     nsCOMPtr<nsIDOMNode> node(do_QueryInterface(mContent, &rv));
     if (NS_FAILED(rv))
@@ -902,7 +902,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetParameters(PRUint16& n, const char*const
     names  = (const char **)(mCachedAttrParamNames + mNumCachedAttrs + 1);
     values = (const char **)(mCachedAttrParamValues + mNumCachedAttrs + 1);
   } else
-    names = values = nullptr;
+    names = values = nsnull;
 
   return rv;
 }
@@ -915,7 +915,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetParameter(const char* name, const char* 
   nsresult rv = EnsureCachedAttrParamArrays();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  *result = nullptr;
+  *result = nsnull;
 
   for (int i = mNumCachedAttrs + 1; i < (mNumCachedParams + 1 + mNumCachedAttrs); i++) {
     if (0 == PL_strcasecmp(mCachedAttrParamNames[i], name)) {
@@ -933,7 +933,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetDocumentBase(const char* *result)
   nsresult rv = NS_OK;
   if (mDocumentBase.IsEmpty()) {
     if (!mObjectFrame) {
-      *result = nullptr;
+      *result = nsnull;
       return NS_ERROR_FAILURE;
     }
 
@@ -1013,7 +1013,7 @@ static const moz2javaCharset charsets[] =
 NS_IMETHODIMP nsPluginInstanceOwner::GetDocumentEncoding(const char* *result)
 {
   NS_ENSURE_ARG_POINTER(result);
-  *result = nullptr;
+  *result = nsnull;
 
   nsresult rv;
   // XXX sXBL/XBL2 issue: current doc or owner doc?
@@ -1315,7 +1315,7 @@ nsresult nsPluginInstanceOwner::EnsureCachedAttrParamArrays()
   // Flash expects an empty string on android
   mCachedAttrParamValues[nextAttrParamIndex] = ToNewUTF8String(NS_LITERAL_STRING(""));
 #else
-  mCachedAttrParamValues[nextAttrParamIndex] = nullptr;
+  mCachedAttrParamValues[nextAttrParamIndex] = nsnull;
 #endif
   nextAttrParamIndex++;
 
@@ -1437,7 +1437,7 @@ void nsPluginInstanceOwner::AddToCARefreshTimer() {
   }
 
   // Flash invokes InvalidateRect for us.
-  const char* mime = nullptr;
+  const char* mime = nsnull;
   if (NS_SUCCEEDED(mInstance->GetMIMEType(&mime)) && mime) {
     if (strcmp(mime, "application/x-shockwave-flash") == 0) {
       return;
@@ -1495,25 +1495,21 @@ void nsPluginInstanceOwner::RenderCoreAnimation(CGContextRef aCGContext,
   if (aWidth == 0 || aHeight == 0)
     return;
 
-  if (!mCARenderer) {
-    mCARenderer = new nsCARenderer();
-  }
-
   if (!mIOSurface ||
       (mIOSurface->GetWidth() != (size_t)aWidth ||
        mIOSurface->GetHeight() != (size_t)aHeight)) {
-    mIOSurface = nullptr;
+    mIOSurface = nsnull;
 
     // If the renderer is backed by an IOSurface, resize it as required.
-    mIOSurface = MacIOSurface::CreateIOSurface(aWidth, aHeight);
+    mIOSurface = nsIOSurface::CreateIOSurface(aWidth, aHeight);
     if (mIOSurface) {
-      RefPtr<MacIOSurface> attachSurface = MacIOSurface::LookupSurface(
+      nsRefPtr<nsIOSurface> attachSurface = nsIOSurface::LookupSurface(
                                               mIOSurface->GetIOSurfaceID());
       if (attachSurface) {
-        mCARenderer->AttachIOSurface(attachSurface);
+        mCARenderer.AttachIOSurface(attachSurface);
       } else {
         NS_ERROR("IOSurface attachment failed");
-        mIOSurface = nullptr;
+        mIOSurface = nsnull;
       }
     }
   }
@@ -1522,7 +1518,7 @@ void nsPluginInstanceOwner::RenderCoreAnimation(CGContextRef aCGContext,
     mColorProfile = CreateSystemColorSpace();
   }
 
-  if (mCARenderer->isInit() == false) {
+  if (mCARenderer.isInit() == false) {
     void *caLayer = NULL;
     nsresult rv = mInstance->GetValueFromPlugin(NPPVpluginCoreAnimationLayer, &caLayer);
     if (NS_FAILED(rv) || !caLayer) {
@@ -1531,7 +1527,7 @@ void nsPluginInstanceOwner::RenderCoreAnimation(CGContextRef aCGContext,
 
     // We don't run Flash in-process so we can unconditionally disallow
     // the offliner renderer.
-    mCARenderer->SetupRenderer(caLayer, aWidth, aHeight, DISALLOW_OFFLINE_RENDERER);
+    mCARenderer.SetupRenderer(caLayer, aWidth, aHeight, DISALLOW_OFFLINE_RENDERER);
 
     // Setting up the CALayer requires resetting the painting otherwise we
     // get garbage for the first few frames.
@@ -1540,7 +1536,7 @@ void nsPluginInstanceOwner::RenderCoreAnimation(CGContextRef aCGContext,
   }
 
   CGImageRef caImage = NULL;
-  nsresult rt = mCARenderer->Render(aWidth, aHeight, &caImage);
+  nsresult rt = mCARenderer.Render(aWidth, aHeight, &caImage);
   if (rt == NS_OK && mIOSurface && mColorProfile) {
     nsCARenderer::DrawSurfaceToCGContext(aCGContext, mIOSurface, mColorProfile,
                                          0, 0, aWidth, aHeight);
@@ -1566,7 +1562,7 @@ void* nsPluginInstanceOwner::GetPluginPortCopy()
       GetDrawingModel() == NPDrawingModelCoreAnimation ||
       GetDrawingModel() == NPDrawingModelInvalidatingCoreAnimation)
     return &mCGPluginPortCopy;
-  return nullptr;
+  return nsnull;
 }
   
 // Currently (on OS X in Cocoa widgets) any changes made as a result of
@@ -1584,10 +1580,10 @@ void* nsPluginInstanceOwner::GetPluginPortCopy()
 void* nsPluginInstanceOwner::SetPluginPortAndDetectChange()
 {
   if (!mPluginWindow)
-    return nullptr;
+    return nsnull;
   void* pluginPort = GetPluginPortFromWidget();
   if (!pluginPort)
-    return nullptr;
+    return nsnull;
   mPluginWindow->window = pluginPort;
 
 #ifndef NP_NO_QUICKDRAW
@@ -1670,12 +1666,12 @@ void nsPluginInstanceOwner::ScrollPositionWillChange(nscoord aX, nscoord aY)
     nsCOMPtr<nsIPluginWidget> pluginWidget = do_QueryInterface(mWidget);
     if (pluginWidget && NS_SUCCEEDED(pluginWidget->StartDrawPlugin())) {
       EventRecord scrollEvent;
-      InitializeEventRecord(&scrollEvent, nullptr);
+      InitializeEventRecord(&scrollEvent, nsnull);
       scrollEvent.what = NPEventType_ScrollingBeginsEvent;
 
       void* window = FixUpPluginWindow(ePluginPaintDisable);
       if (window) {
-        mInstance->HandleEvent(&scrollEvent, nullptr);
+        mInstance->HandleEvent(&scrollEvent, nsnull);
       }
       pluginWidget->EndDrawPlugin();
     }
@@ -1693,12 +1689,12 @@ void nsPluginInstanceOwner::ScrollPositionDidChange(nscoord aX, nscoord aY)
     nsCOMPtr<nsIPluginWidget> pluginWidget = do_QueryInterface(mWidget);
     if (pluginWidget && NS_SUCCEEDED(pluginWidget->StartDrawPlugin())) {
       EventRecord scrollEvent;
-      InitializeEventRecord(&scrollEvent, nullptr);
+      InitializeEventRecord(&scrollEvent, nsnull);
       scrollEvent.what = NPEventType_ScrollingEndsEvent;
 
       void* window = FixUpPluginWindow(ePluginPaintEnable);
       if (window) {
-        mInstance->HandleEvent(&scrollEvent, nullptr);
+        mInstance->HandleEvent(&scrollEvent, nsnull);
       }
       pluginWidget->EndDrawPlugin();
     }
@@ -1787,10 +1783,10 @@ void nsPluginInstanceOwner::RemovePluginView()
     AndroidBridge::Bridge()->RemovePluginView((jobject)mJavaView, mFullScreen);
 
   AndroidBridge::GetJNIEnv()->DeleteGlobalRef((jobject)mJavaView);
-  mJavaView = nullptr;
+  mJavaView = nsnull;
 
   if (mFullScreen)
-    sFullScreenInstance = nullptr;
+    sFullScreenInstance = nsnull;
 }
 
 void nsPluginInstanceOwner::GetVideos(nsTArray<nsNPAPIPluginInstance::VideoInfo*>& aVideos)
@@ -1907,7 +1903,7 @@ nsresult nsPluginInstanceOwner::DispatchFocusToPlugin(nsIDOMEvent* aFocusEvent)
     else {
       NS_ASSERTION(false, "nsPluginInstanceOwner::DispatchFocusToPlugin, wierd eventType");   
     }
-    mInstance->HandleEvent(&event, nullptr);
+    mInstance->HandleEvent(&event, nsnull);
   }
 #endif
 
@@ -1922,7 +1918,7 @@ nsresult nsPluginInstanceOwner::DispatchFocusToPlugin(nsIDOMEvent* aFocusEvent)
   if (theEvent) {
     // we only care about the message in ProcessEvent
     nsGUIEvent focusEvent(NS_IS_TRUSTED_EVENT(theEvent), theEvent->message,
-                          nullptr);
+                          nsnull);
     nsEventStatus rv = ProcessEvent(focusEvent);
     if (nsEventStatus_eConsumeNoDefault == rv) {
       aFocusEvent->PreventDefault();
@@ -2589,7 +2585,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
             if (qtEvent->nativeScanCode())
               event.keycode = qtEvent->nativeScanCode();
             else // fallback
-              event.keycode = XKeysymToKeycode( (widget ? static_cast<Display*>(widget->GetNativeData(NS_NATIVE_DISPLAY)) : nullptr), qtEvent->key());
+              event.keycode = XKeysymToKeycode( (widget ? static_cast<Display*>(widget->GetNativeData(NS_NATIVE_DISPLAY)) : nsnull), qtEvent->key());
           }
 
           switch (anEvent.message)
@@ -2664,7 +2660,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
   // Fill in (useless) generic event information.
   XAnyEvent& event = pluginEvent.xany;
   event.display = widget ?
-    static_cast<Display*>(widget->GetNativeData(NS_NATIVE_DISPLAY)) : nullptr;
+    static_cast<Display*>(widget->GetNativeData(NS_NATIVE_DISPLAY)) : nsnull;
   event.window = None; // not a real window
   // information lost:
   event.serial = 0;
@@ -2723,7 +2719,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
               event.data.mouse.action = kDown_ANPMouseAction;
               event.data.mouse.x = pluginPoint.x;
               event.data.mouse.y = pluginPoint.y;
-              mInstance->HandleEvent(&event, nullptr);
+              mInstance->HandleEvent(&event, nsnull);
             }
             break;
           case NS_MOUSE_BUTTON_UP:
@@ -2734,7 +2730,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
               event.data.mouse.action = kUp_ANPMouseAction;
               event.data.mouse.x = pluginPoint.x;
               event.data.mouse.y = pluginPoint.y;
-              mInstance->HandleEvent(&event, nullptr);
+              mInstance->HandleEvent(&event, nsnull);
             }
             break;
           }
@@ -2750,7 +2746,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
        if (pluginEvent) {
          MOZ_ASSERT(pluginEvent->inSize == sizeof(ANPEvent));
          MOZ_ASSERT(pluginEvent->eventType == kKey_ANPEventType);
-         mInstance->HandleEvent(pluginEvent, nullptr);
+         mInstance->HandleEvent(pluginEvent, nsnull);
        }
      }
     }
@@ -2764,7 +2760,7 @@ nsresult
 nsPluginInstanceOwner::Destroy()
 {
   if (mObjectFrame)
-    mObjectFrame->SetInstanceOwner(nullptr);
+    mObjectFrame->SetInstanceOwner(nsnull);
 
 #ifdef MAC_CARBON_PLUGINS
   // stop the timer explicitly to reduce reference count.
@@ -2779,7 +2775,7 @@ nsPluginInstanceOwner::Destroy()
   // unregister context menu listener
   if (mCXMenuListener) {
     mCXMenuListener->Destroy(mContent);
-    mCXMenuListener = nullptr;
+    mCXMenuListener = nsnull;
   }
 
   mContent->RemoveEventListener(NS_LITERAL_STRING("focus"), this, false);
@@ -2814,12 +2810,12 @@ nsPluginInstanceOwner::Destroy()
 
   if (mWidget) {
     if (mPluginWindow) {
-      mPluginWindow->SetPluginWidget(nullptr);
+      mPluginWindow->SetPluginWidget(nsnull);
     }
 
     nsCOMPtr<nsIPluginWidget> pluginWidget = do_QueryInterface(mWidget);
     if (pluginWidget) {
-      pluginWidget->SetPluginInstanceOwner(nullptr);
+      pluginWidget->SetPluginInstanceOwner(nsnull);
     }
     mWidget->Destroy();
   }
@@ -2841,11 +2837,11 @@ void nsPluginInstanceOwner::Paint(const gfxRect& aDirtyRect, CGContextRef cgCont
     void* window = FixUpPluginWindow(ePluginPaintEnable);
     if (GetEventModel() == NPEventModelCarbon && window) {
       EventRecord updateEvent;
-      InitializeEventRecord(&updateEvent, nullptr);
+      InitializeEventRecord(&updateEvent, nsnull);
       updateEvent.what = updateEvt;
       updateEvent.message = UInt32(window);
 
-      mInstance->HandleEvent(&updateEvent, nullptr);
+      mInstance->HandleEvent(&updateEvent, nsnull);
     } else if (GetEventModel() == NPEventModelCocoa)
 #endif
     {
@@ -2870,7 +2866,7 @@ void nsPluginInstanceOwner::DoCocoaEventDrawRect(const gfxRect& aDrawRect, CGCon
   updateEvent.data.draw.width = aDrawRect.Width();
   updateEvent.data.draw.height = aDrawRect.Height();
 
-  mInstance->HandleEvent(&updateEvent, nullptr);
+  mInstance->HandleEvent(&updateEvent, nsnull);
 }
 #endif
 
@@ -2884,7 +2880,7 @@ void nsPluginInstanceOwner::Paint(const RECT& aDirty, HDC aDC)
   pluginEvent.event = WM_PAINT;
   pluginEvent.wParam = WPARAM(aDC);
   pluginEvent.lParam = LPARAM(&aDirty);
-  mInstance->HandleEvent(&pluginEvent, nullptr);
+  mInstance->HandleEvent(&pluginEvent, nsnull);
 }
 #endif
 
@@ -2910,7 +2906,7 @@ void nsPluginInstanceOwner::Paint(const nsRect& aDirtyRect, HPS aHPS)
   pluginEvent.event = WM_PAINT;
   pluginEvent.wParam = (uint32)aHPS;
   pluginEvent.lParam = (uint32)&rectl;
-  mInstance->HandleEvent(&pluginEvent, nullptr);
+  mInstance->HandleEvent(&pluginEvent, nsnull);
 }
 #endif
 
@@ -2938,7 +2934,7 @@ void nsPluginInstanceOwner::Paint(gfxContext* aContext,
 #ifdef ANP_BITMAP_DRAWING_MODEL
   static nsRefPtr<gfxImageSurface> pluginSurface;
 
-  if (pluginSurface == nullptr ||
+  if (pluginSurface == nsnull ||
       aFrameRect.width  != pluginSurface->Width() ||
       aFrameRect.height != pluginSurface->Height()) {
 
@@ -2972,7 +2968,7 @@ void nsPluginInstanceOwner::Paint(gfxContext* aContext,
   if (!mInstance)
     return;
     
-  mInstance->HandleEvent(&event, nullptr);
+  mInstance->HandleEvent(&event, nsnull);
 
   aContext->SetOperator(gfxContext::OPERATOR_SOURCE);
   aContext->SetSource(pluginSurface, gfxPoint(aFrameRect.x, aFrameRect.y));
@@ -3050,7 +3046,7 @@ void nsPluginInstanceOwner::Paint(gfxContext* aContext,
   Visual* visual = DefaultVisualOfScreen(screen);
 
   renderer.Draw(aContext, nsIntSize(window->width, window->height),
-                rendererFlags, screen, visual, nullptr);
+                rendererFlags, screen, visual, nsnull);
 }
 nsresult
 nsPluginInstanceOwner::Renderer::DrawWithXlib(gfxXlibSurface* xsurface, 
@@ -3173,7 +3169,7 @@ nsPluginInstanceOwner::Renderer::DrawWithXlib(gfxXlibSurface* xsurface,
     exposeEvent.major_code = 0;
     exposeEvent.minor_code = 0;
 
-    instance->HandleEvent(&pluginEvent, nullptr);
+    instance->HandleEvent(&pluginEvent, nsnull);
   }
   return NS_OK;
 }
@@ -3191,7 +3187,7 @@ void nsPluginInstanceOwner::SendIdleEvent()
       void* window = FixUpPluginWindow(ePluginPaintEnable);
       if (window) {
         EventRecord idleEvent;
-        InitializeEventRecord(&idleEvent, nullptr);
+        InitializeEventRecord(&idleEvent, nsnull);
         idleEvent.what = nullEvent;
 
         // give a bogus 'where' field of our null event when hidden, so Flash
@@ -3199,7 +3195,7 @@ void nsPluginInstanceOwner::SendIdleEvent()
         if (!mWidgetVisible)
           idleEvent.where.h = idleEvent.where.v = 20000;
 
-        mInstance->HandleEvent(&idleEvent, nullptr);
+        mInstance->HandleEvent(&idleEvent, nsnull);
       }
 
       pluginWidget->EndDrawPlugin();
@@ -3340,7 +3336,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::CreateWidget(void)
     // Try to get a parent widget, on some platforms widget creation will fail without
     // a parent.
     nsCOMPtr<nsIWidget> parentWidget;
-    nsIDocument *doc = nullptr;
+    nsIDocument *doc = nsnull;
     if (mContent) {
       doc = mContent->OwnerDoc();
       parentWidget = nsContentUtils::WidgetForDocument(doc);
@@ -3356,11 +3352,11 @@ NS_IMETHODIMP nsPluginInstanceOwner::CreateWidget(void)
     initData.mUnicode = false;
     initData.clipChildren = true;
     initData.clipSiblings = true;
-    rv = mWidget->Create(parentWidget.get(), nullptr, nsIntRect(0,0,0,0),
-                         nullptr, nullptr, &initData);
+    rv = mWidget->Create(parentWidget.get(), nsnull, nsIntRect(0,0,0,0),
+                         nsnull, nsnull, &initData);
     if (NS_FAILED(rv)) {
       mWidget->Destroy();
-      mWidget = nullptr;
+      mWidget = nsnull;
       return rv;
     }
 
@@ -3396,7 +3392,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::CreateWidget(void)
     // not see the right way to release it so let's postpone
     // passing HDC till paint event when it is really
     // needed. Change spec?
-    mPluginWindow->window = nullptr;
+    mPluginWindow->window = nsnull;
 #ifdef MOZ_X11
     // Fill in the display field.
     NPSetWindowCallbackStruct* ws_info = 
@@ -3438,17 +3434,17 @@ NS_IMETHODIMP nsPluginInstanceOwner::CreateWidget(void)
 void* nsPluginInstanceOwner::FixUpPluginWindow(PRInt32 inPaintState)
 {
   if (!mWidget || !mPluginWindow || !mInstance || !mObjectFrame)
-    return nullptr;
+    return nsnull;
 
   NPEventModel eventModel = GetEventModel();
 
   nsCOMPtr<nsIPluginWidget> pluginWidget = do_QueryInterface(mWidget);
   if (!pluginWidget)
-    return nullptr;
+    return nsnull;
 
   // If we've already set up a CGContext in nsObjectFrame::PaintPlugin(), we
   // don't want calls to SetPluginPortAndDetectChange() to step on our work.
-  void* pluginPort = nullptr;
+  void* pluginPort = nsnull;
   if (mInCGPaintLevel > 0) {
     pluginPort = mPluginWindow->window;
   } else {
@@ -3457,18 +3453,18 @@ void* nsPluginInstanceOwner::FixUpPluginWindow(PRInt32 inPaintState)
 
 #ifdef MAC_CARBON_PLUGINS
   if (eventModel == NPEventModelCarbon && !pluginPort)
-    return nullptr;
+    return nsnull;
 #endif
 
   // We'll need the top-level Cocoa window for the Cocoa event model.
-  void* cocoaTopLevelWindow = nullptr;
+  void* cocoaTopLevelWindow = nsnull;
   if (eventModel == NPEventModelCocoa) {
     nsIWidget* widget = mObjectFrame->GetNearestWidget();
     if (!widget)
-      return nullptr;
+      return nsnull;
     cocoaTopLevelWindow = widget->GetNativeData(NS_NATIVE_WINDOW);
     if (!cocoaTopLevelWindow)
-      return nullptr;
+      return nsnull;
   }
 
   nsIntPoint pluginOrigin;
@@ -3569,7 +3565,7 @@ void* nsPluginInstanceOwner::FixUpPluginWindow(PRInt32 inPaintState)
     // Set this before calling ProcessEvent to avoid endless recursion.
     mSentInitialTopLevelWindowEvent = true;
 
-    nsPluginEvent pluginEvent(true, NS_PLUGIN_FOCUS_EVENT, nullptr);
+    nsPluginEvent pluginEvent(true, NS_PLUGIN_FOCUS_EVENT, nsnull);
     NPCocoaEvent cocoaEvent;
     InitializeNPCocoaEvent(&cocoaEvent);
     cocoaEvent.type = NPCocoaEventWindowFocusChanged;
@@ -3588,7 +3584,7 @@ void* nsPluginInstanceOwner::FixUpPluginWindow(PRInt32 inPaintState)
     return static_cast<NP_CGContext*>(pluginPort)->window;
 #endif
 
-  return nullptr;
+  return nsnull;
 }
 
 void
@@ -3720,8 +3716,8 @@ void nsPluginInstanceOwner::SetFrame(nsObjectFrame *aFrame)
       if (image && (image->GetFormat() == Image::MAC_IO_SURFACE) && mObjectFrame) {
         // Undo what we did to the current image in SetCurrentImageInTransaction().
         MacIOSurfaceImage *oglImage = static_cast<MacIOSurfaceImage*>(image);
-        oglImage->SetUpdateCallback(nullptr, nullptr);
-        oglImage->SetDestroyCallback(nullptr);
+        oglImage->SetUpdateCallback(nsnull, nsnull);
+        oglImage->SetDestroyCallback(nsnull);
         // If we have a current image here, its destructor hasn't yet been
         // called, so OnDestroyImage() can't yet have been called.  So we need
         // to do ourselves what OnDestroyImage() would have done.
@@ -3731,7 +3727,7 @@ void nsPluginInstanceOwner::SetFrame(nsObjectFrame *aFrame)
       // our lock if we have a RemoteImage.
       autoLock.Unlock();
 #endif
-      container->SetCurrentImageInTransaction(nullptr);
+      container->SetCurrentImageInTransaction(nsnull);
     }
 
     // Scroll position listening is only required for Carbon event model plugins on Mac OS X.
@@ -3748,7 +3744,7 @@ void nsPluginInstanceOwner::SetFrame(nsObjectFrame *aFrame)
 #endif
 
     // Make sure the old frame isn't holding a reference to us.
-    mObjectFrame->SetInstanceOwner(nullptr);
+    mObjectFrame->SetInstanceOwner(nsnull);
   }
 
   // Swap in the new frame (or no frame)

@@ -155,7 +155,7 @@ nsHTMLPreElement::IsAttributeMapped(const nsIAtom* aAttribute) const
     { &nsGkAtoms::wrap },
     { &nsGkAtoms::cols },
     { &nsGkAtoms::width },
-    { nullptr },
+    { nsnull },
   };
   
   static const MappedAttributeEntry* const map[] = {

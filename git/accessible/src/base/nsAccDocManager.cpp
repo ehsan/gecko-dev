@@ -42,7 +42,7 @@ DocAccessible*
 nsAccDocManager::GetDocAccessible(nsIDocument *aDocument)
 {
   if (!aDocument)
-    return nullptr;
+    return nsnull;
 
   // Ensure CacheChildren is called before we query cache.
   nsAccessNode::GetApplicationAccessible()->EnsureChildren();
@@ -352,22 +352,22 @@ nsAccDocManager::CreateDocOrRootAccessible(nsIDocument* aDocument)
   // docshell.
   if (aDocument->IsInitialDocument() || !aDocument->IsVisible() ||
       aDocument->IsResourceDoc() || !aDocument->IsActive())
-    return nullptr;
+    return nsnull;
 
   // Ignore documents without presshell and not having root frame.
   nsIPresShell* presShell = aDocument->GetShell();
   if (!presShell || !presShell->GetRootFrame())
-    return nullptr;
+    return nsnull;
 
   // Do not create document accessible until role content is loaded, otherwise
   // we get accessible document with wrong role.
   nsIContent *rootElm = nsCoreUtils::GetRoleContent(aDocument);
   if (!rootElm)
-    return nullptr;
+    return nsnull;
 
   bool isRootDoc = nsCoreUtils::IsRootDocument(aDocument);
 
-  DocAccessible* parentDocAcc = nullptr;
+  DocAccessible* parentDocAcc = nsnull;
   if (!isRootDoc) {
     // XXXaaronl: ideally we would traverse the presshell chain. Since there's
     // no easy way to do that, we cheat and use the document hierarchy.
@@ -375,7 +375,7 @@ nsAccDocManager::CreateDocOrRootAccessible(nsIDocument* aDocument)
     NS_ASSERTION(parentDocAcc,
                  "Can't create an accessible for the document!");
     if (!parentDocAcc)
-      return nullptr;
+      return nsnull;
   }
 
   // We only create root accessibles for the true root, otherwise create a
@@ -388,7 +388,10 @@ nsAccDocManager::CreateDocOrRootAccessible(nsIDocument* aDocument)
   mDocAccessibleCache.Put(aDocument, docAcc);
 
   // Initialize the document accessible.
-  docAcc->Init();
+  if (!docAcc->Init()) {
+    docAcc->Shutdown();
+    return nsnull;
+  }
   docAcc->SetRoleMapEntry(aria::GetRoleMap(aDocument));
 
   // Bind the document to the tree.
@@ -396,7 +399,7 @@ nsAccDocManager::CreateDocOrRootAccessible(nsIDocument* aDocument)
     Accessible* appAcc = nsAccessNode::GetApplicationAccessible();
     if (!appAcc->AppendChild(docAcc)) {
       docAcc->Shutdown();
-      return nullptr;
+      return nsnull;
     }
 
     // Fire reorder event to notify new accessible document has been attached to
@@ -441,7 +444,7 @@ nsAccDocManager::GetFirstEntryInDocCache(const nsIDocument* aKey,
 void
 nsAccDocManager::ClearDocCache()
 {
-  DocAccessible* docAcc = nullptr;
+  DocAccessible* docAcc = nsnull;
   while (mDocAccessibleCache.EnumerateRead(GetFirstEntryInDocCache, static_cast<void*>(&docAcc))) {
     if (docAcc)
       docAcc->Shutdown();

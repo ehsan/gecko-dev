@@ -349,7 +349,7 @@ public:
   // Check whether storage may be used by the caller, and whether it
   // is session only.  Returns true if storage may be used.
   static bool
-  CanUseStorage(DOMStorageBase* aStorage = nullptr);
+  CanUseStorage(DOMStorageBase* aStorage = nsnull);
 
   // Check whether this URI can use chrome persist storage.  This kind of
   // storage can bypass cookies limits, private browsing and uses the offline
@@ -498,6 +498,37 @@ protected:
   // If this item came from the db, mStorage points to the storage
   // object where this item came from.
   nsRefPtr<DOMStorageBase> mStorage;
+};
+
+class nsDOMStorageEvent : public nsDOMEvent,
+                          public nsIDOMStorageEvent
+{
+public:
+  nsDOMStorageEvent()
+    : nsDOMEvent(nsnull, nsnull)
+  {
+  }
+
+  virtual ~nsDOMStorageEvent()
+  {
+  }
+
+  nsresult Init();
+
+  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsDOMStorageEvent, nsDOMEvent)
+
+  NS_DECL_NSIDOMSTORAGEEVENT
+  NS_FORWARD_NSIDOMEVENT(nsDOMEvent::)
+
+  virtual nsresult InitFromCtor(const nsAString& aType,
+                                JSContext* aCx, jsval* aVal);
+protected:
+  nsString mKey;
+  nsString mOldValue;
+  nsString mNewValue;
+  nsString mUrl;
+  nsCOMPtr<nsIDOMStorage> mStorageArea;
 };
 
 nsresult

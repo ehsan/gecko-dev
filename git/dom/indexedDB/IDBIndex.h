@@ -145,7 +145,6 @@ public:
                             const Key& aKey,
                             const Key& aObjectKey,
                             const SerializedStructuredCloneReadInfo& aCloneInfo,
-                            nsTArray<StructuredCloneFile>& aBlobs,
                             IDBCursor** _retval);
 
 private:

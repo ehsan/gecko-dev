@@ -751,7 +751,7 @@ CAccessibleTable::GetSelectedItems(long **aItems, long *aItemsCount,
     return E_FAIL;
 
   PRUint32 size = 0;
-  PRInt32 *items = nullptr;
+  PRInt32 *items = nsnull;
 
   nsresult rv = NS_OK;
   switch (aType) {

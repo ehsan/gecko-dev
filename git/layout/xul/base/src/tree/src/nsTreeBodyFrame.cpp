@@ -78,7 +78,7 @@ CancelImageRequest(const nsAString& aKey,
   nsTreeBodyFrame* frame = static_cast<nsTreeBodyFrame*>(aData);
 
   nsLayoutUtils::DeregisterImageRequest(frame->PresContext(), aEntry.request,
-                                        nullptr);
+                                        nsnull);
 
   aEntry.request->CancelAndForgetObserver(NS_BINDING_ABORTED);
   return PL_DHASH_NEXT;
@@ -105,7 +105,7 @@ NS_QUERYFRAME_TAIL_INHERITING(nsLeafBoxFrame)
 // Constructor
 nsTreeBodyFrame::nsTreeBodyFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 :nsLeafBoxFrame(aPresShell, aContext),
- mSlots(nullptr),
+ mSlots(nsnull),
  mTopRowIndex(0),
  mPageLength(0),
  mHorzPosition(0),
@@ -123,7 +123,7 @@ nsTreeBodyFrame::nsTreeBodyFrame(nsIPresShell* aPresShell, nsStyleContext* aCont
  mHorizontalOverflow(false),
  mReflowCallbackPosted(false)
 {
-  mColumns = new nsTreeColumns(nullptr);
+  mColumns = new nsTreeColumns(nsnull);
   NS_NewISupportsArray(getter_AddRefs(mScratchArray));
 }
 
@@ -190,7 +190,7 @@ nsTreeBodyFrame::GetMinSize(nsBoxLayoutState& aBoxLayoutState)
     nsAutoString size;
     baseElement->GetAttr(kNameSpaceID_None, nsGkAtoms::size, size);
     if (!size.IsEmpty()) {
-      nsresult err;
+      PRInt32 err;
       desiredRows = size.ToInteger(&err);
       mHasFixedRowCount = true;
       mPageLength = desiredRows;
@@ -204,7 +204,7 @@ nsTreeBodyFrame::GetMinSize(nsBoxLayoutState& aBoxLayoutState)
     nsAutoString rows;
     baseElement->GetAttr(kNameSpaceID_None, nsGkAtoms::rows, rows);
     if (!rows.IsEmpty()) {
-      nsresult err;
+      PRInt32 err;
       desiredRows = rows.ToInteger(&err);
       mPageLength = desiredRows;
     }
@@ -275,7 +275,7 @@ nsTreeBodyFrame::DestroyFrom(nsIFrame* aDestructRoot)
   }
 
   if (mColumns)
-    mColumns->SetTree(nullptr);
+    mColumns->SetTree(nsnull);
 
   // Save off our info into the box object.
   nsCOMPtr<nsPIBoxObject> box(do_QueryInterface(mTreeBoxObject));
@@ -290,16 +290,16 @@ nsTreeBodyFrame::DestroyFrom(nsIFrame* aDestructRoot)
     // Always null out the cached tree body frame.
     box->ClearCachedValues();
 
-    mTreeBoxObject = nullptr; // Drop our ref here.
+    mTreeBoxObject = nsnull; // Drop our ref here.
   }
 
   if (mView) {
     nsCOMPtr<nsITreeSelection> sel;
     mView->GetSelection(getter_AddRefs(sel));
     if (sel)
-      sel->SetTree(nullptr);
-    mView->SetTree(nullptr);
-    mView = nullptr;
+      sel->SetTree(nsnull);
+    mView->SetTree(nsnull);
+    mView = nsnull;
   }
 
   nsLeafBoxFrame::DestroyFrom(aDestructRoot);
@@ -355,7 +355,7 @@ nsTreeBodyFrame::EnsureView()
         box->GetProperty(NS_LITERAL_STRING("topRow").get(),
                          getter_Copies(rowStr));
         nsAutoString rowStr2(rowStr);
-        nsresult error;
+        PRInt32 error;
         PRInt32 rowIndex = rowStr2.ToInteger(&error);
 
         // Set our view.
@@ -445,7 +445,7 @@ nsTreeBodyFrame::ReflowCallbackCanceled()
 nsresult
 nsTreeBodyFrame::GetView(nsITreeView * *aView)
 {
-  *aView = nullptr;
+  *aView = nsnull;
   nsWeakFrame weakFrame(this);
   EnsureView();
   NS_ENSURE_STATE(weakFrame.IsAlive());
@@ -461,8 +461,8 @@ nsTreeBodyFrame::SetView(nsITreeView * aView)
     nsCOMPtr<nsITreeSelection> sel;
     mView->GetSelection(getter_AddRefs(sel));
     if (sel)
-      sel->SetTree(nullptr);
-    mView->SetTree(nullptr);
+      sel->SetTree(nsnull);
+    mView->SetTree(nsnull);
 
     // Only reset the top row index and delete the columns if we had an old non-null view.
     mTopRowIndex = 0;
@@ -600,7 +600,7 @@ nsTreeBodyFrame::GetPageLength(PRInt32 *_retval)
 nsresult
 nsTreeBodyFrame::GetSelectionRegion(nsIScriptableRegion **aRegion)
 {
-  *aRegion = nullptr;
+  *aRegion = nsnull;
 
   nsCOMPtr<nsITreeSelection> selection;
   mView->GetSelection(getter_AddRefs(selection));
@@ -683,7 +683,7 @@ nsTreeBodyFrame::InvalidateRow(PRInt32 aIndex)
 
 #ifdef ACCESSIBILITY
   if (nsIPresShell::IsAccessibilityActive())
-    FireInvalidateEvent(aIndex, aIndex, nullptr, nullptr);
+    FireInvalidateEvent(aIndex, aIndex, nsnull, nsnull);
 #endif
 
   aIndex -= mTopRowIndex;
@@ -749,7 +749,7 @@ nsTreeBodyFrame::InvalidateRange(PRInt32 aStart, PRInt32 aEnd)
   if (nsIPresShell::IsAccessibilityActive()) {
     PRInt32 end =
       mRowCount > 0 ? ((mRowCount <= aEnd) ? mRowCount - 1 : aEnd) : 0;
-    FireInvalidateEvent(aStart, end, nullptr, nullptr);
+    FireInvalidateEvent(aStart, end, nsnull, nsnull);
   }
 #endif
 
@@ -840,10 +840,10 @@ FindScrollParts(nsIFrame* aCurrFrame, nsTreeBodyFrame::ScrollParts* aResult)
 
 nsTreeBodyFrame::ScrollParts nsTreeBodyFrame::GetScrollParts()
 {
-  ScrollParts result = { nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
+  ScrollParts result = { nsnull, nsnull, nsnull, nsnull, nsnull, nsnull };
   nsIContent* baseElement = GetBaseElement();
   nsIFrame* treeFrame =
-    baseElement ? baseElement->GetPrimaryFrame() : nullptr;
+    baseElement ? baseElement->GetPrimaryFrame() : nsnull;
   if (treeFrame) {
     // The way we do this, searching through the entire frame subtree, is pretty
     // dumb! We should know where these frames are.
@@ -919,7 +919,7 @@ nsTreeBodyFrame::CheckOverflow(const ScrollParts& aParts)
 
   if (verticalOverflowChanged) {
     nsScrollPortEvent event(true, mVerticalOverflow ? NS_SCROLLPORT_OVERFLOW
-                            : NS_SCROLLPORT_UNDERFLOW, nullptr);
+                            : NS_SCROLLPORT_UNDERFLOW, nsnull);
     event.orient = nsScrollPortEvent::vertical;
     nsEventDispatcher::Dispatch(content, presContext, &event);
   }
@@ -927,7 +927,7 @@ nsTreeBodyFrame::CheckOverflow(const ScrollParts& aParts)
   if (horizontalOverflowChanged) {
     nsScrollPortEvent event(true,
                             mHorizontalOverflow ? NS_SCROLLPORT_OVERFLOW
-                            : NS_SCROLLPORT_UNDERFLOW, nullptr);
+                            : NS_SCROLLPORT_UNDERFLOW, nsnull);
     event.orient = nsScrollPortEvent::horizontal;
     nsEventDispatcher::Dispatch(content, presContext, &event);
   }
@@ -1333,7 +1333,7 @@ nsTreeBodyFrame::AdjustForCellText(nsAutoString& aText,
           nextColumn = nextColumn->GetNext();
         }
         else {
-          nextColumn = nullptr;
+          nextColumn = nsnull;
         }
       }
     }
@@ -1603,8 +1603,8 @@ void
 nsTreeBodyFrame::GetCellAt(nscoord aX, nscoord aY, PRInt32* aRow,
                            nsTreeColumn** aCol, nsIAtom** aChildElt)
 {
-  *aCol = nullptr;
-  *aChildElt = nullptr;
+  *aCol = nsnull;
+  *aChildElt = nsnull;
 
   *aRow = GetRowAt(aX, aY);
   if (*aRow < 0)
@@ -2050,11 +2050,11 @@ nsTreeBodyFrame::GetTwistyRect(PRInt32 aRowIndex,
     aTwistyRect.width = aImageRect.width;
 
   bool useTheme = false;
-  nsITheme *theme = nullptr;
+  nsITheme *theme = nsnull;
   const nsStyleDisplay* twistyDisplayData = aTwistyContext->GetStyleDisplay();
   if (twistyDisplayData->mAppearance) {
     theme = aPresContext->GetTheme();
-    if (theme && theme->ThemeSupportsWidget(aPresContext, nullptr, twistyDisplayData->mAppearance))
+    if (theme && theme->ThemeSupportsWidget(aPresContext, nsnull, twistyDisplayData->mAppearance))
       useTheme = true;
   }
 
@@ -2073,14 +2073,14 @@ nsTreeBodyFrame::GetTwistyRect(PRInt32 aRowIndex,
       aTwistyRect.width = minTwistySize.width;
   }
 
-  return useTheme ? theme : nullptr;
+  return useTheme ? theme : nsnull;
 }
 
 nsresult
 nsTreeBodyFrame::GetImage(PRInt32 aRowIndex, nsTreeColumn* aCol, bool aUseContext,
                           nsStyleContext* aStyleContext, bool& aAllowImageRegions, imgIContainer** aResult)
 {
-  *aResult = nullptr;
+  *aResult = nsnull;
 
   nsAutoString imageSrc;
   mView->GetImageSrc(aRowIndex, aCol, imageSrc);
@@ -2563,7 +2563,7 @@ nsTreeBodyFrame::HandleEvent(nsPresContext* aPresContext,
 
     if (mSlots->mTimer) {
       mSlots->mTimer->Cancel();
-      mSlots->mTimer = nullptr;
+      mSlots->mTimer = nsnull;
     }
 
     // Cache the drag session.
@@ -2615,7 +2615,7 @@ nsTreeBodyFrame::HandleEvent(nsPresContext* aPresContext,
         // Cancel any previously initialized timer.
         if (mSlots->mTimer) {
           mSlots->mTimer->Cancel();
-          mSlots->mTimer = nullptr;
+          mSlots->mTimer = nsnull;
         }
 
         // Set a timer to trigger the tree scrolling.
@@ -2643,7 +2643,7 @@ nsTreeBodyFrame::HandleEvent(nsPresContext* aPresContext,
       if (mSlots->mTimer) {
         // Timer is active but for a different row than the current one, kill it.
         mSlots->mTimer->Cancel();
-        mSlots->mTimer = nullptr;
+        mSlots->mTimer = nsnull;
       }
 
       if (mSlots->mDropRow >= 0) {
@@ -2727,7 +2727,7 @@ nsTreeBodyFrame::HandleEvent(nsPresContext* aPresContext,
     // by the drop event.
     if (mSlots->mTimer) {
       mSlots->mTimer->Cancel();
-      mSlots->mTimer = nullptr;
+      mSlots->mTimer = nsnull;
     }
 
     if (!mSlots->mArray.IsEmpty()) {
@@ -2901,7 +2901,7 @@ nsTreeBodyFrame::PaintRow(PRInt32              aRowIndex,
 
   // Now obtain the properties for our row.
   // XXX Automatically fill in the following props: open, closed, container, leaf, selected, focused
-  PrefillPropertyArray(aRowIndex, nullptr);
+  PrefillPropertyArray(aRowIndex, nsnull);
   mView->GetRowProperties(aRowIndex, mScratchArray);
 
   // Resolve style for the row.  It contains all the info we need to lay ourselves
@@ -2919,11 +2919,11 @@ nsTreeBodyFrame::PaintRow(PRInt32              aRowIndex,
   // If a -moz-appearance is provided, use theme drawing only if the current row
   // is not selected (since we draw the selection as part of drawing the background).
   bool useTheme = false;
-  nsITheme *theme = nullptr;
+  nsITheme *theme = nsnull;
   const nsStyleDisplay* displayData = rowContext->GetStyleDisplay();
   if (displayData->mAppearance) {
     theme = aPresContext->GetTheme();
-    if (theme && theme->ThemeSupportsWidget(aPresContext, nullptr, displayData->mAppearance))
+    if (theme && theme->ThemeSupportsWidget(aPresContext, nsnull, displayData->mAppearance))
       useTheme = true;
   }
   bool isSelected = false;
@@ -3046,11 +3046,11 @@ nsTreeBodyFrame::PaintSeparator(PRInt32              aRowIndex,
   // Resolve style for the separator.
   nsStyleContext* separatorContext = GetPseudoStyleContext(nsCSSAnonBoxes::moztreeseparator);
   bool useTheme = false;
-  nsITheme *theme = nullptr;
+  nsITheme *theme = nsnull;
   const nsStyleDisplay* displayData = separatorContext->GetStyleDisplay();
   if ( displayData->mAppearance ) {
     theme = aPresContext->GetTheme();
-    if (theme && theme->ThemeSupportsWidget(aPresContext, nullptr, displayData->mAppearance))
+    if (theme && theme->ThemeSupportsWidget(aPresContext, nsnull, displayData->mAppearance))
       useTheme = true;
   }
 
@@ -3719,7 +3719,7 @@ nsTreeBodyFrame::PaintProgressMeter(PRInt32              aRowIndex,
     nsAutoString value;
     mView->GetCellValue(aRowIndex, aColumn, value);
 
-    nsresult rv;
+    PRInt32 rv;
     PRInt32 intValue = value.ToInteger(&rv);
     if (intValue < 0)
       intValue = 0;
@@ -4212,7 +4212,7 @@ nsTreeBodyFrame::GetBaseElement()
     parent = parent->GetParent();
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 nsresult
@@ -4357,7 +4357,7 @@ nsTreeBodyFrame::OpenCallback(nsITimer *aTimer, void *aClosure)
   nsTreeBodyFrame* self = static_cast<nsTreeBodyFrame*>(aClosure);
   if (self) {
     aTimer->Cancel();
-    self->mSlots->mTimer = nullptr;
+    self->mSlots->mTimer = nsnull;
 
     if (self->mSlots->mDropRow >= 0) {
       self->mSlots->mArray.AppendElement(self->mSlots->mDropRow);
@@ -4372,7 +4372,7 @@ nsTreeBodyFrame::CloseCallback(nsITimer *aTimer, void *aClosure)
   nsTreeBodyFrame* self = static_cast<nsTreeBodyFrame*>(aClosure);
   if (self) {
     aTimer->Cancel();
-    self->mSlots->mTimer = nullptr;
+    self->mSlots->mTimer = nsnull;
 
     for (PRUint32 i = self->mSlots->mArray.Length(); i--; ) {
       if (self->mView)
@@ -4388,7 +4388,7 @@ nsTreeBodyFrame::LazyScrollCallback(nsITimer *aTimer, void *aClosure)
   nsTreeBodyFrame* self = static_cast<nsTreeBodyFrame*>(aClosure);
   if (self) {
     aTimer->Cancel();
-    self->mSlots->mTimer = nullptr;
+    self->mSlots->mTimer = nsnull;
 
     if (self->mView) {
       // Set a new timer to scroll the tree repeatedly.
@@ -4412,7 +4412,7 @@ nsTreeBodyFrame::ScrollCallback(nsITimer *aTimer, void *aClosure)
     }
     else {
       aTimer->Cancel();
-      self->mSlots->mTimer = nullptr;
+      self->mSlots->mTimer = nsnull;
     }
   }
 }
@@ -4431,7 +4431,7 @@ void
 nsTreeBodyFrame::FireScrollEvent()
 {
   mScrollEvent.Forget();
-  nsScrollbarEvent event(true, NS_SCROLL_EVENT, nullptr);
+  nsScrollbarEvent event(true, NS_SCROLL_EVENT, nsnull);
   // scroll events fired at elements don't bubble
   event.flags |= NS_EVENT_FLAG_CANT_BUBBLE;
   nsEventDispatcher::Dispatch(GetContent(), PresContext(), &event);
@@ -4633,7 +4633,7 @@ nsresult
 nsTreeBodyFrame::OnImageIsAnimated(imgIRequest* aRequest)
 {
   nsLayoutUtils::RegisterImageRequest(PresContext(),
-                                      aRequest, nullptr);
+                                      aRequest, nsnull);
 
   return NS_OK;
 }

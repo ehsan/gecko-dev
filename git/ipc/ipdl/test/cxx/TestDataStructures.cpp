@@ -157,7 +157,7 @@ bool
 TestDataStructuresParent::RecvTest7_0(const ActorWrapper& i1,
                                       ActorWrapper* o1)
 {
-    if (i1.actorChild() != nullptr)
+    if (i1.actorChild() != nsnull)
         fail("child side actor should always be null");
 
     if (i1.actorParent() != mKids[0])
@@ -632,18 +632,18 @@ void
 TestDataStructuresChild::Test7_0()
 {
     ActorWrapper iaw;
-    if (iaw.actorChild() != nullptr || iaw.actorParent() != nullptr)
+    if (iaw.actorChild() != nsnull || iaw.actorParent() != nsnull)
         fail("actor members should be null initially");
 
     iaw.actorChild() = mKids[0];
-    if (iaw.actorParent() != nullptr)
+    if (iaw.actorParent() != nsnull)
         fail("parent should be null on child side after set");
 
     ActorWrapper oaw;
     if (!SendTest7_0(iaw, &oaw))
         fail("sending Test7_0");
 
-    if (oaw.actorParent() != nullptr)
+    if (oaw.actorParent() != nsnull)
         fail("parent accessor on actor-struct members should always be null in child");
 
     if (oaw.actorChild() != mKids[0])

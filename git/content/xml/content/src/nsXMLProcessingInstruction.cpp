@@ -26,11 +26,11 @@ NS_NewXMLProcessingInstruction(nsIContent** aInstancePtrResult,
                                                     aNodeInfoManager, aData);
   }
 
-  *aInstancePtrResult = nullptr;
+  *aInstancePtrResult = nsnull;
 
   nsCOMPtr<nsINodeInfo> ni;
   ni = aNodeInfoManager->GetNodeInfo(nsGkAtoms::processingInstructionTagName,
-                                     nullptr, kNameSpaceID_None,
+                                     nsnull, kNameSpaceID_None,
                                      nsIDOMNode::PROCESSING_INSTRUCTION_NODE,
                                      target);
   NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);

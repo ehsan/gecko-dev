@@ -415,47 +415,47 @@ nsHTMLEditor::HideResizers(void)
 
   RemoveListenerAndDeleteRef(mousedown, mEventListener, true,
                              mTopLeftHandle, parentContent, ps);
-  mTopLeftHandle = nullptr;
+  mTopLeftHandle = nsnull;
 
   RemoveListenerAndDeleteRef(mousedown, mEventListener, true,
                              mTopHandle, parentContent, ps);
-  mTopHandle = nullptr;
+  mTopHandle = nsnull;
 
   RemoveListenerAndDeleteRef(mousedown, mEventListener, true,
                              mTopRightHandle, parentContent, ps);
-  mTopRightHandle = nullptr;
+  mTopRightHandle = nsnull;
 
   RemoveListenerAndDeleteRef(mousedown, mEventListener, true,
                              mLeftHandle, parentContent, ps);
-  mLeftHandle = nullptr;
+  mLeftHandle = nsnull;
 
   RemoveListenerAndDeleteRef(mousedown, mEventListener, true,
                              mRightHandle, parentContent, ps);
-  mRightHandle = nullptr;
+  mRightHandle = nsnull;
 
   RemoveListenerAndDeleteRef(mousedown, mEventListener, true,
                              mBottomLeftHandle, parentContent, ps);
-  mBottomLeftHandle = nullptr;
+  mBottomLeftHandle = nsnull;
 
   RemoveListenerAndDeleteRef(mousedown, mEventListener, true,
                              mBottomHandle, parentContent, ps);
-  mBottomHandle = nullptr;
+  mBottomHandle = nsnull;
 
   RemoveListenerAndDeleteRef(mousedown, mEventListener, true,
                              mBottomRightHandle, parentContent, ps);
-  mBottomRightHandle = nullptr;
+  mBottomRightHandle = nsnull;
 
   RemoveListenerAndDeleteRef(mousedown, mEventListener, true,
                              mResizingShadow, parentContent, ps);
-  mResizingShadow = nullptr;
+  mResizingShadow = nsnull;
 
   RemoveListenerAndDeleteRef(mousedown, mEventListener, true,
                              mResizingInfo, parentContent, ps);
-  mResizingInfo = nullptr;
+  mResizingInfo = nsnull;
 
   if (mActivatedHandle) {
     mActivatedHandle->RemoveAttribute(NS_LITERAL_STRING("_moz_activated"));
-    mActivatedHandle = nullptr;
+    mActivatedHandle = nsnull;
   }
 
   // don't forget to remove the listeners !
@@ -468,7 +468,7 @@ nsHTMLEditor::HideResizers(void)
                                       mMouseMotionListenerP, true);
     NS_ASSERTION(NS_SUCCEEDED(res), "failed to remove mouse motion listener");
   }
-  mMouseMotionListenerP = nullptr;
+  mMouseMotionListenerP = nsnull;
 
   nsCOMPtr<nsIDocument> doc = GetDocument();
   if (!doc) { return NS_ERROR_NULL_POINTER; }
@@ -479,10 +479,10 @@ nsHTMLEditor::HideResizers(void)
     res = target->RemoveEventListener(NS_LITERAL_STRING("resize"), mResizeEventListenerP, false);
     NS_ASSERTION(NS_SUCCEEDED(res), "failed to remove resize event listener");
   }
-  mResizeEventListenerP = nullptr;
+  mResizeEventListenerP = nsnull;
 
   mResizedObject->RemoveAttribute(NS_LITERAL_STRING("_moz_resizing"));
-  mResizedObject = nullptr;
+  mResizedObject = nsnull;
 
   return NS_OK;
 }
@@ -697,8 +697,8 @@ nsHTMLEditor::SetResizingInfoPosition(PRInt32 aX, PRInt32 aY, PRInt32 aW, PRInt3
   if (textInfo) {
     res = mResizingInfo->RemoveChild(textInfo, getter_AddRefs(junk));
     NS_ENSURE_SUCCESS(res, res);
-    textInfo = nullptr;
-    junk = nullptr;
+    textInfo = nsnull;
+    junk = nsnull;
   }
 
   nsAutoString widthStr, heightStr, diffWidthStr, diffHeightStr;
@@ -877,7 +877,7 @@ nsHTMLEditor::MouseMove(nsIDOMEvent* aMouseEvent)
     if (NS_ABS(clientX - mOriginalX ) * 2 >= xThreshold ||
         NS_ABS(clientY - mOriginalY ) * 2 >= yThreshold) {
       mGrabberClicked = false;
-      StartMoving(nullptr);
+      StartMoving(nsnull);
     }
   }
   if (mIsMoving) {
@@ -907,7 +907,7 @@ nsHTMLEditor::SetFinalSize(PRInt32 aX, PRInt32 aY)
 
   if (mActivatedHandle) {
     mActivatedHandle->RemoveAttribute(NS_LITERAL_STRING("_moz_activated"));
-    mActivatedHandle = nullptr;
+    mActivatedHandle = nsnull;
   }
 
   // we have now to set the new width and height of the resized object

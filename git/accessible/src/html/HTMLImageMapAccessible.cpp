@@ -65,10 +65,10 @@ HTMLImageMapAccessible::AnchorURIAt(PRUint32 aAnchorIndex)
 {
   Accessible* area = GetChildAt(aAnchorIndex);
   if (!area)
-    return nullptr;
+    return nsnull;
 
   nsIContent* linkContent = area->GetContent();
-  return linkContent ? linkContent->GetHrefURI() : nullptr;
+  return linkContent ? linkContent->GetHrefURI() : nsnull;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

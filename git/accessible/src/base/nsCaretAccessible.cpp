@@ -44,9 +44,9 @@ void nsCaretAccessible::Shutdown()
   // doc selection listeners they registered in this nsCaretAccessible
 
   ClearControlSelectionListener(); // Clear the selection listener for the currently focused control
-  mLastTextAccessible = nullptr;
-  mLastUsedSelection = nullptr;
-  mRootAccessible = nullptr;
+  mLastTextAccessible = nsnull;
+  mLastUsedSelection = nsnull;
+  mRootAccessible = nsnull;
 }
 
 nsresult nsCaretAccessible::ClearControlSelectionListener()
@@ -54,7 +54,7 @@ nsresult nsCaretAccessible::ClearControlSelectionListener()
   nsCOMPtr<nsISelectionController> controller =
     GetSelectionControllerForNode(mCurrentControl);
 
-  mCurrentControl = nullptr;
+  mCurrentControl = nsnull;
 
   if (!controller)
     return NS_OK;
@@ -88,7 +88,7 @@ nsCaretAccessible::SetControlSelectionListener(nsIContent *aCurrentNode)
   ClearControlSelectionListener();
 
   mCurrentControl = aCurrentNode;
-  mLastTextAccessible = nullptr;
+  mLastTextAccessible = nsnull;
 
   // When focus moves such that the caret is part of a new frame selection
   // this removes the old selection listener and attaches a new one for
@@ -222,7 +222,7 @@ nsCaretAccessible::NormalSelectionChanged(nsISelection* aSelection)
   PRInt32 rangeCount = 0;
   aSelection->GetRangeCount(&rangeCount);
   if (rangeCount == 0) {
-    mLastTextAccessible = nullptr;
+    mLastTextAccessible = nsnull;
     return; // No selection
   }
 
@@ -277,7 +277,7 @@ nsCaretAccessible::GetCaretRect(nsIWidget **aOutWidget)
 {
   nsIntRect caretRect;
   NS_ENSURE_TRUE(aOutWidget, caretRect);
-  *aOutWidget = nullptr;
+  *aOutWidget = nsnull;
   NS_ENSURE_TRUE(mRootAccessible, caretRect);
 
   if (!mLastTextAccessible) {
@@ -337,21 +337,21 @@ already_AddRefed<nsISelectionController>
 nsCaretAccessible::GetSelectionControllerForNode(nsIContent *aContent)
 {
   if (!aContent)
-    return nullptr;
+    return nsnull;
 
   nsIPresShell *presShell = aContent->OwnerDoc()->GetShell();
   if (!presShell)
-    return nullptr;
+    return nsnull;
 
   nsIFrame *frame = aContent->GetPrimaryFrame();
   if (!frame)
-    return nullptr;
+    return nsnull;
 
   nsPresContext *presContext = presShell->GetPresContext();
   if (!presContext)
-    return nullptr;
+    return nsnull;
 
-  nsISelectionController *controller = nullptr;
+  nsISelectionController *controller = nsnull;
   frame->GetSelectionController(presContext, &controller);
   return controller;
 }

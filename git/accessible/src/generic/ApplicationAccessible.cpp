@@ -19,12 +19,11 @@
 #include "nsIWindowMediator.h"
 #include "nsServiceManagerUtils.h"
 #include "mozilla/Services.h"
-#include "nsIStringBundle.h"
 
 using namespace mozilla::a11y;
 
 ApplicationAccessible::ApplicationAccessible() :
-  AccessibleWrap(nullptr, nullptr)
+  AccessibleWrap(nsnull, nsnull)
 {
   mFlags |= eApplicationAccessible;
 }
@@ -42,7 +41,7 @@ NS_IMETHODIMP
 ApplicationAccessible::GetParent(nsIAccessible** aAccessible)
 {
   NS_ENSURE_ARG_POINTER(aAccessible);
-  *aAccessible = nullptr;
+  *aAccessible = nsnull;
   return NS_OK;
 }
 
@@ -50,7 +49,7 @@ NS_IMETHODIMP
 ApplicationAccessible::GetNextSibling(nsIAccessible** aNextSibling)
 {
   NS_ENSURE_ARG_POINTER(aNextSibling);
-  *aNextSibling = nullptr;
+  *aNextSibling = nsnull;
   return NS_OK;
 }
 
@@ -58,7 +57,7 @@ NS_IMETHODIMP
 ApplicationAccessible::GetPreviousSibling(nsIAccessible** aPreviousSibling)
 {
   NS_ENSURE_ARG_POINTER(aPreviousSibling);
-  *aPreviousSibling = nullptr;
+  *aPreviousSibling = nsnull;
   return NS_OK;
 }
 
@@ -114,7 +113,7 @@ NS_IMETHODIMP
 ApplicationAccessible::GetAttributes(nsIPersistentProperties** aAttributes)
 {
   NS_ENSURE_ARG_POINTER(aAttributes);
-  *aAttributes = nullptr;
+  *aAttributes = nsnull;
   return NS_OK;
 }
 
@@ -128,7 +127,7 @@ Accessible*
 ApplicationAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
                                     EWhichChildAtPoint aWhichChild)
 {
-  return nullptr;
+  return nsnull;
 }
 
 Accessible*
@@ -138,7 +137,7 @@ ApplicationAccessible::FocusedChild()
   if (focus && focus->Parent() == this)
     return focus;
 
-  return nullptr;
+  return nsnull;
 }
 
 Relation
@@ -268,16 +267,17 @@ ApplicationAccessible::GetPlatformVersion(nsAString& aVersion)
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessNode public methods
 
-void
+bool
 ApplicationAccessible::Init()
 {
   mAppInfo = do_GetService("@mozilla.org/xre/app-info;1");
+  return true;
 }
 
 void
 ApplicationAccessible::Shutdown()
 {
-  mAppInfo = nullptr;
+  mAppInfo = nsnull;
 }
 
 bool
@@ -339,7 +339,7 @@ ApplicationAccessible::CacheChildren()
     do_GetService(NS_WINDOWMEDIATOR_CONTRACTID);
 
   nsCOMPtr<nsISimpleEnumerator> windowEnumerator;
-  nsresult rv = windowMediator->GetEnumerator(nullptr,
+  nsresult rv = windowMediator->GetEnumerator(nsnull,
                                               getter_AddRefs(windowEnumerator));
   if (NS_FAILED(rv))
     return;
@@ -369,7 +369,7 @@ ApplicationAccessible::GetSiblingAtOffset(PRInt32 aOffset,
   if (aError)
     *aError = NS_OK; // fail peacefully
 
-  return nullptr;
+  return nsnull;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -379,7 +379,7 @@ NS_IMETHODIMP
 ApplicationAccessible::GetDOMNode(nsIDOMNode** aDOMNode)
 {
   NS_ENSURE_ARG_POINTER(aDOMNode);
-  *aDOMNode = nullptr;
+  *aDOMNode = nsnull;
   return NS_OK;
 }
 
@@ -387,7 +387,7 @@ NS_IMETHODIMP
 ApplicationAccessible::GetDocument(nsIAccessibleDocument** aDocument)
 {
   NS_ENSURE_ARG_POINTER(aDocument);
-  *aDocument = nullptr;
+  *aDocument = nsnull;
   return NS_OK;
 }
 
@@ -395,7 +395,7 @@ NS_IMETHODIMP
 ApplicationAccessible::GetRootDocument(nsIAccessibleDocument** aRootDocument)
 {
   NS_ENSURE_ARG_POINTER(aRootDocument);
-  *aRootDocument = nullptr;
+  *aRootDocument = nsnull;
   return NS_OK;
 }
 

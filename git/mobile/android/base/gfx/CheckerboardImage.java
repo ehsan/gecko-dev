@@ -5,10 +5,8 @@
 
 package org.mozilla.gecko.gfx;
 
-import org.mozilla.gecko.mozglue.DirectBufferAllocator;
-
+import org.mozilla.gecko.GeckoAppShell;
 import android.graphics.Color;
-
 import java.nio.ByteBuffer;
 import java.nio.ShortBuffer;
 import java.util.Arrays;
@@ -31,7 +29,7 @@ public class CheckerboardImage extends CairoImage {
     /** Creates a new checkerboard image. */
     public CheckerboardImage() {
         int bpp = CairoUtils.bitsPerPixelForCairoFormat(FORMAT);
-        mBuffer = DirectBufferAllocator.allocate(SIZE * SIZE * bpp / 8);
+        mBuffer = GeckoAppShell.allocateDirectBuffer(SIZE * SIZE * bpp / 8);
         update(true, Color.WHITE);
     }
 
@@ -114,8 +112,10 @@ public class CheckerboardImage extends CairoImage {
     @Override
     protected void finalize() throws Throwable {
         try {
-            DirectBufferAllocator.free(mBuffer);
-            mBuffer = null;
+            if (mBuffer != null) {
+                GeckoAppShell.freeDirectBuffer(mBuffer);
+                mBuffer = null;
+            }
         } finally {
             super.finalize();
         }

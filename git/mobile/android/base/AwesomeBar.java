@@ -5,14 +5,12 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.db.BrowserDB;
-
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.content.ContentResolver;
-import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.ContentResolver;
+import android.content.Context;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -25,20 +23,23 @@ import android.text.Spanned;
 import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.util.Log;
+import android.view.ActionMode;
 import android.view.ContextMenu;
 import android.view.ContextMenu.ContextMenuInfo;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.MenuItem;
 import android.view.View;
-import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
+import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ListView;
 import android.widget.TabWidget;
 import android.widget.Toast;
+
+import org.mozilla.gecko.db.BrowserDB;
 
 import java.net.URLEncoder;
 import java.util.Arrays;
@@ -70,6 +71,10 @@ public class AwesomeBar extends GeckoActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        if (Build.VERSION.SDK_INT >= 11) {
+            getActionBar().hide();
+        }
 
         Log.d(LOGTAG, "creating awesomebar");
 
@@ -169,7 +174,8 @@ public class AwesomeBar extends GeckoActivity {
                 }
 
                 if (Build.VERSION.SDK_INT >= 11) {
-                    getActionBar().hide();
+                    if (getActionBar().isShowing())
+                        getActionBar().hide();
                 }
             }
 
@@ -228,7 +234,8 @@ public class AwesomeBar extends GeckoActivity {
             @Override
             public void onSelectionChanged(int selStart, int selEnd) {
                 if (Build.VERSION.SDK_INT >= 11 && selStart == selEnd) {
-                    getActionBar().hide();
+                    if (getActionBar().isShowing())
+                        getActionBar().hide();
                 }
             }
         });

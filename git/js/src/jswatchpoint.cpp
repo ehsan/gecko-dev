@@ -99,7 +99,7 @@ WatchpointMap::clear()
 }
 
 bool
-WatchpointMap::triggerWatchpoint(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp)
+WatchpointMap::triggerWatchpoint(JSContext *cx, HandleObject obj, HandleId id, Value *vp)
 {
     Map::Ptr p = map.lookup(WatchKey(obj, id));
     if (!p || p->value.held)
@@ -122,7 +122,7 @@ WatchpointMap::triggerWatchpoint(JSContext *cx, HandleObject obj, HandleId id, M
     }
 
     /* Call the handler. */
-    return handler(cx, obj, id, old, vp.address(), closure);
+    return handler(cx, obj, id, old, vp, closure);
 }
 
 bool

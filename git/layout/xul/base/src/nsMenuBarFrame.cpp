@@ -52,11 +52,11 @@ NS_QUERYFRAME_TAIL_INHERITING(nsBoxFrame)
 //
 nsMenuBarFrame::nsMenuBarFrame(nsIPresShell* aShell, nsStyleContext* aContext):
   nsBoxFrame(aShell, aContext),
-    mMenuBarListener(nullptr),
+    mMenuBarListener(nsnull),
     mStayActive(false),
     mIsActive(false),
-    mCurrentMenu(nullptr),
-    mTarget(nullptr)
+    mCurrentMenu(nsnull),
+    mTarget(nsnull)
 {
 } // cntr
 
@@ -140,7 +140,7 @@ nsMenuBarFrame::ToggleMenuActiveState()
     if (mCurrentMenu) {
       nsMenuFrame* closeframe = mCurrentMenu;
       closeframe->SelectMenu(false);
-      mCurrentMenu = nullptr;
+      mCurrentMenu = nsnull;
       return closeframe;
     }
   }
@@ -152,7 +152,7 @@ nsMenuBarFrame::ToggleMenuActiveState()
     // Set the active menu to be the top left item (e.g., the File menu).
     // We use an attribute called "menuactive" to track the current 
     // active menu.
-    nsMenuFrame* firstFrame = nsXULPopupManager::GetNextMenuItem(this, nullptr, false);
+    nsMenuFrame* firstFrame = nsXULPopupManager::GetNextMenuItem(this, nsnull, false);
     if (firstFrame) {
       // Activate the menu bar
       SetActive(true);
@@ -168,14 +168,14 @@ nsMenuBarFrame::ToggleMenuActiveState()
     }
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 static void
 GetInsertionPoint(nsIPresShell* aShell, nsIFrame* aFrame, nsIFrame* aChild,
                   nsIFrame** aResult)
 {
-  nsIContent* child = nullptr;
+  nsIContent* child = nsnull;
   if (aChild)
     child = aChild->GetContent();
   aShell->FrameConstructor()->GetInsertionPoint(aFrame, child, aResult);
@@ -196,16 +196,16 @@ nsMenuBarFrame::FindMenuWithShortcut(nsIDOMKeyEvent* aKeyEvent)
     accessKeys.AppendElement(charCode);
 
   if (accessKeys.IsEmpty())
-    return nullptr; // no character was pressed so just return
+    return nsnull; // no character was pressed so just return
 
   // Enumerate over our list of frames.
-  nsIFrame* immediateParent = nullptr;
-  GetInsertionPoint(PresContext()->PresShell(), this, nullptr, &immediateParent);
+  nsIFrame* immediateParent = nsnull;
+  GetInsertionPoint(PresContext()->PresShell(), this, nsnull, &immediateParent);
   if (!immediateParent)
     immediateParent = this;
 
   // Find a most preferred accesskey which should be returned.
-  nsIFrame* foundMenu = nullptr;
+  nsIFrame* foundMenu = nsnull;
   PRUint32 foundIndex = accessKeys.NoIndex;
   nsIFrame* currFrame = immediateParent->GetFirstPrincipalChild();
 
@@ -233,7 +233,8 @@ nsMenuBarFrame::FindMenuWithShortcut(nsIDOMKeyEvent* aKeyEvent)
     currFrame = currFrame->GetNextSibling();
   }
   if (foundMenu) {
-    return do_QueryFrame(foundMenu);
+    return (foundMenu->GetType() == nsGkAtoms::menuFrame) ?
+           static_cast<nsMenuFrame *>(foundMenu) : nsnull;
   }
 
   // didn't find a matching menu item
@@ -252,12 +253,12 @@ nsMenuBarFrame::FindMenuWithShortcut(nsIDOMKeyEvent* aKeyEvent)
       pm->HidePopup(popup->GetContent(), true, true, true);
   }
 
-  SetCurrentMenuItem(nullptr);
+  SetCurrentMenuItem(nsnull);
   SetActive(false);
 
 #endif  // #ifdef XP_WIN
 
-  return nullptr;
+  return nsnull;
 }
 
 /* virtual */ nsMenuFrame*
@@ -287,7 +288,7 @@ void
 nsMenuBarFrame::CurrentMenuIsBeingDestroyed()
 {
   mCurrentMenu->SelectMenu(false);
-  mCurrentMenu = nullptr;
+  mCurrentMenu = nsnull;
 }
 
 class nsMenuBarSwitchMenu : public nsRunnable
@@ -310,9 +311,10 @@ public:
 
     // if switching from one menu to another, set a flag so that the call to
     // HidePopup doesn't deactivate the menubar when the first menu closes.
-    nsMenuBarFrame* menubar = nullptr;
+    nsMenuBarFrame* menubar = nsnull;
     if (mOldMenu && mNewMenu) {
-      menubar = do_QueryFrame(mMenuBar->GetPrimaryFrame());
+      menubar = static_cast<nsMenuBarFrame *>
+        (pm->GetFrameOfTypeForContent(mMenuBar, nsGkAtoms::menuBarFrame, false));
       if (menubar)
         menubar->SetStayActive(true);
     }
@@ -347,10 +349,10 @@ nsMenuBarFrame::ChangeMenuItem(nsMenuFrame* aMenuItem,
 
   // check if there's an open context menu, we ignore this
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
-  if (pm && pm->HasContextMenu(nullptr))
+  if (pm && pm->HasContextMenu(nsnull))
     return NS_OK;
 
-  nsIContent* aOldMenu = nullptr, *aNewMenu = nullptr;
+  nsIContent* aOldMenu = nsnull, *aNewMenu = nsnull;
   
   // Unset the current child.
   bool wasOpen = false;
@@ -365,7 +367,7 @@ nsMenuBarFrame::ChangeMenuItem(nsMenuFrame* aMenuItem,
   }
 
   // set to null first in case the IsAlive check below returns false
-  mCurrentMenu = nullptr;
+  mCurrentMenu = nsnull;
 
   // Set the new child.
   if (aMenuItem) {
@@ -387,7 +389,7 @@ nsMenuFrame*
 nsMenuBarFrame::Enter(nsGUIEvent* aEvent)
 {
   if (!mCurrentMenu)
-    return nullptr;
+    return nsnull;
 
   if (mCurrentMenu->IsOpen())
     return mCurrentMenu->Enter(aEvent);
@@ -401,7 +403,7 @@ nsMenuBarFrame::MenuClosed()
   SetActive(false);
   if (!mIsActive && mCurrentMenu) {
     mCurrentMenu->SelectMenu(false);
-    mCurrentMenu = nullptr;
+    mCurrentMenu = nsnull;
     return true;
   }
   return false;

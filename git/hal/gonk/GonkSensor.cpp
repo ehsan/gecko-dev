@@ -266,7 +266,7 @@ SetSensorState(SensorType aSensor, bool activate)
 void
 EnableSensorNotifications(SensorType aSensor) 
 {
-  if (sSwitchThread == nullptr) {
+  if (sSwitchThread == nsnull) {
     NS_NewThread(getter_AddRefs(sSwitchThread));
   }
   

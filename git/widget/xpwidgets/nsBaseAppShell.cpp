@@ -22,7 +22,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS3(nsBaseAppShell, nsIAppShell, nsIThreadObserver,
 nsBaseAppShell::nsBaseAppShell()
   : mSuspendNativeCount(0)
   , mEventloopNestingLevel(0)
-  , mBlockedWait(nullptr)
+  , mBlockedWait(nsnull)
   , mFavorPerf(0)
   , mNativeEventPending(0)
   , mStarvationDelay(0)
@@ -112,7 +112,7 @@ nsBaseAppShell::NativeEventCallback()
 void
 nsBaseAppShell::DoProcessMoreGeckoEvents()
 {
-  OnDispatchedEvent(nullptr);
+  OnDispatchedEvent(nsnull);
 }
 
 

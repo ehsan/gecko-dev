@@ -539,7 +539,7 @@ NS_IMETHODIMP nsEncoderSupport::SetOutputErrorBehavior(
                                 nsIUnicharEncoder * aEncoder,
                                 PRUnichar aChar)
 {
-  if (aBehavior == kOnError_CallBack && aEncoder == nullptr)
+  if (aBehavior == kOnError_CallBack && aEncoder == nsnull)
     return NS_ERROR_NULL_POINTER;
 
   mErrEncoder = aEncoder;
@@ -578,7 +578,7 @@ nsTableEncoderSupport::nsTableEncoderSupport(uScanClassID aScanClass,
 : nsEncoderSupport(aMaxLengthFactor)
 {
   mScanClass = aScanClass;
-  mShiftOutTable = nullptr;
+  mShiftOutTable = nsnull;
   mMappingTable = aMappingTable;
 }
 

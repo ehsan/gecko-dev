@@ -205,7 +205,7 @@ nsWidgetUtils::MouseUp(nsIDOMEvent* aDOMEvent)
      nsresult rv;
      if (mTimer) {
        rv = mTimer->InitWithFuncCallback(nsWidgetUtils::StopPanningCallback,
-                                        nullptr, 500, nsITimer::TYPE_ONE_SHOT);
+                                        nsnull, 500, nsITimer::TYPE_ONE_SHOT);
        if (NS_SUCCEEDED(rv))
          return NS_OK;
      }
@@ -377,7 +377,7 @@ nsWidgetUtils::GetChromeEventHandler(nsIDOMWindow *aDOMWin,
                                      nsIDOMEventTarget **aChromeTarget)
 {
     nsCOMPtr<nsPIDOMWindow> privateDOMWindow(do_QueryInterface(aDOMWin));
-    nsIDOMEventTarget* chromeEventHandler = nullptr;
+    nsIDOMEventTarget* chromeEventHandler = nsnull;
     if (privateDOMWindow) {
         chromeEventHandler = privateDOMWindow->GetChromeEventHandler();
     }
@@ -489,7 +489,7 @@ static NS_METHOD WidgetUtilsRegistration(nsIComponentManager *aCompMgr,
     if (NS_FAILED(rv))
         return rv;
 
-    char* previous = nullptr;
+    char* previous = nsnull;
     rv = catman->AddCategoryEntry("app-startup",
                                   "WidgetUtils",
                                   WidgetUtils_ContractID,

@@ -861,9 +861,6 @@ class ValueOperations
     bool isPrimitive() const { return value()->isPrimitive(); }
     bool isGCThing() const { return value()->isGCThing(); }
 
-    bool isNullOrUndefined() const { return value()->isNullOrUndefined(); }
-    bool isObjectOrNull() const { return value()->isObjectOrNull(); }
-
     bool toBoolean() const { return value()->toBoolean(); }
     double toNumber() const { return value()->toNumber(); }
     int32_t toInt32() const { return value()->toInt32(); }
@@ -901,7 +898,7 @@ class MutableValueOperations : public ValueOperations<Outer>
     void setMagic(JSWhyMagic why) { value()->setMagic(why); }
     bool setNumber(uint32_t ui) { return value()->setNumber(ui); }
     bool setNumber(double d) { return value()->setNumber(d); }
-    void setObjectOrNull(JSObject *arg) { value()->setObjectOrNull(arg); }
+    void setObjectOrNull(JSObject *arg) { value()->setObjectOrNull(); }
 };
 
 /*
@@ -947,7 +944,7 @@ class RootedBase<Value> : public MutableValueOperations<Rooted<Value> >
         return static_cast<const Rooted<Value>*>(this)->address();
     }
 
-    friend class MutableValueOperations<Rooted<Value> >;
+    friend class MutableValueOperations<Handle<Value> >;
     Value * extractMutable() {
         return static_cast<Rooted<Value>*>(this)->address();
     }
@@ -998,11 +995,8 @@ class JS_PUBLIC_API(AutoCheckRequestDepth)
 #endif /* JS_THREADSAFE && DEBUG */
 
 #ifdef DEBUG
-/*
- * Assert that we're not doing GC on cx, that we're in a request as
- * needed, and that the compartments for cx and v are correct.
- * Also check that GC would be safe at this point.
- */
+/* Assert that we're not doing GC on cx, that we're in a request as
+   needed, and that the compartments for cx and v are correct. */
 JS_PUBLIC_API(void)
 AssertArgumentsAreSane(JSContext *cx, const Value &v);
 #else
@@ -1381,9 +1375,9 @@ class CallReceiver
     Value &calleev() const { JS_ASSERT(!usedRval_); return argv_[-2]; }
     Value &thisv() const { return argv_[-1]; }
 
-    JS::MutableHandleValue rval() const {
+    Value &rval() const {
         setUsedRval();
-        return JS::MutableHandleValue::fromMarkedLocation(&argv_[-2]);
+        return argv_[-2];
     }
 
     Value *spAfterCall() const {
@@ -1606,10 +1600,8 @@ JS_STATIC_ASSERT(sizeof(jsval_layout) == sizeof(jsval));
 typedef JS::Handle<JSObject*> JSHandleObject;
 typedef JS::Handle<JSString*> JSHandleString;
 typedef JS::Handle<jsid> JSHandleId;
-typedef JS::Handle<JS::Value> JSHandleValue;
 typedef JS::MutableHandle<JSObject*> JSMutableHandleObject;
 typedef JS::MutableHandle<JS::Value> JSMutableHandleValue;
-typedef JS::RawObject JSRawObject;
 
 #else
 
@@ -1619,12 +1611,10 @@ typedef JS::RawObject JSRawObject;
  */
 
 typedef struct { JSObject **_; } JSHandleObject;
-typedef struct { jsval _; } JSHandleValue;
 typedef struct { JSString **_; } JSHandleString;
 typedef struct { JSObject **_; } JSMutableHandleObject;
 typedef struct { jsid *_; } JSHandleId;
 typedef struct { jsval *_; } JSMutableHandleValue;
-typedef JSObject *JSRawObject;
 
 JSBool JS_CreateHandleObject(JSContext *cx, JSObject *obj, JSHandleObject *phandle);
 void JS_DestroyHandleObject(JSContext *cx, JSHandleObject handle);
@@ -1647,7 +1637,7 @@ void JS_DestroyHandleId(JSContext *cx, JSHandleId handle);
  * obj[id] can't be deleted (because it's permanent).
  */
 typedef JSBool
-(* JSPropertyOp)(JSContext *cx, JSHandleObject obj, JSHandleId id, JSMutableHandleValue vp);
+(* JSPropertyOp)(JSContext *cx, JSHandleObject obj, JSHandleId id, jsval *vp);
 
 /*
  * Set a property named by id in obj, treating the assignment as strict
@@ -1657,7 +1647,7 @@ typedef JSBool
  * set.
  */
 typedef JSBool
-(* JSStrictPropertyOp)(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool strict, JSMutableHandleValue vp);
+(* JSStrictPropertyOp)(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool strict, jsval *vp);
 
 /*
  * This function type is used for callbacks that enumerate the properties of
@@ -1740,13 +1730,13 @@ typedef JSBool
  * *vp on success, and returning false on error or exception.
  */
 typedef JSBool
-(* JSConvertOp)(JSContext *cx, JSHandleObject obj, JSType type, JSMutableHandleValue vp);
+(* JSConvertOp)(JSContext *cx, JSHandleObject obj, JSType type, jsval *vp);
 
 /*
  * Delegate typeof to an object so it can cloak a primitive or another object.
  */
 typedef JSType
-(* JSTypeOfOp)(JSContext *cx, JSHandleObject obj);
+(* JSTypeOfOp)(JSContext *cx, JSObject *obj);
 
 typedef struct JSFreeOp JSFreeOp;
 
@@ -2245,16 +2235,6 @@ JSVAL_TO_PRIVATE(jsval v)
     return JSVAL_TO_PRIVATE_PTR_IMPL(JSVAL_TO_IMPL(v));
 }
 
-static JS_ALWAYS_INLINE jsval
-JS_NumberValue(double d)
-{
-    int32_t i;
-    d = JS_CANONICALIZE_NAN(d);
-    if (MOZ_DOUBLE_IS_INT32(d, &i))
-        return INT_TO_JSVAL(i);
-    return DOUBLE_TO_JSVAL(d);
-}
-
 /************************************************************************/
 
 /*
@@ -2360,7 +2340,7 @@ JSID_TO_OBJECT(jsid id)
 }
 
 static JS_ALWAYS_INLINE jsid
-OBJECT_TO_JSID(JSRawObject obj)
+OBJECT_TO_JSID(JSObject *obj)
 {
     jsid id;
     JS_ASSERT(obj != NULL);
@@ -2703,13 +2683,10 @@ JS_ALWAYS_INLINE bool
 ToNumber(JSContext *cx, const Value &v, double *out)
 {
     AssertArgumentsAreSane(cx, v);
-    {
-        JS::SkipRoot root(cx, &v);
-        MaybeCheckStackRoots(cx);
-    }
 
     if (v.isNumber()) {
         *out = v.toNumber();
+        MaybeCheckStackRoots(cx);
         return true;
     }
     return js::ToNumberSlow(cx, v, out);
@@ -2756,67 +2733,24 @@ JS_ValueToECMAInt32(JSContext *cx, jsval v, int32_t *ip);
 
 #ifdef __cplusplus
 namespace js {
-/* DO NOT CALL THIS.  Use JS::ToInt16. */
-extern JS_PUBLIC_API(bool)
-ToUint16Slow(JSContext *cx, const JS::Value &v, uint16_t *out);
-
-/* DO NOT CALL THIS.  Use JS::ToInt32. */
+/*
+ * DO NOT CALL THIS.  Use JS::ToInt32
+ */
 extern JS_PUBLIC_API(bool)
 ToInt32Slow(JSContext *cx, const JS::Value &v, int32_t *out);
-
-/* DO NOT CALL THIS.  Use JS::ToUint32. */
-extern JS_PUBLIC_API(bool)
-ToUint32Slow(JSContext *cx, const JS::Value &v, uint32_t *out);
 } /* namespace js */
 
 namespace JS {
 
 JS_ALWAYS_INLINE bool
-ToUint16(JSContext *cx, const js::Value &v, uint16_t *out)
-{
-    AssertArgumentsAreSane(cx, v);
-    {
-        SkipRoot skip(cx, &v);
-        MaybeCheckStackRoots(cx);
-    }
-
-    if (v.isInt32()) {
-        *out = uint16_t(v.toInt32());
-        return true;
-    }
-    return js::ToUint16Slow(cx, v, out);
-}
-
-JS_ALWAYS_INLINE bool
 ToInt32(JSContext *cx, const js::Value &v, int32_t *out)
 {
     AssertArgumentsAreSane(cx, v);
-    {
-        JS::SkipRoot root(cx, &v);
-        MaybeCheckStackRoots(cx);
-    }
-
     if (v.isInt32()) {
         *out = v.toInt32();
         return true;
     }
     return js::ToInt32Slow(cx, v, out);
-}
-
-JS_ALWAYS_INLINE bool
-ToUint32(JSContext *cx, const js::Value &v, uint32_t *out)
-{
-    AssertArgumentsAreSane(cx, v);
-    {
-        JS::SkipRoot root(cx, &v);
-        MaybeCheckStackRoots(cx);
-    }
-
-    if (v.isInt32()) {
-        *out = uint32_t(v.toInt32());
-        return true;
-    }
-    return js::ToUint32Slow(cx, v, out);
 }
 
 } /* namespace JS */
@@ -3199,7 +3133,7 @@ JS_SetWrapObjectCallbacks(JSRuntime *rt,
                           JSPreWrapCallback precallback);
 
 extern JS_PUBLIC_API(JSCrossCompartmentCall *)
-JS_EnterCrossCompartmentCall(JSContext *cx, JSRawObject target);
+JS_EnterCrossCompartmentCall(JSContext *cx, JSObject *target);
 
 extern JS_PUBLIC_API(void)
 JS_LeaveCrossCompartmentCall(JSCrossCompartmentCall *call);
@@ -3271,9 +3205,9 @@ class JS_PUBLIC_API(JSAutoEnterCompartment)
   public:
     JSAutoEnterCompartment() : state(STATE_UNENTERED) {}
 
-    bool enter(JSContext *cx, JSRawObject target);
+    bool enter(JSContext *cx, JSObject *target);
 
-    void enterAndIgnoreErrors(JSContext *cx, JSRawObject target);
+    void enterAndIgnoreErrors(JSContext *cx, JSObject *target);
 
     bool entered() const { return state != STATE_UNENTERED; }
 
@@ -3305,7 +3239,7 @@ extern JS_PUBLIC_API(JSObject *)
 JS_GetGlobalObject(JSContext *cx);
 
 extern JS_PUBLIC_API(void)
-JS_SetGlobalObject(JSContext *cx, JSRawObject obj);
+JS_SetGlobalObject(JSContext *cx, JSObject *obj);
 
 /*
  * Initialize standard JS class constructors, prototypes, and any top-level
@@ -3347,7 +3281,8 @@ JS_EnumerateResolvedStandardClasses(JSContext *cx, JSObject *obj,
                                     JSIdArray *ida);
 
 extern JS_PUBLIC_API(JSBool)
-JS_GetClassObject(JSContext *cx, JSRawObject obj, JSProtoKey key, JSObject **objp);
+JS_GetClassObject(JSContext *cx, JSObject *obj, JSProtoKey key,
+                  JSObject **objp);
 
 extern JS_PUBLIC_API(JSBool)
 JS_GetClassPrototype(JSContext *cx, JSProtoKey key, JSObject **objp);
@@ -3360,17 +3295,17 @@ JS_IdentifyClassPrototype(JSContext *cx, JSObject *obj);
  * which |forObj| was created.
  */
 extern JS_PUBLIC_API(JSObject *)
-JS_GetFunctionPrototype(JSContext *cx, JSRawObject forObj);
+JS_GetFunctionPrototype(JSContext *cx, JSObject *forObj);
 
 /*
  * Returns the original value of |Object.prototype| from the global object in
  * which |forObj| was created.
  */
 extern JS_PUBLIC_API(JSObject *)
-JS_GetObjectPrototype(JSContext *cx, JSRawObject forObj);
+JS_GetObjectPrototype(JSContext *cx, JSObject *forObj);
 
 extern JS_PUBLIC_API(JSObject *)
-JS_GetGlobalForObject(JSContext *cx, JSRawObject obj);
+JS_GetGlobalForObject(JSContext *cx, JSObject *obj);
 
 /*
  * May return NULL, if |c| never had a global (e.g. the atoms compartment), or
@@ -3425,7 +3360,7 @@ typedef struct JSCTypesCallbacks JSCTypesCallbacks;
  * to call this function again.
  */
 extern JS_PUBLIC_API(void)
-JS_SetCTypesCallbacks(JSRawObject ctypesObj, JSCTypesCallbacks *callbacks);
+JS_SetCTypesCallbacks(JSObject *ctypesObj, JSCTypesCallbacks *callbacks);
 #endif
 
 typedef JSBool
@@ -3534,6 +3469,8 @@ JS_updateMallocCounter(JSContext *cx, size_t nbytes);
 extern JS_PUBLIC_API(char *)
 JS_strdup(JSContext *cx, const char *s);
 
+extern JS_PUBLIC_API(JSBool)
+JS_NewNumberValue(JSContext *cx, double d, jsval *rval);
 
 /*
  * A GC root is a pointer to a jsval, JSObject * or JSString * that itself
@@ -3819,7 +3756,7 @@ JS_CallTracer(JSTracer *trc, void *thing, JSGCTraceKind kind);
 #ifdef JS_GC_ZEAL
 # define JS_SET_TRACING_LOCATION(trc, location)                               \
     JS_BEGIN_MACRO                                                            \
-        if (!(trc)->realLocation || !(location))                              \
+        if ((trc)->realLocation == NULL || (location) == NULL)                \
             (trc)->realLocation = (location);                                 \
     JS_END_MACRO
 #else
@@ -4150,7 +4087,7 @@ struct JSClass {
  * with the following flags. Failure to use JSCLASS_GLOBAL_FLAGS was
  * prevously allowed, but is now an ES5 violation and thus unsupported.
  */
-#define JSCLASS_GLOBAL_SLOT_COUNT      (JSProto_LIMIT * 3 + 24)
+#define JSCLASS_GLOBAL_SLOT_COUNT      (JSProto_LIMIT * 3 + 23)
 #define JSCLASS_GLOBAL_FLAGS_WITH_SLOTS(n)                                    \
     (JSCLASS_IS_GLOBAL | JSCLASS_HAS_RESERVED_SLOTS(JSCLASS_GLOBAL_SLOT_COUNT + (n)))
 #define JSCLASS_GLOBAL_FLAGS                                                  \
@@ -4257,10 +4194,10 @@ extern JS_PUBLIC_API(JSBool)
 JS_DefaultValue(JSContext *cx, JSObject *obj, JSType hint, jsval *vp);
 
 extern JS_PUBLIC_API(JSBool)
-JS_PropertyStub(JSContext *cx, JSHandleObject obj, JSHandleId id, JSMutableHandleValue vp);
+JS_PropertyStub(JSContext *cx, JSHandleObject obj, JSHandleId id, jsval *vp);
 
 extern JS_PUBLIC_API(JSBool)
-JS_StrictPropertyStub(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool strict, JSMutableHandleValue vp);
+JS_StrictPropertyStub(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool strict, jsval *vp);
 
 extern JS_PUBLIC_API(JSBool)
 JS_EnumerateStub(JSContext *cx, JSHandleObject obj);
@@ -4269,7 +4206,7 @@ extern JS_PUBLIC_API(JSBool)
 JS_ResolveStub(JSContext *cx, JSHandleObject obj, JSHandleId id);
 
 extern JS_PUBLIC_API(JSBool)
-JS_ConvertStub(JSContext *cx, JSHandleObject obj, JSType type, JSMutableHandleValue vp);
+JS_ConvertStub(JSContext *cx, JSHandleObject obj, JSType type, jsval *vp);
 
 struct JSConstDoubleSpec {
     double          dval;
@@ -4328,7 +4265,7 @@ extern JS_PUBLIC_API(JSBool)
 JS_LinkConstructorAndPrototype(JSContext *cx, JSObject *ctor, JSObject *proto);
 
 extern JS_PUBLIC_API(JSClass *)
-JS_GetClass(JSRawObject obj);
+JS_GetClass(JSObject *obj);
 
 extern JS_PUBLIC_API(JSBool)
 JS_InstanceOf(JSContext *cx, JSObject *obj, JSClass *clasp, jsval *argv);
@@ -4337,23 +4274,23 @@ extern JS_PUBLIC_API(JSBool)
 JS_HasInstance(JSContext *cx, JSObject *obj, jsval v, JSBool *bp);
 
 extern JS_PUBLIC_API(void *)
-JS_GetPrivate(JSRawObject obj);
+JS_GetPrivate(JSObject *obj);
 
 extern JS_PUBLIC_API(void)
-JS_SetPrivate(JSRawObject obj, void *data);
+JS_SetPrivate(JSObject *obj, void *data);
 
 extern JS_PUBLIC_API(void *)
 JS_GetInstancePrivate(JSContext *cx, JSObject *obj, JSClass *clasp,
                       jsval *argv);
 
 extern JS_PUBLIC_API(JSObject *)
-JS_GetPrototype(JSRawObject obj);
+JS_GetPrototype(JSObject *obj);
 
 extern JS_PUBLIC_API(JSBool)
 JS_SetPrototype(JSContext *cx, JSObject *obj, JSObject *proto);
 
 extern JS_PUBLIC_API(JSObject *)
-JS_GetParent(JSRawObject obj);
+JS_GetParent(JSObject *obj);
 
 extern JS_PUBLIC_API(JSBool)
 JS_SetParent(JSContext *cx, JSObject *obj, JSObject *parent);
@@ -4367,7 +4304,7 @@ JS_GetConstructor(JSContext *cx, JSObject *proto);
  * and true with *idp containing the unique id on success.
  */
 extern JS_PUBLIC_API(JSBool)
-JS_GetObjectId(JSContext *cx, JSRawObject obj, jsid *idp);
+JS_GetObjectId(JSContext *cx, JSObject *obj, jsid *idp);
 
 extern JS_PUBLIC_API(JSObject *)
 JS_NewGlobalObject(JSContext *cx, JSClass *clasp, JSPrincipals *principals);
@@ -4377,13 +4314,13 @@ JS_NewObject(JSContext *cx, JSClass *clasp, JSObject *proto, JSObject *parent);
 
 /* Queries the [[Extensible]] property of the object. */
 extern JS_PUBLIC_API(JSBool)
-JS_IsExtensible(JSRawObject obj);
+JS_IsExtensible(JSObject *obj);
 
 extern JS_PUBLIC_API(JSBool)
-JS_IsNative(JSRawObject obj);
+JS_IsNative(JSObject *obj);
 
 extern JS_PUBLIC_API(JSRuntime *)
-JS_GetObjectRuntime(JSRawObject obj);
+JS_GetObjectRuntime(JSObject *obj);
 
 /*
  * Unlike JS_NewObject, JS_NewObjectWithGivenProto does not compute a default
@@ -4730,10 +4667,10 @@ JS_CheckAccess(JSContext *cx, JSObject *obj, jsid id, JSAccessMode mode,
                jsval *vp, unsigned *attrsp);
 
 extern JS_PUBLIC_API(jsval)
-JS_GetReservedSlot(JSRawObject obj, uint32_t index);
+JS_GetReservedSlot(JSObject *obj, uint32_t index);
 
 extern JS_PUBLIC_API(void)
-JS_SetReservedSlot(JSRawObject obj, uint32_t index, jsval v);
+JS_SetReservedSlot(JSObject *obj, uint32_t index, jsval v);
 
 /************************************************************************/
 
@@ -4854,13 +4791,13 @@ JS_GetFunctionArity(JSFunction *fun);
  * created instances using that constructor that might be passed in as obj).
  */
 extern JS_PUBLIC_API(JSBool)
-JS_ObjectIsFunction(JSContext *cx, JSRawObject obj);
+JS_ObjectIsFunction(JSContext *cx, JSObject *obj);
 
 extern JS_PUBLIC_API(JSBool)
-JS_ObjectIsCallable(JSContext *cx, JSRawObject obj);
+JS_ObjectIsCallable(JSContext *cx, JSObject *obj);
 
 extern JS_PUBLIC_API(JSBool)
-JS_IsNativeFunction(JSRawObject funobj, JSNative call);
+JS_IsNativeFunction(JSObject *funobj, JSNative call);
 
 /*
  * Bind the given callable to use the given object as "this".
@@ -4868,7 +4805,7 @@ JS_IsNativeFunction(JSRawObject funobj, JSNative call);
  * If |callable| is not callable, will throw and return NULL.
  */
 extern JS_PUBLIC_API(JSObject*)
-JS_BindCallable(JSContext *cx, JSObject *callable, JSRawObject newThis);
+JS_BindCallable(JSContext *cx, JSObject *callable, JSObject *newThis);
 
 extern JS_PUBLIC_API(JSBool)
 JS_DefineFunctions(JSContext *cx, JSObject *obj, JSFunctionSpec *fs);
@@ -4891,7 +4828,7 @@ JS_DefineFunctionById(JSContext *cx, JSObject *obj, jsid id, JSNative call,
  * fail if funobj was lexically nested inside some other function.
  */
 extern JS_PUBLIC_API(JSObject *)
-JS_CloneFunctionObject(JSContext *cx, JSObject *funobj, JSRawObject parent);
+JS_CloneFunctionObject(JSContext *cx, JSObject *funobj, JSObject *parent);
 
 /*
  * Given a buffer, return JS_FALSE if the buffer might become a valid
@@ -5012,7 +4949,7 @@ JS_END_EXTERN_C
 namespace JS {
 
 /* Options for JavaScript compilation. */
-struct JS_PUBLIC_API(CompileOptions) {
+struct CompileOptions {
     JSPrincipals *principals;
     JSPrincipals *originPrincipals;
     JSVersion version;
@@ -5022,7 +4959,6 @@ struct JS_PUBLIC_API(CompileOptions) {
     unsigned lineno;
     bool compileAndGo;
     bool noScriptRval;
-    bool allowIntrinsicsCalls;
 
     CompileOptions(JSContext *cx);
     CompileOptions &setPrincipals(JSPrincipals *p) { principals = p; return *this; }
@@ -5034,7 +4970,6 @@ struct JS_PUBLIC_API(CompileOptions) {
     }
     CompileOptions &setCompileAndGo(bool cng) { compileAndGo = cng; return *this; }
     CompileOptions &setNoScriptRval(bool nsr) { noScriptRval = nsr; return *this; }
-    CompileOptions &setAllowIntrinsicsCalls(bool aic) { allowIntrinsicsCalls = aic; return *this; }
 };
 
 extern JS_PUBLIC_API(JSScript *)
@@ -5198,10 +5133,6 @@ extern JS_PUBLIC_API(bool)
 Evaluate(JSContext *cx, JSHandleObject obj, CompileOptions options,
          const char *bytes, size_t length, jsval *rval);
 
-extern JS_PUBLIC_API(bool)
-Evaluate(JSContext *cx, JSHandleObject obj, CompileOptions options,
-         const char *filename, jsval *rval);
-
 } /* namespace JS */
 
 JS_BEGIN_EXTERN_C
@@ -5330,9 +5261,6 @@ JS_NewStringCopyZ(JSContext *cx, const char *s);
 
 extern JS_PUBLIC_API(JSString *)
 JS_InternJSString(JSContext *cx, JSString *str);
-
-extern JS_PUBLIC_API(JSString *)
-JS_InternStringN(JSContext *cx, const char *s, size_t length);
 
 extern JS_PUBLIC_API(JSString *)
 JS_InternString(JSContext *cx, const char *s);
@@ -5947,7 +5875,7 @@ JS_NewDateObjectMsec(JSContext *cx, double msec);
  * Infallible predicate to test whether obj is a date object.
  */
 extern JS_PUBLIC_API(JSBool)
-JS_ObjectIsDate(JSContext *cx, JSRawObject obj);
+JS_ObjectIsDate(JSContext *cx, JSObject *obj);
 
 /*
  * Clears the cache of calculated local time from each Date object.
@@ -6187,7 +6115,7 @@ extern JS_PUBLIC_API(void *)
 JS_EncodeScript(JSContext *cx, JSScript *script, uint32_t *lengthp);
 
 extern JS_PUBLIC_API(void *)
-JS_EncodeInterpretedFunction(JSContext *cx, JSRawObject funobj, uint32_t *lengthp);
+JS_EncodeInterpretedFunction(JSContext *cx, JSObject *funobj, uint32_t *lengthp);
 
 extern JS_PUBLIC_API(JSScript *)
 JS_DecodeScript(JSContext *cx, const void *data, uint32_t length,

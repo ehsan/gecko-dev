@@ -125,7 +125,6 @@ AppendFunction(nsCSSKeyword aTransformFunction)
       nargs = 3;
       break;
     case eCSSKeyword_translate:
-    case eCSSKeyword_skew:
     case eCSSKeyword_scale:
       nargs = 2;
       break;
@@ -376,7 +375,7 @@ GetURIAsUtf16StringBuffer(nsIURI* aUri)
 {
   nsCAutoString utf8String;
   nsresult rv = aUri->GetSpec(utf8String);
-  NS_ENSURE_SUCCESS(rv, nullptr);
+  NS_ENSURE_SUCCESS(rv, nsnull);
 
   return nsCSSValue::BufferFromString(NS_ConvertUTF8toUTF16(utf8String));
 }
@@ -1203,59 +1202,6 @@ nsStyleAnimation::AppendTransformFunction(nsCSSKeyword aTransformFunction,
  *     Thus, after step 5, C = -sin(φ), D = cos(φ), and the XY shear is tan(φ).
  *     Thus, in step 6, A * D - B * C = cos²(φ) + sin²(φ) = 1.
  *     In step 7, the rotation is thus φ.
- *
- *   skew(θ, φ), which is matrix(1, tan(φ), tan(θ), 1, 0, 0), which decomposes
- *   to 'rotate(φ) skewX(θ + φ) scale(sec(φ), cos(φ))' since (ignoring
- *   the alternate sign possibilities that would get fixed in step 6):
- *     In step 3, the X scale factor is sqrt(1+tan²(φ)) = sqrt(sec²(φ)) = sec(φ).
- *     Thus, after step 3, A = 1/sec(φ) = cos(φ) and B = tan(φ) / sec(φ) = sin(φ).
- *     In step 4, the XY shear is cos(φ)tan(θ) + sin(φ).
- *     Thus, after step 4,
- *     C = tan(θ) - cos(φ)(cos(φ)tan(θ) + sin(φ)) = tan(θ)sin²(φ) - cos(φ)sin(φ)
- *     D = 1 - sin(φ)(cos(φ)tan(θ) + sin(φ)) = cos²(φ) - sin(φ)cos(φ)tan(θ)
- *     Thus, in step 5, the Y scale is sqrt(C² + D²) =
- *     sqrt(tan²(θ)(sin⁴(φ) + sin²(φ)cos²(φ)) -
- *          2 tan(θ)(sin³(φ)cos(φ) + sin(φ)cos³(φ)) +
- *          (sin²(φ)cos²(φ) + cos⁴(φ))) =
- *     sqrt(tan²(θ)sin²(φ) - 2 tan(θ)sin(φ)cos(φ) + cos²(φ)) =
- *     cos(φ) - tan(θ)sin(φ) (taking the negative of the obvious solution so
- *     we avoid flipping in step 6).
- *     After step 5, C = -sin(φ) and D = cos(φ), and the XY shear is
- *     (cos(φ)tan(θ) + sin(φ)) / (cos(φ) - tan(θ)sin(φ)) =
- *     (dividing both numerator and denominator by cos(φ))
- *     (tan(θ) + tan(φ)) / (1 - tan(θ)tan(φ)) = tan(θ + φ).
- *     (See http://en.wikipedia.org/wiki/List_of_trigonometric_identities .)
- *     Thus, in step 6, A * D - B * C = cos²(φ) + sin²(φ) = 1.
- *     In step 7, the rotation is thus φ.
- *
- *     To check this result, we can multiply things back together:
- *
- *     [ cos(φ) -sin(φ) ] [ 1 tan(θ + φ) ] [ sec(φ)    0   ]
- *     [ sin(φ)  cos(φ) ] [ 0      1     ] [   0    cos(φ) ]
- *
- *     [ cos(φ)      cos(φ)tan(θ + φ) - sin(φ) ] [ sec(φ)    0   ]
- *     [ sin(φ)      sin(φ)tan(θ + φ) + cos(φ) ] [   0    cos(φ) ]
- *
- *     but since tan(θ + φ) = (tan(θ) + tan(φ)) / (1 - tan(θ)tan(φ)),
- *     cos(φ)tan(θ + φ) - sin(φ)
- *      = cos(φ)(tan(θ) + tan(φ)) - sin(φ) + sin(φ)tan(θ)tan(φ)
- *      = cos(φ)tan(θ) + sin(φ) - sin(φ) + sin(φ)tan(θ)tan(φ)
- *      = cos(φ)tan(θ) + sin(φ)tan(θ)tan(φ)
- *      = tan(θ) (cos(φ) + sin(φ)tan(φ))
- *      = tan(θ) sec(φ) (cos²(φ) + sin²(φ))
- *      = tan(θ) sec(φ)
- *     and
- *     sin(φ)tan(θ + φ) + cos(φ)
- *      = sin(φ)(tan(θ) + tan(φ)) + cos(φ) - cos(φ)tan(θ)tan(φ)
- *      = tan(θ) (sin(φ) - sin(φ)) + sin(φ)tan(φ) + cos(φ)
- *      = sec(φ) (sin²(φ) + cos²(φ))
- *      = sec(φ)
- *     so the above is:
- *     [ cos(φ)  tan(θ) sec(φ) ] [ sec(φ)    0   ]
- *     [ sin(φ)     sec(φ)     ] [   0    cos(φ) ]
- *
- *     [    1   tan(θ) ]
- *     [ tan(φ)    1   ]
  */
 
 /*
@@ -1590,27 +1536,6 @@ AddTransformLists(const nsCSSValueList* aList1, double aCoeff1,
       // skews with infinite tangents, and behavior changes pretty
       // drastically when crossing such skews (since the direction of
       // animation flips), so interop is probably more important here.
-      case eCSSKeyword_skew: {
-        NS_ABORT_IF_FALSE(a1->Count() == 2 || a1->Count() == 3,
-                          "unexpected count");
-        NS_ABORT_IF_FALSE(a2->Count() == 2 || a2->Count() == 3,
-                          "unexpected count");
-
-        nsCSSValue zero(0.0f, eCSSUnit_Radian);
-        // Add Y component of skew.
-        AddCSSValueAngle(a1->Count() == 3 ? a1->Item(2) : zero,
-                         aCoeff1,
-                         a2->Count() == 3 ? a2->Item(2) : zero,
-                         aCoeff2,
-                         arr->Item(2));
-
-        // Add X component of skew (which can be merged with case below
-        // in non-DEBUG).
-        AddCSSValueAngle(a1->Item(1), aCoeff1, a2->Item(1), aCoeff2,
-                         arr->Item(1));
-
-        break;
-      }
       case eCSSKeyword_skewx:
       case eCSSKeyword_skewy:
       case eCSSKeyword_rotate:
@@ -2045,8 +1970,8 @@ nsStyleAnimation::AddWeighted(nsCSSProperty aProperty,
 
       // We want to avoid the matrix decomposition when we can, since
       // avoiding it can produce better results both for compound
-      // transforms and for skew and skewY (see below).  We can do this
-      // in two cases:
+      // transforms and for skewY (see below).  We can do this in two
+      // cases:
       //   (1) if one of the transforms is 'none'
       //   (2) if the lists have the same length and the transform
       //       functions match
@@ -2234,10 +2159,10 @@ BuildStyleRule(nsCSSProperty aProperty,
       // check whether property parsed without CSS parsing errors
       !declaration->HasNonImportantValueFor(propertyToCheck)) {
     NS_WARNING("failure in BuildStyleRule");
-    return nullptr;
+    return nsnull;
   }
 
-  nsRefPtr<css::StyleRule> rule = new css::StyleRule(nullptr, declaration.forget());
+  nsRefPtr<css::StyleRule> rule = new css::StyleRule(nsnull, declaration.forget());
   return rule.forget();
 }
 
@@ -2248,9 +2173,9 @@ LookupStyleContext(dom::Element* aElement)
   nsIDocument* doc = aElement->GetCurrentDoc();
   nsIPresShell* shell = doc->GetShell();
   if (!shell) {
-    return nullptr;
+    return nsnull;
   }
-  return nsComputedDOMStyle::GetStyleContextForElement(aElement, nullptr, shell);
+  return nsComputedDOMStyle::GetStyleContextForElement(aElement, nsnull, shell);
 }
 
 bool
@@ -2759,7 +2684,7 @@ nsStyleAnimation::ExtractComputedValue(nsCSSProperty aProperty,
 
         case eCSSProperty_stroke_dasharray: {
           const nsStyleSVG *svg = static_cast<const nsStyleSVG*>(styleStruct);
-          NS_ABORT_IF_FALSE((svg->mStrokeDasharray != nullptr) ==
+          NS_ABORT_IF_FALSE((svg->mStrokeDasharray != nsnull) ==
                             (svg->mStrokeDasharrayLength != 0),
                             "pointer/length mismatch");
           nsAutoPtr<nsCSSValueList> result;
@@ -3145,7 +3070,7 @@ nsStyleAnimation::ExtractComputedValue(nsCSSProperty aProperty,
         *static_cast<const nsRefPtr<nsCSSShadowArray>*>(
           StyleDataAtOffset(styleStruct, ssOffset));
       if (!shadowArray) {
-        aComputedValue.SetAndAdoptCSSValueListValue(nullptr, eUnit_Shadow);
+        aComputedValue.SetAndAdoptCSSValueListValue(nsnull, eUnit_Shadow);
         return true;
       }
       nsAutoPtr<nsCSSValueList> result;
@@ -3287,7 +3212,7 @@ nsStyleAnimation::Value::operator=(const Value& aOther)
           mUnit = eUnit_Null;
         }
       } else {
-        mValue.mCSSValueList = nullptr;
+        mValue.mCSSValueList = nsnull;
       }
       break;
     case eUnit_CSSValuePairList:
@@ -3389,7 +3314,7 @@ nsStyleAnimation::Value::SetAndAdoptCSSValueValue(nsCSSValue *aValue,
 {
   FreeValue();
   NS_ABORT_IF_FALSE(IsCSSValueUnit(aUnit), "bad unit");
-  NS_ABORT_IF_FALSE(aValue != nullptr, "values may not be null");
+  NS_ABORT_IF_FALSE(aValue != nsnull, "values may not be null");
   mUnit = aUnit;
   mValue.mCSSValue = aValue; // take ownership
 }
@@ -3400,7 +3325,7 @@ nsStyleAnimation::Value::SetAndAdoptCSSValuePairValue(
 {
   FreeValue();
   NS_ABORT_IF_FALSE(IsCSSValuePairUnit(aUnit), "bad unit");
-  NS_ABORT_IF_FALSE(aValuePair != nullptr, "value pairs may not be null");
+  NS_ABORT_IF_FALSE(aValuePair != nsnull, "value pairs may not be null");
   mUnit = aUnit;
   mValue.mCSSValuePair = aValuePair; // take ownership
 }
@@ -3411,7 +3336,7 @@ nsStyleAnimation::Value::SetAndAdoptCSSValueTripletValue(
 {
     FreeValue();
     NS_ABORT_IF_FALSE(IsCSSValueTripletUnit(aUnit), "bad unit");
-    NS_ABORT_IF_FALSE(aValueTriplet != nullptr, "value pairs may not be null");
+    NS_ABORT_IF_FALSE(aValueTriplet != nsnull, "value pairs may not be null");
     mUnit = aUnit;
     mValue.mCSSValueTriplet = aValueTriplet; // take ownership
 }
@@ -3421,7 +3346,7 @@ nsStyleAnimation::Value::SetAndAdoptCSSRectValue(nsCSSRect *aRect, Unit aUnit)
 {
   FreeValue();
   NS_ABORT_IF_FALSE(IsCSSRectUnit(aUnit), "bad unit");
-  NS_ABORT_IF_FALSE(aRect != nullptr, "value pairs may not be null");
+  NS_ABORT_IF_FALSE(aRect != nsnull, "value pairs may not be null");
   mUnit = aUnit;
   mValue.mCSSRect = aRect; // take ownership
 }
@@ -3432,7 +3357,7 @@ nsStyleAnimation::Value::SetAndAdoptCSSValueListValue(
 {
   FreeValue();
   NS_ABORT_IF_FALSE(IsCSSValueListUnit(aUnit), "bad unit");
-  NS_ABORT_IF_FALSE(aUnit != eUnit_Dasharray || aValueList != nullptr,
+  NS_ABORT_IF_FALSE(aUnit != eUnit_Dasharray || aValueList != nsnull,
                     "dasharrays may not be null");
   mUnit = aUnit;
   mValue.mCSSValueList = aValueList; // take ownership

@@ -28,7 +28,7 @@ using namespace mozilla::a11y;
  * see http://lxr.mozilla.org/seamonkey/source/accessible/accessible-docs.html
  */
 
-ApplicationAccessible* nsAccessNode::gApplicationAccessible = nullptr;
+ApplicationAccessible* nsAccessNode::gApplicationAccessible = nsnull;
 
 /*
  * Class nsAccessNode
@@ -78,8 +78,8 @@ void nsAccessNode::LastRelease()
 void
 nsAccessNode::Shutdown()
 {
-  mContent = nullptr;
-  mDoc = nullptr;
+  mContent = nsnull;
+  mDoc = nsnull;
 }
 
 ApplicationAccessible*
@@ -96,7 +96,12 @@ nsAccessNode::GetApplicationAccessible()
     // Addref on create. Will Release in ShutdownXPAccessibility()
     NS_ADDREF(gApplicationAccessible);
 
-    gApplicationAccessible->Init();
+    nsresult rv = gApplicationAccessible->Init();
+    if (NS_FAILED(rv)) {
+      gApplicationAccessible->Shutdown();
+      NS_RELEASE(gApplicationAccessible);
+      return nsnull;
+    }
   }
 
   return gApplicationAccessible;
@@ -124,35 +129,23 @@ nsAccessNode::RootAccessible() const
     nsCoreUtils::GetDocShellTreeItemFor(mContent);
   NS_ASSERTION(docShellTreeItem, "No docshell tree item for mContent");
   if (!docShellTreeItem) {
-    return nullptr;
+    return nsnull;
   }
   nsCOMPtr<nsIDocShellTreeItem> root;
   docShellTreeItem->GetRootTreeItem(getter_AddRefs(root));
   NS_ASSERTION(root, "No root content tree item");
   if (!root) {
-    return nullptr;
+    return nsnull;
   }
 
   DocAccessible* docAcc = nsAccUtils::GetDocAccessibleFor(root);
-  return docAcc ? docAcc->AsRoot() : nullptr;
+  return docAcc ? docAcc->AsRoot() : nsnull;
 }
 
 nsIFrame*
 nsAccessNode::GetFrame() const
 {
-  return mContent ? mContent->GetPrimaryFrame() : nullptr;
-}
-
-nsINode*
-nsAccessNode::GetNode() const
-{
-  return mContent;
-}
-
-nsIDocument*
-nsAccessNode::GetDocumentNode() const
-{
-  return mContent ? mContent->OwnerDoc() : nullptr;
+  return mContent ? mContent->GetPrimaryFrame() : nsnull;
 }
 
 bool
@@ -169,7 +162,7 @@ nsAccessNode::Language(nsAString& aLanguage)
   if (!mDoc)
     return;
 
-  nsCoreUtils::GetLanguageFor(mContent, nullptr, aLanguage);
+  nsCoreUtils::GetLanguageFor(mContent, nsnull, aLanguage);
   if (aLanguage.IsEmpty()) { // Nothing found, so use document's language
     mContent->OwnerDoc()->GetHeaderData(nsGkAtoms::headerContentLanguage,
                                         aLanguage);

@@ -838,7 +838,7 @@ nsHTMLEditorLog::StopLogging()
   if (mFileStream)
   {
     mFileStream->Close();
-    mFileStream = nullptr;
+    mFileStream = nsnull;
   }
 
   return NS_OK;

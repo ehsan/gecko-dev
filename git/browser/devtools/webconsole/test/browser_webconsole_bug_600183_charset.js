@@ -35,7 +35,7 @@ function test()
     if (initialLoad) {
       openConsole(null, function(hud) {
 
-        hud.ui.saveRequestAndResponseBodies = true;
+        hud.saveRequestAndResponseBodies = true;
         HUDService.lastFinishedRequestCallback = performTest;
 
         content.location = TEST_URI;

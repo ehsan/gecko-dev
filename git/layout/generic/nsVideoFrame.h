@@ -16,13 +16,8 @@
 #include "nsITimer.h"
 #include "nsTArray.h"
 #include "nsIAnonymousContentCreator.h"
-
-namespace mozilla {
-namespace layers {
-class Layer;
-class LayerManager;
-}
-}
+#include "Layers.h"
+#include "ImageLayers.h"
 
 class nsPresContext;
 class nsDisplayItem;
@@ -113,10 +108,10 @@ protected:
   virtual ~nsVideoFrame();
 
   nsMargin mBorderPadding;
-
+  
   // Anonymous child which is bound via XBL to the video controls.
   nsCOMPtr<nsIContent> mVideoControls;
-
+  
   // Anonymous child which is the image element of the poster frame.
   nsCOMPtr<nsIContent> mPosterImage;
 };

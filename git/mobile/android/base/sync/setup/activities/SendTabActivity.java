@@ -117,16 +117,7 @@ public class SendTabActivity extends Activity {
     Bundle extras = this.getIntent().getExtras();
     final String uri = extras.getString(Intent.EXTRA_TEXT);
     final String title = extras.getString(Intent.EXTRA_SUBJECT);
-
-    if (uri == null) {
-      Logger.warn(LOG_TAG, "uri was null; aborting without sending tab.");
-      notifyAndFinish(false);
-      return;
-    }
-
-    if (title == null) {
-      Logger.warn(LOG_TAG, "title was null; ignoring and sending tab anyway.");
-    }
+    final CommandProcessor processor = CommandProcessor.getProcessor();
 
     final String clientGUID = getAccountGUID();
     final List<String> guids = arrayAdapter.getCheckedGUIDs();
@@ -135,7 +126,7 @@ public class SendTabActivity extends Activity {
       // Should never happen.
       Logger.warn(LOG_TAG, "clientGUID? " + (clientGUID == null) + " or guids? " + (guids == null) +
           " was null; aborting without sending tab.");
-      notifyAndFinish(false);
+      finish();
       return;
     }
 
@@ -143,8 +134,6 @@ public class SendTabActivity extends Activity {
     new Thread() {
       @Override
       public void run() {
-        final CommandProcessor processor = CommandProcessor.getProcessor();
-
         for (String guid : guids) {
           processor.sendURIToClientForDisplay(uri, guid, title, clientGUID, getApplicationContext());
         }
@@ -154,28 +143,19 @@ public class SendTabActivity extends Activity {
       }
     }.start();
 
-    notifyAndFinish(true);
+    notifyAndFinish();
   }
 
   /**
-   * Notify the user about sent tabs status and then finish the activity.
+   * Notify the user that tabs were sent and then finish the activity.
    * <p>
-   * "Success" is a bit of a misnomer: we wrote "displayURI" commands to the local
+   * This is a bit of a misnomer: we wrote "displayURI" commands to the local
    * command database, and they will be sent on next sync. There is no way to
    * verify that the commands were successfully received by the intended remote
    * client, so we lie and say they were sent.
-   *
-   * @param success true if tab was sent successfully; false otherwise.
    */
-  protected void notifyAndFinish(final boolean success) {
-    int textId;
-    if (success) {
-      textId = R.string.sync_text_tab_sent;
-    } else {
-      textId = R.string.sync_text_tab_not_sent;
-    }
-
-    Toast.makeText(this, textId, Toast.LENGTH_LONG).show();
+  private void notifyAndFinish() {
+    Toast.makeText(this, R.string.sync_text_tab_sent, Toast.LENGTH_LONG).show();
     finish();
   }
 

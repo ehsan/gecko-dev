@@ -32,7 +32,7 @@ public:
                       PRInt32 aNameSpaceID,
                       nsIAtom* aAttrName) :
     nsTextNode(aNodeInfo),
-    mGrandparent(nullptr),
+    mGrandparent(nsnull),
     mNameSpaceID(aNameSpaceID),
     mAttrName(aAttrName)
   {
@@ -92,7 +92,7 @@ NS_NewTextNode(nsIContent** aInstancePtrResult,
 {
   NS_PRECONDITION(aNodeInfoManager, "Missing nodeInfoManager");
 
-  *aInstancePtrResult = nullptr;
+  *aInstancePtrResult = nsnull;
 
   nsCOMPtr<nsINodeInfo> ni = aNodeInfoManager->GetTextNodeInfo();
   if (!ni) {
@@ -213,7 +213,7 @@ NS_NewAttributeContent(nsNodeInfoManager *aNodeInfoManager,
   NS_PRECONDITION(aAttrName, "Must have an attr name");
   NS_PRECONDITION(aNameSpaceID != kNameSpaceID_Unknown, "Must know namespace");
   
-  *aResult = nullptr;
+  *aResult = nsnull;
 
   nsCOMPtr<nsINodeInfo> ni = aNodeInfoManager->GetTextNodeInfo();
   if (!ni) {
@@ -267,7 +267,7 @@ nsAttributeTextNode::UnbindFromTree(bool aDeep, bool aNullParent)
     // mutation observer anyway since we only need it while we're
     // in the document.
     mGrandparent->RemoveMutationObserver(this);
-    mGrandparent = nullptr;
+    mGrandparent = nsnull;
   }
   nsTextNode::UnbindFromTree(aDeep, aNullParent);
 }
@@ -294,7 +294,7 @@ void
 nsAttributeTextNode::NodeWillBeDestroyed(const nsINode* aNode)
 {
   NS_ASSERTION(aNode == static_cast<nsINode*>(mGrandparent), "Wrong node!");
-  mGrandparent = nullptr;
+  mGrandparent = nsnull;
 }
 
 void

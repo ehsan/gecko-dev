@@ -1068,8 +1068,8 @@ public: // ITfDocumentMgr
       NS_ENSURE_TRUE(mContextBase, E_FAIL);
       mStore->UnadviseSink(static_cast<ITextStoreACPSink*>(mContextBase.get()));
       mStore = NULL;
-      mContextBase = nullptr;
-      mContextTop = nullptr;
+      mContextBase = nsnull;
+      mContextTop = nsnull;
       return S_OK;
     }
     if (dwFlags == 0) {
@@ -1077,7 +1077,7 @@ public: // ITfDocumentMgr
         NS_NOTREACHED("TSFDocumentMgrImpl::Pop there is non-base context");
         return E_FAIL;
       }
-      mContextTop = nullptr;
+      mContextTop = nsnull;
       return S_OK;
     }
     NS_NOTREACHED("TSFDocumentMgrImpl::Pop invalid flag");
@@ -1123,8 +1123,8 @@ public:
   TSFDocumentMgrImpl* mFocusedDocument; // Must be raw pointer, but strong.
   PRInt32 mFocusCount;
 
-  TSFMgrImpl(TestApp* test) : mTestApp(test), mTest(nullptr), mRefCnt(0),
-    mDeactivated(false), mFocusedDocument(nullptr), mFocusCount(0)
+  TSFMgrImpl(TestApp* test) : mTestApp(test), mTest(nsnull), mRefCnt(0),
+    mDeactivated(false), mFocusedDocument(nsnull), mFocusCount(0)
   {
   }
 
@@ -1372,18 +1372,18 @@ public:
 
   ITextStoreACP* GetFocusedStore()
   {
-    return mFocusedDocument ? mFocusedDocument->mStore : nullptr;
+    return mFocusedDocument ? mFocusedDocument->mStore : nsnull;
   }
 
   TSFContextImpl* GetFocusedContext()
   {
-    return mFocusedDocument ? mFocusedDocument->mContextBase : nullptr;
+    return mFocusedDocument ? mFocusedDocument->mContextBase : nsnull;
   }
 
   TSFAttrPropImpl* GetFocusedAttrProp()
   {
     TSFContextImpl* context = GetFocusedContext();
-    return context ? context->mAttrProp : nullptr;
+    return context ? context->mAttrProp : nsnull;
   }
 
 };
@@ -1404,7 +1404,7 @@ TSFDocumentMgrImpl::Release(void)
 {
   --mRefCnt;
   if (mRefCnt == 1 && mMgr->mFocusedDocument == this) {
-    mMgr->mFocusedDocument = nullptr;
+    mMgr->mFocusedDocument = nsnull;
     --mRefCnt;
   }
   if (mRefCnt) return mRefCnt;
@@ -1429,10 +1429,10 @@ TestApp::Run(void)
   NS_ENSURE_TRUE(appShellService, NS_ERROR_UNEXPECTED);
 
   nsCOMPtr<nsIURI> uri;
-  rv = NS_NewURI(getter_AddRefs(uri), "about:blank", nullptr);
+  rv = NS_NewURI(getter_AddRefs(uri), "about:blank", nsnull);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = appShellService->CreateTopLevelWindow(nullptr, uri,
+  rv = appShellService->CreateTopLevelWindow(nsnull, uri,
                            nsIWebBrowserChrome::CHROME_DEFAULT,
                            800 /*nsIAppShellService::SIZE_TO_CONTENT*/,
                            600 /*nsIAppShellService::SIZE_TO_CONTENT*/,
@@ -1461,7 +1461,7 @@ TestApp::CheckFailed(void)
     fail("TSF not terminated properly");
     mFailed = true;
   }
-  mMgr = nullptr;
+  mMgr = nsnull;
   return mFailed;
 }
 
@@ -1586,20 +1586,20 @@ TestApp::Init(void)
 nsresult
 TestApp::Term(void)
 {
-  mCurrentNode = nullptr;
-  mInput = nullptr;
-  mTextArea = nullptr;
-  mButton = nullptr;
+  mCurrentNode = nsnull;
+  mInput = nsnull;
+  mTextArea = nsnull;
+  mButton = nsnull;
 
   nsCOMPtr<nsIDOMWindow> win(do_GetInterface(mWindow));
   if (win)
     win->Close();
-  win = nullptr;
-  mWindow = nullptr;
+  win = nsnull;
+  mWindow = nsnull;
 
   if (mAppShell)
     mAppShell->Exit();
-  mAppShell = nullptr;
+  mAppShell = nsnull;
   return NS_OK;
 }
 
@@ -1752,7 +1752,7 @@ TestApp::TestClustering(void)
   PRUnichar string[3];
   string[0] = 'e';
   string[1] = 0x0301; // U+0301 'acute accent'
-  string[2] = nullptr;
+  string[2] = nsnull;
 
   if (!mMgr->GetFocusedStore()) {
     fail("TestClustering: GetFocusedStore returns null #1");

@@ -38,11 +38,11 @@ nsMIMEInfoUnix::LoadUriInternal(nsIURI * aURI)
 
 #if (MOZ_PLATFORM_MAEMO == 5) && defined (MOZ_ENABLE_GNOMEVFS)
   if (NS_FAILED(rv)){
-    HildonURIAction *action = hildon_uri_get_default_action(mSchemeOrType.get(), nullptr);
+    HildonURIAction *action = hildon_uri_get_default_action(mSchemeOrType.get(), nsnull);
     if (action) {
       nsCAutoString spec;
       aURI->GetAsciiSpec(spec);
-      if (hildon_uri_open(spec.get(), action, nullptr))
+      if (hildon_uri_open(spec.get(), action, nsnull))
         rv = NS_OK;
       hildon_uri_action_unref(action);
     }
@@ -81,7 +81,7 @@ nsMIMEInfoUnix::GetHasDefaultHandler(bool *_retval)
     return NS_OK;
 
 #if (MOZ_PLATFORM_MAEMO == 5) && defined (MOZ_ENABLE_GNOMEVFS)
-  HildonURIAction *action = hildon_uri_get_default_action(mSchemeOrType.get(), nullptr);
+  HildonURIAction *action = hildon_uri_get_default_action(mSchemeOrType.get(), nsnull);
   if (action) {
     *_retval = true;
     hildon_uri_action_unref(action);
@@ -193,7 +193,7 @@ nsMIMEInfoUnix::LaunchDefaultWithDBus(const char *aFilePath)
     return NS_ERROR_FAILURE;
   }
 
-  if (nullptr == connection)
+  if (nsnull == connection)
     return NS_ERROR_FAILURE;
 
   result = hildon_mime_open_file_with_mime_type(connection,
@@ -210,7 +210,7 @@ nsMIMEInfoUnix::LaunchDefaultWithDBus(const char *aFilePath)
 nsMIMEInfoUnix::HandlerExists(const char *aProtocolScheme)
 {
   bool isEnabled = false;
-  HildonURIAction *action = hildon_uri_get_default_action(aProtocolScheme, nullptr);
+  HildonURIAction *action = hildon_uri_get_default_action(aProtocolScheme, nsnull);
   if (action) {
     isEnabled = true;
     hildon_uri_action_unref(action);
@@ -227,7 +227,7 @@ nsMIMEInfoUnix::GetPossibleApplicationHandlers(nsIMutableArray ** aPossibleAppHa
     if (!mPossibleApplications)
       return NS_ERROR_OUT_OF_MEMORY;
 
-    GSList *actions = hildon_uri_get_actions(mSchemeOrType.get(), nullptr);
+    GSList *actions = hildon_uri_get_actions(mSchemeOrType.get(), nsnull);
     GSList *actionsPtr = actions;
     while (actionsPtr) {
       HildonURIAction *action = (HildonURIAction*)actionsPtr->data;

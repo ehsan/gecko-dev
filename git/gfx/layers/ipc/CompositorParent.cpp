@@ -42,13 +42,13 @@ namespace layers {
 // CompositorParent, but that's not always true.  This assumption only
 // affects CrossProcessCompositorParent below.
 static CompositorParent* sCurrentCompositor;
-static Thread* sCompositorThread = nullptr;
+static Thread* sCompositorThread = nsnull;
 // When ContentParent::StartUp() is called, we use the Thread global.
 // When StartUpWithExistingThread() is used, we have to use the two
 // duplicated globals, because there's no API to make a Thread from an
 // existing thread.
 static PlatformThreadId sCompositorThreadID = 0;
-static MessageLoop* sCompositorLoop = nullptr;
+static MessageLoop* sCompositorLoop = nsnull;
 
 struct LayerTreeState {
   nsRefPtr<Layer> mRoot;
@@ -106,7 +106,7 @@ bool CompositorParent::CreateThread()
   sCompositorThread = new Thread("Compositor");
   if (!sCompositorThread->Start()) {
     delete sCompositorThread;
-    sCompositorThread = nullptr;
+    sCompositorThread = nsnull;
     return false;
   }
   return true;
@@ -117,9 +117,9 @@ void CompositorParent::DestroyThread()
   NS_ASSERTION(NS_IsMainThread(), "Should be on the main Thread!");
   if (sCompositorThread) {
     delete sCompositorThread;
-    sCompositorThread = nullptr;
+    sCompositorThread = nsnull;
   }
-  sCompositorLoop = nullptr;
+  sCompositorLoop = nsnull;
   sCompositorThreadID = 0;
 }
 
@@ -143,7 +143,7 @@ CompositorParent::CompositorParent(nsIWidget* aWidget,
   , mPauseCompositionMonitor("PauseCompositionMonitor")
   , mResumeCompositionMonitor("ResumeCompositionMonitor")
 {
-  NS_ABORT_IF_FALSE(sCompositorThread != nullptr || sCompositorThreadID,
+  NS_ABORT_IF_FALSE(sCompositorThread != nsnull || sCompositorThreadID,
                     "The compositor thread must be Initialized before instanciating a COmpositorParent.");
   MOZ_COUNT_CTOR(CompositorParent);
   mCompositorID = 0;
@@ -373,10 +373,10 @@ public:
    * phase.
    */
   AutoResolveRefLayers(Layer* aRoot) : mRoot(aRoot)
-  { WalkTheTree<Resolve>(mRoot, nullptr); }
+  { WalkTheTree<Resolve>(mRoot, nsnull); }
 
   ~AutoResolveRefLayers()
-  { WalkTheTree<Detach>(mRoot, nullptr); }
+  { WalkTheTree<Detach>(mRoot, nsnull); }
 
 private:
   enum Op { Resolve, Detach };
@@ -519,10 +519,7 @@ CompositorParent::TransformFixedLayers(Layer* aLayer,
     gfxPoint translation(aTranslation.x - (anchor.x - anchor.x / aScaleDiff.x),
                          aTranslation.y - (anchor.y - anchor.y / aScaleDiff.y));
 
-    // We are only translating the transform, so it is OK to translate the
-    // transform without the resolution scale.  This allows us to avoid applying
-    // the resolution scale and its inverse an extra time.
-    gfx3DMatrix layerTransform = aLayer->GetBaseTransform();
+    gfx3DMatrix layerTransform = aLayer->GetTransform();
     Translate2D(layerTransform, translation);
     ShadowLayer* shadow = aLayer->AsShadowLayer();
     shadow->SetShadowTransform(layerTransform);
@@ -548,7 +545,6 @@ SetShadowProperties(Layer* aLayer)
 {
   // FIXME: Bug 717688 -- Do these updates in ShadowLayersParent::RecvUpdate.
   ShadowLayer* shadow = aLayer->AsShadowLayer();
-  // Set the shadow's base transform to the layer's base transform.
   shadow->SetShadowTransform(aLayer->GetBaseTransform());
   shadow->SetShadowVisibleRegion(aLayer->GetVisibleRegion());
   shadow->SetShadowClipRect(aLayer->GetClipRect());
@@ -559,6 +555,7 @@ SetShadowProperties(Layer* aLayer)
     SetShadowProperties(child);
   }
 }
+
 
 // SampleValue should eventually take the CSS property as an argument.  This
 // will be needed if we ever animate two values with the same type but different
@@ -579,7 +576,7 @@ SampleValue(float aPortion, Animation& aAnimation, nsStyleAnimation::Value& aSta
 
     TransformData& data = aAnimation.data().get_TransformData();
     gfx3DMatrix transform =
-      nsDisplayTransform::GetResultingTransformMatrix(nullptr, data.origin(), nsDeviceContext::AppUnitsPerCSSPixel(),
+      nsDisplayTransform::GetResultingTransformMatrix(nsnull, data.origin(), nsDeviceContext::AppUnitsPerCSSPixel(),
                                                       &data.bounds(), interpolatedList, &data.mozOrigin(),
                                                       &data.perspectiveOrigin(), &data.perspective());
 
@@ -692,7 +689,7 @@ CompositorParent::ApplyAsyncContentTransformToTree(TimeStamp aCurrentFrame,
     *aWantNextFrame |=
       controller->SampleContentTransformForFrame(aCurrentFrame,
                                                  container->GetFrameMetrics(),
-                                                 aLayer,
+                                                 aLayer->GetTransform(),
                                                  &newTransform);
 
     shadow->SetShadowTransform(newTransform);
@@ -717,10 +714,8 @@ CompositorParent::TransformShadowTree(TimeStamp aCurrentFrame)
   wantNextFrame |= SampleAnimations(layer, mLastCompose);
 
   const FrameMetrics& metrics = container->GetFrameMetrics();
-  // We must apply the resolution scale before a pan/zoom transform, so we call
-  // GetTransform here.
   const gfx3DMatrix& rootTransform = root->GetTransform();
-  const gfx3DMatrix& currentTransform = layer->GetTransform();
+  const gfx3DMatrix& currentTransform = layer->GetBaseTransform();
 
   // FIXME/bug 775437: unify this interface with the ~native-fennec
   // derived code
@@ -810,17 +805,9 @@ CompositorParent::TransformShadowTree(TimeStamp aCurrentFrame)
       scaleDiff.y = tempScaleDiffY;
     }
 
-    // The transform already takes the resolution scale into account.  Since we
-    // will apply the resolution scale again when computing the effective
-    // transform, we must apply the inverse resolution scale here.
-    gfx3DMatrix computedTransform = treeTransform * currentTransform;
-    computedTransform.Scale(1.0f/layer->GetXScale(),
-                            1.0f/layer->GetYScale(),
-                            1);
-    shadow->SetShadowTransform(computedTransform);
+    shadow->SetShadowTransform(treeTransform * currentTransform);
     TransformFixedLayers(layer, offset, scaleDiff);
   }
-
   return wantNextFrame;
 }
 
@@ -936,25 +923,25 @@ static CompositorMap* sCompositorMap;
 
 void CompositorParent::CreateCompositorMap()
 {
-  if (sCompositorMap == nullptr) {
+  if (sCompositorMap == nsnull) {
     sCompositorMap = new CompositorMap;
   }
 }
 
 void CompositorParent::DestroyCompositorMap()
 {
-  if (sCompositorMap != nullptr) {
+  if (sCompositorMap != nsnull) {
     NS_ASSERTION(sCompositorMap->empty(), 
                  "The Compositor map should be empty when destroyed>");
     delete sCompositorMap;
-    sCompositorMap = nullptr;
+    sCompositorMap = nsnull;
   }
 }
 
 CompositorParent* CompositorParent::GetCompositor(PRUint64 id)
 {
   CompositorMap::iterator it = sCompositorMap->find(id);
-  return it != sCompositorMap->end() ? it->second : nullptr;
+  return it != sCompositorMap->end() ? it->second : nsnull;
 }
 
 void CompositorParent::AddCompositor(CompositorParent* compositor, PRUint64* outID)
@@ -970,7 +957,7 @@ CompositorParent* CompositorParent::RemoveCompositor(PRUint64 id)
 {
   CompositorMap::iterator it = sCompositorMap->find(id);
   if (it == sCompositorMap->end()) {
-    return nullptr;
+    return nsnull;
   }
   sCompositorMap->erase(it);
   return it->second;
@@ -1089,7 +1076,7 @@ CompositorParent::Create(Transport* aTransport, ProcessId aOtherProcess)
   ProcessHandle handle;
   if (!base::OpenProcessHandle(aOtherProcess, &handle)) {
     // XXX need to kill |aOtherProcess|, it's boned
-    return nullptr;
+    return nsnull;
   }
   cpcp->mSelfRef = cpcp;
   CompositorLoop()->PostTask(
@@ -1117,7 +1104,7 @@ GetIndirectShadowTree(uint64_t aId)
 {
   LayerTreeMap::const_iterator cit = sIndirectLayerTrees.find(aId);
   if (sIndirectLayerTrees.end() == cit) {
-    return nullptr;
+    return nsnull;
   }
   return &cit->second;
 }

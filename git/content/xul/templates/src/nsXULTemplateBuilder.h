@@ -120,7 +120,7 @@ public:
     void RunnableLoadAndRebuild() {
       Uninit(false);  // Reset results
 
-      nsCOMPtr<nsIDocument> doc = mRoot ? mRoot->GetDocument() : nullptr;
+      nsCOMPtr<nsIDocument> doc = mRoot ? mRoot->GetDocument() : nsnull;
       if (doc) {
         bool shouldDelay;
         LoadDataSources(doc, &shouldDelay);
@@ -132,8 +132,8 @@ public:
 
     // mRoot should not be cleared until after Uninit is finished so that
     // generated content can be removed during uninitialization.
-    void UninitFalse() { Uninit(false); mRoot = nullptr; }
-    void UninitTrue() { Uninit(true); mRoot = nullptr; }
+    void UninitFalse() { Uninit(false); mRoot = nsnull; }
+    void UninitTrue() { Uninit(true); mRoot = nsnull; }
 
     /**
      * Find the <template> tag that applies for this builder

@@ -43,14 +43,14 @@ mozilla::dom::indexedDB::CreateGenericEvent(const nsAString& aType,
                                             Bubbles aBubbles,
                                             Cancelable aCancelable)
 {
-  nsRefPtr<nsDOMEvent> event(new nsDOMEvent(nullptr, nullptr));
+  nsRefPtr<nsDOMEvent> event(new nsDOMEvent(nsnull, nsnull));
   nsresult rv = event->InitEvent(aType,
                                  aBubbles == eDoesBubble ? true : false,
                                  aCancelable == eCancelable ? true : false);
-  NS_ENSURE_SUCCESS(rv, nullptr);
+  NS_ENSURE_SUCCESS(rv, nsnull);
 
   rv = event->SetTrusted(true);
-  NS_ENSURE_SUCCESS(rv, nullptr);
+  NS_ENSURE_SUCCESS(rv, nsnull);
 
   return event.forget();
 }
@@ -64,10 +64,10 @@ IDBVersionChangeEvent::CreateInternal(const nsAString& aType,
   nsRefPtr<IDBVersionChangeEvent> event(new IDBVersionChangeEvent());
 
   nsresult rv = event->InitEvent(aType, false, false);
-  NS_ENSURE_SUCCESS(rv, nullptr);
+  NS_ENSURE_SUCCESS(rv, nsnull);
 
   rv = event->SetTrusted(true);
-  NS_ENSURE_SUCCESS(rv, nullptr);
+  NS_ENSURE_SUCCESS(rv, nsnull);
 
   event->mOldVersion = aOldVersion;
   event->mNewVersion = aNewVersion;
@@ -86,7 +86,7 @@ IDBVersionChangeEvent::CreateRunnableInternal(const nsAString& aType,
 {
   nsRefPtr<nsDOMEvent> event =
     CreateInternal(aType, aOldVersion, aNewVersion);
-  NS_ENSURE_TRUE(event, nullptr);
+  NS_ENSURE_TRUE(event, nsnull);
 
   nsCOMPtr<nsIRunnable> runnable(new EventFiringRunnable(aTarget, event));
   return runnable.forget();
@@ -119,8 +119,8 @@ IDBVersionChangeEvent::GetNewVersion(JSContext* aCx,
   if (!mNewVersion) {
     *aNewVersion = JSVAL_NULL;
   }
-  else {
-    *aNewVersion = JS_NumberValue(double(mNewVersion));
+  else if (!JS_NewNumberValue(aCx, double(mNewVersion), aNewVersion)) {
+    return NS_ERROR_FAILURE;
   }
 
   return NS_OK;

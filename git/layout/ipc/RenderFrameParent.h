@@ -10,6 +10,7 @@
 
 #include <map>
 
+#include "LayersBackend.h"
 #include "mozilla/layout/PRenderFrameParent.h"
 #include "mozilla/layers/ShadowLayersManager.h"
 #include "nsDisplayList.h"

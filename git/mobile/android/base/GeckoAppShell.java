@@ -6,103 +6,56 @@
 package org.mozilla.gecko;
 
 import org.mozilla.gecko.gfx.BitmapUtils;
+import org.mozilla.gecko.gfx.IntSize;
 import org.mozilla.gecko.gfx.GeckoLayerClient;
 import org.mozilla.gecko.gfx.GfxInfoThread;
 import org.mozilla.gecko.gfx.ImmutableViewportMetrics;
-import org.mozilla.gecko.gfx.IntSize;
 import org.mozilla.gecko.gfx.LayerController;
 import org.mozilla.gecko.gfx.LayerView;
-import org.mozilla.gecko.gfx.RectUtils;
 import org.mozilla.gecko.gfx.ScreenshotLayer;
-import org.mozilla.gecko.mozglue.DirectBufferAllocator;
-import org.mozilla.gecko.util.FloatUtils;
+import org.mozilla.gecko.FloatUtils;
+import org.mozilla.gecko.gfx.ImmutableViewportMetrics;
+import org.mozilla.gecko.gfx.ViewportMetrics;
+import org.mozilla.gecko.gfx.RectUtils;
 
-import org.json.JSONObject;
+import java.io.*;
+import java.lang.reflect.*;
+import java.nio.*;
+import java.net.URL;
+import java.net.MalformedURLException;
+import java.text.*;
+import java.util.*;
+import java.util.zip.*;
+import java.util.concurrent.*;
 
-import android.app.Activity;
-import android.app.ActivityManager;
-import android.app.NotificationManager;
-import android.app.PendingIntent;
-import android.content.ActivityNotFoundException;
-import android.content.ClipData;
-import android.content.Context;
-import android.content.Intent;
-import android.content.pm.ActivityInfo;
-import android.content.pm.PackageManager;
-import android.content.pm.ResolveInfo;
-import android.content.res.TypedArray;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.graphics.Canvas;
-import android.graphics.Color;
-import android.graphics.ImageFormat;
-import android.graphics.Paint;
-import android.graphics.Rect;
-import android.graphics.RectF;
-import android.graphics.SurfaceTexture;
-import android.graphics.drawable.BitmapDrawable;
-import android.graphics.drawable.Drawable;
-import android.hardware.Sensor;
-import android.hardware.SensorManager;
-import android.location.Criteria;
-import android.location.Location;
-import android.location.LocationManager;
+import android.os.*;
+import android.app.*;
+import android.text.*;
+import android.view.*;
+import android.view.inputmethod.*;
+import android.content.*;
+import android.content.res.*;
+import android.content.pm.*;
+import android.graphics.*;
+import android.widget.*;
+import android.hardware.*;
+import android.location.*;
+import android.webkit.MimeTypeMap;
 import android.media.MediaScannerConnection;
 import android.media.MediaScannerConnection.MediaScannerConnectionClient;
+import android.provider.Settings;
+import android.opengl.GLES20;
+
+import android.util.*;
+import android.net.Uri;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
-import android.net.Uri;
-import android.opengl.GLES20;
-import android.os.Build;
-import android.os.Environment;
-import android.os.Handler;
-import android.os.Looper;
-import android.os.Message;
-import android.os.MessageQueue;
-import android.os.StatFs;
-import android.os.Vibrator;
-import android.provider.Settings;
-import android.util.Base64;
-import android.util.DisplayMetrics;
-import android.util.FloatMath;
-import android.util.Log;
-import android.view.ContextThemeWrapper;
-import android.view.HapticFeedbackConstants;
-import android.view.Surface;
-import android.view.View;
-import android.view.inputmethod.InputMethodManager;
-import android.webkit.MimeTypeMap;
-import android.widget.Toast;
 
-import java.io.BufferedReader;
-import java.io.Closeable;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.lang.reflect.Field;
-import java.net.URL;
-import java.nio.ByteBuffer;
-import java.text.DecimalFormat;
-import java.text.DecimalFormatSymbols;
-import java.text.NumberFormat;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.NoSuchElementException;
-import java.util.Queue;
-import java.util.StringTokenizer;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.SynchronousQueue;
+import android.graphics.Bitmap;
+import android.graphics.drawable.*;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 public class GeckoAppShell
 {
@@ -244,6 +197,8 @@ public class GeckoAppShell
     public static native void notifyGotNextMessage(int aMessageId, String aReceiver, String aSender, String aBody, long aTimestamp, int aRequestId, long aProcessId);
     public static native void notifyReadingMessageListFailed(int aError, int aRequestId, long aProcessId);
 
+    public static native ByteBuffer allocateDirectBuffer(long size);
+    public static native void freeDirectBuffer(ByteBuffer buf);
     public static native void scheduleComposite();
     public static native void schedulePauseComposition();
     public static native void scheduleResumeComposition(int width, int height);
@@ -523,7 +478,7 @@ public class GeckoAppShell
         if (restoreMode != RESTORE_NONE)
             combinedArgs += " -restoremode " + restoreMode;
 
-        DisplayMetrics metrics = GeckoApp.mAppContext.getResources().getDisplayMetrics();
+        DisplayMetrics metrics = GeckoApp.mAppContext.getDisplayMetrics();
         combinedArgs += " -width " + metrics.widthPixels + " -height " + metrics.heightPixels;
 
         GeckoApp.mAppContext.runOnUiThread(new Runnable() {
@@ -1394,7 +1349,7 @@ public class GeckoAppShell
 
     public static int getDpi() {
         if (sDensityDpi == 0) {
-            sDensityDpi = GeckoApp.mAppContext.getResources().getDisplayMetrics().densityDpi;
+            sDensityDpi = GeckoApp.mAppContext.getDisplayMetrics().densityDpi;
         }
 
         return sDensityDpi;
@@ -2369,7 +2324,7 @@ class ScreenshotHandler implements Runnable {
         mMaxPixels = Math.min(ScreenshotLayer.getMaxNumPixels(), mMaxTextureSize * mMaxTextureSize);
         mMinTextureSize = (int)Math.ceil(mMaxPixels / mMaxTextureSize);
         mPendingScreenshots = new LinkedList<PendingScreenshot>();
-        mBuffer = DirectBufferAllocator.allocate(mMaxPixels * BYTES_FOR_16BPP);
+        mBuffer = GeckoAppShell.allocateDirectBuffer(mMaxPixels * BYTES_FOR_16BPP);
         mDirtyRect = new RectF();
         clearDirtyRect();
     }

@@ -105,7 +105,7 @@ nsPluginByteRangeStreamListener::OnStartRequest(nsIRequest *request, nsISupports
     rv = serv->AsyncConvertData(MULTIPART_BYTERANGES,
                                 "*/*",
                                 finalStreamListener,
-                                nullptr,
+                                nsnull,
                                 getter_AddRefs(mStreamConverter));
     if (NS_SUCCEEDED(rv)) {
       rv = mStreamConverter->OnStartRequest(request, ctxt);
@@ -282,7 +282,7 @@ nsPluginStreamListenerPeer::nsPluginStreamListenerPeer()
   
   mPendingRequests = 0;
   mHaveFiredOnStartRequest = false;
-  mDataForwardToRequest = nullptr;
+  mDataForwardToRequest = nsnull;
   
   mSeekable = false;
   mModified = 0;
@@ -298,13 +298,13 @@ nsPluginStreamListenerPeer::~nsPluginStreamListenerPeer()
 #endif
 
   if (mPStreamListener) {
-    mPStreamListener->SetStreamListenerPeer(nullptr);
+    mPStreamListener->SetStreamListenerPeer(nsnull);
   }
 
   // close FD of mFileCacheOutputStream if it's still open
   // or we won't be able to remove the cache file
   if (mFileCacheOutputStream)
-    mFileCacheOutputStream = nullptr;
+    mFileCacheOutputStream = nsnull;
   
   delete mDataForwardToRequest;
 
@@ -319,7 +319,7 @@ nsresult nsPluginStreamListenerPeer::Initialize(nsIURI *aURL,
 {
 #ifdef PLUGIN_LOGGING
   nsCAutoString urlSpec;
-  if (aURL != nullptr) aURL->GetAsciiSpec(urlSpec);
+  if (aURL != nsnull) aURL->GetAsciiSpec(urlSpec);
   
   PR_LOG(nsPluginLogging::gPluginLog, PLUGIN_LOG_NORMAL,
          ("nsPluginStreamListenerPeer::Initialize instance=%p, url=%s\n", aInstance, urlSpec.get()));
@@ -365,7 +365,7 @@ nsresult nsPluginStreamListenerPeer::InitializeEmbedded(nsIURI *aURL,
   mURL = aURL;
   
   if (aInstance) {
-    NS_ASSERTION(mPluginInstance == nullptr, "nsPluginStreamListenerPeer::InitializeEmbedded mPluginInstance != nullptr");
+    NS_ASSERTION(mPluginInstance == nsnull, "nsPluginStreamListenerPeer::InitializeEmbedded mPluginInstance != nsnull");
     mPluginInstance = aInstance;
   } else {
     mContent = aContent;
@@ -386,7 +386,7 @@ nsresult nsPluginStreamListenerPeer::InitializeFullPage(nsIURI* aURL, nsNPAPIPlu
   PLUGIN_LOG(PLUGIN_LOG_NORMAL,
              ("nsPluginStreamListenerPeer::InitializeFullPage instance=%p\n",aInstance));
   
-  NS_ASSERTION(mPluginInstance == nullptr, "nsPluginStreamListenerPeer::InitializeFullPage mPluginInstance != nullptr");
+  NS_ASSERTION(mPluginInstance == nsnull, "nsPluginStreamListenerPeer::InitializeFullPage mPluginInstance != nsnull");
   mPluginInstance = aInstance;
   
   mURL = aURL;
@@ -683,7 +683,7 @@ nsPluginStreamListenerPeer::MakeByteRangeString(NPByteRange* aRangeList, nsACStr
   PRInt32 requestCnt = 0;
   nsCAutoString string("bytes=");
   
-  for (NPByteRange * range = aRangeList; range != nullptr; range = range->next) {
+  for (NPByteRange * range = aRangeList; range != nsnull; range = range->next) {
     // XXX zero length?
     if (!range->length)
       continue;
@@ -722,7 +722,7 @@ nsPluginStreamListenerPeer::RequestRead(NPByteRange* rangeList)
   nsCOMPtr<nsIInterfaceRequestor> callbacks = do_QueryReferent(mWeakPtrChannelCallbacks);
   nsCOMPtr<nsILoadGroup> loadGroup = do_QueryReferent(mWeakPtrChannelLoadGroup);
   nsCOMPtr<nsIChannel> channel;
-  rv = NS_NewChannel(getter_AddRefs(channel), mURL, nullptr, loadGroup, callbacks);
+  rv = NS_NewChannel(getter_AddRefs(channel), mURL, nsnull, loadGroup, callbacks);
   if (NS_FAILED(rv))
     return rv;
   
@@ -795,7 +795,7 @@ nsresult nsPluginStreamListenerPeer::ServeStreamAsFile(nsIRequest *request,
   nsCOMPtr<nsIPluginInstanceOwner> owner;
   mPluginInstance->GetOwner(getter_AddRefs(owner));
   if (owner) {
-    NPWindow* window = nullptr;
+    NPWindow* window = nsnull;
     owner->GetWindow(window);
 #if defined(MOZ_WIDGET_GTK2) || defined(MOZ_WIDGET_QT)
     // Should call GetPluginPort() here.
@@ -876,7 +876,7 @@ NS_IMETHODIMP nsPluginStreamListenerPeer::OnDataAvailable(nsIRequest *request,
   if (!mPStreamListener)
     return NS_ERROR_FAILURE;
   
-  const char * url = nullptr;
+  const char * url = nsnull;
   GetURL(&url);
   
   PLUGIN_LOG(PLUGIN_LOG_NOISY,
@@ -991,7 +991,7 @@ NS_IMETHODIMP nsPluginStreamListenerPeer::OnStopRequest(nsIRequest *request,
     // if this is not byte range request and
     // if we are writting the stream to disk ourselves,
     // close & tear it down here
-    mFileCacheOutputStream = nullptr;
+    mFileCacheOutputStream = nsnull;
   }
   
   // if we still have pending stuff to do, lets not close the plugin socket.
@@ -1090,7 +1090,7 @@ nsresult nsPluginStreamListenerPeer::SetUpStreamListener(nsIRequest *request,
     }
 
     nsRefPtr<nsNPAPIPluginStreamListener> streamListener;
-    rv = mPluginInstance->NewStreamListener(nullptr, nullptr,
+    rv = mPluginInstance->NewStreamListener(nsnull, nsnull,
                                             getter_AddRefs(streamListener));
     if (NS_FAILED(rv) || !streamListener) {
       return NS_ERROR_FAILURE;

@@ -80,13 +80,11 @@ class Test(object):
 
     def get_command(self, js_cmd_prefix):
         dirname, filename = os.path.split(self.path)
-        cmd = js_cmd_prefix
-        if self.allowXml:
-            cmd = cmd + [ '-e', 'options("allow_xml")' ]
-        cmd = cmd + Test.prefix_command(dirname)
+        cmd = js_cmd_prefix + Test.prefix_command(dirname)
         if self.debugMode:
             cmd += [ '-d' ]
-        cmd += [ '-f', self.path ]
+        # There is a test that requires the path to start with './'.
+        cmd += [ '-f', './' + self.path ]
         return cmd
 
     def run(self, js_cmd_prefix, timeout=30.0):
@@ -98,14 +96,13 @@ class TestCase(Test):
     """A test case consisting of a test and an expected result."""
     js_cmd_prefix = None
 
-    def __init__(self, path, enable, expect, random, slow, debugMode, allowXml):
+    def __init__(self, path, enable, expect, random, slow, debugMode):
         Test.__init__(self, path)
         self.enable = enable     # bool: True => run test, False => don't run
         self.expect = expect     # bool: expected result, True => pass
         self.random = random     # bool: True => ignore output as 'random'
         self.slow = slow         # bool: True => test may run slowly
         self.debugMode = debugMode # bool: True => must be run in debug mode
-        self.allowXml = allowXml # bool: True => test requires JSOPTION_ALLOW_XML
 
         # The terms parsed to produce the above properties.
         self.terms = None

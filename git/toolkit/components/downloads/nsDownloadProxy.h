@@ -68,14 +68,14 @@ public:
       if (visible && !focusWhenStarting)
         return NS_OK;
 
-      return dmui->Show(nullptr, id, nsIDownloadManagerUI::REASON_NEW_DOWNLOAD);
+      return dmui->Show(nsnull, id, nsIDownloadManagerUI::REASON_NEW_DOWNLOAD);
     }
     return rv;
   }
 
   NS_IMETHODIMP OnStateChange(nsIWebProgress* aWebProgress,
                               nsIRequest* aRequest, PRUint32 aStateFlags,
-                              nsresult aStatus)
+                              PRUint32 aStatus)
   {
     NS_ENSURE_TRUE(mInner, NS_ERROR_NOT_INITIALIZED);
     return mInner->OnStateChange(aWebProgress, aRequest, aStateFlags, aStatus);

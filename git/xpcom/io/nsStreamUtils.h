@@ -78,11 +78,11 @@ NS_AsyncCopy(nsIInputStream         *aSource,
              nsIEventTarget         *aTarget,
              nsAsyncCopyMode         aMode = NS_ASYNCCOPY_VIA_READSEGMENTS,
              PRUint32                aChunkSize = 4096,
-             nsAsyncCopyCallbackFun  aCallbackFun = nullptr,
-             void                   *aCallbackClosure = nullptr,
+             nsAsyncCopyCallbackFun  aCallbackFun = nsnull,
+             void                   *aCallbackClosure = nsnull,
              bool                    aCloseSource = true,
              bool                    aCloseSink = true,
-             nsISupports           **aCopierCtx = nullptr);
+             nsISupports           **aCopierCtx = nsnull);
 
 /**
  * This function cancels copying started by function NS_AsyncCopy.

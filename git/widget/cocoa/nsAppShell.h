@@ -18,7 +18,7 @@ class nsCocoaWindow;
 
 typedef struct _nsCocoaAppModalWindowListItem {
   _nsCocoaAppModalWindowListItem(NSWindow *aWindow, NSModalSession aSession) :
-    mWindow(aWindow), mSession(aSession), mWidget(nullptr) {}
+    mWindow(aWindow), mSession(aSession), mWidget(nsnull) {}
   _nsCocoaAppModalWindowListItem(NSWindow *aWindow, nsCocoaWindow *aWidget) :
     mWindow(aWindow), mSession(nil), mWidget(aWidget) {}
   NSWindow *mWindow;       // Weak

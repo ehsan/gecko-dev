@@ -16,7 +16,6 @@
 
 #include "mozilla/dom/Element.h"
 #include "nsIDocShell.h"
-#include "nsIDocShellTreeItem.h"
 #include "nsIDOMNode.h"
 #include "nsIPersistentProperties2.h"
 #include "nsIPresShell.h"
@@ -127,7 +126,7 @@ public:
     * @param  aDescendant  [in] descendant to start search with
     * @param  aRole        [in] role to find matching ancestor for
     * @return               the ancestor accessible with the given role, or
-    *                       nullptr if no match is found
+    *                       nsnull if no match is found
     */
    static Accessible* GetAncestorWithRole(Accessible* aDescendant,
                                           PRUint32 aRole);

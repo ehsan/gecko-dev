@@ -13,7 +13,7 @@ class nsWebMDecoder : public nsBuiltinDecoder
 public:
   virtual nsMediaDecoder* Clone() {
     if (!nsHTMLMediaElement::IsWebMEnabled()) {
-      return nullptr;
+      return nsnull;
     }
     return new nsWebMDecoder();
   }

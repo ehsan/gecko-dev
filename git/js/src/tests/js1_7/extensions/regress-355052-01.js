@@ -20,7 +20,7 @@ function test()
   printBugNumber(BUGNUMBER);
   printStatus (summary);
  
-  expect = /TypeError: .+ is not a function/;
+  expect = /TypeError: NaN is not a function/;
   actual = 'No Error';
   try
   {

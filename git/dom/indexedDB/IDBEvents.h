@@ -92,7 +92,7 @@ public:
   }
 
 protected:
-  IDBVersionChangeEvent() : nsDOMEvent(nullptr, nullptr) { }
+  IDBVersionChangeEvent() : nsDOMEvent(nsnull, nsnull) { }
   virtual ~IDBVersionChangeEvent() { }
 
   static already_AddRefed<nsDOMEvent>

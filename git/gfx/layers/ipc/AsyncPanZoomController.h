@@ -110,7 +110,7 @@ public:
    * sampled at; this is used for interpolating animations. Calling this sets a
    * new transform in |aNewTransform| which should be applied directly to the
    * shadow layer of the frame (do not multiply it in as the code already does
-   * this internally with |aLayer|'s transform).
+   * this internally with |aCurrentTransform|.
    *
    * Return value indicates whether or not any currently running animation
    * should continue. That is, if true, the compositor should schedule another
@@ -118,7 +118,7 @@ public:
    */
   bool SampleContentTransformForFrame(const TimeStamp& aSampleTime,
                                       const FrameMetrics& aFrame,
-                                      Layer* aLayer,
+                                      const gfx3DMatrix& aCurrentTransform,
                                       gfx3DMatrix* aNewTransform);
 
   /**

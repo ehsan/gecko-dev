@@ -134,7 +134,7 @@ void JS_FASTCALL StrictEq(VMFrame &f);
 void JS_FASTCALL StrictNe(VMFrame &f);
 
 void JS_FASTCALL Iter(VMFrame &f, uint32_t flags);
-void JS_FASTCALL IterNext(VMFrame &f);
+void JS_FASTCALL IterNext(VMFrame &f, int32_t offset);
 JSBool JS_FASTCALL IterMore(VMFrame &f);
 void JS_FASTCALL EndIter(VMFrame &f);
 

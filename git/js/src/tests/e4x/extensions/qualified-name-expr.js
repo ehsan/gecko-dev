@@ -1,4 +1,4 @@
-// |reftest| pref(javascript.options.xml.content,true) skip
+// |reftest| skip
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/licenses/publicdomain/
 

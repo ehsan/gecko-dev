@@ -70,7 +70,7 @@ void
 nsSVGViewBox::Init()
 {
   mBaseVal = nsSVGViewBoxRect();
-  mAnimVal = nullptr;
+  mAnimVal = nsnull;
   mHasBaseVal = false;
 }
 
@@ -286,7 +286,7 @@ void
 nsSVGViewBox::SMILViewBox::ClearAnimValue()
 {
   if (mVal->mAnimVal) {
-    mVal->mAnimVal = nullptr;
+    mVal->mAnimVal = nsnull;
     mSVGElement->DidAnimateViewBox();
   }
 }

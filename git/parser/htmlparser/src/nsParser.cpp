@@ -128,7 +128,7 @@ public:
 
 //-------------- End ParseContinue Event Definition ------------------------
 
-nsICharsetConverterManager* nsParser::sCharsetConverterManager = nullptr;
+nsICharsetConverterManager* nsParser::sCharsetConverterManager = nsnull;
 
 /**
  *  This gets called when the htmlparser module is initialized.
@@ -180,7 +180,7 @@ nsParser::Initialize(bool aConstructor)
 {
 #ifdef DEBUG
   if (!gDumpContent) {
-    gDumpContent = PR_GetEnv("PARSER_DUMP_CONTENT") != nullptr;
+    gDumpContent = PR_GetEnv("PARSER_DUMP_CONTENT") != nsnull;
   }
 #endif
 
@@ -190,15 +190,15 @@ nsParser::Initialize(bool aConstructor)
   }
   else {
     // nsCOMPtrs
-    mObserver = nullptr;
+    mObserver = nsnull;
     mUnusedInput.Truncate();
   }
 
-  mContinueEvent = nullptr;
+  mContinueEvent = nsnull;
   mCharsetSource = kCharsetUninitialized;
   mCharset.AssignLiteral("ISO-8859-1");
   mInternalState = NS_OK;
-  mStreamStatus = NS_OK;
+  mStreamStatus = 0;
   mCommand = eViewNormal;
   mFlags = NS_PARSER_FLAG_OBSERVERS_ENABLED |
            NS_PARSER_FLAG_PARSER_ENABLED |
@@ -835,7 +835,7 @@ nsParser::CancelParsingEvents()
   if (mFlags & NS_PARSER_FLAG_PENDING_CONTINUE_EVENT) {
     NS_ASSERTION(mContinueEvent, "mContinueEvent is null");
     // Revoke the pending continue parsing event
-    mContinueEvent = nullptr;
+    mContinueEvent = nsnull;
     mFlags &= ~NS_PARSER_FLAG_PENDING_CONTINUE_EVENT;
   }
   return NS_OK;
@@ -1189,7 +1189,7 @@ void nsParser::HandleParserContinueEvent(nsParserContinueEvent *ev)
     return;
 
   mFlags &= ~NS_PARSER_FLAG_PENDING_CONTINUE_EVENT;
-  mContinueEvent = nullptr;
+  mContinueEvent = nsnull;
 
   NS_ASSERTION(IsOkToProcessNetworkData(),
                "Interrupted in the middle of a script?");
@@ -1616,7 +1616,7 @@ nsParser::ResumeParse(bool allowIteration, bool aIsFinalChunk,
 nsresult
 nsParser::BuildModel()
 {
-  nsITokenizer* theTokenizer = nullptr;
+  nsITokenizer* theTokenizer = nsnull;
 
   nsresult result = NS_OK;
   if (mParserContext) {
@@ -1656,7 +1656,7 @@ nsParser::OnStartRequest(nsIRequest *request, nsISupports* aContext)
 
   NS_ASSERTION(!mParserContext->mPrevContext,
                "Clobbering DTD for non-root parser context!");
-  mDTD = nullptr;
+  mDTD = nsnull;
 
   nsresult rv;
   nsCAutoString contentType;
@@ -2078,7 +2078,7 @@ nsParser::OnDataAvailable(nsIRequest *request, nsISupports* aContext,
     // release build, silently ignore the data.
     PRUint32 totalRead;
     rv = pIStream->ReadSegments(NoOpParserWriteFunc,
-                                nullptr,
+                                nsnull,
                                 aLength,
                                 &totalRead);
     return rv;
@@ -2263,7 +2263,7 @@ nsresult nsParser::Tokenize(bool aIsFinalChunk)
     DidTokenize(aIsFinalChunk);
 
     if (killSink) {
-      mSink = nullptr;
+      mSink = nsnull;
     }
   } else {
     result = mInternalState = NS_ERROR_HTMLPARSER_BADTOKENIZER;

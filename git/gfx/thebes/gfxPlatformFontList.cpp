@@ -36,14 +36,14 @@ static const PRUint32 kNumFontsPerSlice = 10; // read in info 10 fonts at a time
 
 #endif // PR_LOGGING
 
-gfxPlatformFontList *gfxPlatformFontList::sPlatformFontList = nullptr;
+gfxPlatformFontList *gfxPlatformFontList::sPlatformFontList = nsnull;
 
 
 static const char* kObservedPrefs[] = {
     "font.",
     "font.name-list.",
     "intl.accept_languages",  // hmmmm...
-    nullptr
+    nsnull
 };
 
 class gfxFontListPrefObserver MOZ_FINAL : public nsIObserver {
@@ -52,7 +52,7 @@ public:
     NS_DECL_NSIOBSERVER
 };
 
-static gfxFontListPrefObserver* gFontListPrefObserver = nullptr;
+static gfxFontListPrefObserver* gFontListPrefObserver = nsnull;
 
 NS_IMPL_ISUPPORTS1(gfxFontListPrefObserver, nsIObserver)
 
@@ -382,11 +382,11 @@ gfxPlatformFontList::SystemFindFontForChar(const PRUint32 aCh,
                                            PRInt32 aRunScript,
                                            const gfxFontStyle* aStyle)
  {
-    gfxFontEntry* fontEntry = nullptr;
+    gfxFontEntry* fontEntry = nsnull;
 
     // is codepoint with no matching font? return null immediately
     if (mCodepointsWithNoFonts.test(aCh)) {
-        return nullptr;
+        return nsnull;
     }
 
     // try to short-circuit font fallback for U+FFFD, used to represent
@@ -506,7 +506,7 @@ gfxPlatformFontList::CommonFontFallback(const PRUint32 aCh,
         }
     }
 
-    return nullptr;
+    return nsnull;
 }
 
 gfxFontEntry*
@@ -559,7 +559,7 @@ gfxPlatformFontList::FindFamily(const nsAString& aFamily)
     }
 
     // lookup in other family names list (mostly localized names)
-    if ((familyEntry = mOtherFamilyNames.GetWeak(key)) != nullptr) {
+    if ((familyEntry = mOtherFamilyNames.GetWeak(key)) != nsnull) {
         return familyEntry;
     }
 
@@ -570,12 +570,12 @@ gfxPlatformFontList::FindFamily(const nsAString& aFamily)
     // in practice so avoid pulling in names at startup
     if (!mOtherFamilyNamesInitialized && !IsASCII(aFamily)) {
         InitOtherFamilyNames();
-        if ((familyEntry = mOtherFamilyNames.GetWeak(key)) != nullptr) {
+        if ((familyEntry = mOtherFamilyNames.GetWeak(key)) != nsnull) {
             return familyEntry;
         }
     }
 
-    return nullptr;
+    return nsnull;
 }
 
 gfxFontEntry*
@@ -588,7 +588,7 @@ gfxPlatformFontList::FindFontForFamily(const nsAString& aFamily, const gfxFontSt
     if (familyEntry)
         return familyEntry->FindFontForStyle(*aStyle, aNeedsBold);
 
-    return nullptr;
+    return nsnull;
 }
 
 bool

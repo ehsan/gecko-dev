@@ -88,7 +88,7 @@ DataStruct::GetData ( nsISupports** aData, PRUint32 *aDataLen )
     else {
       // oh shit, something went horribly wrong here.
       NS_WARNING("Oh no, couldn't read data in from the cache file");
-      *aData = nullptr;
+      *aData = nsnull;
       *aDataLen = 0;
       return;
     }
@@ -108,8 +108,8 @@ DataStruct::GetFileSpec(const char * aFileName)
   nsIFile* cacheFile;
   NS_GetSpecialDirectory(NS_OS_TEMP_DIR, &cacheFile);
   
-  if (cacheFile == nullptr)
-    return nullptr;
+  if (cacheFile == nsnull)
+    return nsnull;
 
   // if the param aFileName contains a name we should use that
   // because the file probably already exists
@@ -149,7 +149,7 @@ DataStruct::WriteCache(nsISupports* aData, PRUint32 aDataLen)
 
     if (!outStr) return NS_ERROR_FAILURE;
 
-    void* buff = nullptr;
+    void* buff = nsnull;
     nsPrimitiveHelpers::CreateDataFromPrimitive ( mFlavor.get(), aData, &buff, aDataLen );
     if ( buff ) {
       PRUint32 ignored;
@@ -204,7 +204,7 @@ DataStruct::ReadCache(nsISupports** aData, PRUint32* aDataLen)
     }
 
     // zero the return params
-    *aData    = nullptr;
+    *aData    = nsnull;
     *aDataLen = 0;
   }
 

@@ -14,10 +14,8 @@
 #include "nsGenericElement.h"
 #include "dombindings.h"
 
-using namespace mozilla;
-using namespace mozilla::dom;
 
-nsDOMTokenList::nsDOMTokenList(nsGenericElement* aElement, nsIAtom* aAttrAtom)
+nsDOMTokenList::nsDOMTokenList(nsGenericElement *aElement, nsIAtom* aAttrAtom)
   : mElement(aElement),
     mAttrAtom(aAttrAtom)
 {
@@ -46,7 +44,7 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsDOMTokenList)
 void
 nsDOMTokenList::DropReference()
 {
-  mElement = nullptr;
+  mElement = nsnull;
 }
 
 NS_IMETHODIMP

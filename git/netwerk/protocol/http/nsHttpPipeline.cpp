@@ -60,13 +60,13 @@ private:
 //-----------------------------------------------------------------------------
 
 nsHttpPipeline::nsHttpPipeline()
-    : mConnection(nullptr)
+    : mConnection(nsnull)
     , mStatus(NS_OK)
     , mRequestIsPartial(false)
     , mResponseIsPartial(false)
     , mClosed(false)
     , mUtilizedPipeline(false)
-    , mPushBackBuf(nullptr)
+    , mPushBackBuf(nsnull)
     , mPushBackLen(0)
     , mPushBackMax(0)
     , mHttp1xTransactionCount(0)
@@ -330,7 +330,7 @@ nsHttpPipeline::TakeHttpConnection()
 {
     if (mConnection)
         return mConnection->TakeHttpConnection();
-    return nullptr;
+    return nsnull;
 }
 
 nsAHttpTransaction::Classifier
@@ -360,7 +360,7 @@ nsHttpPipeline::RequestHead()
 
     if (trans)
         return trans->RequestHead();
-    return nullptr;
+    return nsnull;
 }
 
 PRUint32
@@ -433,9 +433,9 @@ nsHttpPipeline::GetSecurityCallbacks(nsIInterfaceRequestor **result,
     if (trans)
         trans->GetSecurityCallbacks(result, target);
     else {
-        *result = nullptr;
+        *result = nsnull;
         if (target)
-            *target = nullptr;
+            *target = nsnull;
     }
 }
 
@@ -625,7 +625,7 @@ nsHttpPipeline::ReadSegments(nsAHttpSegmentReader *reader,
 
     rv = mSendBufIn->ReadSegments(ReadFromPipe, this, avail, countRead);
 
-    mReader = nullptr;
+    mReader = nsnull;
     return rv;
 }
 
@@ -701,7 +701,8 @@ nsHttpPipeline::WriteSegments(nsAHttpSegmentWriter *writer,
         // previous transaction on the pipeline.
         nsITransport *transport = Transport();
         if (transport)
-            OnTransportStatus(transport, NS_NET_STATUS_RECEIVING_FROM,
+            OnTransportStatus(transport,
+                              nsISocketTransport::STATUS_RECEIVING_FROM,
                               mReceivingFromProgress);
 
         // the push back buffer is never larger than NS_HTTP_SEGMENT_SIZE,
@@ -785,7 +786,7 @@ nsHttpPipeline::Close(nsresult reason)
     // negative feedback.
     if (ci && numRescheduled)
         gHttpHandler->ConnMgr()->PipelineFeedbackInfo(
-            ci, nsHttpConnectionMgr::RedCanceledPipeline, nullptr, 0);
+            ci, nsHttpConnectionMgr::RedCanceledPipeline, nsnull, 0);
 
     nsAHttpTransaction *trans = Response(0);
     if (!trans)
@@ -839,7 +840,7 @@ nsHttpPipeline::FillSendBuf()
     nsAHttpTransaction *trans;
     nsITransport *transport = Transport();
 
-    while ((trans = Request(0)) != nullptr) {
+    while ((trans = Request(0)) != nsnull) {
         avail = trans->Available();
         if (avail) {
             // if there is already a response in the responseq then this

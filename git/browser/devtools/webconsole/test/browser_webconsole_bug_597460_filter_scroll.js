@@ -17,11 +17,11 @@ function consoleOpened(aHud) {
     content.console.log("test message " + i);
   }
 
-  hud.setFilterState("network", false);
-  hud.setFilterState("networkinfo", false);
+  HUDService.setFilterState(hud.hudId, "network", false);
+  HUDService.setFilterState(hud.hudId, "networkinfo", false);
 
-  hud.ui.filterBox.value = "test message";
-  hud.ui.adjustVisibilityOnSearchStringChange();
+  hud.filterBox.value = "test message";
+  HUDService.updateFilterText(hud.filterBox);
 
   let waitForNetwork = {
     name: "network message",
@@ -67,8 +67,8 @@ function testScroll() {
   ok(scrollBox.scrollTop >= scrollBox.scrollHeight - scrollBox.clientHeight -
      nodeHeight * 2, "scroll location is correct");
 
-  hud.setFilterState("network", true);
-  hud.setFilterState("networkinfo", true);
+  HUDService.setFilterState(hud.hudId, "network", true);
+  HUDService.setFilterState(hud.hudId, "networkinfo", true);
 
   executeSoon(finishTest);
 }

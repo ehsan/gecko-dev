@@ -291,7 +291,7 @@ ImageLayerD3D9::GetLayer()
 /*
   * Returns a texture which backs aImage
   * Will only work if aImage is a cairo or remote image.
-  * Returns nullptr if unsuccessful.
+  * Returns nsnull if unsuccessful.
   * If successful, aHasAlpha will be set to true if the texture has an
   * alpha component, false otherwise.
   */
@@ -318,7 +318,7 @@ ImageLayerD3D9::GetTexture(Image *aImage, bool& aHasAlpha)
       static_cast<CairoImage*>(aImage);
 
     if (!cairoImage->mSurface) {
-      return nullptr;
+      return nsnull;
     }
 
     if (!aImage->GetBackendData(mozilla::layers::LAYERS_D3D9)) {
@@ -332,20 +332,20 @@ ImageLayerD3D9::GetTexture(Image *aImage, bool& aHasAlpha)
     aHasAlpha = cairoImage->mSurface->GetContentType() == gfxASurface::CONTENT_COLOR_ALPHA;
   } else {
     NS_WARNING("Inappropriate image type.");
-    return nullptr;
+    return nsnull;
   }
 
   TextureD3D9BackendData *data =
     static_cast<TextureD3D9BackendData*>(aImage->GetBackendData(mozilla::layers::LAYERS_D3D9));
 
   if (!data) {
-    return nullptr;
+    return nsnull;
   }
 
   nsRefPtr<IDirect3DDevice9> dev;
   data->mTexture->GetDevice(getter_AddRefs(dev));
   if (dev != device()) {
-    return nullptr;
+    return nsnull;
   }
 
   return data->mTexture;
@@ -400,7 +400,7 @@ ImageLayerD3D9::RenderLayer()
     }
     device()->SetTexture(0, texture);
 
-    image = nullptr;
+    image = nsnull;
     autoLock.Unlock();
 
     device()->DrawPrimitive(D3DPT_TRIANGLESTRIP, 0, 2);
@@ -494,8 +494,8 @@ ImageLayerD3D9::RenderLayer()
     device()->SetTexture(1, data->mCbTexture);
     device()->SetTexture(2, data->mCrTexture);
 
-    image = nullptr;
-    data = nullptr;
+    image = nsnull;
+    data = nsnull;
     autoLock.Unlock();
 
     device()->DrawPrimitive(D3DPT_TRIANGLESTRIP, 0, 2);
@@ -511,7 +511,7 @@ already_AddRefed<IDirect3DTexture9>
 ImageLayerD3D9::GetAsTexture(gfxIntSize* aSize)
 {
   if (!GetContainer()) {
-    return nullptr;
+    return nsnull;
   }
 
   AutoLockImage autoLock(GetContainer());
@@ -519,12 +519,12 @@ ImageLayerD3D9::GetAsTexture(gfxIntSize* aSize)
   Image *image = autoLock.GetImage();
 
   if (!image) {
-    return nullptr;
+    return nsnull;
   }
 
   if (image->GetFormat() != Image::CAIRO_SURFACE &&
       image->GetFormat() != Image::REMOTE_IMAGE_BITMAP) {
-    return nullptr;
+    return nsnull;
   }
   
   bool dontCare;
@@ -535,7 +535,7 @@ ImageLayerD3D9::GetAsTexture(gfxIntSize* aSize)
 
 
 ShadowImageLayerD3D9::ShadowImageLayerD3D9(LayerManagerD3D9* aManager)
-  : ShadowImageLayer(aManager, nullptr)
+  : ShadowImageLayer(aManager, nsnull)
   , LayerD3D9(aManager)
 {
   mImplData = static_cast<LayerD3D9*>(this);
@@ -596,8 +596,8 @@ ShadowImageLayerD3D9::Disconnect()
 void
 ShadowImageLayerD3D9::Destroy()
 {
-  mBuffer = nullptr;
-  mYCbCrImage = nullptr;
+  mBuffer = nsnull;
+  mYCbCrImage = nsnull;
 }
 
 Layer*
@@ -667,7 +667,7 @@ already_AddRefed<IDirect3DTexture9>
 ShadowImageLayerD3D9::GetAsTexture(gfxIntSize* aSize)
 {
   if (!mBuffer) {
-    return nullptr;
+    return nsnull;
   }
   
   *aSize = mBuffer->GetSize();

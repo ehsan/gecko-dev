@@ -14,7 +14,7 @@ using namespace mozilla;
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsNSSCertCache, nsINSSCertCache)
 
 nsNSSCertCache::nsNSSCertCache()
-:mutex("nsNSSCertCache.mutex"), mCertList(nullptr)
+:mutex("nsNSSCertCache.mutex"), mCertList(nsnull)
 {
 }
 
@@ -98,7 +98,7 @@ nsNSSCertCache::GetX509CachedCerts(nsIX509CertList **list)
 void* nsNSSCertCache::GetCachedCerts()
 {
   if (isAlreadyShutDown())
-    return nullptr;
+    return nsnull;
 
   MutexAutoLock lock(mutex);
   return mCertList->GetRawCertList();

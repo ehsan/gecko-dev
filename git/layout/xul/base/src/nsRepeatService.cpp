@@ -13,10 +13,10 @@
 #include "nsRepeatService.h"
 #include "nsIServiceManager.h"
 
-nsRepeatService* nsRepeatService::gInstance = nullptr;
+nsRepeatService* nsRepeatService::gInstance = nsnull;
 
 nsRepeatService::nsRepeatService()
-: mCallback(nullptr), mCallbackData(nullptr)
+: mCallback(nsnull), mCallbackData(nsnull)
 {
 }
 
@@ -44,7 +44,7 @@ nsRepeatService::Shutdown()
 void nsRepeatService::Start(Callback aCallback, void* aCallbackData,
                             PRUint32 aInitialDelay)
 {
-  NS_PRECONDITION(aCallback != nullptr, "null ptr");
+  NS_PRECONDITION(aCallback != nsnull, "null ptr");
 
   mCallback = aCallback;
   mCallbackData = aCallbackData;
@@ -64,10 +64,10 @@ void nsRepeatService::Stop(Callback aCallback, void* aCallbackData)
   //printf("Stopping repeat timer\n");
   if (mRepeatTimer) {
      mRepeatTimer->Cancel();
-     mRepeatTimer = nullptr;
+     mRepeatTimer = nsnull;
   }
-  mCallback = nullptr;
-  mCallbackData = nullptr;
+  mCallback = nsnull;
+  mCallbackData = nsnull;
 }
 
 NS_IMETHODIMP nsRepeatService::Notify(nsITimer *timer)

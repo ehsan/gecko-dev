@@ -14,15 +14,15 @@ const TEST_URI = "http://example.com/browser/browser/devtools/" +
 
 function test() {
   addTab(TEST_URI);
-  browser.addEventListener("load", function onLoad() {
-    browser.removeEventListener("load", onLoad, true);
-    openConsole(null, consoleOpened);
-  }, true);
+  browser.addEventListener("load", tabLoaded, true);
 }
 
-function consoleOpened(hud) {
+function tabLoaded(aEvent) {
+  browser.removeEventListener("load", tabLoaded, true);
+  openConsole();
+
   let button = content.document.querySelector("button");
-  let outputNode = hud.outputNode;
+  let outputNode = HUDService.getHudByWindow(content).outputNode;
 
   expectUncaughtException();
   EventUtils.sendMouseEvent({ type: "click" }, button, content);

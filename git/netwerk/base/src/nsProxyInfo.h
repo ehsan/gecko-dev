@@ -39,13 +39,13 @@ public:
 private:
   friend class nsProtocolProxyService;
 
-  nsProxyInfo(const char *type = nullptr)
+  nsProxyInfo(const char *type = nsnull)
     : mType(type)
     , mPort(-1)
     , mFlags(0)
     , mResolveFlags(0)
     , mTimeout(PR_UINT32_MAX)
-    , mNext(nullptr)
+    , mNext(nsnull)
   {}
 
   ~nsProxyInfo()

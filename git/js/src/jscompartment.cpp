@@ -70,7 +70,7 @@ JSCompartment::JSCompartment(JSRuntime *rt)
     sourceMapMap(NULL),
     debugScriptMap(NULL)
 {
-    setGCMaxMallocBytes(rt->gcMaxMallocBytes);
+    setGCMaxMallocBytes(rt->gcMaxMallocBytes * 0.9);
 }
 
 JSCompartment::~JSCompartment()
@@ -121,18 +121,15 @@ JSCompartment::setNeedsBarrier(bool needs)
 }
 
 static bool
-WrapForSameCompartment(JSContext *cx, HandleObject obj, Value *vp)
+WrapForSameCompartment(JSContext *cx, JSObject *obj, Value *vp)
 {
     JS_ASSERT(cx->compartment == obj->compartment());
-    if (!cx->runtime->sameCompartmentWrapObjectCallback) {
-        vp->setObject(*obj);
-        return true;
+    if (cx->runtime->sameCompartmentWrapObjectCallback) {
+        obj = cx->runtime->sameCompartmentWrapObjectCallback(cx, obj);
+        if (!obj)
+            return false;
     }
-
-    JSObject *wrapped = cx->runtime->sameCompartmentWrapObjectCallback(cx, obj);
-    if (!wrapped)
-        return false;
-    vp->setObject(*wrapped);
+    vp->setObject(*obj);
     return true;
 }
 
@@ -184,8 +181,7 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
     if (cx->hasfp()) {
         global = &cx->fp()->global();
     } else {
-        global = cx->globalObject;
-        global = JS_ObjectToInnerObject(cx, global);
+        global = JS_ObjectToInnerObject(cx, cx->globalObject);
         if (!global)
             return false;
     }

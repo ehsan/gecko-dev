@@ -167,7 +167,7 @@ CreateFoo( void** result )
     *result = foop;
 
     printf("<<CreateFoo()\n");
-    return NS_OK;
+    return 0;
   }
 
 void
@@ -261,7 +261,7 @@ CreateBar( void** result )
     *result = barp;
 
     printf("<<CreateBar()\n");
-    return NS_OK;
+    return 0;
   }
 
 void
@@ -380,7 +380,7 @@ main()
       else
         printf("foo1p == foo2p\n");
 
-      printf("\n### Test  7.5: can you compare a |nsCOMPtr| with NULL, 0, nullptr [!=]?\n");
+      printf("\n### Test  7.5: can you compare a |nsCOMPtr| with NULL, 0, nsnull [!=]?\n");
       if ( foo1p != 0 )
       	printf("foo1p != 0\n");
       if ( 0 != foo1p )

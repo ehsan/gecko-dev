@@ -15,7 +15,6 @@
 #include "Role.h"
 #include "States.h"
 #include "TextLeafAccessible.h"
-#include "nsIMutableArray.h"
 
 #include "nsIDOMXULContainerElement.h"
 #include "nsIDOMXULSelectCntrlEl.h"
@@ -203,14 +202,14 @@ nsAccUtils::GetARIAToken(dom::Element* aElement, nsIAtom* aAttr)
 
   static nsIContent::AttrValuesArray tokens[] =
     { &nsGkAtoms::_false, &nsGkAtoms::_true,
-      &nsGkAtoms::mixed, nullptr};
+      &nsGkAtoms::mixed, nsnull};
 
   PRInt32 idx = aElement->FindAttrValueIn(kNameSpaceID_None,
                                           aAttr, tokens, eCaseMatters);
   if (idx >= 0)
     return *(tokens[idx]);
 
-  return nullptr;
+  return nsnull;
 }
 
 Accessible*
@@ -226,22 +225,22 @@ nsAccUtils::GetAncestorWithRole(Accessible* aDescendant, PRUint32 aRole)
     if (parent == document)
       break;
   }
-  return nullptr;
+  return nsnull;
 }
 
 Accessible*
 nsAccUtils::GetSelectableContainer(Accessible* aAccessible, PRUint64 aState)
 {
   if (!aAccessible)
-    return nullptr;
+    return nsnull;
 
   if (!(aState & states::SELECTABLE))
-    return nullptr;
+    return nsnull;
 
   Accessible* parent = aAccessible;
   while ((parent = parent->Parent()) && !parent->IsSelect()) {
     if (Role(parent) == nsIAccessibleRole::ROLE_PANE)
-      return nullptr;
+      return nsnull;
   }
   return parent;
 }
@@ -263,7 +262,7 @@ nsAccUtils::GetTextAccessibleFromSelection(nsISelection* aSelection)
   nsCOMPtr<nsIDOMNode> focusDOMNode;
   aSelection->GetFocusNode(getter_AddRefs(focusDOMNode));
   if (!focusDOMNode)
-    return nullptr;
+    return nsnull;
 
   PRInt32 focusOffset = 0;
   aSelection->GetFocusOffset(&focusOffset);
@@ -276,10 +275,10 @@ nsAccUtils::GetTextAccessibleFromSelection(nsISelection* aSelection)
   DocAccessible* doc = 
     GetAccService()->GetDocAccessible(resultNode->OwnerDoc());
   Accessible* accessible = doc ? 
-    doc->GetAccessibleOrContainer(resultNode) : nullptr;
+    doc->GetAccessibleOrContainer(resultNode) : nsnull;
   if (!accessible) {
     NS_NOTREACHED("No nsIAccessibleText for selection change event!");
-    return nullptr;
+    return nsnull;
   }
 
   do {
@@ -291,7 +290,7 @@ nsAccUtils::GetTextAccessibleFromSelection(nsISelection* aSelection)
   } while (accessible);
 
   NS_NOTREACHED("We must reach document accessible implementing nsIAccessibleText!");
-  return nullptr;
+  return nsnull;
 }
 
 nsresult

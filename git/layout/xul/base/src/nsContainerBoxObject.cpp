@@ -46,7 +46,7 @@ NS_IMPL_RELEASE_INHERITED(nsContainerBoxObject, nsBoxObject)
 
 NS_IMETHODIMP nsContainerBoxObject::GetDocShell(nsIDocShell** aResult)
 {
-  *aResult = nullptr;
+  *aResult = nsnull;
 
   nsIFrame *frame = GetFrame(false);
 

@@ -81,13 +81,9 @@
 #include "nsIAccessibilityService.h"
 #endif
 
-#include "mozilla/dom/indexedDB/PIndexedDBChild.h"
 #include "mozilla/dom/sms/SmsChild.h"
 #include "mozilla/dom/devicestorage/DeviceStorageRequestChild.h"
-
-#include "nsDOMFile.h"
-#include "nsIRemoteBlob.h"
-#include "StructuredCloneUtils.h"
+#include "mozilla/dom/indexedDB/PIndexedDBChild.h"
 
 using namespace mozilla::docshell;
 using namespace mozilla::dom::devicestorage;
@@ -145,7 +141,7 @@ public:
 
     bool Notify(const nsCString& aType) const
     {
-        mObserver->Observe(nullptr, aType.get(), mData.get());
+        mObserver->Observe(nsnull, aType.get(), mData.get());
         return true;
     }
 
@@ -394,7 +390,7 @@ ContentChild::DeallocPMemoryReportRequest(PMemoryReportRequestChild* actor)
 }
 
 PCompositorChild*
-ContentChild::AllocPCompositor(mozilla::ipc::Transport* aTransport,
+ContentChild::AllocPCompositor(ipc::Transport* aTransport,
                                base::ProcessId aOtherProcess)
 {
     return CompositorChild::Create(aTransport, aOtherProcess);
@@ -417,84 +413,6 @@ ContentChild::DeallocPBrowser(PBrowserChild* iframe)
     return true;
 }
 
-PBlobChild*
-ContentChild::AllocPBlob(const BlobConstructorParams& aParams)
-{
-  return BlobChild::Create(aParams);
-}
-
-bool
-ContentChild::DeallocPBlob(PBlobChild* aActor)
-{
-  delete aActor;
-  return true;
-}
-
-BlobChild*
-ContentChild::GetOrCreateActorForBlob(nsIDOMBlob* aBlob)
-{
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(aBlob, "Null pointer!");
-
-  nsCOMPtr<nsIRemoteBlob> remoteBlob = do_QueryInterface(aBlob);
-  if (remoteBlob) {
-    BlobChild* actor =
-      static_cast<BlobChild*>(static_cast<PBlobChild*>(remoteBlob->GetPBlob()));
-    NS_ASSERTION(actor, "Null actor?!");
-
-    return actor;
-  }
-
-  // XXX This is only safe so long as all blob implementations in our tree
-  //     inherit nsDOMFileBase. If that ever changes then this will need to grow
-  //     a real interface or something.
-  const nsDOMFileBase* blob = static_cast<nsDOMFileBase*>(aBlob);
-
-  BlobConstructorParams params;
-
-  if (blob->IsSizeUnknown()) {
-    // We don't want to call GetSize yet since that may stat a file on the main
-    // thread here. Instead we'll learn the size lazily from the other process.
-    params = MysteryBlobConstructorParams();
-  }
-  else {
-    nsString contentType;
-    nsresult rv = aBlob->GetType(contentType);
-    NS_ENSURE_SUCCESS(rv, nullptr);
-
-    PRUint64 length;
-    rv = aBlob->GetSize(&length);
-    NS_ENSURE_SUCCESS(rv, nullptr);
-
-    nsCOMPtr<nsIDOMFile> file = do_QueryInterface(aBlob);
-    if (file) {
-      FileBlobConstructorParams fileParams;
-
-      rv = file->GetName(fileParams.name());
-      NS_ENSURE_SUCCESS(rv, nullptr);
-
-      fileParams.contentType() = contentType;
-      fileParams.length() = length;
-
-      params = fileParams;
-    } else {
-      NormalBlobConstructorParams blobParams;
-      blobParams.contentType() = contentType;
-      blobParams.length() = length;
-      params = blobParams;
-    }
-  }
-
-  BlobChild* actor = BlobChild::Create(aBlob);
-  NS_ENSURE_TRUE(actor, nullptr);
-
-  if (!SendPBlobConstructor(actor, params)) {
-    return nullptr;
-  }
-
-  return actor;
-}
-
 PCrashReporterChild*
 ContentChild::AllocPCrashReporter(const mozilla::dom::NativeThreadId& id,
                                   const PRUint32& processType)
@@ -502,7 +420,7 @@ ContentChild::AllocPCrashReporter(const mozilla::dom::NativeThreadId& id,
 #ifdef MOZ_CRASHREPORTER
     return new CrashReporterChild();
 #else
-    return nullptr;
+    return nsnull;
 #endif
 }
 
@@ -570,7 +488,7 @@ ContentChild::AllocPAudio(const PRInt32& numChannels,
     NS_ADDREF(child);
     return child;
 #else
-    return nullptr;
+    return nsnull;
 #endif
 }
 
@@ -648,7 +566,7 @@ PStorageChild*
 ContentChild::AllocPStorage(const StorageConstructData& aData)
 {
     NS_NOTREACHED("We should never be manually allocating PStorageChild actors");
-    return nullptr;
+    return nsnull;
 }
 
 bool
@@ -703,7 +621,7 @@ ContentChild::ActorDestroy(ActorDestroyReason why)
     nsCOMPtr<nsIConsoleService> svc(do_GetService(NS_CONSOLESERVICE_CONTRACTID));
     if (svc) {
         svc->UnregisterListener(mConsoleListener);
-        mConsoleListener->mChild = nullptr;
+        mConsoleListener->mChild = nsnull;
     }
 
     XRE_ShutdownChildProcess();
@@ -786,30 +704,14 @@ ContentChild::RecvNotifyVisited(const IPC::URI& aURI)
     return true;
 }
 
+
 bool
-ContentChild::RecvAsyncMessage(const nsString& aMsg,
-                                     const ClonedMessageData& aData)
+ContentChild::RecvAsyncMessage(const nsString& aMsg, const nsString& aJSON)
 {
   nsRefPtr<nsFrameMessageManager> cpm = nsFrameMessageManager::sChildProcessManager;
   if (cpm) {
-    const SerializedStructuredCloneBuffer& buffer = aData.data();
-    const InfallibleTArray<PBlobChild*>& blobChildList = aData.blobsChild();
-    StructuredCloneData cloneData;
-    cloneData.mData = buffer.data;
-    cloneData.mDataLength = buffer.dataLength;
-    if (!blobChildList.IsEmpty()) {
-      PRUint32 length = blobChildList.Length();
-      cloneData.mClosure.mBlobs.SetCapacity(length);
-      for (PRUint32 i = 0; i < length; ++i) {
-        BlobChild* blobChild = static_cast<BlobChild*>(blobChildList[i]);
-        MOZ_ASSERT(blobChild);
-        nsCOMPtr<nsIDOMBlob> blob = blobChild->GetBlob();
-        MOZ_ASSERT(blob);
-        cloneData.mClosure.mBlobs.AppendElement(blob);
-      }
-    }
     cpm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(cpm.get()),
-                        aMsg, false, &cloneData, nullptr, nullptr);
+                        aMsg, false, aJSON, nsnull, nsnull);
   }
   return true;
 }
@@ -867,7 +769,7 @@ ContentChild::RecvFlushMemory(const nsString& reason)
     nsCOMPtr<nsIObserverService> os =
         mozilla::services::GetObserverService();
     if (os)
-        os->NotifyObservers(nullptr, "memory-pressure", reason.get());
+        os->NotifyObservers(nsnull, "memory-pressure", reason.get());
   return true;
 }
 
@@ -920,22 +822,7 @@ bool
 ContentChild::RecvLastPrivateDocShellDestroyed()
 {
     nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
-    obs->NotifyObservers(nullptr, "last-pb-context-exited", nullptr);
-    return true;
-}
-
-bool
-ContentChild::RecvFilePathUpdate(const nsString& path, const nsCString& aReason)
-{
-    // data strings will have the format of
-    //  reason:path
-    nsString data;
-    CopyASCIItoUTF16(aReason, data);
-    data.Append(NS_LITERAL_STRING(":"));
-    data.Append(path);
-
-    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
-    obs->NotifyObservers(nullptr, "file-watcher-update", data.get());
+    obs->NotifyObservers(nsnull, "last-pb-context-exited", nsnull);
     return true;
 }
 

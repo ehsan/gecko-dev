@@ -199,7 +199,7 @@ class gfxFontEntry {
 public:
     NS_INLINE_DECL_REFCOUNTING(gfxFontEntry)
 
-    gfxFontEntry(const nsAString& aName, gfxFontFamily *aFamily = nullptr,
+    gfxFontEntry(const nsAString& aName, gfxFontFamily *aFamily = nsnull,
                  bool aIsStandardFace = false) : 
         mName(aName), mItalic(false), mFixedPitch(false),
         mIsProxy(false), mIsValid(true), 
@@ -213,8 +213,8 @@ public:
         mCheckedForGraphiteTables(false),
 #endif
         mHasCmapTable(false),
-        mUVSOffset(0), mUVSData(nullptr),
-        mUserFontData(nullptr),
+        mUVSOffset(0), mUVSData(nsnull),
+        mUserFontData(nsnull),
         mLanguageOverride(NO_FONT_LANGUAGE_OVERRIDE),
         mFamily(aFamily)
     { }
@@ -371,15 +371,15 @@ protected:
         mCheckedForGraphiteTables(false),
 #endif
         mHasCmapTable(false),
-        mUVSOffset(0), mUVSData(nullptr),
-        mUserFontData(nullptr),
+        mUVSOffset(0), mUVSData(nsnull),
+        mUserFontData(nsnull),
         mLanguageOverride(NO_FONT_LANGUAGE_OVERRIDE),
-        mFamily(nullptr)
+        mFamily(nsnull)
     { }
 
     virtual gfxFont *CreateFontInstance(const gfxFontStyle *aFontStyle, bool aNeedsBold) {
         NS_NOTREACHED("oops, somebody didn't override CreateFontInstance");
-        return nullptr;
+        return nsnull;
     }
 
 #ifdef MOZ_GRAPHITE
@@ -446,7 +446,7 @@ private:
         FontTableHashEntry(FontTableHashEntry& toCopy)
             : KeyClass(toCopy), mBlob(toCopy.mBlob)
         {
-            toCopy.mBlob = nullptr;
+            toCopy.mBlob = nsnull;
         }
 
         ~FontTableHashEntry() { Clear(); }
@@ -535,7 +535,7 @@ public:
         while (i) {
              gfxFontEntry *fe = mAvailableFonts[--i];
              if (fe) {
-                 fe->SetFamily(nullptr);
+                 fe->SetFamily(nsnull);
              }
         }
     }
@@ -809,7 +809,7 @@ public:
     }
 
     void FlushShapedWordCaches() {
-        mFonts.EnumerateEntries(ClearCachedWordsForFont, nullptr);
+        mFonts.EnumerateEntries(ClearCachedWordsForFont, nsnull);
     }
 
     void SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
@@ -844,7 +844,7 @@ protected:
 
         // When constructing a new entry in the hashtable, we'll leave this
         // blank. The caller of Put() will fill this in.
-        HashEntry(KeyTypePointer aStr) : mFont(nullptr) { }
+        HashEntry(KeyTypePointer aStr) : mFont(nsnull) { }
         HashEntry(const HashEntry& toCopy) : mFont(toCopy.mFont) { }
         ~HashEntry() { }
 
@@ -1013,11 +1013,11 @@ public:
 
     bool IsGlyphKnown(PRUint32 aGlyphID) const {
         return mContainedGlyphWidths.Get(aGlyphID) != INVALID_WIDTH ||
-            mTightGlyphExtents.GetEntry(aGlyphID) != nullptr;
+            mTightGlyphExtents.GetEntry(aGlyphID) != nsnull;
     }
 
     bool IsGlyphKnownWithTightExtents(PRUint32 aGlyphID) const {
-        return mTightGlyphExtents.GetEntry(aGlyphID) != nullptr;
+        return mTightGlyphExtents.GetEntry(aGlyphID) != nsnull;
     }
 
     // Get glyph extents; a rectangle relative to the left baseline origin
@@ -1207,7 +1207,7 @@ protected:
 
     gfxFont(gfxFontEntry *aFontEntry, const gfxFontStyle *aFontStyle,
             AntialiasOption anAAOption = kAntialiasDefault,
-            cairo_scaled_font_t *aScaledFont = nullptr);
+            cairo_scaled_font_t *aScaledFont = nsnull);
 
 public:
     virtual ~gfxFont();
@@ -1250,7 +1250,7 @@ public:
 
     virtual gfxFont* CopyWithAntialiasOption(AntialiasOption anAAOption) {
         // platforms where this actually matters should override
-        return nullptr;
+        return nsnull;
     }
 
     virtual gfxFloat GetAdjustedSize() {
@@ -1317,7 +1317,7 @@ public:
 
     // Return Azure GlyphRenderingOptions for drawing this font.
     virtual mozilla::TemporaryRef<mozilla::gfx::GlyphRenderingOptions>
-      GetGlyphRenderingOptions() { return nullptr; }
+      GetGlyphRenderingOptions() { return nsnull; }
 
     gfxFloat SynthesizeSpaceWidth(PRUint32 aCh);
 
@@ -1760,7 +1760,7 @@ public:
             aLength * (sizeof(CompressedGlyph) + sizeof(PRUint8));
         void *storage = moz_malloc(size);
         if (!storage) {
-            return nullptr;
+            return nsnull;
         }
 
         // Construct in the pre-allocated storage, using placement new
@@ -1790,7 +1790,7 @@ public:
             aLength * (sizeof(CompressedGlyph) + sizeof(PRUnichar));
         void *storage = moz_malloc(size);
         if (!storage) {
-            return nullptr;
+            return nsnull;
         }
 
         return new (storage) gfxShapedWord(aText, aLength, aRunScript,
@@ -2098,7 +2098,7 @@ public:
     }
 
     void SetIsLowSurrogate(PRUint32 aIndex) {
-        SetGlyphs(aIndex, CompressedGlyph().SetComplex(false, false, 0), nullptr);
+        SetGlyphs(aIndex, CompressedGlyph().SetComplex(false, false, 0), nsnull);
         mCharacterGlyphs[aIndex].SetIsLowSurrogate();
     }
 
@@ -2109,7 +2109,7 @@ public:
     }
 
     bool HasDetailedGlyphs() const {
-        return mDetailedGlyphs != nullptr;
+        return mDetailedGlyphs != nsnull;
     }
 
     // NOTE that this must not be called for a character offset that does
@@ -2222,7 +2222,7 @@ private:
             PRUint32 detailIndex = mDetails.Length();
             DetailedGlyph *details = mDetails.AppendElements(aCount);
             if (!details) {
-                return nullptr;
+                return nsnull;
             }
             // We normally set up glyph records sequentially, so the common case
             // here is to append new records to the mOffsetToIndex array;
@@ -2231,12 +2231,12 @@ private:
             if (mOffsetToIndex.Length() == 0 ||
                 aOffset > mOffsetToIndex[mOffsetToIndex.Length() - 1].mOffset) {
                 if (!mOffsetToIndex.AppendElement(DGRec(aOffset, detailIndex))) {
-                    return nullptr;
+                    return nsnull;
                 }
             } else {
                 if (!mOffsetToIndex.InsertElementSorted(DGRec(aOffset, detailIndex),
                                                         CompareRecordOffsets())) {
-                    return nullptr;
+                    return nsnull;
                 }
             }
             return details;
@@ -2481,13 +2481,13 @@ public:
      * Drawing should respect advance widths in the sense that for LTR runs,
      * Draw(ctx, pt, offset1, length1, dirty, &provider, &advance) followed by
      * Draw(ctx, gfxPoint(pt.x + advance, pt.y), offset1 + length1, length2,
-     *      dirty, &provider, nullptr) should have the same effect as
-     * Draw(ctx, pt, offset1, length1+length2, dirty, &provider, nullptr).
+     *      dirty, &provider, nsnull) should have the same effect as
+     * Draw(ctx, pt, offset1, length1+length2, dirty, &provider, nsnull).
      * For RTL runs the rule is:
      * Draw(ctx, pt, offset1 + length1, length2, dirty, &provider, &advance) followed by
      * Draw(ctx, gfxPoint(pt.x + advance, pt.y), offset1, length1,
-     *      dirty, &provider, nullptr) should have the same effect as
-     * Draw(ctx, pt, offset1, length1+length2, dirty, &provider, nullptr).
+     *      dirty, &provider, nsnull) should have the same effect as
+     * Draw(ctx, pt, offset1, length1+length2, dirty, &provider, nsnull).
      * 
      * Glyphs should be drawn in logical content order, which can be significant
      * if they overlap (perhaps due to negative spacing).
@@ -2780,7 +2780,7 @@ public:
         g->SetIsNewline();
     }
     void SetIsLowSurrogate(PRUint32 aIndex) {
-        SetGlyphs(aIndex, CompressedGlyph().SetComplex(false, false, 0), nullptr);
+        SetGlyphs(aIndex, CompressedGlyph().SetComplex(false, false, 0), nsnull);
         mCharacterGlyphs[aIndex].SetIsLowSurrogate();
     }
 
@@ -2800,14 +2800,14 @@ public:
     // not have any DetailedGlyph records; callers must have verified that
     // mCharacterGlyphs[aCharIndex].GetGlyphCount() is greater than zero.
     DetailedGlyph *GetDetailedGlyphs(PRUint32 aCharIndex) {
-        NS_ASSERTION(mDetailedGlyphs != nullptr &&
+        NS_ASSERTION(mDetailedGlyphs != nsnull &&
                      !mCharacterGlyphs[aCharIndex].IsSimpleGlyph() &&
                      mCharacterGlyphs[aCharIndex].GetGlyphCount() > 0,
                      "invalid use of GetDetailedGlyphs; check the caller!");
         return mDetailedGlyphs->Get(aCharIndex);
     }
 
-    bool HasDetailedGlyphs() { return mDetailedGlyphs != nullptr; }
+    bool HasDetailedGlyphs() { return mDetailedGlyphs != nsnull; }
     PRUint32 CountMissingGlyphs();
     const GlyphRun *GetGlyphRuns(PRUint32 *aNumGlyphRuns) {
         *aNumGlyphRuns = mGlyphRuns.Length();
@@ -2969,7 +2969,7 @@ class THEBES_API gfxFontGroup : public gfxTextRunFactory {
 public:
     static void Shutdown(); // platform must call this to release the languageAtomService
 
-    gfxFontGroup(const nsAString& aFamilies, const gfxFontStyle *aStyle, gfxUserFontSet *aUserFontSet = nullptr);
+    gfxFontGroup(const nsAString& aFamilies, const gfxFontStyle *aStyle, gfxUserFontSet *aUserFontSet = nsnull);
 
     virtual ~gfxFontGroup();
 
@@ -3035,7 +3035,7 @@ public:
                             PRUint32 aFlags)
     {
         gfxTextRunFactory::Parameters params = {
-            aRefContext, nullptr, nullptr, nullptr, 0, aAppUnitsPerDevUnit
+            aRefContext, nsnull, nsnull, nsnull, 0, aAppUnitsPerDevUnit
         };
         return MakeTextRun(aString, aLength, &params, aFlags);
     }
@@ -3078,7 +3078,7 @@ public:
                         gfxFont *aPrevMatchedFont,
                         PRUint8 *aMatchType);
 
-    // search through pref fonts for a character, return nullptr if no matching pref font
+    // search through pref fonts for a character, return nsnull if no matching pref font
     virtual already_AddRefed<gfxFont> WhichPrefFontSupportsChar(PRUint32 aCh);
 
     virtual already_AddRefed<gfxFont>

@@ -61,7 +61,7 @@ public:
   /**
    * This method returns the DOMSVGAnimatedTransformList wrapper for an internal
    * SVGAnimatedTransformList object if it currently has a wrapper. If it does
-   * not, then nullptr is returned.
+   * not, then nsnull is returned.
    */
   static DOMSVGAnimatedTransformList*
     GetDOMWrapperIfExists(SVGAnimatedTransformList *aList);
@@ -94,8 +94,8 @@ private:
    * type.
    */
   DOMSVGAnimatedTransformList(nsSVGElement *aElement)
-    : mBaseVal(nullptr)
-    , mAnimVal(nullptr)
+    : mBaseVal(nsnull)
+    , mAnimVal(nsnull)
     , mElement(aElement)
   {}
 

@@ -109,11 +109,11 @@ ArgumentsObject::markElementDeleted(uint32_t i)
 }
 
 inline bool
-ArgumentsObject::maybeGetElement(uint32_t i, MutableHandleValue vp)
+ArgumentsObject::maybeGetElement(uint32_t i, Value *vp)
 {
     if (i >= initialLength() || isElementDeleted(i))
         return false;
-    vp.set(element(i));
+    *vp = element(i);
     return true;
 }
 

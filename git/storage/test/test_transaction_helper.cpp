@@ -159,7 +159,7 @@ test_null_database_connection()
 {
   // We permit the use of the Transaction helper when passing a null database
   // in, so we need to make sure this still works without crashing.
-  mozStorageTransaction transaction(nullptr, false);
+  mozStorageTransaction transaction(nsnull, false);
 
   do_check_false(transaction.HasTransaction());
   do_check_true(NS_SUCCEEDED(transaction.Commit()));

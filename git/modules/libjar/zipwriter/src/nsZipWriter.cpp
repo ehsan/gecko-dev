@@ -290,7 +290,7 @@ NS_IMETHODIMP nsZipWriter::GetEntry(const nsACString & aZipEntry,
     if (mEntryHash.Get(aZipEntry, &pos))
         NS_ADDREF(*_retval = mHeaders[pos]);
     else
-        *_retval = nullptr;
+        *_retval = nsnull;
 
     return NS_OK;
 }
@@ -299,7 +299,7 @@ NS_IMETHODIMP nsZipWriter::GetEntry(const nsACString & aZipEntry,
 NS_IMETHODIMP nsZipWriter::HasEntry(const nsACString & aZipEntry,
                                     bool *_retval)
 {
-    *_retval = mEntryHash.Get(aZipEntry, nullptr);
+    *_retval = mEntryHash.Get(aZipEntry, nsnull);
 
     return NS_OK;
 }
@@ -376,7 +376,7 @@ NS_IMETHODIMP nsZipWriter::AddEntryFile(const nsACString & aZipEntry,
     if (isdir)
         return InternalAddEntryDirectory(aZipEntry, modtime, permissions);
 
-    if (mEntryHash.Get(aZipEntry, nullptr))
+    if (mEntryHash.Get(aZipEntry, nsnull))
         return NS_ERROR_FILE_ALREADY_EXISTS;
 
     nsCOMPtr<nsIInputStream> inputStream;
@@ -419,7 +419,7 @@ NS_IMETHODIMP nsZipWriter::AddEntryChannel(const nsACString & aZipEntry,
 
     if (mInQueue)
         return NS_ERROR_IN_PROGRESS;
-    if (mEntryHash.Get(aZipEntry, nullptr))
+    if (mEntryHash.Get(aZipEntry, nsnull))
         return NS_ERROR_FILE_ALREADY_EXISTS;
 
     nsCOMPtr<nsIInputStream> inputStream;
@@ -475,7 +475,7 @@ nsresult nsZipWriter::AddEntryStream(const nsACString & aZipEntry,
 
     if (mInQueue)
         return NS_ERROR_IN_PROGRESS;
-    if (mEntryHash.Get(aZipEntry, nullptr))
+    if (mEntryHash.Get(aZipEntry, nsnull))
         return NS_ERROR_FILE_ALREADY_EXISTS;
 
     nsRefPtr<nsZipHeader> header = new nsZipHeader();
@@ -618,7 +618,7 @@ NS_IMETHODIMP nsZipWriter::ProcessQueue(nsIRequestObserver *aObserver,
     mInQueue = true;
 
     if (mProcessObserver)
-        mProcessObserver->OnStartRequest(nullptr, mProcessContext);
+        mProcessObserver->OnStartRequest(nsnull, mProcessContext);
 
     BeginProcessingNextItem();
 
@@ -694,7 +694,7 @@ NS_IMETHODIMP nsZipWriter::Close()
     }
 
     nsresult rv = mStream->Close();
-    mStream = nullptr;
+    mStream = nsnull;
     mHeaders.Clear();
     mEntryHash.Clear();
     mQueue.Clear();
@@ -755,7 +755,7 @@ nsresult nsZipWriter::InternalAddEntryDirectory(const nsACString & aZipEntry,
     else
         header->Init(aZipEntry, aModTime, zipAttributes, mCDSOffset);
 
-    if (mEntryHash.Get(header->mName, nullptr))
+    if (mEntryHash.Get(header->mName, nsnull))
         return NS_ERROR_FILE_ALREADY_EXISTS;
 
     nsresult rv = header->WriteFileHeader(mStream);
@@ -805,8 +805,8 @@ void nsZipWriter::Cleanup()
     mEntryHash.Clear();
     if (mStream)
         mStream->Close();
-    mStream = nullptr;
-    mFile = nullptr;
+    mStream = nsnull;
+    mFile = nsnull;
 }
 
 /*
@@ -889,11 +889,11 @@ inline nsresult nsZipWriter::BeginProcessingAddition(nsZipQueueItem* aItem,
                                        -1, -1, 0, 0, true);
             NS_ENSURE_SUCCESS(rv, rv);
 
-            rv = pump->AsyncRead(stream, nullptr);
+            rv = pump->AsyncRead(stream, nsnull);
             NS_ENSURE_SUCCESS(rv, rv);
         }
         else {
-            rv = aItem->mChannel->AsyncOpen(stream, nullptr);
+            rv = aItem->mChannel->AsyncOpen(stream, nsnull);
             NS_ENSURE_SUCCESS(rv, rv);
         }
 
@@ -949,7 +949,7 @@ inline nsresult nsZipWriter::BeginProcessingRemoval(PRInt32 aPos)
     mHeaders.RemoveObjectAt(aPos);
     mCDSDirty = true;
 
-    rv = pump->AsyncRead(listener, nullptr);
+    rv = pump->AsyncRead(listener, nsnull);
     if (NS_FAILED(rv)) {
         inputStream->Close();
         Cleanup();
@@ -992,7 +992,7 @@ void nsZipWriter::BeginProcessingNextItem()
             }
         }
         else if (next.mOperation == OPERATION_ADD) {
-            if (mEntryHash.Get(next.mZipEntry, nullptr)) {
+            if (mEntryHash.Get(next.mZipEntry, nsnull)) {
                 FinishQueue(NS_ERROR_FILE_ALREADY_EXISTS);
                 return;
             }
@@ -1021,10 +1021,10 @@ void nsZipWriter::FinishQueue(nsresult aStatus)
     nsCOMPtr<nsISupports> context = mProcessContext;
     // Clean up everything first in case the observer decides to queue more
     // things
-    mProcessObserver = nullptr;
-    mProcessContext = nullptr;
+    mProcessObserver = nsnull;
+    mProcessContext = nsnull;
     mInQueue = false;
 
     if (observer)
-        observer->OnStopRequest(nullptr, context, aStatus);
+        observer->OnStopRequest(nsnull, context, aStatus);
 }

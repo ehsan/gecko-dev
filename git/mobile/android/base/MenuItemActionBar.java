@@ -4,13 +4,14 @@
 
 package org.mozilla.gecko;
 
+import android.app.Activity;
 import android.content.Context;
 import android.graphics.drawable.Drawable;
 import android.util.AttributeSet;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.ImageButton;
 
 public class MenuItemActionBar extends ImageButton
                                implements GeckoMenuItem.Layout {
@@ -55,8 +56,6 @@ public class MenuItemActionBar extends ImageButton
 
     @Override
     public void setTitle(CharSequence title) {
-        // set accessibility contentDescription here
-        setContentDescription(title);
     }
 
     @Override

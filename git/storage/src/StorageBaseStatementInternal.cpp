@@ -46,7 +46,7 @@ public:
   {
     if (mStatement->mAsyncStatement) {
       (void)::sqlite3_finalize(mStatement->mAsyncStatement);
-      mStatement->mAsyncStatement = nullptr;
+      mStatement->mAsyncStatement = nsnull;
     }
     (void)::NS_ProxyRelease(mConnection->threadOpenedOn, mStatement);
     return NS_OK;
@@ -89,11 +89,11 @@ public:
   NS_IMETHOD Run()
   {
     (void)::sqlite3_finalize(mAsyncStatement);
-    mAsyncStatement = nullptr;
+    mAsyncStatement = nsnull;
 
     // Because of our ambiguous nsISupports we cannot use the NS_ProxyRelease
     // template helpers.
-    Connection *rawConnection = nullptr;
+    Connection *rawConnection = nsnull;
     mConnection.swap(rawConnection);
     (void)::NS_ProxyRelease(
       rawConnection->threadOpenedOn,
@@ -145,13 +145,13 @@ StorageBaseStatementInternal::destructorAsyncFinalize()
     nsCOMPtr<nsIRunnable> event =
       new LastDitchSqliteStatementFinalizer(mDBConnection, mAsyncStatement);
     if (NS_SUCCEEDED(target->Dispatch(event, NS_DISPATCH_NORMAL))) {
-      mAsyncStatement = nullptr;
+      mAsyncStatement = nsnull;
       return;
     }
   }
   // (no async thread remains or we could not dispatch to it)
   (void)::sqlite3_finalize(mAsyncStatement);
-  mAsyncStatement = nullptr;
+  mAsyncStatement = nsnull;
 }
 
 NS_IMETHODIMP

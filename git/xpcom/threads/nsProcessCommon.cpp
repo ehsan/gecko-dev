@@ -64,16 +64,15 @@ NS_IMPL_THREADSAFE_ISUPPORTS2(nsProcess, nsIProcess,
 
 //Constructor
 nsProcess::nsProcess()
-    : mThread(nullptr)
+    : mThread(nsnull)
     , mLock("nsProcess.mLock")
     , mShutdown(false)
-    , mBlocking(false)
     , mPid(-1)
-    , mObserver(nullptr)
-    , mWeakObserver(nullptr)
+    , mObserver(nsnull)
+    , mWeakObserver(nsnull)
     , mExitValue(-1)
 #if !defined(XP_MACOSX)
-    , mProcess(nullptr)
+    , mProcess(nsnull)
 #endif
 {
 }
@@ -223,11 +222,9 @@ static int assembleCmdLine(char *const *argv, PRUnichar **wideCmdLine,
 
 void PR_CALLBACK nsProcess::Monitor(void *arg)
 {
+    PR_SetCurrentThreadName("RunProcess");
+
     nsRefPtr<nsProcess> process = dont_AddRef(static_cast<nsProcess*>(arg));
-
-    if (!process->mBlocking)
-        PR_SetCurrentThreadName("RunProcess");
-
 #if defined(PROCESSMODEL_WINAPI)
     DWORD dwRetVal;
     unsigned long exitCode = -1;
@@ -269,7 +266,7 @@ void PR_CALLBACK nsProcess::Monitor(void *arg)
     {
         MutexAutoLock lock(process->mLock);
 #if !defined(XP_MACOSX)
-        process->mProcess = nullptr;
+        process->mProcess = nsnull;
 #endif
         process->mExitValue = exitCode;
         if (process->mShutdown)
@@ -297,7 +294,7 @@ void nsProcess::ProcessComplete()
         if (os)
             os->RemoveObserver(this, "xpcom-shutdown");
         PR_JoinThread(mThread);
-        mThread = nullptr;
+        mThread = nsnull;
     }
 
     const char* topic;
@@ -312,18 +309,18 @@ void nsProcess::ProcessComplete()
         observer = do_QueryReferent(mWeakObserver);
     else if (mObserver)
         observer = mObserver;
-    mObserver = nullptr;
-    mWeakObserver = nullptr;
+    mObserver = nsnull;
+    mWeakObserver = nsnull;
 
     if (observer)
-        observer->Observe(NS_ISUPPORTS_CAST(nsIProcess*, this), topic, nullptr);
+        observer->Observe(NS_ISUPPORTS_CAST(nsIProcess*, this), topic, nsnull);
 }
 
 // XXXldb |args| has the wrong const-ness
 NS_IMETHODIMP  
 nsProcess::Run(bool blocking, const char **args, PRUint32 count)
 {
-    return CopyArgsAndRunProcess(blocking, args, count, nullptr, false);
+    return CopyArgsAndRunProcess(blocking, args, count, nsnull, false);
 }
 
 // XXXldb |args| has the wrong const-ness
@@ -365,7 +362,7 @@ nsProcess::CopyArgsAndRunProcess(bool blocking, const char** args,
 NS_IMETHODIMP  
 nsProcess::Runw(bool blocking, const PRUnichar **args, PRUint32 count)
 {
-    return CopyArgsAndRunProcessw(blocking, args, count, nullptr, false);
+    return CopyArgsAndRunProcessw(blocking, args, count, nsnull, false);
 }
 
 // XXXldb |args| has the wrong const-ness
@@ -510,7 +507,6 @@ nsProcess::RunProcess(bool blocking, char **my_argv, nsIObserver* observer,
 #endif
 
     NS_ADDREF_THIS();
-    mBlocking = blocking;
     if (blocking) {
         Monitor(this);
         if (mExitValue < 0)
@@ -582,7 +578,7 @@ nsProcess::Kill()
     if (os)
         os->RemoveObserver(this, "xpcom-shutdown");
     PR_JoinThread(mThread);
-    mThread = nullptr;
+    mThread = nsnull;
 
     return NS_OK;
 }
@@ -606,11 +602,11 @@ nsProcess::Observe(nsISupports* subject, const char* topic, const PRUnichar* dat
           mozilla::services::GetObserverService();
         if (os)
             os->RemoveObserver(this, "xpcom-shutdown");
-        mThread = nullptr;
+        mThread = nsnull;
     }
 
-    mObserver = nullptr;
-    mWeakObserver = nullptr;
+    mObserver = nsnull;
+    mWeakObserver = nsnull;
 
     MutexAutoLock lock(mLock);
     mShutdown = true;

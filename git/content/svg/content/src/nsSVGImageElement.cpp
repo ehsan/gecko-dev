@@ -223,7 +223,7 @@ nsSVGImageElement::ConstructPath(gfxContext *aCtx)
 {
   float x, y, width, height;
 
-  GetAnimatedLengthValues(&x, &y, &width, &height, nullptr);
+  GetAnimatedLengthValues(&x, &y, &width, &height, nsnull);
 
   if (width <= 0 || height <= 0)
     return;

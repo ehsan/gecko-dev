@@ -74,7 +74,7 @@ mOwner(owner)
 nsPluginStreamToFile::~nsPluginStreamToFile()
 {
   // should we be deleting mTempFile here?
-  if (nullptr != mTarget)
+  if (nsnull != mTarget)
     PL_strfree(mTarget);
 }
 
@@ -90,7 +90,7 @@ nsPluginStreamToFile::Write(const char* aBuf, PRUint32 aCount,
 {
   mOutputStream->Write(aBuf, aCount, aWriteCount);
   mOutputStream->Flush();
-  mOwner->GetURL(mFileURL.get(), mTarget, nullptr, nullptr, 0);
+  mOwner->GetURL(mFileURL.get(), mTarget, nsnull, nsnull, 0);
   
   return NS_OK;
 }
@@ -122,7 +122,7 @@ NS_IMETHODIMP
 nsPluginStreamToFile::Close(void)
 {
   mOutputStream->Close();
-  mOwner->GetURL(mFileURL.get(), mTarget, nullptr, nullptr, 0);
+  mOwner->GetURL(mFileURL.get(), mTarget, nsnull, nsnull, 0);
   return NS_OK;
 }
 
@@ -134,8 +134,8 @@ NS_IMPL_ISUPPORTS2(nsNPAPIPluginStreamListener,
 nsNPAPIPluginStreamListener::nsNPAPIPluginStreamListener(nsNPAPIPluginInstance* inst, 
                                                          void* notifyData,
                                                          const char* aURL)
-: mStreamBuffer(nullptr),
-mNotifyURL(aURL ? PL_strdup(aURL) : nullptr),
+: mStreamBuffer(nsnull),
+mNotifyURL(aURL ? PL_strdup(aURL) : nsnull),
 mInst(inst),
 mStreamBufferSize(0),
 mStreamBufferByteCount(0),
@@ -148,9 +148,9 @@ mIsPluginInitJSStream(mInst->mInPluginInitCall &&
                       aURL && strncmp(aURL, "javascript:",
                                       sizeof("javascript:") - 1) == 0),
 mRedirectDenied(false),
-mResponseHeaderBuf(nullptr)
+mResponseHeaderBuf(nsnull)
 {
-  mNPStreamWrapper = new nsNPAPIStreamWrapper(nullptr, this);
+  mNPStreamWrapper = new nsNPAPIStreamWrapper(nsnull, this);
   mNPStreamWrapper->mNPStream.notifyData = notifyData;
 }
 
@@ -169,7 +169,7 @@ nsNPAPIPluginStreamListener::~nsNPAPIPluginStreamListener()
   // lets get rid of the buffer
   if (mStreamBuffer) {
     PR_Free(mStreamBuffer);
-    mStreamBuffer=nullptr;
+    mStreamBuffer=nsnull;
   }
   
   if (mNotifyURL)
@@ -203,7 +203,7 @@ nsNPAPIPluginStreamListener::CleanUpStream(NPReason reason)
   // Release any outstanding redirect callback.
   if (mHTTPRedirectCallback) {
     mHTTPRedirectCallback->OnRedirectVerifyCallback(NS_ERROR_FAILURE);
-    mHTTPRedirectCallback = nullptr;
+    mHTTPRedirectCallback = nsnull;
   }
 
   // Seekable streams have an extra addref when they are created which must
@@ -214,7 +214,7 @@ nsNPAPIPluginStreamListener::CleanUpStream(NPReason reason)
   if (!mInst || !mInst->CanFireNotifications())
     return rv;
   
-  mStreamListenerPeer = nullptr;
+  mStreamListenerPeer = nsnull;
   
   PluginDestructionGuard guard(mInst);
 
@@ -396,7 +396,7 @@ nsNPAPIPluginStreamListener::StopDataPump()
 {
   if (mDataPumpTimer) {
     mDataPumpTimer->Cancel();
-    mDataPumpTimer = nullptr;
+    mDataPumpTimer = nsnull;
   }
 }
 
@@ -777,7 +777,7 @@ nsNPAPIPluginStreamListener::Notify(nsITimer *aTimer)
   
   PRInt32 oldStreamBufferByteCount = mStreamBufferByteCount;
   
-  nsresult rv = OnDataAvailable(mStreamListenerPeer, nullptr, mStreamBufferByteCount);
+  nsresult rv = OnDataAvailable(mStreamListenerPeer, nsnull, mStreamBufferByteCount);
   
   if (NS_FAILED(rv)) {
     // We ran into an error, no need to keep firing this timer then.
@@ -878,7 +878,7 @@ nsNPAPIPluginStreamListener::URLRedirectResponse(NPBool allow)
   if (mHTTPRedirectCallback) {
     mHTTPRedirectCallback->OnRedirectVerifyCallback(allow ? NS_OK : NS_ERROR_FAILURE);
     mRedirectDenied = allow ? false : true;
-    mHTTPRedirectCallback = nullptr;
+    mHTTPRedirectCallback = nsnull;
   }
 }
 
@@ -888,5 +888,5 @@ nsNPAPIPluginStreamListener::GetNotifyData()
   if (mNPStreamWrapper) {
     return mNPStreamWrapper->mNPStream.notifyData;
   }
-  return nullptr;
+  return nsnull;
 }

@@ -49,7 +49,7 @@ GCONF_FUNCTIONS
 #define gconf_client_set_float _gconf_client_set_float
 #define gconf_client_unset _gconf_client_unset
 
-static PRLibrary *gconfLib = nullptr;
+static PRLibrary *gconfLib = nsnull;
 
 typedef void (*nsGConfFunc)();
 struct nsGConfDynamicFunction {
@@ -99,7 +99,7 @@ NS_IMPL_ISUPPORTS1(nsGConfService, nsIGConfService)
 NS_IMETHODIMP
 nsGConfService::GetBool(const nsACString &aKey, bool *aResult)
 {
-  GError* error = nullptr;
+  GError* error = nsnull;
   *aResult = gconf_client_get_bool(mClient, PromiseFlatCString(aKey).get(),
                                    &error);
 
@@ -114,7 +114,7 @@ nsGConfService::GetBool(const nsACString &aKey, bool *aResult)
 NS_IMETHODIMP
 nsGConfService::GetString(const nsACString &aKey, nsACString &aResult)
 {
-  GError* error = nullptr;
+  GError* error = nsnull;
   gchar *result = gconf_client_get_string(mClient,
                                           PromiseFlatCString(aKey).get(),
                                           &error);
@@ -136,7 +136,7 @@ nsGConfService::GetString(const nsACString &aKey, nsACString &aResult)
 NS_IMETHODIMP
 nsGConfService::GetInt(const nsACString &aKey, PRInt32* aResult)
 {
-  GError* error = nullptr;
+  GError* error = nsnull;
   *aResult = gconf_client_get_int(mClient, PromiseFlatCString(aKey).get(),
                                   &error);
 
@@ -151,7 +151,7 @@ nsGConfService::GetInt(const nsACString &aKey, PRInt32* aResult)
 NS_IMETHODIMP
 nsGConfService::GetFloat(const nsACString &aKey, float* aResult)
 {
-  GError* error = nullptr;
+  GError* error = nsnull;
   *aResult = gconf_client_get_float(mClient, PromiseFlatCString(aKey).get(),
                                     &error);
 
@@ -170,7 +170,7 @@ nsGConfService::GetStringList(const nsACString &aKey, nsIArray** aResult)
   if (!items)
     return NS_ERROR_OUT_OF_MEMORY;
     
-  GError* error = nullptr;
+  GError* error = nsnull;
   GSList* list = gconf_client_get_list(mClient, PromiseFlatCString(aKey).get(),
                                        GCONF_VALUE_STRING, &error);
   if (error) {
@@ -198,7 +198,7 @@ NS_IMETHODIMP
 nsGConfService::SetBool(const nsACString &aKey, bool aValue)
 {
   bool res = gconf_client_set_bool(mClient, PromiseFlatCString(aKey).get(),
-                                     aValue, nullptr);
+                                     aValue, nsnull);
 
   return res ? NS_OK : NS_ERROR_FAILURE;
 }
@@ -208,7 +208,7 @@ nsGConfService::SetString(const nsACString &aKey, const nsACString &aValue)
 {
   bool res = gconf_client_set_string(mClient, PromiseFlatCString(aKey).get(),
                                        PromiseFlatCString(aValue).get(),
-                                       nullptr);
+                                       nsnull);
 
   return res ? NS_OK : NS_ERROR_FAILURE;
 }
@@ -217,7 +217,7 @@ NS_IMETHODIMP
 nsGConfService::SetInt(const nsACString &aKey, PRInt32 aValue)
 {
   bool res = gconf_client_set_int(mClient, PromiseFlatCString(aKey).get(),
-                                    aValue, nullptr);
+                                    aValue, nsnull);
 
   return res ? NS_OK : NS_ERROR_FAILURE;
 }
@@ -226,7 +226,7 @@ NS_IMETHODIMP
 nsGConfService::SetFloat(const nsACString &aKey, float aValue)
 {
   bool res = gconf_client_set_float(mClient, PromiseFlatCString(aKey).get(),
-                                      aValue, nullptr);
+                                      aValue, nsnull);
 
   return res ? NS_OK : NS_ERROR_FAILURE;
 }
@@ -239,7 +239,7 @@ nsGConfService::GetAppForProtocol(const nsACString &aScheme, bool *aEnabled,
   key.Append(aScheme);
   key.Append("/command");
 
-  GError *err = nullptr;
+  GError *err = nsnull;
   gchar *command = gconf_client_get_string(mClient, key.get(), &err);
   if (!err && command) {
     key.Replace(key.Length() - 7, 7, NS_LITERAL_CSTRING("enabled"));
@@ -267,7 +267,7 @@ nsGConfService::HandlerRequiresTerminal(const nsACString &aScheme,
   key.Append(aScheme);
   key.Append("/requires_terminal");
 
-  GError *err = nullptr;
+  GError *err = nsnull;
   *aResult = gconf_client_get_bool(mClient, key.get(), &err);
   if (err) {
     g_error_free(err);
@@ -287,16 +287,16 @@ nsGConfService::SetAppForProtocol(const nsACString &aScheme,
 
   bool res = gconf_client_set_string(mClient, key.get(),
                                        PromiseFlatCString(aCommand).get(),
-                                       nullptr);
+                                       nsnull);
   if (res) {
     key.Replace(key.Length() - 7, 7, NS_LITERAL_CSTRING("enabled"));
-    res = gconf_client_set_bool(mClient, key.get(), true, nullptr);
+    res = gconf_client_set_bool(mClient, key.get(), true, nsnull);
     if (res) {
       key.Replace(key.Length() - 7, 7, NS_LITERAL_CSTRING("needs_terminal"));
-      res = gconf_client_set_bool(mClient, key.get(), false, nullptr);
+      res = gconf_client_set_bool(mClient, key.get(), false, nsnull);
       if (res) {
         key.Replace(key.Length() - 14, 14, NS_LITERAL_CSTRING("command-id"));
-        res = gconf_client_unset(mClient, key.get(), nullptr);
+        res = gconf_client_unset(mClient, key.get(), nsnull);
       }
     }
   }

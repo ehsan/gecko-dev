@@ -18,21 +18,21 @@ class PluginPRLibrary : public PluginLibrary
 public:
     PluginPRLibrary(const char* aFilePath, PRLibrary* aLibrary) :
 #if defined(XP_UNIX) && !defined(XP_MACOSX)
-        mNP_Initialize(nullptr),
+        mNP_Initialize(nsnull),
 #else
-        mNP_Initialize(nullptr),
+        mNP_Initialize(nsnull),
 #endif
-        mNP_Shutdown(nullptr),
-        mNP_GetMIMEDescription(nullptr),
+        mNP_Shutdown(nsnull),
+        mNP_GetMIMEDescription(nsnull),
 #if defined(XP_UNIX) && !defined(XP_MACOSX)
-        mNP_GetValue(nullptr),
+        mNP_GetValue(nsnull),
 #endif
 #if defined(XP_WIN) || defined(XP_MACOSX) || defined(XP_OS2)
-        mNP_GetEntryPoints(nullptr),
+        mNP_GetEntryPoints(nsnull),
 #endif
-        mNPP_New(nullptr),
-        mNPP_ClearSiteData(nullptr),
-        mNPP_GetSitesWithData(nullptr),
+        mNPP_New(nsnull),
+        mNPP_ClearSiteData(nsnull),
+        mNPP_GetSitesWithData(nsnull),
         mLibrary(aLibrary),
         mFilePath(aFilePath)
     {
@@ -111,7 +111,7 @@ public:
     virtual nsresult AsyncSetWindow(NPP instance, NPWindow* window);
     virtual nsresult GetImageContainer(NPP instance, ImageContainer** aContainer);
     virtual nsresult GetImageSize(NPP instance, nsIntSize* aSize);
-    virtual bool IsOOP() MOZ_OVERRIDE { return false; }
+    virtual bool UseAsyncPainting() MOZ_OVERRIDE { return false; }
 #if defined(XP_MACOSX)
     virtual nsresult IsRemoteDrawingCoreAnimation(NPP instance, bool *aDrawing);
 #endif

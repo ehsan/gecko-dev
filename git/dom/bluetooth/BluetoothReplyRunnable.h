@@ -9,8 +9,9 @@
 
 #include "BluetoothCommon.h"
 #include "nsThreadUtils.h"
-#include "nsIDOMDOMRequest.h"
 #include "jsapi.h"
+
+class nsIDOMDOMRequest;
 
 BEGIN_BLUETOOTH_NAMESPACE
 
@@ -38,7 +39,7 @@ public:
 
   virtual void ReleaseMembers()
   {
-    mDOMRequest = nullptr;
+    mDOMRequest = nsnull;
   }
 
 protected:

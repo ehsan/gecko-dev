@@ -183,7 +183,7 @@ extern "C" {
 }
 
 // setContext: stores the searchfield nsIFrame so that it can be consulted
-// during painting. Please reset this by calling setContext:nullptr as soon as
+// during painting. Please reset this by calling setContext:nsnull as soon as
 // you're done with painting because we don't want to keep a dangling pointer.
 - (void)setContext:(nsIFrame*)aContext;
 @end
@@ -193,7 +193,7 @@ extern "C" {
 - (id)initTextCell:(NSString*)aString
 {
   if ((self = [super initTextCell:aString])) {
-    mContext = nullptr;
+    mContext = nsnull;
   }
   return self;
 }
@@ -871,7 +871,7 @@ nsNativeThemeCocoa::DrawSearchField(CGContextRef cgContext, const HIRect& inBoxR
                        VerticalAlignFactor(aFrame), mCellDrawView,
                        IsFrameRTL(aFrame));
 
-  [cell setContext:nullptr];
+  [cell setContext:nsnull];
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -1517,7 +1517,7 @@ nsNativeThemeCocoa::SeparatorResponsibility(nsIFrame* aBefore, nsIFrame* aAfter)
   // Usually a separator is drawn by the segment to the right of the
   // separator, but pressed and selected segments have higher priority.
   if (!aBefore || !aAfter)
-    return nullptr;
+    return nsnull;
   if (IsSelectedButton(aAfter))
     return aAfter;
   if (IsSelectedButton(aBefore) || IsPressedButton(aBefore))
@@ -1594,9 +1594,6 @@ nsNativeThemeCocoa::DrawSegment(CGContextRef cgContext, const HIRect& inBoxRect,
   nsIFrame* left = GetAdjacentSiblingFrameWithSameAppearance(aFrame, isRTL);
   nsIFrame* right = GetAdjacentSiblingFrameWithSameAppearance(aFrame, !isRTL);
   CGRect drawRect = SeparatorAdjustedRect(inBoxRect, left, aFrame, right);
-  if (drawRect.size.width * drawRect.size.height > CUIDRAW_MAX_AREA) {
-    return;
-  }
   BOOL drawLeftSeparator = SeparatorResponsibility(left, aFrame) == aFrame;
   BOOL drawRightSeparator = SeparatorResponsibility(aFrame, right) == aFrame;
   NSControlSize controlSize = FindControlSize(drawRect.size.height, aSettings.heights, 4.0f);
@@ -1632,7 +1629,7 @@ nsNativeThemeCocoa::GetScrollbarPressStates(nsIFrame *aFrame, nsEventStates aBut
     &nsGkAtoms::scrollbarDownTop,
     &nsGkAtoms::scrollbarUpBottom,
     &nsGkAtoms::scrollbarDownBottom,
-    nullptr
+    nsnull
   };
 
   // Get the state of any scrollbar buttons in our child frames
@@ -1795,18 +1792,16 @@ nsNativeThemeCocoa::DrawUnifiedToolbar(CGContextRef cgContext, const HIRect& inB
   CGContextClipToRect(cgContext, inBoxRect);
 
   CGRect drawRect = CGRectOffset(inBoxRect, 0, -titlebarHeight);
-  if (drawRect.size.width * drawRect.size.height <= CUIDRAW_MAX_AREA) {
-    CUIDraw([NSWindow coreUIRenderer], drawRect, cgContext,
-            (CFDictionaryRef)[NSDictionary dictionaryWithObjectsAndKeys:
-              @"kCUIWidgetWindowFrame", @"widget",
-              @"regularwin", @"windowtype",
-              (isMain ? @"normal" : @"inactive"), @"state",
-              [NSNumber numberWithInt:unifiedHeight], @"kCUIWindowFrameUnifiedTitleBarHeightKey",
-              [NSNumber numberWithBool:YES], @"kCUIWindowFrameDrawTitleSeparatorKey",
-              [NSNumber numberWithBool:YES], @"is.flipped",
-              nil],
-            nil);
-  }
+  CUIDraw([NSWindow coreUIRenderer], drawRect, cgContext,
+          (CFDictionaryRef)[NSDictionary dictionaryWithObjectsAndKeys:
+            @"kCUIWidgetWindowFrame", @"widget",
+            @"regularwin", @"windowtype",
+            (isMain ? @"normal" : @"inactive"), @"state",
+            [NSNumber numberWithInt:unifiedHeight], @"kCUIWindowFrameUnifiedTitleBarHeightKey",
+            [NSNumber numberWithBool:YES], @"kCUIWindowFrameDrawTitleSeparatorKey",
+            [NSNumber numberWithBool:YES], @"is.flipped",
+            nil],
+          nil);
 
   CGContextRestoreGState(cgContext);
 
@@ -1832,18 +1827,16 @@ nsNativeThemeCocoa::DrawStatusBar(CGContextRef cgContext, const HIRect& inBoxRec
   const int extendUpwards = 40;
   drawRect.origin.y -= extendUpwards;
   drawRect.size.height += extendUpwards;
-  if (drawRect.size.width * drawRect.size.height <= CUIDRAW_MAX_AREA) {
-    CUIDraw([NSWindow coreUIRenderer], drawRect, cgContext,
-            (CFDictionaryRef)[NSDictionary dictionaryWithObjectsAndKeys:
-              @"kCUIWidgetWindowFrame", @"widget",
-              @"regularwin", @"windowtype",
-              (IsActive(aFrame, YES) ? @"normal" : @"inactive"), @"state",
-              [NSNumber numberWithInt:inBoxRect.size.height], @"kCUIWindowFrameBottomBarHeightKey",
-              [NSNumber numberWithBool:YES], @"kCUIWindowFrameDrawBottomBarSeparatorKey",
-              [NSNumber numberWithBool:YES], @"is.flipped",
-              nil],
-            nil);
-  }
+  CUIDraw([NSWindow coreUIRenderer], drawRect, cgContext,
+          (CFDictionaryRef)[NSDictionary dictionaryWithObjectsAndKeys:
+            @"kCUIWidgetWindowFrame", @"widget",
+            @"regularwin", @"windowtype",
+            (IsActive(aFrame, YES) ? @"normal" : @"inactive"), @"state",
+            [NSNumber numberWithInt:inBoxRect.size.height], @"kCUIWindowFrameBottomBarHeightKey",
+            [NSNumber numberWithBool:YES], @"kCUIWindowFrameDrawBottomBarSeparatorKey",
+            [NSNumber numberWithBool:YES], @"is.flipped",
+            nil],
+          nil);
 
   CGContextRestoreGState(cgContext);
 
@@ -1904,7 +1897,7 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
   gfxQuartzNativeDrawing nativeDrawing(thebesCtx, nativeDirtyRect);
 
   CGContextRef cgContext = nativeDrawing.BeginNativeDrawing();
-  if (cgContext == nullptr) {
+  if (cgContext == nsnull) {
     // The Quartz surface handles 0x0 surfaces by internally
     // making all operations no-ops; there's no cgcontext created for them.
     // Unfortunately, this means that callers that want to render

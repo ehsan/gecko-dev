@@ -151,7 +151,7 @@ public:
           mHasIdAttribute(false),
           mHasClassAttribute(false),
           mHasStyleAttribute(false),
-          mAttributes(nullptr)
+          mAttributes(nsnull)
     {
     }
 
@@ -238,7 +238,7 @@ public:
 
     struct ScriptObjectHolder
     {
-        ScriptObjectHolder() : mObject(nullptr)
+        ScriptObjectHolder() : mObject(nsnull)
         {
         }
         JSScript* mObject;
@@ -334,7 +334,7 @@ public:
     {
         if (aContent->IsXUL())
             return static_cast<nsXULElement*>(aContent);
-        return nullptr;
+        return nsnull;
     }
 
 public:
@@ -373,7 +373,7 @@ public:
 
     virtual nsIContent *GetBindingParent() const;
     virtual bool IsNodeOfType(PRUint32 aFlags) const;
-    virtual bool IsFocusable(PRInt32 *aTabIndex = nullptr, bool aWithMouse = false);
+    virtual bool IsFocusable(PRInt32 *aTabIndex = nsnull, bool aWithMouse = false);
 
     NS_IMETHOD WalkContentStyleRules(nsRuleWalker* aRuleWalker);
     virtual nsChangeHint GetAttributeChangeHint(const nsIAtom* aAttribute,
@@ -502,7 +502,7 @@ protected:
     // appropriate value.
     nsIControllers *Controllers() {
       nsDOMSlots* slots = GetExistingDOMSlots();
-      return slots ? slots->mControllers : nullptr; 
+      return slots ? slots->mControllers : nsnull; 
     }
 
     void UnregisterAccessKey(const nsAString& aOldValue);

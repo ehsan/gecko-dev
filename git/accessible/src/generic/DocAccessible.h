@@ -22,6 +22,7 @@
 #include "nsIScrollPositionListener.h"
 #include "nsITimer.h"
 #include "nsIWeakReference.h"
+#include "nsCOMArray.h"
 #include "nsIDocShellTreeNode.h"
 
 template<class Class, class Arg>
@@ -71,7 +72,7 @@ public:
   NS_DECL_NSIDOCUMENTOBSERVER
 
   // nsAccessNode
-  virtual void Init();
+  virtual bool Init();
   virtual void Shutdown();
   virtual nsIFrame* GetFrame() const;
   virtual nsINode* GetNode() const { return mDocument; }
@@ -154,7 +155,7 @@ public:
    * Return the parent document.
    */
   DocAccessible* ParentDocument() const
-    { return mParent ? mParent->Document() : nullptr; }
+    { return mParent ? mParent->Document() : nsnull; }
 
   /**
    * Return the child document count.
@@ -166,7 +167,7 @@ public:
    * Return the child document at the given index.
    */
   DocAccessible* GetChildDocumentAt(PRUint32 aIndex) const
-    { return mChildDocuments.SafeElementAt(aIndex, nullptr); }
+    { return mChildDocuments.SafeElementAt(aIndex, nsnull); }
 
   /**
    * Non-virtual method to fire a delayed event after a 0 length timeout.
@@ -261,7 +262,7 @@ public:
    */
   Accessible* GetContainerAccessible(nsINode* aNode)
   {
-    return aNode ? GetAccessibleOrContainer(aNode->GetNodeParent()) : nullptr;
+    return aNode ? GetAccessibleOrContainer(aNode->GetNodeParent()) : nsnull;
   }
 
   /**
@@ -272,13 +273,13 @@ public:
    *       while it's called for XUL elements (where XBL is used widely).
    */
   bool IsDependentID(const nsAString& aID) const
-    { return mDependentIDsHash.Get(aID, nullptr); }
+    { return mDependentIDsHash.Get(aID, nsnull); }
 
   /**
    * Initialize the newly created accessible and put it into document caches.
    *
    * @param  aAccessible    [in] created accessible
-   * @param  aRoleMapEntry  [in] the role map entry role the ARIA role or nullptr
+   * @param  aRoleMapEntry  [in] the role map entry role the ARIA role or nsnull
    *                          if none
    */
   bool BindToDocument(Accessible* aAccessible, nsRoleMapEntry* aRoleMapEntry);
@@ -376,7 +377,7 @@ protected:
    * @param aRelAttr     [in, optional] relation attribute
    */
   void AddDependentIDsFor(Accessible* aRelProvider,
-                          nsIAtom* aRelAttr = nullptr);
+                          nsIAtom* aRelAttr = nsnull);
 
   /**
    * Remove dependent IDs pointed by accessible element by relation attribute
@@ -387,7 +388,7 @@ protected:
    * @param aRelAttr     [in, optional] relation attribute
    */
   void RemoveDependentIDsFor(Accessible* aRelProvider,
-                             nsIAtom* aRelAttr = nullptr);
+                             nsIAtom* aRelAttr = nsnull);
 
   /**
    * Update or recreate an accessible depending on a changed attribute.
@@ -592,7 +593,7 @@ inline DocAccessible*
 Accessible::AsDoc()
 {
   return mFlags & eDocAccessible ?
-    static_cast<DocAccessible*>(this) : nullptr;
+    static_cast<DocAccessible*>(this) : nsnull;
 }
 
 #endif

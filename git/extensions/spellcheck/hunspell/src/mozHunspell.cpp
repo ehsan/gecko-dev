@@ -140,7 +140,7 @@ mozHunspell::Init()
 
 mozHunspell::~mozHunspell()
 {
-  mPersonalDictionary = nullptr;
+  mPersonalDictionary = nsnull;
   delete mHunspell;
 
   NS_UnregisterMemoryReporter(mHunspellReporter);
@@ -164,18 +164,18 @@ NS_IMETHODIMP mozHunspell::SetDictionary(const PRUnichar *aDictionary)
 
   if (nsDependentString(aDictionary).IsEmpty()) {
     delete mHunspell;
-    mHunspell = nullptr;
+    mHunspell = nsnull;
     mDictionary.AssignLiteral("");
     mAffixFileName.AssignLiteral("");
     mLanguage.AssignLiteral("");
-    mDecoder = nullptr;
-    mEncoder = nullptr;
+    mDecoder = nsnull;
+    mEncoder = nsnull;
 
     nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
     if (obs) {
-      obs->NotifyObservers(nullptr,
+      obs->NotifyObservers(nsnull,
                            SPELLCHECK_DICTIONARY_UPDATE_NOTIFICATION,
-                           nullptr);
+                           nsnull);
     }
     return NS_OK;
   }
@@ -231,7 +231,7 @@ NS_IMETHODIMP mozHunspell::SetDictionary(const PRUnichar *aDictionary)
 
 
   if (mEncoder)
-    mEncoder->SetOutputErrorBehavior(mEncoder->kOnError_Signal, nullptr, '?');
+    mEncoder->SetOutputErrorBehavior(mEncoder->kOnError_Signal, nsnull, '?');
 
   PRInt32 pos = mDictionary.FindChar('-');
   if (pos == -1)
@@ -244,9 +244,9 @@ NS_IMETHODIMP mozHunspell::SetDictionary(const PRUnichar *aDictionary)
 
   nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
   if (obs) {
-    obs->NotifyObservers(nullptr,
+    obs->NotifyObservers(nsnull,
                          SPELLCHECK_DICTIONARY_UPDATE_NOTIFICATION,
-                         nullptr);
+                         nsnull);
   }
 
   return NS_OK;

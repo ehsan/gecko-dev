@@ -56,7 +56,7 @@ SkTypeface* ScaledFontMac::GetSkTypeface()
 TemporaryRef<Path>
 ScaledFontMac::GetPathForGlyphs(const GlyphBuffer &aBuffer, const DrawTarget *aTarget)
 {
-  if (aTarget->GetType() == BACKEND_COREGRAPHICS || aTarget->GetType() == BACKEND_COREGRAPHICS_ACCELERATED) {
+  if (aTarget->GetType() == BACKEND_COREGRAPHICS) {
       CGMutablePathRef path = CGPathCreateMutable();
 
       for (unsigned int i = 0; i < aBuffer.mNumGlyphs; i++) {

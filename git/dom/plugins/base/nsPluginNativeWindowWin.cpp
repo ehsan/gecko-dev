@@ -491,7 +491,7 @@ HookSetWindowLongPtr()
 nsPluginNativeWindowWin::nsPluginNativeWindowWin() : nsPluginNativeWindow()
 {
   // initialize the struct fields
-  window = nullptr; 
+  window = nsnull; 
   x = 0; 
   y = 0; 
   width = 0; 
@@ -564,7 +564,7 @@ nsPluginNativeWindowWin::GetPluginWindowEvent(HWND aWnd, UINT aMsg, WPARAM aWPar
   if (!mWeakRef) {
     mWeakRef = this;
     if (!mWeakRef)
-      return nullptr;
+      return nsnull;
   }
 
   PluginWindowEvent *event;
@@ -575,13 +575,13 @@ nsPluginNativeWindowWin::GetPluginWindowEvent(HWND aWnd, UINT aMsg, WPARAM aWPar
   if (!mCachedPluginWindowEvent) 
   {
     event = new PluginWindowEvent();
-    if (!event) return nullptr;
+    if (!event) return nsnull;
     mCachedPluginWindowEvent = event;
   }
   else if (mCachedPluginWindowEvent->InUse())
   {
     event = new PluginWindowEvent();
-    if (!event) return nullptr;
+    if (!event) return nsnull;
   }
   else
   {
@@ -606,7 +606,7 @@ nsresult nsPluginNativeWindowWin::CallSetWindow(nsRefPtr<nsNPAPIPluginInstance> 
 
   // check plugin mime type and cache it if it will need special treatment later
   if (mPluginType == nsPluginType_Unknown) {
-    const char* mimetype = nullptr;
+    const char* mimetype = nsnull;
     aPluginInstance->GetMIMEType(&mimetype);
     if (mimetype) { 
       if (!strcmp(mimetype, "application/x-shockwave-flash"))
@@ -706,7 +706,7 @@ nsresult nsPluginNativeWindowWin::SubclassAndAssociateWindow()
 nsresult nsPluginNativeWindowWin::UndoSubclassAndAssociateWindow()
 {
   // release plugin instance
-  SetPluginInstance(nullptr);
+  SetPluginInstance(nsnull);
 
   // remove window property
   HWND hWnd = (HWND)window;

@@ -5,9 +5,11 @@
 
 package org.mozilla.gecko.gfx;
 
-import org.mozilla.gecko.mozglue.DirectBufferAllocator;
+import org.mozilla.gecko.GeckoAppShell;
 
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Paint;
 import android.graphics.Rect;
 import android.util.Log;
 
@@ -68,7 +70,7 @@ public class ScreenshotLayer extends SingleTileLayer {
     public static ScreenshotLayer create(Bitmap bitmap) {
         IntSize size = new IntSize(bitmap.getWidth(), bitmap.getHeight());
         // allocate a buffer that can hold our max screenshot size
-        ByteBuffer buffer = DirectBufferAllocator.allocate(SCREENSHOT_SIZE_LIMIT * BYTES_FOR_16BPP);
+        ByteBuffer buffer = GeckoAppShell.allocateDirectBuffer(SCREENSHOT_SIZE_LIMIT * BYTES_FOR_16BPP);
         // construct the screenshot layer
         ScreenshotLayer sl =  new ScreenshotLayer(new ScreenshotImage(buffer, size.width, size.height, CairoImage.FORMAT_RGB16_565), size);
         // paint the passed in bitmap into the buffer
@@ -108,8 +110,10 @@ public class ScreenshotLayer extends SingleTileLayer {
         @Override
         protected void finalize() throws Throwable {
             try {
-                DirectBufferAllocator.free(mBuffer);
-                mBuffer = null;
+                if (mBuffer != null) {
+                    GeckoAppShell.freeDirectBuffer(mBuffer);
+                    mBuffer = null;
+                }
             } finally {
                 super.finalize();
             }

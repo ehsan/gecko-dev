@@ -124,21 +124,21 @@ nsPrintingPromptService::GetHWNDForDOMWindow(nsIDOMWindow *aWindow)
 
     nsCOMPtr<nsIDocShellTreeItem> treeItem =
         do_QueryInterface(window->GetDocShell());
-    if (!treeItem) return nullptr;
+    if (!treeItem) return nsnull;
 
     nsCOMPtr<nsIDocShellTreeOwner> treeOwner;
     treeItem->GetTreeOwner(getter_AddRefs(treeOwner));
-    if (!treeOwner) return nullptr;
+    if (!treeOwner) return nsnull;
 
     nsCOMPtr<nsIWebBrowserChrome> webBrowserChrome(do_GetInterface(treeOwner));
-    if (!webBrowserChrome) return nullptr;
+    if (!webBrowserChrome) return nsnull;
 
     nsCOMPtr<nsIBaseWindow> baseWin(do_QueryInterface(webBrowserChrome));
-    if (!baseWin) return nullptr;
+    if (!baseWin) return nsnull;
 
     nsCOMPtr<nsIWidget> widget;
     baseWin->GetMainWidget(getter_AddRefs(widget));
-    if (!widget) return nullptr;
+    if (!widget) return nsnull;
 
     return (HWND)widget->GetNativeData(NS_NATIVE_TMP_WINDOW);
 
@@ -178,8 +178,8 @@ nsPrintingPromptService::ShowProgress(nsIDOMWindow*            parent,
 
     *notifyOnOpen = false;
     if (mPrintProgress) {
-        *webProgressListener = nullptr;
-        *printProgressParams = nullptr;
+        *webProgressListener = nsnull;
+        *printProgressParams = nsnull;
         return NS_ERROR_FAILURE;
     }
 
@@ -308,8 +308,8 @@ nsPrintingPromptService::OnStateChange(nsIWebProgress *aWebProgress, nsIRequest 
         {
             mPrintProgress->CloseProgressDialog(true);
         }
-        mPrintProgress       = nullptr;
-        mWebProgressListener = nullptr;
+        mPrintProgress       = nsnull;
+        mWebProgressListener = nsnull;
     }
     return NS_OK;
 }

@@ -218,7 +218,7 @@ nsDOMDataTransfer::GetMozUserCancelled(bool* aUserCancelled)
 NS_IMETHODIMP
 nsDOMDataTransfer::GetFiles(nsIDOMFileList** aFileList)
 {
-  *aFileList = nullptr;
+  *aFileList = nsnull;
 
   if (mEventType != NS_DRAGDROP_DROP && mEventType != NS_DRAGDROP_DRAGDROP)
     return NS_OK;
@@ -263,7 +263,7 @@ nsDOMDataTransfer::GetFiles(nsIDOMFileList** aFileList)
 NS_IMETHODIMP
 nsDOMDataTransfer::GetTypes(nsIDOMDOMStringList** aTypes)
 {
-  *aTypes = nullptr;
+  *aTypes = nsnull;
 
   nsRefPtr<nsDOMStringList> types = new nsDOMStringList();
   NS_ENSURE_TRUE(types, NS_ERROR_OUT_OF_MEMORY);
@@ -388,7 +388,7 @@ nsDOMDataTransfer::SetMozCursor(const nsAString& aCursorState)
 NS_IMETHODIMP
 nsDOMDataTransfer::GetMozSourceNode(nsIDOMNode** aSourceNode)
 {
-  *aSourceNode = nullptr;
+  *aSourceNode = nsnull;
 
   nsCOMPtr<nsIDragSession> dragSession = nsContentUtils::GetDragSession();
   if (!dragSession)
@@ -406,7 +406,7 @@ nsDOMDataTransfer::GetMozSourceNode(nsIDOMNode** aSourceNode)
 NS_IMETHODIMP
 nsDOMDataTransfer::MozTypesAt(PRUint32 aIndex, nsIDOMDOMStringList** aTypes)
 {
-  *aTypes = nullptr;
+  *aTypes = nsnull;
 
   nsRefPtr<nsDOMStringList> types = new nsDOMStringList();
   NS_ENSURE_TRUE(types, NS_ERROR_OUT_OF_MEMORY);
@@ -429,7 +429,7 @@ nsDOMDataTransfer::MozGetDataAt(const nsAString& aFormat,
                                 PRUint32 aIndex,
                                 nsIVariant** aData)
 {
-  *aData = nullptr;
+  *aData = nsnull;
 
   if (aFormat.IsEmpty())
     return NS_OK;
@@ -448,7 +448,7 @@ nsDOMDataTransfer::MozGetDataAt(const nsAString& aFormat,
   // source of the drag is in a child frame of the caller. In that case,
   // we only allow access to data of the same principal. During other events,
   // only allow access to the data with the same principal.
-  nsIPrincipal* principal = nullptr;
+  nsIPrincipal* principal = nsnull;
   if (mIsCrossDomainSubFrameDrop ||
       (mEventType != NS_DRAGDROP_DROP && mEventType != NS_DRAGDROP_DRAGDROP &&
        !nsContentUtils::CallerHasUniversalXPConnect())) {
@@ -633,7 +633,7 @@ nsDOMDataTransfer::GetTransferables(nsISupportsArray** aArray,
 {
   MOZ_ASSERT(aDragTarget);
 
-  *aArray = nullptr;
+  *aArray = nsnull;
 
   nsCOMPtr<nsISupportsArray> transArray =
     do_CreateInstance("@mozilla.org/supports-array;1");
@@ -710,7 +710,7 @@ nsDOMDataTransfer::ConvertFromVariant(nsIVariant* aVariant,
                                       nsISupports** aSupports,
                                       PRUint32* aLength)
 {
-  *aSupports = nullptr;
+  *aSupports = nsnull;
   *aLength = 0;
 
   PRUint16 type;
@@ -834,7 +834,7 @@ nsDOMDataTransfer::GetCurrentPrincipal(nsresult* rv)
 
   nsCOMPtr<nsIPrincipal> currentPrincipal;
   *rv = ssm->GetSubjectPrincipal(getter_AddRefs(currentPrincipal));
-  NS_ENSURE_SUCCESS(*rv, nullptr);
+  NS_ENSURE_SUCCESS(*rv, nsnull);
 
   if (!currentPrincipal)
     ssm->GetSystemPrincipal(getter_AddRefs(currentPrincipal));
@@ -893,12 +893,12 @@ nsDOMDataTransfer::CacheExternalFormats()
       // the data. When retrieved, GetRealData will read the data.
       if (supported) {
         if (strcmp(formats[f], kUnicodeMime) == 0) {
-          SetDataWithPrincipal(NS_LITERAL_STRING("text/plain"), nullptr, c, sysPrincipal);
+          SetDataWithPrincipal(NS_LITERAL_STRING("text/plain"), nsnull, c, sysPrincipal);
         }
         else {
           if (strcmp(formats[f], kURLDataMime) == 0)
-            SetDataWithPrincipal(NS_LITERAL_STRING("text/uri-list"), nullptr, c, sysPrincipal);
-          SetDataWithPrincipal(NS_ConvertUTF8toUTF16(formats[f]), nullptr, c, sysPrincipal);
+            SetDataWithPrincipal(NS_LITERAL_STRING("text/uri-list"), nsnull, c, sysPrincipal);
+          SetDataWithPrincipal(NS_ConvertUTF8toUTF16(formats[f]), nsnull, c, sysPrincipal);
         }
       }
     }
@@ -930,7 +930,7 @@ nsDOMDataTransfer::FillInExternalDragData(TransferItem& aItem, PRUint32 aIndex)
     nsCOMPtr<nsIDOMDocument> domDoc;
     dragSession->GetSourceDocument(getter_AddRefs(domDoc));
     nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
-    trans->Init(doc ? doc->GetLoadContext() : nullptr);
+    trans->Init(doc ? doc->GetLoadContext() : nsnull);
 
     trans->AddDataFlavor(format);
     dragSession->GetData(trans, aIndex);

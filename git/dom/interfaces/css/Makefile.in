@@ -32,7 +32,6 @@ XPIDLSRCS =					\
 	nsIDOMCSSImportRule.idl			\
 	nsIDOMCSSMediaRule.idl			\
 	nsIDOMCSSMozDocumentRule.idl		\
-	nsIDOMCSSSupportsRule.idl		\
 	nsIDOMMozCSSKeyframeRule.idl		\
 	nsIDOMMozCSSKeyframesRule.idl		\
 	nsIDOMCSSPageRule.idl			\

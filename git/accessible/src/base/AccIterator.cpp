@@ -57,7 +57,7 @@ AccIterator::Next()
     }
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -77,8 +77,8 @@ AccIterator::IteratorState::IteratorState(Accessible* aParent,
 RelatedAccIterator::
   RelatedAccIterator(DocAccessible* aDocument, nsIContent* aDependentContent,
                      nsIAtom* aRelAttr) :
-  mDocument(aDocument), mRelAttr(aRelAttr), mProviders(nullptr),
-  mBindingParent(nullptr), mIndex(0)
+  mDocument(aDocument), mRelAttr(aRelAttr), mProviders(nsnull),
+  mBindingParent(nsnull), mIndex(0)
 {
   mBindingParent = aDependentContent->GetBindingParent();
   nsIAtom* IDAttr = mBindingParent ?
@@ -93,7 +93,7 @@ Accessible*
 RelatedAccIterator::Next()
 {
   if (!mProviders)
-    return nullptr;
+    return nsnull;
 
   while (mIndex < mProviders->Length()) {
     DocAccessible::AttrRelProvider* provider = (*mProviders)[mIndex++];
@@ -118,7 +118,7 @@ RelatedAccIterator::Next()
     }
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 
@@ -139,7 +139,7 @@ HTMLLabelIterator::Next()
 {
   // Get either <label for="[id]"> element which explicitly points to given
   // element, or <label> ancestor which implicitly point to it.
-  Accessible* label = nullptr;
+  Accessible* label = nsnull;
   while ((label = mRelIter.Next())) {
     if (label->GetContent()->Tag() == nsGkAtoms::label)
       return label;
@@ -147,7 +147,7 @@ HTMLLabelIterator::Next()
 
   // Ignore ancestor label on not widget accessible.
   if (mLabelFilter == eSkipAncestorLabel || !mAcc->IsWidget())
-    return nullptr;
+    return nsnull;
 
   // Go up tree to get a name of ancestor label if there is one (an ancestor
   // <label> implicitly points to us). Don't go up farther than form or
@@ -169,7 +169,7 @@ HTMLLabelIterator::Next()
     walkUp = walkUp->Parent();
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 
@@ -186,13 +186,13 @@ HTMLOutputIterator(DocAccessible* aDocument, nsIContent* aElement) :
 Accessible*
 HTMLOutputIterator::Next()
 {
-  Accessible* output = nullptr;
+  Accessible* output = nsnull;
   while ((output = mRelIter.Next())) {
     if (output->GetContent()->Tag() == nsGkAtoms::output)
       return output;
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 
@@ -209,13 +209,13 @@ XULLabelIterator::
 Accessible*
 XULLabelIterator::Next()
 {
-  Accessible* label = nullptr;
+  Accessible* label = nsnull;
   while ((label = mRelIter.Next())) {
     if (label->GetContent()->Tag() == nsGkAtoms::label)
       return label;
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 
@@ -232,13 +232,13 @@ XULDescriptionIterator::
 Accessible*
 XULDescriptionIterator::Next()
 {
-  Accessible* descr = nullptr;
+  Accessible* descr = nsnull;
   while ((descr = mRelIter.Next())) {
     if (descr->GetContent()->Tag() == nsGkAtoms::description)
       return descr;
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -287,7 +287,7 @@ IDRefsIterator::NextElem()
       return refContent;
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 nsIContent*
@@ -320,14 +320,14 @@ IDRefsIterator::GetElem(const nsDependentSubstring& aID)
       GetAnonymousElementByAttribute(mContent, nsGkAtoms::anonid, aID);
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 Accessible*
 IDRefsIterator::Next()
 {
   nsIContent* nextElm = NextElem();
-  return nextElm ? mDoc->GetAccessible(nextElm) : nullptr;
+  return nextElm ? mDoc->GetAccessible(nextElm) : nsnull;
 }
 
 Accessible*
@@ -335,6 +335,6 @@ SingleAccIterator::Next()
 {
   nsRefPtr<Accessible> nextAcc;
   mAcc.swap(nextAcc);
-  return (nextAcc && !nextAcc->IsDefunct()) ? nextAcc : nullptr;
+  return (nextAcc && !nextAcc->IsDefunct()) ? nextAcc : nsnull;
 }
 

@@ -112,7 +112,7 @@ public:
     /**
      * The copy-constructor should only be called from nsTArray when appending
      * a new rule, otherwise things break because the copy constructor expects
-     * mBindings and mConditions to be nullptr.
+     * mBindings and mConditions to be nsnull.
      */
     nsTemplateRule(const nsTemplateRule& aOtherRule);
 
@@ -295,7 +295,7 @@ public:
         // nsTemplateMatch stores the index as a 16-bit value,
         // so check to make sure for overflow
         if (mRules.Length() == PR_INT16_MAX)
-            return nullptr;
+            return nsnull;
 
         return mRules.AppendElement(nsTemplateRule(aRuleNode, aAction,
                                     aQuerySet));
@@ -316,7 +316,7 @@ public:
         if (PRUint32(aIndex) < mRules.Length()) {
             return &mRules[aIndex];
         }
-        return nullptr;
+        return nsnull;
     }
 
     void Clear()

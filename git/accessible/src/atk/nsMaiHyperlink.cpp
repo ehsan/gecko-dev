@@ -90,14 +90,14 @@ mai_atk_hyperlink_get_type(void)
 
 MaiHyperlink::MaiHyperlink(Accessible* aHyperLink) :
     mHyperlink(aHyperLink),
-    mMaiAtkHyperlink(nullptr)
+    mMaiAtkHyperlink(nsnull)
 {
 }
 
 MaiHyperlink::~MaiHyperlink()
 {
     if (mMaiAtkHyperlink) {
-        MAI_ATK_HYPERLINK(mMaiAtkHyperlink)->maiHyperlink = nullptr;
+        MAI_ATK_HYPERLINK(mMaiAtkHyperlink)->maiHyperlink = nsnull;
         g_object_unref(mMaiAtkHyperlink);
     }
 }
@@ -105,19 +105,19 @@ MaiHyperlink::~MaiHyperlink()
 AtkHyperlink*
 MaiHyperlink::GetAtkHyperlink(void)
 {
-  NS_ENSURE_TRUE(mHyperlink, nullptr);
+  NS_ENSURE_TRUE(mHyperlink, nsnull);
 
   if (mMaiAtkHyperlink)
     return mMaiAtkHyperlink;
 
   if (!mHyperlink->IsLink())
-    return nullptr;
+    return nsnull;
 
     mMaiAtkHyperlink =
         reinterpret_cast<AtkHyperlink *>
                         (g_object_new(mai_atk_hyperlink_get_type(), NULL));
     NS_ASSERTION(mMaiAtkHyperlink, "OUT OF MEMORY");
-    NS_ENSURE_TRUE(mMaiAtkHyperlink, nullptr);
+    NS_ENSURE_TRUE(mMaiAtkHyperlink, nsnull);
 
     /* be sure to initialize it with "this" */
     MaiHyperlink::Initialize(mMaiAtkHyperlink, this);
@@ -169,7 +169,7 @@ finalizeCB(GObject *aObj)
         return;
 
     MaiAtkHyperlink *maiAtkHyperlink = MAI_ATK_HYPERLINK(aObj);
-    maiAtkHyperlink->maiHyperlink = nullptr;
+    maiAtkHyperlink->maiHyperlink = nsnull;
 
     /* call parent finalize function */
     if (G_OBJECT_CLASS (parent_class)->finalize)
@@ -180,15 +180,15 @@ gchar *
 getUriCB(AtkHyperlink *aLink, gint aLinkIndex)
 {
     Accessible* hyperlink = get_accessible_hyperlink(aLink);
-    NS_ENSURE_TRUE(hyperlink, nullptr);
+    NS_ENSURE_TRUE(hyperlink, nsnull);
 
     nsCOMPtr<nsIURI> uri = hyperlink->AnchorURIAt(aLinkIndex);
     if (!uri)
-        return nullptr;
+        return nsnull;
 
     nsCAutoString cautoStr;
     nsresult rv = uri->GetSpec(cautoStr);
-    NS_ENSURE_SUCCESS(rv, nullptr);
+    NS_ENSURE_SUCCESS(rv, nsnull);
 
     return g_strdup(cautoStr.get());
 }
@@ -197,10 +197,10 @@ AtkObject *
 getObjectCB(AtkHyperlink *aLink, gint aLinkIndex)
 {
     Accessible* hyperlink = get_accessible_hyperlink(aLink);
-    NS_ENSURE_TRUE(hyperlink, nullptr);
+    NS_ENSURE_TRUE(hyperlink, nsnull);
 
     Accessible* anchor = hyperlink->AnchorAt(aLinkIndex);
-    NS_ENSURE_TRUE(anchor, nullptr);
+    NS_ENSURE_TRUE(anchor, nsnull);
 
     AtkObject* atkObj = AccessibleWrap::GetAtkObject(anchor);
     //no need to add ref it, because it is "get" not "ref"
@@ -248,10 +248,10 @@ getAnchorCountCB(AtkHyperlink *aLink)
 Accessible*
 get_accessible_hyperlink(AtkHyperlink *aHyperlink)
 {
-    NS_ENSURE_TRUE(MAI_IS_ATK_HYPERLINK(aHyperlink), nullptr);
+    NS_ENSURE_TRUE(MAI_IS_ATK_HYPERLINK(aHyperlink), nsnull);
     MaiHyperlink * maiHyperlink =
         MAI_ATK_HYPERLINK(aHyperlink)->maiHyperlink;
-    NS_ENSURE_TRUE(maiHyperlink != nullptr, nullptr);
-    NS_ENSURE_TRUE(maiHyperlink->GetAtkHyperlink() == aHyperlink, nullptr);
+    NS_ENSURE_TRUE(maiHyperlink != nsnull, nsnull);
+    NS_ENSURE_TRUE(maiHyperlink->GetAtkHyperlink() == aHyperlink, nsnull);
     return maiHyperlink->GetAccHyperlink();
 }

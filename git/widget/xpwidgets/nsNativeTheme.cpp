@@ -34,12 +34,12 @@ nsIPresShell *
 nsNativeTheme::GetPresShell(nsIFrame* aFrame)
 {
   if (!aFrame)
-    return nullptr;
+    return nsnull;
 
   // this is a workaround for the egcs 1.1.2 not inliningg
   // aFrame->GetPresContext(), which causes an undefined symbol
   nsPresContext *context = aFrame->GetStyleContext()->GetRuleNode()->GetPresContext();
-  return context ? context->GetPresShell() : nullptr;
+  return context ? context->GetPresShell() : nsnull;
 }
 
 nsEventStates
@@ -128,8 +128,7 @@ nsNativeTheme::CheckIntAttr(nsIFrame* aFrame, nsIAtom* aAtom, PRInt32 defaultVal
 
   nsAutoString attr;
   aFrame->GetContent()->GetAttr(kNameSpaceID_None, aAtom, attr);
-  nsresult err;
-  PRInt32 value = attr.ToInteger(&err);
+  PRInt32 err, value = attr.ToInteger(&err);
   if (attr.IsEmpty() || NS_FAILED(err))
     return defaultValue;
 
@@ -312,7 +311,7 @@ nsNativeTheme::GetScrollbarButtonType(nsIFrame* aFrame)
   static nsIContent::AttrValuesArray strings[] =
     {&nsGkAtoms::scrollbarDownBottom, &nsGkAtoms::scrollbarDownTop,
      &nsGkAtoms::scrollbarUpBottom, &nsGkAtoms::scrollbarUpTop,
-     nullptr};
+     nsnull};
 
   switch (aFrame->GetContent()->FindAttrValueIn(kNameSpaceID_None,
                                                 nsGkAtoms::sbattr,
@@ -334,7 +333,7 @@ nsNativeTheme::GetTreeSortDirection(nsIFrame* aFrame)
     return eTreeSortDirection_Natural;
 
   static nsIContent::AttrValuesArray strings[] =
-    {&nsGkAtoms::descending, &nsGkAtoms::ascending, nullptr};
+    {&nsGkAtoms::descending, &nsGkAtoms::ascending, nsnull};
   switch (aFrame->GetContent()->FindAttrValueIn(kNameSpaceID_None,
                                                 nsGkAtoms::sortDirection,
                                                 strings, eCaseMatters)) {
@@ -580,7 +579,7 @@ nsNativeTheme::GetAdjacentSiblingFrameWithSameAppearance(nsIFrame* aFrame,
                                                          bool aNextSibling)
 {
   if (!aFrame)
-    return nullptr;
+    return nsnull;
 
   // Find the next visible sibling.
   nsIFrame* sibling = aFrame;
@@ -593,6 +592,6 @@ nsNativeTheme::GetAdjacentSiblingFrameWithSameAppearance(nsIFrame* aFrame,
       sibling->GetStyleDisplay()->mAppearance != aFrame->GetStyleDisplay()->mAppearance ||
       (sibling->GetRect().XMost() != aFrame->GetRect().x &&
        aFrame->GetRect().XMost() != sibling->GetRect().x))
-    return nullptr;
+    return nsnull;
   return sibling;
 }

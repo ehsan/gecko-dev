@@ -488,19 +488,19 @@ JSONParser::advanceAfterProperty()
 enum ParserState { FinishArrayElement, FinishObjectMember, JSONValue };
 
 bool
-JSONParser::parse(MutableHandleValue vp)
+JSONParser::parse(Value *vp)
 {
     Vector<ParserState> stateStack(cx);
     AutoValueVector valueStack(cx);
 
-    vp.setUndefined();
+    *vp = UndefinedValue();
 
     Token token;
     ParserState state = JSONValue;
     while (true) {
         switch (state) {
           case FinishObjectMember: {
-            RootedValue v(cx, valueStack.popCopy());
+            Value v = valueStack.popCopy();
             RootedId propid(cx, AtomToId(&valueStack.popCopy().toString()->asAtom()));
             RootedObject obj(cx, &valueStack.back().toObject());
             if (!DefineNativeProperty(cx, obj, propid, v,
@@ -656,6 +656,6 @@ JSONParser::parse(MutableHandleValue vp)
 
     JS_ASSERT(end == current);
     JS_ASSERT(valueStack.length() == 1);
-    vp.set(valueStack[0]);
+    *vp = valueStack[0];
     return true;
 }

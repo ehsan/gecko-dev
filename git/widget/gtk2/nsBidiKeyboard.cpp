@@ -11,10 +11,10 @@
 #include <gtk/gtk.h>
 
 
-static PRLibrary *gtklib = nullptr;
+static PRLibrary *gtklib = nsnull;
 
 typedef gboolean (*GdkKeymapHaveBidiLayoutsType)(GdkKeymap *keymap);
-static GdkKeymapHaveBidiLayoutsType GdkKeymapHaveBidiLayouts = nullptr;
+static GdkKeymapHaveBidiLayoutsType GdkKeymapHaveBidiLayouts = nsnull;
 
 
 NS_IMPL_ISUPPORTS1(nsBidiKeyboard, nsIBidiKeyboard)
@@ -38,9 +38,9 @@ nsBidiKeyboard::~nsBidiKeyboard()
 {
     if (gtklib) {
         PR_UnloadLibrary(gtklib);
-        gtklib = nullptr;
+        gtklib = nsnull;
 
-        GdkKeymapHaveBidiLayouts = nullptr;
+        GdkKeymapHaveBidiLayouts = nsnull;
     }
 }
 

@@ -28,12 +28,12 @@ UnicodeToNative(JSContext* aCx, const jschar* aSource, size_t aSourceLen)
   nsCAutoString native;
   if (NS_FAILED(NS_CopyUnicodeToNative(unicode, native))) {
     JS_ReportError(aCx, "Could not convert string to native charset!");
-    return nullptr;
+    return nsnull;
   }
 
   char* result = static_cast<char*>(JS_malloc(aCx, native.Length() + 1));
   if (!result) {
-    return nullptr;
+    return nsnull;
   }
 
   memcpy(result, native.get(), native.Length());
@@ -46,7 +46,7 @@ JSCTypesCallbacks gCTypesCallbacks = {
 };
 
 JSBool
-CTypesLazyGetter(JSContext* aCx, JSHandleObject aObj, JSHandleId aId, JSMutableHandleValue aVp)
+CTypesLazyGetter(JSContext* aCx, JSHandleObject aObj, JSHandleId aId, jsval* aVp)
 {
   NS_ASSERTION(JS_GetGlobalObject(aCx) == aObj, "Not a global object!");
   NS_ASSERTION(JSID_IS_STRING(aId), "Bad id!");
@@ -67,7 +67,7 @@ CTypesLazyGetter(JSContext* aCx, JSHandleObject aObj, JSHandleId aId, JSMutableH
     return false;
   }
   JS_SetCTypesCallbacks(JSVAL_TO_OBJECT(ctypes), &gCTypesCallbacks);
-  return JS_GetPropertyById(aCx, aObj, aId, aVp.address());
+  return JS_GetPropertyById(aCx, aObj, aId, aVp);
 }
 #endif
 

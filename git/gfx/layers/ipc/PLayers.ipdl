@@ -161,7 +161,6 @@ struct Animation {
   AnimationData data;
 };
 
-// Change a layer's attributes
 struct CommonLayerAttributes {
   nsIntRegion visibleRegion;
   TransformMatrix transform;
@@ -176,7 +175,7 @@ struct CommonLayerAttributes {
   nullable PLayer maskLayer;
   // Animated colors will only honored for ColorLayers.
   Animation[] animations;
- };
+};
 
 struct ThebesLayerAttributes {
   nsIntRegion validRegion;

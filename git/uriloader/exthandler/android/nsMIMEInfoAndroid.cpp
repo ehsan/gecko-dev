@@ -49,7 +49,7 @@ nsMIMEInfoAndroid::GetMimeInfoForMimeType(const nsACString& aMimeType,
     return false;
   }
 
-  nsIHandlerApp* systemDefault = nullptr;
+  nsIHandlerApp* systemDefault = nsnull;
   bridge->GetHandlersForMimeType(nsCAutoString(aMimeType).get(), 
                                  info->mHandlerApps, &systemDefault);
   
@@ -108,7 +108,7 @@ nsMIMEInfoAndroid::GetMimeInfoForURL(const nsACString &aURL,
     return NS_OK;
   }
 
-  nsIHandlerApp* systemDefault = nullptr;
+  nsIHandlerApp* systemDefault = nsnull;
   bridge->GetHandlersForURL(nsCAutoString(aURL).get(), 
                             mimeinfo->mHandlerApps, &systemDefault);
   

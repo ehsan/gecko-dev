@@ -45,7 +45,7 @@ nsAbsoluteContainingBlock::AppendFrames(nsIFrame*      aDelegatingFrame,
 #ifdef DEBUG
   nsFrame::VerifyDirtyBitSet(aFrameList);
 #endif
-  mAbsoluteFrames.AppendFrames(nullptr, aFrameList);
+  mAbsoluteFrames.AppendFrames(nsnull, aFrameList);
 
   // no damage to intrinsic widths, since absolutely positioned frames can't
   // change them
@@ -69,7 +69,7 @@ nsAbsoluteContainingBlock::InsertFrames(nsIFrame*      aDelegatingFrame,
 #ifdef DEBUG
   nsFrame::VerifyDirtyBitSet(aFrameList);
 #endif
-  mAbsoluteFrames.InsertFrames(nullptr, aPrevFrame, aFrameList);
+  mAbsoluteFrames.InsertFrames(nsnull, aPrevFrame, aFrameList);
 
   // no damage to intrinsic widths, since absolutely positioned frames can't
   // change them

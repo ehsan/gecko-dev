@@ -188,7 +188,7 @@ Link::SetHost(const nsAString &aHost)
     if (iter != end) {
       nsAutoString portStr(Substring(iter, end));
       nsresult rv;
-      PRInt32 port = portStr.ToInteger(&rv);
+      PRInt32 port = portStr.ToInteger((PRInt32 *)&rv);
       if (NS_SUCCEEDED(rv)) {
         (void)uri->SetPort(port);
       }
@@ -254,7 +254,7 @@ Link::SetPort(const nsAString &aPort)
 
   nsresult rv;
   nsAutoString portStr(aPort);
-  PRInt32 port = portStr.ToInteger(&rv);
+  PRInt32 port = portStr.ToInteger((PRInt32 *)&rv);
   if (NS_FAILED(rv)) {
     return NS_OK;
   }
@@ -442,7 +442,7 @@ Link::ResetLinkState(bool aNotify)
   mLinkState = defaultState;
 
   // Get rid of our cached URI.
-  mCachedURI = nullptr;
+  mCachedURI = nsnull;
 
   // We have to be very careful here: if aNotify is false we do NOT
   // want to call UpdateState, because that will call into LinkState()
@@ -480,7 +480,7 @@ Link::GetURIToMutate()
 {
   nsCOMPtr<nsIURI> uri(GetURI());
   if (!uri) {
-    return nullptr;
+    return nsnull;
   }
   nsCOMPtr<nsIURI> clone;
   (void)uri->Clone(getter_AddRefs(clone));

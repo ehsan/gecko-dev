@@ -24,7 +24,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS3(nsHTTPCompressConv,
 
 // nsFTPDirListingConv methods
 nsHTTPCompressConv::nsHTTPCompressConv()
-    : mListener(nullptr)
+    : mListener(nsnull)
     , mMode(HTTP_COMPRESS_IDENTITY)
     , mOutBuffer(NULL)
     , mInpBuffer(NULL)
@@ -116,7 +116,7 @@ nsHTTPCompressConv::OnDataAvailable(nsIRequest* request,
         // what's left is either metadata or padding of some sort.... throwing
         // it out is probably the safe thing to do.
         PRUint32 n;
-        return iStr->ReadSegments(NS_DiscardSegment, nullptr, streamLen, &n);
+        return iStr->ReadSegments(NS_DiscardSegment, nsnull, streamLen, &n);
     }
 
     switch (mMode)
@@ -154,8 +154,10 @@ nsHTTPCompressConv::OnDataAvailable(nsIRequest* request,
             if (mInpBuffer == NULL || mOutBuffer == NULL)
                 return NS_ERROR_OUT_OF_MEMORY;
 
-            PRUint32 unused;
-            iStr->Read((char *)mInpBuffer, streamLen, &unused);
+            iStr->Read((char *)mInpBuffer, streamLen, &rv);
+
+            if (NS_FAILED(rv))
+                return rv;
 
             if (mMode == HTTP_COMPRESS_DEFLATE)
             {
@@ -361,6 +363,7 @@ static unsigned gz_magic[2] = {0x1f, 0x8b}; /* gzip magic header */
 PRUint32
 nsHTTPCompressConv::check_header(nsIInputStream *iStr, PRUint32 streamLen, nsresult *rs)
 {
+    nsresult rv;
     enum  { GZIP_INIT = 0, GZIP_OS, GZIP_EXTRA0, GZIP_EXTRA1, GZIP_EXTRA2, GZIP_ORIG, GZIP_COMMENT, GZIP_CRC };
     char c;
 
@@ -374,8 +377,7 @@ nsHTTPCompressConv::check_header(nsIInputStream *iStr, PRUint32 streamLen, nsres
         switch (hMode)
         {
             case GZIP_INIT:
-                PRUint32 unused;
-                iStr->Read(&c, 1, &unused);
+                iStr->Read (&c, 1, &rv);
                 streamLen--;
                 
                 if (mSkipCount == 0 && ((unsigned)c & 0377) != gz_magic[0])
@@ -411,7 +413,7 @@ nsHTTPCompressConv::check_header(nsIInputStream *iStr, PRUint32 streamLen, nsres
                 break;
 
             case GZIP_OS:
-                iStr->Read(&c, 1, &unused);
+                iStr->Read(&c, 1, &rv);
                 streamLen--;
                 mSkipCount++;
 
@@ -422,7 +424,7 @@ nsHTTPCompressConv::check_header(nsIInputStream *iStr, PRUint32 streamLen, nsres
             case GZIP_EXTRA0:
                 if (mFlags & EXTRA_FIELD)
                 {
-                    iStr->Read(&c, 1, &unused);
+                    iStr->Read(&c, 1, &rv);
                     streamLen--;
                     mLen = (uInt) c & 0377;
                     hMode = GZIP_EXTRA1;
@@ -432,7 +434,7 @@ nsHTTPCompressConv::check_header(nsIInputStream *iStr, PRUint32 streamLen, nsres
                 break;
 
             case GZIP_EXTRA1:
-                iStr->Read(&c, 1, &unused);
+                iStr->Read(&c, 1, &rv);
                 streamLen--;
                 mLen = ((uInt) c & 0377) << 8;
                 mSkipCount = 0;
@@ -444,7 +446,7 @@ nsHTTPCompressConv::check_header(nsIInputStream *iStr, PRUint32 streamLen, nsres
                     hMode = GZIP_ORIG;
                 else
                 {
-                    iStr->Read(&c, 1, &unused);
+                    iStr->Read(&c, 1, &rv);
                     streamLen--;
                     mSkipCount++;
                 }
@@ -453,7 +455,7 @@ nsHTTPCompressConv::check_header(nsIInputStream *iStr, PRUint32 streamLen, nsres
             case GZIP_ORIG:
                 if (mFlags & ORIG_NAME)
                 {
-                    iStr->Read(&c, 1, &unused);
+                    iStr->Read(&c, 1, &rv);
                     streamLen--;
                     if (c == 0)
                         hMode = GZIP_COMMENT;
@@ -465,7 +467,7 @@ nsHTTPCompressConv::check_header(nsIInputStream *iStr, PRUint32 streamLen, nsres
             case GZIP_COMMENT:
                 if (mFlags & COMMENT)
                 {
-                    iStr->Read(&c, 1, &unused);
+                    iStr->Read(&c, 1, &rv);
                     streamLen--;
                     if (c == 0)
                     {
@@ -483,7 +485,7 @@ nsHTTPCompressConv::check_header(nsIInputStream *iStr, PRUint32 streamLen, nsres
             case GZIP_CRC:
                 if (mFlags & HEAD_CRC)
                 {
-                    iStr->Read(&c, 1, &unused);
+                    iStr->Read(&c, 1, &rv);
                     streamLen--;
                     mSkipCount++;
                     if (mSkipCount == 2)
@@ -506,7 +508,7 @@ nsHTTPCompressConv::check_header(nsIInputStream *iStr, PRUint32 streamLen, nsres
 nsresult
 NS_NewHTTPCompressConv(nsHTTPCompressConv **aHTTPCompressConv)
 {
-    NS_PRECONDITION(aHTTPCompressConv != nullptr, "null ptr");
+    NS_PRECONDITION(aHTTPCompressConv != nsnull, "null ptr");
 
     if (!aHTTPCompressConv)
         return NS_ERROR_NULL_POINTER;

@@ -48,30 +48,12 @@ public:
               const nsAString& aContentType) = 0;
 
   virtual const nsTArray<nsCOMPtr<nsIDOMBlob> >*
-  GetSubBlobs() const { return nullptr; }
+  GetSubBlobs() const { return nsnull; }
 
   NS_DECL_NSIDOMBLOB
   NS_DECL_NSIDOMFILE
   NS_DECL_NSIXHRSENDABLE
   NS_DECL_NSIMUTABLE
-
-  void
-  SetLazyData(const nsAString& aName, const nsAString& aContentType,
-              PRUint64 aLength)
-  {
-    NS_ASSERTION(aLength, "must have length");
-
-    mName = aName;
-    mContentType = aContentType;
-    mLength = aLength;
-
-    mIsFile = !aName.IsVoid();
-  }
-
-  bool IsSizeUnknown() const
-  {
-    return mLength == UINT64_MAX;
-  }
 
 protected:
   nsDOMFileBase(const nsAString& aName, const nsAString& aContentType,
@@ -103,6 +85,11 @@ protected:
   }
 
   virtual ~nsDOMFileBase() {}
+
+  bool IsSizeUnknown() const
+  {
+    return mLength == UINT64_MAX;
+  }
 
   virtual bool IsStoredFile() const
   {
@@ -405,7 +392,7 @@ public:
 
   void Disconnect()
   {
-    mParent = nullptr;
+    mParent = nsnull;
   }
 
   bool Append(nsIDOMFile *aFile) { return mFiles.AppendObject(aFile); }

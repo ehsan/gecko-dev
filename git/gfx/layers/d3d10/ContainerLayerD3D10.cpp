@@ -37,7 +37,7 @@ ContainerLayerD3D10::InsertAfter(Layer* aChild, Layer* aAfter)
     Layer *oldFirstChild = GetFirstChild();
     mFirstChild = aChild;
     aChild->SetNextSibling(oldFirstChild);
-    aChild->SetPrevSibling(nullptr);
+    aChild->SetPrevSibling(nsnull);
     if (oldFirstChild) {
       oldFirstChild->SetPrevSibling(aChild);
     } else {
@@ -73,18 +73,18 @@ ContainerLayerD3D10::RemoveChild(Layer *aChild)
   if (GetFirstChild() == aChild) {
     mFirstChild = GetFirstChild()->GetNextSibling();
     if (mFirstChild) {
-      mFirstChild->SetPrevSibling(nullptr);
+      mFirstChild->SetPrevSibling(nsnull);
     } else {
-      mLastChild = nullptr;
+      mLastChild = nsnull;
     }
-    aChild->SetNextSibling(nullptr);
-    aChild->SetPrevSibling(nullptr);
-    aChild->SetParent(nullptr);
+    aChild->SetNextSibling(nsnull);
+    aChild->SetPrevSibling(nsnull);
+    aChild->SetParent(nsnull);
     DidRemoveChild(aChild);
     NS_RELEASE(aChild);
     return;
   }
-  Layer *lastChild = nullptr;
+  Layer *lastChild = nsnull;
   for (Layer *child = GetFirstChild(); child;
        child = child->GetNextSibling()) {
     if (child == aChild) {
@@ -95,9 +95,9 @@ ContainerLayerD3D10::RemoveChild(Layer *aChild)
       } else {
         mLastChild = lastChild;
       }
-      child->SetNextSibling(nullptr);
-      child->SetPrevSibling(nullptr);
-      child->SetParent(nullptr);
+      child->SetNextSibling(nsnull);
+      child->SetPrevSibling(nsnull);
+      child->SetParent(nsnull);
       DidRemoveChild(aChild);
       NS_RELEASE(aChild);
       return;
@@ -116,7 +116,7 @@ LayerD3D10*
 ContainerLayerD3D10::GetFirstChildD3D10()
 {
   if (!mFirstChild) {
-    return nullptr;
+    return nsnull;
   }
   return static_cast<LayerD3D10*>(mFirstChild->ImplData());
 }
@@ -127,7 +127,7 @@ GetNextSiblingD3D10(LayerD3D10* aLayer)
    Layer* layer = aLayer->GetLayer()->GetNextSibling();
    return layer ? static_cast<LayerD3D10*>(layer->
                                            ImplData())
-                : nullptr;
+                : nsnull;
 }
 
 static bool
@@ -255,7 +255,7 @@ ContainerLayerD3D10::RenderLayer()
     }
     
     nsIntRect scissorRect =
-        layerToRender->GetLayer()->CalculateScissorRect(oldScissor, nullptr);
+        layerToRender->GetLayer()->CalculateScissorRect(oldScissor, nsnull);
     if (scissorRect.IsEmpty()) {
       continue;
     }

@@ -66,7 +66,7 @@ public:
   {
     NS_ASSERTION(!mCalls.Contains(aCall), "Already know about this one!");
     mCalls.AppendElement(aCall);
-    mCallsArray = nullptr;
+    mCallsArray = nsnull;
     NotifyCallsChanged(aCall);
   }
 
@@ -75,7 +75,7 @@ public:
   {
     NS_ASSERTION(mCalls.Contains(aCall), "Didn't know about this one!");
     mCalls.RemoveElement(aCall);
-    mCallsArray = nullptr;
+    mCallsArray = nsnull;
     NotifyCallsChanged(aCall);
   }
 

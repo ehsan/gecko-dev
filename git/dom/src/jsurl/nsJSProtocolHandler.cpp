@@ -121,7 +121,7 @@ nsIScriptGlobalObject* GetGlobalObject(nsIChannel* aChannel)
                    "channel!");
     }
     if (!globalOwner) {
-        return nullptr;
+        return nsnull;
     }
 
     // So far so good: get the script context from its owner.
@@ -318,7 +318,7 @@ nsresult nsJSThunk::EvaluateScript(nsIChannel *aChannel,
             }
         }
 
-        stack->Pop(nullptr);
+        stack->Pop(nsnull);
     } else {
         // No need to use the sandbox, evaluate the script directly in
         // the given scope.
@@ -639,7 +639,7 @@ nsJSChannel::AsyncOpen(nsIStreamListener *aListener, nsISupports *aContext)
     nsCOMPtr<nsILoadGroup> loadGroup;
     mStreamChannel->GetLoadGroup(getter_AddRefs(loadGroup));
     if (loadGroup) {
-        nsresult rv = loadGroup->AddRequest(this, nullptr);
+        nsresult rv = loadGroup->AddRequest(this, nsnull);
         if (NS_FAILED(rv)) {
             mIsActive = false;
             CleanupStrongRefs();
@@ -704,7 +704,7 @@ nsJSChannel::AsyncOpen(nsIStreamListener *aListener, nsISupports *aContext)
     nsresult rv = NS_DispatchToCurrentThread(ev);
 
     if (NS_FAILED(rv)) {
-        loadGroup->RemoveRequest(this, nullptr, rv);
+        loadGroup->RemoveRequest(this, nsnull, rv);
         mIsActive = false;
         CleanupStrongRefs();
     }
@@ -739,7 +739,7 @@ nsJSChannel::EvaluateScript()
     nsCOMPtr<nsILoadGroup> loadGroup;
     mStreamChannel->GetLoadGroup(getter_AddRefs(loadGroup));
     if (loadGroup) {
-        loadGroup->RemoveRequest(this, nullptr, mStatus);
+        loadGroup->RemoveRequest(this, nsnull, mStatus);
     }
 
     // Reset load flags to their original value...
@@ -810,7 +810,7 @@ nsJSChannel::EvaluateScript()
         // cancellation notifications.
         mIsActive = true;
         if (loadGroup) {
-            mStatus = loadGroup->AddRequest(this, nullptr);
+            mStatus = loadGroup->AddRequest(this, nsnull);
 
             // If AddRequest failed, that's OK.  The key is to make sure we get
             // cancelled if needed, and that call just canceled us if it
@@ -837,12 +837,12 @@ nsJSChannel::NotifyListener()
 void
 nsJSChannel::CleanupStrongRefs()
 {
-    mListener = nullptr;
-    mContext = nullptr;
-    mOriginalInnerWindow = nullptr;
+    mListener = nsnull;
+    mContext = nsnull;
+    mOriginalInnerWindow = nsnull;
     if (mDocumentOnloadBlockedOn) {
         mDocumentOnloadBlockedOn->UnblockOnload(false);
-        mDocumentOnloadBlockedOn = nullptr;
+        mDocumentOnloadBlockedOn = nsnull;
     }
 }
 
@@ -927,9 +927,9 @@ nsJSChannel::SetLoadGroup(nsILoadGroup* aLoadGroup)
                 // Move the stream channel to our new loadgroup.  Make sure to
                 // add it before removing it, so that we don't trigger onload
                 // by accident.
-                aLoadGroup->AddRequest(mStreamChannel, nullptr);
+                aLoadGroup->AddRequest(mStreamChannel, nsnull);
                 if (curLoadGroup) {
-                    curLoadGroup->RemoveRequest(mStreamChannel, nullptr,
+                    curLoadGroup->RemoveRequest(mStreamChannel, nsnull,
                                                 NS_BINDING_RETARGETED);
                 }
             }
@@ -1066,7 +1066,7 @@ nsJSChannel::OnStopRequest(nsIRequest* aRequest,
     nsCOMPtr<nsILoadGroup> loadGroup;
     mStreamChannel->GetLoadGroup(getter_AddRefs(loadGroup));
     if (loadGroup) {
-        loadGroup->RemoveRequest(this, nullptr, mStatus);
+        loadGroup->RemoveRequest(this, nsnull, mStatus);
     }
 
     mIsActive = false;
@@ -1274,7 +1274,7 @@ NS_INTERFACE_MAP_BEGIN(nsJSURI)
       // Need to return explicitly here, because if we just set foundInterface
       // to null the NS_INTERFACE_MAP_END_INHERITING will end up calling into
       // nsSimplURI::QueryInterface and finding something for this CID.
-      *aInstancePtr = nullptr;
+      *aInstancePtr = nsnull;
       return NS_NOINTERFACE;
   }
   else
@@ -1306,7 +1306,7 @@ nsJSURI::Write(nsIObjectOutputStream* aStream)
     nsresult rv = nsSimpleURI::Write(aStream);
     if (NS_FAILED(rv)) return rv;
 
-    rv = aStream->WriteBoolean(mBaseURI != nullptr);
+    rv = aStream->WriteBoolean(mBaseURI != nsnull);
     if (NS_FAILED(rv)) return rv;
 
     if (mBaseURI) {
@@ -1326,7 +1326,7 @@ nsJSURI::StartClone(nsSimpleURI::RefHandlingEnum /* ignored */)
       // Note: We preserve ref on *base* URI, regardless of ref handling mode.
       nsresult rv = mBaseURI->Clone(getter_AddRefs(baseClone));
       if (NS_FAILED(rv)) {
-        return nullptr;
+        return nsnull;
       }
     }
 

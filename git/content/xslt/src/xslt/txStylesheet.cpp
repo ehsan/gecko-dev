@@ -16,7 +16,7 @@
 #include "txXPathTreeWalker.h"
 
 txStylesheet::txStylesheet()
-    : mRootFrame(nullptr)
+    : mRootFrame(nsnull)
 {
 }
 
@@ -112,9 +112,9 @@ txStylesheet::findTemplate(const txXPathNode& aNode,
 {
     NS_ASSERTION(aImportFrame, "missing ImportFrame pointer");
 
-    *aImportFrame = nullptr;
-    txInstruction* matchTemplate = nullptr;
-    ImportFrame* endFrame = nullptr;
+    *aImportFrame = nsnull;
+    txInstruction* matchTemplate = nsnull;
+    ImportFrame* endFrame = nsnull;
     txListIterator frameIter(&mImportFrames);
 
     if (aImportedBy) {
@@ -276,7 +276,7 @@ txStylesheet::doneCompiling()
     rv = frameIter.addAfter(mRootFrame);
     NS_ENSURE_SUCCESS(rv, rv);
     
-    mRootFrame = nullptr;
+    mRootFrame = nsnull;
     frameIter.next();
     rv = addFrames(frameIter);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -405,7 +405,7 @@ txStylesheet::addTemplate(txTemplateItem* aTemplate,
     if (simple->getType() == txPattern::UNION_PATTERN) {
         unionPattern = simple;
         simple = unionPattern->getSubPatternAt(0);
-        unionPattern->setSubPatternAt(0, nullptr);
+        unionPattern->setSubPatternAt(0, nsnull);
     }
 
     PRUint32 unionPos = 1; // only used when unionPattern is set
@@ -434,7 +434,7 @@ txStylesheet::addTemplate(txTemplateItem* aTemplate,
         if (unionPattern) {
             simple = unionPattern->getSubPatternAt(unionPos);
             if (simple) {
-                unionPattern->setSubPatternAt(unionPos, nullptr);
+                unionPattern->setSubPatternAt(unionPos, nsnull);
             }
             ++unionPos;
         }
@@ -510,7 +510,7 @@ txStylesheet::addAttributeSet(txAttributeSetItem* aAttributeSetItem)
     
     // We need to prepend the new instructions before the existing ones.
     txInstruction* instr = aAttributeSetItem->mFirstInstruction;
-    txInstruction* lastNonReturn = nullptr;
+    txInstruction* lastNonReturn = nsnull;
     while (instr->mNext) {
         lastNonReturn = instr;
         instr = instr->mNext;

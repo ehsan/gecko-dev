@@ -5,10 +5,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nscore.h"  // needed for 'nullptr'
+#include "nscore.h"  // needed for 'nsnull'
 #include "nsGTKToolkit.h"
 
-nsGTKToolkit* nsGTKToolkit::gToolkit = nullptr;
+nsGTKToolkit* nsGTKToolkit::gToolkit = nsnull;
 
 //-------------------------------------------------------------------------
 //
@@ -16,7 +16,7 @@ nsGTKToolkit* nsGTKToolkit::gToolkit = nullptr;
 //
 //-------------------------------------------------------------------------
 nsGTKToolkit::nsGTKToolkit()
-  : mSharedGC(nullptr), mFocusTimestamp(0)
+  : mSharedGC(nsnull), mFocusTimestamp(0)
 {
     CreateSharedGC();
 }

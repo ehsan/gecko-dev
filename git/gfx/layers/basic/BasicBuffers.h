@@ -76,7 +76,7 @@ public:
   }
   void UnmapBuffer()
   {
-    SetBuffer(nullptr);
+    SetBuffer(nsnull);
   }
 
 private:
@@ -125,7 +125,7 @@ public:
     *aOldRotation = BufferRotation();
 
     nsRefPtr<gfxASurface> oldBuffer;
-    oldBuffer = SetBuffer(nullptr, aNewRect, aNewRotation);
+    oldBuffer = SetBuffer(nsnull, aNewRect, aNewRotation);
     MOZ_ASSERT(!oldBuffer);
   }
 
@@ -134,7 +134,7 @@ protected:
   CreateBuffer(ContentType, const nsIntSize&, PRUint32)
   {
     NS_RUNTIMEABORT("ShadowThebesLayer can't paint content");
-    return nullptr;
+    return nsnull;
   }
 };
 

@@ -21,8 +21,8 @@
 class nsDiskCacheBlockFile {
 public:
     nsDiskCacheBlockFile()
-           : mFD(nullptr)
-           , mBitMap(nullptr)
+           : mFD(nsnull)
+           , mBitMap(nsnull)
            , mBlockSize(0)
            , mBitMapWords(0)
            , mFileSize(0)

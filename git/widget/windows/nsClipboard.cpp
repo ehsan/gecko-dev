@@ -34,7 +34,7 @@
 #include "nsEscape.h"
 
 #ifdef PR_LOGGING
-PRLogModuleInfo* gWin32ClipboardLog = nullptr;
+PRLogModuleInfo* gWin32ClipboardLog = nsnull;
 #endif
 
 // oddly, this isn't in the MSVC headers anywhere.
@@ -55,7 +55,7 @@ nsClipboard::nsClipboard() : nsBaseClipboard()
 #endif
 
   mIgnoreEmptyNotification = false;
-  mWindow         = nullptr;
+  mWindow         = nsnull;
 }
 
 //-------------------------------------------------------------------------
@@ -78,7 +78,7 @@ UINT nsClipboard::GetFormat(const char* aMimeStr)
   else if (strcmp(aMimeStr, kJPEGImageMime) == 0 ||
            strcmp(aMimeStr, kJPGImageMime) == 0 ||
            strcmp(aMimeStr, kPNGImageMime) == 0)
-    format = CF_DIBV5;
+    format = CF_DIB;
   else if (strcmp(aMimeStr, kFileMime) == 0 ||
            strcmp(aMimeStr, kFilePromiseMime) == 0)
     format = CF_HDROP;
@@ -93,7 +93,7 @@ UINT nsClipboard::GetFormat(const char* aMimeStr)
 //-------------------------------------------------------------------------
 nsresult nsClipboard::CreateNativeDataObject(nsITransferable * aTransferable, IDataObject ** aDataObj, nsIURI * uri)
 {
-  if (nullptr == aTransferable) {
+  if (nsnull == aTransferable) {
     return NS_ERROR_FAILURE;
   }
 
@@ -119,7 +119,7 @@ nsresult nsClipboard::CreateNativeDataObject(nsITransferable * aTransferable, ID
 //-------------------------------------------------------------------------
 nsresult nsClipboard::SetupNativeDataObject(nsITransferable * aTransferable, IDataObject * aDataObj)
 {
-  if (nullptr == aTransferable || nullptr == aDataObj) {
+  if (nsnull == aTransferable || nsnull == aDataObj) {
     return NS_ERROR_FAILURE;
   }
 
@@ -191,7 +191,7 @@ nsresult nsClipboard::SetupNativeDataObject(nsITransferable * aTransferable, IDa
                 strcmp(flavorStr, kNativeImageMime) == 0  ) {
         // if we're an image, register the native bitmap flavor
         FORMATETC imageFE;
-        SET_FORMATETC(imageFE, CF_DIBV5, 0, DVASPECT_CONTENT, -1, TYMED_HGLOBAL)
+        SET_FORMATETC(imageFE, CF_DIB, 0, DVASPECT_CONTENT, -1, TYMED_HGLOBAL)
         dObj->AddDataFlavor(flavorStr, &imageFE);      
       }
       else if ( strcmp(flavorStr, kFilePromiseMime) == 0 ) {
@@ -227,7 +227,7 @@ NS_IMETHODIMP nsClipboard::SetNativeClipboardData ( PRInt32 aWhichClipboard )
   mIgnoreEmptyNotification = true;
 
   // make sure we have a good transferable
-  if (nullptr == mTransferable) {
+  if (nsnull == mTransferable) {
     return NS_ERROR_FAILURE;
   }
 
@@ -272,7 +272,7 @@ nsresult nsClipboard::GetGlobalData(HGLOBAL aHGBL, void ** aData, PRUint32 * aLe
   else {
     // We really shouldn't ever get here
     // but just in case
-    *aData = nullptr;
+    *aData = nsnull;
     *aLen  = 0;
     LPVOID lpMsgBuf;
 
@@ -302,7 +302,7 @@ nsresult nsClipboard::GetNativeDataOffClipboard(nsIWidget * aWindow, UINT /*aInd
   HGLOBAL   hglb; 
   nsresult  result = NS_ERROR_FAILURE;
 
-  HWND nativeWin = nullptr;//(HWND)aWindow->GetNativeData(NS_NATIVE_WINDOW);
+  HWND nativeWin = nsnull;//(HWND)aWindow->GetNativeData(NS_NATIVE_WINDOW);
   if (::OpenClipboard(nativeWin)) { 
     hglb = ::GetClipboardData(aFormat); 
     result = GetGlobalData(hglb, aData, aLen);
@@ -371,13 +371,13 @@ static HRESULT FillSTGMedium(IDataObject * aDataObject, UINT aFormat, LPFORMATET
 
 
 //-------------------------------------------------------------------------
-// If aFormat is CF_DIBV5, aMIMEImageFormat must be a type for which we have
+// If aFormat is CF_DIB, aMIMEImageFormat must be a type for which we have
 // an image encoder (e.g. image/png).
 // For other values of aFormat, it is OK to pass null for aMIMEImageFormat.
 nsresult nsClipboard::GetNativeDataOffClipboard(IDataObject * aDataObject, UINT aIndex, UINT aFormat, const char * aMIMEImageFormat, void ** aData, PRUint32 * aLen)
 {
   nsresult result = NS_ERROR_FAILURE;
-  *aData = nullptr;
+  *aData = nsnull;
   *aLen = 0;
 
   if ( !aDataObject )
@@ -435,7 +435,7 @@ nsresult nsClipboard::GetNativeDataOffClipboard(IDataObject * aDataObject, UINT 
                 }
               } break;
 
-            case CF_DIBV5:
+            case CF_DIB :
               if (aMIMEImageFormat)
               {
                 PRUint32 allocLen = 0;
@@ -465,7 +465,7 @@ nsresult nsClipboard::GetNativeDataOffClipboard(IDataObject * aDataObject, UINT 
                 NS_ASSERTION ( numFiles > 0, "File drop flavor, but no files...hmmmm" );
                 NS_ASSERTION ( aIndex < numFiles, "Asked for a file index out of range of list" );
                 if (numFiles > 0) {
-                  UINT fileNameLen = ::DragQueryFileW(dropFiles, aIndex, nullptr, 0);
+                  UINT fileNameLen = ::DragQueryFileW(dropFiles, aIndex, nsnull, 0);
                   PRUnichar* buffer = reinterpret_cast<PRUnichar*>(nsMemory::Alloc((fileNameLen + 1) * sizeof(PRUnichar)));
                   if ( buffer ) {
                     ::DragQueryFileW(dropFiles, aIndex, buffer, fileNameLen + 1);
@@ -575,14 +575,14 @@ nsresult nsClipboard::GetDataFromDataObject(IDataObject     * aDataObject,
 
       // Try to get the data using the desired flavor. This might fail, but all is
       // not lost.
-      void* data = nullptr;
+      void* data = nsnull;
       PRUint32 dataLen = 0;
       bool dataFound = false;
-      if (nullptr != aDataObject) {
+      if (nsnull != aDataObject) {
         if ( NS_SUCCEEDED(GetNativeDataOffClipboard(aDataObject, anIndex, format, flavorStr, &data, &dataLen)) )
           dataFound = true;
       } 
-      else if (nullptr != aWindow) {
+      else if (nsnull != aWindow) {
         if ( NS_SUCCEEDED(GetNativeDataOffClipboard(aWindow, anIndex, format, &data, &dataLen)) )
           dataFound = true;
       }
@@ -726,10 +726,10 @@ nsClipboard :: FindUnicodeFromPlainText ( IDataObject* inDataObject, UINT inInde
 
   // we are looking for text/unicode and we failed to find it on the clipboard first,
   // try again with text/plain. If that is present, convert it to unicode.
-  nsresult loadResult = GetNativeDataOffClipboard(inDataObject, inIndex, GetFormat(kTextMime), nullptr, outData, outDataLen);
+  nsresult loadResult = GetNativeDataOffClipboard(inDataObject, inIndex, GetFormat(kTextMime), nsnull, outData, outDataLen);
   if ( NS_SUCCEEDED(loadResult) && *outData ) {
     const char* castedText = reinterpret_cast<char*>(*outData);          
-    PRUnichar* convertedText = nullptr;
+    PRUnichar* convertedText = nsnull;
     PRInt32 convertedTextLen = 0;
     nsPrimitiveHelpers::ConvertPlatformPlainTextToUnicode ( castedText, *outDataLen, 
                                                               &convertedText, &convertedTextLen );
@@ -760,7 +760,7 @@ nsClipboard :: FindURLFromLocalFile ( IDataObject* inDataObject, UINT inIndex, v
 {
   bool dataFound = false;
 
-  nsresult loadResult = GetNativeDataOffClipboard(inDataObject, inIndex, GetFormat(kFileMime), nullptr, outData, outDataLen);
+  nsresult loadResult = GetNativeDataOffClipboard(inDataObject, inIndex, GetFormat(kFileMime), nsnull, outData, outDataLen);
   if ( NS_SUCCEEDED(loadResult) && *outData ) {
     // we have a file path in |data|. Is it an internet shortcut or a normal file?
     const nsDependentString filepath(static_cast<PRUnichar*>(*outData));
@@ -820,10 +820,10 @@ nsClipboard :: FindURLFromNativeURL ( IDataObject* inDataObject, UINT inIndex, v
 {
   bool dataFound = false;
 
-  void* tempOutData = nullptr;
+  void* tempOutData = nsnull;
   PRUint32 tempDataLen = 0;
 
-  nsresult loadResult = GetNativeDataOffClipboard(inDataObject, inIndex, ::RegisterClipboardFormat(CFSTR_INETURLW), nullptr, &tempOutData, &tempDataLen);
+  nsresult loadResult = GetNativeDataOffClipboard(inDataObject, inIndex, ::RegisterClipboardFormat(CFSTR_INETURLW), nsnull, &tempOutData, &tempDataLen);
   if ( NS_SUCCEEDED(loadResult) && tempOutData ) {
     nsDependentString urlString(static_cast<PRUnichar*>(tempOutData));
     // the internal mozilla URL format, text/x-moz-url, contains
@@ -835,7 +835,7 @@ nsClipboard :: FindURLFromNativeURL ( IDataObject* inDataObject, UINT inIndex, v
     dataFound = true;
   }
   else {
-    loadResult = GetNativeDataOffClipboard(inDataObject, inIndex, ::RegisterClipboardFormat(CFSTR_INETURLA), nullptr, &tempOutData, &tempDataLen);
+    loadResult = GetNativeDataOffClipboard(inDataObject, inIndex, ::RegisterClipboardFormat(CFSTR_INETURLA), nsnull, &tempOutData, &tempDataLen);
     if ( NS_SUCCEEDED(loadResult) && tempOutData ) {
       // CFSTR_INETURLA is (currently) equal to CFSTR_SHELLURL which is equal to CF_TEXT
       // which is by definition ANSI encoded.
@@ -907,12 +907,12 @@ nsClipboard::GetNativeClipboardData ( nsITransferable * aTransferable, PRInt32 a
   IDataObject * dataObj;
   if (S_OK == ::OleGetClipboard(&dataObj)) {
     // Use OLE IDataObject for clipboard operations
-    res = GetDataFromDataObject(dataObj, 0, nullptr, aTransferable);
+    res = GetDataFromDataObject(dataObj, 0, nsnull, aTransferable);
     dataObj->Release();
   } 
   else {
     // do it the old manual way
-    res = GetDataFromDataObject(nullptr, 0, mWindow, aTransferable);
+    res = GetDataFromDataObject(nsnull, 0, mWindow, aTransferable);
   }
   return res;
 

@@ -144,7 +144,7 @@ public:
    *                        false otherwise.
    *                        Note that the operation of this method is
    *                        significantly faster when |aIsContextSensitive| is
-   *                        nullptr.
+   *                        nsnull.
    * @return true on success, false on failure.
    */
   static bool ComputeValue(nsCSSProperty aProperty,
@@ -152,7 +152,7 @@ public:
                              const nsAString& aSpecifiedValue,
                              bool aUseSVGMode,
                              Value& aComputedValue,
-                             bool* aIsContextSensitive = nullptr);
+                             bool* aIsContextSensitive = nsnull);
 
   /**
    * Creates a specified value for the given computed value.

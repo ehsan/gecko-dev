@@ -29,27 +29,27 @@ NS_IMPL_ISUPPORTS1(nsUserInfo,nsIUserInfo)
 NS_IMETHODIMP
 nsUserInfo::GetUsername(char **aUsername)
 {
-    *aUsername = nullptr;
+    *aUsername = nsnull;
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP 
 nsUserInfo::GetFullname(PRUnichar **aFullname)
 {
-    *aFullname = nullptr;
+    *aFullname = nsnull;
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP 
 nsUserInfo::GetDomain(char * *aDomain)
 { 
-    *aDomain = nullptr;
+    *aDomain = nsnull;
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP 
 nsUserInfo::GetEmailAddress(char * *aEmailAddress)
 {
-    *aEmailAddress = nullptr;
+    *aEmailAddress = nsnull;
     return NS_ERROR_NOT_IMPLEMENTED;
 }

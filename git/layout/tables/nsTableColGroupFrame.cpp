@@ -40,7 +40,7 @@ void nsTableColGroupFrame::ResetColIndices(nsIFrame*       aFirstColGroup,
   while (colGroupFrame) {
     if (nsGkAtoms::tableColGroupFrame == colGroupFrame->GetType()) {
       // reset the starting col index for the first cg only if we should reset
-      // the whole colgroup (aStartColFrame defaults to nullptr) or if
+      // the whole colgroup (aStartColFrame defaults to nsnull) or if
       // aFirstColIndex is smaller than the existing starting col index
       if ((colIndex != aFirstColIndex) ||
           (colIndex < colGroupFrame->GetStartColumnIndex()) ||
@@ -106,14 +106,14 @@ nsTableColGroupFrame::GetLastRealColGroup(nsTableFrame* aTableFrame)
 {
   nsFrameList colGroups = aTableFrame->GetColGroups();
 
-  nsIFrame* nextToLastColGroup = nullptr;
+  nsIFrame* nextToLastColGroup = nsnull;
   nsFrameList::FrameLinkEnumerator link(colGroups);
   for ( ; !link.AtEnd(); link.Next()) {
     nextToLastColGroup = link.PrevFrame();
   }
 
   if (!link.PrevFrame()) {
-    return nullptr; // there are no col group frames
+    return nsnull; // there are no col group frames
   }
  
   nsTableColGroupType lastColGroupType =
@@ -216,7 +216,7 @@ nsTableColGroupFrame::InsertFrames(ChildListID     aListID,
       NS_ASSERTION(!nextCol || nextCol->GetColType() != eColAnonymousColGroup,
                    "Inserting in the middle of our anonymous cols?");
       // We'll want to insert at the beginning
-      aPrevFrame = nullptr;
+      aPrevFrame = nsnull;
     }
     RemoveFrame(kPrincipalList, col);
     col = nextCol;
@@ -255,7 +255,7 @@ nsTableColGroupFrame::RemoveChild(nsTableColFrame& aChild,
                                   bool             aResetSubsequentColIndices)
 {
   PRInt32 colIndex = 0;
-  nsIFrame* nextChild = nullptr;
+  nsIFrame* nextChild = nsnull;
   if (aResetSubsequentColIndices) {
     colIndex = aChild.GetColIndex();
     nextChild = aChild.GetNextSibling();
@@ -337,10 +337,10 @@ PRIntn
 nsTableColGroupFrame::GetSkipSides() const
 {
   PRIntn skip = 0;
-  if (nullptr != GetPrevInFlow()) {
+  if (nsnull != GetPrevInFlow()) {
     skip |= 1 << NS_SIDE_TOP;
   }
-  if (nullptr != GetNextInFlow()) {
+  if (nsnull != GetNextInFlow()) {
     skip |= 1 << NS_SIDE_BOTTOM;
   }
   return skip;
@@ -353,7 +353,7 @@ NS_METHOD nsTableColGroupFrame::Reflow(nsPresContext*          aPresContext,
 {
   DO_GLOBAL_REFLOW_COUNT("nsTableColGroupFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aDesiredSize, aStatus);
-  NS_ASSERTION(nullptr!=mContent, "bad state -- null content for frame");
+  NS_ASSERTION(nsnull!=mContent, "bad state -- null content for frame");
   nsresult rv=NS_OK;
   
   const nsStyleVisibility* groupVis = GetStyleVisibility();
@@ -374,7 +374,7 @@ NS_METHOD nsTableColGroupFrame::Reflow(nsPresContext*          aPresContext,
 
     nsReflowStatus status;
     ReflowChild(kidFrame, aPresContext, kidSize, kidReflowState, 0, 0, 0, status);
-    FinishReflowChild(kidFrame, aPresContext, nullptr, kidSize, 0, 0, 0);
+    FinishReflowChild(kidFrame, aPresContext, nsnull, kidSize, 0, 0, 0);
   }
 
   aDesiredSize.width=0;
@@ -386,12 +386,12 @@ NS_METHOD nsTableColGroupFrame::Reflow(nsPresContext*          aPresContext,
 
 nsTableColFrame * nsTableColGroupFrame::GetFirstColumn()
 {
-  return GetNextColumn(nullptr);
+  return GetNextColumn(nsnull);
 }
 
 nsTableColFrame * nsTableColGroupFrame::GetNextColumn(nsIFrame *aChildFrame)
 {
-  nsTableColFrame *result = nullptr;
+  nsTableColFrame *result = nsnull;
   nsIFrame *childFrame = aChildFrame;
   if (!childFrame) {
     childFrame = mFrames.FirstChild();

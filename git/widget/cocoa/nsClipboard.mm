@@ -393,7 +393,7 @@ nsClipboard::PasteboardDictFromTransferable(nsITransferable* aTransferable)
     NSString *pboardType = nil;
 
     if (nsClipboard::IsStringType(flavorStr, &pboardType)) {
-      void* data = nullptr;
+      void* data = nsnull;
       PRUint32 dataSize = 0;
       nsCOMPtr<nsISupports> genericDataWrapper;
       rv = aTransferable->GetTransferData(flavorStr, getter_AddRefs(genericDataWrapper), &dataSize);

@@ -58,7 +58,7 @@ nsDataSignatureVerifier::VerifyData(const nsACString & aData,
     }
     SECKEYPublicKey *publicKey = SECKEY_ExtractPublicKey(pki);
     SECKEY_DestroySubjectPublicKeyInfo(pki);
-    pki = nullptr;
+    pki = nsnull;
     
     if (!publicKey) {
         PORT_FreeArena(arena, false);

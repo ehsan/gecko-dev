@@ -173,7 +173,7 @@ nsHTMLFontElement::IsAttributeMapped(const nsIAtom* aAttribute) const
     { &nsGkAtoms::face },
     { &nsGkAtoms::size },
     { &nsGkAtoms::color },
-    { nullptr }
+    { nsnull }
   };
 
   static const MappedAttributeEntry* const map[] = {

@@ -4,11 +4,6 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.gfx.ImmutableViewportMetrics;
-import org.mozilla.gecko.gfx.LayerController;
-
-import org.json.JSONObject;
-
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.graphics.PointF;
@@ -16,8 +11,11 @@ import android.util.AttributeSet;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
-import android.widget.ImageView;
 import android.widget.RelativeLayout;
+import android.widget.ImageView;
+import org.mozilla.gecko.gfx.ImmutableViewportMetrics;
+import org.mozilla.gecko.gfx.LayerController;
+import org.json.JSONObject;
 
 class TextSelectionHandle extends ImageView implements View.OnTouchListener {
     private static final String LOGTAG = "GeckoTextSelectionHandle";

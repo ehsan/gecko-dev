@@ -18,7 +18,7 @@ nsDownloader::~nsDownloader()
         // file can be removed otherwise the Remove call will fail.
         if (mSink) {
             mSink->Close();
-            mSink = nullptr;
+            mSink = nsnull;
         }
 
         nsresult rv = mLocation->Remove(false);
@@ -98,11 +98,11 @@ nsDownloader::OnStopRequest(nsIRequest  *request,
     }
     else if (mSink) {
         mSink->Close();
-        mSink = nullptr;
+        mSink = nsnull;
     }
 
     mObserver->OnDownloadComplete(this, request, ctxt, status, mLocation);
-    mObserver = nullptr;
+    mObserver = nsnull;
 
     return NS_OK;
 }

@@ -30,7 +30,7 @@ static nsHTMLCanvasElement *
 CanvasElementFromContent(nsIContent *content)
 {
   nsCOMPtr<nsIDOMHTMLCanvasElement> domCanvas(do_QueryInterface(content));
-  return domCanvas ? static_cast<nsHTMLCanvasElement*>(domCanvas.get()) : nullptr;
+  return domCanvas ? static_cast<nsHTMLCanvasElement*>(domCanvas.get()) : nsnull;
 }
 
 class nsDisplayCanvas : public nsDisplayItem {
@@ -225,7 +225,7 @@ nsHTMLCanvasFrame::Reflow(nsPresContext*           aPresContext,
   nsHTMLReflowState childReflowState(aPresContext, aReflowState, childFrame,
                                      availSize);
   ReflowChild(childFrame, aPresContext, childDesiredSize, childReflowState,
-              0, 0, 0, childStatus, nullptr);
+              0, 0, 0, childStatus, nsnull);
   FinishReflowChild(childFrame, aPresContext, &childReflowState,
                     childDesiredSize, 0, 0, 0);
 
@@ -260,13 +260,13 @@ nsHTMLCanvasFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
   nsIntSize canvasSize = GetCanvasSize();
 
   if (canvasSize.width <= 0 || canvasSize.height <= 0 || area.IsEmpty())
-    return nullptr;
+    return nsnull;
 
   CanvasLayer* oldLayer = static_cast<CanvasLayer*>
     (GetLayerBuilderForManager(aManager)->GetLeafLayerFor(aBuilder, aManager, aItem));
   nsRefPtr<CanvasLayer> layer = element->GetCanvasLayer(aBuilder, oldLayer, aManager);
   if (!layer)
-    return nullptr;
+    return nsnull;
 
   nsPresContext* presContext = PresContext();
   gfxRect r = gfxRect(presContext->AppUnitsToGfxUnits(area.x),
@@ -349,7 +349,7 @@ nsHTMLCanvasFrame::CreateAccessible()
   if (accService) {
     return accService->CreateHTMLCanvasAccessible(mContent, PresContext()->PresShell());
   }
-  return nullptr;
+  return nsnull;
 }
 #endif
 

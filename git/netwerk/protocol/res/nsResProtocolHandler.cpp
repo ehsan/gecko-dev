@@ -23,7 +23,7 @@
 
 static NS_DEFINE_CID(kResURLCID, NS_RESURL_CID);
 
-static nsResProtocolHandler *gResHandler = nullptr;
+static nsResProtocolHandler *gResHandler = nsnull;
 
 #if defined(PR_LOGGING)
 //
@@ -60,7 +60,7 @@ nsResURL::EnsureFile()
         return rv;
 
     nsCAutoString scheme;
-    rv = net_ExtractURLScheme(spec, nullptr, nullptr, &scheme);
+    rv = net_ExtractURLScheme(spec, nsnull, nsnull, &scheme);
     if (NS_FAILED(rv))
         return rv;
 
@@ -115,7 +115,7 @@ nsResProtocolHandler::nsResProtocolHandler()
 
 nsResProtocolHandler::~nsResProtocolHandler()
 {
-    gResHandler = nullptr;
+    gResHandler = nsnull;
 }
 
 nsresult
@@ -291,7 +291,7 @@ nsResProtocolHandler::NewChannel(nsIURI* uri, nsIChannel* *result)
     rv = ResolveURI(uri, spec);
     if (NS_FAILED(rv)) return rv;
 
-    rv = mIOService->NewChannel(spec, nullptr, nullptr, result);
+    rv = mIOService->NewChannel(spec, nsnull, nsnull, result);
     if (NS_FAILED(rv)) return rv;
 
     nsLoadFlags loadFlags = 0;
@@ -335,7 +335,7 @@ nsResProtocolHandler::SetSubstitution(const nsACString& root, nsIURI *baseURI)
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsIURI> newBaseURI;
-    rv = mIOService->NewURI(newBase, nullptr, nullptr,
+    rv = mIOService->NewURI(newBase, nsnull, nsnull,
                             getter_AddRefs(newBaseURI));
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -374,7 +374,7 @@ nsResProtocolHandler::HasSubstitution(const nsACString& root, bool *result)
 {
     NS_ENSURE_ARG_POINTER(result);
 
-    *result = mSubstitutions.Get(root, nullptr);
+    *result = mSubstitutions.Get(root, nsnull);
     return NS_OK;
 }
 

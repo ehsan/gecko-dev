@@ -9,31 +9,60 @@
  * ***** END LICENSE BLOCK ***** */
 
 const TEST_URI = "data:text/html;charset=utf-8,Web Console test for bug 588342";
-let fm;
+let fm, notificationBox, input;
 
 function test() {
   fm = Cc["@mozilla.org/focus-manager;1"].getService(Ci.nsIFocusManager);
   addTab(TEST_URI);
-  browser.addEventListener("load", function onLoad() {
-    browser.removeEventListener("load", onLoad, true);
-    openConsole(null, consoleOpened);
-  }, true);
+  browser.addEventListener("load", tabLoad, true);
 }
 
-function consoleOpened(hud) {
+function tabLoad(aEvent) {
+  browser.removeEventListener(aEvent.type, arguments.callee, true);
+
+  notificationBox = gBrowser.getNotificationBox(browser);
+  let DOMNodeInserted = false;
+
+  document.addEventListener("DOMNodeInserted", function(aEvent) {
+    input = notificationBox.querySelector(".jsterm-input-node");
+    if (input && !DOMNodeInserted) {
+      DOMNodeInserted = true;
+      document.removeEventListener(aEvent.type, arguments.callee, false);
+      if (!input.getAttribute("focused")) {
+        input.addEventListener("focus", function(aEvent) {
+          input.removeEventListener(aEvent.type, arguments.callee, false);
+          executeSoon(runTest);
+        }, false);
+      }
+      else {
+        executeSoon(runTest);
+      }
+    }
+  }, false);
+
   waitForFocus(function() {
-    is(hud.jsterm.inputNode.getAttribute("focused"), "true",
-       "jsterm input is focused on web console open");
-    isnot(fm.focusedWindow, content, "content document has no focus");
-    closeConsole(null, consoleClosed);
-  }, hud.iframeWindow);
+    openConsole();
+  }, content);
 }
 
-function consoleClosed() {
-  is(fm.focusedWindow, browser.contentWindow,
-     "content document has focus");
+function runTest() {
+  is(input.getAttribute("focused"), "true", "input node is focused");
+  isnot(fm.focusedWindow, content, "content document has no focus");
 
-  fm = null;
-  finishTest();
+  let DOMNodeRemoved = false;
+  function domNodeRemoved(aEvent) {
+    executeSoon(function() {
+      if (!DOMNodeRemoved && !notificationBox.querySelector(".hud-box")) {
+        DOMNodeRemoved = true;
+        document.removeEventListener(aEvent.type, domNodeRemoved, false);
+        is(fm.focusedWindow, browser.contentWindow,
+           "content document has focus");
+        input = notificationBox = fm = null;
+        finishTest();
+      }
+    });
+  }
+  document.addEventListener("DOMNodeRemoved", domNodeRemoved, false);
+  HUDService.deactivateHUDForContext(tab);
 }
 

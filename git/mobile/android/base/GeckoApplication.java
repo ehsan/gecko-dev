@@ -4,9 +4,9 @@
 
 package org.mozilla.gecko;
 
-import android.app.Application;
-
 import java.util.ArrayList;
+
+import android.app.Application;
 
 public class GeckoApplication extends Application {
 

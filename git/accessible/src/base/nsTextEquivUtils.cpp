@@ -11,7 +11,6 @@
 #include "AccIterator.h"
 #include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
-#include "nsStyleStructInlines.h"
 
 #include "nsIDOMXULLabeledControlEl.h"
 
@@ -46,7 +45,7 @@ nsTextEquivUtils::GetNameFromSubtree(Accessible* aAccessible,
     }
   }
 
-  gInitiatorAcc = nullptr;
+  gInitiatorAcc = nsnull;
 
   return NS_OK;
 }
@@ -62,7 +61,7 @@ nsTextEquivUtils::GetTextEquivFromIDRefs(Accessible* aAccessible,
   if (!content)
     return NS_OK;
 
-  nsIContent* refContent = nullptr;
+  nsIContent* refContent = nsnull;
   IDRefsIterator iter(aAccessible->Document(), content, aIDRefsAttr);
   while ((refContent = iter.NextElem())) {
     if (!aTextEquiv.IsEmpty())
@@ -108,7 +107,7 @@ nsTextEquivUtils::AppendTextEquivFromContent(Accessible* aInitiatorAcc,
   if (goThroughDOMSubtree)
     rv = AppendFromDOMNode(aContent, aString);
 
-  gInitiatorAcc = nullptr;
+  gInitiatorAcc = nsnull;
   return rv;
 }
 
@@ -127,7 +126,7 @@ nsTextEquivUtils::AppendTextEquivFromTextContent(nsIContent *aContent,
         // level), we need to add spaces around that block's text, so we don't
         // get words jammed together in final name.
         const nsStyleDisplay* display = frame->GetStyleDisplay();
-        if (display->IsBlockOutsideStyle() ||
+        if (display->IsBlockOutside() ||
             display->mDisplay == NS_STYLE_DISPLAY_TABLE_CELL) {
           isHTMLBlock = true;
           if (!aString->IsEmpty()) {

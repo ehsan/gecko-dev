@@ -88,7 +88,7 @@ public:
         for (PRUint32 i = 0; i < numFonts; i++) {
             gfxFontEntry *fe = mAvailableFonts[i];
             if (fe == aOldFontEntry) {
-                aOldFontEntry->SetFamily(nullptr);
+                aOldFontEntry->SetFamily(nsnull);
                 // note that this may delete aOldFontEntry, if there's no
                 // other reference to it except from its family
                 mAvailableFonts[i] = aNewFontEntry;
@@ -104,7 +104,7 @@ public:
         for (PRUint32 i = 0; i < numFonts; i++) {
             gfxFontEntry *fe = mAvailableFonts[i];
             if (fe == aFontEntry) {
-                aFontEntry->SetFamily(nullptr);
+                aFontEntry->SetFamily(nsnull);
                 mAvailableFonts.RemoveElementAt(i);
                 break;
             }
@@ -120,7 +120,7 @@ public:
         while (i--) {
             gfxFontEntry *fe = mAvailableFonts[i];
             if (fe) {
-                fe->SetFamily(nullptr);
+                fe->SetFamily(nsnull);
             }
         }
         mAvailableFonts.Clear();
@@ -185,7 +185,7 @@ public:
                               PRUint32 aItalicStyle,
                               const nsTArray<gfxFontFeature>& aFeatureSettings,
                               const nsString& aLanguageOverride,
-                              gfxSparseBitSet *aUnicodeRanges = nullptr);
+                              gfxSparseBitSet *aUnicodeRanges = nsnull);
 
     // add in a font face for which we have the gfxFontEntry already
     void AddFontFace(const nsAString& aFamilyName, gfxFontEntry* aFontEntry);
@@ -193,7 +193,7 @@ public:
     // Whether there is a face with this family name
     bool HasFamily(const nsAString& aFamilyName) const
     {
-        return GetFamily(aFamilyName) != nullptr;
+        return GetFamily(aFamilyName) != nsnull;
     }
 
     // lookup a font entry for a given style, returns null if not loaded
@@ -259,7 +259,7 @@ protected:
     virtual nsresult LogMessage(gfxProxyFontEntry *aProxy,
                                 const char *aMessage,
                                 PRUint32 aFlags = nsIScriptError::errorFlag,
-                                nsresult aStatus = NS_OK) = 0;
+                                nsresult aStatus = 0) = 0;
 
     const PRUint8* SanitizeOpenTypeData(gfxProxyFontEntry *aProxy,
                                         const PRUint8* aData,

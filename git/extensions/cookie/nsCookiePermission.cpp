@@ -72,7 +72,7 @@ nsCookiePermission::Init()
     prefBranch->AddObserver(kCookiesLifetimePolicy, this, false);
     prefBranch->AddObserver(kCookiesLifetimeDays, this, false);
     prefBranch->AddObserver(kCookiesAlwaysAcceptSession, this, false);
-    PrefChanged(prefBranch, nullptr);
+    PrefChanged(prefBranch, nsnull);
 
     // migration code for original cookie prefs
     bool migrated;
@@ -387,7 +387,7 @@ nsCookiePermission::GetOriginatingURI(nsIChannel  *aChannel,
    *    in this case.
    */
 
-  *aURI = nullptr;
+  *aURI = nsnull;
 
   // case 1)
   if (!aChannel)

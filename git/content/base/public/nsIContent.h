@@ -239,7 +239,7 @@ public:
   {
     NS_ASSERTION(!IsInNativeAnonymousSubtree() || GetBindingParent() || !GetParent(),
                  "must have binding parent when in native anonymous subtree with a parent node");
-    return IsInNativeAnonymousSubtree() || GetBindingParent() != nullptr;
+    return IsInNativeAnonymousSubtree() || GetBindingParent() != nsnull;
   }
 
   /**
@@ -324,7 +324,7 @@ public:
    * null otherwise.
    *
    * @param aStr the unparsed attribute string
-   * @return the node info. May be nullptr.
+   * @return the node info. May be nsnull.
    */
   virtual already_AddRefed<nsINodeInfo> GetExistingAttrNameFromQName(const nsAString& aStr) const = 0;
 
@@ -344,7 +344,7 @@ public:
   nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                    const nsAString& aValue, bool aNotify)
   {
-    return SetAttr(aNameSpaceID, aName, nullptr, aValue, aNotify);
+    return SetAttr(aNameSpaceID, aName, nsnull, aValue, aNotify);
   }
 
   /**
@@ -558,7 +558,7 @@ public:
    *         > 0 can be tabbed to in the order specified by this value
    * @return whether the content is focusable via mouse, kbd or script.
    */
-  virtual bool IsFocusable(PRInt32 *aTabIndex = nullptr, bool aWithMouse = false)
+  virtual bool IsFocusable(PRInt32 *aTabIndex = nsnull, bool aWithMouse = false)
   {
     if (aTabIndex) 
       *aTabIndex = -1; // Default, not tabbable
@@ -650,7 +650,7 @@ public:
     */
   virtual already_AddRefed<nsIURI> GetHrefURI() const
   {
-    return nullptr;
+    return nsnull;
   }
 
   /**
@@ -740,7 +740,7 @@ public:
     if (HasID()) {
       return DoGetID();
     }
-    return nullptr;
+    return nsnull;
   }
 
   /**
@@ -753,7 +753,7 @@ public:
     if (HasFlag(NODE_MAY_HAVE_CLASS)) {
       return DoGetClasses();
     }
-    return nullptr;
+    return nsnull;
   }
 
   /**
@@ -761,6 +761,31 @@ public:
    * hint rules) for this content node.
    */
   NS_IMETHOD WalkContentStyleRules(nsRuleWalker* aRuleWalker) = 0;
+
+  /**
+   * Is the attribute named stored in the mapped attributes?
+   *
+   * // XXXbz we use this method in HasAttributeDependentStyle, so svg
+   *    returns true here even though it stores nothing in the mapped
+   *    attributes.
+   */
+  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const = 0;
+
+  /**
+   * Get a hint that tells the style system what to do when 
+   * an attribute on this node changes, if something needs to happen
+   * in response to the change *other* than the result of what is
+   * mapped into style data via any type of style rule.
+   */
+  virtual nsChangeHint GetAttributeChangeHint(const nsIAtom* aAttribute,
+                                              PRInt32 aModType) const = 0;
+
+  /**
+   * Returns an atom holding the name of the "class" attribute on this
+   * content node (if applicable).  Returns null if there is no
+   * "class" attribute for this type of content node.
+   */
+  virtual nsIAtom *GetClassAttributeName() const = 0;
 
   /**
    * Should be called when the node can become editable or when it can stop
@@ -794,7 +819,7 @@ public:
    */
   nsIFrame* GetPrimaryFrame() const
   {
-    return IsInDoc() ? mPrimaryFrame : nullptr;
+    return IsInDoc() ? mPrimaryFrame : nsnull;
   }
   void SetPrimaryFrame(nsIFrame* aFrame) {
     NS_ASSERTION(IsInDoc(), "This will end badly!");

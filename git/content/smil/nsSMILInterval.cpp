@@ -52,11 +52,11 @@ nsSMILInterval::Unlink(bool aFiltered)
   if (mBegin && mBeginFixed) {
     mBegin->ReleaseFixedEndpoint();
   }
-  mBegin = nullptr;
+  mBegin = nsnull;
   if (mEnd && mEndFixed) {
     mEnd->ReleaseFixedEndpoint();
   }
-  mEnd = nullptr;
+  mEnd = nsnull;
 }
 
 nsSMILInstanceTime*

@@ -37,23 +37,23 @@ nsSVGGeometryFrame::GetPaintServer(const nsStyleSVGPaint *aPaint,
                                    const FramePropertyDescriptor *aType)
 {
   if (aPaint->mType != eStyleSVGPaintType_Server)
-    return nullptr;
+    return nsnull;
 
   nsIFrame *frame = mContent->IsNodeOfType(nsINode::eTEXT) ?
                       GetParent() : this;
   nsSVGPaintingProperty *property =
     nsSVGEffects::GetPaintingProperty(aPaint->mPaint.mPaintServer, frame, aType);
   if (!property)
-    return nullptr;
+    return nsnull;
   nsIFrame *result = property->GetReferencedFrame();
   if (!result)
-    return nullptr;
+    return nsnull;
 
   nsIAtom *type = result->GetType();
   if (type != nsGkAtoms::svgLinearGradientFrame &&
       type != nsGkAtoms::svgRadialGradientFrame &&
       type != nsGkAtoms::svgPatternFrame)
-    return nullptr;
+    return nsnull;
 
   return static_cast<nsSVGPaintServerFrame*>(result);
 }

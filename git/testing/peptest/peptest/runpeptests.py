@@ -49,8 +49,7 @@ class Peptest():
                 self.logger.warning('Can\'t set up proxy without server path')
             else:
                 enable_proxy = True
-                for proxyLocation in self.options.proxyLocations:
-                    locations.read(proxyLocation, False)
+                locations.read(self.options.proxyLocations, False)
                 locations.add_host(host='127.0.0.1',
                                    port=self.options.serverPort,
                                    options='primary,privileged')
@@ -114,8 +113,8 @@ class Peptest():
         self.logger.debug('Starting Peptest')
 
         # start firefox
-        self.runner.start(outputTimeout=self.options.timeout)
-        self.runner.wait()
+        self.runner.start()
+        self.runner.wait(outputTimeout=self.options.timeout)
         crashed = self.checkForCrashes(results.currentTest)
         self.stop()
 
@@ -294,11 +293,11 @@ class PeptestOptions(OptionParser):
                              "If none specified, a temporary profile is created")
 
         self.add_option("--proxy",
-                        action="append", type="string", dest="proxyLocations",
+                        action="store", type="string", dest="proxyLocations",
                         default=None,
-                        help="a list of paths to server-location files specifying "
-                             "domains to proxy (set with multiple --proxy agruments). "
-                             "--server-path must also be specified.")
+                        help="path to a server-location file specifying "
+                             "domains to proxy. --server-path must also be "
+                             "specified.")
 
         self.add_option("--proxy-host-dirs",
                         action="store_true", dest="proxyHostDirs",

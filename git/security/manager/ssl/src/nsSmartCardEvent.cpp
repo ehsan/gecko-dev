@@ -11,7 +11,7 @@
 
 // DOM event class to handle progress notifications
 nsSmartCardEvent::nsSmartCardEvent(const nsAString &aTokenName) 
-    : mInner(nullptr), mTokenName(aTokenName)
+    : mInner(nsnull), mTokenName(aTokenName)
 {
 }
 

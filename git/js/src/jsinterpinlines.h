@@ -21,7 +21,6 @@
 
 #include "jsfuninlines.h"
 #include "jsinferinlines.h"
-#include "jsopcodeinlines.h"
 #include "jspropertycacheinlines.h"
 #include "jstypedarrayinlines.h"
 
@@ -190,7 +189,7 @@ AssertValidPropertyCacheHit(JSContext *cx, JSObject *start, JSObject *found,
 #endif
 
 inline bool
-GetPropertyGenericMaybeCallXML(JSContext *cx, JSOp op, HandleObject obj, HandleId id, MutableHandleValue vp)
+GetPropertyGenericMaybeCallXML(JSContext *cx, JSOp op, HandleObject obj, HandleId id, Value *vp)
 {
     /*
      * Various XML properties behave differently when accessed in a
@@ -262,27 +261,25 @@ GetPropertyOperation(JSContext *cx, JSScript *script, jsbytecode *pc, Value &lva
     }
 
     RootedId id(cx, NameToId(name));
-    RootedValue value(cx);
 
     if (obj->getOps()->getProperty) {
-        if (!GetPropertyGenericMaybeCallXML(cx, op, obj, id, &value))
+        if (!GetPropertyGenericMaybeCallXML(cx, op, obj, id, vp))
             return false;
     } else {
-        if (!GetPropertyHelper(cx, obj, id, JSGET_CACHE_RESULT, &value))
+        if (!GetPropertyHelper(cx, obj, id, JSGET_CACHE_RESULT, vp))
             return false;
     }
 
 #if JS_HAS_NO_SUCH_METHOD
     if (op == JSOP_CALLPROP &&
-        JS_UNLIKELY(value.isPrimitive()) &&
+        JS_UNLIKELY(vp->isPrimitive()) &&
         lval.isObject())
     {
-        if (!OnUnknownMethod(cx, obj, IdToValue(id), &value))
+        if (!OnUnknownMethod(cx, obj, IdToValue(id), vp))
             return false;
     }
 #endif
 
-    *vp = value;
     return true;
 }
 
@@ -350,24 +347,13 @@ SetPropertyOperation(JSContext *cx, jsbytecode *pc, const Value &lval, const Val
         unsigned defineHow = (op == JSOP_SETNAME)
                              ? DNP_CACHE_RESULT | DNP_UNQUALIFIED
                              : DNP_CACHE_RESULT;
-        if (!baseops::SetPropertyHelper(cx, obj, obj, id, defineHow, &rref, strict))
+        if (!baseops::SetPropertyHelper(cx, obj, obj, id, defineHow, rref.address(), strict))
             return false;
     } else {
-        if (!obj->setGeneric(cx, obj, id, &rref, strict))
+        if (!obj->setGeneric(cx, obj, id, rref.address(), strict))
             return false;
     }
 
-    return true;
-}
-
-inline bool
-IntrinsicNameOperation(JSContext *cx, JSScript *script, jsbytecode *pc, Value *vp)
-{
-    JSOp op = JSOp(*pc);
-    RootedPropertyName name(cx);
-    name = GetNameFromBytecode(cx, script, pc, op);
-    JSFunction *fun = cx->global()->getIntrinsicFunction(cx, name);
-    vp->setObject(*fun);
     return true;
 }
 
@@ -418,10 +404,8 @@ NameOperation(JSContext *cx, JSScript *script, jsbytecode *pc, Value *vp)
     /* Take the slow path if shape was not found in a native object. */
     if (!obj->isNative() || !obj2->isNative()) {
         Rooted<jsid> id(cx, NameToId(name));
-        RootedValue value(cx);
-        if (!obj->getGeneric(cx, id, &value))
+        if (!obj->getGeneric(cx, id, vp))
             return false;
-        *vp = value;
     } else {
         Rooted<JSObject*> normalized(cx, obj);
         if (normalized->getClass() == &WithClass && !shape->hasDefaultGetter())
@@ -446,8 +430,7 @@ DefVarOrConstOperation(JSContext *cx, HandleObject varobj, HandlePropertyName dn
 
     /* Steps 8c, 8d. */
     if (!prop || (obj2 != varobj && varobj->isGlobal())) {
-        RootedValue value(cx, UndefinedValue());
-        if (!varobj->defineProperty(cx, dn, value, JS_PropertyStub,
+        if (!varobj->defineProperty(cx, dn, UndefinedValue(), JS_PropertyStub,
                                     JS_StrictPropertyStub, attrs)) {
             return false;
         }
@@ -618,7 +601,7 @@ ModOperation(JSContext *cx, HandleValue lhs, HandleValue rhs, Value *res)
 }
 
 static inline bool
-FetchElementId(JSContext *cx, JSObject *obj, const Value &idval, jsid *idp, MutableHandleValue vp)
+FetchElementId(JSContext *cx, JSObject *obj, const Value &idval, jsid *idp, Value *vp)
 {
     int32_t i_;
     if (ValueFitsInInt32(idval, &i_) && INT_FITS_IN_JSID(i_)) {
@@ -629,10 +612,10 @@ FetchElementId(JSContext *cx, JSObject *obj, const Value &idval, jsid *idp, Muta
 }
 
 static JS_ALWAYS_INLINE bool
-ToIdOperation(JSContext *cx, const Value &objval, const Value &idval, MutableHandleValue res)
+ToIdOperation(JSContext *cx, const Value &objval, const Value &idval, Value *res)
 {
     if (idval.isInt32()) {
-        res.set(idval);
+        *res = idval;
         return true;
     }
 
@@ -644,13 +627,13 @@ ToIdOperation(JSContext *cx, const Value &objval, const Value &idval, MutableHan
     if (!InternNonIntElementId(cx, obj, idval, &dummy, res))
         return false;
 
-    if (!res.isInt32())
+    if (!res->isInt32())
         types::TypeScript::MonitorUnknown(cx);
     return true;
 }
 
 static JS_ALWAYS_INLINE bool
-GetObjectElementOperation(JSContext *cx, JSOp op, HandleObject obj, const Value &rref, MutableHandleValue res)
+GetObjectElementOperation(JSContext *cx, JSOp op, HandleObject obj, const Value &rref, Value *res)
 {
 #if JS_HAS_XML_SUPPORT
     if (op == JSOP_CALLELEM && JS_UNLIKELY(obj->isXML())) {
@@ -666,8 +649,8 @@ GetObjectElementOperation(JSContext *cx, JSOp op, HandleObject obj, const Value 
         do {
             if (obj->isDenseArray()) {
                 if (index < obj->getDenseArrayInitializedLength()) {
-                    res.set(obj->getDenseArrayElement(index));
-                    if (!res.isMagic())
+                    *res = obj->getDenseArrayElement(index);
+                    if (!res->isMagic())
                         break;
                 }
             } else if (obj->isArguments()) {
@@ -686,12 +669,12 @@ GetObjectElementOperation(JSContext *cx, JSOp op, HandleObject obj, const Value 
             script->analysis()->getCode(pc).getStringElement = true;
 
         SpecialId special;
-        res.set(rref);
+        *res = rref;
         if (ValueIsSpecial(obj, res, &special, cx)) {
             if (!obj->getSpecial(cx, obj, special, res))
                 return false;
         } else {
-            JSAtom *name = ToAtom(cx, res);
+            JSAtom *name = ToAtom(cx, *res);
             if (!name)
                 return false;
 
@@ -705,12 +688,12 @@ GetObjectElementOperation(JSContext *cx, JSOp op, HandleObject obj, const Value 
         }
     }
 
-    assertSameCompartment(cx, res);
+    assertSameCompartment(cx, *res);
     return true;
 }
 
 static JS_ALWAYS_INLINE bool
-GetElementOperation(JSContext *cx, JSOp op, Value &lref, const Value &rref, MutableHandleValue res)
+GetElementOperation(JSContext *cx, JSOp op, Value &lref, const Value &rref, Value *res)
 {
     JS_ASSERT(op == JSOP_GETELEM || op == JSOP_CALLELEM);
 
@@ -721,7 +704,7 @@ GetElementOperation(JSContext *cx, JSOp op, Value &lref, const Value &rref, Muta
             str = cx->runtime->staticStrings.getUnitStringForElement(cx, str, size_t(i));
             if (!str)
                 return false;
-            res.setString(str);
+            res->setString(str);
             return true;
         }
     }
@@ -731,7 +714,7 @@ GetElementOperation(JSContext *cx, JSOp op, Value &lref, const Value &rref, Muta
         if (rref.isInt32()) {
             int32_t i = rref.toInt32();
             if (i >= 0 && uint32_t(i) < fp->numActualArgs()) {
-                res.set(fp->unaliasedActual(i));
+                *res = fp->unaliasedActual(i);
                 return true;
             }
         }
@@ -750,7 +733,7 @@ GetElementOperation(JSContext *cx, JSOp op, Value &lref, const Value &rref, Muta
         return false;
 
 #if JS_HAS_NO_SUCH_METHOD
-    if (op == JSOP_CALLELEM && JS_UNLIKELY(res.isPrimitive()) && isObject) {
+    if (op == JSOP_CALLELEM && JS_UNLIKELY(res->isPrimitive()) && isObject) {
         if (!OnUnknownMethod(cx, obj, rref, res))
             return false;
     }
@@ -788,7 +771,7 @@ SetObjectElementOperation(JSContext *cx, Handle<JSObject*> obj, HandleId id, con
     } while (0);
 
     RootedValue tmp(cx, value);
-    return obj->setGeneric(cx, obj, id, &tmp, strict);
+    return obj->setGeneric(cx, obj, id, tmp.address(), strict);
 }
 
 #define RELATIONAL_OP(OP)                                                     \

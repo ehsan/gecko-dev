@@ -114,7 +114,7 @@ test_set_places_enabled()
 }
 
 // These variables are shared between part 1 and part 2 of the test.  Part 2
-// sets the nsCOMPtr's to nullptr, freeing the reference.
+// sets the nsCOMPtr's to nsnull, freeing the reference.
 namespace test_unvisited_does_not_notify {
   nsCOMPtr<nsIURI> testURI;
   nsRefPtr<Link> testLink;
@@ -176,8 +176,8 @@ test_unvisited_does_not_notify_part2()
   do_check_success(rv);
 
   // Clear the stored variables now.
-  testURI = nullptr;
-  testLink = nullptr;
+  testURI = nsnull;
+  testLink = nsnull;
 
   // Run the next test.
   run_next_test();

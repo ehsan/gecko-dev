@@ -30,8 +30,8 @@ virtual nsIDOMCSSRule* GetDOMRule();
 class Rule : public nsIStyleRule {
 protected:
   Rule()
-    : mSheet(nullptr),
-      mParentRule(nullptr)
+    : mSheet(nsnull),
+      mParentRule(nsnull)
   {
   }
 
@@ -68,8 +68,7 @@ public:
     PAGE_RULE,
     KEYFRAME_RULE,
     KEYFRAMES_RULE,
-    DOCUMENT_RULE,
-    SUPPORTS_RULE
+    DOCUMENT_RULE
   };
 
   virtual PRInt32 GetType() const = 0;

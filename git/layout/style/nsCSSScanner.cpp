@@ -250,14 +250,14 @@ nsCSSToken::AppendToString(nsString& aBuffer)
 }
 
 nsCSSScanner::nsCSSScanner()
-  : mReadPointer(nullptr)
+  : mReadPointer(nsnull)
   , mSVGMode(false)
 #ifdef CSS_REPORT_PARSE_ERRORS
   , mError(mErrorBuf, ArrayLength(mErrorBuf), 0)
   , mInnerWindowID(0)
   , mWindowIDCached(false)
-  , mSheet(nullptr)
-  , mLoader(nullptr)
+  , mSheet(nsnull)
+  , mLoader(nsnull)
 #endif
 {
   MOZ_COUNT_CTOR(nsCSSScanner);
@@ -304,7 +304,7 @@ nsCSSScanner::InitGlobals()
                "unexpected null pointer without failure");
 
   Preferences::RegisterCallback(CSSErrorsPrefChanged, CSS_ERRORS_PREF);
-  CSSErrorsPrefChanged(CSS_ERRORS_PREF, nullptr);
+  CSSErrorsPrefChanged(CSS_ERRORS_PREF, nsnull);
 #endif
   return true;
 }
@@ -347,7 +347,6 @@ nsCSSScanner::Init(const nsAString& aBuffer,
   // Reset variables that we use to keep track of our progress through the input
   mOffset = 0;
   mPushbackCount = 0;
-  mRecording = false;
 
 #ifdef CSS_REPORT_PARSE_ERRORS
   mColNumber = 0;
@@ -436,7 +435,7 @@ InitStringBundle()
   nsresult rv = 
     sbs->CreateBundle("chrome://global/locale/css.properties", &gStringBundle);
   if (NS_FAILED(rv)) {
-    gStringBundle = nullptr;
+    gStringBundle = nsnull;
     return false;
   }
 
@@ -535,7 +534,7 @@ nsCSSScanner::ReportUnexpectedTokenParams(nsCSSToken& tok,
                                           PRUint32 aParamsLength)
 {
   NS_PRECONDITION(aParamsLength > 1, "use the non-params version");
-  NS_PRECONDITION(aParams[0] == nullptr, "first param should be empty");
+  NS_PRECONDITION(aParams[0] == nsnull, "first param should be empty");
 
   ENSURE_STRINGBUNDLE;
   
@@ -555,17 +554,17 @@ nsCSSScanner::ReportUnexpectedTokenParams(nsCSSToken& tok,
 void
 nsCSSScanner::Close()
 {
-  mReadPointer = nullptr;
+  mReadPointer = nsnull;
 
   // Clean things up so we don't hold on to memory if our parser gets recycled.
 #ifdef CSS_REPORT_PARSE_ERRORS
   mFileName.Truncate();
-  mURI = nullptr;
+  mURI = nsnull;
   mError.Truncate();
   mInnerWindowID = 0;
   mWindowIDCached = false;
-  mSheet = nullptr;
-  mLoader = nullptr;
+  mSheet = nsnull;
+  mLoader = nsnull;
 #endif
   if (mPushback != mLocalPushback) {
     delete [] mPushback;
@@ -629,7 +628,7 @@ nsCSSScanner::Pushback(PRUnichar aChar)
 {
   if (mPushbackCount == mPushbackSize) { // grow buffer
     PRUnichar*  newPushback = new PRUnichar[mPushbackSize + 4];
-    if (nullptr == newPushback) {
+    if (nsnull == newPushback) {
       return;
     }
     mPushbackSize += 4;
@@ -640,30 +639,6 @@ nsCSSScanner::Pushback(PRUnichar aChar)
     mPushback = newPushback;
   }
   mPushback[mPushbackCount++] = aChar;
-}
-
-void
-nsCSSScanner::StartRecording()
-{
-  NS_ASSERTION(!mRecording, "already started recording");
-  mRecording = true;
-  mRecordStartOffset = mOffset - mPushbackCount;
-}
-
-void
-nsCSSScanner::StopRecording()
-{
-  NS_ASSERTION(mRecording, "haven't started recording");
-  mRecording = false;
-}
-
-void
-nsCSSScanner::StopRecording(nsString& aBuffer)
-{
-  NS_ASSERTION(mRecording, "haven't started recording");
-  mRecording = false;
-  aBuffer.Append(mReadPointer + mRecordStartOffset,
-                 mOffset - mPushbackCount - mRecordStartOffset);
 }
 
 bool

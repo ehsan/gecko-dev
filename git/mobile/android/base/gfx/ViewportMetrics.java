@@ -5,14 +5,15 @@
 
 package org.mozilla.gecko.gfx;
 
-import org.mozilla.gecko.util.FloatUtils;
-
-import org.json.JSONException;
-import org.json.JSONObject;
-
 import android.graphics.PointF;
 import android.graphics.RectF;
 import android.util.DisplayMetrics;
+
+import org.mozilla.gecko.FloatUtils;
+import org.mozilla.gecko.GeckoApp;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 /**
  * ViewportMetrics manages state and contains some utility functions related to
@@ -26,7 +27,9 @@ public class ViewportMetrics {
     private RectF mViewportRect;
     private float mZoomFactor;
 
-    public ViewportMetrics(DisplayMetrics metrics) {
+    public ViewportMetrics() {
+        DisplayMetrics metrics = GeckoApp.mAppContext.getDisplayMetrics();
+
         mPageRect = new RectF(0, 0, metrics.widthPixels, metrics.heightPixels);
         mCssPageRect = new RectF(0, 0, metrics.widthPixels, metrics.heightPixels);
         mViewportRect = new RectF(0, 0, metrics.widthPixels, metrics.heightPixels);
@@ -55,6 +58,7 @@ public class ViewportMetrics {
                 viewport.viewportRectBottom);
         mZoomFactor = viewport.zoomFactor;
     }
+
 
     public ViewportMetrics(JSONObject json) throws JSONException {
         float x = (float)json.getDouble("x");
@@ -174,7 +178,7 @@ public class ViewportMetrics {
      * page size, the offset, and the zoom factor.
      */
     public ViewportMetrics interpolate(ViewportMetrics to, float t) {
-        ViewportMetrics result = new ViewportMetrics(this);
+        ViewportMetrics result = new ViewportMetrics();
         result.mPageRect = RectUtils.interpolate(mPageRect, to.mPageRect, t);
         result.mCssPageRect = RectUtils.interpolate(mCssPageRect, to.mCssPageRect, t);
         result.mZoomFactor = FloatUtils.interpolate(mZoomFactor, to.mZoomFactor, t);
@@ -223,3 +227,4 @@ public class ViewportMetrics {
         return buff.toString();
     }
 }
+

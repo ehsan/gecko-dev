@@ -158,7 +158,7 @@ nsDiskCacheEvictor::VisitRecord(nsDiskCacheRecord *  mapRecord)
         // the entry
         if (binding->mDeactivateEvent) {
             binding->mDeactivateEvent->CancelEvent();
-            binding->mDeactivateEvent = nullptr;
+            binding->mDeactivateEvent = nsnull;
         }
         // We are currently using this entry, so all we can do is doom it.
         // Since we're enumerating the records, we don't want to call
@@ -477,10 +477,10 @@ nsCacheEntry *
 nsDiskCacheDevice::FindEntry(nsCString * key, bool *collision)
 {
     Telemetry::AutoTimer<Telemetry::CACHE_DISK_SEARCH> timer;
-    if (!Initialized())  return nullptr;  // NS_ERROR_NOT_INITIALIZED
-    if (mClearingDiskCache)  return nullptr;
+    if (!Initialized())  return nsnull;  // NS_ERROR_NOT_INITIALIZED
+    if (mClearingDiskCache)  return nsnull;
     nsDiskCacheRecord       record;
-    nsDiskCacheBinding *    binding = nullptr;
+    nsDiskCacheBinding *    binding = nsnull;
     PLDHashNumber           hashNumber = nsDiskCache::Hash(key->get());
 
     *collision = false;
@@ -488,10 +488,10 @@ nsDiskCacheDevice::FindEntry(nsCString * key, bool *collision)
     binding = mBindery.FindActiveBinding(hashNumber);
     if (binding && !binding->mCacheEntry->Key()->Equals(*key)) {
         *collision = true;
-        return nullptr;
+        return nsnull;
     } else if (binding && binding->mDeactivateEvent) {
         binding->mDeactivateEvent->CancelEvent();
-        binding->mDeactivateEvent = nullptr;
+        binding->mDeactivateEvent = nsnull;
         CACHE_LOG_DEBUG(("CACHE: reusing deactivated entry %p " \
                          "req-key=%s  entry-key=%s\n",
                          binding->mCacheEntry, key, binding->mCacheEntry->Key()));
@@ -500,19 +500,19 @@ nsDiskCacheDevice::FindEntry(nsCString * key, bool *collision)
                                      // FindActiveBinding() does not return
                                      // bindings to doomed entries
     }
-    binding = nullptr;
+    binding = nsnull;
 
     // lookup hash number in cache map
     nsresult rv = mCacheMap.FindRecord(hashNumber, &record);
-    if (NS_FAILED(rv))  return nullptr;  // XXX log error?
+    if (NS_FAILED(rv))  return nsnull;  // XXX log error?
     
     nsDiskCacheEntry * diskEntry = mCacheMap.ReadDiskCacheEntry(&record);
-    if (!diskEntry) return nullptr;
+    if (!diskEntry) return nsnull;
     
     // compare key to be sure
     if (!key->Equals(diskEntry->Key())) {
         *collision = true;
-        return nullptr;
+        return nsnull;
     }
     
     nsCacheEntry * entry = diskEntry->CreateCacheEntry(this);
@@ -520,7 +520,7 @@ nsDiskCacheDevice::FindEntry(nsCString * key, bool *collision)
         binding = mBindery.CreateBinding(entry, &record);
         if (!binding) {
             delete entry;
-            entry = nullptr;
+            entry = nsnull;
         }
     }
 
@@ -624,10 +624,10 @@ nsDiskCacheDevice::BindEntry(nsCacheEntry * entry)
         // If the entry is pending deactivation, cancel deactivation
         if (binding->mDeactivateEvent) {
             binding->mDeactivateEvent->CancelEvent();
-            binding->mDeactivateEvent = nullptr;
+            binding->mDeactivateEvent = nsnull;
         }
         nsCacheService::DoomEntry(binding->mCacheEntry);
-        binding = nullptr;
+        binding = nsnull;
     }
 
     // Lookup hash number in cache map. There can be a colliding inactive entry.
@@ -670,7 +670,7 @@ nsDiskCacheDevice::BindEntry(nsCacheEntry * entry)
                     // If the old entry is pending deactivation, cancel deactivation
                     if (oldBinding->mDeactivateEvent) {
                         oldBinding->mDeactivateEvent->CancelEvent();
-                        oldBinding->mDeactivateEvent = nullptr;
+                        oldBinding->mDeactivateEvent = nsnull;
                     }
                 // we've got a live one!
                     nsCacheService::DoomEntry(oldBinding->mCacheEntry);
@@ -704,7 +704,7 @@ nsDiskCacheDevice::DoomEntry(nsCacheEntry * entry)
     CACHE_LOG_DEBUG(("CACHE: disk DoomEntry [%p]\n", entry));
 
     nsDiskCacheBinding * binding = GetCacheEntryBinding(entry);
-    NS_ASSERTION(binding, "DoomEntry: binding == nullptr");
+    NS_ASSERTION(binding, "DoomEntry: binding == nsnull");
     if (!binding)
         return;
 
@@ -786,7 +786,7 @@ nsDiskCacheDevice::GetFileForEntry(nsCacheEntry *    entry,
                                    nsIFile **        result)
 {
     NS_ENSURE_ARG_POINTER(result);
-    *result = nullptr;
+    *result = nsnull;
 
     nsresult             rv;
         
@@ -954,7 +954,7 @@ nsDiskCacheDevice::EvictEntries(const char * clientID)
     if (!Initialized())  return NS_ERROR_NOT_INITIALIZED;
     nsresult  rv;
 
-    if (clientID == nullptr) {
+    if (clientID == nsnull) {
         // we're clearing the entire disk cache
         rv = ClearDiskCache();
         if (rv != NS_ERROR_CACHE_IN_USE)
@@ -964,7 +964,7 @@ nsDiskCacheDevice::EvictEntries(const char * clientID)
     nsDiskCacheEvictor  evictor(&mCacheMap, &mBindery, 0, clientID);
     rv = mCacheMap.VisitRecords(&evictor);
     
-    if (clientID == nullptr)     // we tried to clear the entire cache
+    if (clientID == nsnull)     // we tried to clear the entire cache
         rv = mCacheMap.Trim(); // so trim cache block files (if possible)
     return rv;
 }
@@ -1063,7 +1063,7 @@ nsDiskCacheDevice::EvictDiskCacheEntries(PRUint32  targetCapacity)
         return NS_OK;
 
     // targetCapacity is in KiB's
-    nsDiskCacheEvictor  evictor(&mCacheMap, &mBindery, targetCapacity, nullptr);
+    nsDiskCacheEvictor  evictor(&mCacheMap, &mBindery, targetCapacity, nsnull);
     return mCacheMap.EvictRecords(&evictor);
 }
 
@@ -1084,7 +1084,7 @@ nsDiskCacheDevice::SetCacheParentDirectory(nsIFile * parentDir)
     }
 
     if (!parentDir) {
-        mCacheDirectory = nullptr;
+        mCacheDirectory = nsnull;
         return;
     }
 

@@ -223,7 +223,7 @@ struct nsStyleImage {
    * @return true iff |aActualCropRect| holds a meaningful value.
    */
   bool ComputeActualCropRect(nsIntRect& aActualCropRect,
-                               bool* aIsEntireImage = nullptr) const;
+                               bool* aIsEntireImage = nsnull) const;
 
   /**
    * Requests a decode on the image.
@@ -595,8 +595,8 @@ struct nsBorderColors {
   nsBorderColors* mNext;
   nscolor mColor;
 
-  nsBorderColors() : mNext(nullptr), mColor(NS_RGB(0,0,0)) {}
-  nsBorderColors(const nscolor& aColor) : mNext(nullptr), mColor(aColor) {}
+  nsBorderColors() : mNext(nsnull), mColor(NS_RGB(0,0,0)) {}
+  nsBorderColors(const nscolor& aColor) : mNext(nsnull), mColor(aColor) {}
   ~nsBorderColors();
 
   nsBorderColors* Clone() const { return Clone(true); }
@@ -747,14 +747,14 @@ struct nsStyleBorder {
       mBorderColors = new nsBorderColors*[4];
       if (mBorderColors)
         for (PRInt32 i = 0; i < 4; i++)
-          mBorderColors[i] = nullptr;
+          mBorderColors[i] = nsnull;
     }
   }
 
   void ClearBorderColors(mozilla::css::Side aSide) {
     if (mBorderColors && mBorderColors[aSide]) {
       delete mBorderColors[aSide];
-      mBorderColors[aSide] = nullptr;
+      mBorderColors[aSide] = nsnull;
     }
   }
 
@@ -858,7 +858,7 @@ struct nsStyleBorder {
   void GetCompositeColors(PRInt32 aIndex, nsBorderColors** aColors) const
   {
     if (!mBorderColors)
-      *aColors = nullptr;
+      *aColors = nsnull;
     else
       *aColors = mBorderColors[aIndex];
   }
@@ -1192,7 +1192,7 @@ struct nsStyleTextOverflow {
 
   // Returns the second value, or null if there was only one value specified.
   const nsStyleTextOverflowSide* GetSecondValue() const {
-    return mLogicalDirections ? nullptr : &mRight;
+    return mLogicalDirections ? nsnull : &mRight;
   }
 
   nsStyleTextOverflowSide mLeft;  // start side when mLogicalDirections is true
@@ -1600,7 +1600,7 @@ struct nsStyleDisplay {
            mAnimationPlayStateCount,
            mAnimationIterationCountCount;
 
-  bool IsBlockInsideStyle() const {
+  bool IsBlockInside() const {
     return NS_STYLE_DISPLAY_BLOCK == mDisplay ||
            NS_STYLE_DISPLAY_LIST_ITEM == mDisplay ||
            NS_STYLE_DISPLAY_INLINE_BLOCK == mDisplay;
@@ -1609,7 +1609,7 @@ struct nsStyleDisplay {
     // (But please audit all callers before changing.)
   }
 
-  bool IsBlockOutsideStyle() const {
+  bool IsBlockOutside() const {
     return NS_STYLE_DISPLAY_BLOCK == mDisplay ||
 #ifdef MOZ_FLEXBOX
            NS_STYLE_DISPLAY_FLEX == mDisplay ||
@@ -1630,32 +1630,25 @@ struct nsStyleDisplay {
            NS_STYLE_DISPLAY_INLINE_STACK == aDisplay;
   }
 
-  bool IsInlineOutsideStyle() const {
+  bool IsInlineOutside() const {
     return IsDisplayTypeInlineOutside(mDisplay);
   }
 
-  bool IsOriginalDisplayInlineOutsideStyle() const {
+  bool IsOriginalDisplayInlineOutside() const {
     return IsDisplayTypeInlineOutside(mOriginalDisplay);
   }
 
-  bool IsFloatingStyle() const {
+  bool IsFloating() const {
     return NS_STYLE_FLOAT_NONE != mFloats;
   }
 
-  bool IsAbsolutelyPositionedStyle() const {
-    return NS_STYLE_POSITION_ABSOLUTE == mPosition ||
-           NS_STYLE_POSITION_FIXED == mPosition;
-  }
+  bool IsAbsolutelyPositioned() const {return (NS_STYLE_POSITION_ABSOLUTE == mPosition) ||
+                                                (NS_STYLE_POSITION_FIXED == mPosition);}
 
   /* Returns true if we're positioned or there's a transform in effect. */
-  bool IsPositionedStyle() const {
-    return IsAbsolutelyPositionedStyle() ||
-           IsRelativelyPositionedStyle() ||
-           HasTransform();
-  }
-
-  bool IsRelativelyPositionedStyle() const {
-    return mPosition == NS_STYLE_POSITION_RELATIVE;
+  bool IsPositioned() const {
+    return IsAbsolutelyPositioned() ||
+      NS_STYLE_POSITION_RELATIVE == mPosition || HasTransform();
   }
 
   bool IsScrollableOverflow() const {
@@ -1667,21 +1660,10 @@ struct nsStyleDisplay {
 
   /* Returns whether the element has the -moz-transform property. */
   bool HasTransform() const {
-    return mSpecifiedTransform != nullptr || 
+    return mSpecifiedTransform != nsnull || 
            mTransformStyle == NS_STYLE_TRANSFORM_STYLE_PRESERVE_3D ||
            mBackfaceVisibility == NS_STYLE_BACKFACE_VISIBILITY_HIDDEN;
   }
-
-  // These are defined in nsStyleStructInlines.h.
-  inline bool IsBlockInside(const nsIFrame* aFrame) const;
-  inline bool IsBlockOutside(const nsIFrame* aFrame) const;
-  inline bool IsInlineOutside(const nsIFrame* aFrame) const;
-  inline bool IsOriginalDisplayInlineOutside(const nsIFrame* aFrame) const;
-  inline PRUint8 GetDisplay(const nsIFrame* aFrame) const;
-  inline bool IsFloating(const nsIFrame* aFrame) const;
-  inline bool IsPositioned(const nsIFrame* aFrame) const;
-  inline bool IsRelativelyPositioned(const nsIFrame* aFrame) const;
-  inline bool IsAbsolutelyPositioned(const nsIFrame* aFrame) const;
 };
 
 struct nsStyleTable {
@@ -1765,7 +1747,7 @@ struct nsStyleContentData {
 #ifdef DEBUG
     , mImageTracked(false)
 #endif
-  { mContent.mString = nullptr; }
+  { mContent.mString = nsnull; }
 
   ~nsStyleContentData();
   nsStyleContentData& operator=(const nsStyleContentData& aOther);
@@ -1795,7 +1777,7 @@ struct nsStyleCounterData {
 };
 
 
-#define DELETE_ARRAY_IF(array)  if (array) { delete[] array; array = nullptr; }
+#define DELETE_ARRAY_IF(array)  if (array) { delete[] array; array = nsnull; }
 
 struct nsStyleQuotes {
   nsStyleQuotes();
@@ -2116,8 +2098,6 @@ struct nsStyleColumn {
 
   nscolor      mColumnRuleColor;  // [reset]
   PRUint8      mColumnRuleStyle;  // [reset]
-  PRUint8      mColumnFill;  // [reset] see nsStyleConsts.h
-
   // See https://bugzilla.mozilla.org/show_bug.cgi?id=271586#c43 for why
   // this is hard to replace with 'currentColor'.
   bool mColumnRuleColorIsForeground;
@@ -2150,7 +2130,7 @@ struct nsStyleSVGPaint
   nsStyleSVGPaintType mType;
   nscolor mFallbackColor;
 
-  nsStyleSVGPaint() : mType(nsStyleSVGPaintType(0)) { mPaint.mPaintServer = nullptr; }
+  nsStyleSVGPaint() : mType(nsStyleSVGPaintType(0)) { mPaint.mPaintServer = nsnull; }
   ~nsStyleSVGPaint();
   void SetType(nsStyleSVGPaintType aType);
   nsStyleSVGPaint& operator=(const nsStyleSVGPaint& aOther);

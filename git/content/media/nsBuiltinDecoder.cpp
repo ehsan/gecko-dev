@@ -177,7 +177,7 @@ nsresult nsBuiltinDecoder::Load(MediaResource* aResource,
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
   if (aStreamListener) {
-    *aStreamListener = nullptr;
+    *aStreamListener = nsnull;
   }
 
   {
@@ -204,7 +204,7 @@ nsresult nsBuiltinDecoder::Load(MediaResource* aResource,
 
   nsBuiltinDecoder* cloneDonor = static_cast<nsBuiltinDecoder*>(aCloneDonor);
   if (NS_FAILED(mDecoderStateMachine->Init(cloneDonor ?
-                                           cloneDonor->mDecoderStateMachine : nullptr))) {
+                                           cloneDonor->mDecoderStateMachine : nsnull))) {
     LOG(PR_LOG_DEBUG, ("%p Failed to init state machine!", this));
     return NS_ERROR_FAILURE;
   }
@@ -257,7 +257,7 @@ nsresult nsBuiltinDecoder::Play()
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
   ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-  NS_ASSERTION(mDecoderStateMachine != nullptr, "Should have state machine.");
+  NS_ASSERTION(mDecoderStateMachine != nsnull, "Should have state machine.");
   nsresult res = ScheduleStateMachineThread();
   NS_ENSURE_SUCCESS(res,res);
   if (mPlayState == PLAY_STATE_SEEKING) {
@@ -386,7 +386,7 @@ double nsBuiltinDecoder::GetCurrentTime()
 already_AddRefed<nsIPrincipal> nsBuiltinDecoder::GetCurrentPrincipal()
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
-  return mResource ? mResource->GetCurrentPrincipal() : nullptr;
+  return mResource ? mResource->GetCurrentPrincipal() : nsnull;
 }
 
 void nsBuiltinDecoder::AudioAvailable(float* aFrameBuffer,
@@ -406,8 +406,7 @@ void nsBuiltinDecoder::AudioAvailable(float* aFrameBuffer,
 
 void nsBuiltinDecoder::MetadataLoaded(PRUint32 aChannels,
                                       PRUint32 aRate,
-                                      bool aHasAudio,
-                                      const nsHTMLMediaElement::MetadataTags* aTags)
+                                      bool aHasAudio)
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
   if (mShuttingDown) {
@@ -429,7 +428,7 @@ void nsBuiltinDecoder::MetadataLoaded(PRUint32 aChannels,
     // Make sure the element and the frame (if any) are told about
     // our new size.
     Invalidate();
-    mElement->MetadataLoaded(aChannels, aRate, aHasAudio, aTags);
+    mElement->MetadataLoaded(aChannels, aRate, aHasAudio);
   }
 
   if (!mResourceLoaded) {

@@ -36,11 +36,6 @@ class FileInfo;
 class IDBDatabase;
 class IDBTransaction;
 
-enum FactoryPrivilege {
-  Content,
-  Chrome
-};
-
 template <class T>
 void SwapData(T& aData1, T& aData2)
 {
@@ -48,20 +43,6 @@ void SwapData(T& aData1, T& aData2)
   aData2 = aData1;
   aData1 = temp;
 }
-
-struct StructuredCloneFile
-{
-  bool operator==(const StructuredCloneFile& aOther) const
-  {
-    return this->mFile == aOther.mFile &&
-           this->mFileInfo == aOther.mFileInfo &&
-           this->mInputStream == aOther.mInputStream;
-  }
-
-  nsCOMPtr<nsIDOMBlob> mFile;
-  nsRefPtr<FileInfo> mFileInfo;
-  nsCOMPtr<nsIInputStream> mInputStream;
-};
 
 struct SerializedStructuredCloneReadInfo;
 
@@ -73,7 +54,7 @@ struct StructuredCloneReadInfo
   void Swap(StructuredCloneReadInfo& aCloneReadInfo)
   {
     mCloneBuffer.swap(aCloneReadInfo.mCloneBuffer);
-    mFiles.SwapElements(aCloneReadInfo.mFiles);
+    mFileInfos.SwapElements(aCloneReadInfo.mFileInfos);
     SwapData(mDatabase, aCloneReadInfo.mDatabase);
   }
 
@@ -82,14 +63,14 @@ struct StructuredCloneReadInfo
   SetFromSerialized(const SerializedStructuredCloneReadInfo& aOther);
 
   JSAutoStructuredCloneBuffer mCloneBuffer;
-  nsTArray<StructuredCloneFile> mFiles;
+  nsTArray<nsRefPtr<FileInfo> > mFileInfos;
   IDBDatabase* mDatabase;
 };
 
 struct SerializedStructuredCloneReadInfo
 {
   SerializedStructuredCloneReadInfo()
-  : data(nullptr), dataLength(0)
+  : data(nsnull), dataLength(0)
   { }
 
   bool
@@ -110,6 +91,20 @@ struct SerializedStructuredCloneReadInfo
   // Make sure to update ipc/SerializationHelpers.h when changing members here!
   uint64_t* data;
   size_t dataLength;
+};
+
+struct StructuredCloneFile
+{
+  bool operator==(const StructuredCloneFile& aOther) const
+  {
+    return this->mFile == aOther.mFile &&
+           this->mFileInfo == aOther.mFileInfo &&
+           this->mInputStream == aOther.mInputStream;
+  }
+
+  nsCOMPtr<nsIDOMBlob> mFile;
+  nsRefPtr<FileInfo> mFileInfo;
+  nsCOMPtr<nsIInputStream> mInputStream;
 };
 
 struct SerializedStructuredCloneWriteInfo;
@@ -149,7 +144,7 @@ struct StructuredCloneWriteInfo
 struct SerializedStructuredCloneWriteInfo
 {
   SerializedStructuredCloneWriteInfo()
-  : data(nullptr), dataLength(0), offsetToKeyProp(0)
+  : data(nsnull), dataLength(0), offsetToKeyProp(0)
   { }
 
   bool

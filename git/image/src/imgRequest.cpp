@@ -80,7 +80,7 @@ NS_IMPL_ISUPPORTS8(imgRequest,
                    nsIAsyncVerifyRedirectCallback)
 
 imgRequest::imgRequest() : 
-  mValidator(nullptr), mImageSniffers("image-sniffing-services"),
+  mValidator(nsnull), mImageSniffers("image-sniffing-services"),
   mInnerWindowId(0), mCORSMode(imgIRequest::CORS_NONE),
   mDecodeRequested(false), mIsMultiPartChannel(false), mGotData(false),
   mIsInCache(false)
@@ -120,7 +120,7 @@ nsresult imgRequest::Init(nsIURI *aURI,
 
   mProperties = do_CreateInstance("@mozilla.org/properties;1");
 
-  mStatusTracker = new imgStatusTracker(nullptr);
+  mStatusTracker = new imgStatusTracker(nsnull);
 
   mURI = aURI;
   mCurrentURI = aCurrentURI;
@@ -166,7 +166,7 @@ void imgRequest::SetCacheEntry(imgCacheEntry *entry)
 
 bool imgRequest::HasCacheEntry() const
 {
-  return mCacheEntry != nullptr;
+  return mCacheEntry != nsnull;
 }
 
 nsresult imgRequest::AddProxy(imgRequestProxy *proxy)
@@ -245,7 +245,7 @@ nsresult imgRequest::RemoveProxy(imgRequestProxy *proxy, nsresult aStatus, bool 
     }
 
     /* break the cycle from the cache entry. */
-    mCacheEntry = nullptr;
+    mCacheEntry = nsnull;
   }
 
   // If a proxy is removed for a reason other than its owner being
@@ -267,7 +267,7 @@ void imgRequest::CancelAndAbort(nsresult aStatus)
   // the channel and us, because it won't.
   if (mChannel) {
     mChannel->SetNotificationCallbacks(mPrevChannelSink);
-    mPrevChannelSink = nullptr;
+    mPrevChannelSink = nsnull;
   }
 }
 
@@ -321,7 +321,7 @@ void imgRequest::RemoveFromCache()
       imgLoader::RemoveFromCache(mURI);
   }
 
-  mCacheEntry = nullptr;
+  mCacheEntry = nsnull;
 }
 
 bool imgRequest::HaveProxyWithObserver(imgRequestProxy* aProxyToIgnore) const
@@ -360,7 +360,7 @@ void imgRequest::AdjustPriority(imgRequestProxy *proxy, PRInt32 delta)
   // concern though is that image loads remain lower priority than other pieces
   // of content such as link clicks, CSS, and JS.
   //
-  if (mObservers.SafeElementAt(0, nullptr) != proxy)
+  if (mObservers.SafeElementAt(0, nsnull) != proxy)
     return;
 
   nsCOMPtr<nsISupportsPriority> p = do_QueryInterface(mRequest);
@@ -657,7 +657,7 @@ NS_IMETHODIMP imgRequest::OnStopDecode(imgIRequest *aRequest,
 
     nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
     if (os)
-      os->NotifyObservers(mURI, "net:failed-to-process-uri-content", nullptr);
+      os->NotifyObservers(mURI, "net:failed-to-process-uri-content", nsnull);
   }
 
   // RasterImage and everything below it is completely correct and
@@ -742,7 +742,7 @@ NS_IMETHODIMP imgRequest::OnStartRequest(nsIRequest *aRequest, nsISupports *ctxt
       // mImage won't be reusable due to format change or a new SVG part
       // Reset the tracker and forget that we have data for OnDataAvailable to
       // treat its next call as a fresh image.
-      mStatusTracker = new imgStatusTracker(nullptr);
+      mStatusTracker = new imgStatusTracker(nsnull);
       mGotData = false;
     } else if (mImage->GetType() == imgIContainer::TYPE_RASTER) {
       // Inform the RasterImage that we have new source data
@@ -822,14 +822,14 @@ NS_IMETHODIMP imgRequest::OnStopRequest(nsIRequest *aRequest, nsISupports *ctxt,
   // save the last status that we saw so that the
   // imgRequestProxy will have access to it.
   if (mRequest) {
-    mRequest = nullptr;  // we no longer need the request
+    mRequest = nsnull;  // we no longer need the request
   }
 
   // stop holding a ref to the channel, since we don't need it anymore
   if (mChannel) {
     mChannel->SetNotificationCallbacks(mPrevChannelSink);
-    mPrevChannelSink = nullptr;
-    mChannel = nullptr;
+    mPrevChannelSink = nsnull;
+    mChannel = nsnull;
   }
 
   // Tell the image that it has all of the source data. Note that this can
@@ -876,7 +876,7 @@ NS_IMETHODIMP imgRequest::OnStopRequest(nsIRequest *aRequest, nsISupports *ctxt,
     statusTracker.SendStopRequest(srIter.GetNext(), lastPart, status);
   }
 
-  mTimedChannel = nullptr;
+  mTimedChannel = nsnull;
   return NS_OK;
 }
 
@@ -1044,9 +1044,9 @@ NS_IMETHODIMP imgRequest::OnDataAvailable(nsIRequest *aRequest, nsISupports *ctx
             if (NS_FAILED(rv)) {
               // Flush memory, try to get some back, and try again
               rv = nsMemory::HeapMinimize(true);
-              nsresult rv2 = rasterImage->SetSourceSizeHint(sizeHint);
+              rv |= rasterImage->SetSourceSizeHint(sizeHint);
               // If we've still failed at this point, things are going downhill
-              if (NS_FAILED(rv) || NS_FAILED(rv2)) {
+              if (NS_FAILED(rv)) {
                 NS_WARNING("About to hit OOM in imagelib!");
               }
             }
@@ -1064,7 +1064,7 @@ NS_IMETHODIMP imgRequest::OnDataAvailable(nsIRequest *aRequest, nsISupports *ctx
       nsCOMPtr<nsIStreamListener> imageAsStream = do_QueryInterface(mImage);
       NS_ABORT_IF_FALSE(imageAsStream,
                         "SVG-typed Image failed QI to nsIStreamListener");
-      imageAsStream->OnStartRequest(aRequest, nullptr);
+      imageAsStream->OnStartRequest(aRequest, nsnull);
     }
   }
 
@@ -1128,7 +1128,7 @@ imgRequest::SniffMimeType(const char *buf, PRUint32 len)
   PRUint32 length = sniffers.Count();
   for (PRUint32 i = 0; i < length; ++i) {
     nsresult rv =
-      sniffers[i]->GetMIMETypeFromContent(nullptr, (const PRUint8 *) buf, len, mContentType);
+      sniffers[i]->GetMIMETypeFromContent(nsnull, (const PRUint8 *) buf, len, mContentType);
     if (NS_SUCCEEDED(rv) && !mContentType.IsEmpty()) {
       return;
     }
@@ -1170,8 +1170,8 @@ imgRequest::AsyncOnChannelRedirect(nsIChannel *oldChannel,
     nsresult rv = sink->AsyncOnChannelRedirect(oldChannel, newChannel, flags,
                                                this);
     if (NS_FAILED(rv)) {
-        mRedirectCallback = nullptr;
-        mNewRedirectChannel = nullptr;
+        mRedirectCallback = nsnull;
+        mNewRedirectChannel = nsnull;
     }
     return rv;
   }
@@ -1188,14 +1188,14 @@ imgRequest::OnRedirectVerifyCallback(nsresult result)
 
   if (NS_FAILED(result)) {
       mRedirectCallback->OnRedirectVerifyCallback(result);
-      mRedirectCallback = nullptr;
-      mNewRedirectChannel = nullptr;
+      mRedirectCallback = nsnull;
+      mNewRedirectChannel = nsnull;
       return NS_OK;
   }
 
   mChannel = mNewRedirectChannel;
   mTimedChannel = do_QueryInterface(mChannel);
-  mNewRedirectChannel = nullptr;
+  mNewRedirectChannel = nsnull;
 
 #if defined(PR_LOGGING)
   nsCAutoString oldspec;
@@ -1217,11 +1217,11 @@ imgRequest::OnRedirectVerifyCallback(nsresult result)
 
   if (NS_FAILED(rv)) {
     mRedirectCallback->OnRedirectVerifyCallback(rv);
-    mRedirectCallback = nullptr;
+    mRedirectCallback = nsnull;
     return NS_OK;
   }
 
   mRedirectCallback->OnRedirectVerifyCallback(NS_OK);
-  mRedirectCallback = nullptr;
+  mRedirectCallback = nsnull;
   return NS_OK;
 }

@@ -12,8 +12,8 @@
 
 nsBaseClipboard::nsBaseClipboard()
 {
-  mClipboardOwner          = nullptr;
-  mTransferable            = nullptr;
+  mClipboardOwner          = nsnull;
+  mTransferable            = nsnull;
   mIgnoreEmptyNotification = false;
 
 }

@@ -203,7 +203,7 @@ SharedImage* ImageContainerChild::CreateSharedImageFromData(Image* image)
   } else {
     NS_RUNTIMEABORT("TODO: Only YUVImage is supported here right now.");
   }
-  return nullptr;
+  return nsnull;
 }
 
 bool ImageContainerChild::AddSharedImageToPool(SharedImage* img)
@@ -238,7 +238,7 @@ SharedImage* ImageContainerChild::PopSharedImageFromPool()
     return img;
   }
   
-  return nullptr;
+  return nsnull;
 }
 
 void ImageContainerChild::ClearSharedImagePool()
@@ -275,12 +275,12 @@ public:
 SharedImage* ImageContainerChild::ImageToSharedImage(Image* aImage)
 {
   if (mStop) {
-    return nullptr;
+    return nsnull;
   }
   if (mActiveImageCount > (int)MAX_ACTIVE_SHARED_IMAGES) {
     // Too many active shared images, perhaps the compositor is hanging.
     // Skipping current image
-    return nullptr;
+    return nsnull;
   }
 
   NS_ABORT_IF_FALSE(InImageBridgeChildThread(),

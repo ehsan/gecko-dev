@@ -17,7 +17,7 @@
 NS_IMPL_ISUPPORTS2(nsSupportsIDImpl, nsISupportsID, nsISupportsPrimitive)
 
 nsSupportsIDImpl::nsSupportsIDImpl()
-    : mData(nullptr)
+    : mData(nsnull)
 {
 }
 
@@ -37,7 +37,7 @@ NS_IMETHODIMP nsSupportsIDImpl::GetData(nsID **aData)
         *aData = (nsID*) nsMemory::Clone(mData, sizeof(nsID));
         return *aData ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
     }
-    *aData = nullptr;
+    *aData = nsnull;
     return NS_OK;
 }
 
@@ -48,7 +48,7 @@ NS_IMETHODIMP nsSupportsIDImpl::SetData(const nsID *aData)
     if(aData)
         mData = (nsID*) nsMemory::Clone(aData, sizeof(nsID));
     else
-        mData = nullptr;
+        mData = nsnull;
     return NS_OK;
 }
 
@@ -446,7 +446,7 @@ NS_IMETHODIMP nsSupportsCharImpl::ToString(char **_retval)
     char* result;
     NS_ASSERTION(_retval, "Bad pointer");
 
-    if(nullptr != (result = (char*) nsMemory::Alloc(2*sizeof(char))))
+    if(nsnull != (result = (char*) nsMemory::Alloc(2*sizeof(char))))
     {
         result[0] = mData;
         result[1] = '\0';
@@ -687,7 +687,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS2(nsSupportsVoidImpl, nsISupportsVoid,
                               nsISupportsPrimitive)
 
 nsSupportsVoidImpl::nsSupportsVoidImpl()
-    : mData(nullptr)
+    : mData(nsnull)
 {
 }
 
@@ -730,7 +730,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS2(nsSupportsInterfacePointerImpl,
                               nsISupportsPrimitive)
 
 nsSupportsInterfacePointerImpl::nsSupportsInterfacePointerImpl()
-    : mIID(nullptr)
+    : mIID(nsnull)
 {
 }
 
@@ -775,7 +775,7 @@ NS_IMETHODIMP nsSupportsInterfacePointerImpl::GetDataIID(nsID **aIID)
         *aIID = (nsID*) nsMemory::Clone(mIID, sizeof(nsID));
         return *aIID ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
     }
-    *aIID = nullptr;
+    *aIID = nsnull;
     return NS_OK;
 }
 
@@ -786,7 +786,7 @@ NS_IMETHODIMP nsSupportsInterfacePointerImpl::SetDataIID(const nsID *aIID)
     if(aIID)
         mIID = (nsID*) nsMemory::Clone(aIID, sizeof(nsID));
     else
-        mIID = nullptr;
+        mIID = nsnull;
 
     return NS_OK;
 }

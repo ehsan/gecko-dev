@@ -15,7 +15,7 @@
     PR_END_MACRO
 
 static NS_DEFINE_CID(kEventQueueServiceCID, NS_EVENTQUEUESERVICE_CID);
-static nsIEventQueue* gEventQ = nullptr;
+static nsIEventQueue* gEventQ = nsnull;
 static bool gKeepRunning = true;
 
 //-----------------------------------------------------------------------------
@@ -136,11 +136,11 @@ int main(int argc, char **argv)
     }
     {
         nsCOMPtr<nsIServiceManager> servMan;
-        NS_InitXPCOM2(getter_AddRefs(servMan), nullptr, nullptr);
+        NS_InitXPCOM2(getter_AddRefs(servMan), nsnull, nsnull);
         nsCOMPtr<nsIComponentRegistrar> registrar = do_QueryInterface(servMan);
         NS_ASSERTION(registrar, "Null nsIComponentRegistrar");
         if (registrar)
-            registrar->AutoRegister(nullptr);
+            registrar->AutoRegister(nsnull);
 
         // Create the Event Queue for this thread...
         nsCOMPtr<nsIEventQueueService> eqs =
@@ -161,10 +161,10 @@ int main(int argc, char **argv)
         rv = NS_NewURI(getter_AddRefs(uri), argv[1]);
         RETURN_IF_FAILED(rv, "NS_NewURI");
 
-        rv = NS_NewChannel(getter_AddRefs(chan), uri, nullptr, nullptr, callbacks);
+        rv = NS_NewChannel(getter_AddRefs(chan), uri, nsnull, nsnull, callbacks);
         RETURN_IF_FAILED(rv, "NS_OpenURI");
 
-        rv = chan->AsyncOpen(listener, nullptr);
+        rv = chan->AsyncOpen(listener, nsnull);
         RETURN_IF_FAILED(rv, "AsyncOpen");
 
         while (gKeepRunning)
@@ -173,7 +173,7 @@ int main(int argc, char **argv)
         printf(">>> done\n");
     } // this scopes the nsCOMPtrs
     // no nsCOMPtrs are allowed to be alive when you call NS_ShutdownXPCOM
-    rv = NS_ShutdownXPCOM(nullptr);
+    rv = NS_ShutdownXPCOM(nsnull);
     NS_ASSERTION(NS_SUCCEEDED(rv), "NS_ShutdownXPCOM failed");
     return 0;
 }

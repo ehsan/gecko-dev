@@ -122,7 +122,7 @@ void
 nsSVGClass::SMILString::ClearAnimValue()
 {
   if (mVal->mAnimVal) {
-    mVal->mAnimVal = nullptr;
+    mVal->mAnimVal = nsnull;
     mSVGElement->DidAnimateClass();
   }
 }

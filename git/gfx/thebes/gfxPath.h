@@ -58,7 +58,7 @@ public:
      * @param aAngle optional - output tangent
      */
     gfxPoint FindPoint(gfxPoint aOffset,
-                       gfxFloat* aAngle = nullptr);
+                       gfxFloat* aAngle = nsnull);
 };
 
 #endif

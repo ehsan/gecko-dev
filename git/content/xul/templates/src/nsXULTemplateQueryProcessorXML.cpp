@@ -127,7 +127,7 @@ nsXULTemplateQueryProcessorXML::GetDatasource(nsIArray* aDataSources,
                                               bool* aShouldDelayBuilding,
                                               nsISupports** aResult)
 {
-    *aResult = nullptr;
+    *aResult = nsnull;
     *aShouldDelayBuilding = false;
 
     nsresult rv;
@@ -176,7 +176,7 @@ nsXULTemplateQueryProcessorXML::GetDatasource(nsIArray* aDataSources,
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsPIDOMWindow> owner = do_QueryInterface(scriptObject);
-    req->Init(docPrincipal, context, owner, nullptr);
+    req->Init(docPrincipal, context, owner, nsnull);
 
     rv = req->Open(NS_LITERAL_CSTRING("GET"), uriStr, true,
                    EmptyString(), EmptyString());
@@ -189,7 +189,7 @@ nsXULTemplateQueryProcessorXML::GetDatasource(nsIArray* aDataSources,
     rv = target->AddEventListener(NS_LITERAL_STRING("error"), this, false);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = req->Send(nullptr);
+    rv = req->Send(nsnull);
     NS_ENSURE_SUCCESS(rv, rv);
 
     mTemplateBuilder = aBuilder;
@@ -244,7 +244,7 @@ nsXULTemplateQueryProcessorXML::CompileQuery(nsIXULTemplateBuilder* aBuilder,
 {
     nsresult rv = NS_OK;
 
-    *_retval = nullptr;
+    *_retval = nsnull;
 
     nsCOMPtr<nsIContent> content = do_QueryInterface(aQueryNode);
 
@@ -333,7 +333,7 @@ nsXULTemplateQueryProcessorXML::GenerateResults(nsISupports* aDatasource,
     nsCOMPtr<nsISupports> exprsupportsresults;
     nsresult rv = expr->Evaluate(context,
                                  nsIDOMXPathResult::ORDERED_NODE_SNAPSHOT_TYPE,
-                                 nullptr, getter_AddRefs(exprsupportsresults));
+                                 nsnull, getter_AddRefs(exprsupportsresults));
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsIDOMXPathResult> exprresults =
@@ -382,7 +382,7 @@ nsXULTemplateQueryProcessorXML::TranslateRef(nsISupports* aDatasource,
                                              const nsAString& aRefString,
                                              nsIXULTemplateResult** aRef)
 {
-    *aRef = nullptr;
+    *aRef = nsnull;
 
     // the datasource is either a document or a DOM element
     nsCOMPtr<nsIDOMElement> rootElement;
@@ -397,7 +397,7 @@ nsXULTemplateQueryProcessorXML::TranslateRef(nsISupports* aDatasource,
         return NS_OK;
     
     nsXULTemplateResultXML* result =
-        new nsXULTemplateResultXML(nullptr, rootElement, nullptr);
+        new nsXULTemplateResultXML(nsnull, rootElement, nsnull);
     NS_ENSURE_TRUE(result, NS_ERROR_OUT_OF_MEMORY);
 
     *aRef = result;
@@ -470,12 +470,12 @@ nsXULTemplateQueryProcessorXML::HandleEvent(nsIDOMEvent* aEvent)
             mTemplateBuilder->SetDatasource(doc);
 
         // to avoid leak. we don't need it after...
-        mTemplateBuilder = nullptr;
-        mRequest = nullptr;
+        mTemplateBuilder = nsnull;
+        mRequest = nsnull;
     }
     else if (eventType.EqualsLiteral("error")) {
-        mTemplateBuilder = nullptr;
-        mRequest = nullptr;
+        mTemplateBuilder = nsnull;
+        mRequest = nsnull;
     }
 
     return NS_OK;

@@ -14,12 +14,12 @@ getHyperlinkCB(AtkHyperlinkImpl* aImpl)
 {
   AccessibleWrap* accWrap = GetAccessibleWrap(ATK_OBJECT(aImpl));
   if (!accWrap)
-    return nullptr;
+    return nsnull;
 
-  NS_ENSURE_TRUE(accWrap->IsLink(), nullptr);
+  NS_ENSURE_TRUE(accWrap->IsLink(), nsnull);
 
   MaiHyperlink* maiHyperlink = accWrap->GetMaiHyperlink();
-  NS_ENSURE_TRUE(maiHyperlink, nullptr);
+  NS_ENSURE_TRUE(maiHyperlink, nsnull);
   return maiHyperlink->GetAtkHyperlink();
 }
 }

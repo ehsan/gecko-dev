@@ -56,7 +56,7 @@ nsCSSKeywords::ReleaseTable(void)
   if (0 == --gTableRefCount) {
     if (gKeywordTable) {
       delete gKeywordTable;
-      gKeywordTable = nullptr;
+      gKeywordTable = nsnull;
     }
   }
 }

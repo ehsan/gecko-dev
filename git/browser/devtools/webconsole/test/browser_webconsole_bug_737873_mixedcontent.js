@@ -72,8 +72,7 @@ function testClickOpenNewTab(warningNode) {
      linkOpened = true;
   }
 
-  EventUtils.synthesizeMouse(warningNode, 2, 2, {},
-                             warningNode.ownerDocument.defaultView);
+  EventUtils.synthesizeMouse(warningNode, 2, 2, {});
 
   ok(linkOpened, "Clicking the Mixed Content Warning node opens the desired page");
 

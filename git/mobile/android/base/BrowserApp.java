@@ -5,35 +5,40 @@
 
 package org.mozilla.gecko;
 
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
-
-import android.app.Activity;
-import android.content.Intent;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.graphics.drawable.BitmapDrawable;
-import android.graphics.drawable.Drawable;
-import android.net.Uri;
-import android.os.Build;
-import android.os.Bundle;
-import android.util.Log;
-import android.view.LayoutInflater;
-import android.view.Menu;
-import android.view.MenuInflater;
-import android.view.MenuItem;
-import android.view.View;
-import android.view.ViewGroup;
-import android.widget.LinearLayout;
-import android.widget.Toast;
-
-import java.io.InputStream;
-import java.net.URL;
-import java.util.EnumSet;
-import java.util.Vector;
-import java.util.regex.Matcher;
+import java.io.*;
+import java.util.*;
 import java.util.regex.Pattern;
+import java.util.regex.Matcher;
+import java.util.zip.*;
+import java.nio.*;
+import java.util.concurrent.*;
+import java.lang.reflect.*;
+import java.net.*;
+
+import org.json.*;
+
+import android.os.*;
+import android.app.*;
+import android.text.*;
+import android.view.*;
+import android.view.inputmethod.*;
+import android.content.*;
+import android.content.res.*;
+import android.graphics.*;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.BitmapDrawable;
+import android.widget.*;
+import android.hardware.*;
+import android.location.*;
+
+import android.util.*;
+import android.net.*;
+import android.database.*;
+import android.database.sqlite.*;
+import android.provider.*;
+import android.content.pm.*;
+import android.content.pm.PackageManager.*;
+import dalvik.system.*;
 
 abstract public class BrowserApp extends GeckoApp
                                  implements TabsPanel.TabsLayoutChangeListener,

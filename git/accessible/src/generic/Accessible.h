@@ -14,8 +14,8 @@
 #include "nsIAccessibleHyperLink.h"
 #include "nsIAccessibleSelectable.h"
 #include "nsIAccessibleValue.h"
+#include "nsIAccessibleRole.h"
 #include "nsIAccessibleStates.h"
-#include "nsIContent.h"
 
 #include "nsStringGlue.h"
 #include "nsTArray.h"
@@ -129,7 +129,7 @@ public:
   /**
    * Initialize the accessible.
    */
-  virtual void Init();
+  virtual bool Init();
 
   /**
    * Get the description of this accessible.
@@ -151,7 +151,7 @@ public:
    */
   inline already_AddRefed<nsIDOMNode> DOMNode() const
   {
-    nsIDOMNode *DOMNode = nullptr;
+    nsIDOMNode *DOMNode = nsnull;
     if (GetNode())
       CallQueryInterface(GetNode(), &DOMNode);
     return DOMNode;
@@ -321,7 +321,7 @@ public:
    * For a newly created accessible, specify which role map entry should be used.
    *
    * @param aRoleMapEntry The ARIA nsRoleMapEntry* for the accessible, or
-   *                      nullptr if none.
+   *                      nsnull if none.
    */
   virtual void SetRoleMapEntry(nsRoleMapEntry* aRoleMapEntry);
 
@@ -399,7 +399,7 @@ public:
   inline Accessible* LastChild()
   {
     PRUint32 childCount = ChildCount();
-    return childCount != 0 ? GetChildAt(childCount - 1) : nullptr;
+    return childCount != 0 ? GetChildAt(childCount - 1) : nsnull;
   }
 
 
@@ -524,7 +524,7 @@ public:
   inline bool IsRoot() const { return mFlags & eRootAccessible; }
   mozilla::a11y::RootAccessible* AsRoot();
 
-  virtual mozilla::a11y::TableAccessible* AsTable() { return nullptr; }
+  virtual mozilla::a11y::TableAccessible* AsTable() { return nsnull; }
 
   inline bool IsTextLeaf() const { return mFlags & eTextLeafAccessible; }
   mozilla::a11y::TextLeafAccessible* AsTextLeaf();
@@ -721,7 +721,7 @@ protected:
    * Return sibling accessible at the given offset.
    */
   virtual Accessible* GetSiblingAtOffset(PRInt32 aOffset,
-                                         nsresult *aError = nullptr) const;
+                                         nsresult *aError = nsnull) const;
 
   /**
    * Flags used to describe the state and type of children.
@@ -826,7 +826,7 @@ protected:
    * @param  aContent      [in, optional] element to click
    * @param  aActionIndex  [in, optional] index of accessible action
    */
-  void DoCommand(nsIContent *aContent = nullptr, PRUint32 aActionIndex = 0);
+  void DoCommand(nsIContent *aContent = nsnull, PRUint32 aActionIndex = 0);
 
   /**
    * Dispatch click event.

@@ -115,7 +115,7 @@ nsresult
 nsHTMLTableRowElement::GetTable(nsIDOMHTMLTableElement** aTable)
 {
   NS_ENSURE_ARG_POINTER(aTable);
-  *aTable = nullptr;
+  *aTable = nsnull;
 
   nsIContent* parent = GetParent();
   if (!parent) {
@@ -204,10 +204,10 @@ nsHTMLTableRowElement::GetCells(nsIDOMHTMLCollection** aValue)
   if (!mCells) {
     mCells = new nsContentList(this,
                                IsCell,
-                               nullptr, // destroy func
-                               nullptr, // closure data
+                               nsnull, // destroy func
+                               nsnull, // closure data
                                false,
-                               nullptr,
+                               nsnull,
                                kNameSpaceID_XHTML,
                                false);
   }
@@ -219,7 +219,7 @@ nsHTMLTableRowElement::GetCells(nsIDOMHTMLCollection** aValue)
 NS_IMETHODIMP
 nsHTMLTableRowElement::InsertCell(PRInt32 aIndex, nsIDOMHTMLElement** aValue)
 {
-  *aValue = nullptr;
+  *aValue = nsnull;
 
   if (aIndex < -1) {
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
@@ -400,7 +400,7 @@ nsHTMLTableRowElement::IsAttributeMapped(const nsIAtom* aAttribute) const
     { &nsGkAtoms::align },
     { &nsGkAtoms::valign }, 
     { &nsGkAtoms::height },
-    { nullptr }
+    { nsnull }
   };
 
   static const MappedAttributeEntry* const map[] = {

@@ -349,11 +349,11 @@ nsMIMEInfoBase::InitProcess(nsIFile* aApp, nsresult* aResult)
   nsCOMPtr<nsIProcess> process = do_CreateInstance(NS_PROCESS_CONTRACTID,
                                                    aResult);
   if (NS_FAILED(*aResult))
-    return nullptr;
+    return nsnull;
 
   *aResult = process->Init(aApp);
   if (NS_FAILED(*aResult))
-    return nullptr;
+    return nsnull;
 
   return process.forget();
 }

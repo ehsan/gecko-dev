@@ -164,12 +164,11 @@ public:
   static void GarbageCollectNow(js::gcreason::Reason reason,
                                 IsIncremental aIncremental = NonIncrementalGC,
                                 IsCompartment aCompartment = NonCompartmentGC,
-                                IsShrinking aShrinking = NonShrinkingGC,
-                                int64_t aSliceMillis = 0);
+                                IsShrinking aShrinking = NonShrinkingGC);
   static void ShrinkGCBuffersNow();
   // If aExtraForgetSkippableCalls is -1, forgetSkippable won't be
   // called even if the previous collection was GC.
-  static void CycleCollectNow(nsICycleCollectorListener *aListener = nullptr,
+  static void CycleCollectNow(nsICycleCollectorListener *aListener = nsnull,
                               PRInt32 aExtraForgetSkippableCalls = 0,
                               bool aForced = true);
 
@@ -193,7 +192,7 @@ public:
     // Verify that we have a global so that this
     // does always return a null when GetGlobalObject() is null.
     JSObject* global = JS_GetGlobalObject(mContext);
-    return global ? mGlobalObjectRef.get() : nullptr;
+    return global ? mGlobalObjectRef.get() : nsnull;
   }
 protected:
   nsresult InitializeExternalClasses();
@@ -254,7 +253,7 @@ protected:
       : mContext(aContext),
         mTerminations(aContext->mTerminations)
     {
-      aContext->mTerminations = nullptr;
+      aContext->mTerminations = nsnull;
     }
     ~TerminationFuncHolder()
     {

@@ -92,7 +92,7 @@ nsDisplaySVGPathGeometry::Paint(nsDisplayListBuilder* aBuilder,
 
   aCtx->PushState();
   aCtx->Translate(offset);
-  static_cast<nsSVGPathGeometryFrame*>(mFrame)->PaintSVG(aCtx, nullptr);
+  static_cast<nsSVGPathGeometryFrame*>(mFrame)->PaintSVG(aCtx, nsnull);
   aCtx->PopState();
 }
 
@@ -222,7 +222,7 @@ nsSVGPathGeometryFrame::GetFrameForPoint(const nsPoint &aPoint)
 {
   gfxMatrix canvasTM = GetCanvasTM(FOR_HIT_TESTING);
   if (canvasTM.IsSingular()) {
-    return nullptr;
+    return nsnull;
   }
   PRUint16 fillRule, hitTestFlags;
   if (GetStateBits() & NS_STATE_SVG_CLIPPATH_CHILD) {
@@ -236,7 +236,7 @@ nsSVGPathGeometryFrame::GetFrameForPoint(const nsPoint &aPoint)
       nsSVGUtils::TransformOuterSVGPointToChildFrame(aPoint, canvasTM, PresContext());
     if (!hitTestFlags || ((hitTestFlags & SVG_HIT_TEST_CHECK_MRECT) &&
                           !mRect.Contains(point)))
-      return nullptr;
+      return nsnull;
     fillRule = GetStyleSVG()->mFillRule;
   }
 
@@ -265,7 +265,7 @@ nsSVGPathGeometryFrame::GetFrameForPoint(const nsPoint &aPoint)
   if (isHit && nsSVGUtils::HitTestClip(this, aPoint))
     return this;
 
-  return nullptr;
+  return nsnull;
 }
 
 NS_IMETHODIMP_(nsRect)
@@ -502,27 +502,27 @@ nsSVGMarkerFrame *
 nsSVGPathGeometryFrame::MarkerProperties::GetMarkerStartFrame()
 {
   if (!mMarkerStart)
-    return nullptr;
+    return nsnull;
   return static_cast<nsSVGMarkerFrame *>
-    (mMarkerStart->GetReferencedFrame(nsGkAtoms::svgMarkerFrame, nullptr));
+    (mMarkerStart->GetReferencedFrame(nsGkAtoms::svgMarkerFrame, nsnull));
 }
 
 nsSVGMarkerFrame *
 nsSVGPathGeometryFrame::MarkerProperties::GetMarkerMidFrame()
 {
   if (!mMarkerMid)
-    return nullptr;
+    return nsnull;
   return static_cast<nsSVGMarkerFrame *>
-    (mMarkerMid->GetReferencedFrame(nsGkAtoms::svgMarkerFrame, nullptr));
+    (mMarkerMid->GetReferencedFrame(nsGkAtoms::svgMarkerFrame, nsnull));
 }
 
 nsSVGMarkerFrame *
 nsSVGPathGeometryFrame::MarkerProperties::GetMarkerEndFrame()
 {
   if (!mMarkerEnd)
-    return nullptr;
+    return nsnull;
   return static_cast<nsSVGMarkerFrame *>
-    (mMarkerEnd->GetReferencedFrame(nsGkAtoms::svgMarkerFrame, nullptr));
+    (mMarkerEnd->GetReferencedFrame(nsGkAtoms::svgMarkerFrame, nsnull));
 }
 
 void

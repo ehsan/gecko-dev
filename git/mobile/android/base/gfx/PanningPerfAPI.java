@@ -5,11 +5,10 @@
 
 package org.mozilla.gecko.gfx;
 
-import android.os.SystemClock;
-import android.util.Log;
-
 import java.util.ArrayList;
 import java.util.List;
+import android.os.SystemClock;
+import android.util.Log;
 
 public class PanningPerfAPI {
     private static final String LOGTAG = "GeckoPanningPerfAPI";

@@ -78,7 +78,7 @@ AlarmsManager.prototype = {
 
     return this._cpmm.sendSyncMessage(
       "AlarmsManager:Remove", 
-      { id: aId, manifestURL: this._manifestURL }
+      { id: aId }
     );
   },
 
@@ -88,7 +88,7 @@ AlarmsManager.prototype = {
     let request = this.createRequest();
     this._cpmm.sendAsyncMessage(
       "AlarmsManager:GetAll", 
-      { requestId: this.getRequestId(request), manifestURL: this._manifestURL }
+      { requestId: this.getRequestId(request) }
     );
     return request;
   },

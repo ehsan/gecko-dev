@@ -136,12 +136,12 @@ FT2FontEntry::CreateScaledFont(const gfxFontStyle *aStyle)
 FT2FontEntry::~FT2FontEntry()
 {
     // Do nothing for mFTFace here since FTFontDestroyFunc is called by cairo.
-    mFTFace = nullptr;
+    mFTFace = nsnull;
 
 #ifndef ANDROID
     if (mFontFace) {
         cairo_font_face_destroy(mFontFace);
-        mFontFace = nullptr;
+        mFontFace = nsnull;
     }
 #endif
 }
@@ -170,17 +170,17 @@ FT2FontEntry::CreateFontEntry(const gfxProxyFontEntry &aProxyEntry,
                            aFontData, aLength, 0, &face);
     if (error != FT_Err_Ok) {
         NS_Free((void*)aFontData);
-        return nullptr;
+        return nsnull;
     }
     if (FT_Err_Ok != FT_Select_Charmap(face, FT_ENCODING_UNICODE)) {
         FT_Done_Face(face);
         NS_Free((void*)aFontData);
-        return nullptr;
+        return nsnull;
     }
     // Create our FT2FontEntry, which inherits the name of the proxy
     // as it's not guaranteed that the face has valid names (bug 737315)
     FT2FontEntry* fe =
-        FT2FontEntry::CreateFontEntry(face, nullptr, 0, aProxyEntry.Name(),
+        FT2FontEntry::CreateFontEntry(face, nsnull, 0, aProxyEntry.Name(),
                                       aFontData);
     if (fe) {
         fe->mItalic = aProxyEntry.mItalic;
@@ -283,7 +283,7 @@ static FT2FontEntry*
 CreateNamedFontEntry(FT_Face aFace, const char* aFilename, PRUint8 aIndex)
 {
     if (!aFace->family_name) {
-        return nullptr;
+        return nsnull;
     }
     nsAutoString fontName;
     AppendUTF8toUTF16(aFace->family_name, fontName);
@@ -310,7 +310,7 @@ FT2FontEntry::CairoFontFace()
         if (FT_Err_Ok != FT_New_Face(gfxToolkitPlatform::GetPlatform()->GetFTLibrary(),
                                      mFilename.get(), mFTFontIndex, &face)) {
             NS_WARNING("failed to create freetype face");
-            return nullptr;
+            return nsnull;
         }
         if (FT_Err_Ok != FT_Select_Charmap(face, FT_ENCODING_UNICODE)) {
             NS_WARNING("failed to select Unicode charmap, text may be garbled");
@@ -320,7 +320,7 @@ FT2FontEntry::CairoFontFace()
                     FT_LOAD_DEFAULT :
                     (FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING);
         mFontFace = cairo_ft_font_face_create_for_ft_face(face, flags);
-        FTUserFontData *userFontData = new FTUserFontData(face, nullptr);
+        FTUserFontData *userFontData = new FTUserFontData(face, nsnull);
         cairo_font_face_set_user_data(mFontFace, &key,
                                       userFontData, FTFontDestroyFunc);
     }
@@ -368,7 +368,7 @@ FT2FontEntry::GetFontTable(PRUint32 aTableTag,
 
     FT_Error status;
     FT_ULong len = 0;
-    status = FT_Load_Sfnt_Table(mFTFace, aTableTag, 0, nullptr, &len);
+    status = FT_Load_Sfnt_Table(mFTFace, aTableTag, 0, nsnull, &len);
     if (status != FT_Err_Ok || len == 0) {
         return NS_ERROR_FAILURE;
     }
@@ -451,10 +451,10 @@ public:
             NULL
         };
 
-        if (!PL_DHashTableInit(&mMap, &mOps, nullptr,
+        if (!PL_DHashTableInit(&mMap, &mOps, nsnull,
                                sizeof(FNCMapEntry), 0))
         {
-            mMap.ops = nullptr;
+            mMap.ops = nsnull;
             LOG(("initializing the map failed"));
         }
 
@@ -724,7 +724,7 @@ AppendToFaceList(nsCString& aFaceList,
 void
 FT2FontEntry::CheckForBrokenFont()
 {
-    NS_ASSERTION(mFamily != nullptr, "font entry must belong to a family");
+    NS_ASSERTION(mFamily != nsnull, "font entry must belong to a family");
 
     // note if the family is in the "bad underline" blacklist
     if (mFamily->IsBadUnderlineFamily()) {
@@ -839,7 +839,7 @@ FinalizeFamilyMemberList(nsStringHashKey::KeyType aKey,
                          void* aUserArg)
 {
     gfxFontFamily *family = aFamily.get();
-    bool sortFaces = (aUserArg != nullptr);
+    bool sortFaces = (aUserArg != nsnull);
 
     family->SetHasStyles(true);
 
@@ -917,7 +917,7 @@ gfxFT2FontList::FindFonts()
         // Passing null for userdata tells Finalize that it does not need
         // to sort faces (because they were already sorted by chrome,
         // so we just maintain the existing order)
-        mFontFamilies.Enumerate(FinalizeFamilyMemberList, nullptr);
+        mFontFamilies.Enumerate(FinalizeFamilyMemberList, nsnull);
         LOG(("got font list from chrome process: %d faces in %d families",
             fonts.Length(), mFontFamilies.Count()));
         return;
@@ -1055,7 +1055,7 @@ gfxFT2FontList::InitFontList()
 
 struct FullFontNameSearch {
     FullFontNameSearch(const nsAString& aFullName)
-        : mFullName(aFullName), mFontEntry(nullptr)
+        : mFullName(aFullName), mFontEntry(nsnull)
     { }
 
     nsString     mFullName;
@@ -1124,7 +1124,7 @@ gfxFT2FontList::GetDefaultFont(const gfxFontStyle* aStyle, bool& aNeedsBold)
     }
 #endif
     /* TODO: what about Qt or other platforms that may use this? */
-    return nullptr;
+    return nsnull;
 }
 
 gfxFontEntry*

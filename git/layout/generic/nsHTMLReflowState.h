@@ -10,7 +10,6 @@
 
 #include "nsMargin.h"
 #include "nsStyleCoord.h"
-#include "nsStyleStructInlines.h"
 #include "nsIFrame.h"
 #include "mozilla/AutoRestore.h"
 
@@ -175,8 +174,8 @@ protected:
 
   void InitOffsets(nscoord aContainingBlockWidth,
                    nsIAtom* aFrameType,
-                   const nsMargin *aBorder = nullptr,
-                   const nsMargin *aPadding = nullptr);
+                   const nsMargin *aBorder = nsnull,
+                   const nsMargin *aPadding = nsnull);
 
   /*
    * Convert nsStyleCoord to nscoord when percentages depend on the
@@ -293,14 +292,6 @@ public:
   const nsStylePadding*    mStylePadding;
   const nsStyleText*       mStyleText;
 
-  bool IsFloating() const {
-    return mStyleDisplay->IsFloating(frame);
-  }
-
-  PRUint8 GetDisplay() const {
-    return mStyleDisplay->GetDisplay(frame);
-  }
-
   // a frame (e.g. nsTableCellFrame) which may need to generate a special 
   // reflow for percent height calculations 
   nsIPercentHeightObserver* mPercentHeightObserver;
@@ -385,8 +376,8 @@ public:
   void Init(nsPresContext* aPresContext,
             nscoord         aContainingBlockWidth = -1,
             nscoord         aContainingBlockHeight = -1,
-            const nsMargin* aBorder = nullptr,
-            const nsMargin* aPadding = nullptr);
+            const nsMargin* aBorder = nsnull,
+            const nsMargin* aPadding = nsnull);
   /**
    * Find the content width of the containing block of aReflowState
    */

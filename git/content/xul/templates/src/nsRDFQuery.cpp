@@ -24,8 +24,8 @@ nsRDFQuery::Finish()
 {
     // the template builder is going away and the query processor likely as
     // well. Clear the reference to avoid calling it.
-    mProcessor = nullptr;
-    mCachedResults = nullptr;
+    mProcessor = nsnull;
+    mCachedResults = nsnull;
 }
 
 nsresult
@@ -46,5 +46,5 @@ nsRDFQuery::UseCachedResults(nsISimpleEnumerator** aResults)
     *aResults = mCachedResults;
     NS_IF_ADDREF(*aResults);
 
-    mCachedResults = nullptr;
+    mCachedResults = nsnull;
 }

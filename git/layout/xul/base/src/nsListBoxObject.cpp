@@ -37,7 +37,7 @@ NS_IMPL_ISUPPORTS_INHERITED2(nsListBoxObject, nsBoxObject, nsIListBoxObject,
                              nsPIListBoxObject)
 
 nsListBoxObject::nsListBoxObject()
-  : mListBoxBody(nullptr)
+  : mListBoxBody(nsnull)
 {
 }
 
@@ -154,40 +154,40 @@ nsListBoxObject::GetListBoxBody(bool aFlush)
 
   nsIPresShell* shell = GetPresShell(false);
   if (!shell) {
-    return nullptr;
+    return nsnull;
   }
 
   nsIFrame* frame = aFlush ? 
                       GetFrame(false) /* does Flush_Frames */ :
                       mContent->GetPrimaryFrame();
   if (!frame)
-    return nullptr;
+    return nsnull;
 
   // Iterate over our content model children looking for the body.
   nsCOMPtr<nsIContent> content;
   FindBodyContent(frame->GetContent(), getter_AddRefs(content));
 
   if (!content)
-    return nullptr;
+    return nsnull;
 
   // this frame will be a nsGFXScrollFrame
   frame = content->GetPrimaryFrame();
   if (!frame)
-     return nullptr;
+     return nsnull;
   nsIScrollableFrame* scrollFrame = do_QueryFrame(frame);
   if (!scrollFrame)
-    return nullptr;
+    return nsnull;
 
   // this frame will be the one we want
   nsIFrame* yeahBaby = scrollFrame->GetScrolledFrame();
   if (!yeahBaby)
-     return nullptr;
+     return nsnull;
 
   // It's a frame. Refcounts are irrelevant.
   nsListBoxBodyFrame* listBoxBody = do_QueryFrame(yeahBaby);
   NS_ENSURE_TRUE(listBoxBody &&
                  listBoxBody->SetBoxObject(this),
-                 nullptr);
+                 nsnull);
   mListBoxBody = listBoxBody;
   return mListBoxBody;
 }
@@ -203,7 +203,7 @@ nsListBoxObject::Clear()
 void
 nsListBoxObject::ClearCachedValues()
 {
-  mListBoxBody = nullptr;
+  mListBoxBody = nsnull;
 }
 
 // Creation Routine ///////////////////////////////////////////////////////////////////////

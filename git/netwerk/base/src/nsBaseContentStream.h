@@ -50,7 +50,7 @@ public:
   bool IsClosed() { return NS_FAILED(mStatus); }
 
   // Called to test if the stream has a pending callback.
-  bool HasPendingCallback() { return mCallback != nullptr; }
+  bool HasPendingCallback() { return mCallback != nsnull; }
 
   // The current dispatch target (may be null) for the pending callback if any.
   nsIEventTarget *CallbackTarget() { return mCallbackTarget; }

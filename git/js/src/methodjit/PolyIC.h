@@ -31,8 +31,7 @@ static const uint32_t MAX_GETELEM_IC_STUBS = 17;
 enum LookupStatus {
     Lookup_Error = 0,
     Lookup_Uncacheable,
-    Lookup_Cacheable,
-    Lookup_NoProperty
+    Lookup_Cacheable
 };
 
 struct BaseIC : public MacroAssemblerTypedefs {
@@ -240,11 +239,10 @@ struct GetElementIC : public BasePolyIC {
     }
 
     void purge(Repatcher &repatcher);
-    LookupStatus update(VMFrame &f, HandleObject obj, HandleValue v, HandleId id, MutableHandleValue vp);
+    LookupStatus update(VMFrame &f, HandleObject obj, HandleValue v, HandleId id, Value *vp);
     LookupStatus attachGetProp(VMFrame &f, HandleObject obj, HandleValue v, HandlePropertyName name,
-                               MutableHandleValue vp);
-    LookupStatus attachTypedArray(VMFrame &f, HandleObject obj, HandleValue v, HandleId id,
-                                  MutableHandleValue vp);
+                               Value *vp);
+    LookupStatus attachTypedArray(VMFrame &f, HandleObject obj, HandleValue v, HandleId id, Value *vp);
     LookupStatus disable(VMFrame &f, const char *reason);
     LookupStatus error(JSContext *cx);
     bool shouldUpdate(VMFrame &f);

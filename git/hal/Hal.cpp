@@ -482,7 +482,7 @@ UnregisterSensorObserver(SensorType aSensor, ISensorObserver *aObserver) {
     }
   }
   delete [] gSensorObservers;
-  gSensorObservers = nullptr;
+  gSensorObservers = nsnull;
 }
 
 void
@@ -721,7 +721,7 @@ NotifyAlarmFired()
 }
 
 bool
-SetAlarm(PRInt32 aSeconds, PRInt32 aNanoseconds)
+SetAlarm(long aSeconds, long aNanoseconds)
 {
   // It's pointless to program an alarm nothing is going to observe ...
   MOZ_ASSERT(sAlarmObserver);

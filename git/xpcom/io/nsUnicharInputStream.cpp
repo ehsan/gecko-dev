@@ -156,10 +156,10 @@ UTF8InputStream::UTF8InputStream() :
 nsresult 
 UTF8InputStream::Init(nsIInputStream* aStream)
 {
-  nsresult rv = NS_NewByteBuffer(getter_AddRefs(mByteData), nullptr,
+  nsresult rv = NS_NewByteBuffer(getter_AddRefs(mByteData), nsnull,
                                  STRING_BUFFER_SIZE);
   if (NS_FAILED(rv)) return rv;
-  rv = NS_NewUnicharBuffer(getter_AddRefs(mUnicharData), nullptr,
+  rv = NS_NewUnicharBuffer(getter_AddRefs(mUnicharData), nsnull,
                            STRING_BUFFER_SIZE);
   if (NS_FAILED(rv)) return rv;
 
@@ -177,9 +177,9 @@ UTF8InputStream::~UTF8InputStream()
 
 nsresult UTF8InputStream::Close()
 {
-  mInput = nullptr;
-  mByteData = nullptr;
-  mUnicharData = nullptr;
+  mInput = nsnull;
+  mByteData = nsnull;
+  mUnicharData = nsnull;
 
   return NS_OK;
 }
@@ -285,7 +285,7 @@ UTF8InputStream::ReadString(PRUint32 aCount, nsAString& aString,
 
 PRInt32 UTF8InputStream::Fill(nsresult * aErrorCode)
 {
-  if (nullptr == mInput) {
+  if (nsnull == mInput) {
     // We already closed the stream!
     *aErrorCode = NS_BASE_STREAM_CLOSED;
     return -1;
@@ -411,7 +411,7 @@ NS_IMETHODIMP
 nsSimpleUnicharStreamFactory::CreateInstanceFromUTF8Stream(nsIInputStream* aStreamToWrap,
                                                            nsIUnicharInputStream* *aResult)
 {
-  *aResult = nullptr;
+  *aResult = nsnull;
 
   // Create converter input stream
   nsRefPtr<UTF8InputStream> it = new UTF8InputStream();

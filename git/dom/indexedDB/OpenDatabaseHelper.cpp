@@ -1393,7 +1393,7 @@ public:
                        PRUint64 aCurrentVersion,
                        const nsAString& aName,
                        const nsACString& aASCIIOrigin)
-  : AsyncConnectionHelper(static_cast<IDBDatabase*>(nullptr), aRequest),
+  : AsyncConnectionHelper(static_cast<IDBDatabase*>(nsnull), aRequest),
     mOpenHelper(aHelper), mOpenRequest(aRequest),
     mCurrentVersion(aCurrentVersion), mName(aName),
     mASCIIOrigin(aASCIIOrigin)
@@ -1404,8 +1404,8 @@ public:
 
   void ReleaseMainThreadObjects()
   {
-    mOpenHelper = nullptr;
-    mOpenRequest = nullptr;
+    mOpenHelper = nsnull;
+    mOpenRequest = nsnull;
 
     AsyncConnectionHelper::ReleaseMainThreadObjects();
   }
@@ -1609,7 +1609,6 @@ OpenDatabaseHelper::DoDatabaseWork()
   NS_ASSERTION(mgr, "This should never be null!");
 
   nsresult rv = mgr->EnsureOriginIsInitialized(mASCIIOrigin,
-                                               mPrivilege,
                                                getter_AddRefs(dbDirectory));
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
@@ -1974,7 +1973,7 @@ OpenDatabaseHelper::Run()
 
       case eDeleteCompleted: {
         // Destroy the database now (we should have the only ref).
-        mDatabase = nullptr;
+        mDatabase = nsnull;
 
         DatabaseInfo::Remove(mDatabaseId);
 
@@ -2106,8 +2105,10 @@ OpenDatabaseHelper::EnsureSuccessResult()
   dbInfo->nextIndexId = mLastIndexId + 1;
 
   nsRefPtr<IDBDatabase> database =
-    IDBDatabase::Create(mOpenDBRequest, dbInfo.forget(), mASCIIOrigin,
-                        mFileManager, mContentParent);
+    IDBDatabase::Create(mOpenDBRequest,
+                        dbInfo.forget(),
+                        mASCIIOrigin,
+                        mFileManager);
   if (!database) {
     return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }
@@ -2211,9 +2212,9 @@ OpenDatabaseHelper::ReleaseMainThreadObjects()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  mOpenDBRequest = nullptr;
-  mDatabase = nullptr;
-  mDatabaseId = nullptr;
+  mOpenDBRequest = nsnull;
+  mDatabase = nsnull;
+  mDatabaseId = nsnull;
 
   HelperBase::ReleaseMainThreadObjects();
 }
@@ -2326,10 +2327,10 @@ SetVersionHelper::NotifyTransactionPostComplete(IDBTransaction* aTransaction)
     mOpenHelper->SetError(aTransaction->GetAbortCode());
   }
 
-  mOpenRequest->SetTransaction(nullptr);
-  mOpenRequest = nullptr;
+  mOpenRequest->SetTransaction(nsnull);
+  mOpenRequest = nsnull;
 
-  mOpenHelper = nullptr;
+  mOpenHelper = nsnull;
 
   return rv;
 }

@@ -42,8 +42,6 @@ struct Parser : private AutoGCRooter
 
     TreeContext         *tc;            /* innermost tree context (stack-allocated) */
 
-    SourceCompressionToken *sct;        /* compression token for aborting */
-
     /* Root atoms and objects allocated for the parsed tree. */
     AutoKeepAtoms       keepAtoms;
 
@@ -53,12 +51,6 @@ struct Parser : private AutoGCRooter
   private:
     /* Script can optimize name references based on scope chain. */
     const bool          compileAndGo:1;
-
-    /*
-     * Self-hosted scripts can use the special syntax %funName(..args) to call
-     * internal functions.
-     */
-    const bool          allowIntrinsicsCalls:1;
 
   public:
     Parser(JSContext *cx, const CompileOptions &options,
@@ -236,7 +228,6 @@ struct Parser : private AutoGCRooter
     bool checkForFunctionNode(PropertyName *name, ParseNode *node);
 
     ParseNode *identifierName(bool afterDoubleDot);
-    ParseNode *intrinsicName();
 
 #if JS_HAS_XML_SUPPORT
     // True if E4X syntax is allowed in the current syntactic context. Note this

@@ -44,9 +44,9 @@ nsDocShellEditorData::TearDownEditor()
 {
   if (mEditor) {
     mEditor->PreDestroy(false);
-    mEditor = nullptr;
+    mEditor = nsnull;
   }
-  mEditingSession = nullptr;
+  mEditingSession = nsnull;
   mIsDetached = false;
 }
 
@@ -69,7 +69,7 @@ nsDocShellEditorData::MakeEditable(bool inWaitForUriLoad)
     NS_WARNING("Destroying existing editor on frame");
     
     mEditor->PreDestroy(false);
-    mEditor = nullptr;
+    mEditor = nsnull;
   }
   
   if (inWaitForUriLoad)
@@ -86,7 +86,7 @@ nsDocShellEditorData::MakeEditable(bool inWaitForUriLoad)
 bool
 nsDocShellEditorData::GetEditable()
 {
-  return mMakeEditable || (mEditor != nullptr);
+  return mMakeEditable || (mEditor != nsnull);
 }
 
 /*---------------------------------------------------------------------------
@@ -156,7 +156,7 @@ nsDocShellEditorData::SetEditor(nsIEditor *inEditor)
     if (mEditor)
     {
       mEditor->PreDestroy(false);
-      mEditor = nullptr;
+      mEditor = nsnull;
     }
       
     mEditor = inEditor;    // owning addref
@@ -213,7 +213,7 @@ nsDocShellEditorData::DetachFromWindow()
   if (htmlDoc)
     mDetachedEditingState = htmlDoc->GetEditingState();
 
-  mDocShell = nullptr;
+  mDocShell = nsnull;
 
   return NS_OK;
 }

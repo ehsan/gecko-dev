@@ -29,7 +29,7 @@ namespace net {
 
 HttpChannelParent::HttpChannelParent(PBrowserParent* iframeEmbedding)
   : mIPCClosed(false)
-  , mStoredStatus(NS_OK)
+  , mStoredStatus(0)
   , mStoredProgress(0)
   , mStoredProgressMax(0)
   , mSentRedirect1Begin(false)
@@ -146,7 +146,7 @@ HttpChannelParent::RecvAsyncOpen(const IPC::URI&            aURI,
   if (NS_FAILED(rv))
     return SendFailedAsyncOpen(rv);
 
-  rv = NS_NewChannel(getter_AddRefs(mChannel), uri, ios, nullptr, nullptr, loadFlags);
+  rv = NS_NewChannel(getter_AddRefs(mChannel), uri, ios, nsnull, nsnull, loadFlags);
   if (NS_FAILED(rv))
     return SendFailedAsyncOpen(rv);
 
@@ -224,7 +224,7 @@ HttpChannelParent::RecvAsyncOpen(const IPC::URI&            aURI,
         do_GetService("@mozilla.org/offlinecacheupdate-service;1", &rv);
       if (NS_SUCCEEDED(rv)) {
         rv = offlineUpdateService->OfflineAppAllowedForURI(uri,
-                                                           nullptr,
+                                                           nsnull,
                                                            &setChooseApplicationCache);
 
         if (setChooseApplicationCache && NS_SUCCEEDED(rv))
@@ -233,7 +233,7 @@ HttpChannelParent::RecvAsyncOpen(const IPC::URI&            aURI,
     }
   }
 
-  rv = httpChan->AsyncOpen(channelListener, nullptr);
+  rv = httpChan->AsyncOpen(channelListener, nsnull);
   if (NS_FAILED(rv))
     return SendFailedAsyncOpen(rv);
 
@@ -359,7 +359,7 @@ HttpChannelParent::RecvRedirect2Verify(const nsresult& result,
 
   if (mRedirectCallback) {
     mRedirectCallback->OnRedirectVerifyCallback(result);
-    mRedirectCallback = nullptr;
+    mRedirectCallback = nsnull;
   }
 
   return true;
@@ -509,15 +509,15 @@ HttpChannelParent::OnProgress(nsIRequest *aRequest,
 {
   // OnStatus has always just set mStoredStatus. If it indicates this precedes
   // OnDataAvailable, store and ODA will send to child.
-  if (mStoredStatus == NS_NET_STATUS_RECEIVING_FROM ||
-      mStoredStatus == NS_NET_STATUS_READING)
+  if (mStoredStatus == nsISocketTransport::STATUS_RECEIVING_FROM ||
+      mStoredStatus == nsITransport::STATUS_READING)
   {
     mStoredProgress = aProgress;
     mStoredProgressMax = aProgressMax;
   } else {
     // Send to child now.  The only case I've observed that this handles (i.e.
     // non-ODA status with progress > 0) is data upload progress notification
-    // (status == NS_NET_STATUS_SENDING_TO)
+    // (status == nsISocketTransport::STATUS_SENDING_TO)
     if (mIPCClosed || !SendOnProgress(aProgress, aProgressMax))
       return NS_ERROR_UNEXPECTED;
   }
@@ -532,8 +532,8 @@ HttpChannelParent::OnStatus(nsIRequest *aRequest,
                             const PRUnichar *aStatusArg)
 {
   // If this precedes OnDataAvailable, store and ODA will send to child.
-  if (aStatus == NS_NET_STATUS_RECEIVING_FROM ||
-      aStatus == NS_NET_STATUS_READING)
+  if (aStatus == nsISocketTransport::STATUS_RECEIVING_FROM ||
+      aStatus == nsITransport::STATUS_READING)
   {
     mStoredStatus = aStatus;
     return NS_OK;
@@ -604,7 +604,7 @@ HttpChannelParent::CompleteRedirect(bool succeeded)
     unused << SendRedirect3Complete();
   }
 
-  mRedirectChannel = nullptr;
+  mRedirectChannel = nsnull;
   return NS_OK;
 }
 

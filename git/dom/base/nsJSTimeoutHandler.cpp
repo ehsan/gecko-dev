@@ -128,8 +128,8 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsJSScriptTimeoutHandler)
 
 nsJSScriptTimeoutHandler::nsJSScriptTimeoutHandler() :
   mLineNo(0),
-  mExpr(nullptr),
-  mFunObj(nullptr)
+  mExpr(nsnull),
+  mFunObj(nsnull)
 {
 }
 
@@ -144,10 +144,10 @@ nsJSScriptTimeoutHandler::ReleaseJSObjects()
   if (mExpr || mFunObj) {
     if (mExpr) {
       NS_DROP_JS_OBJECTS(this, nsJSScriptTimeoutHandler);
-      mExpr = nullptr;
+      mExpr = nsnull;
     } else if (mFunObj) {
       NS_DROP_JS_OBJECTS(this, nsJSScriptTimeoutHandler);
-      mFunObj = nullptr;
+      mFunObj = nsnull;
     } else {
       NS_WARNING("No func and no expr - roots may not have been removed");
     }
@@ -166,7 +166,7 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, bool *aIsInterval,
     return NS_ERROR_NOT_INITIALIZED;
   }
 
-  nsAXPCNativeCallContext *ncc = nullptr;
+  nsAXPCNativeCallContext *ncc = nsnull;
   nsresult rv = nsContentUtils::XPConnect()->
     GetCurrentNativeCallContext(&ncc);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -174,19 +174,19 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, bool *aIsInterval,
   if (!ncc)
     return NS_ERROR_NOT_AVAILABLE;
 
-  JSContext *cx = nullptr;
+  JSContext *cx = nsnull;
 
   rv = ncc->GetJSContext(&cx);
   NS_ENSURE_SUCCESS(rv, rv);
 
   PRUint32 argc;
-  jsval *argv = nullptr;
+  jsval *argv = nsnull;
 
   ncc->GetArgc(&argc);
   ncc->GetArgvPtr(&argv);
 
-  JSFlatString *expr = nullptr;
-  JSObject *funobj = nullptr;
+  JSFlatString *expr = nsnull;
+  JSObject *funobj = nsnull;
 
   JSAutoRequest ar(cx);
 
@@ -287,14 +287,14 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, bool *aIsInterval,
     // array.
     nsCOMPtr<nsIJSArgArray> array;
     // NS_MAX(argc - 2, 0) wouldn't work right because argc is unsigned.
-    rv = NS_CreateJSArgv(cx, NS_MAX(argc, 2u) - 2, nullptr,
+    rv = NS_CreateJSArgv(cx, NS_MAX(argc, 2u) - 2, nsnull,
                          getter_AddRefs(array));
     if (NS_FAILED(rv)) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
 
     PRUint32 dummy;
-    jsval *jsargv = nullptr;
+    jsval *jsargv = nsnull;
     array->GetArgs(&dummy, reinterpret_cast<void **>(&jsargv));
 
     // jsargv might be null if we have argc <= 2
@@ -325,7 +325,7 @@ nsresult NS_CreateJSTimeoutHandler(nsGlobalWindow *aWindow,
                                    PRInt32 *aInterval,
                                    nsIScriptTimeoutHandler **aRet)
 {
-  *aRet = nullptr;
+  *aRet = nsnull;
   nsJSScriptTimeoutHandler *handler = new nsJSScriptTimeoutHandler();
   if (!handler)
     return NS_ERROR_OUT_OF_MEMORY;

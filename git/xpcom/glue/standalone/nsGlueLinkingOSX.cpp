@@ -151,7 +151,7 @@ LookupSymbol(const mach_header* aLib, const char* aSymbolName)
     // global symbol table (this shouldn't normally happen, unless the user
     // has called XPCOMGlueStartup(".") and relies on libxpcom.dylib
     // already being loaded).
-    NSSymbol sym = nullptr;
+    NSSymbol sym = nsnull;
     if (aLib) {
         sym = NSLookupSymbolInImage(aLib, aSymbolName,
                                  NSLOOKUPSYMBOLINIMAGE_OPTION_BIND |
@@ -161,7 +161,7 @@ LookupSymbol(const mach_header* aLib, const char* aSymbolName)
             sym = NSLookupAndBindSymbol(aSymbolName);
     }
     if (!sym)
-        return nullptr;
+        return nsnull;
 
     return NSAddressOfSymbol(sym);
 }
@@ -169,7 +169,7 @@ LookupSymbol(const mach_header* aLib, const char* aSymbolName)
 nsresult
 XPCOMGlueLoad(const char *xpcomFile, GetFrozenFunctionsFunc *func)
 {
-    const mach_header* lib = nullptr;
+    const mach_header* lib = nsnull;
 
     if (xpcomFile[0] != '.' || xpcomFile[1] != '\0') {
         char xpcomDir[PATH_MAX];

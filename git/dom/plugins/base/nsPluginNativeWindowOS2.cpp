@@ -211,7 +211,7 @@ static MRESULT EXPENTRY PluginWndProc(HWND hWnd, ULONG msg, MPARAM mp1, MPARAM m
   // flash and java-vm will need special treatment later
   if (win->mPluginType == nsPluginType_Unknown) {
     if (inst) {
-      const char* mimetype = nullptr;
+      const char* mimetype = nsnull;
       inst->GetMIMEType(&mimetype);
       if (mimetype) {
         if (!strcmp(mimetype, "application/x-shockwave-flash"))
@@ -344,7 +344,7 @@ static MRESULT EXPENTRY PluginWndProc(HWND hWnd, ULONG msg, MPARAM mp1, MPARAM m
 nsPluginNativeWindowOS2::nsPluginNativeWindowOS2() : nsPluginNativeWindow()
 {
   // initialize the struct fields
-  window = nullptr; 
+  window = nsnull; 
   x = 0; 
   y = 0; 
   width = 0; 
@@ -409,7 +409,7 @@ nsPluginNativeWindowOS2::GetPluginWindowEvent(HWND aWnd, ULONG aMsg, MPARAM aMp1
   if (!mWeakRef) {
     mWeakRef = this;
     if (!mWeakRef)
-      return nullptr;
+      return nsnull;
   }
 
   PluginWindowEvent *event;
@@ -420,14 +420,14 @@ nsPluginNativeWindowOS2::GetPluginWindowEvent(HWND aWnd, ULONG aMsg, MPARAM aMp1
   if (!mCachedPluginWindowEvent) {
     event = new PluginWindowEvent();
     if (!event)
-      return nullptr;
+      return nsnull;
     mCachedPluginWindowEvent = event;
   }
   else
   if (mCachedPluginWindowEvent->InUse()) {
     event = new PluginWindowEvent();
     if (!event)
-      return nullptr;
+      return nsnull;
   }
   else
     event = mCachedPluginWindowEvent;
@@ -485,7 +485,7 @@ nsresult nsPluginNativeWindowOS2::SubclassAndAssociateWindow()
 nsresult nsPluginNativeWindowOS2::UndoSubclassAndAssociateWindow()
 {
   // release plugin instance
-  SetPluginInstance(nullptr);
+  SetPluginInstance(nsnull);
 
   // remove window property
   HWND hWnd = (HWND)window;

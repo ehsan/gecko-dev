@@ -56,7 +56,7 @@ using namespace mozilla;
 using namespace mozilla::gfx;
 using namespace mozilla::unicode;
 
-gfxFontconfigUtils *gfxPlatformGtk::sFontconfigUtils = nullptr;
+gfxFontconfigUtils *gfxPlatformGtk::sFontconfigUtils = nsnull;
 
 #ifndef MOZ_PANGO
 typedef nsDataHashtable<nsStringHashKey, nsRefPtr<FontFamily> > FontTable;
@@ -98,7 +98,7 @@ gfxPlatformGtk::gfxPlatformGtk()
 gfxPlatformGtk::~gfxPlatformGtk()
 {
     gfxFontconfigUtils::Shutdown();
-    sFontconfigUtils = nullptr;
+    sFontconfigUtils = nsnull;
 
 #ifdef MOZ_PANGO
     gfxPangoFontGroup::Shutdown();
@@ -173,7 +173,7 @@ gfxPlatformGtk::CreateOffscreenSurface(const gfxIntSize& size,
     }
 
     if (newSurface->CairoStatus()) {
-        newSurface = nullptr; // surface isn't valid for some reason
+        newSurface = nsnull; // surface isn't valid for some reason
     }
 
     if (newSurface && needsClear) {
@@ -536,7 +536,7 @@ gfxPlatformGtk::GetPlatformCMSOutputProfile()
 #ifdef DEBUG_tor
                 fprintf(stderr, "Short EDID data\n");
 #endif
-                return nullptr;
+                return nsnull;
             }
 
             // Format documented in "VESA E-EDID Implementation Guide"
@@ -594,7 +594,7 @@ gfxPlatformGtk::GetPlatformCMSOutputProfile()
     }
 #endif
 
-    return nullptr;
+    return nsnull;
 }
 
 
@@ -613,7 +613,7 @@ gfxPlatformGtk::FindFontFamily(const nsAString& aName)
 
     nsRefPtr<FontFamily> ff;
     if (!gPlatformFonts->Get(name, &ff)) {
-        return nullptr;
+        return nsnull;
     }
     return ff.get();
 }
@@ -623,7 +623,7 @@ gfxPlatformGtk::FindFontEntry(const nsAString& aName, const gfxFontStyle& aFontS
 {
     nsRefPtr<FontFamily> ff = FindFontFamily(aName);
     if (!ff)
-        return nullptr;
+        return nsnull;
 
     return ff->FindFontEntry(aFontStyle);
 }
@@ -642,15 +642,15 @@ already_AddRefed<gfxFont>
 gfxPlatformGtk::FindFontForChar(PRUint32 aCh, gfxFont *aFont)
 {
     if (!gPlatformFonts || !gCodepointsWithNoFonts)
-        return nullptr;
+        return nsnull;
 
     // is codepoint with no matching font? return null immediately
     if (gCodepointsWithNoFonts->test(aCh)) {
-        return nullptr;
+        return nsnull;
     }
 
     GlobalFontMatch data(aCh, GetScriptCode(aCh),
-                         (aFont ? aFont->GetStyle() : nullptr));
+                         (aFont ? aFont->GetStyle() : nsnull));
 
     // find fonts that support the character
     gPlatformFonts->Enumerate(FindFontForCharProc, &data);
@@ -666,7 +666,7 @@ gfxPlatformGtk::FindFontForChar(PRUint32 aCh, gfxFont *aFont)
     // no match? add to set of non-matching codepoints
     gCodepointsWithNoFonts->set(aCh);
 
-    return nullptr;
+    return nsnull;
 }
 
 bool

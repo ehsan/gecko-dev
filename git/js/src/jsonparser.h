@@ -84,7 +84,7 @@ class JSONParser
      * otherwise return true and set *vp to |undefined|.  (JSON syntax can't
      * represent |undefined|, so the JSON data couldn't have specified it.)
      */
-    bool parse(js::MutableHandleValue vp);
+    bool parse(js::Value *vp);
 
   private:
     js::Value numberValue() const {

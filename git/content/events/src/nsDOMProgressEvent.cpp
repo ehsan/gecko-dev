@@ -62,7 +62,7 @@ NS_NewDOMProgressEvent(nsIDOMEvent** aInstancePtrResult,
                        nsEvent* aEvent) 
 {
   nsDOMProgressEvent* it = new nsDOMProgressEvent(aPresContext, aEvent);
-  if (nullptr == it)
+  if (nsnull == it)
     return NS_ERROR_OUT_OF_MEMORY;
 
   return CallQueryInterface(it, aInstancePtrResult);

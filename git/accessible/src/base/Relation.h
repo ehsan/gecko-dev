@@ -33,7 +33,7 @@ struct RelationCopyHelper
 class Relation
 {
 public:
-  Relation() : mFirstIter(nullptr), mLastIter(nullptr) { }
+  Relation() : mFirstIter(nsnull), mLastIter(nsnull) { }
 
   Relation(const RelationCopyHelper aRelation) :
     mFirstIter(aRelation.mFirstIter), mLastIter(aRelation.mLastIter) { }
@@ -41,11 +41,11 @@ public:
   Relation(AccIterable* aIter) : mFirstIter(aIter), mLastIter(aIter) { }
 
   Relation(Accessible* aAcc) :
-    mFirstIter(nullptr), mLastIter(nullptr)
+    mFirstIter(nsnull), mLastIter(nsnull)
     { AppendTarget(aAcc); }
 
   Relation(DocAccessible* aDocument, nsIContent* aContent) :
-    mFirstIter(nullptr), mLastIter(nullptr)
+    mFirstIter(nsnull), mLastIter(nsnull)
     { AppendTarget(aDocument, aContent); }
 
   Relation& operator = (const RelationCopyHelper& aRH)
@@ -101,14 +101,14 @@ public:
    */
   inline Accessible* Next()
   {
-    Accessible* target = nullptr;
+    Accessible* target = nsnull;
 
     // a trick nsAutoPtr deletes what it used to point to when assigned to
     while (mFirstIter && !(target = mFirstIter->Next()))
       mFirstIter = mFirstIter->mNextIter;
 
     if (!mFirstIter)
-      mLastIter = nullptr;
+      mLastIter = nsnull;
 
     return target;
   }

@@ -97,7 +97,7 @@ public:
   ReleaseMembers()
   {
     BluetoothReplyRunnable::ReleaseMembers();
-    mManagerPtr = nullptr;
+    mManagerPtr = nsnull;
   }
   
 private:
@@ -135,7 +135,7 @@ public:
     BluetoothReplyRunnable::ReleaseMembers();
     // mManagerPtr must be null before returning to prevent the background
     // thread from racing to release it during the destruction of this runnable.
-    mManagerPtr = nullptr;
+    mManagerPtr = nsnull;
   }
   
 private:
@@ -144,11 +144,10 @@ private:
 };
 
 BluetoothManager::BluetoothManager(nsPIDOMWindow *aWindow) :
-  BluetoothPropertyContainer(BluetoothObjectType::TYPE_MANAGER),
   mEnabled(false)
 {
   BindToOwner(aWindow);
-  mPath.AssignLiteral("/");
+  mName.AssignLiteral("/");
 }
 
 BluetoothManager::~BluetoothManager()
@@ -156,34 +155,20 @@ BluetoothManager::~BluetoothManager()
   BluetoothService* bs = BluetoothService::Get();
   // We can be null on shutdown, where this might happen
   if (bs) {
-    if (NS_FAILED(bs->UnregisterBluetoothSignalHandler(mPath, this))) {
+    if (NS_FAILED(bs->UnregisterBluetoothSignalHandler(mName, this))) {
       NS_WARNING("Failed to unregister object with observer!");
     }
   }
-}
-
-void
-BluetoothManager::SetPropertyByValue(const BluetoothNamedValue& aValue)
-{
-#ifdef DEBUG
-    const nsString& name = aValue.name();
-    nsCString warningMsg;
-    warningMsg.AssignLiteral("Not handling manager property: ");
-    warningMsg.Append(NS_ConvertUTF16toUTF8(name));
-    NS_WARNING(warningMsg.get());
-#endif
 }
 
 NS_IMETHODIMP
 BluetoothManager::SetEnabled(bool aEnabled, nsIDOMDOMRequest** aDomRequest)
 {
   BluetoothService* bs = BluetoothService::Get();
-  if (!bs) {
-    NS_WARNING("BluetoothService not available!");
-    return NS_ERROR_FAILURE;
-  }
+  MOZ_ASSERT(bs);
 
   nsCOMPtr<nsIDOMRequestService> rs = do_GetService("@mozilla.org/dom/dom-request-service;1");
+
   if (!rs) {
     NS_WARNING("No DOMRequest Service!");
     return NS_ERROR_FAILURE;
@@ -223,10 +208,7 @@ NS_IMETHODIMP
 BluetoothManager::GetDefaultAdapter(nsIDOMDOMRequest** aAdapter)
 {
   BluetoothService* bs = BluetoothService::Get();
-  if (!bs) {
-    NS_WARNING("BluetoothService not available!");
-    return NS_ERROR_FAILURE;
-  }
+  MOZ_ASSERT(bs);
   
   nsCOMPtr<nsIDOMRequestService> rs = do_GetService("@mozilla.org/dom/dom-request-service;1");
 
@@ -257,14 +239,11 @@ BluetoothManager::Create(nsPIDOMWindow* aWindow) {
 
   nsRefPtr<BluetoothManager> manager = new BluetoothManager(aWindow);
   BluetoothService* bs = BluetoothService::Get();
-  if (!bs) {
-    NS_WARNING("BluetoothService not available!");
-    return nullptr;
-  }
+  MOZ_ASSERT(bs);
   
   if (NS_FAILED(bs->RegisterBluetoothSignalHandler(NS_LITERAL_STRING("/"), manager))) {
     NS_ERROR("Failed to register object with observer!");
-    return nullptr;
+    return nsnull;
   }
   
   return manager.forget();
@@ -281,7 +260,7 @@ NS_NewBluetoothManager(nsPIDOMWindow* aWindow,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (!allowed) {
-    *aBluetoothManager = nullptr;
+    *aBluetoothManager = nsnull;
     return NS_OK;
   }
 

@@ -1209,7 +1209,7 @@ TryConvertToGname(BytecodeEmitter *bce, ParseNode *pn, JSOp *op)
 static bool
 BindNameToSlot(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 {
-    JS_ASSERT(pn->isKind(PNK_NAME) || pn->isKind(PNK_INTRINSICNAME));
+    JS_ASSERT(pn->isKind(PNK_NAME));
 
     /* Don't attempt if 'pn' is already bound or deoptimized or a nop. */
     JSOp op = pn->getOp();
@@ -1745,9 +1745,6 @@ EmitNameOp(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, bool callContext)
         switch (op) {
           case JSOP_NAME:
             op = JSOP_CALLNAME;
-            break;
-          case JSOP_INTRINSICNAME:
-            op = JSOP_CALLINTRINSIC;
             break;
           case JSOP_GETGNAME:
             op = JSOP_CALLGNAME;
@@ -3509,8 +3506,7 @@ EmitAssignment(JSContext *cx, BytecodeEmitter *bce, ParseNode *lhs, JSOp op, Par
       case PNK_LP:
         if (!EmitTree(cx, bce, lhs))
             return false;
-        JS_ASSERT(lhs->pn_xflags & PNX_SETCALL);
-        offset += 2;
+        offset++;
         break;
 #if JS_HAS_XML_SUPPORT
       case PNK_XMLUNARY:
@@ -3520,7 +3516,7 @@ EmitAssignment(JSContext *cx, BytecodeEmitter *bce, ParseNode *lhs, JSOp op, Par
             return false;
         if (Emit1(cx, bce, JSOP_BINDXMLNAME) < 0)
             return false;
-        offset += 2;
+        offset++;
         break;
 #endif
       default:
@@ -3585,13 +3581,8 @@ EmitAssignment(JSContext *cx, BytecodeEmitter *bce, ParseNode *lhs, JSOp op, Par
         if (!EmitTree(cx, bce, rhs))
             return false;
     } else {
-        /*
-         * The value to assign is the next enumeration value in a for-in loop.
-         * That value is produced by a JSOP_ITERNEXT op, previously emitted.
-         * If offset == 1, that slot is already at the top of the
-         * stack. Otherwise, rearrange the stack to put that value on top.
-         */
-        if (offset != 1 && Emit2(cx, bce, JSOP_PICK, offset - 1) < 0)
+        /* The value to assign is the next enumeration value in a for-in loop. */
+        if (Emit2(cx, bce, JSOP_ITERNEXT, offset) < 0)
             return false;
     }
 
@@ -3745,9 +3736,9 @@ ParseNode::getConstantValue(JSContext *cx, bool strictChecks, Value *vp)
 
         unsigned idx = 0;
         RootedId id(cx);
-        RootedValue value(cx);
         for (ParseNode *pn = pn_head; pn; idx++, pn = pn->pn_next) {
-            if (!pn->getConstantValue(cx, strictChecks, value.address()))
+            Value value;
+            if (!pn->getConstantValue(cx, strictChecks, &value))
                 return false;
             id = INT_TO_JSID(idx);
             if (!obj->defineGeneric(cx, id, value, NULL, NULL, JSPROP_ENUMERATE))
@@ -3768,8 +3759,8 @@ ParseNode::getConstantValue(JSContext *cx, bool strictChecks, Value *vp)
             return false;
 
         for (ParseNode *pn = pn_head; pn; pn = pn->pn_next) {
-            RootedValue value(cx);
-            if (!pn->pn_right->getConstantValue(cx, strictChecks, value.address()))
+            Value value;
+            if (!pn->pn_right->getConstantValue(cx, strictChecks, &value))
                 return false;
 
             ParseNode *pnid = pn->pn_left;
@@ -4609,8 +4600,6 @@ EmitForIn(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrdiff_t top)
      * so that the decompiler can distinguish 'for (x in y)' from
      * 'for (var x in y)'.
      */
-    if (Emit1(cx, bce, JSOP_ITERNEXT) < 0)
-        return false;
     if (!EmitAssignment(cx, bce, forHead->pn_kid2, JSOP_NOP, NULL))
         return false;
 
@@ -4875,7 +4864,7 @@ EmitFunc(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
                .setVersion(parent->getVersion());
         Rooted<JSScript*> script(cx, JSScript::Create(cx, enclosingScope, false, options,
                                                       parent->staticLevel + 1,
-                                                      bce->script->scriptSource(),
+                                                      bce->script->source,
                                                       funbox->bufStart, funbox->bufEnd));
         if (!script)
             return false;
@@ -5343,51 +5332,9 @@ EmitCallOrNew(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrdiff_t top)
      * value required for calls (which non-strict mode functions
      * will box into the global object).
      */
-    uint32_t argc = pn->pn_count - 1;
-    bool emitArgs = true;
     ParseNode *pn2 = pn->pn_head;
     switch (pn2->getKind()) {
       case PNK_NAME:
-        if (!EmitNameOp(cx, bce, pn2, callop))
-            return false;
-        break;
-      case PNK_INTRINSICNAME:
-        if (pn2->atom() == cx->runtime->atomState._CallFunctionAtom)
-        {
-            /*
-             * Special-casing of %_CallFunction to emit bytecode that directly
-             * invokes the callee with the correct |this| object and arguments.
-             * The call %_CallFunction(receiver, ...args, fun) thus becomes:
-             * - emit lookup for fun
-             * - emit lookup for receiver
-             * - emit lookups for ...args
-             *
-             * argc is set to the amount of actually emitted args and the
-             * emitting of args below is disabled by setting emitArgs to false.
-             */
-            if (pn->pn_count < 3) {
-                bce->reportError(pn, JSMSG_MORE_ARGS_NEEDED, "%_CallFunction", "1", "s");
-                return false;
-            }
-            ParseNode *funNode = pn2->pn_next;
-            while (funNode->pn_next)
-                funNode = funNode->pn_next;
-            if (!EmitTree(cx, bce, funNode))
-                return false;
-            ParseNode *receiver = pn2->pn_next;
-            if (!EmitTree(cx, bce, receiver))
-                return false;
-            bool oldInForInit = bce->inForInit;
-            bce->inForInit = false;
-            for (ParseNode *argpn = receiver->pn_next; argpn != funNode; argpn = argpn->pn_next) {
-                if (!EmitTree(cx, bce, argpn))
-                    return false;
-            }
-            bce->inForInit = oldInForInit;
-            argc -= 2;
-            emitArgs = false;
-            break;
-        }
         if (!EmitNameOp(cx, bce, pn2, callop))
             return false;
         break;
@@ -5417,23 +5364,25 @@ EmitCallOrNew(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrdiff_t top)
     if (!callop && Emit1(cx, bce, JSOP_UNDEFINED) < 0)
         return false;
 
-    if (emitArgs) {
-        /*
-         * Emit code for each argument in order, then emit the JSOP_*CALL or
-         * JSOP_NEW bytecode with a two-byte immediate telling how many args
-         * were pushed on the operand stack.
-         */
-        bool oldInForInit = bce->inForInit;
-        bce->inForInit = false;
-        for (ParseNode *pn3 = pn2->pn_next; pn3; pn3 = pn3->pn_next) {
-            if (!EmitTree(cx, bce, pn3))
-                return false;
-        }
-        bce->inForInit = oldInForInit;
+    /* Remember start of callable-object bytecode for decompilation hint. */
+    ptrdiff_t off = top;
+
+    /*
+     * Emit code for each argument in order, then emit the JSOP_*CALL or
+     * JSOP_NEW bytecode with a two-byte immediate telling how many args
+     * were pushed on the operand stack.
+     */
+    bool oldInForInit = bce->inForInit;
+    bce->inForInit = false;
+    for (ParseNode *pn3 = pn2->pn_next; pn3; pn3 = pn3->pn_next) {
+        if (!EmitTree(cx, bce, pn3))
+            return false;
     }
-    if (NewSrcNote2(cx, bce, SRC_PCBASE, bce->offset() - top) < 0)
+    bce->inForInit = oldInForInit;
+    if (NewSrcNote2(cx, bce, SRC_PCBASE, bce->offset() - off) < 0)
         return false;
 
+    uint32_t argc = pn->pn_count - 1;
     if (Emit3(cx, bce, pn->getOp(), ARGC_HI(argc), ARGC_LO(argc)) < 0)
         return false;
     CheckTypeSet(cx, bce, pn->getOp());
@@ -5803,8 +5752,7 @@ EmitObject(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
             if (obj) {
                 JS_ASSERT(!obj->inDictionaryMode());
                 Rooted<jsid> id(cx, AtomToId(pn3->pn_atom));
-                RootedValue undefinedValue(cx, UndefinedValue());
-                if (!DefineNativeProperty(cx, obj, id, undefinedValue, NULL, NULL,
+                if (!DefineNativeProperty(cx, obj, id, UndefinedValue(), NULL, NULL,
                                           JSPROP_ENUMERATE, 0, 0))
                 {
                     return false;
@@ -6715,7 +6663,7 @@ frontend::NewSrcNote(JSContext *cx, BytecodeEmitter *bce, SrcNoteType type)
     bce->current->lastNoteOffset = offset;
     if (delta >= SN_DELTA_LIMIT) {
         do {
-            xdelta = Min(delta, SN_XDELTA_MASK);
+            xdelta = JS_MIN(delta, SN_XDELTA_MASK);
             SN_MAKE_XDELTA(sn, xdelta);
             delta -= xdelta;
             index = AllocSrcNote(cx, bce);
@@ -6948,7 +6896,7 @@ frontend::FinishTakingSrcNotes(JSContext *cx, BytecodeEmitter *bce, jssrcnote *n
                 offset -= delta;
                 if (offset == 0)
                     break;
-                delta = Min(offset, SN_XDELTA_MASK);
+                delta = JS_MIN(offset, SN_XDELTA_MASK);
                 sn = bce->main.notes;
             }
         }

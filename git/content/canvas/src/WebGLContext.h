@@ -424,7 +424,11 @@ protected:
 
 struct WebGLContextOptions {
     // these are defaults
-    WebGLContextOptions();
+    WebGLContextOptions()
+        : alpha(true), depth(true), stencil(false),
+          premultipliedAlpha(true), antialias(true),
+          preserveDrawingBuffer(false)
+    { }
 
     bool operator==(const WebGLContextOptions& other) const {
         return
@@ -492,7 +496,7 @@ public:
                               nsIInputStream **aStream);
     NS_IMETHOD GetThebesSurface(gfxASurface **surface);
     mozilla::TemporaryRef<mozilla::gfx::SourceSurface> GetSurfaceSnapshot()
-        { return nullptr; }
+        { return nsnull; }
 
     NS_IMETHOD SetIsOpaque(bool b) { return NS_OK; };
     NS_IMETHOD SetContextOptions(nsIPropertyBag *aOptions);
@@ -834,10 +838,10 @@ public:
                                -1, srcFormat, mPixelStorePremultiplyAlpha);
     }
     void TexParameterf(WebGLenum target, WebGLenum pname, WebGLfloat param) {
-        TexParameter_base(target, pname, nullptr, &param);
+        TexParameter_base(target, pname, nsnull, &param);
     }
     void TexParameteri(WebGLenum target, WebGLenum pname, WebGLint param) {
-        TexParameter_base(target, pname, &param, nullptr);
+        TexParameter_base(target, pname, &param, nsnull);
     }
     
     void TexSubImage2D(JSContext* cx, WebGLenum target, WebGLint level,
@@ -888,7 +892,7 @@ public:
                    WebGLfloat z, WebGLfloat w);
     
     void Uniform1iv(WebGLUniformLocation* location, dom::Int32Array& arr) {
-        Uniform1iv_base(location, arr.Length(), arr.Data());
+        Uniform1iv_base(location, arr.mLength, arr.mData);
     }
     void Uniform1iv(WebGLUniformLocation* location,
                     const dom::Sequence<WebGLint>& arr) {
@@ -898,7 +902,7 @@ public:
                          const WebGLint* data);
 
     void Uniform2iv(WebGLUniformLocation* location, dom::Int32Array& arr) {
-        Uniform2iv_base(location, arr.Length(), arr.Data());
+        Uniform2iv_base(location, arr.mLength, arr.mData);
     }
     void Uniform2iv(WebGLUniformLocation* location,
                     const dom::Sequence<WebGLint>& arr) {
@@ -908,7 +912,7 @@ public:
                          const WebGLint* data);
 
     void Uniform3iv(WebGLUniformLocation* location, dom::Int32Array& arr) {
-        Uniform3iv_base(location, arr.Length(), arr.Data());
+        Uniform3iv_base(location, arr.mLength, arr.mData);
     }
     void Uniform3iv(WebGLUniformLocation* location,
                     const dom::Sequence<WebGLint>& arr) {
@@ -918,7 +922,7 @@ public:
                          const WebGLint* data);
     
     void Uniform4iv(WebGLUniformLocation* location, dom::Int32Array& arr) {
-        Uniform4iv_base(location, arr.Length(), arr.Data());
+        Uniform4iv_base(location, arr.mLength, arr.mData);
     }
     void Uniform4iv(WebGLUniformLocation* location,
                     const dom::Sequence<WebGLint>& arr) {
@@ -928,7 +932,7 @@ public:
                          const WebGLint* data);
 
     void Uniform1fv(WebGLUniformLocation* location, dom::Float32Array& arr) {
-        Uniform1fv_base(location, arr.Length(), arr.Data());
+        Uniform1fv_base(location, arr.mLength, arr.mData);
     }
     void Uniform1fv(WebGLUniformLocation* location,
                     const dom::Sequence<WebGLfloat>& arr) {
@@ -938,7 +942,7 @@ public:
                          const WebGLfloat* data);
 
     void Uniform2fv(WebGLUniformLocation* location, dom::Float32Array& arr) {
-        Uniform2fv_base(location, arr.Length(), arr.Data());
+        Uniform2fv_base(location, arr.mLength, arr.mData);
     }
     void Uniform2fv(WebGLUniformLocation* location,
                     const dom::Sequence<WebGLfloat>& arr) {
@@ -948,7 +952,7 @@ public:
                          const WebGLfloat* data);
 
     void Uniform3fv(WebGLUniformLocation* location, dom::Float32Array& arr) {
-        Uniform3fv_base(location, arr.Length(), arr.Data());
+        Uniform3fv_base(location, arr.mLength, arr.mData);
     }
     void Uniform3fv(WebGLUniformLocation* location,
                     const dom::Sequence<WebGLfloat>& arr) {
@@ -958,7 +962,7 @@ public:
                          const WebGLfloat* data);
     
     void Uniform4fv(WebGLUniformLocation* location, dom::Float32Array& arr) {
-        Uniform4fv_base(location, arr.Length(), arr.Data());
+        Uniform4fv_base(location, arr.mLength, arr.mData);
     }
     void Uniform4fv(WebGLUniformLocation* location,
                     const dom::Sequence<WebGLfloat>& arr) {
@@ -970,7 +974,7 @@ public:
     void UniformMatrix2fv(WebGLUniformLocation* location,
                           WebGLboolean transpose,
                           dom::Float32Array &value) {
-        UniformMatrix2fv_base(location, transpose, value.Length(), value.Data());
+        UniformMatrix2fv_base(location, transpose, value.mLength, value.mData);
     }
     void UniformMatrix2fv(WebGLUniformLocation* location,
                           WebGLboolean transpose,
@@ -985,7 +989,7 @@ public:
     void UniformMatrix3fv(WebGLUniformLocation* location,
                           WebGLboolean transpose,
                           dom::Float32Array &value) {
-        UniformMatrix3fv_base(location, transpose, value.Length(), value.Data());
+        UniformMatrix3fv_base(location, transpose, value.mLength, value.mData);
     }
     void UniformMatrix3fv(WebGLUniformLocation* location,
                           WebGLboolean transpose,
@@ -1000,7 +1004,7 @@ public:
     void UniformMatrix4fv(WebGLUniformLocation* location,
                           WebGLboolean transpose,
                           dom::Float32Array &value) {
-        UniformMatrix4fv_base(location, transpose, value.Length(), value.Data());
+        UniformMatrix4fv_base(location, transpose, value.mLength, value.mData);
     }
     void UniformMatrix4fv(WebGLUniformLocation* location,
                           WebGLboolean transpose,
@@ -1023,7 +1027,7 @@ public:
                         WebGLfloat x2, WebGLfloat x3);
 
     void VertexAttrib1fv(WebGLuint idx, dom::Float32Array &arr) {
-        VertexAttrib1fv_base(idx, arr.Length(), arr.Data());
+        VertexAttrib1fv_base(idx, arr.mLength, arr.mData);
     }
     void VertexAttrib1fv(WebGLuint idx, const dom::Sequence<WebGLfloat>& arr) {
         VertexAttrib1fv_base(idx, arr.Length(), arr.Elements());
@@ -1032,7 +1036,7 @@ public:
                               const WebGLfloat* ptr);
 
     void VertexAttrib2fv(WebGLuint idx, dom::Float32Array &arr) {
-        VertexAttrib2fv_base(idx, arr.Length(), arr.Data());
+        VertexAttrib2fv_base(idx, arr.mLength, arr.mData);
     }
     void VertexAttrib2fv(WebGLuint idx, const dom::Sequence<WebGLfloat>& arr) {
         VertexAttrib2fv_base(idx, arr.Length(), arr.Elements());
@@ -1041,7 +1045,7 @@ public:
                               const WebGLfloat* ptr);
 
     void VertexAttrib3fv(WebGLuint idx, dom::Float32Array &arr) {
-        VertexAttrib3fv_base(idx, arr.Length(), arr.Data());
+        VertexAttrib3fv_base(idx, arr.mLength, arr.mData);
     }
     void VertexAttrib3fv(WebGLuint idx, const dom::Sequence<WebGLfloat>& arr) {
         VertexAttrib3fv_base(idx, arr.Length(), arr.Elements());
@@ -1050,7 +1054,7 @@ public:
                               const WebGLfloat* ptr);
 
     void VertexAttrib4fv(WebGLuint idx, dom::Float32Array &arr) {
-        VertexAttrib4fv_base(idx, arr.Length(), arr.Data());
+        VertexAttrib4fv_base(idx, arr.mLength, arr.mData);
     }
     void VertexAttrib4fv(WebGLuint idx, const dom::Sequence<WebGLfloat>& arr) {
         VertexAttrib4fv_base(idx, arr.Length(), arr.Elements());
@@ -1361,11 +1365,6 @@ protected:
         return mAlreadyGeneratedWarnings < 32;
     }
 
-    uint64_t mLastUseIndex;
-
-    void LoseOldestWebGLContextIfLimitExceeded();
-    void UpdateLastUseIndex();
-
 #ifdef XP_MACOSX
     // see bug 713305. This RAII helper guarantees that we're on the discrete GPU, during its lifetime
     // Debouncing note: we don't want to switch GPUs too frequently, so try to not create and destroy
@@ -1473,7 +1472,7 @@ public:
         , mHasEverBeenBound(false)
         , mByteLength(0)
         , mTarget(LOCAL_GL_NONE)
-        , mData(nullptr)
+        , mData(nsnull)
     {
         mContext->MakeContextCurrent();
         mContext->gl->fGenBuffers(1, &mGLName);
@@ -1488,7 +1487,7 @@ public:
         mContext->MakeContextCurrent();
         mContext->gl->fDeleteBuffers(1, &mGLName);
         free(mData);
-        mData = nullptr;
+        mData = nsnull;
         mByteLength = 0;
         LinkedListElement<WebGLBuffer>::remove(); // remove from mContext->mBuffers
     }
@@ -2618,12 +2617,12 @@ public:
 
     void SetTexture(WebGLTexture *tex, WebGLint level, WebGLenum face) {
         mTexturePtr = tex;
-        mRenderbufferPtr = nullptr;
+        mRenderbufferPtr = nsnull;
         mTextureLevel = level;
         mTextureCubeMapFace = face;
     }
     void SetRenderbuffer(WebGLRenderbuffer *rb) {
-        mTexturePtr = nullptr;
+        mTexturePtr = nsnull;
         mRenderbufferPtr = rb;
     }
     const WebGLTexture *Texture() const {
@@ -2650,8 +2649,8 @@ public:
     }
 
     void Reset() {
-        mTexturePtr = nullptr;
-        mRenderbufferPtr = nullptr;
+        mTexturePtr = nsnull;
+        mRenderbufferPtr = nsnull;
     }
 
     const WebGLRectangleObject* RectangleObject() const {
@@ -2660,7 +2659,7 @@ public:
         else if (Renderbuffer())
             return Renderbuffer();
         else
-            return nullptr;
+            return nsnull;
     }
     bool HasSameDimensionsAs(const WebGLFramebufferAttachment& other) const {
         const WebGLRectangleObject *thisRect = RectangleObject();
@@ -2892,24 +2891,24 @@ public:
 
     void DetachTexture(const WebGLTexture *tex) {
         if (mColorAttachment.Texture() == tex)
-            FramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_COLOR_ATTACHMENT0, LOCAL_GL_TEXTURE_2D, nullptr, 0);
+            FramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_COLOR_ATTACHMENT0, LOCAL_GL_TEXTURE_2D, nsnull, 0);
         if (mDepthAttachment.Texture() == tex)
-            FramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_DEPTH_ATTACHMENT, LOCAL_GL_TEXTURE_2D, nullptr, 0);
+            FramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_DEPTH_ATTACHMENT, LOCAL_GL_TEXTURE_2D, nsnull, 0);
         if (mStencilAttachment.Texture() == tex)
-            FramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_STENCIL_ATTACHMENT, LOCAL_GL_TEXTURE_2D, nullptr, 0);
+            FramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_STENCIL_ATTACHMENT, LOCAL_GL_TEXTURE_2D, nsnull, 0);
         if (mDepthStencilAttachment.Texture() == tex)
-            FramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_DEPTH_STENCIL_ATTACHMENT, LOCAL_GL_TEXTURE_2D, nullptr, 0);
+            FramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_DEPTH_STENCIL_ATTACHMENT, LOCAL_GL_TEXTURE_2D, nsnull, 0);
     }
 
     void DetachRenderbuffer(const WebGLRenderbuffer *rb) {
         if (mColorAttachment.Renderbuffer() == rb)
-            FramebufferRenderbuffer(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_COLOR_ATTACHMENT0, LOCAL_GL_RENDERBUFFER, nullptr);
+            FramebufferRenderbuffer(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_COLOR_ATTACHMENT0, LOCAL_GL_RENDERBUFFER, nsnull);
         if (mDepthAttachment.Renderbuffer() == rb)
-            FramebufferRenderbuffer(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_DEPTH_ATTACHMENT, LOCAL_GL_RENDERBUFFER, nullptr);
+            FramebufferRenderbuffer(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_DEPTH_ATTACHMENT, LOCAL_GL_RENDERBUFFER, nsnull);
         if (mStencilAttachment.Renderbuffer() == rb)
-            FramebufferRenderbuffer(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_STENCIL_ATTACHMENT, LOCAL_GL_RENDERBUFFER, nullptr);
+            FramebufferRenderbuffer(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_STENCIL_ATTACHMENT, LOCAL_GL_RENDERBUFFER, nsnull);
         if (mDepthStencilAttachment.Renderbuffer() == rb)
-            FramebufferRenderbuffer(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_DEPTH_STENCIL_ATTACHMENT, LOCAL_GL_RENDERBUFFER, nullptr);
+            FramebufferRenderbuffer(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_DEPTH_STENCIL_ATTACHMENT, LOCAL_GL_RENDERBUFFER, nsnull);
     }
 
     const WebGLRectangleObject *RectangleObject() {
@@ -3179,14 +3178,12 @@ class WebGLMemoryMultiReporterWrapper
     // WebGLContexts ever created.
     typedef nsTArray<const WebGLContext*> ContextsArrayType;
     ContextsArrayType mContexts;
-
+    
     nsCOMPtr<nsIMemoryMultiReporter> mReporter;
 
     static WebGLMemoryMultiReporterWrapper* UniqueInstance();
 
     static ContextsArrayType & Contexts() { return UniqueInstance()->mContexts; }
-
-    friend class WebGLContext;
 
   public:
 
@@ -3199,7 +3196,7 @@ class WebGLMemoryMultiReporterWrapper
         contexts.RemoveElement(c);
         if (contexts.IsEmpty()) {
             delete sUniqueInstance; 
-            sUniqueInstance = nullptr;
+            sUniqueInstance = nsnull;
         }
     }
 

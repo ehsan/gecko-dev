@@ -21,14 +21,14 @@ public:
 nsPluginNativeWindowPLATFORM::nsPluginNativeWindowPLATFORM() : nsPluginNativeWindow()
 {
   // initialize the struct fields
-  window = nullptr; 
+  window = nsnull; 
   x = 0; 
   y = 0; 
   width = 0; 
   height = 0; 
   memset(&clipRect, 0, sizeof(clipRect));
 #if defined(XP_UNIX) && !defined(XP_MACOSX)
-  ws_info = nullptr;
+  ws_info = nsnull;
 #endif
   type = NPWindowTypeWindow;
 }

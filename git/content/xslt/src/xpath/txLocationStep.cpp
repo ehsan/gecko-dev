@@ -28,7 +28,7 @@ nsresult
 LocationStep::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
 {
     NS_ASSERTION(aContext, "internal error");
-    *aResult = nullptr;
+    *aResult = nsnull;
 
     nsRefPtr<txNodeSet> nodes;
     nsresult rv = aContext->recycler()->getNodeSet(getter_AddRefs(nodes));

@@ -195,10 +195,10 @@ FileManager::GetDirectory()
 {
   nsCOMPtr<nsIFile> directory =
     do_CreateInstance(NS_LOCAL_FILE_CONTRACTID);
-  NS_ENSURE_TRUE(directory, nullptr);
+  NS_ENSURE_TRUE(directory, nsnull);
 
   nsresult rv = directory->InitWithPath(mDirectoryPath);
-  NS_ENSURE_SUCCESS(rv, nullptr);
+  NS_ENSURE_SUCCESS(rv, nsnull);
 
   return directory.forget();
 }
@@ -208,10 +208,10 @@ FileManager::GetFileInfo(PRInt64 aId)
 {
   if (IndexedDatabaseManager::IsClosed()) {
     NS_ERROR("Shouldn't be called after shutdown!");
-    return nullptr;
+    return nsnull;
   }
 
-  FileInfo* fileInfo = nullptr;
+  FileInfo* fileInfo = nsnull;
   {
     MutexAutoLock lock(IndexedDatabaseManager::FileMutex());
     fileInfo = mFileInfos.Get(aId);
@@ -225,7 +225,7 @@ FileManager::GetNewFileInfo()
 {
   if (IndexedDatabaseManager::IsClosed()) {
     NS_ERROR("Shouldn't be called after shutdown!");
-    return nullptr;
+    return nsnull;
   }
 
   nsAutoPtr<FileInfo> fileInfo;
@@ -256,10 +256,10 @@ FileManager::GetFileForId(nsIFile* aDirectory, PRInt64 aId)
 
   nsCOMPtr<nsIFile> file;
   nsresult rv = aDirectory->Clone(getter_AddRefs(file));
-  NS_ENSURE_SUCCESS(rv, nullptr);
+  NS_ENSURE_SUCCESS(rv, nsnull);
 
   rv = file->Append(id);
-  NS_ENSURE_SUCCESS(rv, nullptr);
+  NS_ENSURE_SUCCESS(rv, nsnull);
 
   return file.forget();
 }

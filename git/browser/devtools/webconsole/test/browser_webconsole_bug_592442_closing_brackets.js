@@ -15,14 +15,15 @@
 
 function test() {
   addTab("data:text/html;charset=utf-8,test for bug 592442");
-  browser.addEventListener("load", function onLoad() {
-    browser.removeEventListener("load", onLoad, true);
-    openConsole(null, testExtraneousClosingBrackets);
-  }, true);
+  browser.addEventListener("load", testExtraneousClosingBrackets, true);
 }
 
-function testExtraneousClosingBrackets(hud) {
-  let jsterm = hud.jsterm;
+function testExtraneousClosingBrackets(aEvent) {
+  browser.removeEventListener(aEvent.type, arguments.callee, true);
+
+  openConsole();
+
+  let jsterm = HUDService.getHudByWindow(content).jsterm;
 
   jsterm.setInputValue("document.getElementById)");
 
@@ -36,6 +37,7 @@ function testExtraneousClosingBrackets(hud) {
 
   ok(!error, "no error was thrown when an extraneous bracket was inserted");
 
+  HUDService.deactivateHUDForContext(tab);
   finishTest();
 }
 

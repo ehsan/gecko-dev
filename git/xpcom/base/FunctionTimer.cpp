@@ -30,8 +30,8 @@ using namespace mozilla;
 static TimeStamp sAppStart;
 
 nsAutoPtr<FunctionTimerLog> FunctionTimer::sLog;
-char *FunctionTimer::sBuf1 = nullptr;
-char *FunctionTimer::sBuf2 = nullptr;
+char *FunctionTimer::sBuf1 = nsnull;
+char *FunctionTimer::sBuf2 = nsnull;
 int FunctionTimer::sBufSize = FunctionTimer::InitTimers();
 unsigned FunctionTimer::sDepth = 0;
 

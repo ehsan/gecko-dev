@@ -37,7 +37,7 @@
 
 static NS_DEFINE_CID(kDOMScriptObjectFactoryCID, NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
 
-nsIExceptionProvider* gExceptionProvider = nullptr;
+nsIExceptionProvider* gExceptionProvider = nsnull;
 
 nsDOMScriptObjectFactory::nsDOMScriptObjectFactory()
 {
@@ -86,20 +86,20 @@ NS_IMETHODIMP_(nsISupports *)
 nsDOMScriptObjectFactory::GetExternalClassInfoInstance(const nsAString& aName)
 {
   nsScriptNameSpaceManager *nameSpaceManager = nsJSRuntime::GetNameSpaceManager();
-  NS_ENSURE_TRUE(nameSpaceManager, nullptr);
+  NS_ENSURE_TRUE(nameSpaceManager, nsnull);
 
   const nsGlobalNameStruct *globalStruct = nameSpaceManager->LookupName(aName);
   if (globalStruct) {
     if (globalStruct->mType == nsGlobalNameStruct::eTypeExternalClassInfoCreator) {
       nsresult rv;
       nsCOMPtr<nsIDOMCIExtension> creator(do_CreateInstance(globalStruct->mCID, &rv));
-      NS_ENSURE_SUCCESS(rv, nullptr);
+      NS_ENSURE_SUCCESS(rv, nsnull);
 
       rv = creator->RegisterDOMCI(NS_ConvertUTF16toUTF8(aName).get(), this);
-      NS_ENSURE_SUCCESS(rv, nullptr);
+      NS_ENSURE_SUCCESS(rv, nsnull);
 
       globalStruct = nameSpaceManager->LookupName(aName);
-      NS_ENSURE_TRUE(globalStruct, nullptr);
+      NS_ENSURE_TRUE(globalStruct, nsnull);
 
       NS_ASSERTION(globalStruct->mType == nsGlobalNameStruct::eTypeExternalClassInfo,
                    "The classinfo data for this class didn't get registered.");
@@ -108,7 +108,7 @@ nsDOMScriptObjectFactory::GetExternalClassInfoInstance(const nsAString& aName)
       return nsDOMClassInfo::GetClassInfoInstance(globalStruct->mData);
     }
   }
-  return nullptr;
+  return nsnull;
 }
 
 NS_IMETHODIMP

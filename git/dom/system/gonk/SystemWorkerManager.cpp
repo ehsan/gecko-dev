@@ -50,7 +50,7 @@ NS_DEFINE_CID(kRadioInterfaceLayerCID, NS_RADIOINTERFACELAYER_CID);
 NS_DEFINE_CID(kWifiWorkerCID, NS_WIFIWORKER_CID);
 
 // Doesn't carry a reference, we're owned by services.
-SystemWorkerManager *gInstance = nullptr;
+SystemWorkerManager *gInstance = nsnull;
 
 class ConnectWorkerToRIL : public WorkerTask
 {
@@ -190,7 +190,7 @@ SystemWorkerManager::~SystemWorkerManager()
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(!gInstance || gInstance == this,
                "There should only be one instance!");
-  gInstance = nullptr;
+  gInstance = nsnull;
 }
 
 nsresult
@@ -256,13 +256,13 @@ SystemWorkerManager::Shutdown()
 
   StopRil();
 
-  mRILWorker = nullptr;
+  mRILWorker = nsnull;
   nsCOMPtr<nsIWifi> wifi(do_QueryInterface(mWifiWorker));
   if (wifi) {
     wifi->Shutdown();
-    wifi = nullptr;
+    wifi = nsnull;
   }
-  mWifiWorker = nullptr;
+  mWifiWorker = nsnull;
 
   nsCOMPtr<nsIObserverService> obs =
     do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
@@ -283,7 +283,7 @@ SystemWorkerManager::FactoryCreate()
     instance = new SystemWorkerManager();
     if (NS_FAILED(instance->Init())) {
       instance->Shutdown();
-      return nullptr;
+      return nsnull;
     }
 
     gInstance = instance;

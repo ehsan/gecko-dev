@@ -61,7 +61,7 @@ LeafAccessible::CacheChildren()
 LinkableAccessible::
   LinkableAccessible(nsIContent* aContent, DocAccessible* aDoc) :
   AccessibleWrap(aContent, aDoc),
-  mActionAcc(nullptr),
+  mActionAcc(nsnull),
   mIsLink(false),
   mIsOnclick(false)
 {
@@ -152,7 +152,7 @@ LinkableAccessible::Shutdown()
 {
   mIsLink = false;
   mIsOnclick = false;
-  mActionAcc = nullptr;
+  mActionAcc = nsnull;
   AccessibleWrap::Shutdown();
 }
 
@@ -170,7 +170,7 @@ LinkableAccessible::AnchorURIAt(PRUint32 aAnchorIndex)
       return mActionAcc->AnchorURIAt(aAnchorIndex);
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -183,7 +183,7 @@ LinkableAccessible::BindToParent(Accessible* aParent,
   AccessibleWrap::BindToParent(aParent, aIndexInParent);
 
   // Cache action content.
-  mActionAcc = nullptr;
+  mActionAcc = nsnull;
   mIsLink = false;
   mIsOnclick = false;
 
@@ -214,7 +214,7 @@ LinkableAccessible::BindToParent(Accessible* aParent,
 void
 LinkableAccessible::UnbindFromParent()
 {
-  mActionAcc = nullptr;
+  mActionAcc = nsnull;
   mIsLink = false;
   mIsOnclick = false;
 

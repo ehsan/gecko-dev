@@ -119,7 +119,7 @@ WyciwygChannelParent::RecvAsyncOpen(const IPC::URI& aOriginal,
   mExtendedOrigin = extendedOrigin;
   mChannel->SetNotificationCallbacks(this);
 
-  rv = mChannel->AsyncOpen(this, nullptr);
+  rv = mChannel->AsyncOpen(this, nsnull);
   if (NS_FAILED(rv))
     return SendCancelEarly(rv);
 

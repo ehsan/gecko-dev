@@ -33,7 +33,7 @@ NS_IMPL_ISUPPORTS1(nsMenuGroupOwnerX, nsIMutationObserver)
 
 nsMenuGroupOwnerX::nsMenuGroupOwnerX()
 : mCurrentCommandID(eCommand_ID_Last),
-  mDocument(nullptr)
+  mDocument(nsnull)
 {
   mContentToObserverTable.Init();
   mCommandToMenuObjectTable.Init();
@@ -98,7 +98,7 @@ void nsMenuGroupOwnerX::ContentAppended(nsIDocument* aDocument,
 void nsMenuGroupOwnerX::NodeWillBeDestroyed(const nsINode * aNode)
 {
   // our menu bar node is being destroyed
-  mDocument = nullptr;
+  mDocument = nsnull;
 }
 
 
@@ -207,7 +207,7 @@ nsChangeObserver* nsMenuGroupOwnerX::LookupContentChangeObserver(nsIContent* aCo
   if (mContentToObserverTable.Get(aContent, &result))
     return result;
   else
-    return nullptr;
+    return nsnull;
 }
 
 
@@ -244,5 +244,5 @@ nsMenuItemX* nsMenuGroupOwnerX::GetMenuItemForCommandID(PRUint32 inCommandID)
   if (mCommandToMenuObjectTable.Get(inCommandID, &result))
     return result;
   else
-    return nullptr;
+    return nsnull;
 }

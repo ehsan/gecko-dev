@@ -161,7 +161,7 @@ protected:
                         bool aEntireList,
                         const nsAString* aBulletType,
                         bool* aCancel, bool* aHandled,
-                        const nsAString* aItemType = nullptr);
+                        const nsAString* aItemType = nsnull);
   nsresult WillRemoveList(mozilla::Selection* aSelection,
                           bool aOrdered, bool* aCancel, bool* aHandled);
   nsresult WillIndent(mozilla::Selection* aSelection,
@@ -308,15 +308,7 @@ protected:
                                   PRInt32 aSelOffset, 
                                   nsIEditor::EDirection &aDirection,
                                   nsCOMPtr<nsIDOMNode> *outSelectableNode);
-  /**
-   * Returns true if aNode1 or aNode2 or both is the descendant of some type of
-   * table element, but their nearest table element ancestors differ.  "Table
-   * element" here includes not just <table> but also <td>, <tbody>, <tr>, etc.
-   * The nodes count as being their own descendants for this purpose, so a
-   * table element is its own nearest table element ancestor.
-   */
-  bool     InDifferentTableElements(nsIDOMNode* aNode1, nsIDOMNode* aNode2);
-  bool     InDifferentTableElements(nsINode* aNode1, nsINode* aNode2);
+  nsresult InDifferentTableElements(nsIDOMNode *aNode1, nsIDOMNode *aNode2, bool *aResult);
   nsresult RemoveEmptyNodes();
   nsresult SelectionEndpointInNode(nsINode *aNode, bool *aResult);
   nsresult UpdateDocChangeRange(nsIDOMRange *aRange);

@@ -8,15 +8,11 @@
 
 #include "IDBObjectStore.h"
 
-#include "mozilla/dom/ipc/nsIRemoteBlob.h"
 #include "nsIJSContextStack.h"
 #include "nsIOutputStream.h"
 
 #include "jsfriendapi.h"
-#include "mozilla/dom/ContentChild.h"
-#include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/StructuredCloneTags.h"
-#include "mozilla/dom/ipc/Blob.h"
 #include "mozilla/storage.h"
 #include "nsContentUtils.h"
 #include "nsDOMClassInfo.h"
@@ -49,7 +45,6 @@
 #define FILE_COPY_BUFFER_SIZE 32768
 
 USING_INDEXEDDB_NAMESPACE
-using namespace mozilla::dom;
 using namespace mozilla::dom::indexedDB::ipc;
 
 namespace {
@@ -68,7 +63,7 @@ public:
                     IDBRequest* aRequest,
                     IDBObjectStore* aObjectStore)
   : AsyncConnectionHelper(aTransaction, aRequest), mObjectStore(aObjectStore),
-    mActor(nullptr)
+    mActor(nsnull)
   {
     NS_ASSERTION(aTransaction, "Null transaction!");
     NS_ASSERTION(aRequest, "Null request!");
@@ -97,7 +92,7 @@ class NoRequestObjectStoreHelper : public AsyncConnectionHelper
 public:
   NoRequestObjectStoreHelper(IDBTransaction* aTransaction,
                              IDBObjectStore* aObjectStore)
-  : AsyncConnectionHelper(aTransaction, nullptr), mObjectStore(aObjectStore)
+  : AsyncConnectionHelper(aTransaction, nsnull), mObjectStore(aObjectStore)
   {
     NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
     NS_ASSERTION(aTransaction, "Null transaction!");
@@ -473,7 +468,7 @@ public:
 
   void forget()
   {
-    mObjectStoreInfo = nullptr;
+    mObjectStoreInfo = nsnull;
   }
 
 private:
@@ -517,11 +512,11 @@ class ThreadLocalJSRuntime
   static ThreadLocalJSRuntime *Create()
   {
     ThreadLocalJSRuntime *entry = new ThreadLocalJSRuntime();
-    NS_ENSURE_TRUE(entry, nullptr);
+    NS_ENSURE_TRUE(entry, nsnull);
 
     if (NS_FAILED(entry->Init())) {
       delete entry;
-      return nullptr;
+      return nsnull;
     }
 
     return entry;
@@ -584,47 +579,6 @@ GetAddInfoCallback(JSContext* aCx, void* aClosure)
   }
 
   return NS_OK;
-}
-
-inline
-BlobChild*
-ActorFromRemoteBlob(nsIDOMBlob* aBlob)
-{
-  NS_ASSERTION(!IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-  nsCOMPtr<nsIRemoteBlob> remoteBlob = do_QueryInterface(aBlob);
-  if (remoteBlob) {
-    BlobChild* actor =
-      static_cast<BlobChild*>(static_cast<PBlobChild*>(remoteBlob->GetPBlob()));
-    NS_ASSERTION(actor, "Null actor?!");
-    return actor;
-  }
-  return nullptr;
-}
-
-inline
-bool
-ResolveMysteryBlob(nsIDOMBlob* aBlob, const nsString& aName,
-                   const nsString& aContentType, PRUint64 aSize)
-{
-  BlobChild* actor = ActorFromRemoteBlob(aBlob);
-  if (actor) {
-    return actor->SetMysteryBlobInfo(aName, aContentType, aSize);
-  }
-  return true;
-}
-
-inline
-bool
-ResolveMysteryBlob(nsIDOMBlob* aBlob, const nsString& aContentType,
-                   PRUint64 aSize)
-{
-  BlobChild* actor = ActorFromRemoteBlob(aBlob);
-  if (actor) {
-    return actor->SetMysteryBlobInfo(aContentType, aSize);
-  }
-  return true;
 }
 
 } // anonymous namespace
@@ -927,8 +881,7 @@ IDBObjectStore::GetStructuredCloneReadInfoFromStatement(
       nsRefPtr<FileInfo> fileInfo = fileManager->GetFileInfo(id);
       NS_ASSERTION(fileInfo, "Null file info!");
 
-      StructuredCloneFile* file = aInfo.mFiles.AppendElement();
-      file->mFileInfo.swap(fileInfo);
+      aInfo.mFileInfos.AppendElement(fileInfo);
     }
   }
 
@@ -967,8 +920,8 @@ IDBObjectStore::DeserializeValue(JSContext* aCx,
 
   JSStructuredCloneCallbacks callbacks = {
     IDBObjectStore::StructuredCloneReadCallback,
-    nullptr,
-    nullptr
+    nsnull,
+    nsnull
   };
 
   return buffer.read(aCx, aValue, &callbacks, &aCloneReadInfo);
@@ -987,9 +940,9 @@ IDBObjectStore::SerializeValue(JSContext* aCx,
   JSAutoRequest ar(aCx);
 
   JSStructuredCloneCallbacks callbacks = {
-    nullptr,
+    nsnull,
     StructuredCloneWriteCallback,
-    nullptr
+    nsnull
   };
 
   JSAutoStructuredCloneBuffer& buffer = aCloneWriteInfo.mCloneBuffer;
@@ -1001,9 +954,9 @@ static inline PRUint32
 SwapBytes(PRUint32 u)
 {
 #ifdef IS_BIG_ENDIAN
-  return ((u & 0x000000ffU) << 24) |
-         ((u & 0x0000ff00U) << 8) |
-         ((u & 0x00ff0000U) >> 8) |
+  return ((u & 0x000000ffU) << 24) |                                          
+         ((u & 0x0000ff00U) << 8) |                                           
+         ((u & 0x00ff0000U) >> 8) |                                           
          ((u & 0xff000000U) >> 24);
 #else
   return u;
@@ -1052,7 +1005,6 @@ StructuredCloneReadString(JSStructuredCloneReader* aReader,
   return true;
 }
 
-// static
 JSObject*
 IDBObjectStore::StructuredCloneReadCallback(JSContext* aCx,
                                             JSStructuredCloneReader* aReader,
@@ -1065,27 +1017,24 @@ IDBObjectStore::StructuredCloneReadCallback(JSContext* aCx,
     StructuredCloneReadInfo* cloneReadInfo =
       reinterpret_cast<StructuredCloneReadInfo*>(aClosure);
 
-    if (aData >= cloneReadInfo->mFiles.Length()) {
+    if (aData >= cloneReadInfo->mFileInfos.Length()) {
       NS_ERROR("Bad blob index!");
-      return nullptr;
+      return nsnull;
     }
 
-    nsresult rv;
-
-    StructuredCloneFile& file = cloneReadInfo->mFiles[aData];
-    nsRefPtr<FileInfo>& fileInfo = file.mFileInfo;
+    nsRefPtr<FileInfo> fileInfo = cloneReadInfo->mFileInfos[aData];
     IDBDatabase* database = cloneReadInfo->mDatabase;
 
     if (aTag == SCTAG_DOM_FILEHANDLE) {
       nsCString type;
       if (!StructuredCloneReadString(aReader, type)) {
-        return nullptr;
+        return nsnull;
       }
       NS_ConvertUTF8toUTF16 convType(type);
 
       nsCString name;
       if (!StructuredCloneReadString(aReader, name)) {
-        return nullptr;
+        return nsnull;
       }
       NS_ConvertUTF8toUTF16 convName(name);
 
@@ -1093,102 +1042,79 @@ IDBObjectStore::StructuredCloneReadCallback(JSContext* aCx,
         convName, convType, fileInfo.forget());
 
       jsval wrappedFileHandle;
-      rv =
+      nsresult rv =
         nsContentUtils::WrapNative(aCx, JS_GetGlobalForScopeChain(aCx),
                                    static_cast<nsIDOMFileHandle*>(fileHandle),
                                    &NS_GET_IID(nsIDOMFileHandle),
                                    &wrappedFileHandle);
       if (NS_FAILED(rv)) {
         NS_WARNING("Failed to wrap native!");
-        return nullptr;
+        return nsnull;
       }
 
       return JSVAL_TO_OBJECT(wrappedFileHandle);
     }
 
+    FileManager* fileManager = database->Manager();
+
+    nsCOMPtr<nsIFile> directory = fileManager->GetDirectory();
+    if (!directory) {
+      NS_WARNING("Failed to get directory!");
+      return nsnull;
+    }
+
+    nsCOMPtr<nsIFile> nativeFile =
+      fileManager->GetFileForId(directory, fileInfo->Id());
+    if (!nativeFile) {
+      NS_WARNING("Failed to get file!");
+      return nsnull;
+    }
+
     PRUint64 size;
     if (!JS_ReadBytes(aReader, &size, sizeof(PRUint64))) {
       NS_WARNING("Failed to read size!");
-      return nullptr;
+      return nsnull;
     }
     size = SwapBytes(size);
 
     nsCString type;
     if (!StructuredCloneReadString(aReader, type)) {
-      return nullptr;
+      return nsnull;
     }
     NS_ConvertUTF8toUTF16 convType(type);
 
-    nsCOMPtr<nsIFile> nativeFile;
-    if (!file.mFile) {
-      FileManager* fileManager = database->Manager();
-        NS_ASSERTION(fileManager, "This should never be null!");
-
-      nsCOMPtr<nsIFile> directory = fileManager->GetDirectory();
-      if (!directory) {
-        NS_WARNING("Failed to get directory!");
-        return nullptr;
-      }
-
-      nativeFile = fileManager->GetFileForId(directory, fileInfo->Id());
-      if (!nativeFile) {
-        NS_WARNING("Failed to get file!");
-        return nullptr;
-      }
-    }
-
     if (aTag == SCTAG_DOM_BLOB) {
-      nsCOMPtr<nsIDOMBlob> domBlob;
-      if (file.mFile) {
-        if (!ResolveMysteryBlob(file.mFile, convType, size)) {
-          return nullptr;
-        }
-        domBlob = file.mFile;
-      }
-      else {
-        domBlob = new nsDOMFileFile(convType, size, nativeFile, fileInfo);
-      }
+      nsCOMPtr<nsIDOMBlob> blob = new nsDOMFileFile(convType, size,
+                                                    nativeFile, fileInfo);
 
       jsval wrappedBlob;
-       rv =
-        nsContentUtils::WrapNative(aCx, JS_GetGlobalForScopeChain(aCx), domBlob,
+      nsresult rv =
+        nsContentUtils::WrapNative(aCx, JS_GetGlobalForScopeChain(aCx), blob,
                                    &NS_GET_IID(nsIDOMBlob), &wrappedBlob);
       if (NS_FAILED(rv)) {
         NS_WARNING("Failed to wrap native!");
-        return nullptr;
+        return nsnull;
       }
 
       return JSVAL_TO_OBJECT(wrappedBlob);
     }
 
-    NS_ASSERTION(aTag == SCTAG_DOM_FILE, "Huh?!");
-
     nsCString name;
     if (!StructuredCloneReadString(aReader, name)) {
-      return nullptr;
+      return nsnull;
     }
     NS_ConvertUTF8toUTF16 convName(name);
 
-    nsCOMPtr<nsIDOMFile> domFile;
-    if (file.mFile) {
-      if (!ResolveMysteryBlob(file.mFile, convName, convType, size)) {
-        return nullptr;
-      }
-      domFile = do_QueryInterface(file.mFile);
-      NS_ASSERTION(domFile, "This should never fail!");
-    }
-    else {
-      domFile = new nsDOMFileFile(convName, convType, size, nativeFile,
-                                  fileInfo);
-    }
+    nsCOMPtr<nsIDOMFile> file = new nsDOMFileFile(convName, convType, size,
+                                                  nativeFile, fileInfo);
 
     jsval wrappedFile;
-    rv =
-      nsContentUtils::WrapNative(aCx, JS_GetGlobalForScopeChain(aCx), domFile,
+    nsresult rv =
+      nsContentUtils::WrapNative(aCx, JS_GetGlobalForScopeChain(aCx), file,
                                  &NS_GET_IID(nsIDOMFile), &wrappedFile);
     if (NS_FAILED(rv)) {
       NS_WARNING("Failed to wrap native!");
-      return nullptr;
+      return nsnull;
     }
 
     return JSVAL_TO_OBJECT(wrappedFile);
@@ -1198,13 +1124,12 @@ IDBObjectStore::StructuredCloneReadCallback(JSContext* aCx,
     js::GetContextStructuredCloneCallbacks(aCx);
 
   if (runtimeCallbacks) {
-    return runtimeCallbacks->read(aCx, aReader, aTag, aData, nullptr);
+    return runtimeCallbacks->read(aCx, aReader, aTag, aData, nsnull);
   }
 
-  return nullptr;
+  return nsnull;
 }
 
-// static
 JSBool
 IDBObjectStore::StructuredCloneWriteCallback(JSContext* aCx,
                                              JSStructuredCloneWriter* aWriter,
@@ -1235,28 +1160,29 @@ IDBObjectStore::StructuredCloneWriteCallback(JSContext* aCx,
 
     nsCOMPtr<nsIDOMBlob> blob = do_QueryInterface(supports);
     if (blob) {
-      nsCOMPtr<nsIInputStream> inputStream;
-
       // Check if it is a blob created from this db or the blob was already
       // stored in this db
+
       nsRefPtr<FileInfo> fileInfo = transaction->GetFileInfo(blob);
-      if (!fileInfo && fileManager) {
+      nsCOMPtr<nsIInputStream> inputStream;
+
+      if (!fileInfo) {
         fileInfo = blob->GetFileInfo(fileManager);
+      }
 
+      if (!fileInfo) {
+        fileInfo = fileManager->GetNewFileInfo();
         if (!fileInfo) {
-          fileInfo = fileManager->GetNewFileInfo();
-          if (!fileInfo) {
-            NS_WARNING("Failed to get new file info!");
-            return false;
-          }
-
-          if (NS_FAILED(blob->GetInternalStream(getter_AddRefs(inputStream)))) {
-            NS_WARNING("Failed to get internal steam!");
-            return false;
-          }
-
-          transaction->AddFileInfo(blob, fileInfo);
+          NS_WARNING("Failed to get new file info!");
+          return false;
         }
+
+        if (NS_FAILED(blob->GetInternalStream(getter_AddRefs(inputStream)))) {
+          NS_WARNING("Failed to get internal steam!");
+          return false;
+        }
+
+        transaction->AddFileInfo(blob, fileInfo);
       }
 
       PRUint64 size;
@@ -1278,8 +1204,8 @@ IDBObjectStore::StructuredCloneWriteCallback(JSContext* aCx,
 
       if (!JS_WriteUint32Pair(aWriter, file ? SCTAG_DOM_FILE : SCTAG_DOM_BLOB,
                               cloneWriteInfo->mFiles.Length()) ||
-          !JS_WriteBytes(aWriter, &size, sizeof(size)) ||
-          !JS_WriteBytes(aWriter, &convTypeLength, sizeof(convTypeLength)) ||
+          !JS_WriteBytes(aWriter, &size, sizeof(PRUint64)) ||
+          !JS_WriteBytes(aWriter, &convTypeLength, sizeof(PRUint32)) ||
           !JS_WriteBytes(aWriter, convType.get(), convType.Length())) {
         return false;
       }
@@ -1293,7 +1219,7 @@ IDBObjectStore::StructuredCloneWriteCallback(JSContext* aCx,
         NS_ConvertUTF16toUTF8 convName(name);
         PRUint32 convNameLength = SwapBytes(convName.Length());
 
-        if (!JS_WriteBytes(aWriter, &convNameLength, sizeof(convNameLength)) ||
+        if (!JS_WriteBytes(aWriter, &convNameLength, sizeof(PRUint32)) ||
             !JS_WriteBytes(aWriter, convName.get(), convName.Length())) {
           return false;
         }
@@ -1353,13 +1279,12 @@ IDBObjectStore::StructuredCloneWriteCallback(JSContext* aCx,
   const JSStructuredCloneCallbacks* runtimeCallbacks =
     js::GetContextStructuredCloneCallbacks(aCx);
   if (runtimeCallbacks) {
-    return runtimeCallbacks->write(aCx, aWriter, aObj, nullptr);
+    return runtimeCallbacks->write(aCx, aWriter, aObj, nsnull);
   }
 
   return false;
 }
 
-// static
 nsresult
 IDBObjectStore::ConvertFileIdsToArray(const nsAString& aFileIds,
                                       nsTArray<PRInt64>& aResult)
@@ -1382,87 +1307,14 @@ IDBObjectStore::ConvertFileIdsToArray(const nsAString& aFileIds,
   return NS_OK;
 }
 
-// static
-void
-IDBObjectStore::ConvertActorsToBlobs(
-                                   const InfallibleTArray<PBlobChild*>& aActors,
-                                   nsTArray<StructuredCloneFile>& aFiles)
-{
-  NS_ASSERTION(!IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(aFiles.IsEmpty(), "Should be empty!");
-
-  if (!aActors.IsEmpty()) {
-    ContentChild* contentChild = ContentChild::GetSingleton();
-    NS_ASSERTION(contentChild, "This should never be null!");
-
-    PRUint32 length = aActors.Length();
-    aFiles.SetCapacity(length);
-
-    for (PRUint32 index = 0; index < length; index++) {
-      BlobChild* actor = static_cast<BlobChild*>(aActors[index]);
-
-      StructuredCloneFile* file = aFiles.AppendElement();
-      file->mFile = actor->GetBlob();
-    }
-  }
-}
-
-// static
-nsresult
-IDBObjectStore::ConvertBlobsToActors(
-                                    ContentParent* aContentParent,
-                                    FileManager* aFileManager,
-                                    const nsTArray<StructuredCloneFile>& aFiles,
-                                    InfallibleTArray<PBlobParent*>& aActors)
-{
-  NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(aContentParent, "Null contentParent!");
-  NS_ASSERTION(aFileManager, "Null file manager!");
-
-  if (!aFiles.IsEmpty()) {
-    nsCOMPtr<nsIFile> directory = aFileManager->GetDirectory();
-    if (!directory) {
-      NS_WARNING("Failed to get directory!");
-      return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-    }
-
-    PRUint32 fileCount = aFiles.Length();
-    aActors.SetCapacity(fileCount);
-
-    for (PRUint32 index = 0; index < fileCount; index++) {
-      const StructuredCloneFile& file = aFiles[index];
-      NS_ASSERTION(file.mFileInfo, "This should never be null!");
-
-      nsCOMPtr<nsIFile> nativeFile =
-        aFileManager->GetFileForId(directory, file.mFileInfo->Id());
-      if (!nativeFile) {
-        NS_WARNING("Failed to get file!");
-        return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-      }
-
-      nsCOMPtr<nsIDOMBlob> blob = new nsDOMFileFile(nativeFile);
-
-      BlobParent* actor =
-        aContentParent->GetOrCreateActorForBlob(blob);
-      NS_ASSERTION(actor, "This should never fail without aborting!");
-
-      aActors.AppendElement(actor);
-    }
-  }
-
-  return NS_OK;
-}
-
 IDBObjectStore::IDBObjectStore()
 : mId(LL_MININT),
   mKeyPath(0),
   mCachedKeyPath(JSVAL_VOID),
   mRooted(false),
   mAutoIncrement(false),
-  mActorChild(nullptr),
-  mActorParent(nullptr)
+  mActorChild(nsnull),
+  mActorParent(nsnull)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 }
@@ -1596,7 +1448,6 @@ IDBObjectStore::AddOrPutInternal(
                       const SerializedStructuredCloneWriteInfo& aCloneWriteInfo,
                       const Key& aKey,
                       const InfallibleTArray<IndexUpdateInfo>& aUpdateInfoArray,
-                      const nsTArray<nsCOMPtr<nsIDOMBlob> >& aBlobs,
                       bool aOverwrite,
                       IDBRequest** _retval)
 {
@@ -1611,55 +1462,13 @@ IDBObjectStore::AddOrPutInternal(
     return NS_ERROR_DOM_INDEXEDDB_READ_ONLY_ERR;
   }
 
-  nsRefPtr<IDBRequest> request = GenerateRequest(this, nullptr);
+  nsRefPtr<IDBRequest> request = GenerateRequest(this, nsnull);
   NS_ENSURE_TRUE(request, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   StructuredCloneWriteInfo cloneWriteInfo;
   if (!cloneWriteInfo.SetFromSerialized(aCloneWriteInfo)) {
     NS_WARNING("Failed to copy structured clone buffer!");
     return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-  }
-
-  if (!aBlobs.IsEmpty()) {
-    FileManager* fileManager = Transaction()->Database()->Manager();
-    NS_ASSERTION(fileManager, "Null file manager?!");
-
-    PRUint32 length = aBlobs.Length();
-    cloneWriteInfo.mFiles.SetCapacity(length);
-
-    for (PRUint32 index = 0; index < length; index++) {
-      const nsCOMPtr<nsIDOMBlob>& blob = aBlobs[index];
-
-      nsCOMPtr<nsIInputStream> inputStream;
-
-      nsRefPtr<FileInfo> fileInfo = Transaction()->GetFileInfo(blob);
-      if (!fileInfo) {
-        fileInfo = blob->GetFileInfo(fileManager);
-
-        if (!fileInfo) {
-          fileInfo = fileManager->GetNewFileInfo();
-          if (!fileInfo) {
-            NS_WARNING("Failed to get new file info!");
-            return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-          }
-
-          if (NS_FAILED(blob->GetInternalStream(getter_AddRefs(inputStream)))) {
-            NS_WARNING("Failed to get internal steam!");
-            return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-          }
-
-          // XXXbent This is where we should send a message back to the child to
-          //         update the file id.
-
-          Transaction()->AddFileInfo(blob, fileInfo);
-        }
-      }
-
-      StructuredCloneFile* file = cloneWriteInfo.mFiles.AppendElement();
-      file->mFile = blob;
-      file->mFileInfo.swap(fileInfo);
-      file->mInputStream.swap(inputStream);
-    }
   }
 
   Key key(aKey);
@@ -1839,7 +1648,6 @@ IDBObjectStore::OpenCursorFromChildProcess(
                             size_t aDirection,
                             const Key& aKey,
                             const SerializedStructuredCloneReadInfo& aCloneInfo,
-                            nsTArray<StructuredCloneFile>& aBlobs,
                             IDBCursor** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -1856,8 +1664,6 @@ IDBObjectStore::OpenCursorFromChildProcess(
     NS_WARNING("Failed to copy clone buffer!");
     return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }
-
-  cloneInfo.mFiles.SwapElements(aBlobs);
 
   nsRefPtr<IDBCursor> cursor =
     IDBCursor::Create(aRequest, mTransaction, this, direction, Key(),
@@ -1924,7 +1730,7 @@ IDBObjectStore::IndexInternal(const nsAString& aName,
     return NS_ERROR_DOM_INDEXEDDB_TRANSACTION_INACTIVE_ERR;
   }
 
-  IndexInfo* indexInfo = nullptr;
+  IndexInfo* indexInfo = nsnull;
   PRUint32 indexCount = mInfo->indexes.Length();
   for (PRUint32 index = 0; index < indexCount; index++) {
     if (mInfo->indexes[index].name == aName) {
@@ -2484,7 +2290,7 @@ CopyData(nsIInputStream* aInputStream, nsIOutputStream* aOutputStream)
 void
 ObjectStoreHelper::ReleaseMainThreadObjects()
 {
-  mObjectStore = nullptr;
+  mObjectStore = nsnull;
   AsyncConnectionHelper::ReleaseMainThreadObjects();
 }
 
@@ -2517,7 +2323,7 @@ void
 NoRequestObjectStoreHelper::ReleaseMainThreadObjects()
 {
   NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-  mObjectStore = nullptr;
+  mObjectStore = nsnull;
   AsyncConnectionHelper::ReleaseMainThreadObjects();
 }
 
@@ -2740,31 +2546,6 @@ AddHelper::PackArgumentsForParentProcess(ObjectStoreRequestParams& aParams)
   commonParams.key() = mKey;
   commonParams.indexUpdateInfos().AppendElements(mIndexUpdateInfo);
 
-  const nsTArray<StructuredCloneFile>& files = mCloneWriteInfo.mFiles;
-
-  if (!files.IsEmpty()) {
-    PRUint32 fileCount = files.Length();
-
-    InfallibleTArray<PBlobChild*>& blobsChild = commonParams.blobsChild();
-    blobsChild.SetCapacity(fileCount);
-
-    ContentChild* contentChild = ContentChild::GetSingleton();
-    NS_ASSERTION(contentChild, "This should never be null!");
-
-    for (PRUint32 index = 0; index < fileCount; index++) {
-      const StructuredCloneFile& file = files[index];
-
-      NS_ASSERTION(file.mFile, "This should never be null!");
-      NS_ASSERTION(!file.mFileInfo, "This is not yet supported!");
-
-      BlobChild* actor =
-        contentChild->GetOrCreateActorForBlob(file.mFile);
-      NS_ASSERTION(actor, "This should never fail without aborting!");
-
-      blobsChild.AppendElement(actor);
-    }
-  }
-
   if (mOverwrite) {
     PutParams putParams;
     putParams.commonParams() = commonParams;
@@ -2880,7 +2661,7 @@ GetHelper::GetSuccessResult(JSContext* aCx,
 void
 GetHelper::ReleaseMainThreadObjects()
 {
-  mKeyRange = nullptr;
+  mKeyRange = nsnull;
   IDBObjectStore::ClearStructuredCloneBuffer(mCloneReadInfo.mCloneBuffer);
   ObjectStoreHelper::ReleaseMainThreadObjects();
 }
@@ -2909,26 +2690,9 @@ GetHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
     return Success_NotSent;
   }
 
-  InfallibleTArray<PBlobParent*> blobsParent;
-
-  if (NS_SUCCEEDED(aResultCode)) {
-    IDBDatabase* database = mObjectStore->Transaction()->Database();
-    NS_ASSERTION(database, "This should never be null!");
-
-    ContentParent* contentParent = database->GetContentParent();
-    NS_ASSERTION(contentParent, "This should never be null!");
-
-    FileManager* fileManager = database->Manager();
-    NS_ASSERTION(fileManager, "This should never be null!");
-
-    const nsTArray<StructuredCloneFile>& files = mCloneReadInfo.mFiles;
-
-    aResultCode =
-      IDBObjectStore::ConvertBlobsToActors(contentParent, fileManager, files,
-                                           blobsParent);
-    if (NS_FAILED(aResultCode)) {
-      NS_WARNING("ConvertBlobsToActors failed!");
-  }
+  if (!mCloneReadInfo.mFileInfos.IsEmpty()) {
+    NS_WARNING("No support for transferring blobs across processes yet!");
+    return Error;
   }
 
   ResponseValue response;
@@ -2936,9 +2700,9 @@ GetHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
     response = aResultCode;
   }
   else {
-    GetResponse getResponse;
-    getResponse.cloneInfo() = mCloneReadInfo;
-    getResponse.blobsParent().SwapElements(blobsParent);
+    SerializedStructuredCloneReadInfo readInfo;
+    readInfo = mCloneReadInfo;
+    GetResponse getResponse = readInfo;
     response = getResponse;
   }
 
@@ -2955,8 +2719,8 @@ GetHelper::UnpackResponseFromParentProcess(const ResponseValue& aResponseValue)
   NS_ASSERTION(aResponseValue.type() == ResponseValue::TGetResponse,
                "Bad response type!");
 
-  const GetResponse& getResponse = aResponseValue.get_GetResponse();
-  const SerializedStructuredCloneReadInfo& cloneInfo = getResponse.cloneInfo();
+  const SerializedStructuredCloneReadInfo& cloneInfo =
+    aResponseValue.get_GetResponse().cloneInfo();
 
   NS_ASSERTION((!cloneInfo.dataLength && !cloneInfo.data) ||
                (cloneInfo.dataLength && cloneInfo.data),
@@ -2967,8 +2731,6 @@ GetHelper::UnpackResponseFromParentProcess(const ResponseValue& aResponseValue)
     return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }
 
-  IDBObjectStore::ConvertActorsToBlobs(getResponse.blobsChild(),
-                                       mCloneReadInfo.mFiles);
   return NS_OK;
 }
 
@@ -3292,14 +3054,14 @@ OpenCursorHelper::GetSuccessResult(JSContext* aCx,
 void
 OpenCursorHelper::ReleaseMainThreadObjects()
 {
-  mKeyRange = nullptr;
+  mKeyRange = nsnull;
   IDBObjectStore::ClearStructuredCloneBuffer(mCloneReadInfo.mCloneBuffer);
 
-  mCursor = nullptr;
+  mCursor = nsnull;
 
   // These don't need to be released on the main thread but they're only valid
   // as long as mCursor is set.
-  mSerializedCloneReadInfo.data = nullptr;
+  mSerializedCloneReadInfo.data = nsnull;
   mSerializedCloneReadInfo.dataLength = 0;
 
   ObjectStoreHelper::ReleaseMainThreadObjects();
@@ -3337,29 +3099,12 @@ OpenCursorHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
     return Success_NotSent;
   }
 
-  NS_ASSERTION(!mCursor, "Shouldn't have this yet!");
-
-  InfallibleTArray<PBlobParent*> blobsParent;
-
-  if (NS_SUCCEEDED(aResultCode)) {
-    IDBDatabase* database = mObjectStore->Transaction()->Database();
-    NS_ASSERTION(database, "This should never be null!");
-
-    ContentParent* contentParent = database->GetContentParent();
-    NS_ASSERTION(contentParent, "This should never be null!");
-
-    FileManager* fileManager = database->Manager();
-    NS_ASSERTION(fileManager, "This should never be null!");
-
-    const nsTArray<StructuredCloneFile>& files = mCloneReadInfo.mFiles;
-
-    aResultCode =
-      IDBObjectStore::ConvertBlobsToActors(contentParent, fileManager, files,
-                                           blobsParent);
-    if (NS_FAILED(aResultCode)) {
-      NS_WARNING("ConvertBlobsToActors failed!");
-    }
+  if (!mCloneReadInfo.mFileInfos.IsEmpty()) {
+    NS_WARNING("No support for transferring blobs across processes yet!");
+    return Error;
   }
+
+  NS_ASSERTION(!mCursor, "Shouldn't have this yet!");
 
   if (NS_SUCCEEDED(aResultCode)) {
     nsresult rv = EnsureCursor();
@@ -3396,7 +3141,6 @@ OpenCursorHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
       params.direction() = mDirection;
       params.key() = mKey;
       params.cloneInfo() = mSerializedCloneReadInfo;
-      params.blobsParent().SwapElements(blobsParent);
 
       IndexedDBCursorParent* cursorActor = new IndexedDBCursorParent(mCursor);
 
@@ -3519,7 +3263,7 @@ CreateIndexHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 void
 CreateIndexHelper::ReleaseMainThreadObjects()
 {
-  mIndex = nullptr;
+  mIndex = nsnull;
   NoRequestObjectStoreHelper::ReleaseMainThreadObjects();
 }
 
@@ -3572,8 +3316,8 @@ CreateIndexHelper::InsertDataFromObjectStore(mozIStorageConnection* aConnection)
 
     JSStructuredCloneCallbacks callbacks = {
       IDBObjectStore::StructuredCloneReadCallback,
-      nullptr,
-      nullptr
+      nsnull,
+      nsnull
     };
 
     jsval clone;
@@ -3742,7 +3486,7 @@ GetAllHelper::GetSuccessResult(JSContext* aCx,
 void
 GetAllHelper::ReleaseMainThreadObjects()
 {
-  mKeyRange = nullptr;
+  mKeyRange = nsnull;
   for (PRUint32 index = 0; index < mCloneReadInfos.Length(); index++) {
     IDBObjectStore::ClearStructuredCloneBuffer(
       mCloneReadInfos[index].mCloneBuffer);
@@ -3781,47 +3525,10 @@ GetAllHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
     return Success_NotSent;
   }
 
-    GetAllResponse getAllResponse;
-
-  if (NS_SUCCEEDED(aResultCode) && !mCloneReadInfos.IsEmpty()) {
-    IDBDatabase* database = mObjectStore->Transaction()->Database();
-    NS_ASSERTION(database, "This should never be null!");
-
-    ContentParent* contentParent = database->GetContentParent();
-    NS_ASSERTION(contentParent, "This should never be null!");
-
-    FileManager* fileManager = database->Manager();
-    NS_ASSERTION(fileManager, "This should never be null!");
-
-    PRUint32 length = mCloneReadInfos.Length();
-
-    InfallibleTArray<SerializedStructuredCloneReadInfo>& infos =
-      getAllResponse.cloneInfos();
-    infos.SetCapacity(length);
-
-    InfallibleTArray<BlobArray>& blobArrays = getAllResponse.blobs();
-    blobArrays.SetCapacity(length);
-
-    for (PRUint32 index = 0;
-         NS_SUCCEEDED(aResultCode) && index < length;
-         index++) {
-      // Append the structured clone data.
-      const StructuredCloneReadInfo& clone = mCloneReadInfos[index];
-      SerializedStructuredCloneReadInfo* info = infos.AppendElement();
-      *info = clone;
-
-      // Now take care of the files.
-      const nsTArray<StructuredCloneFile>& files = clone.mFiles;
-      BlobArray* blobArray = blobArrays.AppendElement();
-      InfallibleTArray<PBlobParent*>& blobs = blobArray->blobsParent();
-
-      aResultCode =
-        IDBObjectStore::ConvertBlobsToActors(contentParent, fileManager, files,
-                                             blobs);
-      if (NS_FAILED(aResultCode)) {
-        NS_WARNING("ConvertBlobsToActors failed!");
-        break;
-    }
+  for (PRUint32 index = 0; index < mCloneReadInfos.Length(); index++) {
+    if (!mCloneReadInfos[index].mFileInfos.IsEmpty()) {
+      NS_WARNING("No support for transferring blobs across processes yet!");
+      return Error;
     }
   }
 
@@ -3830,6 +3537,19 @@ GetAllHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
     response = aResultCode;
   }
   else {
+    GetAllResponse getAllResponse;
+
+    InfallibleTArray<SerializedStructuredCloneReadInfo>& infos =
+      getAllResponse.cloneInfos();
+
+    infos.SetCapacity(mCloneReadInfos.Length());
+
+    for (PRUint32 index = 0; index < mCloneReadInfos.Length(); index++) {
+      SerializedStructuredCloneReadInfo* info = infos.AppendElement();
+      *info = mCloneReadInfos[index];
+    }
+
+    getAllResponse = infos;
     response = getAllResponse;
   }
 
@@ -3847,24 +3567,19 @@ GetAllHelper::UnpackResponseFromParentProcess(
   NS_ASSERTION(aResponseValue.type() == ResponseValue::TGetAllResponse,
                "Bad response type!");
 
-  const GetAllResponse& getAllResponse = aResponseValue.get_GetAllResponse();
   const InfallibleTArray<SerializedStructuredCloneReadInfo>& cloneInfos =
-    getAllResponse.cloneInfos();
-  const InfallibleTArray<BlobArray>& blobArrays = getAllResponse.blobs();
+    aResponseValue.get_GetAllResponse().cloneInfos();
 
   mCloneReadInfos.SetCapacity(cloneInfos.Length());
 
   for (PRUint32 index = 0; index < cloneInfos.Length(); index++) {
     const SerializedStructuredCloneReadInfo srcInfo = cloneInfos[index];
-    const InfallibleTArray<PBlobChild*> blobs = blobArrays[index].blobsChild();
 
     StructuredCloneReadInfo* destInfo = mCloneReadInfos.AppendElement();
     if (!destInfo->SetFromSerialized(srcInfo)) {
       NS_WARNING("Failed to copy clone buffer!");
       return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
     }
-
-    IDBObjectStore::ConvertActorsToBlobs(blobs, destInfo->mFiles);
   }
 
   return NS_OK;
@@ -3938,14 +3653,18 @@ nsresult
 CountHelper::GetSuccessResult(JSContext* aCx,
                               jsval* aVal)
 {
-  *aVal = JS_NumberValue(static_cast<double>(mCount));
+  if (!JS_NewNumberValue(aCx, static_cast<double>(mCount), aVal)) {
+    NS_WARNING("Failed to make number value!");
+    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+  }
+
   return NS_OK;
 }
 
 void
 CountHelper::ReleaseMainThreadObjects()
 {
-  mKeyRange = nullptr;
+  mKeyRange = nsnull;
   ObjectStoreHelper::ReleaseMainThreadObjects();
 }
 

@@ -113,7 +113,7 @@ FTPChannelParent::RecvAsyncOpen(const IPC::URI& aURI,
   mExtendedOrigin = extendedOrigin;
   mChannel->SetNotificationCallbacks(this);
 
-  rv = mChannel->AsyncOpen(this, nullptr);
+  rv = mChannel->AsyncOpen(this, nsnull);
   if (NS_FAILED(rv))
     return SendFailedAsyncOpen(rv);
   

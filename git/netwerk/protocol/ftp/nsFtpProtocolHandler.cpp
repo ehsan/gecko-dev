@@ -53,7 +53,7 @@ using namespace mozilla::net;
 // this enables PR_LOG_DEBUG level information and places all output in
 // the file nspr.log
 //
-PRLogModuleInfo* gFTPLog = nullptr;
+PRLogModuleInfo* gFTPLog = nsnull;
 #endif
 #undef LOG
 #define LOG(args) PR_LOG(gFTPLog, PR_LOG_DEBUG, args)
@@ -66,7 +66,7 @@ PRLogModuleInfo* gFTPLog = nullptr;
 #define QOS_DATA_PREF         "network.ftp.data.qos"
 #define QOS_CONTROL_PREF      "network.ftp.control.qos"
 
-nsFtpProtocolHandler *gFtpHandler = nullptr;
+nsFtpProtocolHandler *gFtpHandler = nsnull;
 
 //-----------------------------------------------------------------------------
 
@@ -91,7 +91,7 @@ nsFtpProtocolHandler::~nsFtpProtocolHandler()
 
     NS_ASSERTION(mRootConnectionList.Length() == 0, "why wasn't Observe called?");
 
-    gFtpHandler = nullptr;
+    gFtpHandler = nsnull;
 }
 
 NS_IMPL_THREADSAFE_ISUPPORTS4(nsFtpProtocolHandler,
@@ -211,7 +211,7 @@ nsFtpProtocolHandler::NewURI(const nsACString &aSpec,
 NS_IMETHODIMP
 nsFtpProtocolHandler::NewChannel(nsIURI* url, nsIChannel* *result)
 {
-    return NewProxiedChannel(url, nullptr, result);
+    return NewProxiedChannel(url, nsnull, result);
 }
 
 NS_IMETHODIMP
@@ -264,14 +264,14 @@ nsFtpProtocolHandler::RemoveConnection(nsIURI *aKey, nsFtpControlConnection* *_r
     NS_ASSERTION(_retval, "null pointer");
     NS_ASSERTION(aKey, "null pointer");
     
-    *_retval = nullptr;
+    *_retval = nsnull;
 
     nsCAutoString spec;
     aKey->GetPrePath(spec);
     
     LOG(("FTP:removing connection for %s\n", spec.get()));
    
-    timerStruct* ts = nullptr;
+    timerStruct* ts = nsnull;
     PRUint32 i;
     bool found = false;
     
@@ -289,7 +289,7 @@ nsFtpProtocolHandler::RemoveConnection(nsIURI *aKey, nsFtpControlConnection* *_r
 
     // swap connection ownership
     *_retval = ts->conn;
-    ts->conn = nullptr;
+    ts->conn = nsnull;
     delete ts;
 
     return NS_OK;

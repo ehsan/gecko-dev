@@ -29,18 +29,29 @@ function test() {
 }
 
 function populateConsoleRepeats(aHudRef) {
+  let hud = aHudRef.HUDBox;
+
   for (let i = 0; i < 5; i++) {
-    let node = aHudRef.ui.createMessageNode(CATEGORY_CSS, SEVERITY_WARNING,
-                                            "css log x");
-    aHudRef.ui.outputMessage(CATEGORY_CSS, node);
+    let node = ConsoleUtils.createMessageNode(hud.ownerDocument,
+                                              CATEGORY_CSS,
+                                              SEVERITY_WARNING,
+                                              "css log x",
+                                              aHudRef.hudId);
+   aHudRef.outputMessage(CATEGORY_CSS, node);
   }
 }
 
+
 function populateConsole(aHudRef) {
+  let hud = aHudRef.HUDBox;
+
   for (let i = 0; i < LOG_LIMIT + 5; i++) {
-    let node = aHudRef.ui.createMessageNode(CATEGORY_CSS, SEVERITY_WARNING,
-                                            "css log " + i);
-    aHudRef.ui.outputMessage(CATEGORY_CSS, node);
+    let node = ConsoleUtils.createMessageNode(hud.ownerDocument,
+                                              CATEGORY_CSS,
+                                              SEVERITY_WARNING,
+                                              "css log " + i,
+                                              aHudRef.hudId);
+    aHudRef.outputMessage(CATEGORY_CSS, node);
   }
 }
 
@@ -55,8 +66,7 @@ function testCSSPruning(hudRef) {
     },
     successFn: function()
     {
-      ok(!hudRef.ui._cssNodes["css log x"],
-         "repeated nodes pruned from cssNodes");
+      ok(!hudRef.cssNodes["css log x"], "repeated nodes pruned from cssNodes");
       finishTest();
     },
     failureFn: finishTest,
@@ -66,7 +76,7 @@ function testCSSPruning(hudRef) {
     name: "repeated nodes in cssNodes",
     validatorFn: function()
     {
-      return hudRef.ui._cssNodes["css log x"];
+      return hudRef.cssNodes["css log x"];
     },
     successFn: function()
     {

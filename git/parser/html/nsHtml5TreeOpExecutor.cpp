@@ -67,8 +67,8 @@ class nsHtml5ExecutorReflusher : public nsRunnable
     }
 };
 
-static mozilla::LinkedList<nsHtml5TreeOpExecutor>* gBackgroundFlushList = nullptr;
-static nsITimer* gFlushTimer = nullptr;
+static mozilla::LinkedList<nsHtml5TreeOpExecutor>* gBackgroundFlushList = nsnull;
+static nsITimer* gFlushTimer = nsnull;
 
 nsHtml5TreeOpExecutor::nsHtml5TreeOpExecutor(bool aRunsToCompletion)
 {
@@ -84,7 +84,7 @@ nsHtml5TreeOpExecutor::~nsHtml5TreeOpExecutor()
     remove();
     if (gBackgroundFlushList->isEmpty()) {
       delete gBackgroundFlushList;
-      gBackgroundFlushList = nullptr;
+      gBackgroundFlushList = nsnull;
       if (gFlushTimer) {
         gFlushTimer->Cancel();
         NS_RELEASE(gFlushTimer);
@@ -313,7 +313,7 @@ FlushTimerCallback(nsITimer* aTimer, void* aClosure)
   }
   if (gBackgroundFlushList && gBackgroundFlushList->isEmpty()) {
     delete gBackgroundFlushList;
-    gBackgroundFlushList = nullptr;
+    gBackgroundFlushList = nsnull;
     gFlushTimer->Cancel();
     NS_RELEASE(gFlushTimer);
   }
@@ -340,7 +340,7 @@ nsHtml5TreeOpExecutor::ContinueInterruptedParsingAsync()
       // The timer value 50 should not hopefully slow down background pages too
       // much, yet lets event loop to process enough between ticks.
       // See bug 734015.
-      gFlushTimer->InitWithFuncCallback(FlushTimerCallback, nullptr,
+      gFlushTimer->InitWithFuncCallback(FlushTimerCallback, nsnull,
                                         50, nsITimer::TYPE_REPEATING_SLACK);
     }
   }
@@ -365,7 +365,7 @@ nsHtml5TreeOpExecutor::UpdateStyleSheet(nsIContent* aElement)
 
   bool willNotify;
   bool isAlternate;
-  nsresult rv = ssle->UpdateStyleSheet(mRunsToCompletion ? nullptr : this,
+  nsresult rv = ssle->UpdateStyleSheet(mRunsToCompletion ? nsnull : this,
                                        &willNotify,
                                        &isAlternate);
   if (NS_SUCCEEDED(rv) && willNotify && !isAlternate && !mRunsToCompletion) {
@@ -543,7 +543,7 @@ nsHtml5TreeOpExecutor::RunFlushLoop()
 
     mFlushState = eInFlush;
 
-    nsIContent* scriptElement = nullptr;
+    nsIContent* scriptElement = nsnull;
     
     BeginDocUpdate();
 
@@ -643,7 +643,7 @@ nsHtml5TreeOpExecutor::FlushDocumentWrite()
   mStage.AssertEmpty();
 #endif
   
-  nsIContent* scriptElement = nullptr;
+  nsIContent* scriptElement = nsnull;
   
   BeginDocUpdate();
 
@@ -898,9 +898,9 @@ nsHtml5TreeOpExecutor::MaybeComplainAboutCharset(const char* aMsgId,
                                   mDocument,
                                   nsContentUtils::eHTMLPARSER_PROPERTIES,
                                   aMsgId,
-                                  nullptr,
+                                  nsnull,
                                   0,
-                                  nullptr,
+                                  nsnull,
                                   EmptyString(),
                                   aLineNumber);
 }
@@ -941,12 +941,12 @@ nsHtml5TreeOpExecutor::Reset()
 void
 nsHtml5TreeOpExecutor::DropHeldElements()
 {
-  mScriptLoader = nullptr;
-  mDocument = nullptr;
-  mNodeInfoManager = nullptr;
-  mCSSLoader = nullptr;
-  mDocumentURI = nullptr;
-  mDocShell = nullptr;
+  mScriptLoader = nsnull;
+  mDocument = nsnull;
+  mNodeInfoManager = nsnull;
+  mCSSLoader = nsnull;
+  mDocumentURI = nsnull;
+  mDocShell = nsnull;
   mOwnedElements.Clear();
 }
 
@@ -1014,7 +1014,7 @@ already_AddRefed<nsIURI>
 nsHtml5TreeOpExecutor::ConvertIfNotPreloadedYet(const nsAString& aURL)
 {
   if (aURL.IsEmpty()) {
-    return nullptr;
+    return nsnull;
   }
   // The URL of the document without <base>
   nsIURI* documentURI = mDocument->GetDocumentURI();
@@ -1033,12 +1033,12 @@ nsHtml5TreeOpExecutor::ConvertIfNotPreloadedYet(const nsAString& aURL)
   nsresult rv = NS_NewURI(getter_AddRefs(uri), aURL, charset.get(), base);
   if (NS_FAILED(rv)) {
     NS_WARNING("Failed to create a URI");
-    return nullptr;
+    return nsnull;
   }
   nsCAutoString spec;
   uri->GetSpec(spec);
   if (mPreloadedURLs.Contains(spec)) {
-    return nullptr;
+    return nsnull;
   }
   mPreloadedURLs.PutEntry(spec);
   return uri.forget();

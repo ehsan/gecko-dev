@@ -713,13 +713,15 @@ Load(JSContext *cx, unsigned argc, jsval *vp)
         if (!filename)
             return false;
         errno = 0;
-        CompileOptions opts(cx);
-        opts.setCompileAndGo(true).setNoScriptRval(true);
-        if ((compileOnly && !Compile(cx, thisobj, opts, filename.ptr())) ||
-            !Evaluate(cx, thisobj, opts, filename.ptr(), NULL))
-        {
+        uint32_t oldopts = JS_GetOptions(cx);
+        JS_SetOptions(cx, oldopts | JSOPTION_COMPILE_N_GO | JSOPTION_NO_SCRIPT_RVAL);
+        JSScript *script = JS_CompileUTF8File(cx, thisobj, filename.ptr());
+        JS_SetOptions(cx, oldopts);
+        if (!script)
             return false;
-        }
+
+        if (!compileOnly && !JS_ExecuteScript(cx, thisobj, script, NULL))
+            return false;
     }
 
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
@@ -773,7 +775,7 @@ class AutoNewContext
 static JSBool
 Evaluate(JSContext *cx, unsigned argc, jsval *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
+    jsval *argv = JS_ARGV(cx, vp);
 
     if (argc < 1 || argc > 2) {
         JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL,
@@ -781,7 +783,7 @@ Evaluate(JSContext *cx, unsigned argc, jsval *vp)
                              "evaluate");
         return false;
     }
-    if (!args[0].isString() || (argc == 2 && args[1].isPrimitive())) {
+    if (!JSVAL_IS_STRING(argv[0]) || (argc == 2 && JSVAL_IS_PRIMITIVE(argv[1]))) {
         JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL, JSSMSG_INVALID_ARGS, "evaluate");
         return false;
     }
@@ -794,12 +796,12 @@ Evaluate(JSContext *cx, unsigned argc, jsval *vp)
     unsigned lineNumber = 1;
     RootedObject global(cx, NULL);
 
-    global = JS_GetGlobalForObject(cx, &args.callee());
+    global = JS_GetGlobalForObject(cx, JSVAL_TO_OBJECT(JS_CALLEE(cx, vp)));
     if (!global)
         return false;
 
     if (argc == 2) {
-        RootedObject options(cx, &args[1].toObject());
+        RootedObject options(cx, JSVAL_TO_OBJECT(argv[1]));
         jsval v;
 
         if (!JS_GetProperty(cx, options, "newContext", &v))
@@ -868,7 +870,7 @@ Evaluate(JSContext *cx, unsigned argc, jsval *vp)
         }
     }
 
-    RootedString code(cx, args[0].toString());
+    RootedString code(cx, JSVAL_TO_STRING(JS_ARGV(cx, vp)[0]));
 
     size_t codeLength;
     const jschar *codeChars = JS_GetStringCharsAndLength(cx, code, &codeLength);
@@ -1003,7 +1005,7 @@ Run(JSContext *cx, unsigned argc, jsval *vp)
         return false;
     }
 
-    RootedObject thisobj(cx, JS_THIS_OBJECT(cx, vp));
+    JSObject *thisobj = JS_THIS_OBJECT(cx, vp);
     if (!thisobj)
         return false;
 
@@ -1795,8 +1797,7 @@ DisassembleToString(JSContext *cx, unsigned argc, jsval *vp)
     bool ok = true;
     if (p.argc == 0) {
         /* Without arguments, disassemble the current script. */
-        RootedScript script(cx, GetTopScript(cx));
-        if (script) {
+        if (JSScript *script = GetTopScript(cx)) {
             if (js_Disassemble(cx, script, p.lines, &sprinter)) {
                 SrcNotes(cx, script, &sprinter);
                 TryNotes(cx, script, &sprinter);
@@ -1833,8 +1834,7 @@ Disassemble(JSContext *cx, unsigned argc, jsval *vp)
     bool ok = true;
     if (p.argc == 0) {
         /* Without arguments, disassemble the current script. */
-        RootedScript script(cx, GetTopScript(cx));
-        if (script) {
+        if (JSScript *script = GetTopScript(cx)) {
             if (js_Disassemble(cx, script, p.lines, &sprinter)) {
                 SrcNotes(cx, script, &sprinter);
                 TryNotes(cx, script, &sprinter);
@@ -1869,7 +1869,7 @@ DisassFile(JSContext *cx, unsigned argc, jsval *vp)
         return true;
     }
 
-    RootedObject thisobj(cx, JS_THIS_OBJECT(cx, vp));
+    JSObject *thisobj = JS_THIS_OBJECT(cx, vp);
     if (!thisobj)
         return false;
 
@@ -1905,7 +1905,7 @@ DisassWithSrc(JSContext *cx, unsigned argc, jsval *vp)
 {
 #define LINE_BUF_LEN 512
     unsigned i, len, line1, line2, bupline;
-    RootedScript script(cx);
+    JSScript *script;
     FILE *file;
     char linebuf[LINE_BUF_LEN];
     jsbytecode *pc, *end;
@@ -2181,8 +2181,10 @@ ZZ_formatter(JSContext *cx, const char *format, bool fromJS, jsval **vpp,
     } else {
         re = va_arg(ap, double);
         im = va_arg(ap, double);
-        vp[0] = JS_NumberValue(re);
-        vp[1] = JS_NumberValue(im);
+        if (!JS_NewNumberValue(cx, re, &vp[0]))
+            return false;
+        if (!JS_NewNumberValue(cx, im, &vp[1]))
+            return false;
     }
     *vpp = vp + 2;
     *app = ap;
@@ -2271,8 +2273,7 @@ Intern(JSContext *cx, unsigned argc, jsval *vp)
 static JSBool
 Clone(JSContext *cx, unsigned argc, jsval *vp)
 {
-    RootedObject parent(cx);
-    RootedObject funobj(cx);
+    JSObject *funobj, *parent, *clone;
 
     if (!argc) {
         JS_ReportError(cx, "Invalid arguments to clone");
@@ -2282,16 +2283,16 @@ Clone(JSContext *cx, unsigned argc, jsval *vp)
     jsval *argv = JS_ARGV(cx, vp);
     {
         JSAutoEnterCompartment ac;
-        RootedObject obj(cx, JSVAL_IS_PRIMITIVE(argv[0]) ? NULL : JSVAL_TO_OBJECT(argv[0]));
-
-        if (obj && IsCrossCompartmentWrapper(obj)) {
-            obj = UnwrapObject(obj);
+        if (!JSVAL_IS_PRIMITIVE(argv[0]) &&
+            IsCrossCompartmentWrapper(JSVAL_TO_OBJECT(argv[0])))
+        {
+            JSObject *obj = UnwrapObject(JSVAL_TO_OBJECT(argv[0]));
             if (!ac.enter(cx, obj))
                 return false;
-            argv[0] = ObjectValue(*obj);
+            argv[0] = OBJECT_TO_JSVAL(obj);
         }
-        if (obj && obj->isFunction()) {
-            funobj = obj;
+        if (!JSVAL_IS_PRIMITIVE(argv[0]) && JSVAL_TO_OBJECT(argv[0])->isFunction()) {
+            funobj = JSVAL_TO_OBJECT(argv[0]);
         } else {
             JSFunction *fun = JS_ValueToFunction(cx, argv[0]);
             if (!fun)
@@ -2309,13 +2310,13 @@ Clone(JSContext *cx, unsigned argc, jsval *vp)
     }
 
     if (argc > 1) {
-        if (!JS_ValueToObject(cx, argv[1], parent.address()))
+        if (!JS_ValueToObject(cx, argv[1], &parent))
             return false;
     } else {
         parent = JS_GetParent(JSVAL_TO_OBJECT(JS_CALLEE(cx, vp)));
     }
 
-    JSObject *clone = JS_CloneFunctionObject(cx, funobj, parent);
+    clone = JS_CloneFunctionObject(cx, funobj, parent);
     if (!clone)
         return false;
     *vp = OBJECT_TO_JSVAL(clone);
@@ -2325,20 +2326,20 @@ Clone(JSContext *cx, unsigned argc, jsval *vp)
 static JSBool
 GetPDA(JSContext *cx, unsigned argc, jsval *vp)
 {
-    RootedObject vobj(cx);
+    JSObject *vobj, *aobj, *pdobj;
     bool ok;
     JSPropertyDescArray pda;
     JSPropertyDesc *pd;
     jsval v;
 
-    if (!JS_ValueToObject(cx, argc == 0 ? JSVAL_VOID : vp[2], vobj.address()))
+    if (!JS_ValueToObject(cx, argc == 0 ? JSVAL_VOID : vp[2], &vobj))
         return false;
     if (!vobj) {
         *vp = JSVAL_VOID;
         return true;
     }
 
-    RootedObject aobj(cx, JS_NewArrayObject(cx, 0, NULL));
+    aobj = JS_NewArrayObject(cx, 0, NULL);
     if (!aobj)
         return false;
     *vp = OBJECT_TO_JSVAL(aobj);
@@ -2347,7 +2348,6 @@ GetPDA(JSContext *cx, unsigned argc, jsval *vp)
     if (!ok)
         return false;
     pd = pda.array;
-    RootedObject pdobj(cx);
     for (uint32_t i = 0; i < pda.length; i++, pd++) {
         pdobj = JS_NewObject(cx, NULL, NULL, NULL);
         if (!pdobj) {
@@ -2392,8 +2392,7 @@ ToInt32(JSContext *cx, unsigned argc, jsval *vp)
 
     if (!JS_ValueToInt32(cx, argc == 0 ? JSVAL_VOID : vp[2], &i))
         return false;
-    *vp = JS_NumberValue(i);
-    return true;
+    return JS_NewNumberValue(cx, i, vp);
 }
 
 static JSBool
@@ -2664,8 +2663,7 @@ ShapeOf(JSContext *cx, unsigned argc, JS::Value *vp)
         return false;
     }
     JSObject *obj = &v.toObject();
-    *vp = JS_NumberValue((double) ((uintptr_t)obj->lastProperty() >> 3));
-    return true;
+    return JS_NewNumberValue(cx, (double) ((uintptr_t)obj->lastProperty() >> 3), vp);
 }
 
 /*
@@ -2704,7 +2702,7 @@ CopyProperty(JSContext *cx, HandleObject obj, HandleObject referent, HandleId id
             desc.setter = JS_StrictPropertyStub;
         desc.shortid = shape->shortid();
         propFlags = shape->getFlags();
-    } else if (IsProxy(referent)) {
+   } else if (IsProxy(referent)) {
         PropertyDescriptor desc;
         if (!Proxy::getOwnPropertyDescriptor(cx, referent, id, false, &desc))
             return false;
@@ -2715,21 +2713,18 @@ CopyProperty(JSContext *cx, HandleObject obj, HandleObject referent, HandleId id
             return false;
         if (objp != referent)
             return true;
-        RootedValue value(cx);
-        if (!referent->getGeneric(cx, id, &value) ||
+        if (!referent->getGeneric(cx, id, &desc.value) ||
             !referent->getGenericAttributes(cx, id, &desc.attrs)) {
             return false;
         }
-        desc.value = value;
         desc.attrs &= JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT;
         desc.getter = JS_PropertyStub;
         desc.setter = JS_StrictPropertyStub;
         desc.shortid = 0;
     }
 
-    RootedValue value(cx, desc.value);
     objp.set(obj);
-    return !!DefineNativeProperty(cx, obj, id, value, desc.getter, desc.setter,
+    return !!DefineNativeProperty(cx, obj, id, desc.value, desc.getter, desc.setter,
                                   desc.attrs, propFlags, desc.shortid);
 }
 
@@ -2771,15 +2766,13 @@ static JSClass resolver_class = {
 static JSBool
 Resolver(JSContext *cx, unsigned argc, jsval *vp)
 {
-    RootedObject referent(cx, NULL);
-    RootedObject proto(cx, NULL);
+    JSObject *referent, *proto = NULL;
     if (!JS_ConvertArguments(cx, argc, JS_ARGV(cx, vp), "o/o", &referent, &proto))
         return false;
 
-    RootedObject parent(cx, JS_GetParent(referent));
     JSObject *result = (argc > 1
                         ? JS_NewObjectWithGivenProto
-                        : JS_NewObject)(cx, &resolver_class, proto, parent);
+                        : JS_NewObject)(cx, &resolver_class, proto, JS_GetParent(referent));
     if (!result)
         return false;
 
@@ -3059,10 +3052,8 @@ SetTimeoutValue(JSContext *cx, double t)
 static JSBool
 Timeout(JSContext *cx, unsigned argc, jsval *vp)
 {
-    if (argc == 0) {
-        *vp = JS_NumberValue(gTimeoutInterval);
-        return true;
-    }
+    if (argc == 0)
+        return JS_NewNumberValue(cx, gTimeoutInterval, vp);
 
     if (argc > 1) {
         JS_ReportError(cx, "Wrong number of arguments");
@@ -3085,8 +3076,7 @@ Elapsed(JSContext *cx, unsigned argc, jsval *vp)
         JSShellContextData *data = GetContextData(cx);
         if (data)
             d = PRMJ_Now() - data->startTime;
-        *vp = JS_NumberValue(d);
-        return true;
+        return JS_NewNumberValue(cx, d, vp);
     }
     JS_ReportError(cx, "Wrong number of arguments");
     return false;
@@ -3184,7 +3174,7 @@ Compile(JSContext *cx, unsigned argc, jsval *vp)
         return false;
     }
 
-    RootedObject global(cx, JS_GetGlobalForScopeChain(cx));
+    JSObject *global = JS_GetGlobalForScopeChain(cx);
     JSString *scriptContents = JSVAL_TO_STRING(arg0);
     unsigned oldopts = JS_GetOptions(cx);
     JS_SetOptions(cx, oldopts | JSOPTION_COMPILE_N_GO | JSOPTION_NO_SCRIPT_RVAL);
@@ -3444,22 +3434,18 @@ NewGlobal(JSContext *cx, unsigned argc, jsval *vp)
 static JSBool
 ParseLegacyJSON(JSContext *cx, unsigned argc, jsval *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-
-    if (argc != 1 || !JSVAL_IS_STRING(args[0])) {
+    if (argc != 1 || !JSVAL_IS_STRING(JS_ARGV(cx, vp)[0])) {
         JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL, JSSMSG_INVALID_ARGS, "parseLegacyJSON");
         return false;
     }
 
-    JSString *str = JSVAL_TO_STRING(args[0]);
+    JSString *str = JSVAL_TO_STRING(JS_ARGV(cx, vp)[0]);
 
     size_t length;
     const jschar *chars = JS_GetStringCharsAndLength(cx, str, &length);
     if (!chars)
         return false;
-
-    RootedValue value(cx, NullValue());
-    return js::ParseJSONWithReviver(cx, chars, length, value, args.rval(), LEGACY);
+    return js::ParseJSONWithReviver(cx, chars, length, js::NullValue(), vp, LEGACY);
 }
 
 static JSBool
@@ -3859,7 +3845,7 @@ PrintHelpString(JSContext *cx, jsval v)
 }
 
 static bool
-PrintHelp(JSContext *cx, HandleObject obj)
+PrintHelp(JSContext *cx, JSObject *obj)
 {
     jsval usage, help;
     if (!JS_LookupProperty(cx, obj, "usage", &usage))
@@ -3878,9 +3864,8 @@ Help(JSContext *cx, unsigned argc, jsval *vp)
 {
     fprintf(gOutFile, "%s\n", JS_GetImplementationVersion());
 
-    RootedObject obj(cx);
     if (argc == 0) {
-        RootedObject global(cx, JS_GetGlobalObject(cx));
+        JSObject *global = JS_GetGlobalObject(cx);
         AutoIdArray ida(cx, JS_Enumerate(cx, global));
         if (!ida)
             return false;
@@ -3889,15 +3874,13 @@ Help(JSContext *cx, unsigned argc, jsval *vp)
             jsval v;
             if (!JS_LookupPropertyById(cx, global, ida[i], &v))
                 return false;
-            obj = JSVAL_TO_OBJECT(v);
-            if (!JSVAL_IS_PRIMITIVE(v) && !PrintHelp(cx, obj))
+            if (!JSVAL_IS_PRIMITIVE(v) && !PrintHelp(cx, JSVAL_TO_OBJECT(v)))
                 return false;
         }
     } else {
         jsval *argv = JS_ARGV(cx, vp);
         for (unsigned i = 0; i < argc; i++) {
-            obj = JSVAL_TO_OBJECT(argv[i]);
-            if (!JSVAL_IS_PRIMITIVE(argv[i]) && !PrintHelp(cx, obj))
+            if (!JSVAL_IS_PRIMITIVE(argv[i]) && !PrintHelp(cx, JSVAL_TO_OBJECT(argv[i])))
                 return false;
         }
     }
@@ -3916,10 +3899,10 @@ enum its_tinyid {
 };
 
 static JSBool
-its_getter(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp);
+its_getter(JSContext *cx, HandleObject obj, HandleId id, jsval *vp);
 
 static JSBool
-its_setter(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, MutableHandleValue vp);
+its_setter(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, jsval *vp);
 
 static JSBool
 its_get_customNative(JSContext *cx, unsigned argc, jsval *vp);
@@ -3949,51 +3932,51 @@ static JSBool its_noisy;    /* whether to be noisy when finalizing it */
 static JSBool its_enum_fail;/* whether to fail when enumerating it */
 
 static JSBool
-its_addProperty(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp)
+its_addProperty(JSContext *cx, HandleObject obj, HandleId id, jsval *vp)
 {
     if (!its_noisy)
         return true;
 
     IdStringifier idString(cx, id);
     fprintf(gOutFile, "adding its property %s,", idString.getBytes());
-    ToStringHelper valueString(cx, vp);
+    ToStringHelper valueString(cx, *vp);
     fprintf(gOutFile, " initial value %s\n", valueString.getBytes());
     return true;
 }
 
 static JSBool
-its_delProperty(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp)
+its_delProperty(JSContext *cx, HandleObject obj, HandleId id, jsval *vp)
 {
     if (!its_noisy)
         return true;
 
     IdStringifier idString(cx, id);
     fprintf(gOutFile, "deleting its property %s,", idString.getBytes());
-    ToStringHelper valueString(cx, vp);
+    ToStringHelper valueString(cx, *vp);
     fprintf(gOutFile, " initial value %s\n", valueString.getBytes());
     return true;
 }
 
 static JSBool
-its_getProperty(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp)
+its_getProperty(JSContext *cx, HandleObject obj, HandleId id, jsval *vp)
 {
     if (!its_noisy)
         return true;
 
     IdStringifier idString(cx, id);
     fprintf(gOutFile, "getting its property %s,", idString.getBytes());
-    ToStringHelper valueString(cx, vp);
+    ToStringHelper valueString(cx, *vp);
     fprintf(gOutFile, " initial value %s\n", valueString.getBytes());
     return true;
 }
 
 static JSBool
-its_setProperty(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, MutableHandleValue vp)
+its_setProperty(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, jsval *vp)
 {
     IdStringifier idString(cx, id);
     if (its_noisy) {
         fprintf(gOutFile, "setting its property %s,", idString.getBytes());
-        ToStringHelper valueString(cx, vp);
+        ToStringHelper valueString(cx, *vp);
         fprintf(gOutFile, " new value %s\n", valueString.getBytes());
     }
 
@@ -4001,9 +3984,9 @@ its_setProperty(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, Mut
         return true;
 
     if (!strcmp(idString.getBytes(), "noisy"))
-        JS_ValueToBoolean(cx, vp, &its_noisy);
+        JS_ValueToBoolean(cx, *vp, &its_noisy);
     else if (!strcmp(idString.getBytes(), "enum_fail"))
-        JS_ValueToBoolean(cx, vp, &its_enum_fail);
+        JS_ValueToBoolean(cx, *vp, &its_enum_fail);
 
     return true;
 }
@@ -4016,7 +3999,7 @@ static JSBool
 its_enumerate(JSContext *cx, HandleObject obj, JSIterateOp enum_op,
               jsval *statep, jsid *idp)
 {
-    RootedObject iterator(cx);
+    JSObject *iterator;
 
     switch (enum_op) {
       case JSENUMERATE_INIT:
@@ -4072,7 +4055,7 @@ its_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
 }
 
 static JSBool
-its_convert(JSContext *cx, HandleObject obj, JSType type, MutableHandleValue vp)
+its_convert(JSContext *cx, HandleObject obj, JSType type, jsval *vp)
 {
     if (its_noisy)
         fprintf(gOutFile, "converting it to %s type\n", JS_GetTypeName(cx, type));
@@ -4101,27 +4084,27 @@ static JSClass its_class = {
 };
 
 static JSBool
-its_getter(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp)
+its_getter(JSContext *cx, HandleObject obj, HandleId id, jsval *vp)
 {
     if (JS_GetClass(obj) == &its_class) {
         jsval *val = (jsval *) JS_GetPrivate(obj);
-        vp.set(val ? *val : JSVAL_VOID);
+        *vp = val ? *val : JSVAL_VOID;
     } else {
-        vp.set(JSVAL_VOID);
+        *vp = JSVAL_VOID;
     }
 
     return true;
 }
 
 static JSBool
-its_setter(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, MutableHandleValue vp)
+its_setter(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, jsval *vp)
 {
     if (JS_GetClass(obj) != &its_class)
         return true;
 
     jsval *val = (jsval *) JS_GetPrivate(obj);
     if (val) {
-        *val = vp;
+        *val = *vp;
         return true;
     }
 
@@ -4138,7 +4121,7 @@ its_setter(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, MutableH
 
     JS_SetPrivate(obj, (void*)val);
 
-    *val = vp;
+    *val = *vp;
     return true;
 }
 
@@ -4448,7 +4431,7 @@ JSClass global_class = {
 };
 
 static JSBool
-env_setProperty(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, MutableHandleValue vp)
+env_setProperty(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, jsval *vp)
 {
 /* XXX porting may be easy, but these don't seem to supply setenv by default */
 #if !defined XP_OS2 && !defined SOLARIS
@@ -4457,7 +4440,7 @@ env_setProperty(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, Mut
     IdStringifier idstr(cx, id, true);
     if (idstr.threw())
         return false;
-    ToStringHelper valstr(cx, vp, true);
+    ToStringHelper valstr(cx, *vp, true);
     if (valstr.threw())
         return false;
 #if defined XP_WIN || defined HPUX || defined OSF1
@@ -4486,7 +4469,7 @@ env_setProperty(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, Mut
         JS_ReportError(cx, "can't set env variable %s to %s", idstr.getBytes(), valstr.getBytes());
         return false;
     }
-    vp.set(valstr.getJSVal());
+    *vp = valstr.getJSVal();
 #endif /* !defined XP_OS2 && !defined SOLARIS */
     return true;
 }
@@ -4644,7 +4627,7 @@ NewGlobalObject(JSContext *cx)
         if (!js::DefineTestingFunctions(cx, glob))
             return NULL;
 
-        RootedObject it(cx, JS_DefineObject(cx, glob, "it", &its_class, NULL, 0));
+        JSObject *it = JS_DefineObject(cx, glob, "it", &its_class, NULL, 0);
         if (!it)
             return NULL;
         if (!JS_DefineProperties(cx, it, its_props))

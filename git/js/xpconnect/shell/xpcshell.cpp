@@ -89,9 +89,9 @@ public:
     ~XPCShellDirProvider() { }
 
     bool SetGREDir(const char *dir);
-    void ClearGREDir() { mGREDir = nullptr; }
+    void ClearGREDir() { mGREDir = nsnull; }
     void SetAppFile(nsIFile *appFile);
-    void ClearAppFile() { mAppFile = nullptr; }
+    void ClearAppFile() { mAppFile = nsnull; }
 
 private:
     nsCOMPtr<nsIFile> mGREDir;
@@ -124,11 +124,11 @@ JSBool gQuitting = false;
 static JSBool reportWarnings = true;
 static JSBool compileOnly = false;
 
-JSPrincipals *gJSPrincipals = nullptr;
-nsAutoString *gWorkingDirectory = nullptr;
+JSPrincipals *gJSPrincipals = nsnull;
+nsAutoString *gWorkingDirectory = nsnull;
 
 static JSBool
-GetLocationProperty(JSContext *cx, JSHandleObject obj, JSHandleId id, JSMutableHandleValue vp)
+GetLocationProperty(JSContext *cx, JSHandleObject obj, JSHandleId id, jsval *vp)
 {
 #if !defined(XP_WIN) && !defined(XP_UNIX)
     //XXX: your platform should really implement this
@@ -201,7 +201,7 @@ GetLocationProperty(JSContext *cx, JSHandleObject obj, JSHandleId id, JSMutableH
 
             if (NS_SUCCEEDED(rv) &&
                 NS_SUCCEEDED(locationHolder->GetJSObject(&locationObj))) {
-                vp.set(OBJECT_TO_JSVAL(locationObj));
+                *vp = OBJECT_TO_JSVAL(locationObj);
             }
         }
     }
@@ -258,14 +258,14 @@ my_ErrorReporter(JSContext *cx, const char *message, JSErrorReport *report)
 
     // Don't report an exception from inner JS frames as the callers may intend
     // to handle it.
-    if (JS_DescribeScriptedCaller(cx, nullptr, nullptr)) {
+    if (JS_DescribeScriptedCaller(cx, nsnull, nsnull)) {
         return;
     }
 
     // In some cases cx->fp is null here so use XPConnect to tell us about inner
     // frames.
     if ((xpc = do_GetService(nsIXPConnect::GetCID()))) {
-        nsAXPCNativeCallContext *cc = nullptr;
+        nsAXPCNativeCallContext *cc = nsnull;
         xpc->GetCurrentNativeCallContext(&cc);
         if (cc) {
             nsAXPCNativeCallContext *prev = cc;
@@ -648,7 +648,7 @@ SendCommand(JSContext* cx,
         return false;
     }
 
-    if (!XRE_SendTestShellCommand(cx, str, argc > 1 ? &argv[1] : nullptr)) {
+    if (!XRE_SendTestShellCommand(cx, str, argc > 1 ? &argv[1] : nsnull)) {
         JS_ReportError(cx, "Couldn't send command!");
         return false;
     }
@@ -805,17 +805,17 @@ static JSFunctionSpec glob_functions[] = {
 #endif
     {"sendCommand",     SendCommand,    1,0},
     {"getChildGlobalObject", GetChildGlobalObject, 0,0},
-    {nullptr,nullptr,0,0}
+    {nsnull,nsnull,0,0}
 };
 
 JSClass global_class = {
     "global", 0,
     JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,  JS_StrictPropertyStub,
-    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   nullptr
+    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   nsnull
 };
 
 static JSBool
-env_setProperty(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool strict, JSMutableHandleValue vp)
+env_setProperty(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool strict, jsval *vp)
 {
 /* XXX porting may be easy, but these don't seem to supply setenv by default */
 #if !defined XP_OS2 && !defined SOLARIS
@@ -827,7 +827,7 @@ env_setProperty(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool strict,
         return false;
 
     idstr = JS_ValueToString(cx, idval);
-    valstr = JS_ValueToString(cx, vp);
+    valstr = JS_ValueToString(cx, *vp);
     if (!idstr || !valstr)
         return false;
     JSAutoByteString name(cx, idstr);
@@ -862,7 +862,7 @@ env_setProperty(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool strict,
         JS_ReportError(cx, "can't set envariable %s to %s", name.ptr(), value.ptr());
         return false;
     }
-    vp.set(STRING_TO_JSVAL(valstr));
+    *vp = STRING_TO_JSVAL(valstr);
 #endif /* !defined XP_OS2 && !defined SOLARIS */
     return true;
 }
@@ -937,7 +937,7 @@ static JSClass env_class = {
     JS_PropertyStub,  JS_PropertyStub,
     JS_PropertyStub,  env_setProperty,
     env_enumerate, (JSResolveOp) env_resolve,
-    JS_ConvertStub,   nullptr
+    JS_ConvertStub,   nsnull
 };
 
 /***************************************************************************/
@@ -1269,7 +1269,7 @@ NS_IMPL_RELEASE(FullTrustSecMan)
 
 FullTrustSecMan::FullTrustSecMan()
 {
-  mSystemPrincipal = nullptr;
+  mSystemPrincipal = nsnull;
 }
 
 FullTrustSecMan::~FullTrustSecMan()
@@ -1504,7 +1504,7 @@ FullTrustSecMan::GetCxSubjectPrincipal(JSContext *cx)
 NS_IMETHODIMP_(nsIPrincipal *)
 FullTrustSecMan::GetCxSubjectPrincipalAndFrame(JSContext *cx, JSStackFrame **fp)
 {
-    *fp = nullptr;
+    *fp = nsnull;
     return mSystemPrincipal;
 }
 
@@ -1595,7 +1595,7 @@ nsXPCFunctionThisTranslator::TranslateThis(nsISupports *aInitialThis,
     NS_IF_ADDREF(aInitialThis);
     *_retval = aInitialThis;
     *aHideFirstParamFromJS = false;
-    *aIIDOfResult = nullptr;
+    *aIIDOfResult = nsnull;
     return NS_OK;
 }
 
@@ -1635,8 +1635,8 @@ GetCurrentWorkingDirectory(nsAString& workingDirectory)
     nsCAutoString cwd;
     // 1024 is just a guess at a sane starting value
     size_t bufsize = 1024;
-    char* result = nullptr;
-    while (result == nullptr) {
+    char* result = nsnull;
+    while (result == nsnull) {
         if (!cwd.SetLength(bufsize))
             return false;
         result = getcwd(cwd.BeginWriting(), cwd.Length());
@@ -1845,7 +1845,7 @@ main(int argc, char **argv, char **envp)
 #ifdef TEST_TranslateThis
         nsCOMPtr<nsIXPCFunctionThisTranslator>
             translator(new nsXPCFunctionThisTranslator);
-        xpc->SetFunctionThisTranslator(NS_GET_IID(nsITestXPCFunctionCallback), translator, nullptr);
+        xpc->SetFunctionThisTranslator(NS_GET_IID(nsITestXPCFunctionCallback), translator, nsnull);
 #endif
 
         nsCOMPtr<nsIJSContextStack> cxstack = do_GetService("@mozilla.org/js/xpc/ContextStack;1");
@@ -1878,7 +1878,7 @@ main(int argc, char **argv, char **envp)
 
         rv = holder->GetJSObject(&glob);
         if (NS_FAILED(rv)) {
-            NS_ASSERTION(glob == nullptr, "bad GetJSObject?");
+            NS_ASSERTION(glob == nsnull, "bad GetJSObject?");
             return 1;
         }
 
@@ -1936,7 +1936,7 @@ main(int argc, char **argv, char **envp)
             JSContext *oldcx;
             cxstack->Pop(&oldcx);
             NS_ASSERTION(oldcx == cx, "JS thread context push/pop mismatch");
-            cxstack = nullptr;
+            cxstack = nsnull;
             JS_GC(rt);
         } //this scopes the JSAutoCrossCompartmentCall
         JS_EndRequest(cx);
@@ -1961,11 +1961,11 @@ main(int argc, char **argv, char **envp)
     // test of late call and release (see above)
     JSContext* bogusCX;
     bogus->Peek(&bogusCX);
-    bogus = nullptr;
+    bogus = nsnull;
 #endif
 
-    appDir = nullptr;
-    appFile = nullptr;
+    appDir = nsnull;
+    appFile = nsnull;
     dirprovider.ClearGREDir();
     dirprovider.ClearAppFile();
 
@@ -1973,7 +1973,7 @@ main(int argc, char **argv, char **envp)
     // Shut down the crashreporter service to prevent leaking some strings it holds.
     if (crashReporter) {
         crashReporter->SetEnabled(false);
-        crashReporter = nullptr;
+        crashReporter = nsnull;
     }
 #endif
 

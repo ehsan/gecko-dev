@@ -143,7 +143,7 @@ bool nsVoidArray::SizeTo(PRInt32 aSize)
           static_cast<nsAutoVoidArray*>(this)->ResetToAutoBuffer();
         }
         else {
-          mImpl = nullptr;
+          mImpl = nsnull;
         }
       }
       else
@@ -267,7 +267,7 @@ bool nsVoidArray::GrowArrayBy(PRInt32 aGrowBy)
 }
 
 nsVoidArray::nsVoidArray()
-  : mImpl(nullptr)
+  : mImpl(nsnull)
 {
   MOZ_COUNT_CTOR(nsVoidArray);
 #if DEBUG_VOIDARRAY
@@ -280,7 +280,7 @@ nsVoidArray::nsVoidArray()
 }
 
 nsVoidArray::nsVoidArray(PRInt32 aCount)
-  : mImpl(nullptr)
+  : mImpl(nsnull)
 {
   MOZ_COUNT_CTOR(nsVoidArray);
 #if DEBUG_VOIDARRAY
@@ -782,7 +782,7 @@ nsSmallVoidArray::~nsSmallVoidArray()
   if (HasSingle())
   {
     // Have to null out mImpl before the nsVoidArray dtor runs.
-    mImpl = nullptr;
+    mImpl = nsnull;
   }
 }
 
@@ -933,7 +933,7 @@ nsSmallVoidArray::RemoveElement(void* aElement)
 {
   if (HasSingle()) {
     if (aElement == GetSingle()) {
-      mImpl = nullptr;
+      mImpl = nsnull;
       return true;
     }
     
@@ -948,7 +948,7 @@ nsSmallVoidArray::RemoveElementAt(PRInt32 aIndex)
 {
   if (HasSingle()) {
     if (aIndex == 0) {
-      mImpl = nullptr;
+      mImpl = nsnull;
 
       return true;
     }
@@ -965,7 +965,7 @@ nsSmallVoidArray::RemoveElementsAt(PRInt32 aIndex, PRInt32 aCount)
   if (HasSingle()) {
     if (aIndex == 0) {
       if (aCount > 0) {
-        mImpl = nullptr;
+        mImpl = nsnull;
       }
 
       return true;
@@ -981,7 +981,7 @@ void
 nsSmallVoidArray::Clear()
 {
   if (HasSingle()) {
-    mImpl = nullptr;
+    mImpl = nsnull;
   }
   else {
     AsArray()->Clear();
@@ -996,7 +996,7 @@ nsSmallVoidArray::SizeTo(PRInt32 aMin)
   }
 
   if (aMin <= 0) {
-    mImpl = nullptr;
+    mImpl = nsnull;
 
     return true;
   }
@@ -1006,7 +1006,7 @@ nsSmallVoidArray::SizeTo(PRInt32 aMin)
   }
 
   void* single = GetSingle();
-  mImpl = nullptr;
+  mImpl = nsnull;
   if (!AsArray()->SizeTo(aMin)) {
     SetSingle(single);
 
@@ -1060,7 +1060,7 @@ nsSmallVoidArray::EnsureArray()
   }
 
   void* single = GetSingle();
-  mImpl = nullptr;
+  mImpl = nsnull;
   if (!AsArray()->AppendElement(single)) {
     SetSingle(single);
 

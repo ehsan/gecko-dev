@@ -36,17 +36,17 @@ public:
     nsrefcnt Release(void);
 
     // These functions exist so that browsercomps can refcount a gfxASurface
-    virtual nsrefcnt AddRefExternal(void)
+    virtual nsresult AddRefExternal(void)
     {
       return AddRef();
     }
-    virtual nsrefcnt ReleaseExternal(void)
+    virtual nsresult ReleaseExternal(void)
     {
       return Release();
     }
 #else
-    virtual nsrefcnt AddRef(void);
-    virtual nsrefcnt Release(void);
+    virtual nsresult AddRef(void);
+    virtual nsresult Release(void);
 #endif
 
 public:
@@ -106,7 +106,7 @@ public:
 
     /*** this DOES NOT addref the surface */
     cairo_surface_t *CairoSurface() {
-        NS_ASSERTION(mSurface != nullptr, "gfxASurface::CairoSurface called with mSurface == nullptr!");
+        NS_ASSERTION(mSurface != nsnull, "gfxASurface::CairoSurface called with mSurface == nsnull!");
         return mSurface;
     }
 
@@ -146,13 +146,13 @@ public:
                                                                const gfxIntSize& aSize);
 
     /**
-     * Returns an image surface for this surface, or nullptr if not supported.
+     * Returns an image surface for this surface, or nsnull if not supported.
      * This will not copy image data, just wraps an image surface around
      * pixel data already available in memory.
      */
     virtual already_AddRefed<gfxImageSurface> GetAsImageSurface()
     {
-      return nullptr;
+      return nsnull;
     }
 
     int CairoStatus();
@@ -248,7 +248,7 @@ public:
 
     void SetOpaqueRect(const gfxRect& aRect) {
         if (aRect.IsEmpty()) {
-            mOpaqueRect = nullptr;
+            mOpaqueRect = nsnull;
         } else if (mOpaqueRect) {
             *mOpaqueRect = aRect;
         } else {
@@ -282,7 +282,7 @@ public:
     bool GetAllowUseAsSource() { return mAllowUseAsSource; }
 
 protected:
-    gfxASurface() : mSurface(nullptr), mFloatingRefs(0), mBytesRecorded(0),
+    gfxASurface() : mSurface(nsnull), mFloatingRefs(0), mBytesRecorded(0),
                     mSurfaceValid(false), mAllowUseAsSource(true)
     {
         MOZ_COUNT_CTOR(gfxASurface);
@@ -370,7 +370,7 @@ public:
     RawRef mRef;
   };
 
-  static RawRef Void() { return nullptr; }
+  static RawRef Void() { return nsnull; }
   static void Release(RawRef aRawRef)
   {
     if (NS_IsMainThread()) {

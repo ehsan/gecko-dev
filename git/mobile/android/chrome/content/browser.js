@@ -1960,6 +1960,13 @@ var UserAgent = {
         if (tab == null)
           break;
 
+        if (channel.URI.host.indexOf("youtube") != -1) {
+          let ua = Cc["@mozilla.org/network/protocol;1?name=http"].getService(Ci.nsIHttpProtocolHandler).userAgent;
+#expand let version = "__MOZ_APP_VERSION__";
+          ua += " Fennec/" + version;
+          channel.setRequestHeader("User-Agent", ua, false);
+        }
+
         // Send desktop UA if "Request Desktop Site" is enabled
         if (tab.desktopMode)
           channel.setRequestHeader("User-Agent", this.DESKTOP_UA, false);
@@ -2971,37 +2978,33 @@ Tab.prototype = {
   onStatusChange: function(aBrowser, aWebProgress, aRequest, aStatus, aMessage) {
   },
 
-  _sendHistoryEvent: function(aMessage, aParams) {
+  _sendHistoryEvent: function(aMessage, aIndex, aUri) {
     let message = {
       gecko: {
         type: "SessionHistory:" + aMessage,
         tabID: this.id,
       }
     };
-
-    if (aParams) {
-      if ("url" in aParams)
-        message.gecko.url = aParams.url;
-      if ("index" in aParams)
-        message.gecko.index = aParams.index;
-      if ("numEntries" in aParams)
-        message.gecko.numEntries = aParams.numEntries;
+    if (aIndex != -1) {
+      message.gecko.index = aIndex;
     }
-
+    if (aUri != null) {
+      message.gecko.uri = aUri;
+    }
     sendMessageToJava(message);
   },
 
   OnHistoryNewEntry: function(aUri) {
-    this._sendHistoryEvent("New", { url: aUri.spec });
+    this._sendHistoryEvent("New", -1, aUri.spec);
   },
 
   OnHistoryGoBack: function(aUri) {
-    this._sendHistoryEvent("Back");
+    this._sendHistoryEvent("Back", -1, null);
     return true;
   },
 
   OnHistoryGoForward: function(aUri) {
-    this._sendHistoryEvent("Forward");
+    this._sendHistoryEvent("Forward", -1, null);
     return true;
   },
 
@@ -3012,12 +3015,12 @@ Tab.prototype = {
   },
 
   OnHistoryGotoIndex: function(aIndex, aUri) {
-    this._sendHistoryEvent("Goto", { index: aIndex });
+    this._sendHistoryEvent("Goto", aIndex, null);
     return true;
   },
 
   OnHistoryPurge: function(aNumEntries) {
-    this._sendHistoryEvent("Purge", { numEntries: aNumEntries });
+    this._sendHistoryEvent("Purge", aNumEntries, null);
     return true;
   },
 
@@ -3229,6 +3232,8 @@ Tab.prototype = {
     Ci.nsIBrowserTab
   ])
 };
+
+const kTapHighlightDelay = 50; // milliseconds
 
 var BrowserEventHandler = {
   init: function init() {
@@ -3467,22 +3472,42 @@ var BrowserEventHandler = {
 
   _highlightElement: null,
 
+  _highlightTimeout: null,
+
   _doTapHighlight: function _doTapHighlight(aElement) {
-    DOMUtils.setContentState(aElement, kStateActive);
-    this._highlightElement = aElement;
+    this._cancelTapHighlight();
+    this._highlightTimeout = setTimeout(function(self) {
+      // If aElement is from a dead window, defaultView will be null.
+      if (!aElement.ownerDocument.defaultView)
+        return;
+
+      DOMUtils.setContentState(aElement, kStateActive);
+      self._highlightElement = aElement;
+    }, kTapHighlightDelay, this);
   },
 
   _cancelTapHighlight: function _cancelTapHighlight() {
+    if (this._highlightTimeout) {
+      clearTimeout(this._highlightTimeout);
+      this._highlightTimeout = null;
+    }
+
     if (!this._highlightElement)
+      return;
+
+    let ownerDocument = this._highlightElement.ownerDocument;
+    this._highlightElement = null;
+
+    // If _highlightElement is from a dead window, defaultView will be null.
+    if (!ownerDocument.defaultView)
       return;
 
     // If the active element is in a sub-frame, we need to make that frame's document
     // active to remove the element's active state.
-    if (this._highlightElement.ownerDocument != BrowserApp.selectedBrowser.contentWindow.document)
-      DOMUtils.setContentState(this._highlightElement.ownerDocument.documentElement, kStateActive);
+    if (ownerDocument != BrowserApp.selectedBrowser.contentWindow.document)
+      DOMUtils.setContentState(ownerDocument.documentElement, kStateActive);
 
     DOMUtils.setContentState(BrowserApp.selectedBrowser.contentWindow.document.documentElement, kStateActive);
-    this._highlightElement = null;
   },
 
   _updateLastPosition: function(x, y, dx, dy) {
@@ -5894,12 +5919,6 @@ var WebappsUI = {
             return;
           let manifest = new DOMApplicationManifest(aManifest, data.origin);
 
-          // The manifest is stored as UTF-8, sendMessageToJava expects UTF-16. Convert before sending
-          let converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"].createInstance(Ci.nsIScriptableUnicodeConverter);
-          converter.charset = "UTF-8";
-          let name = manifest.name ? converter.ConvertToUnicode(manifest.name) :
-                                     converter.ConvertToUnicode(manifest.fullLaunchPath());
-
           // Add a homescreen shortcut -- we can't use createShortcut, since we need to pass
           // a unique ID for Android webapp allocation
           this.makeBase64Icon(this.getBiggestIcon(manifest.icons, Services.io.newURI(data.origin, null, null)),
@@ -5907,7 +5926,7 @@ var WebappsUI = {
                                 sendMessageToJava({
                                   gecko: {
                                     type: "WebApps:Install",
-                                    name: name,
+                                    name: manifest.name,
                                     launchPath: manifest.fullLaunchPath(),
                                     iconURL: icon,
                                     uniqueURI: data.origin

@@ -27,7 +27,7 @@ nsSVGElement::LengthInfo nsSVGMarkerElement::sLengthInfo[4] =
 nsSVGEnumMapping nsSVGMarkerElement::sUnitsMap[] = {
   {&nsGkAtoms::strokeWidth, nsIDOMSVGMarkerElement::SVG_MARKERUNITS_STROKEWIDTH},
   {&nsGkAtoms::userSpaceOnUse, nsIDOMSVGMarkerElement::SVG_MARKERUNITS_USERSPACEONUSE},
-  {nullptr, 0}
+  {nsnull, 0}
 };
 
 nsSVGElement::EnumInfo nsSVGMarkerElement::sEnumInfo[1] =
@@ -82,7 +82,7 @@ nsSVGOrientType::SetBaseValue(PRUint16 aValue,
       aValue == nsIDOMSVGMarkerElement::SVG_MARKER_ORIENT_ANGLE) {
     SetBaseValue(aValue);
     aSVGElement->SetAttr(
-      kNameSpaceID_None, nsGkAtoms::orient, nullptr,
+      kNameSpaceID_None, nsGkAtoms::orient, nsnull,
       (aValue ==nsIDOMSVGMarkerElement::SVG_MARKER_ORIENT_AUTO ?
         NS_LITERAL_STRING("auto") : NS_LITERAL_STRING("0")),
       true);
@@ -104,7 +104,7 @@ nsSVGOrientType::ToDOMAnimatedEnum(nsIDOMSVGAnimatedEnumeration **aResult,
 }
 
 nsSVGMarkerElement::nsSVGMarkerElement(already_AddRefed<nsINodeInfo> aNodeInfo)
-  : nsSVGMarkerElementBase(aNodeInfo), mCoordCtx(nullptr)
+  : nsSVGMarkerElementBase(aNodeInfo), mCoordCtx(nsnull)
 {
 }
 
@@ -178,7 +178,7 @@ NS_IMETHODIMP nsSVGMarkerElement::GetOrientAngle(nsIDOMSVGAnimatedAngle * *aOrie
 /* void setOrientToAuto (); */
 NS_IMETHODIMP nsSVGMarkerElement::SetOrientToAuto()
 {
-  SetAttr(kNameSpaceID_None, nsGkAtoms::orient, nullptr,
+  SetAttr(kNameSpaceID_None, nsGkAtoms::orient, nsnull,
           NS_LITERAL_STRING("auto"), true);
   return NS_OK;
 }
@@ -272,7 +272,7 @@ void
 nsSVGMarkerElement::SetParentCoordCtxProvider(nsSVGSVGElement *aContext)
 {
   mCoordCtx = aContext;
-  mViewBoxToViewportTransform = nullptr;
+  mViewBoxToViewportTransform = nsnull;
 }
 
 /* virtual */ bool

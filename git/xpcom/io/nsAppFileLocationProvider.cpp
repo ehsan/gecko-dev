@@ -91,7 +91,7 @@ nsAppFileLocationProvider::GetFile(const char *prop, bool *persistent, nsIFile *
     nsresult rv = NS_ERROR_FAILURE;
 
     NS_ENSURE_ARG(prop);
-    *_retval = nullptr;
+    *_retval = nsnull;
     *persistent = true;
 
 #ifdef MOZ_WIDGET_COCOA
@@ -408,14 +408,14 @@ class nsAppDirectoryEnumerator : public nsISimpleEnumerator
             if (testFile && NS_SUCCEEDED(testFile->Exists(&exists)) && exists)
                 mNext = testFile;
         }
-        *result = mNext != nullptr;
+        *result = mNext != nsnull;
         return NS_OK;
     }
 
     NS_IMETHOD GetNext(nsISupports **result) 
     {
         NS_ENSURE_ARG_POINTER(result);
-        *result = nullptr;
+        *result = nsnull;
 
         bool hasMore;
         HasMoreElements(&hasMore);
@@ -424,7 +424,7 @@ class nsAppDirectoryEnumerator : public nsISimpleEnumerator
             
         *result = mNext;
         NS_IF_ADDREF(*result);
-        mNext = nullptr;
+        mNext = nsnull;
         
         return *result ? NS_OK : NS_ERROR_FAILURE;
     }
@@ -510,7 +510,7 @@ NS_IMETHODIMP
 nsAppFileLocationProvider::GetFiles(const char *prop, nsISimpleEnumerator **_retval)
 {
     NS_ENSURE_ARG_POINTER(_retval);
-    *_retval = nullptr;
+    *_retval = nsnull;
     nsresult rv = NS_ERROR_FAILURE;
     
     if (!nsCRT::strcmp(prop, NS_APP_PLUGINS_DIR_LIST))
@@ -525,13 +525,13 @@ nsAppFileLocationProvider::GetFiles(const char *prop, nsISimpleEnumerator **_ret
         // using Java Plugin2.  For more information see bug 668639.
         static const char* keys[] = { NS_APP_PLUGINS_DIR, NS_MACOSX_USER_PLUGIN_DIR,
                                       NS_MACOSX_LOCAL_PLUGIN_DIR,
-                                      IsOSXLeopard() ? NS_MACOSX_JAVA2_PLUGIN_DIR : nullptr, nullptr };
+                                      IsOSXLeopard() ? NS_MACOSX_JAVA2_PLUGIN_DIR : nsnull, nsnull };
         *_retval = new nsAppDirectoryEnumerator(this, keys);
 #else
 #ifdef XP_UNIX
-        static const char* keys[] = { nullptr, NS_USER_PLUGINS_DIR, NS_APP_PLUGINS_DIR, NS_SYSTEM_PLUGINS_DIR, nullptr };
+        static const char* keys[] = { nsnull, NS_USER_PLUGINS_DIR, NS_APP_PLUGINS_DIR, NS_SYSTEM_PLUGINS_DIR, nsnull };
 #else
-        static const char* keys[] = { nullptr, NS_USER_PLUGINS_DIR, NS_APP_PLUGINS_DIR, nullptr };
+        static const char* keys[] = { nsnull, NS_USER_PLUGINS_DIR, NS_APP_PLUGINS_DIR, nsnull };
 #endif
         if (!keys[0] && !(keys[0] = PR_GetEnv("MOZ_PLUGIN_PATH"))) {
             static const char nullstr = 0;
@@ -544,7 +544,7 @@ nsAppFileLocationProvider::GetFiles(const char *prop, nsISimpleEnumerator **_ret
     }
     if (!nsCRT::strcmp(prop, NS_APP_SEARCH_DIR_LIST))
     {
-        static const char* keys[] = { nullptr, NS_APP_SEARCH_DIR, NS_APP_USER_SEARCH_DIR, nullptr };
+        static const char* keys[] = { nsnull, NS_APP_SEARCH_DIR, NS_APP_USER_SEARCH_DIR, nsnull };
         if (!keys[0] && !(keys[0] = PR_GetEnv("MOZ_SEARCH_ENGINE_PATH"))) {
             static const char nullstr = 0;
             keys[0] = &nullstr;

@@ -120,7 +120,7 @@ nsDOMParser::ParseFromBuffer(const PRUint8 *buf,
   if (NS_FAILED(rv))
     return rv;
 
-  return ParseFromStream(stream, nullptr, bufLen, contentType, aResult);
+  return ParseFromStream(stream, nsnull, bufLen, contentType, aResult);
 }
 
 
@@ -134,7 +134,7 @@ nsDOMParser::ParseFromStream(nsIInputStream *stream,
   NS_ENSURE_ARG(stream);
   NS_ENSURE_ARG(contentType);
   NS_ENSURE_ARG_POINTER(aResult);
-  *aResult = nullptr;
+  *aResult = nsnull;
 
   bool svg = nsCRT::strcmp(contentType, "image/svg+xml") == 0;
 
@@ -166,8 +166,8 @@ nsDOMParser::ParseFromStream(nsIInputStream *stream,
 
   // Create a fake channel 
   nsCOMPtr<nsIChannel> parserChannel;
-  NS_NewInputStreamChannel(getter_AddRefs(parserChannel), mDocumentURI, nullptr,
-                           nsDependentCString(contentType), nullptr);
+  NS_NewInputStreamChannel(getter_AddRefs(parserChannel), mDocumentURI, nsnull,
+                           nsDependentCString(contentType), nsnull);
   NS_ENSURE_STATE(parserChannel);
 
   // More principal-faking here 
@@ -195,7 +195,7 @@ nsDOMParser::ParseFromStream(nsIInputStream *stream,
   }
 
   rv = document->StartDocumentLoad(kLoadAsData, parserChannel, 
-                                   nullptr, nullptr, 
+                                   nsnull, nsnull, 
                                    getter_AddRefs(listener),
                                    false);
 
@@ -212,20 +212,20 @@ nsDOMParser::ParseFromStream(nsIInputStream *stream,
   // Now start pumping data to the listener
   nsresult status;
 
-  rv = listener->OnStartRequest(parserChannel, nullptr);
+  rv = listener->OnStartRequest(parserChannel, nsnull);
   if (NS_FAILED(rv))
     parserChannel->Cancel(rv);
   parserChannel->GetStatus(&status);
 
   if (NS_SUCCEEDED(rv) && NS_SUCCEEDED(status)) {
-    rv = listener->OnDataAvailable(parserChannel, nullptr, stream, 0,
+    rv = listener->OnDataAvailable(parserChannel, nsnull, stream, 0,
                                    contentLength);
     if (NS_FAILED(rv))
       parserChannel->Cancel(rv);
     parserChannel->GetStatus(&status);
   }
 
-  rv = listener->OnStopRequest(parserChannel, nullptr, status);
+  rv = listener->OnStopRequest(parserChannel, nsnull, status);
   // Failure returned from OnStopRequest does not affect the final status of
   // the channel, so we do not need to call Cancel(rv) as we do above.
 
@@ -300,7 +300,7 @@ JSvalToInterface(JSContext* cx, JS::Value val, nsIXPConnect* xpc, bool* wasNull)
 {
   if (val.isNull()) {
     *wasNull = true;
-    return nsQueryInterface(nullptr);
+    return nsQueryInterface(nsnull);
   }
   
   *wasNull = false;
@@ -316,7 +316,7 @@ JSvalToInterface(JSContext* cx, JS::Value val, nsIXPConnect* xpc, bool* wasNull)
     }
   }
   
-  return nsQueryInterface(nullptr);
+  return nsQueryInterface(nsnull);
 }
 
 static nsresult
@@ -453,7 +453,7 @@ nsDOMParser::Init(nsIPrincipal *aPrincipal, nsIURI *aDocumentURI,
   }
 
   return Init(principal, aDocumentURI, aBaseURI,
-              scriptContext ? scriptContext->GetGlobalObject() : nullptr);
+              scriptContext ? scriptContext->GetGlobalObject() : nsnull);
 }
 
 nsresult
@@ -470,7 +470,7 @@ nsDOMParser::SetUpDocument(DocumentFlavor aFlavor, nsIDOMDocument** aResult)
       do_CreateInstance("@mozilla.org/nullprincipal;1", &rv);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = Init(prin, nullptr, nullptr, scriptHandlingObject);
+    rv = Init(prin, nsnull, nsnull, scriptHandlingObject);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -481,7 +481,7 @@ nsDOMParser::SetUpDocument(DocumentFlavor aFlavor, nsIDOMDocument** aResult)
   // work if the document has a null principal, so use
   // mOriginalPrincipal when creating the document, then reset the
   // principal.
-  return nsContentUtils::CreateDocument(EmptyString(), EmptyString(), nullptr,
+  return nsContentUtils::CreateDocument(EmptyString(), EmptyString(), nsnull,
                                         mDocumentURI, mBaseURI,
                                         mOriginalPrincipal,
                                         scriptHandlingObject,

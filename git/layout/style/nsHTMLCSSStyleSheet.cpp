@@ -28,7 +28,7 @@ using namespace mozilla::dom;
 namespace css = mozilla::css;
 
 nsHTMLCSSStyleSheet::nsHTMLCSSStyleSheet()
-  : mDocument(nullptr)
+  : mDocument(nsnull)
 {
 }
 
@@ -205,7 +205,7 @@ nsHTMLCSSStyleSheet::SetComplete()
 /* virtual */ nsIStyleSheet*
 nsHTMLCSSStyleSheet::GetParentSheet() const
 {
-  return nullptr;
+  return nsnull;
 }
 
 /* virtual */ nsIDocument*

@@ -5,24 +5,19 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.gfx.DisplayPortMetrics;
-import org.mozilla.gecko.gfx.ViewportMetrics;
-
-import android.content.res.Resources;
-import android.graphics.Point;
-import android.graphics.PointF;
-import android.graphics.Rect;
-import android.hardware.Sensor;
-import android.hardware.SensorEvent;
-import android.hardware.SensorManager;
-import android.location.Address;
-import android.location.Location;
-import android.os.Build;
-import android.os.SystemClock;
+import android.app.*;
+import android.content.*;
+import android.graphics.*;
+import android.hardware.*;
+import android.location.*;
+import android.os.*;
 import android.util.DisplayMetrics;
 import android.util.Log;
-import android.view.KeyEvent;
-import android.view.MotionEvent;
+import android.view.*;
+import android.widget.*;
+
+import org.mozilla.gecko.gfx.DisplayPortMetrics;
+import org.mozilla.gecko.gfx.ViewportMetrics;
 
 import java.nio.ByteBuffer;
 
@@ -257,8 +252,7 @@ public class GeckoEvent {
                 }
             } else {
                 float size = event.getSize(eventIndex);
-                Resources resources = GeckoApp.mAppContext.getResources();
-                DisplayMetrics displaymetrics = resources.getDisplayMetrics();
+                DisplayMetrics displaymetrics = GeckoApp.mAppContext.getDisplayMetrics();
                 size = size*Math.min(displaymetrics.heightPixels, displaymetrics.widthPixels);
                 mPointRadii[index] = new Point((int)size,(int)size);
                 mOrientations[index] = 0;

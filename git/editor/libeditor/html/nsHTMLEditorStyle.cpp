@@ -487,7 +487,7 @@ nsHTMLEditor::SetInlinePropertyOnNodeImpl(nsIContent* aNode,
     } else {
       res = InsertContainerAbove(aNode, getter_AddRefs(tmp),
                                  NS_LITERAL_STRING("span"),
-                                 nullptr, nullptr);
+                                 nsnull, nsnull);
       NS_ENSURE_SUCCESS(res, res);
     }
 
@@ -633,8 +633,8 @@ nsresult nsHTMLEditor::SplitStyleAbovePoint(nsCOMPtr<nsIDOMNode> *aNode,
                                            nsCOMPtr<nsIDOMNode> *outRightNode)
 {
   NS_ENSURE_TRUE(aNode && *aNode && aOffset, NS_ERROR_NULL_POINTER);
-  if (outLeftNode)  *outLeftNode  = nullptr;
-  if (outRightNode) *outRightNode = nullptr;
+  if (outLeftNode)  *outLeftNode  = nsnull;
+  if (outRightNode) *outRightNode = nsnull;
   // split any matching style nodes above the node/offset
   nsCOMPtr<nsIDOMNode> parent, tmp = *aNode;
   PRInt32 offset;
@@ -1300,13 +1300,13 @@ NS_IMETHODIMP nsHTMLEditor::GetInlineProperty(nsIAtom *aProperty,
                                               bool *aAll)
 {
   NS_ENSURE_TRUE(aProperty && aFirst && aAny && aAll, NS_ERROR_NULL_POINTER);
-  const nsAString *att = nullptr;
+  const nsAString *att = nsnull;
   if (!aAttribute.IsEmpty())
     att = &aAttribute;
-  const nsAString *val = nullptr;
+  const nsAString *val = nsnull;
   if (!aValue.IsEmpty())
     val = &aValue;
-  return GetInlinePropertyBase( aProperty, att, val, aFirst, aAny, aAll, nullptr);
+  return GetInlinePropertyBase( aProperty, att, val, aFirst, aAny, aAll, nsnull);
 }
 
 
@@ -1319,10 +1319,10 @@ NS_IMETHODIMP nsHTMLEditor::GetInlinePropertyWithAttrValue(nsIAtom *aProperty,
                                               nsAString &outValue)
 {
   NS_ENSURE_TRUE(aProperty && aFirst && aAny && aAll, NS_ERROR_NULL_POINTER);
-  const nsAString *att = nullptr;
+  const nsAString *att = nsnull;
   if (!aAttribute.IsEmpty())
     att = &aAttribute;
-  const nsAString *val = nullptr;
+  const nsAString *val = nsnull;
   if (!aValue.IsEmpty())
     val = &aValue;
   return GetInlinePropertyBase( aProperty, att, val, aFirst, aAny, aAll, &outValue);
@@ -1334,7 +1334,7 @@ NS_IMETHODIMP nsHTMLEditor::RemoveAllInlineProperties()
   nsAutoEditBatch batchIt(this);
   nsAutoRules beginRulesSniffing(this, kOpResetTextProperties, nsIEditor::eNext);
 
-  nsresult res = RemoveInlinePropertyImpl(nullptr, nullptr);
+  nsresult res = RemoveInlinePropertyImpl(nsnull, nsnull);
   NS_ENSURE_SUCCESS(res, res);
   return ApplyDefaultProperties();
 }
@@ -1733,7 +1733,7 @@ nsHTMLEditor::RelativeFontChangeOnTextNode( PRInt32 aSizeChange,
     res = MoveNode(node, sibling, -1);
     return res;
   }
-  sibling = nullptr;
+  sibling = nsnull;
   GetNextHTMLSibling(node, address_of(sibling));
   if (sibling && NodeIsType(sibling, (aSizeChange==1) ? nsEditProperty::big : nsEditProperty::small))
   {
@@ -1861,7 +1861,7 @@ nsHTMLEditor::GetFontFaceState(bool *aMixed, nsAString &outFace)
   bool first, any, all;
   
   NS_NAMED_LITERAL_STRING(attr, "face");
-  res = GetInlinePropertyBase(nsEditProperty::font, &attr, nullptr, &first, &any, &all, &outFace);
+  res = GetInlinePropertyBase(nsEditProperty::font, &attr, nsnull, &first, &any, &all, &outFace);
   NS_ENSURE_SUCCESS(res, res);
   if (any && !all) return res; // mixed
   if (all)
@@ -1871,7 +1871,7 @@ nsHTMLEditor::GetFontFaceState(bool *aMixed, nsAString &outFace)
   }
   
   // if there is no font face, check for tt
-  res = GetInlinePropertyBase(nsEditProperty::tt, nullptr, nullptr, &first, &any, &all,nullptr);
+  res = GetInlinePropertyBase(nsEditProperty::tt, nsnull, nsnull, &first, &any, &all,nsnull);
   NS_ENSURE_SUCCESS(res, res);
   if (any && !all) return res; // mixed
   if (all)
@@ -1900,7 +1900,7 @@ nsHTMLEditor::GetFontColorState(bool *aMixed, nsAString &aOutColor)
   NS_NAMED_LITERAL_STRING(colorStr, "color");
   bool first, any, all;
   
-  res = GetInlinePropertyBase(nsEditProperty::font, &colorStr, nullptr, &first, &any, &all, &aOutColor);
+  res = GetInlinePropertyBase(nsEditProperty::font, &colorStr, nsnull, &first, &any, &all, &aOutColor);
   NS_ENSURE_SUCCESS(res, res);
   if (any && !all) return res; // mixed
   if (all)

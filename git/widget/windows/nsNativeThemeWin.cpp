@@ -1440,7 +1440,7 @@ RENDER_AGAIN:
 
       if (contentState.HasState(NS_EVENT_STATE_FOCUS)) {
         POINT vpOrg;
-        HPEN hPen = nullptr;
+        HPEN hPen = nsnull;
 
         PRUint8 id = SaveDC(hdc);
 

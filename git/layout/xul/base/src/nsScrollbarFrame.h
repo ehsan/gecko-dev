@@ -20,7 +20,7 @@ class nsScrollbarFrame : public nsBoxFrame
 {
 public:
     nsScrollbarFrame(nsIPresShell* aShell, nsStyleContext* aContext):
-      nsBoxFrame(aShell, aContext), mScrollbarMediator(nullptr) {}
+      nsBoxFrame(aShell, aContext), mScrollbarMediator(nsnull) {}
 
   NS_DECL_QUERYFRAME_TARGET(nsScrollbarFrame)
 

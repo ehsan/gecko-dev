@@ -84,7 +84,7 @@ NS_IMETHODIMP nsFilePicker::GetFile(nsIFile **aFile)
 {
     NS_ENSURE_ARG_POINTER(aFile);
 
-    *aFile = nullptr;
+    *aFile = nsnull;
     if (mFilePath.IsEmpty()) {
         return NS_OK;
     }

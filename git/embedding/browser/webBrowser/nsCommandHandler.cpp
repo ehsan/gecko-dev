@@ -12,7 +12,7 @@
 #include "nsPIDOMWindow.h"
 
 nsCommandHandler::nsCommandHandler() :
-    mWindow(nullptr)
+    mWindow(nsnull)
 {
 }
 
@@ -24,8 +24,8 @@ nsresult nsCommandHandler::GetCommandHandler(nsICommandHandler **aCommandHandler
 {
     NS_ENSURE_ARG_POINTER(aCommandHandler);
 
-    *aCommandHandler = nullptr;
-    if (mWindow == nullptr)
+    *aCommandHandler = nsnull;
+    if (mWindow == nsnull)
     {
         return NS_ERROR_FAILURE;
     }
@@ -40,7 +40,7 @@ nsresult nsCommandHandler::GetCommandHandler(nsICommandHandler **aCommandHandler
 
     nsCOMPtr<nsIDocShellTreeItem> docShellAsTreeItem =
       do_QueryInterface(window->GetDocShell());
-    nsIDocShellTreeOwner *treeOwner = nullptr;
+    nsIDocShellTreeOwner *treeOwner = nsnull;
     docShellAsTreeItem->GetTreeOwner(&treeOwner);
 
     // Make sure the tree owner is an an nsDocShellTreeOwner object
@@ -62,7 +62,7 @@ nsresult nsCommandHandler::GetCommandHandler(nsICommandHandler **aCommandHandler
         NS_RELEASE(treeOwner);
      }
 
-    *aCommandHandler = nullptr;
+    *aCommandHandler = nsnull;
 
     return NS_OK;
 }
@@ -83,13 +83,13 @@ NS_INTERFACE_MAP_END
 /* attribute nsIDocShell docShell; */
 NS_IMETHODIMP nsCommandHandler::GetWindow(nsIDOMWindow * *aWindow)
 {
-    *aWindow = nullptr;
+    *aWindow = nsnull;
     return NS_OK;
 }
 
 NS_IMETHODIMP nsCommandHandler::SetWindow(nsIDOMWindow * aWindow)
 {
-    if (aWindow == nullptr)
+    if (aWindow == nsnull)
     {
        return NS_ERROR_FAILURE;
     }
@@ -112,7 +112,7 @@ NS_IMETHODIMP nsCommandHandler::Exec(const char *aCommand, const char *aStatus, 
     // Call the client's command handler to deal with this command
     if (commandHandler)
     {
-        *aResult = nullptr;
+        *aResult = nsnull;
         return commandHandler->Exec(aCommand, aStatus, aResult);
     }
 
@@ -135,7 +135,7 @@ NS_IMETHODIMP nsCommandHandler::Query(const char *aCommand, const char *aStatus,
     // Call the client's command handler to deal with this command
     if (commandHandler)
     {
-        *aResult = nullptr;
+        *aResult = nsnull;
         return commandHandler->Query(aCommand, aStatus, aResult);
     }
 

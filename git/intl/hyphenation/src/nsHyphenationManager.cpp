@@ -53,12 +53,12 @@ using namespace mozilla;
 
 #define INTL_HYPHENATIONALIAS_PREFIX "intl.hyphenation-alias."
 
-nsHyphenationManager *nsHyphenationManager::sInstance = nullptr;
+nsHyphenationManager *nsHyphenationManager::sInstance = nsnull;
 
 nsHyphenationManager*
 nsHyphenationManager::Instance()
 {
-  if (sInstance == nullptr) {
+  if (sInstance == nsnull) {
     sInstance = new nsHyphenationManager();
   }
   return sInstance;
@@ -81,7 +81,7 @@ nsHyphenationManager::nsHyphenationManager()
 
 nsHyphenationManager::~nsHyphenationManager()
 {
-  sInstance = nullptr;
+  sInstance = nsnull;
 }
 
 already_AddRefed<nsHyphenator>
@@ -119,7 +119,7 @@ nsHyphenationManager::GetHyphenator(nsIAtom *aLocale)
         nsCOMPtr<nsIAtom> fuzzyLocale = do_GetAtom(localeStr);
         return GetHyphenator(fuzzyLocale);
       } else {
-        return nullptr;
+        return nsnull;
       }
     }
   }
@@ -135,7 +135,7 @@ nsHyphenationManager::GetHyphenator(nsIAtom *aLocale)
   NS_WARNING(msg.get());
 #endif
   mPatternFiles.Remove(aLocale);
-  return nullptr;
+  return nsnull;
 }
 
 void

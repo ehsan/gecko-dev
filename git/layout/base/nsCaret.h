@@ -80,7 +80,7 @@ class nsCaret : public nsISelectionListener
      */
     virtual nsIFrame* GetGeometry(nsISelection* aSelection,
                                   nsRect* aRect,
-                                  nscoord* aBidiIndicatorSize = nullptr);
+                                  nscoord* aBidiIndicatorSize = nsnull);
 
     /** EraseCaret
      *  this will erase the caret if its drawn and reset drawn status
@@ -106,7 +106,7 @@ class nsCaret : public nsISelectionListener
      *
      *  @param aOffset is result of the caret offset in the content.
      */
-    nsIFrame*     GetCaretFrame(PRInt32 *aOffset = nullptr);
+    nsIFrame*     GetCaretFrame(PRInt32 *aOffset = nsnull);
 
     /** GetCaretRect
      *  Get the current caret rect. Only call this when GetCaretFrame returns

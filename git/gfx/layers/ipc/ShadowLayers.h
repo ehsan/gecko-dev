@@ -12,6 +12,7 @@
 #include "GLDefs.h"
 
 #include "ImageLayers.h"
+#include "LayersBackend.h"
 #include "mozilla/ipc/SharedMemory.h"
 #include "mozilla/WidgetUtils.h"
 
@@ -409,7 +410,7 @@ public:
   /** CONSTRUCTION PHASE ONLY */
   virtual already_AddRefed<ShadowCanvasLayer> CreateShadowCanvasLayer() = 0;
   /** CONSTRUCTION PHASE ONLY */
-  virtual already_AddRefed<ShadowRefLayer> CreateShadowRefLayer() { return nullptr; }
+  virtual already_AddRefed<ShadowRefLayer> CreateShadowRefLayer() { return nsnull; }
 
   /**
    * Try to open |aDescriptor| for direct texturing.  If the
@@ -530,7 +531,7 @@ public:
 
   void SetShadowClipRect(const nsIntRect* aRect)
   {
-    mUseShadowClipRect = aRect != nullptr;
+    mUseShadowClipRect = aRect != nsnull;
     if (aRect) {
       mShadowClipRect = *aRect;
     }
@@ -543,7 +544,7 @@ public:
 
   // These getters can be used anytime.
   float GetShadowOpacity() { return mShadowOpacity; }
-  const nsIntRect* GetShadowClipRect() { return mUseShadowClipRect ? &mShadowClipRect : nullptr; }
+  const nsIntRect* GetShadowClipRect() { return mUseShadowClipRect ? &mShadowClipRect : nsnull; }
   const nsIntRegion& GetShadowVisibleRegion() { return mShadowVisibleRegion; }
   const gfx3DMatrix& GetShadowTransform() { return mShadowTransform; }
 
@@ -551,8 +552,8 @@ public:
 
 protected:
   ShadowLayer()
-    : mAllocator(nullptr)
-    , mShadowOpacity(1.0f)
+    : mAllocator(nsnull)
+    , mShadowOpacity(1.0)
     , mUseShadowClipRect(false)
   {}
 

@@ -40,7 +40,7 @@ class nsSVGGlyphFrame : public nsSVGGlyphFrameBase,
 protected:
   nsSVGGlyphFrame(nsStyleContext* aContext)
     : nsSVGGlyphFrameBase(aContext),
-      mTextRun(nullptr),
+      mTextRun(nsnull),
       mStartIndex(0),
       mGetCanvasTMForFlag(nsISVGChildFrame::FOR_OUTERSVG_TM),
       mCompressWhitespace(true),
@@ -236,7 +236,7 @@ private:
   void DrawCharacters(CharacterIterator *aIter,
                       gfxContext *aContext,
                       DrawMode aDrawMode,
-                      gfxPattern *aStrokePattern = nullptr);
+                      gfxPattern *aStrokePattern = nsnull);
 
   void NotifyGlyphMetricsChange();
   void SetupGlobalTransform(gfxContext *aContext, PRUint32 aFor);

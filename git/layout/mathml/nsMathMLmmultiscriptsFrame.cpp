@@ -221,7 +221,7 @@ nsMathMLmmultiscriptsFrame::Place(nsRenderingContext& aRenderingContext,
   ////////////////////////////////////
 
   nscoord width = 0, prescriptsWidth = 0, rightBearing = 0;
-  nsIFrame* mprescriptsFrame = nullptr; // frame of <mprescripts/>, if there.
+  nsIFrame* mprescriptsFrame = nsnull; // frame of <mprescripts/>, if there.
   bool isSubScript = false;
   nscoord minSubScriptShift = 0, minSupScriptShift = 0;
   nscoord trySubScriptShift = subScriptShift;
@@ -232,9 +232,9 @@ nsMathMLmmultiscriptsFrame::Place(nsRenderingContext& aRenderingContext,
   nsHTMLReflowMetrics baseSize;
   nsHTMLReflowMetrics subScriptSize;
   nsHTMLReflowMetrics supScriptSize;
-  nsIFrame* baseFrame = nullptr;
-  nsIFrame* subScriptFrame = nullptr;
-  nsIFrame* supScriptFrame = nullptr;
+  nsIFrame* baseFrame = nsnull;
+  nsIFrame* subScriptFrame = nsnull;
+  nsIFrame* supScriptFrame = nsnull;
 
   bool firstPrescriptsPair = false;
   nsBoundingMetrics bmBase, bmSubScript, bmSupScript;
@@ -400,7 +400,7 @@ nsMathMLmmultiscriptsFrame::Place(nsRenderingContext& aRenderingContext,
         // place the base ...
         childFrame = baseFrame;
         dy = aDesiredSize.ascent - baseSize.ascent;
-        FinishReflowChild (baseFrame, PresContext(), nullptr, baseSize,
+        FinishReflowChild (baseFrame, PresContext(), nsnull, baseSize,
                            MirrorIfRTL(aDesiredSize.width,
                                        baseSize.width,
                                        dx),
@@ -427,7 +427,7 @@ nsMathMLmmultiscriptsFrame::Place(nsRenderingContext& aRenderingContext,
 
           dy = aDesiredSize.ascent - subScriptSize.ascent +
             maxSubScriptShift;
-          FinishReflowChild (subScriptFrame, PresContext(), nullptr,
+          FinishReflowChild (subScriptFrame, PresContext(), nsnull,
                              subScriptSize,
                              MirrorIfRTL(aDesiredSize.width,
                                          subScriptSize.width,
@@ -436,7 +436,7 @@ nsMathMLmmultiscriptsFrame::Place(nsRenderingContext& aRenderingContext,
 
           dy = aDesiredSize.ascent - supScriptSize.ascent -
             maxSupScriptShift;
-          FinishReflowChild (supScriptFrame, PresContext(), nullptr,
+          FinishReflowChild (supScriptFrame, PresContext(), nsnull,
                              supScriptSize,
                              MirrorIfRTL(aDesiredSize.width,
                                          supScriptSize.width,

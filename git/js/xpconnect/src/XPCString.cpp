@@ -38,7 +38,7 @@ XPCStringConvert::ReadableToJSVal(JSContext *cx,
                                   nsStringBuffer** sharedBuffer)
 {
     JSString *str;
-    *sharedBuffer = nullptr;
+    *sharedBuffer = nsnull;
 
     PRUint32 length = readable.Length();
 

@@ -332,12 +332,10 @@ resultConvTemplates = {
         "    return xpc_qsUint64ToJsval(cx, result, ${jsvalPtr});\n",
 
     'float':
-        "    ${jsvalRef} = JS_NumberValue(result);\n"
-        "    return JS_TRUE;\n",
+        "    return JS_NewNumberValue(cx, result, ${jsvalPtr});\n",
 
     'double':
-        "    ${jsvalRef} = JS_NumberValue(result);\n"
-        "    return JS_TRUE;\n",
+        "    return JS_NewNumberValue(cx, result, ${jsvalPtr});\n",
 
     'boolean':
         "    ${jsvalRef} = (result ? JSVAL_TRUE : JSVAL_FALSE);\n"
@@ -443,9 +441,9 @@ def writeStub(f, customMethodCalls, member, stubName, writeThisUnwrapping, write
     if isAttr:
         # JSPropertyOp signature.
         if isSetter:
-            signature += "%s(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool strict,%s JSMutableHandleValue vp_)\n"
+            signature += "%s(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool strict,%s jsval *vp)\n"
         else:
-            signature += "%s(JSContext *cx, JSHandleObject obj, JSHandleId id,%s JSMutableHandleValue vp_)\n"
+            signature += "%s(JSContext *cx, JSHandleObject obj, JSHandleId id,%s jsval *vp)\n"
     else:
         # JSFastNative.
         signature += "%s(JSContext *cx, unsigned argc,%s jsval *vp)\n"
@@ -480,7 +478,7 @@ def writeStub(f, customMethodCalls, member, stubName, writeThisUnwrapping, write
             argumentValues = (customMethodCall['additionalArgumentValues']
                               % header.methodNativeName(member))
             if isAttr:
-                callTemplate += ("    return %s(cx, obj, id%s, %s, vp_);\n"
+                callTemplate += ("    return %s(cx, obj, id%s, %s, vp);\n"
                                  % (templateName, ", strict" if isSetter else "", argumentValues))
             else:
                 callTemplate += ("    return %s(cx, argc, %s, vp);\n"
@@ -513,10 +511,6 @@ def writeStub(f, customMethodCalls, member, stubName, writeThisUnwrapping, write
     f.write(signature % (stubName, additionalArguments))
     f.write("{\n")
     f.write("    XPC_QS_ASSERT_CONTEXT_OK(cx);\n")
-
-    # Convert JSMutableHandleValue to jsval*
-    if isAttr:
-        f.write("    jsval *vp = vp_.address();\n")
 
     # For methods, compute "this".
     if isMethod:

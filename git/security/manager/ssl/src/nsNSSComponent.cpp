@@ -87,7 +87,7 @@ using namespace mozilla;
 using namespace mozilla::psm;
 
 #ifdef PR_LOGGING
-PRLogModuleInfo* gPIPNSSLog = nullptr;
+PRLogModuleInfo* gPIPNSSLog = nsnull;
 #endif
 
 #define NS_CRYPTO_HASH_BUFFER_SIZE 4096
@@ -190,7 +190,7 @@ public:
     nsCOMPtr<nsIURI> uri;
     nsresult rv = NS_NewURI(getter_AddRefs(uri), mURLString);
     if (NS_SUCCEEDED(rv)){
-      NS_OpenURI(mListener, nullptr, uri);
+      NS_OpenURI(mListener, nsnull, uri);
     }
 
     return NS_OK;
@@ -322,7 +322,7 @@ nsNSSComponent::nsNSSComponent()
   :mutex("nsNSSComponent.mutex"),
    mNSSInitialized(false),
    mCrlTimerLock("nsNSSComponent.mCrlTimerLock"),
-   mThreadList(nullptr),
+   mThreadList(nsnull),
    mCertVerificationThread(NULL)
 {
 #ifdef PR_LOGGING
@@ -332,8 +332,8 @@ nsNSSComponent::nsNSSComponent()
   PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("nsNSSComponent::ctor\n"));
   mUpdateTimerInitialized = false;
   crlDownloadTimerOn = false;
-  crlsScheduledForDownload = nullptr;
-  mTimer = nullptr;
+  crlsScheduledForDownload = nsnull;
+  mTimer = nsnull;
   mObserversRegistered = false;
 
   // In order to keep startup time lower, we delay loading and 
@@ -342,7 +342,7 @@ nsNSSComponent::nsNSSComponent()
 
   NS_ASSERTION( (0 == mInstanceCount), "nsNSSComponent is a singleton, but instantiated multiple times!");
   ++mInstanceCount;
-  hashTableCerts = nullptr;
+  hashTableCerts = nsnull;
   mShutdownObjectList = nsNSSShutDownList::construct();
   mIsNetworkDown = false;
 }
@@ -354,14 +354,14 @@ nsNSSComponent::deleteBackgroundThreads()
   {
     mCertVerificationThread->requestExit();
     delete mCertVerificationThread;
-    mCertVerificationThread = nullptr;
+    mCertVerificationThread = nsnull;
   }
 }
 
 void
 nsNSSComponent::createBackgroundThreads()
 {
-  NS_ASSERTION(mCertVerificationThread == nullptr,
+  NS_ASSERTION(mCertVerificationThread == nsnull,
                "Cert verification thread already created.");
 
   mCertVerificationThread = new nsCertVerificationThread;
@@ -370,7 +370,7 @@ nsNSSComponent::createBackgroundThreads()
 
   if (NS_FAILED(rv)) {
     delete mCertVerificationThread;
-    mCertVerificationThread = nullptr;
+    mCertVerificationThread = nsnull;
   }
 }
 
@@ -388,7 +388,7 @@ nsNSSComponent::~nsNSSComponent()
       }
       crlDownloadTimerOn = false;
     }
-    if(crlsScheduledForDownload != nullptr){
+    if(crlsScheduledForDownload != nsnull){
       crlsScheduledForDownload->Reset();
       delete crlsScheduledForDownload;
     }
@@ -515,7 +515,7 @@ nsNSSComponent::DispatchEventToWindow(nsIDOMWindow *domWin,
   // find the document
   nsCOMPtr<nsIDOMDocument> doc;
   rv = domWin->GetDocument(getter_AddRefs(doc));
-  if (doc == nullptr) {
+  if (doc == nsnull) {
     return NS_FAILED(rv) ? rv : NS_ERROR_FAILURE;
   }
 
@@ -664,7 +664,7 @@ nsNSSComponent::LaunchSmartCardThread(SECMODModule *module)
 {
   SmartCardMonitoringThread *newThread;
   if (SECMOD_HasRemovableSlots(module)) {
-    if (mThreadList == nullptr) {
+    if (mThreadList == nsnull) {
       mThreadList = new SmartCardThreadList();
       if (!mThreadList) {
         return NS_ERROR_OUT_OF_MEMORY;
@@ -694,7 +694,7 @@ void
 nsNSSComponent::ShutdownSmartCardThreads()
 {
   delete mThreadList;
-  mThreadList = nullptr;
+  mThreadList = nsnull;
 }
 
 static char *
@@ -731,7 +731,7 @@ void
 nsNSSComponent::InstallLoadableRoots()
 {
   nsNSSShutDownPreventionLock locker;
-  SECMODModule *RootsModule = nullptr;
+  SECMODModule *RootsModule = nsnull;
 
   // In the past we used SECMOD_AddNewModule to load our module containing
   // root CA certificates. This caused problems, refer to bug 176501.
@@ -775,7 +775,7 @@ nsNSSComponent::InstallLoadableRoots()
     PRInt32 modType;
     SECMOD_DeleteModule(RootsModule->commonName, &modType);
     SECMOD_DestroyModule(RootsModule);
-    RootsModule = nullptr;
+    RootsModule = nsnull;
   }
 
   // Find the best Roots module for our purposes.
@@ -804,11 +804,11 @@ nsNSSComponent::InstallLoadableRoots()
 
   for (size_t il = 0; il < sizeof(possible_ckbi_locations)/sizeof(const char*); ++il) {
     nsCOMPtr<nsIFile> mozFile;
-    char *fullLibraryPath = nullptr;
+    char *fullLibraryPath = nsnull;
 
     if (!possible_ckbi_locations[il])
     {
-      fullLibraryPath = PR_GetLibraryName(nullptr, "nssckbi");
+      fullLibraryPath = PR_GetLibraryName(nsnull, "nssckbi");
     }
     else
     {
@@ -873,14 +873,14 @@ nsNSSComponent::InstallLoadableRoots()
 
     RootsModule =
       SECMOD_LoadUserModule(const_cast<char*>(pkcs11moduleSpec.get()), 
-                            nullptr, // no parent 
+                            nsnull, // no parent 
                             false); // do not recurse
 
     if (RootsModule) {
       bool found = (RootsModule->loaded);
 
       SECMOD_DestroyModule(RootsModule);
-      RootsModule = nullptr;
+      RootsModule = nsnull;
 
       if (found) {
         break;
@@ -1072,8 +1072,8 @@ setNonPkixOcspEnabled(PRInt32 ocspEnabled, nsIPrefBranch * pref)
     break;
   case 2:
     {
-      char *signingCA = nullptr;
-      char *url = nullptr;
+      char *signingCA = nsnull;
+      char *url = nsnull;
 
       // Get the signing CA and service url //
       pref->GetCharPref("security.OCSP.signingCA", &signingCA);
@@ -1225,7 +1225,7 @@ nsresult nsNSSComponent::DownloadCrlSilently()
 {
   //Add this attempt to the hashtable
   nsStringKey hashKey(mCrlUpdateKey.get());
-  crlsScheduledForDownload->Put(&hashKey,(void *)nullptr);
+  crlsScheduledForDownload->Put(&hashKey,(void *)nsnull);
     
   //Set up the download handler
   nsRefPtr<PSMContentDownloader> psmDownloader =
@@ -1442,10 +1442,10 @@ nsNSSComponent::StopCRLUpdateTimer()
   
   //If it is at all running. 
   if (mUpdateTimerInitialized) {
-    if(crlsScheduledForDownload != nullptr){
+    if(crlsScheduledForDownload != nsnull){
       crlsScheduledForDownload->Reset();
       delete crlsScheduledForDownload;
-      crlsScheduledForDownload = nullptr;
+      crlsScheduledForDownload = nsnull;
     }
     {
       MutexAutoLock lock(mCrlTimerLock);
@@ -1904,13 +1904,13 @@ nsNSSComponent::ShutdownNSS()
   if (hashTableCerts) {
     PL_HashTableEnumerateEntries(hashTableCerts, certHashtable_clearEntry, 0);
     PL_HashTableDestroy(hashTableCerts);
-    hashTableCerts = nullptr;
+    hashTableCerts = nsnull;
   }
 
   if (mNSSInitialized) {
     mNSSInitialized = false;
 
-    PK11_SetPasswordFunc((PK11PasswordFunc)nullptr);
+    PK11_SetPasswordFunc((PK11PasswordFunc)nsnull);
     mHttpForNSS.unregisterHttpClient();
     UnregisterMyOCSPAIAInfoCallback();
 
@@ -1988,18 +1988,18 @@ nsNSSComponent::Init()
     PR_LOG(gPIPNSSLog, PR_LOG_ERROR, ("Unable to Initialize NSS.\n"));
 
     DeregisterObservers();
-    mPIPNSSBundle = nullptr;
+    mPIPNSSBundle = nsnull;
     return rv;
   }
 
   RememberCertErrorsTable::Init();
   nsSSLIOLayerHelpers::Init();
-  char *unrestricted_hosts=nullptr;
+  char *unrestricted_hosts=nsnull;
   mPrefBranch->GetCharPref("security.ssl.renego_unrestricted_hosts", &unrestricted_hosts);
   if (unrestricted_hosts) {
     nsSSLIOLayerHelpers::setRenegoUnrestrictedSites(nsDependentCString(unrestricted_hosts));
     nsMemory::Free(unrestricted_hosts);
-    unrestricted_hosts=nullptr;
+    unrestricted_hosts=nsnull;
   }
 
   bool enabled = false;
@@ -2020,7 +2020,7 @@ nsNSSComponent::Init()
     PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("NSS init, could not create threads\n"));
 
     DeregisterObservers();
-    mPIPNSSBundle = nullptr;
+    mPIPNSSBundle = nsnull;
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
@@ -2065,7 +2065,7 @@ static void ContentCallback(void *arg,
 static PK11SymKey * GetDecryptKeyCallback(void *arg, 
                                                  SECAlgorithmID *algid)
 {
-  return nullptr;
+  return nsnull;
 }
 
 static PRBool DecryptionAllowedCallback(SECAlgorithmID *algid,  
@@ -2090,10 +2090,10 @@ nsNSSComponent::VerifySignature(const char* aRSABuf, PRUint32 aRSABufLen,
   }
 
   *aErrorCode = 0;
-  *aPrincipal = nullptr;
+  *aPrincipal = nsnull;
 
   nsNSSShutDownPreventionLock locker;
-  SEC_PKCS7ContentInfo * p7_info = nullptr; 
+  SEC_PKCS7ContentInfo * p7_info = nsnull; 
   unsigned char hash[SHA1_LENGTH]; 
 
   SECItem item;
@@ -2101,9 +2101,9 @@ nsNSSComponent::VerifySignature(const char* aRSABuf, PRUint32 aRSABufLen,
   item.data = (unsigned char*)aRSABuf;
   item.len = aRSABufLen;
   p7_info = SEC_PKCS7DecodeItem(&item,
-                                ContentCallback, nullptr,
-                                GetPasswordKeyCallback, nullptr,
-                                GetDecryptKeyCallback, nullptr,
+                                ContentCallback, nsnull,
+                                GetPasswordKeyCallback, nsnull,
+                                GetDecryptKeyCallback, nsnull,
                                 DecryptionAllowedCallback);
 
   if (!p7_info) {
@@ -2115,7 +2115,7 @@ nsNSSComponent::VerifySignature(const char* aRSABuf, PRUint32 aRSABufLen,
   
   //-- If a plaintext was provided, hash it.
   SECItem digest;
-  digest.data = nullptr;
+  digest.data = nsnull;
   digest.len = 0;
 
   if (aPlaintext) {
@@ -2187,7 +2187,7 @@ nsNSSComponent::VerifySignature(const char* aRSABuf, PRUint32 aRSABufLen,
         GetCertificatePrincipal(NS_ConvertUTF16toUTF8(fingerprint),
                                 NS_ConvertUTF16toUTF8(subjectName),
                                 NS_ConvertUTF16toUTF8(orgName),
-                                pCert, nullptr, getter_AddRefs(certPrincipal));
+                                pCert, nsnull, getter_AddRefs(certPrincipal));
       if (NS_FAILED(rv2) || !certPrincipal) {
         break;
       }
@@ -2295,7 +2295,7 @@ nsNSSComponent::Observe(nsISupports *aSubject, const char *aTopic,
       if (dispatcher) {
         dispatcher->UnRegisterContentListener(mPSMContentListener);
       }
-      mPSMContentListener = nullptr;
+      mPSMContentListener = nsnull;
     }
 
     nsCOMPtr<nsIEntropyCollector> ec
@@ -2338,7 +2338,7 @@ nsNSSComponent::Observe(nsISupports *aSubject, const char *aTopic,
       SSL_OptionSetDefault(SSL_ENABLE_RENEGOTIATION, 
         enabled ? SSL_RENEGOTIATE_UNRESTRICTED : SSL_RENEGOTIATE_REQUIRES_XTN);
     } else if (prefName.Equals("security.ssl.renego_unrestricted_hosts")) {
-      char *unrestricted_hosts=nullptr;
+      char *unrestricted_hosts=nsnull;
       mPrefBranch->GetCharPref("security.ssl.renego_unrestricted_hosts", &unrestricted_hosts);
       if (unrestricted_hosts) {
         nsSSLIOLayerHelpers::setRenegoUnrestrictedSites(nsDependentCString(unrestricted_hosts));
@@ -2394,7 +2394,7 @@ nsNSSComponent::Observe(nsISupports *aSubject, const char *aTopic,
 nsNSSComponent::GetNewPrompter(nsIPrompt ** result)
 {
   NS_ENSURE_ARG_POINTER(result);
-  *result = nullptr;
+  *result = nsnull;
 
   if (!NS_IsMainThread()) {
     NS_ERROR("nsSDRContext::GetNewPrompter called off the main thread");
@@ -2422,7 +2422,7 @@ nsNSSComponent::ShowAlertWithConstructedString(const nsString & message)
       NS_WARNING("Suppressing alert because PSM UI is forbidden");
       rv = NS_ERROR_UNEXPECTED;
     } else {
-      rv = prompter->Alert(nullptr, message.get());
+      rv = prompter->Alert(nsnull, message.get());
     }
   }
   return rv;
@@ -2675,7 +2675,7 @@ nsNSSComponent::GetDefaultCERTValInParamLocalOnly(nsRefPtr<nsCERTValInParamWrapp
 //---------------------------------------------
 
 nsCryptoHash::nsCryptoHash()
-  : mHashContext(nullptr)
+  : mHashContext(nsnull)
   , mInitialized(false)
 {
 }
@@ -2703,7 +2703,7 @@ void nsCryptoHash::destructorSafeDestroyNSSReference()
 
   if (mHashContext)
     HASH_Destroy(mHashContext);
-  mHashContext = nullptr;
+  mHashContext = nsnull;
 }
 
 NS_IMPL_ISUPPORTS1(nsCryptoHash, nsICryptoHash)
@@ -2862,7 +2862,7 @@ NS_IMPL_ISUPPORTS1(nsCryptoHMAC, nsICryptoHMAC)
 
 nsCryptoHMAC::nsCryptoHMAC()
 {
-  mHMACContext = nullptr;
+  mHMACContext = nsnull;
 }
 
 nsCryptoHMAC::~nsCryptoHMAC()
@@ -2888,7 +2888,7 @@ void nsCryptoHMAC::destructorSafeDestroyNSSReference()
 
   if (mHMACContext)
     PK11_DestroyContext(mHMACContext, true);
-  mHMACContext = nullptr;
+  mHMACContext = nsnull;
 }
 
 /* void init (in unsigned long aAlgorithm, in nsIKeyObject aKeyObject); */
@@ -2899,7 +2899,7 @@ NS_IMETHODIMP nsCryptoHMAC::Init(PRUint32 aAlgorithm, nsIKeyObject *aKeyObject)
   if (mHMACContext)
   {
     PK11_DestroyContext(mHMACContext, true);
-    mHMACContext = nullptr;
+    mHMACContext = nsnull;
   }
 
   CK_MECHANISM_TYPE HMACMechType;
@@ -3070,7 +3070,7 @@ PipUIContext::~PipUIContext()
 NS_IMETHODIMP PipUIContext::GetInterface(const nsIID & uuid, void * *result)
 {
   NS_ENSURE_ARG_POINTER(result);
-  *result = nullptr;
+  *result = nsnull;
 
   if (!NS_IsMainThread()) {
     NS_ERROR("PipUIContext::GetInterface called off the main thread");
@@ -3080,7 +3080,7 @@ NS_IMETHODIMP PipUIContext::GetInterface(const nsIID & uuid, void * *result)
   if (!uuid.Equals(NS_GET_IID(nsIPrompt)))
     return NS_ERROR_NO_INTERFACE;
 
-  nsIPrompt * prompt = nullptr;
+  nsIPrompt * prompt = nsnull;
   nsresult rv = nsNSSComponent::GetNewPrompter(&prompt);
   *result = prompt;
   return rv;
@@ -3144,7 +3144,7 @@ setPassword(PK11SlotInfo *slot, nsIInterfaceRequestor *ctx)
 
 
 PSMContentDownloader::PSMContentDownloader(PRUint32 type)
-  : mByteData(nullptr),
+  : mByteData(nsnull),
     mType(type),
     mDoSilentDownload(false)
 {
@@ -3203,7 +3203,7 @@ PSMContentDownloader::OnDataAvailable(nsIRequest* request,
       size_t newSize = (mBufferOffset + aLength) *2; // grow some more than needed
       char *newBuffer;
       newBuffer = (char*)nsMemory::Realloc(mByteData, newSize);
-      if (newBuffer == nullptr) {
+      if (newBuffer == nsnull) {
         return NS_ERROR_OUT_OF_MEMORY;
       }
       mByteData = newBuffer;
@@ -3320,7 +3320,7 @@ PSMContentDownloader::handleContentDownloadError(nsresult errCode)
       }
       pref->SetCharPref(updateErrDetailPrefStr.get(),errMsg.get());
       nsCOMPtr<nsIPrefService> prefSvc(do_QueryInterface(pref));
-      prefSvc->SavePrefFile(nullptr);
+      prefSvc->SavePrefFile(nsnull);
     }else{
       nsString message;
       nssComponent->GetPIPNSSBundleString("CrlImportFailure1x", message);
@@ -3392,8 +3392,8 @@ NS_IMPL_ISUPPORTS2(PSMContentListener,
 
 PSMContentListener::PSMContentListener()
 {
-  mLoadCookie = nullptr;
-  mParentContentListener = nullptr;
+  mLoadCookie = nsnull;
+  mParentContentListener = nsnull;
 }
 
 PSMContentListener::~PSMContentListener()

@@ -11,9 +11,6 @@
 #include "nsIIDBKeyRange.h"
 #include "nsIJSContextStack.h"
 
-#include "mozilla/dom/ContentChild.h"
-#include "mozilla/dom/ContentParent.h"
-#include "mozilla/dom/ipc/Blob.h"
 #include "nsContentUtils.h"
 #include "nsDOMClassInfoID.h"
 #include "nsEventDispatcher.h"
@@ -35,7 +32,6 @@
 #include "IndexedDatabaseInlines.h"
 
 USING_INDEXEDDB_NAMESPACE
-using namespace mozilla::dom;
 using namespace mozilla::dom::indexedDB::ipc;
 
 namespace {
@@ -47,7 +43,7 @@ public:
               IDBRequest* aRequest,
               IDBIndex* aIndex)
   : AsyncConnectionHelper(aTransaction, aRequest), mIndex(aIndex),
-    mActor(nullptr)
+    mActor(nsnull)
   {
     NS_ASSERTION(aTransaction, "Null transaction!");
     NS_ASSERTION(aRequest, "Null request!");
@@ -400,8 +396,8 @@ IDBIndex::IDBIndex()
 : mId(LL_MININT),
   mKeyPath(0),
   mCachedKeyPath(JSVAL_VOID),
-  mActorChild(nullptr),
-  mActorParent(nullptr),
+  mActorChild(nsnull),
+  mActorParent(nsnull),
   mUnique(false),
   mMultiEntry(false),
   mRooted(false)
@@ -638,7 +634,6 @@ IDBIndex::OpenCursorFromChildProcess(
                             const Key& aKey,
                             const Key& aObjectKey,
                             const SerializedStructuredCloneReadInfo& aCloneInfo,
-                            nsTArray<StructuredCloneFile>& aBlobs,
                             IDBCursor** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -655,8 +650,6 @@ IDBIndex::OpenCursorFromChildProcess(
     NS_WARNING("Failed to copy clone buffer!");
     return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }
-
-  cloneInfo.mFiles.SwapElements(aBlobs);
 
   nsRefPtr<IDBCursor> cursor =
     IDBCursor::Create(aRequest, mObjectStore->Transaction(), this, direction,
@@ -1007,7 +1000,7 @@ IDBIndex::Count(const jsval& aKey,
 void
 IndexHelper::ReleaseMainThreadObjects()
 {
-  mIndex = nullptr;
+  mIndex = nsnull;
   AsyncConnectionHelper::ReleaseMainThreadObjects();
 }
 
@@ -1093,7 +1086,7 @@ GetKeyHelper::GetSuccessResult(JSContext* aCx,
 void
 GetKeyHelper::ReleaseMainThreadObjects()
 {
-  mKeyRange = nullptr;
+  mKeyRange = nsnull;
   IndexHelper::ReleaseMainThreadObjects();
 }
 
@@ -1243,26 +1236,9 @@ GetHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
     return Success_NotSent;
   }
 
-  InfallibleTArray<PBlobParent*> blobsParent;
-
-  if (NS_SUCCEEDED(aResultCode)) {
-    IDBDatabase* database = mIndex->ObjectStore()->Transaction()->Database();
-    NS_ASSERTION(database, "This should never be null!");
-
-    ContentParent* contentParent = database->GetContentParent();
-    NS_ASSERTION(contentParent, "This should never be null!");
-
-    FileManager* fileManager = database->Manager();
-    NS_ASSERTION(fileManager, "This should never be null!");
-
-    const nsTArray<StructuredCloneFile>& files = mCloneReadInfo.mFiles;
-
-    aResultCode =
-      IDBObjectStore::ConvertBlobsToActors(contentParent, fileManager, files,
-                                           blobsParent);
-    if (NS_FAILED(aResultCode)) {
-      NS_WARNING("ConvertBlobActors failed!");
-    }
+  if (!mCloneReadInfo.mFileInfos.IsEmpty()) {
+    NS_WARNING("No support for transferring blobs across processes yet!");
+    return Error;
   }
 
   ResponseValue response;
@@ -1270,9 +1246,9 @@ GetHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
     response = aResultCode;
   }
   else {
-    GetResponse getResponse;
-    getResponse.cloneInfo() = mCloneReadInfo;
-    getResponse.blobsParent().SwapElements(blobsParent);
+    SerializedStructuredCloneReadInfo readInfo;
+    readInfo = mCloneReadInfo;
+    GetResponse getResponse = readInfo;
     response = getResponse;
   }
 
@@ -1289,8 +1265,8 @@ GetHelper::UnpackResponseFromParentProcess(const ResponseValue& aResponseValue)
   NS_ASSERTION(aResponseValue.type() == ResponseValue::TGetResponse,
                "Bad response type!");
 
-  const GetResponse& getResponse = aResponseValue.get_GetResponse();
-  const SerializedStructuredCloneReadInfo& cloneInfo = getResponse.cloneInfo();
+  const SerializedStructuredCloneReadInfo& cloneInfo =
+    aResponseValue.get_GetResponse().cloneInfo();
 
   NS_ASSERTION((!cloneInfo.dataLength && !cloneInfo.data) ||
                (cloneInfo.dataLength && cloneInfo.data),
@@ -1301,8 +1277,6 @@ GetHelper::UnpackResponseFromParentProcess(const ResponseValue& aResponseValue)
     return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }
 
-  IDBObjectStore::ConvertActorsToBlobs(getResponse.blobsChild(),
-                                       mCloneReadInfo.mFiles);
   return NS_OK;
 }
 
@@ -1593,50 +1567,10 @@ GetAllHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
     return Success_NotSent;
   }
 
-  GetAllResponse getAllResponse;
-
-  if (NS_SUCCEEDED(aResultCode) && !mCloneReadInfos.IsEmpty()) {
-    IDBDatabase* database = mIndex->ObjectStore()->Transaction()->Database();
-    NS_ASSERTION(database, "This should never be null!");
-
-    ContentParent* contentParent = database->GetContentParent();
-    NS_ASSERTION(contentParent, "This should never be null!");
-
-    FileManager* fileManager = database->Manager();
-    NS_ASSERTION(fileManager, "This should never be null!");
-
-    PRUint32 length = mCloneReadInfos.Length();
-
-    InfallibleTArray<SerializedStructuredCloneReadInfo>& infos =
-      getAllResponse.cloneInfos();
-    infos.SetCapacity(length);
-
-    InfallibleTArray<BlobArray>& blobArrays = getAllResponse.blobs();
-    blobArrays.SetCapacity(length);
-
-    for (PRUint32 index = 0;
-         NS_SUCCEEDED(aResultCode) && index < length;
-         index++) {
-      const StructuredCloneReadInfo& clone = mCloneReadInfos[index];
-
-      // Append the structured clone data.
-      SerializedStructuredCloneReadInfo* info = infos.AppendElement();
-      *info = clone;
-
-      const nsTArray<StructuredCloneFile>& files = clone.mFiles;
-
-      // Now take care of the files.
-      BlobArray* blobArray = blobArrays.AppendElement();
-
-      InfallibleTArray<PBlobParent*>& blobs = blobArray->blobsParent();
-
-      aResultCode =
-        IDBObjectStore::ConvertBlobsToActors(contentParent, fileManager, files,
-                                             blobs);
-      if (NS_FAILED(aResultCode)) {
-        NS_WARNING("ConvertBlobsToActors failed!");
-        break;
-      }
+  for (PRUint32 index = 0; index < mCloneReadInfos.Length(); index++) {
+    if (!mCloneReadInfos[index].mFileInfos.IsEmpty()) {
+      NS_WARNING("No support for transferring blobs across processes yet!");
+      return Error;
     }
   }
 
@@ -1645,6 +1579,18 @@ GetAllHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
     response = aResultCode;
   }
   else {
+    GetAllResponse getAllResponse;
+
+    InfallibleTArray<SerializedStructuredCloneReadInfo>& infos =
+      getAllResponse.cloneInfos();
+
+    infos.SetCapacity(mCloneReadInfos.Length());
+
+    for (PRUint32 index = 0; index < mCloneReadInfos.Length(); index++) {
+      SerializedStructuredCloneReadInfo* info = infos.AppendElement();
+      *info = mCloneReadInfos[index];
+    }
+
     response = getAllResponse;
   }
 
@@ -1662,24 +1608,19 @@ GetAllHelper::UnpackResponseFromParentProcess(
   NS_ASSERTION(aResponseValue.type() == ResponseValue::TGetAllResponse,
                "Bad response type!");
 
-  const GetAllResponse& getAllResponse = aResponseValue.get_GetAllResponse();
   const InfallibleTArray<SerializedStructuredCloneReadInfo>& cloneInfos =
-    getAllResponse.cloneInfos();
-  const InfallibleTArray<BlobArray>& blobArrays = getAllResponse.blobs();
+    aResponseValue.get_GetAllResponse().cloneInfos();
 
   mCloneReadInfos.SetCapacity(cloneInfos.Length());
 
   for (PRUint32 index = 0; index < cloneInfos.Length(); index++) {
     const SerializedStructuredCloneReadInfo srcInfo = cloneInfos[index];
-    const InfallibleTArray<PBlobChild*> blobs = blobArrays[index].blobsChild();
 
     StructuredCloneReadInfo* destInfo = mCloneReadInfos.AppendElement();
     if (!destInfo->SetFromSerialized(srcInfo)) {
       NS_WARNING("Failed to copy clone buffer!");
       return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
     }
-
-    IDBObjectStore::ConvertActorsToBlobs(blobs, destInfo->mFiles);
   }
 
   return NS_OK;
@@ -1886,8 +1827,8 @@ OpenKeyCursorHelper::GetSuccessResult(JSContext* aCx,
 void
 OpenKeyCursorHelper::ReleaseMainThreadObjects()
 {
-  mKeyRange = nullptr;
-  mCursor = nullptr;
+  mKeyRange = nsnull;
+  mCursor = nsnull;
   IndexHelper::ReleaseMainThreadObjects();
 }
 
@@ -2221,7 +2162,7 @@ OpenCursorHelper::ReleaseMainThreadObjects()
 
   // These don't need to be released on the main thread but they're only valid
   // as long as mCursor is set.
-  mSerializedCloneReadInfo.data = nullptr;
+  mSerializedCloneReadInfo.data = nsnull;
   mSerializedCloneReadInfo.dataLength = 0;
 
   OpenKeyCursorHelper::ReleaseMainThreadObjects();
@@ -2258,29 +2199,12 @@ OpenCursorHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
     return Success_NotSent;
   }
 
-  NS_ASSERTION(!mCursor, "Shouldn't have this yet!");
-
-  InfallibleTArray<PBlobParent*> blobsParent;
-
-  if (NS_SUCCEEDED(aResultCode)) {
-    IDBDatabase* database = mIndex->ObjectStore()->Transaction()->Database();
-    NS_ASSERTION(database, "This should never be null!");
-
-    ContentParent* contentParent = database->GetContentParent();
-    NS_ASSERTION(contentParent, "This should never be null!");
-
-    FileManager* fileManager = database->Manager();
-    NS_ASSERTION(fileManager, "This should never be null!");
-
-    const nsTArray<StructuredCloneFile>& files = mCloneReadInfo.mFiles;
-
-    aResultCode =
-      IDBObjectStore::ConvertBlobsToActors(contentParent, fileManager, files,
-                                           blobsParent);
-    if (NS_FAILED(aResultCode)) {
-      NS_WARNING("ConvertBlobsToActors failed!");
-    }
+  if (!mCloneReadInfo.mFileInfos.IsEmpty()) {
+    NS_WARNING("No support for transferring blobs across processes yet!");
+    return Error;
   }
+
+  NS_ASSERTION(!mCursor, "Shouldn't have this yet!");
 
   if (NS_SUCCEEDED(aResultCode)) {
     nsresult rv = EnsureCursor();
@@ -2317,7 +2241,6 @@ OpenCursorHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
       params.key() = mKey;
       params.objectKey() = mObjectKey;
       params.optionalCloneInfo() = mSerializedCloneReadInfo;
-      params.blobsParent().SwapElements(blobsParent);
 
       IndexedDBCursorParent* cursorActor = new IndexedDBCursorParent(mCursor);
 
@@ -2401,14 +2324,18 @@ nsresult
 CountHelper::GetSuccessResult(JSContext* aCx,
                               jsval* aVal)
 {
-  *aVal = JS_NumberValue(static_cast<double>(mCount));
+  if (!JS_NewNumberValue(aCx, static_cast<double>(mCount), aVal)) {
+    NS_WARNING("Failed to make number value!");
+    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+  }
+
   return NS_OK;
 }
 
 void
 CountHelper::ReleaseMainThreadObjects()
 {
-  mKeyRange = nullptr;
+  mKeyRange = nsnull;
   IndexHelper::ReleaseMainThreadObjects();
 }
 

@@ -114,12 +114,12 @@ public:
                                 nsCSSProperty aProperty)
   {
     if (!aContent->MayHaveAnimations())
-      return nullptr;
+      return nsnull;
     ElementTransitions* transitions = GetTransitions(aContent);
     if (!transitions ||
         !transitions->HasTransitionOfProperty(aProperty) ||
         !transitions->CanPerformOnCompositorThread()) {
-      return nullptr;
+      return nsnull;
     }
     return transitions;
   }

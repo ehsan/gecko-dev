@@ -47,7 +47,7 @@ nsConverterOutputStream::Init(nsIOutputStream* aOutStream,
                                          : nsIUnicodeEncoder::kOnError_Signal;
     return mConverter->
         SetOutputErrorBehavior(behaviour,
-                               nullptr,
+                               nsnull,
                                aReplacementChar);
 }
 
@@ -137,8 +137,8 @@ nsConverterOutputStream::Close()
     nsresult rv1 = Flush();
 
     nsresult rv2 = mOutStream->Close();
-    mOutStream = nullptr;
-    mConverter = nullptr;
+    mOutStream = nsnull;
+    mConverter = nsnull;
     return NS_FAILED(rv1) ? rv1 : rv2;
 }
 

@@ -209,7 +209,7 @@ public:
     JSContext* mContext;
 
   public:
-    AutoSafeJSContext(JSContext* aCx = nullptr);
+    AutoSafeJSContext(JSContext* aCx = nsnull);
     ~AutoSafeJSContext();
 
     operator JSContext*() const

@@ -228,7 +228,7 @@ DocAccessibleWrap::Shutdown()
       ::DestroyWindow(static_cast<HWND>(mHWND));
     }
 
-    mHWND = nullptr;
+    mHWND = nsnull;
   }
 
   DocAccessible::Shutdown();

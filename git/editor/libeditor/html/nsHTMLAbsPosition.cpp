@@ -114,7 +114,7 @@ nsHTMLEditor::GetAbsolutelyPositionedSelectionContainer(nsIDOMElement **_retval)
 NS_IMETHODIMP
 nsHTMLEditor::GetSelectionContainerAbsolutelyPositioned(bool *aIsSelectionContainerAbsolutelyPositioned)
 {
-  *aIsSelectionContainerAbsolutelyPositioned = (mAbsolutelyPositionedObject != nullptr);
+  *aIsSelectionContainerAbsolutelyPositioned = (mAbsolutelyPositionedObject != nsnull);
   return NS_OK;
 }
 
@@ -233,7 +233,7 @@ nsHTMLEditor::GetElementZIndex(nsIDOMElement * aElement,
   }
 
   if (!zIndexStr.EqualsLiteral("auto")) {
-    nsresult errorCode;
+    PRInt32 errorCode;
     *aZindex = zIndexStr.ToInteger(&errorCode);
   }
 
@@ -290,7 +290,7 @@ nsHTMLEditor::HideGrabber()
     mAbsolutelyPositionedObject->RemoveAttribute(NS_LITERAL_STRING("_moz_abspos"));
   NS_ENSURE_SUCCESS(res, res);
 
-  mAbsolutelyPositionedObject = nullptr;
+  mAbsolutelyPositionedObject = nsnull;
   NS_ENSURE_TRUE(mGrabber, NS_ERROR_NULL_POINTER);
 
   // get the presshell's document observer interface.
@@ -307,9 +307,9 @@ nsHTMLEditor::HideGrabber()
   NS_ENSURE_TRUE(parentContent, NS_ERROR_NULL_POINTER);
 
   DeleteRefToAnonymousNode(mGrabber, parentContent, ps);
-  mGrabber = nullptr;
+  mGrabber = nsnull;
   DeleteRefToAnonymousNode(mPositioningShadow, parentContent, ps);
-  mPositioningShadow = nullptr;
+  mPositioningShadow = nsnull;
 
   return NS_OK;
 }
@@ -423,7 +423,7 @@ nsHTMLEditor::EndMoving()
 
     DeleteRefToAnonymousNode(mPositioningShadow, parentContent, ps);
 
-    mPositioningShadow = nullptr;
+    mPositioningShadow = nsnull;
   }
   nsCOMPtr<nsIDOMEventTarget> piTarget = GetDOMEventTarget();
 
@@ -436,7 +436,7 @@ nsHTMLEditor::EndMoving()
                                   false);
     NS_ASSERTION(NS_SUCCEEDED(res), "failed to remove mouse motion listener");
   }
-  mMouseMotionListenerP = nullptr;
+  mMouseMotionListenerP = nsnull;
 
   mGrabberClicked = false;
   mIsMoving = false;

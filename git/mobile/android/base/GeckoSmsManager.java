@@ -5,25 +5,31 @@
 
 package org.mozilla.gecko;
 
-import android.app.Activity;
+import java.util.ArrayList;
+
+import android.util.Log;
+
 import android.app.PendingIntent;
-import android.content.BroadcastReceiver;
-import android.content.ContentResolver;
-import android.content.ContentUris;
-import android.content.ContentValues;
-import android.content.Context;
+import android.app.Activity;
+
+import android.database.Cursor;
+
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.database.Cursor;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.ContentResolver;
+import android.content.ContentValues;
+import android.content.ContentUris;
+
 import android.net.Uri;
+
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+
 import android.telephony.SmsManager;
 import android.telephony.SmsMessage;
-import android.util.Log;
-
-import java.util.ArrayList;
 
 /**
  * This class is returning unique ids for PendingIntent requestCode attribute.

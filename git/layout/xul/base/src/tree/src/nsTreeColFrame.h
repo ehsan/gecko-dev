@@ -43,7 +43,7 @@ protected:
   virtual ~nsTreeColFrame();
 
   /**
-   * @return the tree box object of the tree this column belongs to, or nullptr.
+   * @return the tree box object of the tree this column belongs to, or nsnull.
    */
   nsITreeBoxObject* GetTreeBoxObject();
 

@@ -7,21 +7,21 @@
 #define nsCoreUtils_h_
 
 
+#include "nsIDOMNode.h"
 #include "nsIContent.h"
 #include "nsIBoxObject.h"
-#include "nsIPresShell.h"
+#include "nsITreeBoxObject.h"
+#include "nsITreeColumns.h"
 
+#include "nsIFrame.h"
+#include "nsIDocShellTreeItem.h"
+#include "nsIDOMCSSStyleDeclaration.h"
 #include "nsIDOMDOMStringList.h"
+#include "nsIMutableArray.h"
 #include "nsPoint.h"
 #include "nsTArray.h"
 
 class nsRange;
-class nsIDOMNode;
-class nsIFrame;
-class nsIDocShellTreeItem;
-class nsITreeColumn;
-class nsITreeBoxObject;
-class nsIWidget;
 
 /**
  * Core utils.
@@ -87,7 +87,7 @@ public:
    * Return DOM element related with the given node, i.e.
    * a) itself if it is DOM element
    * b) parent element if it is text node
-   * c) otherwise nullptr
+   * c) otherwise nsnull
    *
    * @param aNode  [in] the given DOM node
    */
@@ -124,7 +124,7 @@ public:
    */
    static bool IsAncestorOf(nsINode *aPossibleAncestorNode,
                               nsINode *aPossibleDescendantNode,
-                              nsINode *aRootNode = nullptr);
+                              nsINode *aRootNode = nsnull);
 
   /**
    * Helper method to scroll range into view, used for implementation of
@@ -325,7 +325,7 @@ public:
   NS_DECL_NSIDOMDOMSTRINGLIST
 
   bool Add(const nsAString& aName) {
-    return mNames.AppendElement(aName) != nullptr;
+    return mNames.AppendElement(aName) != nsnull;
   }
 
 private:

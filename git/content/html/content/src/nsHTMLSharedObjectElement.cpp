@@ -241,7 +241,7 @@ nsHTMLSharedObjectElement::GetClassInfoInternal()
   if (mNodeInfo->Equals(nsGkAtoms::embed)) {
     return NS_GetDOMClassInfoInstance(eDOMClassInfo_HTMLEmbedElement_id);
   }
-  return nullptr;
+  return nsnull;
 }
 
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLSharedObjectElement)
@@ -381,7 +381,7 @@ nsHTMLSharedObjectElement::GetSVGDocument(nsIDOMDocument **aResult)
 {
   NS_ENSURE_ARG_POINTER(aResult);
 
-  *aResult = nullptr;
+  *aResult = nsnull;
 
   if (!IsInDoc()) {
     return NS_OK;
@@ -476,7 +476,7 @@ nsHTMLSharedObjectElement::StartObjectLoad(bool aNotify)
     // Be sure to call the nsIURI version if we have no attribute
     // That handles the case where no URI is specified. An empty string would
     // get interpreted as the page itself, instead of absence of URI.
-    LoadObject(nullptr, aNotify, type);
+    LoadObject(nsnull, aNotify, type);
   }
   else {
     LoadObject(uri, aNotify, type);

@@ -12,7 +12,7 @@
 
 
 DeleteNodeTxn::DeleteNodeTxn()
-  : EditTxn(), mNode(), mParent(), mRefNode(), mRangeUpdater(nullptr)
+  : EditTxn(), mNode(), mParent(), mRefNode(), mRangeUpdater(nsnull)
 {
 }
 

@@ -223,11 +223,11 @@ LayerManager::CreateAsynchronousImageContainer()
 
 Layer::Layer(LayerManager* aManager, void* aImplData) :
   mManager(aManager),
-  mParent(nullptr),
-  mNextSibling(nullptr),
-  mPrevSibling(nullptr),
+  mParent(nsnull),
+  mNextSibling(nsnull),
+  mPrevSibling(nsnull),
   mImplData(aImplData),
-  mMaskLayer(nullptr),
+  mMaskLayer(nsnull),
   mXScale(1.0f),
   mYScale(1.0f),
   mOpacity(1.0),
@@ -613,10 +613,11 @@ const gfx3DMatrix
 Layer::GetLocalTransform()
 {
   gfx3DMatrix transform;
-  if (ShadowLayer* shadow = AsShadowLayer())
+  if (ShadowLayer* shadow = AsShadowLayer()) {
     transform = shadow->GetShadowTransform();
-  else
+  } else {
     transform = mTransform;
+  }
   transform.Scale(mXScale, mYScale, 1);
   return transform;
 }
@@ -624,7 +625,7 @@ Layer::GetLocalTransform()
 const float
 Layer::GetLocalOpacity()
 {
-   if (ShadowLayer* shadow = AsShadowLayer())
+  if (ShadowLayer* shadow = AsShadowLayer())
     return shadow->GetShadowOpacity();
   return mOpacity;
 }

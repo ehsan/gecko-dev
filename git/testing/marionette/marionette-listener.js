@@ -377,7 +377,6 @@ function executeScript(msg, directInject) {
  */
 function setScriptTimeout(msg) {
   marionetteTimeout = msg.json.value;
-  sendOk();
 }
 
 /**

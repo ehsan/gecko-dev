@@ -86,8 +86,8 @@ typedef LONG
                                    ULONG* pulStatus);
 
 
-static TTLoadEmbeddedFontProc TTLoadEmbeddedFontPtr = nullptr;
-static TTDeleteEmbeddedFontProc TTDeleteEmbeddedFontPtr = nullptr;
+static TTLoadEmbeddedFontProc TTLoadEmbeddedFontPtr = nsnull;
+static TTDeleteEmbeddedFontProc TTDeleteEmbeddedFontPtr = nsnull;
 
 class WinUserFontData : public gfxUserFontData {
 public:
@@ -176,7 +176,7 @@ GDIFontEntry::GDIFontEntry(const nsAString& aFaceName,
     mStretch = aStretch;
     if (IsType1())
         mForceGDI = true;
-    mIsUserFont = aUserFontData != nullptr;
+    mIsUserFont = aUserFontData != nsnull;
 
     InitLogFont(aFaceName, aFontType);
 }
@@ -352,7 +352,7 @@ GDIFontEntry::TestCharacterMap(PRUint32 aCh)
             return false;
         gfxGDIFont *font = static_cast<gfxGDIFont*>(tempFont.get());
 
-        HDC dc = GetDC((HWND)nullptr);
+        HDC dc = GetDC((HWND)nsnull);
         SetGraphicsMode(dc, GM_ADVANCED);
         HFONT hfont = font->GetHFONT();
         HFONT oldFont = (HFONT)SelectObject(dc, hfont);
@@ -475,7 +475,7 @@ GDIFontFamily::FamilyAddStylesProc(const ENUMLOGFONTEXW *lpelfe,
 
     gfxWindowsFontType feType = GDIFontEntry::DetermineFontType(metrics, fontType);
 
-    GDIFontEntry *fe = nullptr;
+    GDIFontEntry *fe = nsnull;
     for (PRUint32 i = 0; i < ff->mAvailableFonts.Length(); ++i) {
         fe = static_cast<GDIFontEntry*>(ff->mAvailableFonts[i].get());
         if (feType > fe->mFontType) {
@@ -506,7 +506,7 @@ GDIFontFamily::FamilyAddStylesProc(const ENUMLOGFONTEXW *lpelfe,
     fe = GDIFontEntry::CreateFontEntry(nsDependentString(lpelfe->elfFullName),
                                        feType, (logFont.lfItalic == 0xFF),
                                        (PRUint16) (logFont.lfWeight), 0,
-                                       nullptr, false);
+                                       nsnull, false);
     if (!fe)
         return 1;
 
@@ -553,7 +553,7 @@ GDIFontFamily::FindStyleVariations()
         return;
     mHasStyles = true;
 
-    HDC hdc = GetDC(nullptr);
+    HDC hdc = GetDC(nsnull);
     SetGraphicsMode(hdc, GM_ADVANCED);
 
     LOGFONTW logFont;
@@ -576,7 +576,7 @@ GDIFontFamily::FindStyleVariations()
     }
 #endif
 
-    ReleaseDC(nullptr, hdc);
+    ReleaseDC(nsnull, hdc);
 
     if (mIsBadUnderlineFamily)
         SetBadUnderlineFonts();
@@ -754,7 +754,7 @@ gfxGDIFontList::LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
     if (!(lookup = mPostscriptNames.GetWeak(aFullname)) &&
         !(lookup = mFullnames.GetWeak(aFullname))) 
     {
-        return nullptr;
+        return nsnull;
     }
 
     bool isCFF = false; // jtdfix -- need to determine this
@@ -766,11 +766,11 @@ gfxGDIFontList::LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
     GDIFontEntry *fe = GDIFontEntry::CreateFontEntry(lookup->Name(), 
         gfxWindowsFontType(isCFF ? GFX_FONT_TYPE_PS_OPENTYPE : GFX_FONT_TYPE_TRUETYPE) /*type*/, 
         lookup->mItalic ? NS_FONT_STYLE_ITALIC : NS_FONT_STYLE_NORMAL,
-        lookup->mWeight, aProxyEntry->mStretch, nullptr,
+        lookup->mWeight, aProxyEntry->mStretch, nsnull,
         lookup->Family()->HasItalicFace());
         
     if (!fe)
-        return nullptr;
+        return nsnull;
 
     fe->mIsUserFont = true;
     fe->mIsLocalUserFont = true;
@@ -900,13 +900,13 @@ gfxGDIFontList::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
     bool isCFF = gfxFontUtils::IsCffFont(aFontData, hasVertical);
 
     nsresult rv;
-    HANDLE fontRef = nullptr;
+    HANDLE fontRef = nsnull;
     bool isEmbedded = false;
 
     nsAutoString uniqueName;
     rv = gfxFontUtils::MakeUniqueUserFontName(uniqueName);
     if (NS_FAILED(rv))
-        return nullptr;
+        return nsnull;
 
     // for TTF fonts, first try using the t2embed library if available
     if (!isCFF && TTLoadEmbeddedFontPtr && TTDeleteEmbeddedFontPtr) {
@@ -940,7 +940,7 @@ gfxGDIFontList::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
                                         &eotReader,
                                         (PRUnichar*)(fontName.get()), 0, 0);
             if (ret != E_NONE) {
-                fontRef = nullptr;
+                fontRef = nsnull;
                 char buf[256];
                 sprintf(buf, "font (%s) not loaded using TTLoadEmbeddedFont - error %8.8x", NS_ConvertUTF16toUTF8(aProxyEntry->FamilyName()).get(), ret);
                 NS_WARNING(buf);
@@ -949,7 +949,7 @@ gfxGDIFontList::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
     }
 
     // load CFF fonts or fonts that failed with t2embed loader
-    if (fontRef == nullptr) {
+    if (fontRef == nsnull) {
         // Postscript-style glyphs, swizzle name table, load directly
         FallibleTArray<PRUint8> newFontData;
 
@@ -957,7 +957,7 @@ gfxGDIFontList::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
         rv = gfxFontUtils::RenameFont(uniqueName, aFontData, aLength, &newFontData);
 
         if (NS_FAILED(rv))
-            return nullptr;
+            return nsnull;
         
         DWORD numFonts = 0;
 
@@ -971,14 +971,14 @@ gfxGDIFontList::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
         fontRef = AddFontMemResourceEx(fontData, fontLength, 
                                        0 /* reserved */, &numFonts);
         if (!fontRef)
-            return nullptr;
+            return nsnull;
 
         // only load fonts with a single face contained in the data
         // AddFontMemResourceEx generates an additional face name for
         // vertical text if the font supports vertical writing
         if (fontRef && numFonts != 1 + !!hasVertical) {
             RemoveFontMemResourceEx(fontRef);
-            return nullptr;
+            return nsnull;
         }
     }
 
@@ -1031,7 +1031,7 @@ gfxGDIFontList::GetDefaultFont(const gfxFontStyle* aStyle, bool& aNeedsBold)
         }
     }
 
-    return nullptr;
+    return nsnull;
 }
 
 

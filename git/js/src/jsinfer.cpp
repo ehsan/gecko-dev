@@ -3394,13 +3394,11 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
       }
 
       case JSOP_NAME:
-      case JSOP_INTRINSICNAME:
-      case JSOP_CALLNAME:
-      case JSOP_CALLINTRINSIC: {
+      case JSOP_CALLNAME: {
         TypeSet *seen = bytecodeTypes(pc);
         addTypeBarrier(cx, pc, seen, Type::UnknownType());
         seen->addSubset(cx, &pushed[0]);
-        if (op == JSOP_CALLNAME || op == JSOP_CALLINTRINSIC)
+        if (op == JSOP_CALLNAME)
             pushed[0].addPropagateThis(cx, script, pc, Type::UnknownType());
         break;
       }
@@ -4314,8 +4312,7 @@ AnalyzePoppedThis(JSContext *cx, Vector<SSAUseChain *> *pendingPoppedThis,
             }
 
             unsigned slotSpan = obj->slotSpan();
-            RootedValue value(cx, UndefinedValue());
-            if (!DefineNativeProperty(cx, obj, id, value, NULL, NULL,
+            if (!DefineNativeProperty(cx, obj, id, UndefinedValue(), NULL, NULL,
                                       JSPROP_ENUMERATE, 0, 0, DNP_SKIP_TYPE)) {
                 cx->compartment->types.setPendingNukeTypes(cx);
                 *pbaseobj = NULL;

@@ -71,13 +71,13 @@ void DocLoadEventHandled(AccEvent* aEvent);
  * Log the document was created.
  */
 void DocCreate(const char* aMsg, nsIDocument* aDocumentNode,
-               DocAccessible* aDocument = nullptr);
+               DocAccessible* aDocument = nsnull);
 
 /**
  * Log the document was destroyed.
  */
 void DocDestroy(const char* aMsg, nsIDocument* aDocumentNode,
-                DocAccessible* aDocument = nullptr);
+                DocAccessible* aDocument = nsnull);
 
 /**
  * Log the outer document was destroyed.

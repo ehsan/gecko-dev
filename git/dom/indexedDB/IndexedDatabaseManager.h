@@ -88,7 +88,7 @@ public:
                                   void* aClosure)
   {
     NS_ASSERTION(aDatabase, "Need a DB here!");
-    return AcquireExclusiveAccess(aOrigin, aDatabase, aHelper, nullptr,
+    return AcquireExclusiveAccess(aOrigin, aDatabase, aHelper, nsnull,
                                   aCallback, aClosure);
   }
 
@@ -97,7 +97,7 @@ public:
                                   WaitingOnDatabasesCallback aCallback,
                                   void* aClosure)
   {
-    return AcquireExclusiveAccess(aOrigin, nullptr, nullptr, aRunnable, aCallback,
+    return AcquireExclusiveAccess(aOrigin, nsnull, nsnull, aRunnable, aCallback,
                                   aClosure);
   }
 
@@ -124,7 +124,6 @@ public:
   GetIndexedDBQuotaMB();
 
   nsresult EnsureOriginIsInitialized(const nsACString& aOrigin,
-                                     FactoryPrivilege aPrivilege,
                                      nsIFile** aDirectory);
 
   // Determine if the quota is lifted for the Window the current thread is
@@ -452,12 +451,12 @@ private:
         return currentOp;
       }
     }
-    return nullptr;
+    return nsnull;
   }
 
   bool IsClearOriginPending(const nsACString& aOrigin)
   {
-    return !!FindSynchronizedOp(aOrigin, nullptr);
+    return !!FindSynchronizedOp(aOrigin, nsnull);
   }
 
   // Maintains a list of live databases per origin.
@@ -515,7 +514,7 @@ public:
 
   ~AutoEnterWindow()
   {
-    IndexedDatabaseManager::SetCurrentWindow(nullptr);
+    IndexedDatabaseManager::SetCurrentWindow(nsnull);
   }
 };
 

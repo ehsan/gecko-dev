@@ -61,7 +61,7 @@ const nsDynamicFunctionLoad kXULFuncs[] = {
   { "XRE_CreateAppData", (NSFuncPtr*) &XRE_CreateAppData },
   { "XRE_FreeAppData", (NSFuncPtr*) &XRE_FreeAppData },
   { "XRE_main", (NSFuncPtr*) &XRE_main },
-  { nullptr, nullptr }
+  { nsnull, nsnull }
 };
 
 nsresult

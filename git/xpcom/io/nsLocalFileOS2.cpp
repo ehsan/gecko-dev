@@ -239,7 +239,7 @@ class nsDirEnumerator : public nsISimpleEnumerator,
 
         NS_DECL_ISUPPORTS
 
-        nsDirEnumerator() : mDir(nullptr)
+        nsDirEnumerator() : mDir(nsnull)
         {
         }
 
@@ -259,7 +259,7 @@ class nsDirEnumerator : public nsISimpleEnumerator,
             }
 
             mDir = PR_OpenDir(filepath.get());
-            if (mDir == nullptr)    // not a directory?
+            if (mDir == nsnull)    // not a directory?
                 return NS_ERROR_FAILURE;
 
             mParent = parent;
@@ -269,17 +269,17 @@ class nsDirEnumerator : public nsISimpleEnumerator,
         NS_IMETHOD HasMoreElements(bool *result)
         {
             nsresult rv;
-            if (mNext == nullptr && mDir)
+            if (mNext == nsnull && mDir)
             {
                 PRDirEntry* entry = PR_ReadDir(mDir, PR_SKIP_BOTH);
-                if (entry == nullptr)
+                if (entry == nsnull)
                 {
                     // end of dir entries
 
                     PRStatus status = PR_CloseDir(mDir);
                     if (status != PR_SUCCESS)
                         return NS_ERROR_FAILURE;
-                    mDir = nullptr;
+                    mDir = nsnull;
 
                     *result = false;
                     return NS_OK;
@@ -304,7 +304,7 @@ class nsDirEnumerator : public nsISimpleEnumerator,
 
                 mNext = do_QueryInterface(file);
             }
-            *result = mNext != nullptr;
+            *result = mNext != nsnull;
             if (!*result)
                 Close();
             return NS_OK;
@@ -317,23 +317,23 @@ class nsDirEnumerator : public nsISimpleEnumerator,
             rv = HasMoreElements(&hasMore);
             if (NS_FAILED(rv)) return rv;
 
-            *result = mNext;        // might return nullptr
+            *result = mNext;        // might return nsnull
             NS_IF_ADDREF(*result);
 
-            mNext = nullptr;
+            mNext = nsnull;
             return NS_OK;
         }
 
         NS_IMETHOD GetNextFile(nsIFile **result)
         {
-            *result = nullptr;
+            *result = nsnull;
             bool hasMore = false;
             nsresult rv = HasMoreElements(&hasMore);
             if (NS_FAILED(rv) || !hasMore)
                 return rv;
             *result = mNext;
             NS_IF_ADDREF(*result);
-            mNext = nullptr;
+            mNext = nsnull;
             return NS_OK;
         }
 
@@ -345,7 +345,7 @@ class nsDirEnumerator : public nsISimpleEnumerator,
                 NS_ASSERTION(status == PR_SUCCESS, "close failed");
                 if (status != PR_SUCCESS)
                     return NS_ERROR_FAILURE;
-                mDir = nullptr;
+                mDir = nsnull;
             }
             return NS_OK;
         }
@@ -422,7 +422,7 @@ NS_IMETHODIMP nsDriveEnumerator::GetNext(nsISupports **aNext)
 {
     if (!mDrives)
     {
-        *aNext = nullptr;
+        *aNext = nsnull;
         return NS_OK;
     }
 
@@ -470,7 +470,7 @@ typedef MVHDR *PMVHDR;
 class TypeEaEnumerator
 {
 public:
-    TypeEaEnumerator() : mEaBuf(nullptr) { }
+    TypeEaEnumerator() : mEaBuf(nsnull) { }
     ~TypeEaEnumerator() { if (mEaBuf) NS_Free(mEaBuf); }
 
     nsresult Init(nsLocalFile * aFile);
@@ -521,7 +521,7 @@ nsresult TypeEaEnumerator::Init(nsLocalFile * aFile)
 
 char *   TypeEaEnumerator::GetNext(PRUint32 *lth)
 {
-    char *  result = nullptr;
+    char *  result = nsnull;
 
     // this is a loop so we can skip invalid entries if needed;
     // normally, it will break out on the first iteration
@@ -1007,13 +1007,13 @@ nsLocalFile::GetNativeLeafName(nsACString &aLeafName)
     aLeafName.Truncate();
 
     const char* temp = mWorkingPath.get();
-    if(temp == nullptr)
+    if(temp == nsnull)
         return NS_ERROR_FILE_UNRECOGNIZED_PATH;
 
     const char* leaf = (const char*) _mbsrchr((const unsigned char*) temp, '\\');
 
     // if the working path is just a node without any lashes.
-    if (leaf == nullptr)
+    if (leaf == nsnull)
         leaf = temp;
     else
         leaf++;
@@ -1028,7 +1028,7 @@ nsLocalFile::SetNativeLeafName(const nsACString &aLeafName)
     MakeDirty();
 
     const unsigned char* temp = (const unsigned char*) mWorkingPath.get();
-    if(temp == nullptr)
+    if(temp == nsnull)
         return NS_ERROR_FILE_UNRECOGNIZED_PATH;
 
     // cannot use nsCString::RFindChar() due to 0x5c problem
@@ -1985,7 +1985,7 @@ nsLocalFile::GetParent(nsIFile * *aParent)
       return NS_ERROR_FILE_UNRECOGNIZED_PATH;
 
     if (offset == 1 && parentPath[0] == '\\') {
-        aParent = nullptr;
+        aParent = nsnull;
         return NS_OK;
     }
     if (offset > 0)
@@ -2280,7 +2280,7 @@ nsLocalFile::GetDirectoryEntries(nsISimpleEnumerator * *entries)
 {
     NS_ENSURE_ARG(entries);
     nsresult rv;
-    *entries = nullptr;
+    *entries = nsnull;
 
     if (mWorkingPath.EqualsLiteral("\\\\.")) {
         nsDriveEnumerator *drives = new nsDriveEnumerator;
@@ -2304,7 +2304,7 @@ nsLocalFile::GetDirectoryEntries(nsISimpleEnumerator * *entries)
         return NS_ERROR_FILE_NOT_DIRECTORY;
 
     nsDirEnumerator* dirEnum = new nsDirEnumerator();
-    if (dirEnum == nullptr)
+    if (dirEnum == nsnull)
         return NS_ERROR_OUT_OF_MEMORY;
     NS_ADDREF(dirEnum);
     rv = dirEnum->Init(this);
@@ -2378,7 +2378,7 @@ nsresult
 NS_NewNativeLocalFile(const nsACString &path, bool followLinks, nsIFile* *result)
 {
     nsLocalFile* file = new nsLocalFile();
-    if (file == nullptr)
+    if (file == nsnull)
         return NS_ERROR_OUT_OF_MEMORY;
     NS_ADDREF(file);
 
@@ -2551,7 +2551,7 @@ NS_NewLocalFile(const nsAString &path, bool followLinks, nsIFile* *result)
     nsCAutoString buf;
     nsresult rv = NS_CopyUnicodeToNative(path, buf);
     if (NS_FAILED(rv)) {
-        *result = nullptr;
+        *result = nsnull;
         return rv;
     }
     return NS_NewNativeLocalFile(buf, followLinks, result);

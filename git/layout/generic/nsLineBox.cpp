@@ -15,7 +15,6 @@
 #ifdef IBMBIDI
 #include "nsBidiPresUtils.h"
 #endif
-#include "nsStyleStructInlines.h"
 
 #ifdef DEBUG
 static PRInt32 ctorCount;
@@ -37,7 +36,7 @@ nsLineBox::nsLineBox(nsIFrame* aFrame, PRInt32 aCount, bool aIsBlock)
   NS_ASSERTION(!aIsBlock || aCount == 1, "Blocks must have exactly one child");
   nsIFrame* f = aFrame;
   for (PRInt32 n = aCount; n > 0; f = f->GetNextSibling(), --n) {
-    NS_ASSERTION(aIsBlock == f->IsBlockOutside(),
+    NS_ASSERTION(aIsBlock == f->GetStyleDisplay()->IsBlockOutside(),
                  "wrong kind of child frame");
   }
 #endif
@@ -162,7 +161,7 @@ nsLineBox::Cleanup()
     else {
       delete mInlineData;
     }
-    mData = nullptr;
+    mData = nsnull;
   }
 }
 
@@ -366,7 +365,7 @@ nsLineBox::DeleteLineList(nsPresContext* aPresContext, nsLineList& aLines,
 #endif
     for (nsIFrame* child = aLines.front()->mFirstChild; child; ) {
       nsIFrame* nextChild = child->GetNextSibling();
-      child->SetNextSibling(nullptr);
+      child->SetNextSibling(nsnull);
       child->DestroyFrom((aDestructRoot) ? aDestructRoot : child);
       child = nextChild;
 #ifdef DEBUG
@@ -464,12 +463,12 @@ nsLineBox::MaybeFreeData()
     if (IsInline()) {
       if (mInlineData->mFloats.IsEmpty()) {
         delete mInlineData;
-        mInlineData = nullptr;
+        mInlineData = nsnull;
       }
     }
     else if (mBlockData->mCarriedOutBottomMargin.IsZero()) {
       delete mBlockData;
-      mBlockData = nullptr;
+      mBlockData = nsnull;
     }
   }
 }
@@ -479,7 +478,7 @@ nsFloatCache*
 nsLineBox::GetFirstFloat()
 {
   NS_ABORT_IF_FALSE(IsInline(), "block line can't have floats");
-  return mInlineData ? mInlineData->mFloats.Head() : nullptr;
+  return mInlineData ? mInlineData->mFloats.Head() : nsnull;
 }
 
 // XXX this might be too eager to free memory
@@ -639,7 +638,7 @@ nsLineIterator::GetLine(PRInt32 aLineNumber,
   NS_ENSURE_ARG_POINTER(aLineFlags);
 
   if ((aLineNumber < 0) || (aLineNumber >= mNumLines)) {
-    *aFirstFrameOnLine = nullptr;
+    *aFirstFrameOnLine = nsnull;
     *aNumFramesOnLine = 0;
     aLineBounds.SetRect(0, 0, 0, 0);
     return NS_OK;
@@ -689,8 +688,8 @@ nsLineIterator::CheckLineOrder(PRInt32                  aLine,
 
   if (!line->mFirstChild) { // empty line
     *aIsReordered = false;
-    *aFirstVisual = nullptr;
-    *aLastVisual = nullptr;
+    *aFirstVisual = nsnull;
+    *aLastVisual = nsnull;
     return NS_OK;
   }
 
@@ -724,7 +723,7 @@ nsLineIterator::FindFrameAt(PRInt32 aLineNumber,
 
   nsLineBox* line = mLines[aLineNumber];
   if (!line) {
-    *aFrameFound = nullptr;
+    *aFrameFound = nsnull;
     *aXIsBeforeFirstFrame = true;
     *aXIsAfterLastFrame = false;
     return NS_OK;
@@ -734,8 +733,8 @@ nsLineIterator::FindFrameAt(PRInt32 aLineNumber,
     return NS_ERROR_FAILURE;
 
   nsIFrame* frame = line->mFirstChild;
-  nsIFrame* closestFromLeft = nullptr;
-  nsIFrame* closestFromRight = nullptr;
+  nsIFrame* closestFromLeft = nsnull;
+  nsIFrame* closestFromRight = nsnull;
   PRInt32 n = line->GetChildCount();
   while (n--) {
     nsRect rect = frame->GetRect();
@@ -794,7 +793,7 @@ nsLineIterator::GetNextSiblingOnLine(nsIFrame*& aFrame, PRInt32 aLineNumber)
 
 #ifdef NS_BUILD_REFCNT_LOGGING
 nsFloatCacheList::nsFloatCacheList() :
-  mHead(nullptr)
+  mHead(nsnull)
 {
   MOZ_COUNT_CTOR(nsFloatCacheList);
 }
@@ -815,7 +814,7 @@ nsFloatCacheList::DeleteAll()
     delete c;
     c = next;
   }
-  mHead = nullptr;
+  mHead = nsnull;
 }
 
 nsFloatCache*
@@ -845,8 +844,8 @@ nsFloatCacheList::Append(nsFloatCacheFreeList& aList)
     NS_ASSERTION(!mHead, "Bogus!");
     mHead = aList.mHead;
   }
-  aList.mHead = nullptr;
-  aList.mTail = nullptr;
+  aList.mHead = nsnull;
+  aList.mTail = nsnull;
 }
 
 nsFloatCache*
@@ -866,7 +865,7 @@ nsFloatCache*
 nsFloatCacheList::RemoveAndReturnPrev(nsFloatCache* aElement)
 {
   nsFloatCache* fc = mHead;
-  nsFloatCache* prev = nullptr;
+  nsFloatCache* prev = nsnull;
   while (fc) {
     if (fc == aElement) {
       if (prev) {
@@ -879,14 +878,14 @@ nsFloatCacheList::RemoveAndReturnPrev(nsFloatCache* aElement)
     prev = fc;
     fc = fc->mNext;
   }
-  return nullptr;
+  return nsnull;
 }
 
 //----------------------------------------------------------------------
 
 #ifdef NS_BUILD_REFCNT_LOGGING
 nsFloatCacheFreeList::nsFloatCacheFreeList() :
-  mTail(nullptr)
+  mTail(nsnull)
 {
   MOZ_COUNT_CTOR(nsFloatCacheFreeList);
 }
@@ -911,7 +910,7 @@ nsFloatCacheFreeList::Append(nsFloatCacheList& aList)
     mHead = aList.mHead;
   }
   mTail = aList.Tail();
-  aList.mHead = nullptr;
+  aList.mHead = nsnull;
 }
 
 void
@@ -927,7 +926,7 @@ void
 nsFloatCacheFreeList::DeleteAll()
 {
   nsFloatCacheList::DeleteAll();
-  mTail = nullptr;
+  mTail = nsnull;
 }
 
 nsFloatCache*
@@ -938,12 +937,12 @@ nsFloatCacheFreeList::Alloc(nsIFrame* aFloat)
   nsFloatCache* fc = mHead;
   if (mHead) {
     if (mHead == mTail) {
-      mHead = mTail = nullptr;
+      mHead = mTail = nsnull;
     }
     else {
       mHead = fc->mNext;
     }
-    fc->mNext = nullptr;
+    fc->mNext = nsnull;
   }
   else {
     fc = new nsFloatCache();
@@ -956,7 +955,7 @@ void
 nsFloatCacheFreeList::Append(nsFloatCache* aFloat)
 {
   NS_ASSERTION(!aFloat->mNext, "Bogus!");
-  aFloat->mNext = nullptr;
+  aFloat->mNext = nsnull;
   if (mTail) {
     NS_ASSERTION(!mTail->mNext, "Bogus!");
     mTail->mNext = aFloat;
@@ -971,8 +970,8 @@ nsFloatCacheFreeList::Append(nsFloatCache* aFloat)
 //----------------------------------------------------------------------
 
 nsFloatCache::nsFloatCache()
-  : mFloat(nullptr),
-    mNext(nullptr)
+  : mFloat(nsnull),
+    mNext(nsnull)
 {
   MOZ_COUNT_CTOR(nsFloatCache);
 }

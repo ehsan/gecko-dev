@@ -82,14 +82,14 @@ nsIdleServiceDaily::Observe(nsISupports *,
   nsCOMPtr<nsIObserverService> observerService =
     mozilla::services::GetObserverService();
   NS_ENSURE_STATE(observerService);
-  (void)observerService->NotifyObservers(nullptr,
+  (void)observerService->NotifyObservers(nsnull,
                                          OBSERVER_TOPIC_IDLE_DAILY,
-                                         nullptr);
+                                         nsnull);
 
   // Notify the category observers.
   const nsCOMArray<nsIObserver> &entries = mCategoryObservers.GetEntries();
   for (PRInt32 i = 0; i < entries.Count(); ++i) {
-    (void)entries[i]->Observe(nullptr, OBSERVER_TOPIC_IDLE_DAILY, nullptr);
+    (void)entries[i]->Observe(nsnull, OBSERVER_TOPIC_IDLE_DAILY, nsnull);
   }
 
   // Stop observing idle for today.
@@ -104,7 +104,7 @@ nsIdleServiceDaily::Observe(nsISupports *,
   // any circumstances.
   nsIPrefService* prefs = Preferences::GetService();
   if (prefs) {
-    prefs->SavePrefFile(nullptr);
+    prefs->SavePrefFile(nsnull);
   }
 
 #ifdef ANDROID
@@ -150,7 +150,7 @@ nsIdleServiceDaily::Init()
     __android_log_print(ANDROID_LOG_INFO, "IdleService", "DailyCallback started");
 #endif
     // Wait for the user to become idle, so we can do todays idle tasks.
-    DailyCallback(nullptr, this);
+    DailyCallback(nsnull, this);
   }
   else {
 #ifdef ANDROID
@@ -180,7 +180,7 @@ nsIdleServiceDaily::~nsIdleServiceDaily()
 {
   if (mTimer) {
     mTimer->Cancel();
-    mTimer = nullptr;
+    mTimer = nsnull;
   }
 }
 
@@ -337,7 +337,7 @@ nsIdleService::~nsIdleService()
 
 
   MOZ_ASSERT(gIdleService == this);
-  gIdleService = nullptr;
+  gIdleService = nsnull;
 }
 
 NS_IMPL_ISUPPORTS2(nsIdleService, nsIIdleService, nsIIdleServiceInternal)
@@ -645,8 +645,6 @@ nsIdleService::IdleTimerCallback(void)
         notifyList.AppendObject(curListener.observer);
         // This listener is now idle.
         curListener.isIdle = true;
-        // Remember we have someone idle.
-        mAnyObserverIdle = true;
       } else {
         // Listeners that are not timed out yet are candidates for timing out.
         mDeltaToNextIdleSwitchInS = PR_MIN(mDeltaToNextIdleSwitchInS,
@@ -667,6 +665,9 @@ nsIdleService::IdleTimerCallback(void)
   if (!numberOfPendingNotifications) {
     return;
   }
+
+  // Remember we have someone idle.
+  mAnyObserverIdle = true;
 
   // We need a text string to send with any state change events.
   nsAutoString timeStr;

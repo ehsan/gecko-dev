@@ -28,7 +28,7 @@ using namespace mozilla::a11y;
 typedef GType (* AtkGetTypeType) (void);
 GType g_atk_hyperlink_impl_type = G_TYPE_INVALID;
 static bool sATKChecked = false;
-static PRLibrary *sATKLib = nullptr;
+static PRLibrary *sATKLib = nsnull;
 static const char sATKLibName[] = "libatk-1.0.so.0";
 static const char sATKHyperlinkImplGetTypeSymbol[] =
   "atk_hyperlink_impl_get_type";
@@ -441,7 +441,7 @@ mai_util_get_root(void)
     if (gail_get_root)
       return gail_get_root();
 
-    return nullptr;
+    return nsnull;
   }
 
   return nsAccessNode::GetApplicationAccessible()->GetAtkObject();
@@ -572,7 +572,7 @@ toplevel_event_watcher(GSignalInvocationHint* ihint,
   return TRUE;
 }
 
-void
+bool
 ApplicationAccessibleWrap::Init()
 {
     if (ShouldA11yBeEnabled()) {
@@ -615,7 +615,7 @@ ApplicationAccessibleWrap::Init()
         }
     }
 
-    ApplicationAccessible::Init();
+    return ApplicationAccessible::Init();
 }
 
 void
@@ -652,7 +652,7 @@ ApplicationAccessibleWrap::Unload()
     }
     // if (sATKLib) {
     //     PR_UnloadLibrary(sATKLib);
-    //     sATKLib = nullptr;
+    //     sATKLib = nsnull;
     // }
 }
 
@@ -670,7 +670,7 @@ ApplicationAccessibleWrap::Name(nsString& aName)
 NS_IMETHODIMP
 ApplicationAccessibleWrap::GetNativeInterface(void** aOutAccessible)
 {
-    *aOutAccessible = nullptr;
+    *aOutAccessible = nsnull;
 
     if (!mAtkObject) {
         mAtkObject =
@@ -841,7 +841,7 @@ namespace a11y {
 
   static const char sAccEnv [] = "GNOME_ACCESSIBILITY";
 #ifdef MOZ_ENABLE_DBUS
-static DBusPendingCall *sPendingCall = nullptr;
+static DBusPendingCall *sPendingCall = nsnull;
 #endif
 
 void
@@ -861,7 +861,7 @@ PreInit()
   if (PR_GetEnv(sAccEnv) || !PR_GetEnv("DBUS_SESSION_BUS_ADDRESS"))
     return;
 
-  DBusConnection* bus = dbus_bus_get(DBUS_BUS_SESSION, nullptr);
+  DBusConnection* bus = dbus_bus_get(DBUS_BUS_SESSION, nsnull);
   if (!bus)
     return;
 
@@ -907,14 +907,14 @@ ShouldA11yBeEnabled()
 #ifdef MOZ_ENABLE_DBUS
   PreInit();
   bool dbusSuccess = false;
-  DBusMessage *reply = nullptr;
+  DBusMessage *reply = nsnull;
   if (!sPendingCall)
     goto dbus_done;
 
   dbus_pending_call_block(sPendingCall);
   reply = dbus_pending_call_steal_reply(sPendingCall);
   dbus_pending_call_unref(sPendingCall);
-  sPendingCall = nullptr;
+  sPendingCall = nsnull;
   if (!reply ||
       dbus_message_get_type(reply) != DBUS_MESSAGE_TYPE_METHOD_RETURN ||
       strcmp(dbus_message_get_signature (reply), DBUS_TYPE_VARIANT_AS_STRING))
