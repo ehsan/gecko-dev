@@ -50,9 +50,8 @@ const kSubviewEvents = [
 
 /**
  * The current version. We can use this to auto-add new default widgets as necessary.
- * (would be const but isn't because of testing purposes)
  */
-let kVersion = 0;
+const kVersion = 0;
 
 /**
  * gPalette is a map of every widget that CustomizableUI.jsm knows about, keyed
@@ -203,6 +202,7 @@ let CustomizableUIInternal = {
       defaultPlacements: [
         "urlbar-container",
         "search-container",
+        "webrtc-status-button",
         "bookmarks-menu-button",
         "downloads-button",
         "home-button",
@@ -273,6 +273,8 @@ let CustomizableUIInternal = {
   },
 
   _defineBuiltInWidgets: function() {
+    //XXXunf Need to figure out how to auto-add new builtin widgets in new
+    //       app versions to already customized areas.
     for (let widgetDefinition of CustomizableWidgets) {
       this.createBuiltinWidget(widgetDefinition);
     }

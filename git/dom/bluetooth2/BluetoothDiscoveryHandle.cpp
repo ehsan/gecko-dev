@@ -25,10 +25,28 @@ BluetoothDiscoveryHandle::BluetoothDiscoveryHandle(nsPIDOMWindow* aWindow)
 {
   MOZ_ASSERT(aWindow);
   MOZ_ASSERT(IsDOMBinding());
+
+  ListenToBluetoothSignal(true);
 }
 
 BluetoothDiscoveryHandle::~BluetoothDiscoveryHandle()
 {
+  ListenToBluetoothSignal(false);
+}
+
+void
+BluetoothDiscoveryHandle::ListenToBluetoothSignal(bool aStart)
+{
+  BluetoothService* bs = BluetoothService::Get();
+  NS_ENSURE_TRUE_VOID(bs);
+
+  if (aStart) {
+    bs->RegisterBluetoothSignalHandler(
+      NS_LITERAL_STRING(KEY_DISCOVERY_HANDLE), this);
+  } else {
+    bs->UnregisterBluetoothSignalHandler(
+      NS_LITERAL_STRING(KEY_DISCOVERY_HANDLE), this);
+  }
 }
 
 // static
@@ -44,18 +62,40 @@ BluetoothDiscoveryHandle::Create(nsPIDOMWindow* aWindow)
 }
 
 void
-BluetoothDiscoveryHandle::DispatchDeviceEvent(BluetoothDevice* aDevice)
+BluetoothDiscoveryHandle::DispatchDeviceEvent(const BluetoothValue& aValue)
 {
-  MOZ_ASSERT(aDevice);
+  // Create a new BluetoothDevice
+  nsRefPtr<BluetoothDevice> device =
+    BluetoothDevice::Create(GetOwner(), aValue);
 
+  // Notify application of discovered device
   BluetoothDeviceEventInit init;
-  init.mDevice = aDevice;
-
+  init.mDevice = device;
   nsRefPtr<BluetoothDeviceEvent> event =
     BluetoothDeviceEvent::Constructor(this,
                                       NS_LITERAL_STRING("devicefound"),
                                       init);
   DispatchTrustedEvent(event);
+}
+
+void
+BluetoothDiscoveryHandle::Notify(const BluetoothSignal& aData)
+{
+  BT_LOGD("[DH] %s", NS_ConvertUTF16toUTF8(aData.name()).get());
+
+  if (aData.name().EqualsLiteral("DeviceFound")) {
+    DispatchDeviceEvent(aData.value());
+  } else {
+    BT_WARNING("Not handling discovery handle signal: %s",
+               NS_ConvertUTF16toUTF8(aData.name()).get());
+  }
+}
+
+void
+BluetoothDiscoveryHandle::DisconnectFromOwner()
+{
+  DOMEventTargetHelper::DisconnectFromOwner();
+  ListenToBluetoothSignal(false);
 }
 
 JSObject*

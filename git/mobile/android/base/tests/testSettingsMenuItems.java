@@ -49,7 +49,6 @@ public class testSettingsMenuItems extends PixelTest {
     String[][] OPTIONS_DISPLAY = {
         { StringHelper.TEXT_SIZE_LABEL },
         { StringHelper.TITLE_BAR_LABEL, "Show page title", "Show page title", "Show page address" },
-	{ StringHelper.SCROLL_TITLE_BAR_LABEL, "Hide the " + BRAND_NAME + " title bar when scrolling down a page" },
         { "Advanced" },
         { StringHelper.CHARACTER_ENCODING_LABEL, "Don't show menu", "Show menu", "Don't show menu" },
         { StringHelper.PLUGINS_LABEL, "Tap to play", "Enabled", "Tap to play", "Disabled" },
@@ -157,7 +156,7 @@ public class testSettingsMenuItems extends PixelTest {
         // Preferences dependent on RELEASE_BUILD
         if (!AppConstants.RELEASE_BUILD) {
             // Text reflow - only built if *not* release build
-            String[] textReflowUi = { StringHelper.TEXT_REFLOW_LABEL };
+            String[] textReflowUi = { "Text reflow" };
             settingsMap.get(PATH_DISPLAY).add(textReflowUi);
 
             // Anonymous cell tower/wifi collection - only built if *not* release build

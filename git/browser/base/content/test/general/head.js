@@ -511,9 +511,3 @@ function promiseTabLoadEvent(tab, url, eventType="load")
     tab.linkedBrowser.loadURI(url);
   return deferred.promise;
 }
-
-function assertWebRTCIndicatorStatus(expected) {
-  let ui = Cu.import("resource:///modules/webrtcUI.jsm", {}).webrtcUI;
-  let msg = "WebRTC indicator " + (expected ? "visible" : "hidden");
-  is(ui.showGlobalIndicator, expected, msg);
-}
