@@ -35,13 +35,21 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsConstraintValidation.h"
+#include "nsIConstraintValidation.h"
 
 #include "nsAString.h"
 #include "nsGenericHTMLElement.h"
 #include "nsHTMLFormElement.h"
+#include "nsDOMValidityState.h"
 
-nsConstraintValidation::~nsConstraintValidation()
+
+nsIConstraintValidation::nsIConstraintValidation()
+  : mValidityBitField(0)
+  , mValidity(nsnull)
+{
+}
+
+nsIConstraintValidation::~nsIConstraintValidation()
 {
   if (mValidity) {
     mValidity->Disconnect();
@@ -49,7 +57,7 @@ nsConstraintValidation::~nsConstraintValidation()
 }
 
 nsresult
-nsConstraintValidation::GetValidity(nsIDOMValidityState** aValidity)
+nsIConstraintValidation::GetValidity(nsIDOMValidityState** aValidity)
 {
   if (!mValidity) {
     mValidity = new nsDOMValidityState(this);
@@ -61,30 +69,21 @@ nsConstraintValidation::GetValidity(nsIDOMValidityState** aValidity)
 }
 
 nsresult
-nsConstraintValidation::GetWillValidate(PRBool* aWillValidate,
-                                        nsGenericHTMLFormElement* aElement)
-{
-  *aWillValidate = IsCandidateForConstraintValidation(aElement);
-  return NS_OK;
-}
-
-nsresult
-nsConstraintValidation::GetValidationMessage(nsAString & aValidationMessage,
-                                             nsGenericHTMLFormElement* aElement)
+nsIConstraintValidation::GetValidationMessage(nsAString& aValidationMessage)
 {
   aValidationMessage.Truncate();
 
-  if (IsCandidateForConstraintValidation(aElement) && !IsValid()) {
-    if (!mCustomValidity.IsEmpty()) {
+  if (IsCandidateForConstraintValidation() && !IsValid()) {
+    if (GetValidityState(VALIDITY_STATE_CUSTOM_ERROR)) {
       aValidationMessage.Assign(mCustomValidity);
-    } else if (IsTooLong()) {
-      GetValidationMessage(aValidationMessage, VALIDATION_MESSAGE_TOO_LONG);
-    } else if (IsValueMissing()) {
-      GetValidationMessage(aValidationMessage, VALIDATION_MESSAGE_VALUE_MISSING);
-    } else if (HasTypeMismatch()) {
-      GetValidationMessage(aValidationMessage, VALIDATION_MESSAGE_TYPE_MISMATCH);
-    } else if (HasPatternMismatch()) {
-      GetValidationMessage(aValidationMessage, VALIDATION_MESSAGE_PATTERN_MISMATCH);
+    } else if (GetValidityState(VALIDITY_STATE_TOO_LONG)) {
+      GetValidationMessage(aValidationMessage, VALIDITY_STATE_TOO_LONG);
+    } else if (GetValidityState(VALIDITY_STATE_VALUE_MISSING)) {
+      GetValidationMessage(aValidationMessage, VALIDITY_STATE_VALUE_MISSING);
+    } else if (GetValidityState(VALIDITY_STATE_TYPE_MISMATCH)) {
+      GetValidationMessage(aValidationMessage, VALIDITY_STATE_TYPE_MISMATCH);
+    } else if (GetValidityState(VALIDITY_STATE_PATTERN_MISMATCH)) {
+      GetValidationMessage(aValidationMessage, VALIDITY_STATE_PATTERN_MISMATCH);
     } else {
       // TODO: The other messages have not been written
       // because related constraint validation are not implemented yet.
@@ -99,45 +98,32 @@ nsConstraintValidation::GetValidationMessage(nsAString & aValidationMessage,
 }
 
 nsresult
-nsConstraintValidation::CheckValidity(PRBool* aValidity,
-                                      nsGenericHTMLFormElement* aElement)
+nsIConstraintValidation::CheckValidity(PRBool* aValidity)
 {
-  if (!IsCandidateForConstraintValidation(aElement) || IsValid()) {
+  if (!IsCandidateForConstraintValidation() || IsValid()) {
     *aValidity = PR_TRUE;
     return NS_OK;
   }
 
   *aValidity = PR_FALSE;
 
-  return nsContentUtils::DispatchTrustedEvent(aElement->GetOwnerDoc(),
-                                              static_cast<nsIContent*>(aElement),
+  nsCOMPtr<nsIContent> content = do_QueryInterface(this);
+  NS_ASSERTION(content, "This class should be inherited by HTML elements only!");
+
+  return nsContentUtils::DispatchTrustedEvent(content->GetOwnerDoc(), content,
                                               NS_LITERAL_STRING("invalid"),
                                               PR_FALSE, PR_TRUE);
 }
 
-nsresult
-nsConstraintValidation::SetCustomValidity(const nsAString & aError)
+void
+nsIConstraintValidation::SetCustomValidity(const nsAString& aError)
 {
   mCustomValidity.Assign(aError);
-  return NS_OK;
+  SetValidityState(VALIDITY_STATE_CUSTOM_ERROR, !mCustomValidity.IsEmpty());
 }
 
 PRBool
-nsConstraintValidation::HasCustomError() const
-{
-  return !mCustomValidity.IsEmpty();
-}
-
-PRBool
-nsConstraintValidation::IsValid()
-{
-  return !(IsValueMissing() || HasTypeMismatch() || HasPatternMismatch() ||
-           IsTooLong() || HasRangeUnderflow() || HasRangeOverflow() ||
-           HasStepMismatch() || HasCustomError());
-}
-
-PRBool
-nsConstraintValidation::IsCandidateForConstraintValidation(nsGenericHTMLFormElement* aElement)
+nsIConstraintValidation::IsCandidateForConstraintValidation() const
 {
   /**
    * An element is never candidate for constraint validation if:
@@ -147,13 +133,17 @@ nsConstraintValidation::IsCandidateForConstraintValidation(nsGenericHTMLFormElem
    * |IsBarredFromConstraintValidation| function.
    */
 
-  // At the moment, every elements which can be candidate for constraint
-  // validation can be disabled. However, using |CanBeDisabled| is future-proof.
-  if (aElement->CanBeDisabled() &&
-      aElement->HasAttr(kNameSpaceID_None, nsGkAtoms::disabled)) {
-    return PR_FALSE;
-  }
+  nsCOMPtr<nsIContent> content =
+    do_QueryInterface(const_cast<nsIConstraintValidation*>(this));
+  NS_ASSERTION(content, "This class should be inherited by HTML elements only!");
 
-  return !IsBarredFromConstraintValidation();
+  // For the moment, all elements that are not barred from constraint validation
+  // accept the disabled attribute and elements that are always barred from
+  // constraint validation do not accept it (objects, fieldset, output).
+  // If one of these elements change and become not always barred from
+  // constraint validation or another element appear with constraint validation
+  // support and can't be disabled, this code will have to be changed.
+  return !content->HasAttr(kNameSpaceID_None, nsGkAtoms::disabled) &&
+         !IsBarredFromConstraintValidation();
 }
 
