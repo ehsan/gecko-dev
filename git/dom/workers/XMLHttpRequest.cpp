@@ -263,7 +263,7 @@ ConvertStringToResponseType(const nsAString& aString)
   }
 
   MOZ_NOT_REACHED("Don't know anything about this response type!");
-  return XMLHttpRequestResponseType::_empty;
+  return _empty;
 }
 
 enum
@@ -719,23 +719,23 @@ public:
       return true;
     }
 
-    JS::Rooted<JSString*> type(aCx, JS_NewUCStringCopyN(aCx, mType.get(), mType.Length()));
+    JSString* type = JS_NewUCStringCopyN(aCx, mType.get(), mType.Length());
     if (!type) {
       return false;
     }
 
-    JS::Rooted<JSObject*> event(aCx, mProgressEvent ?
+    JSObject* event = mProgressEvent ?
                       events::CreateProgressEvent(aCx, type, mLengthComputable,
                                                   mLoaded, mTotal) :
                       events::CreateGenericEvent(aCx, type, false, false,
-                                                 false));
+                                                 false);
     if (!event) {
       return false;
     }
 
-    JS::Rooted<JSObject*> target(aCx, mUploadEvent ?
+    JSObject* target = mUploadEvent ?
                        xhr->GetUploadObjectNoCreate()->GetJSObject() :
-                       xhr->GetJSObject());
+                       xhr->GetJSObject();
     MOZ_ASSERT(target);
 
     bool dummy;
@@ -1404,7 +1404,7 @@ Proxy::HandleEvent(nsIDOMEvent* aEvent)
 XMLHttpRequest::XMLHttpRequest(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
 : XMLHttpRequestEventTarget(aCx), mJSObject(NULL), mUpload(NULL),
   mWorkerPrivate(aWorkerPrivate),
-  mResponseType(XMLHttpRequestResponseType::Text), mTimeout(0),
+  mResponseType(XMLHttpRequestResponseTypeValues::Text), mTimeout(0),
   mJSObjectRooted(false), mBackgroundRequest(false),
   mWithCredentials(false), mCanceled(false), mMozAnon(false), mMozSystem(false)
 {
@@ -1421,9 +1421,9 @@ void
 XMLHttpRequest::_trace(JSTracer* aTrc)
 {
   if (mUpload) {
-    mUpload->TraceJSObject(aTrc, "mUpload");
+    JS_CallObjectTracer(aTrc, mUpload->GetJSObject(), "mUpload");
   }
-  JS_CallValueTracer(aTrc, &mStateData.mResponse, "mResponse");
+  JS_CallValueTracer(aTrc, mStateData.mResponse, "mResponse");
   XMLHttpRequestEventTarget::_trace(aTrc);
 }
 
@@ -1533,7 +1533,7 @@ XMLHttpRequest::MaybeDispatchPrematureAbortEvents(ErrorResult& aRv)
   if (mProxy->mSeenUploadLoadStart) {
     MOZ_ASSERT(mUpload);
 
-    JS::Rooted<JSObject*> target(GetJSContext(), mUpload->GetJSObject());
+    JSObject* target = mUpload->GetJSObject();
     MOZ_ASSERT(target);
 
     DispatchPrematureAbortEvent(target, STRING_abort, true, aRv);
@@ -1550,7 +1550,7 @@ XMLHttpRequest::MaybeDispatchPrematureAbortEvents(ErrorResult& aRv)
   }
 
   if (mProxy->mSeenLoadStart) {
-    JS::Rooted<JSObject*> target(GetJSContext(), GetJSObject());
+    JSObject* target = GetJSObject();
     MOZ_ASSERT(target);
 
     DispatchPrematureAbortEvent(target, STRING_readystatechange, false, aRv);
@@ -1573,7 +1573,7 @@ XMLHttpRequest::MaybeDispatchPrematureAbortEvents(ErrorResult& aRv)
 }
 
 void
-XMLHttpRequest::DispatchPrematureAbortEvent(JS::Handle<JSObject*> aTarget,
+XMLHttpRequest::DispatchPrematureAbortEvent(JSObject* aTarget,
                                             uint8_t aEventType,
                                             bool aUploadTarget,
                                             ErrorResult& aRv)
@@ -1589,13 +1589,13 @@ XMLHttpRequest::DispatchPrematureAbortEvent(JS::Handle<JSObject*> aTarget,
 
   JSContext* cx = GetJSContext();
 
-  JS::Rooted<JSString*> type(cx, JS_NewStringCopyZ(cx, sEventStrings[aEventType]));
+  JSString* type = JS_NewStringCopyZ(cx, sEventStrings[aEventType]);
   if (!type) {
     aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
     return;
   }
 
-  JS::Rooted<JSObject*> event(cx);
+  JSObject* event;
   if (aEventType == STRING_readystatechange) {
     event = events::CreateGenericEvent(cx, type, false, false, false);
   }
@@ -2109,7 +2109,7 @@ XMLHttpRequest::SetResponseType(XMLHttpRequestResponseType aResponseType,
 
   // "document" is fine for the main thread but not for a worker. Short-circuit
   // that here.
-  if (aResponseType == XMLHttpRequestResponseType::Document) {
+  if (aResponseType == XMLHttpRequestResponseTypeValues::Document) {
     return;
   }
 

@@ -141,11 +141,11 @@ struct CopyIonJSFrameArgs
 };
 #endif
 
-struct CopyScriptFrameIterArgs
+struct CopyStackIterArgs
 {
-    ScriptFrameIter &iter_;
+    StackIter &iter_;
 
-    CopyScriptFrameIterArgs(ScriptFrameIter &iter)
+    CopyStackIterArgs(StackIter &iter)
       : iter_(iter)
     { }
 
@@ -260,11 +260,11 @@ ArgumentsObject::createExpected(JSContext *cx, AbstractFramePtr frame)
 }
 
 ArgumentsObject *
-ArgumentsObject::createUnexpected(JSContext *cx, ScriptFrameIter &iter)
+ArgumentsObject::createUnexpected(JSContext *cx, StackIter &iter)
 {
     RootedScript script(cx, iter.script());
     RootedFunction callee(cx, iter.callee());
-    CopyScriptFrameIterArgs copy(iter);
+    CopyStackIterArgs copy(iter);
     return create(cx, script, callee, iter.numActualArgs(), copy);
 }
 

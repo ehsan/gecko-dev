@@ -6,8 +6,8 @@
 #ifndef nsTransactionStack_h__
 #define nsTransactionStack_h__
 
-#include <deque>
-#include "nsAutoPtr.h"
+#include "nsCOMPtr.h"
+#include "nsDeque.h"
 
 class nsCycleCollectionTraversalCallback;
 class nsTransactionItem;
@@ -26,13 +26,13 @@ public:
   already_AddRefed<nsTransactionItem> Peek();
   already_AddRefed<nsTransactionItem> GetItem(int32_t aIndex);
   void Clear();
-  int32_t GetSize() { return mDeque.size(); }
+  int32_t GetSize() { return mQue.GetSize(); }
 
   void DoUnlink() { Clear(); }
   void DoTraverse(nsCycleCollectionTraversalCallback &cb);
 
 private:
-  std::deque<nsRefPtr<nsTransactionItem> > mDeque;
+  nsDeque mQue;
   const Type mType;
 };
 

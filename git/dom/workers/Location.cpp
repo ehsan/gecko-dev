@@ -45,10 +45,9 @@ public:
   }
 
   static JSObject*
-  Create(JSContext* aCx, JS::Handle<JSString*> aHref, JS::Handle<JSString*> aProtocol,
-         JS::Handle<JSString*> aHost, JS::Handle<JSString*> aHostname,
-         JS::Handle<JSString*> aPort, JS::Handle<JSString*> aPathname,
-         JS::Handle<JSString*> aSearch, JS::Handle<JSString*> aHash)
+  Create(JSContext* aCx, JSString* aHref, JSString* aProtocol, JSString* aHost,
+         JSString* aHostname, JSString* aPort, JSString* aPathname,
+         JSString* aSearch, JSString* aHash)
   {
     JSObject* obj = JS_NewObject(aCx, &sClass, NULL, NULL);
     if (!obj) {
@@ -192,11 +191,9 @@ InitClass(JSContext* aCx, JSObject* aGlobal)
 }
 
 JSObject*
-Create(JSContext* aCx,
-       JS::Handle<JSString*> aHref, JS::Handle<JSString*> aProtocol,
-       JS::Handle<JSString*> aHost, JS::Handle<JSString*> aHostname,
-       JS::Handle<JSString*> aPort, JS::Handle<JSString*> aPathname,
-       JS::Handle<JSString*> aSearch, JS::Handle<JSString*> aHash)
+Create(JSContext* aCx, JSString* aHref, JSString* aProtocol, JSString* aHost,
+       JSString* aHostname, JSString* aPort, JSString* aPathname,
+       JSString* aSearch, JSString* aHash)
 {
   return Location::Create(aCx, aHref, aProtocol, aHost, aHostname, aPort,
                           aPathname, aSearch, aHash);

@@ -53,8 +53,6 @@ using namespace js;
 using namespace js::types;
 
 using mozilla::ArrayLength;
-using mozilla::IsFinite;
-using mozilla::IsNaN;
 
 /*
  * The JS 'Date' object is patterned after the Java 'Date' object.
@@ -130,7 +128,7 @@ IsLeapYear(double year)
 inline double
 DaysInYear(double year)
 {
-    if (!IsFinite(year))
+    if (!MOZ_DOUBLE_IS_FINITE(year))
         return js_NaN;
     return IsLeapYear(year) ? 366 : 365;
 }
@@ -153,7 +151,7 @@ TimeFromYear(double y)
 static double
 YearFromTime(double t)
 {
-    if (!IsFinite(t))
+    if (!MOZ_DOUBLE_IS_FINITE(t))
         return js_NaN;
 
     JS_ASSERT(ToInteger(t) == t);
@@ -185,14 +183,14 @@ DaysInFebruary(double year)
 inline double
 DayWithinYear(double t, double year)
 {
-    JS_ASSERT_IF(IsFinite(t), YearFromTime(t) == year);
+    JS_ASSERT_IF(MOZ_DOUBLE_IS_FINITE(t), YearFromTime(t) == year);
     return Day(t) - DayFromYear(year);
 }
 
 static double
 MonthFromTime(double t)
 {
-    if (!IsFinite(t))
+    if (!MOZ_DOUBLE_IS_FINITE(t))
         return js_NaN;
 
     double year = YearFromTime(t);
@@ -228,7 +226,7 @@ MonthFromTime(double t)
 static double
 DateFromTime(double t)
 {
-    if (!IsFinite(t))
+    if (!MOZ_DOUBLE_IS_FINITE(t))
         return js_NaN;
 
     double year = YearFromTime(t);
@@ -311,7 +309,7 @@ static double
 MakeDay(double year, double month, double date)
 {
     /* Step 1. */
-    if (!IsFinite(year) || !IsFinite(month) || !IsFinite(date))
+    if (!MOZ_DOUBLE_IS_FINITE(year) || !MOZ_DOUBLE_IS_FINITE(month) || !MOZ_DOUBLE_IS_FINITE(date))
         return js_NaN;
 
     /* Steps 2-4. */
@@ -341,7 +339,7 @@ inline double
 MakeDate(double day, double time)
 {
     /* Step 1. */
-    if (!IsFinite(day) || !IsFinite(time))
+    if (!MOZ_DOUBLE_IS_FINITE(day) || !MOZ_DOUBLE_IS_FINITE(time))
         return js_NaN;
 
     /* Step 2. */
@@ -407,7 +405,7 @@ EquivalentYearForDST(int year)
 static double
 DaylightSavingTA(double t, DateTimeInfo *dtInfo)
 {
-    if (!IsFinite(t))
+    if (!MOZ_DOUBLE_IS_FINITE(t))
         return js_NaN;
 
     /*
@@ -488,10 +486,10 @@ static double
 MakeTime(double hour, double min, double sec, double ms)
 {
     /* Step 1. */
-    if (!IsFinite(hour) ||
-        !IsFinite(min) ||
-        !IsFinite(sec) ||
-        !IsFinite(ms))
+    if (!MOZ_DOUBLE_IS_FINITE(hour) ||
+        !MOZ_DOUBLE_IS_FINITE(min) ||
+        !MOZ_DOUBLE_IS_FINITE(sec) ||
+        !MOZ_DOUBLE_IS_FINITE(ms))
     {
         return js_NaN;
     }
@@ -621,7 +619,7 @@ date_msecFromArgs(JSContext *cx, CallArgs args, double *rval)
             if (!ToNumber(cx, args[loop], &d))
                 return JS_FALSE;
             /* return NaN if any arg is not finite */
-            if (!IsFinite(d)) {
+            if (!MOZ_DOUBLE_IS_FINITE(d)) {
                 *rval = js_NaN;
                 return JS_TRUE;
             }
@@ -1283,7 +1281,7 @@ FillLocalTimeSlots(DateTimeInfo *dtInfo, JSObject *obj)
 
     double utcTime = obj->getDateUTCTime().toNumber();
 
-    if (!IsFinite(utcTime)) {
+    if (!MOZ_DOUBLE_IS_FINITE(utcTime)) {
         for (size_t ind = JSObject::JSSLOT_DATE_COMPONENTS_START;
              ind < JSObject::DATE_CLASS_RESERVED_SLOTS;
              ind++) {
@@ -1485,7 +1483,7 @@ date_getUTCFullYear_impl(JSContext *cx, CallArgs args)
     JS_ASSERT(IsDate(args.thisv()));
 
     double result = args.thisv().toObject().getDateUTCTime().toNumber();
-    if (IsFinite(result))
+    if (MOZ_DOUBLE_IS_FINITE(result))
         result = YearFromTime(result);
 
     args.rval().setNumber(result);
@@ -1560,7 +1558,7 @@ date_getUTCDate_impl(JSContext *cx, CallArgs args)
     JS_ASSERT(IsDate(args.thisv()));
 
     double result = args.thisv().toObject().getDateUTCTime().toNumber();
-    if (IsFinite(result))
+    if (MOZ_DOUBLE_IS_FINITE(result))
         result = DateFromTime(result);
 
     args.rval().setNumber(result);
@@ -1599,7 +1597,7 @@ date_getUTCDay_impl(JSContext *cx, CallArgs args)
     JS_ASSERT(IsDate(args.thisv()));
 
     double result = args.thisv().toObject().getDateUTCTime().toNumber();
-    if (IsFinite(result))
+    if (MOZ_DOUBLE_IS_FINITE(result))
         result = WeekDay(result);
 
     args.rval().setNumber(result);
@@ -1638,7 +1636,7 @@ date_getUTCHours_impl(JSContext *cx, CallArgs args)
     JS_ASSERT(IsDate(args.thisv()));
 
     double result = args.thisv().toObject().getDateUTCTime().toNumber();
-    if (IsFinite(result))
+    if (MOZ_DOUBLE_IS_FINITE(result))
         result = HourFromTime(result);
 
     args.rval().setNumber(result);
@@ -1677,7 +1675,7 @@ date_getUTCMinutes_impl(JSContext *cx, CallArgs args)
     JS_ASSERT(IsDate(args.thisv()));
 
     double result = args.thisv().toObject().getDateUTCTime().toNumber();
-    if (IsFinite(result))
+    if (MOZ_DOUBLE_IS_FINITE(result))
         result = MinFromTime(result);
 
     args.rval().setNumber(result);
@@ -1720,7 +1718,7 @@ date_getUTCMilliseconds_impl(JSContext *cx, CallArgs args)
     JS_ASSERT(IsDate(args.thisv()));
 
     double result = args.thisv().toObject().getDateUTCTime().toNumber();
-    if (IsFinite(result))
+    if (MOZ_DOUBLE_IS_FINITE(result))
         result = msFromTime(result);
 
     args.rval().setNumber(result);
@@ -2314,7 +2312,7 @@ static double
 ThisLocalTimeOrZero(HandleObject date, DateTimeInfo *dtInfo)
 {
     double t = date->getDateUTCTime().toNumber();
-    if (IsNaN(t))
+    if (MOZ_DOUBLE_IS_NaN(t))
         return +0;
     return LocalTime(t, dtInfo);
 }
@@ -2323,7 +2321,7 @@ static double
 ThisUTCTimeOrZero(HandleObject date)
 {
     double t = date->getDateUTCTime().toNumber();
-    return IsNaN(t) ? +0 : t;
+    return MOZ_DOUBLE_IS_NaN(t) ? +0 : t;
 }
 
 /* ES5 15.9.5.40. */
@@ -2431,7 +2429,7 @@ date_setYear_impl(JSContext *cx, CallArgs args)
         return false;
 
     /* Step 3. */
-    if (IsNaN(y)) {
+    if (MOZ_DOUBLE_IS_NaN(y)) {
         SetUTCTime(thisObj, js_NaN, args.rval().address());
         return true;
     }
@@ -2510,7 +2508,7 @@ date_toGMTString_impl(JSContext *cx, CallArgs args)
     double utctime = args.thisv().toObject().getDateUTCTime().toNumber();
 
     char buf[100];
-    if (!IsFinite(utctime))
+    if (!MOZ_DOUBLE_IS_FINITE(utctime))
         JS_snprintf(buf, sizeof buf, js_NaN_date_str);
     else
         print_gmt_string(buf, sizeof buf, utctime);
@@ -2536,7 +2534,7 @@ date_toISOString_impl(JSContext *cx, CallArgs args)
     JS_ASSERT(IsDate(args.thisv()));
 
     double utctime = args.thisv().toObject().getDateUTCTime().toNumber();
-    if (!IsFinite(utctime)) {
+    if (!MOZ_DOUBLE_IS_FINITE(utctime)) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_INVALID_DATE);
         return false;
     }
@@ -2576,7 +2574,7 @@ date_toJSON(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     /* Step 3. */
-    if (tv.isDouble() && !IsFinite(tv.toDouble())) {
+    if (tv.isDouble() && !MOZ_DOUBLE_IS_FINITE(tv.toDouble())) {
         args.rval().setNull();
         return true;
     }
@@ -2643,7 +2641,7 @@ date_format(JSContext *cx, double date, formatspec format, MutableHandleValue rv
     size_t i, tzlen;
     PRMJTime split;
 
-    if (!IsFinite(date)) {
+    if (!MOZ_DOUBLE_IS_FINITE(date)) {
         JS_snprintf(buf, sizeof buf, js_NaN_date_str);
     } else {
         JS_ASSERT(TimeClip(date) == date);
@@ -2754,7 +2752,7 @@ ToLocaleFormatHelper(JSContext *cx, HandleObject obj, const char *format, Mutabl
     double utctime = obj->getDateUTCTime().toNumber();
 
     char buf[100];
-    if (!IsFinite(utctime)) {
+    if (!MOZ_DOUBLE_IS_FINITE(utctime)) {
         JS_snprintf(buf, sizeof buf, js_NaN_date_str);
     } else {
         int result_len;
@@ -3122,7 +3120,7 @@ js_Date(JSContext *cx, unsigned argc, Value *vp)
         if (!date_msecFromArgs(cx, args, &msec_time))
             return false;
 
-        if (IsFinite(msec_time)) {
+        if (MOZ_DOUBLE_IS_FINITE(msec_time)) {
             msec_time = UTC(msec_time, &cx->runtime->dateTimeInfo);
             msec_time = TimeClip(msec_time);
         }
@@ -3205,7 +3203,7 @@ js_NewDateObject(JSContext *cx, int year, int mon, int mday,
 JS_FRIEND_API(JSBool)
 js_DateIsValid(JSObject *obj)
 {
-    return obj->isDate() && !IsNaN(obj->getDateUTCTime().toNumber());
+    return obj->isDate() && !MOZ_DOUBLE_IS_NaN(obj->getDateUTCTime().toNumber());
 }
 
 JS_FRIEND_API(int)
@@ -3214,7 +3212,7 @@ js_DateGetYear(JSContext *cx, JSObject *obj)
     /* Preserve legacy API behavior of returning 0 for invalid dates. */
     JS_ASSERT(obj);
     double localtime = GetCachedLocalTime(&cx->runtime->dateTimeInfo, obj);
-    if (IsNaN(localtime))
+    if (MOZ_DOUBLE_IS_NaN(localtime))
         return 0;
 
     return (int) YearFromTime(localtime);
@@ -3225,7 +3223,7 @@ js_DateGetMonth(JSContext *cx, JSObject *obj)
 {
     JS_ASSERT(obj);
     double localtime = GetCachedLocalTime(&cx->runtime->dateTimeInfo, obj);
-    if (IsNaN(localtime))
+    if (MOZ_DOUBLE_IS_NaN(localtime))
         return 0;
 
     return (int) MonthFromTime(localtime);
@@ -3236,7 +3234,7 @@ js_DateGetDate(JSContext *cx, JSObject *obj)
 {
     JS_ASSERT(obj);
     double localtime = GetCachedLocalTime(&cx->runtime->dateTimeInfo, obj);
-    if (IsNaN(localtime))
+    if (MOZ_DOUBLE_IS_NaN(localtime))
         return 0;
 
     return (int) DateFromTime(localtime);
@@ -3247,7 +3245,7 @@ js_DateGetHours(JSContext *cx, JSObject *obj)
 {
     JS_ASSERT(obj);
     double localtime = GetCachedLocalTime(&cx->runtime->dateTimeInfo, obj);
-    if (IsNaN(localtime))
+    if (MOZ_DOUBLE_IS_NaN(localtime))
         return 0;
 
     return (int) HourFromTime(localtime);
@@ -3258,7 +3256,7 @@ js_DateGetMinutes(JSContext *cx, JSObject *obj)
 {
     JS_ASSERT(obj);
     double localtime = GetCachedLocalTime(&cx->runtime->dateTimeInfo, obj);
-    if (IsNaN(localtime))
+    if (MOZ_DOUBLE_IS_NaN(localtime))
         return 0;
 
     return (int) MinFromTime(localtime);
@@ -3271,7 +3269,7 @@ js_DateGetSeconds(JSObject *obj)
         return 0;
 
     double utctime = obj->getDateUTCTime().toNumber();
-    if (IsNaN(utctime))
+    if (MOZ_DOUBLE_IS_NaN(utctime))
         return 0;
     return (int) SecFromTime(utctime);
 }

@@ -10,20 +10,31 @@
 <pre id="test">
 <script class="testbody" type="text/javascript">
 
-var gTest = {
-  length: 2048,
-  numberOfChannels: 1,
-  createGraph: function(context) {
-    var source = context.createBufferSource();
+SimpleTest.waitForExplicitFinish();
+addLoadEvent(function() {
+  SpecialPowers.setBoolPref("media.webaudio.enabled", true);
 
-    source.start(0);
-    source.buffer = null;
-    is(source.buffer, null, "Try playing back a null buffer");
-    return source;
-  },
-};
+  var context = new AudioContext();
+  var expectedBuffer = context.createBuffer(1, 2048, context.sampleRate); // silence
 
-runTest();
+  var source = context.createBufferSource();
+
+  var sp = context.createScriptProcessor(2048);
+  source.start(0);
+  source.buffer = null;
+  is(source.buffer, null, "Try playing back a null buffer");
+  source.connect(sp);
+  sp.connect(context.destination);
+  sp.onaudioprocess = function(e) {
+    compareBuffers(e.inputBuffer.getChannelData(0), expectedBuffer.getChannelData(0));
+    compareBuffers(e.inputBuffer.getChannelData(1), expectedBuffer.getChannelData(0));
+
+    sp.onaudioprocess = null;
+
+    SpecialPowers.clearUserPref("media.webaudio.enabled");
+    SimpleTest.finish();
+  };
+});
 
 </script>
 </pre>

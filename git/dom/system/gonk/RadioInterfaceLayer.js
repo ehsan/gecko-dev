@@ -229,7 +229,6 @@ function RadioInterfaceLayer() {
   this.rilContext = {
     radioState:     RIL.GECKO_RADIOSTATE_UNAVAILABLE,
     cardState:      RIL.GECKO_CARDSTATE_UNKNOWN,
-    retryCount:     0,  // TODO: Please see bug 868896
     networkSelectionMode: RIL.GECKO_NETWORK_SELECTION_UNKNOWN,
     iccInfo:        null,
     imsi:           null,
@@ -1362,7 +1361,7 @@ RadioInterfaceLayer.prototype = {
     let data = {
       number: call.number,
       duration: duration,
-      direction: call.isOutgoing ? "outgoing" : "incoming"
+      direction: call.direction
     };
     gSystemMessenger.broadcastMessage("telephony-call-ended", data);
     this.updateCallAudioState(call);
@@ -2697,14 +2696,7 @@ RadioInterfaceLayer.prototype = {
     let options = this._fragmentText(message, null, strict7BitEncoding);
     options.rilMessageType = "sendSMS";
     options.number = PhoneNumberUtils.normalize(number);
-    let requestStatusReport;
-    try {
-      requestStatusReport =
-        Services.prefs.getBoolPref("dom.sms.requestStatusReport");
-    } catch (e) {
-      requestStatusReport = true;
-    }
-    options.requestStatusReport = requestStatusReport;
+    options.requestStatusReport = true;
     if (options.segmentMaxSeq > 1) {
       options.segmentRef16Bit = this.segmentRef16Bit;
       options.segmentRef = this.nextSegmentRef;

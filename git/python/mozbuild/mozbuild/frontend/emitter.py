@@ -9,10 +9,9 @@ import os
 from .data import (
     ConfigFileSubstitution,
     DirectoryTraversal,
-    Exports,
-    Program,
-    ReaderSummary,
     VariablePassthru,
+    Exports,
+    ReaderSummary,
     XpcshellManifests,
 )
 
@@ -92,10 +91,6 @@ class TreeMetadataEmitter(object):
         exports = sandbox.get('EXPORTS')
         if exports:
             yield Exports(sandbox, exports)
-
-        program = sandbox.get('PROGRAM')
-        if program:
-            yield Program(sandbox, program, sandbox['CONFIG']['BIN_SUFFIX'])
 
         for manifest in sandbox.get('XPCSHELL_TESTS_MANIFESTS', []):
             yield XpcshellManifests(sandbox, manifest)

@@ -87,10 +87,10 @@ DOMRequest::GetReadyState(nsAString& aReadyState)
 {
   DOMRequestReadyState readyState = ReadyState();
   switch (readyState) {
-    case DOMRequestReadyState::Pending:
+    case DOMRequestReadyStateValues::Pending:
       aReadyState.AssignLiteral("pending");
       break;
-    case DOMRequestReadyState::Done:
+    case DOMRequestReadyStateValues::Done:
       aReadyState.AssignLiteral("done");
       break;
     default:

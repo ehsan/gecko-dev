@@ -87,9 +87,13 @@ public:
                mozilla::ipc::UnixSocketConsumer* aConsumer) MOZ_OVERRIDE;
 
   virtual nsresult
-  GetServiceChannel(const nsAString& aObjectPath,
-                    const nsAString& aServiceUuid,
-                    BluetoothProfileManagerBase* aManager) MOZ_OVERRIDE;
+  GetSocketViaService(const nsAString& aObjectPath,
+                      const nsAString& aService,
+                      BluetoothSocketType aType,
+                      bool aAuth,
+                      bool aEncrypt,
+                      mozilla::ipc::UnixSocketConsumer* aConsumer,
+                      BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
   virtual bool
   SetPinCodeInternal(const nsAString& aDeviceAddress,
@@ -138,16 +142,6 @@ public:
   ConfirmReceivingFile(const nsAString& aDeviceAddress,
                        bool aConfirm,
                        BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
-
-  virtual void
-  ConnectSco(BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
-
-  virtual void
-  DisconnectSco(BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
-
-  virtual void
-  IsScoConnected(BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
-
 protected:
   BluetoothServiceChildProcess();
   virtual ~BluetoothServiceChildProcess();

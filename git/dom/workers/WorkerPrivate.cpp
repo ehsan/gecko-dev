@@ -214,8 +214,8 @@ struct WorkerStructuredCloneCallbacks
   }
 
   static JSBool
-  Write(JSContext* aCx, JSStructuredCloneWriter* aWriter,
-        JS::Handle<JSObject*> aObj, void* aClosure)
+  Write(JSContext* aCx, JSStructuredCloneWriter* aWriter, JSObject* aObj,
+        void* aClosure)
   {
     NS_ASSERTION(aClosure, "Null pointer!");
 
@@ -361,8 +361,8 @@ struct MainThreadWorkerStructuredCloneCallbacks
   }
 
   static JSBool
-  Write(JSContext* aCx, JSStructuredCloneWriter* aWriter,
-        JS::Handle<JSObject*> aObj, void* aClosure)
+  Write(JSContext* aCx, JSStructuredCloneWriter* aWriter, JSObject* aObj,
+        void* aClosure)
   {
     AssertIsOnMainThread();
 
@@ -449,8 +449,8 @@ struct ChromeWorkerStructuredCloneCallbacks
   }
 
   static JSBool
-  Write(JSContext* aCx, JSStructuredCloneWriter* aWriter,
-        JS::Handle<JSObject*> aObj, void* aClosure)
+  Write(JSContext* aCx, JSStructuredCloneWriter* aWriter, JSObject* aObj,
+        void* aClosure)
   {
     return WorkerStructuredCloneCallbacks::Write(aCx, aWriter, aObj, aClosure);
   }
@@ -495,8 +495,8 @@ struct MainThreadChromeWorkerStructuredCloneCallbacks
   }
 
   static JSBool
-  Write(JSContext* aCx, JSStructuredCloneWriter* aWriter,
-        JS::Handle<JSObject*> aObj, void* aClosure)
+  Write(JSContext* aCx, JSStructuredCloneWriter* aWriter, JSObject* aObj,
+        void* aClosure)
   {
     AssertIsOnMainThread();
 
@@ -704,6 +704,8 @@ public:
     }
 
     JSAutoCompartment ac(aCx, global);
+    JS_SetGlobalObject(aCx, global);
+
     return scriptloader::LoadWorkerScript(aCx);
   }
 };
@@ -719,17 +721,17 @@ public:
   bool
   WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
   {
-    JS::Rooted<JSObject*> target(aCx, JS_GetGlobalForScopeChain(aCx));
+    JS::Rooted<JSObject*> target(aCx, JS_GetGlobalObject(aCx));
     NS_ASSERTION(target, "This must never be null!");
 
     aWorkerPrivate->CloseHandlerStarted();
 
-    JS::Rooted<JSString*> type(aCx, JS_InternString(aCx, "close"));
+    JSString* type = JS_InternString(aCx, "close");
     if (!type) {
       return false;
     }
 
-    JS::Rooted<JSObject*> event(aCx, CreateGenericEvent(aCx, type, false, false, false));
+    JSObject* event = CreateGenericEvent(aCx, type, false, false, false);
     if (!event) {
       return false;
     }
@@ -808,13 +810,13 @@ public:
       NS_ASSERTION(aWorkerPrivate == GetWorkerPrivateFromContext(aCx),
                    "Badness!");
       mainRuntime = false;
-      target = JS_GetGlobalForScopeChain(aCx);
+      target = JS_GetGlobalObject(aCx);
     }
 
     NS_ASSERTION(target, "This should never be null!");
 
-    JS::Rooted<JSObject*> event(aCx,
-      CreateMessageEvent(aCx, buffer, mClonedObjects, mainRuntime));
+    JSObject* event =
+      CreateMessageEvent(aCx, buffer, mClonedObjects, mainRuntime);
     if (!event) {
       return false;
     }
@@ -980,12 +982,11 @@ public:
 
   static bool
   ReportError(JSContext* aCx, WorkerPrivate* aWorkerPrivate,
-              bool aFireAtScope, JSObject* target, const nsString& aMessage,
+              bool aFireAtScope, JSObject* aTarget, const nsString& aMessage,
               const nsString& aFilename, const nsString& aLine,
               uint32_t aLineNumber, uint32_t aColumnNumber, uint32_t aFlags,
               uint32_t aErrorNumber, uint64_t aInnerWindowId)
   {
-    JS::Rooted<JSObject*> aTarget(aCx, target);
     if (aWorkerPrivate) {
       aWorkerPrivate->AssertIsOnWorkerThread();
     }
@@ -1010,8 +1011,8 @@ public:
     if (!JSREPORT_IS_WARNING(aFlags)) {
       // First fire an ErrorEvent at the worker.
       if (aTarget) {
-        JS::Rooted<JSObject*> event(aCx,
-          CreateErrorEvent(aCx, message, filename, aLineNumber, !aWorkerPrivate));
+        JSObject* event =
+          CreateErrorEvent(aCx, message, filename, aLineNumber, !aWorkerPrivate);
         if (!event) {
           return false;
         }
@@ -1038,8 +1039,8 @@ public:
         if (aWorkerPrivate ||
             !(sgo = nsJSUtils::GetStaticScriptGlobal(aTarget))) {
           // Fire a normal ErrorEvent if we're running on a worker thread.
-          JS::Rooted<JSObject*> event(aCx,
-            CreateErrorEvent(aCx, message, filename, aLineNumber, false));
+          JSObject* event =
+            CreateErrorEvent(aCx, message, filename, aLineNumber, false);
           if (!event) {
             return false;
           }
@@ -1524,7 +1525,7 @@ WorkerRunnable::Dispatch(JSContext* aCx)
 
   JSAutoRequest ar(aCx);
 
-  JSObject* global = JS_GetGlobalForScopeChain(aCx);
+  JSObject* global = JS_GetGlobalObject(aCx);
 
   Maybe<JSAutoCompartment> ac;
   if (global) {
@@ -1621,7 +1622,7 @@ WorkerRunnable::Run()
   JS::Rooted<JSObject*> targetCompartmentObject(cx);
 
   if (mTarget == WorkerThread) {
-    targetCompartmentObject = JS_GetGlobalForScopeChain(cx);
+    targetCompartmentObject = JS_GetGlobalObject(cx);
   } else {
     targetCompartmentObject = mWorkerPrivate->GetJSObject();
   }
@@ -1791,8 +1792,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS1(WorkerPrivate::MemoryReporter,
 
 template <class Derived>
 WorkerPrivateParent<Derived>::WorkerPrivateParent(
-                                     JSContext* aCx,
-                                     JS::Handle<JSObject*> aObject,
+                                     JSContext* aCx, JSObject* aObject,
                                      WorkerPrivate* aParent,
                                      JSContext* aParentJSContext,
                                      const nsAString& aScriptURL,
@@ -2382,7 +2382,7 @@ WorkerPrivateParent<Derived>::ParentJSContext() const
   return mParentJSContext;
 }
 
-WorkerPrivate::WorkerPrivate(JSContext* aCx, JS::Handle<JSObject*> aObject,
+WorkerPrivate::WorkerPrivate(JSContext* aCx, JSObject* aObject,
                              WorkerPrivate* aParent,
                              JSContext* aParentJSContext,
                              const nsAString& aScriptURL, bool aIsChromeWorker,
@@ -3260,10 +3260,10 @@ WorkerPrivate::TraceInternal(JSTracer* aTrc)
 
   for (uint32_t index = 0; index < mTimeouts.Length(); index++) {
     TimeoutInfo* info = mTimeouts[index];
-    JS_CallValueTracer(aTrc, &info->mTimeoutVal,
+    JS_CallValueTracer(aTrc, info->mTimeoutVal,
                        "WorkerPrivate timeout value");
     for (uint32_t index2 = 0; index2 < info->mExtraArgVals.Length(); index2++) {
-      JS_CallValueTracer(aTrc, &info->mExtraArgVals[index2],
+      JS_CallValueTracer(aTrc, info->mExtraArgVals[index2],
                          "WorkerPrivate timeout extra argument value");
     }
   }
@@ -3599,7 +3599,7 @@ WorkerPrivate::NotifyInternal(JSContext* aCx, Status aStatus)
 
   // If the worker script never ran, or failed to compile, we don't need to do
   // anything else, except pretend that we ran the close handler.
-  if (!JS_GetGlobalForScopeChain(aCx)) {
+  if (!JS_GetGlobalObject(aCx)) {
     mCloseHandlerStarted = true;
     mCloseHandlerFinished = true;
     return true;
@@ -3924,7 +3924,7 @@ WorkerPrivate::RunExpiredTimeouts(JSContext* aCx)
   bool retval = true;
 
   AutoPtrComparator<TimeoutInfo> comparator = GetAutoPtrComparator(mTimeouts);
-  JS::RootedObject global(aCx, JS_GetGlobalForScopeChain(aCx));
+  JS::RootedObject global(aCx, JS_GetGlobalObject(aCx));
   JSPrincipals* principal = GetWorkerPrincipal();
 
   // We want to make sure to run *something*, even if the timer fired a little

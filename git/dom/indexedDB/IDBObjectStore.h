@@ -111,7 +111,7 @@ public:
   static JSBool
   StructuredCloneWriteCallback(JSContext* aCx,
                                JSStructuredCloneWriter* aWriter,
-                               JS::Handle<JSObject*> aObj,
+                               JSObject* aObj,
                                void* aClosure);
 
   static nsresult

@@ -1043,9 +1043,11 @@ public:
 
   virtual nsIDOMNode* AsDOMNode() { return this; }
 
-  void GetCustomPrototype(const nsAString& aElementName, JS::MutableHandle<JSObject*> prototype)
+  JSObject* GetCustomPrototype(const nsAString& aElementName)
   {
-    mCustomPrototypes.Get(aElementName, prototype.address());
+    JSObject* prototype = nullptr;
+    mCustomPrototypes.Get(aElementName, &prototype);
+    return prototype;
   }
 
   static bool RegisterEnabled();
@@ -1150,7 +1152,7 @@ protected:
   void RemoveDocStyleSheetsFromStyleSets();
   void RemoveStyleSheetsFromStyleSets(nsCOMArray<nsIStyleSheet>& aSheets, 
                                       nsStyleSet::sheetType aType);
-  void ResetStylesheetsToURI(nsIURI* aURI);
+  nsresult ResetStylesheetsToURI(nsIURI* aURI);
   void FillStyleSet(nsStyleSet* aStyleSet);
 
   // Return whether all the presshells for this document are safe to flush

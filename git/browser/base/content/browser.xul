@@ -205,19 +205,6 @@
       </vbox>
     </panel>
 
-    <panel id="social-share-panel"
-           class="social-panel"
-           type="arrow"
-           orient="horizontal"
-           onpopupshowing="SocialShare.onShowing()"
-           onpopuphidden="SocialShare.onHidden()"
-           consumeoutsideclicks="true"
-           hidden="true">
-      <vbox class="social-share-toolbar">
-        <vbox id="social-share-provider-buttons" flex="1"/>
-      </vbox>
-    </panel>
-
     <panel id="social-notification-panel"
            class="social-panel"
            type="arrow"
@@ -717,13 +704,6 @@
                      onclick="BrowserGoHome(event);"
                      aboutHomeOverrideTooltip="&abouthome.pageTitle;"/>
 
-      <toolbarbutton id="social-share-button"
-                     class="toolbarbutton-1 chromeclass-toolbar-additional"
-                     hidden="true"
-                     label="&sharePageCmd.label;"
-                     tooltiptext="&sharePageCmd.label;"
-                     command="Social:SharePage"/>
-
       <toolbaritem id="social-toolbar-item"
                    class="chromeclass-toolbar-additional"
                    removable="false"
@@ -761,7 +741,7 @@
                       label="&social.toggleNotifications.label;"
                       accesskey="&social.toggleNotifications.accesskey;"/>
             <menuitem class="social-toggle-menuitem" command="Social:Toggle"/>
-            <menuseparator/>
+            <menuseparator class="social-statusarea-separator"/>
             <menuseparator class="social-provider-menu" hidden="true"/>
             <menuitem class="social-addons-menuitem" command="Social:Addons"
                       label="&social.addons.label;"/>

@@ -40,9 +40,6 @@
 
 using namespace js;
 
-using mozilla::IsFinite;
-using mozilla::IsNegativeZero;
-
 #if ENABLE_INTL_API
 using icu::Locale;
 using icu::NumberingSystem;
@@ -1432,7 +1429,7 @@ static bool
 intl_FormatNumber(JSContext *cx, UNumberFormat *nf, double x, MutableHandleValue result)
 {
     // FormatNumber doesn't consider -0.0 to be negative.
-    if (IsNegativeZero(x))
+    if (MOZ_DOUBLE_IS_NEGATIVE_ZERO(x))
         x = 0.0;
 
     StringBuffer chars(cx);
@@ -1911,7 +1908,7 @@ NewUDateFormat(JSContext *cx, HandleObject dateTimeFormat)
 static bool
 intl_FormatDateTime(JSContext *cx, UDateFormat *df, double x, MutableHandleValue result)
 {
-    if (!IsFinite(x)) {
+    if (!MOZ_DOUBLE_IS_FINITE(x)) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_DATE_NOT_FINITE);
         return false;
     }

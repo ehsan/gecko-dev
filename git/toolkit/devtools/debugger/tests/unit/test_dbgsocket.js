@@ -9,7 +9,9 @@ let port = 2929;
 function run_test()
 {
   do_print("Starting test at " + new Date().toTimeString());
-  initTestDebuggerServer();
+  // Allow incoming connections.
+  DebuggerServer.init(function () true);
+  DebuggerServer.addActors("resource://test/testactors.js");
 
   add_test(test_socket_conn);
   add_test(test_socket_shutdown);

@@ -85,14 +85,14 @@ SVGAltGlyphElement::IsAttributeMapped(const nsIAtom* name) const
     SVGAltGlyphElementBase::IsAttributeMapped(name);
 }
 
+//----------------------------------------------------------------------
+// nsSVGElement overrides
+
 bool
-SVGAltGlyphElement::IsEventAttributeName(nsIAtom* aName)
+SVGAltGlyphElement::IsEventName(nsIAtom* aName)
 {
   return nsContentUtils::IsEventAttributeName(aName, EventNameType_SVGGraphic);
 }
-
-//----------------------------------------------------------------------
-// nsSVGElement overrides
 
 nsSVGElement::StringAttributesInfo
 SVGAltGlyphElement::GetStringInfo()

@@ -12,6 +12,7 @@ import org.json.JSONObject;
 
 import android.app.Application;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Rect;
@@ -27,6 +28,10 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewParent;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -79,15 +84,21 @@ public class LightweightTheme implements GeckoEventListener {
                 int mark = headerURL.indexOf('?');
                 if (mark != -1)
                     headerURL = headerURL.substring(0, mark);
-
-                // Get the image and convert it to a bitmap.
-                final Bitmap bitmap = BitmapUtils.decodeUrl(headerURL);
-                mHandler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        setLightweightTheme(bitmap);
-                    }
-                });
+                try {
+                    // Get the image and convert it to a bitmap.
+                    URL url = new URL(headerURL);
+                    InputStream stream = url.openStream();
+                    final Bitmap bitmap = BitmapFactory.decodeStream(stream);
+                    stream.close();
+                    mHandler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            setLightweightTheme(bitmap);
+                        }
+                    });
+                } catch(MalformedURLException e) {
+                } catch(IOException e) {
+                }
             } else if (event.equals("LightweightTheme:Disable")) {
                 mHandler.post(new Runnable() {
                     @Override

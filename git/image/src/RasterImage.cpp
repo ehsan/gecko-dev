@@ -1064,7 +1064,7 @@ RasterImage::GetCurrentImage()
   if (!mDecoded) {
     // We can't call StartDecoding because that can synchronously notify
     // which can cause DOM modification
-    RequestDecodeCore(ASYNCHRONOUS);
+    RequestDecode();
     return nullptr;
   }
 
@@ -2727,14 +2727,14 @@ RasterImage::WantDecodedFrames()
 NS_IMETHODIMP
 RasterImage::RequestDecode()
 {
-  return RequestDecodeCore(SYNCHRONOUS_NOTIFY);
+  return RequestDecodeCore(ASYNCHRONOUS);
 }
 
 /* void startDecode() */
 NS_IMETHODIMP
 RasterImage::StartDecoding()
 {
-  return RequestDecodeCore(SYNCHRONOUS_NOTIFY_AND_SOME_DECODE);
+  return RequestDecodeCore(SOMEWHAT_SYNCHRONOUS);
 }
 
 
@@ -2791,8 +2791,7 @@ RasterImage::RequestDecodeCore(RequestDecodeType aDecodeType)
 
   // If the image is waiting for decode work to be notified, go ahead and do that.
   if (mDecodeRequest &&
-      mDecodeRequest->mRequestStatus == DecodeRequest::REQUEST_WORK_DONE &&
-      aDecodeType != ASYNCHRONOUS) {
+      mDecodeRequest->mRequestStatus == DecodeRequest::REQUEST_WORK_DONE) {
     nsresult rv = FinishedSomeDecoding();
     CONTAINER_ENSURE_SUCCESS(rv);
   }
@@ -2836,7 +2835,7 @@ RasterImage::RequestDecodeCore(RequestDecodeType aDecodeType)
   // If we can do decoding now, do so.  Small images will decode completely,
   // large images will decode a bit and post themselves to the event loop
   // to finish decoding.
-  if (!mDecoded && !mInDecoder && mHasSourceData && aDecodeType == SYNCHRONOUS_NOTIFY_AND_SOME_DECODE) {
+  if (!mDecoded && !mInDecoder && mHasSourceData && aDecodeType == SOMEWHAT_SYNCHRONOUS) {
     PROFILER_LABEL_PRINTF("RasterImage", "DecodeABitOf", "%s", GetURIString().get());
     mDecoder->SetSynchronous(true);
 
@@ -3091,8 +3090,7 @@ RasterImage::DrawWithPreDownscaleIfNeeded(imgFrame *aFrame,
                       mSize.height - framerect.YMost(),
                       framerect.x);
 
-  frame->Draw(aContext, aFilter, userSpaceToImageSpace, aFill, padding, subimage,
-              aFlags);
+  frame->Draw(aContext, aFilter, userSpaceToImageSpace, aFill, padding, subimage);
 }
 
 //******************************************************************************

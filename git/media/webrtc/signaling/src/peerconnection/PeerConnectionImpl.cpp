@@ -683,8 +683,6 @@ PeerConnectionImpl::InitializeDataChannel(int track_id,
         return NS_OK;
       }
     }
-    // If we inited the DataConnection, call Destroy() before releasing it
-    mDataConnection->Destroy();
   }
   mDataConnection = nullptr;
 #endif

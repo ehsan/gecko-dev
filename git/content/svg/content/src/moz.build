@@ -24,7 +24,6 @@ EXPORTS.mozilla.dom += [
     'SVGAnimatedAngle.h',
     'SVGAnimatedBoolean.h',
     'SVGAnimatedLength.h',
-    'SVGAnimatedRect.h',
     'SVGAnimatedTransformList.h',
     'SVGAnimationElement.h',
     'SVGCircleElement.h',

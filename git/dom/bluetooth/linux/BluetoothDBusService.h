@@ -85,9 +85,13 @@ public:
                mozilla::ipc::UnixSocketConsumer* aConsumer);
 
   virtual nsresult
-  GetServiceChannel(const nsAString& aObjectPath,
-                    const nsAString& aServiceUuid,
-                    BluetoothProfileManagerBase* aManager);
+  GetSocketViaService(const nsAString& aObjectPath,
+                      const nsAString& aService,
+                      BluetoothSocketType aType,
+                      bool aAuth,
+                      bool aEncrypt,
+                      mozilla::ipc::UnixSocketConsumer* aConsumer,
+                      BluetoothReplyRunnable* aRunnable);
 
   virtual nsresult
   CreatePairedDeviceInternal(const nsAString& aDeviceAddress,
@@ -141,15 +145,6 @@ public:
   virtual void
   ConfirmReceivingFile(const nsAString& aDeviceAddress, bool aConfirm,
                        BluetoothReplyRunnable* aRunnable);
-
-  virtual void
-  ConnectSco(BluetoothReplyRunnable* aRunnable);
-
-  virtual void
-  DisconnectSco(BluetoothReplyRunnable* aRunnable);
-
-  virtual void
-  IsScoConnected(BluetoothReplyRunnable* aRunnable);
 
 private:
   nsresult SendGetPropertyMessage(const nsAString& aPath,

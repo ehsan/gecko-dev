@@ -300,7 +300,7 @@ VideoData* VideoData::CreateFromImage(VideoInfo& aInfo,
   return v.forget();
 }
 
-#ifdef MOZ_OMX_DECODER
+#ifdef MOZ_WIDGET_GONK
 VideoData* VideoData::Create(VideoInfo& aInfo,
                              ImageContainer* aContainer,
                              int64_t aOffset,
@@ -366,7 +366,7 @@ VideoData* VideoData::Create(VideoInfo& aInfo,
 
   return v.forget();
 }
-#endif  // MOZ_OMX_DECODER
+#endif  // MOZ_WIDGET_GONK
 
 void* MediaDecoderReader::VideoQueueMemoryFunctor::operator()(void* anObject) {
   const VideoData* v = static_cast<const VideoData*>(anObject);

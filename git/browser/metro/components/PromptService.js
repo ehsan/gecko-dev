@@ -419,6 +419,7 @@ Prompt.prototype = {
 
       if (bTitle) {
         let button = doc.createElement("button");
+        button.className = "prompt-button";
         this.setLabelForNode(button, bTitle);
         if (i == defaultButton) {
           button.setAttribute("command", "cmd_ok");

@@ -44,6 +44,8 @@ public:
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(nsJSContext,
                                                          nsIScriptContext)
 
+  virtual nsIScriptObjectPrincipal* GetObjectPrincipal();
+
   virtual nsresult EvaluateString(const nsAString& aScript,
                                   JSObject& aScopeObject,
                                   JS::CompileOptions &aOptions,
@@ -326,7 +328,7 @@ JSObject* NS_DOMReadStructuredClone(JSContext* cx,
 
 JSBool NS_DOMWriteStructuredClone(JSContext* cx,
                                   JSStructuredCloneWriter* writer,
-                                  JS::Handle<JSObject*> obj, void *closure);
+                                  JSObject* obj, void *closure);
 
 void NS_DOMStructuredCloneError(JSContext* cx, uint32_t errorid);
 

@@ -324,7 +324,7 @@ class IonActivation
     JSContext *prevIonJSContext_;
 
     // When creating an activation without a StackFrame, this field is used
-    // to communicate the calling pc for ScriptFrameIter.
+    // to communicate the calling pc for StackIter.
     jsbytecode *prevpc_;
 
   public:

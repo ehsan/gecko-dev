@@ -409,10 +409,10 @@ protected:
 
   virtual int GetSkipSides() const MOZ_OVERRIDE;
 
-  void ComputeFinalSize(const nsHTMLReflowState& aReflowState,
-                        nsBlockReflowState&      aState,
-                        nsHTMLReflowMetrics&     aMetrics,
-                        nscoord*                 aBottomEdgeOfChildren);
+  virtual void ComputeFinalSize(const nsHTMLReflowState& aReflowState,
+                                nsBlockReflowState&      aState,
+                                nsHTMLReflowMetrics&     aMetrics,
+                                nscoord*                 aBottomEdgeOfChildren);
 
   void ComputeOverflowAreas(const nsRect&         aBounds,
                             const nsStyleDisplay* aDisplay,

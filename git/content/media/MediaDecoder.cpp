@@ -1219,9 +1219,9 @@ void MediaDecoder::DurationChanged()
 void MediaDecoder::SetDuration(double aDuration)
 {
   MOZ_ASSERT(NS_IsMainThread());
-  if (mozilla::IsInfinite(aDuration)) {
+  if (MOZ_DOUBLE_IS_INFINITE(aDuration)) {
     SetInfinite(true);
-  } else if (IsNaN(aDuration)) {
+  } else if (MOZ_DOUBLE_IS_NaN(aDuration)) {
     mDuration = -1;
     SetInfinite(true);
   } else {
@@ -1657,7 +1657,7 @@ MediaDecoder::IsGStreamerEnabled()
 }
 #endif
 
-#ifdef MOZ_OMX_DECODER
+#ifdef MOZ_WIDGET_GONK
 bool
 MediaDecoder::IsOmxEnabled()
 {

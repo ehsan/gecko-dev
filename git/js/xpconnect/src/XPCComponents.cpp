@@ -1417,12 +1417,10 @@ nsXPCComponents_Results::NewEnumerate(nsIXPConnectWrappedNative *wrapper,
 /* bool newResolve (in nsIXPConnectWrappedNative wrapper, in JSContextPtr cx, in JSObjectPtr obj, in jsval id, in uint32_t flags, out JSObjectPtr objp); */
 NS_IMETHODIMP
 nsXPCComponents_Results::NewResolve(nsIXPConnectWrappedNative *wrapper,
-                                    JSContext *cx, JSObject *objArg,
-                                    jsid idArg, uint32_t flags,
+                                    JSContext * cx, JSObject * obj,
+                                    jsid id, uint32_t flags,
                                     JSObject * *objp, bool *_retval)
 {
-    RootedObject obj(cx, objArg);
-    RootedId id(cx, idArg);
     JSAutoByteString name;
 
     if (JSID_IS_STRING(id) && name.encodeLatin1(cx, JSID_TO_STRING(id))) {
@@ -3801,6 +3799,7 @@ nsXPCComponents_utils_Sandbox::CallOrConstruct(nsIXPConnectWrappedNative *wrappe
 }
 
 class ContextHolder : public nsIScriptObjectPrincipal
+                    , public nsIScriptContextPrincipal
 {
 public:
     ContextHolder(JSContext *aOuterCx, HandleObject aSandbox, nsIPrincipal *aPrincipal);
@@ -3811,6 +3810,7 @@ public:
         return mJSContext;
     }
 
+    nsIScriptObjectPrincipal * GetObjectPrincipal() { return this; }
     nsIPrincipal * GetPrincipal() { return mPrincipal; }
 
     NS_DECL_ISUPPORTS
@@ -3823,7 +3823,7 @@ private:
     nsCOMPtr<nsIPrincipal> mPrincipal;
 };
 
-NS_IMPL_ISUPPORTS1(ContextHolder, nsIScriptObjectPrincipal)
+NS_IMPL_ISUPPORTS2(ContextHolder, nsIScriptObjectPrincipal, nsIScriptContextPrincipal)
 
 ContextHolder::ContextHolder(JSContext *aOuterCx,
                              HandleObject aSandbox,
@@ -4577,29 +4577,6 @@ nsXPCComponents_Utils::IsXrayWrapper(const JS::Value &obj, bool* aRetval)
 }
 
 NS_IMETHODIMP
-nsXPCComponents_Utils::WaiveXrays(const JS::Value &aVal, JSContext *aCx, jsval *aRetval)
-{
-    *aRetval = aVal;
-    if (!xpc::WrapperFactory::WaiveXrayAndWrap(aCx, aRetval))
-        return NS_ERROR_FAILURE;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsXPCComponents_Utils::UnwaiveXrays(const JS::Value &aVal, JSContext *aCx, jsval *aRetval)
-{
-    if (!aVal.isObject()) {
-        *aRetval = aVal;
-        return NS_OK;
-    }
-
-    *aRetval = ObjectValue(*js::UncheckedUnwrap(&aVal.toObject()));
-    if (!JS_WrapValue(aCx, aRetval))
-        return NS_ERROR_FAILURE;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
 nsXPCComponents_Utils::GetClassName(const JS::Value &aObj, bool aUnwrap, JSContext *aCx, char **aRv)
 {
     if (!aObj.isObject())
@@ -4959,14 +4936,14 @@ JSBool
 nsXPCComponents::AttachComponentsObject(XPCCallContext& ccx,
                                         XPCWrappedNativeScope* aScope)
 {
-    RootedObject components(ccx, aScope->GetComponentsJSObject(ccx));
+    JSObject *components = aScope->GetComponentsJSObject(ccx);
     if (!components)
         return false;
 
-    RootedObject global(ccx, aScope->GetGlobalJSObject());
+    JSObject *global = aScope->GetGlobalJSObject();
     MOZ_ASSERT(js::IsObjectInContextCompartment(global, ccx));
 
-    RootedId id(ccx, ccx.GetRuntime()->GetStringID(XPCJSRuntime::IDX_COMPONENTS));
+    jsid id = ccx.GetRuntime()->GetStringID(XPCJSRuntime::IDX_COMPONENTS);
     JSPropertyOp getter = AccessCheck::isChrome(global) ? nullptr
                                                         : &ContentComponentsGetterOp;
     return JS_DefinePropertyById(ccx, global, id, js::ObjectValue(*components),

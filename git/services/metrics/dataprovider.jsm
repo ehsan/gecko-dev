@@ -233,13 +233,11 @@ Measurement.prototype = Object.freeze({
    *        (string) The name of the field whose value to increment.
    * @param date
    *        (Date) Day on which to increment the counter.
-   * @param by
-   *        (integer) How much to increment by.
    * @return Promise<>
    */
-  incrementDailyCounter: function (field, date=new Date(), by=1) {
+  incrementDailyCounter: function (field, date=new Date()) {
     return this.storage.incrementDailyCounterFromFieldID(this.fieldID(field),
-                                                         date, by);
+                                                         date);
   },
 
   /**

@@ -116,7 +116,7 @@ LOCAL_INCLUDES	+= \
 	$(NULL)
 endif
 
-ifdef MOZ_OMX_DECODER #{
+ifeq (gonk,$(MOZ_WIDGET_TOOLKIT)) #{
 # include OMX decoder
 SHARED_LIBRARY_LIBS 	+= \
 	$(DEPTH)/content/media/omx/$(LIB_PREFIX)gkconomx_s.$(LIB_SUFFIX) \

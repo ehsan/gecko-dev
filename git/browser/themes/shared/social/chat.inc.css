@@ -73,12 +73,13 @@
 
 .chatbar-button {
   list-style-image: url("chrome://browser/skin/social/services-16.png");
+  border: none;
   margin: 0;
   padding: 2px;
   height: 21px;
   width: 21px;
-  border: 1px solid #ccc;
-  border-bottom: none;
+  border-top: 1px solid #ccc;
+  -moz-border-end: 1px solid #ccc;
 }
 
 @media (min-resolution: 2dppx) {
@@ -92,6 +93,15 @@
   height: auto;
   max-height: 16px;
   max-width: 16px;
+}
+
+.chatbar-button > .toolbarbutton-icon {
+  opacity: .6;
+}
+
+.chatbar-button:hover > .toolbarbutton-icon,
+.chatbar-button[open="true"] > .toolbarbutton-icon {
+  opacity: 1;
 }
 
 .chatbar-button[open="true"] {

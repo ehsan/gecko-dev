@@ -46,10 +46,9 @@ public:
     uint32_t channelIndex = 0;
     for (uint16_t i = 0; i < InputCount(); ++i) {
       for (uint32_t j = 0; j < aInput[i].mChannelData.Length(); ++j) {
-        AudioBlockCopyChannelWithScale(
-            static_cast<const float*>(aInput[i].mChannelData[j]),
-            aInput[i].mVolume,
-            static_cast<float*>(const_cast<void*>(aOutput[0].mChannelData[channelIndex])));
+        PodCopy(static_cast<float*>(const_cast<void*>(aOutput[0].mChannelData[channelIndex])),
+                static_cast<const float*>(aInput[i].mChannelData[j]),
+                WEBAUDIO_BLOCK_SIZE);
         ++channelIndex;
       }
     }

@@ -791,17 +791,9 @@ LiveRangeAllocator<VREG>::buildLivenessInfo()
                     break;
 
                 // Grab the next block off the work list, skipping any OSR block.
-                while (!loopWorkList.empty()) {
+                do {
                     loopBlock = loopWorkList.popCopy();
-                    if (loopBlock->lir() != graph.osrBlock())
-                        break;
-                }
-
-                // If end is reached without finding a non-OSR block, then no more work items were found.
-                if (loopBlock->lir() == graph.osrBlock()) {
-                    JS_ASSERT(loopWorkList.empty());
-                    break;
-                }
+                } while (loopBlock->lir() == graph.osrBlock());
             }
 
             // Clear the done set for other loops

@@ -25,13 +25,13 @@ import android.util.Log;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.TimeUnit;
 
 public class ActivityHandlerHelper {
     private static final String LOGTAG = "GeckoActivityHandlerHelper";
 
-    private final ConcurrentLinkedQueue<String> mFilePickerResult;
+    private final SynchronousQueue<String> mFilePickerResult;
 
     private final ActivityResultHandlerMap mActivityResultHandlerMap;
     private final FilePickerResultHandlerSync mFilePickerResultHandlerSync;
@@ -39,18 +39,8 @@ public class ActivityHandlerHelper {
     private final CameraImageResultHandler mCameraImageResultHandler;
     private final CameraVideoResultHandler mCameraVideoResultHandler;
 
-    @SuppressWarnings("serial")
     public ActivityHandlerHelper() {
-        mFilePickerResult = new ConcurrentLinkedQueue<String>() {
-            @Override public boolean offer(String e) {
-                if (super.offer(e)) {
-                    // poke the Gecko thread in case it's waiting for new events
-                    GeckoAppShell.sendEventToGecko(GeckoEvent.createNoOpEvent());
-                    return true;
-                }
-                return false;
-            }
-        };
+        mFilePickerResult = new SynchronousQueue<String>();
         mActivityResultHandlerMap = new ActivityResultHandlerMap();
         mFilePickerResultHandlerSync = new FilePickerResultHandlerSync(mFilePickerResult);
         mAwesomebarResultHandler = new AwesomebarResultHandler();
@@ -151,8 +141,7 @@ public class ActivityHandlerHelper {
 
     private Intent getFilePickerIntent(Context context, String aMimeType) {
         ArrayList<Intent> intents = new ArrayList<Intent>();
-        final PromptService.PromptListItem[] items =
-            getItemsAndIntentsForFilePicker(context, aMimeType, intents);
+        PromptService.PromptListItem[] items = getItemsAndIntentsForFilePicker(context, aMimeType, intents);
 
         if (intents.size() == 0) {
             Log.i(LOGTAG, "no activities for the file picker!");
@@ -163,18 +152,17 @@ public class ActivityHandlerHelper {
             return intents.get(0);
         }
 
-        final PromptService ps = GeckoApp.mAppContext.getPromptService();
-        final String title = getFilePickerTitle(context, aMimeType);
+        Runnable filePicker = new FilePickerPromptRunnable(getFilePickerTitle(context, aMimeType), items);
+        ThreadUtils.postToUiThread(filePicker);
 
-        // Runnable has to be called to show an intent-like
-        // context menu UI using the PromptService.
-        ThreadUtils.postToUiThread(new Runnable() {
-            @Override public void run() {
-                ps.show(title, "", items, false);
-            }
-        });
+        String promptServiceResult = "";
+        try {
+            promptServiceResult = PromptService.waitForReturn();
+        } catch (InterruptedException e) {
+            Log.e(LOGTAG, "showing prompt failed: ",  e);
+            return null;
+        }
 
-        String promptServiceResult = ps.getResponse();
         int itemId = -1;
         try {
             itemId = new JSONObject(promptServiceResult).getInt("button");
@@ -218,10 +206,16 @@ public class ActivityHandlerHelper {
             return "";
         }
 
-        String filePickerResult;
-        while (null == (filePickerResult = mFilePickerResult.poll())) {
-            GeckoAppShell.processNextNativeEvent(true);
+        String filePickerResult = "";
+
+        try {
+            while (null == (filePickerResult = mFilePickerResult.poll(1, TimeUnit.MILLISECONDS))) {
+                GeckoAppShell.processNextNativeEvent();
+            }
+        } catch (InterruptedException e) {
+            Log.e(LOGTAG, "showing file picker failed: ",  e);
         }
+
         return filePickerResult;
     }
 
@@ -232,5 +226,24 @@ public class ActivityHandlerHelper {
             return true;
         }
         return false;
+    }
+
+    /**
+     * The FilePickerPromptRunnable has to be called to show an intent-like
+     * context menu UI using the PromptService.
+     */
+    private static class FilePickerPromptRunnable implements Runnable {
+        private final String mTitle;
+        private final PromptService.PromptListItem[] mItems;
+
+        public FilePickerPromptRunnable(String aTitle, PromptService.PromptListItem[] aItems) {
+            mTitle = aTitle;
+            mItems = aItems;
+        }
+
+        @Override
+        public void run() {
+            GeckoApp.mAppContext.getPromptService().show(mTitle, "", mItems, false);
+        }
     }
 }

@@ -9,7 +9,6 @@ endif
 
 CPPSRCS += \
   HashFunctions.cpp \
-  Poison.cpp \
   SHA1.cpp \
   $(NULL)
 

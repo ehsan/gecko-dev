@@ -38,7 +38,6 @@
 
 #include "frontend/TokenStream.h"
 #include "gc/Marking.h"
-#include "ion/BaselineJIT.h"
 #include "js/MemoryMetrics.h"
 #include "vm/Shape.h"
 
@@ -1521,9 +1520,7 @@ js::CreateThisForFunctionWithProto(JSContext *cx, HandleObject callee, JSObject 
     }
 
     if (res && cx->typeInferenceEnabled()) {
-        JSScript *script = callee->toFunction()->nonLazyScript();
-        if (!script->ensureHasTypes(cx))
-            return NULL;
+        RootedScript script(cx, callee->toFunction()->nonLazyScript());
         TypeScript::SetThis(cx, script, types::Type::ObjectType(res));
     }
 
@@ -1550,9 +1547,7 @@ js::CreateThisForFunction(JSContext *cx, HandleObject callee, bool newType)
         /* Reshape the singleton before passing it as the 'this' value. */
         JSObject::clear(cx, nobj);
 
-        JSScript *calleeScript = callee->toFunction()->nonLazyScript();
-        if (!calleeScript->ensureHasTypes(cx))
-            return NULL;
+        RootedScript calleeScript(cx, callee->toFunction()->nonLazyScript());
         TypeScript::SetThis(cx, calleeScript, types::Type::ObjectType(nobj));
 
         return nobj;
@@ -1781,13 +1776,8 @@ js::CloneObjectLiteral(JSContext *cx, HandleObject parent, HandleObject srcObj)
 {
     Rooted<TypeObject*> typeObj(cx);
     typeObj = cx->global()->getOrCreateObjectPrototype(cx)->getNewType(cx, &ObjectClass);
-
-    JS_ASSERT(srcObj->getClass() == &ObjectClass);
-    AllocKind kind = GetBackgroundAllocKind(GuessObjectGCKind(srcObj->numFixedSlots()));
-    JS_ASSERT_IF(srcObj->isTenured(), kind == srcObj->tenuredGetAllocKind());
-
     RootedShape shape(cx, srcObj->lastProperty());
-    return NewReshapedObject(cx, typeObj, parent, kind, shape);
+    return NewReshapedObject(cx, typeObj, parent, srcObj->tenuredGetAllocKind(), shape);
 }
 
 struct JSObject::TradeGutsReserved {
@@ -3774,20 +3764,6 @@ NativeGetInline(JSContext *cx,
             if (code)
                 code->accessGetter = true;
         }
-
-#ifdef JS_ION
-        if (script && script->hasBaselineScript()) {
-            switch (JSOp(*pc)) {
-              case JSOP_GETPROP:
-              case JSOP_CALLPROP:
-              case JSOP_LENGTH:
-                script->baselineScript()->noteAccessedGetter(pc - script->code);
-                break;
-              default:
-                break;
-            }
-        }
-#endif
     }
 
     if (!allowGC)
@@ -5204,7 +5180,7 @@ JS_FRIEND_API(void)
 js_DumpStackFrame(JSContext *cx, StackFrame *start)
 {
     /* This should only called during live debugging. */
-    ScriptFrameIter i(cx, ScriptFrameIter::GO_THROUGH_SAVED);
+    ScriptFrameIter i(cx, StackIter::GO_THROUGH_SAVED);
     if (!start) {
         if (i.done()) {
             fprintf(stderr, "no stack for cx = %p\n", (void*) cx);
@@ -5278,13 +5254,17 @@ js_DumpBacktrace(JSContext *cx)
     Sprinter sprinter(cx);
     sprinter.init();
     size_t depth = 0;
-    for (ScriptFrameIter i(cx); !i.done(); ++i, ++depth) {
-        const char *filename = JS_GetScriptFilename(cx, i.script());
-        unsigned line = JS_PCToLineNumber(cx, i.script(), i.pc());
-        JSScript *script = i.script();
-        sprinter.printf("#%d %14p   %s:%d (%p @ %d)\n",
-                        depth, (i.isIon() ? 0 : i.interpFrame()), filename, line,
-                        script, i.pc() - script->code);
+    for (StackIter i(cx); !i.done(); ++i, ++depth) {
+        if (i.isScript()) {
+            const char *filename = JS_GetScriptFilename(cx, i.script());
+            unsigned line = JS_PCToLineNumber(cx, i.script(), i.pc());
+            JSScript *script = i.script();
+            sprinter.printf("#%d %14p   %s:%d (%p @ %d)\n",
+                            depth, (i.isIon() ? 0 : i.interpFrame()), filename, line,
+                            script, i.pc() - script->code);
+        } else {
+            sprinter.printf("#%d ???\n", depth);
+        }
     }
     fprintf(stdout, "%s", sprinter.string());
 }

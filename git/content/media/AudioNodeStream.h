@@ -55,8 +55,8 @@ public:
       mMarkAsFinishedAfterThisBlock(false),
       mAudioParamStream(false)
   {
-    mChannelCountMode = dom::ChannelCountMode::Max;
-    mChannelInterpretation = dom::ChannelInterpretation::Speakers;
+    mMixingMode.mChannelCountMode = dom::ChannelCountMode::Max;
+    mMixingMode.mChannelInterpretation = dom::ChannelInterpretation::Speakers;
     // AudioNodes are always producing data
     mHasCurrentData = true;
     MOZ_COUNT_CTOR(AudioNodeStream);
@@ -122,8 +122,10 @@ protected:
   // The number of input channels that this stream requires. 0 means don't care.
   uint32_t mNumberOfInputChannels;
   // The mixing modes
-  dom::ChannelCountMode mChannelCountMode;
-  dom::ChannelInterpretation mChannelInterpretation;
+  struct {
+    dom::ChannelCountMode mChannelCountMode : 16;
+    dom::ChannelInterpretation mChannelInterpretation : 16;
+  } mMixingMode;
   // Whether the stream should be marked as finished as soon
   // as the current time range has been computed block by block.
   bool mMarkAsFinishedAfterThisBlock;

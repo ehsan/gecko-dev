@@ -22,10 +22,6 @@ using namespace js;
 using namespace js::ion;
 
 using mozilla::Abs;
-using mozilla::ExponentComponent;
-using mozilla::IsInfinite;
-using mozilla::IsNaN;
-using mozilla::IsNegative;
 
 // This algorithm is based on the paper "Eliminating Range Checks Using
 // Static Single Assignment Form" by Gough and Klaren.
@@ -583,14 +579,14 @@ MConstant::computeRange()
     int exp = Range::MaxDoubleExponent;
 
     // NaN is estimated as a Double which covers everything.
-    if (IsNaN(d)) {
+    if (MOZ_DOUBLE_IS_NaN(d)) {
         setRange(new Range(RANGE_INF_MIN, RANGE_INF_MAX, true, exp));
         return;
     }
 
     // Infinity is used to set both lower and upper to the range boundaries.
-    if (IsInfinite(d)) {
-        if (IsNegative(d))
+    if (MOZ_DOUBLE_IS_INFINITE(d)) {
+        if (MOZ_DOUBLE_IS_NEGATIVE(d))
             setRange(new Range(RANGE_INF_MIN, RANGE_INF_MIN, false, exp));
         else
             setRange(new Range(RANGE_INF_MAX, RANGE_INF_MAX, false, exp));
@@ -598,10 +594,10 @@ MConstant::computeRange()
     }
 
     // Extract the exponent, to approximate it with the range analysis.
-    exp = ExponentComponent(d);
+    exp = MOZ_DOUBLE_EXPONENT(d);
     if (exp < 0) {
         // This double only has a decimal part.
-        if (IsNegative(d))
+        if (MOZ_DOUBLE_IS_NEGATIVE(d))
             setRange(new Range(-1, 0, true, 0));
         else
             setRange(new Range(0, 1, true, 0));
@@ -618,7 +614,7 @@ MConstant::computeRange()
     } else {
         // This double has a precision loss. This also mean that it cannot
         // encode any decimals.
-        if (IsNegative(d))
+        if (MOZ_DOUBLE_IS_NEGATIVE(d))
             setRange(new Range(RANGE_INF_MIN, RANGE_INF_MIN, false, exp));
         else
             setRange(new Range(RANGE_INF_MAX, RANGE_INF_MAX, false, exp));

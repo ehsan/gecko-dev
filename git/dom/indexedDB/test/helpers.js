@@ -137,16 +137,6 @@ function unexpectedSuccessHandler()
   finishTest();
 }
 
-function expectedErrorHandler(name)
-{
-  return function(event) {
-    is(event.type, "error", "Got an error event");
-    is(event.target.error.name, name, "Expected error was thrown.");
-    event.preventDefault();
-    grabEventAndContinueHandler(event);
-  };
-}
-
 function ExpectError(name, preventDefault)
 {
   this._name = name;

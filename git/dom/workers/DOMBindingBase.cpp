@@ -39,7 +39,10 @@ NS_INTERFACE_MAP_END
 void
 DOMBindingBase::_trace(JSTracer* aTrc)
 {
-  TraceJSObject(aTrc, "cached wrapper");
+  JSObject* obj = GetJSObject();
+  if (obj) {
+    JS_CallObjectTracer(aTrc, obj, "cached wrapper");
+  }
 }
 
 void

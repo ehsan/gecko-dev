@@ -588,9 +588,7 @@ class Mochitest(object):
       options.extraPrefs.append("testing.browserTestHarness.timeout=%d" % options.timeout)
     self.automation.initializeProfile(options.profilePath,
                                       options.extraPrefs,
-                                      useServerLocations=True,
-                                      prefsPath=os.path.join(self.SCRIPT_DIRECTORY,
-                                                        'profile_data', 'prefs_general.js'))
+                                      useServerLocations=True)
     manifest = self.addChromeToProfile(options)
     self.copyExtraFilesToProfile(options)
     self.installExtensionsToProfile(options)

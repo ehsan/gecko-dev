@@ -417,7 +417,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(HTMLMediaElement, nsGenericHTMLElement)
   if (tmp->mSrcStream) {
-    // Need to EndMediaStreamPlayback to clear mSrcStream and make sure everything
+    // Need to EndMediaStreamPlayback to clear mStream and make sure everything
     // gets unhooked correctly.
     tmp->EndSrcMediaStreamPlayback();
   }
@@ -1281,10 +1281,7 @@ double
 HTMLMediaElement::CurrentTime() const
 {
   if (mSrcStream) {
-    MediaStream* stream = GetSrcMediaStream();
-    if (stream) {
-      return MediaTimeToSeconds(stream->GetCurrentTime());
-    }
+    return MediaTimeToSeconds(GetSrcMediaStream()->GetCurrentTime());
   }
 
   if (mDecoder) {
@@ -1470,10 +1467,7 @@ HTMLMediaElement::Pause(ErrorResult& aRv)
 
   if (!oldPaused) {
     if (mSrcStream) {
-      MediaStream* stream = GetSrcMediaStream();
-      if (stream) {
-        stream->ChangeExplicitBlockerCount(1);
-      }
+      GetSrcMediaStream()->ChangeExplicitBlockerCount(1);
     }
     FireTimeUpdate(false);
     DispatchAsyncEvent(NS_LITERAL_STRING("pause"));
@@ -2117,36 +2111,22 @@ HTMLMediaElement::WakeLockBoolWrapper::UpdateWakeLock()
 {
   if (!mOuter) {
     return;
-  }
 
+  }
   bool playing = (!mValue && mCanPlay);
 
   if (playing) {
-    mOuter->WakeLockCreate();
-  } else {
-    mOuter->WakeLockRelease();
-  }
-}
-
-void
-HTMLMediaElement::WakeLockCreate()
-{
-  if (!mWakeLock) {
     nsCOMPtr<nsIPowerManagerService> pmService =
       do_GetService(POWERMANAGERSERVICE_CONTRACTID);
     NS_ENSURE_TRUE_VOID(pmService);
 
-    pmService->NewWakeLock(NS_LITERAL_STRING("cpu"),
-                           OwnerDoc()->GetWindow(),
-                           getter_AddRefs(mWakeLock));
-  }
-}
-
-void
-HTMLMediaElement::WakeLockRelease()
-{
-  if (mWakeLock) {
-    mWakeLock->Unlock();
+    if (!mWakeLock) {
+      pmService->NewWakeLock(NS_LITERAL_STRING("cpu"),
+                             mOuter->OwnerDoc()->GetWindow(),
+                             getter_AddRefs(mWakeLock));
+    }
+  } else if (mWakeLock) {
+    // Wakelock 'unlocks' itself in its destructor.
     mWakeLock = nullptr;
   }
 }
@@ -2655,28 +2635,21 @@ void HTMLMediaElement::SetupSrcMediaStreamPlayback(DOMMediaStream* aStream)
 
 void HTMLMediaElement::EndSrcMediaStreamPlayback()
 {
-  MediaStream* stream = GetSrcMediaStream();
-  if (stream) {
-    stream->RemoveListener(mSrcStreamListener);
-  }
+  GetSrcMediaStream()->RemoveListener(mSrcStreamListener);
   // Kill its reference to this element
   mSrcStreamListener->Forget();
   mSrcStreamListener = nullptr;
-  if (stream) {
-    stream->RemoveAudioOutput(this);
-  }
+  GetSrcMediaStream()->RemoveAudioOutput(this);
   VideoFrameContainer* container = GetVideoFrameContainer();
   if (container) {
-    if (stream) {
-      stream->RemoveVideoOutput(container);
-    }
+    GetSrcMediaStream()->RemoveVideoOutput(container);
     container->ClearCurrentFrame();
   }
-  if (mPaused && stream) {
-    stream->ChangeExplicitBlockerCount(-1);
+  if (mPaused) {
+    GetSrcMediaStream()->ChangeExplicitBlockerCount(-1);
   }
-  if (mPausedForInactiveDocumentOrChannel && stream) {
-    stream->ChangeExplicitBlockerCount(-1);
+  if (mPausedForInactiveDocumentOrChannel) {
+    GetSrcMediaStream()->ChangeExplicitBlockerCount(-1);
   }
   mSrcStream = nullptr;
 }

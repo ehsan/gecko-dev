@@ -21,7 +21,6 @@
 #include "nsAppShell.h"
 #include "TaskbarPreviewButton.h"
 #include "WinUtils.h"
-#include "gfxWindowsPlatform.h"
 
 #include <nsIBaseWindow.h>
 #include <nsICanvasRenderingContextInternal.h>
@@ -291,11 +290,7 @@ TaskbarPreview::WndProc(UINT nMsg, WPARAM wParam, LPARAM lParam) {
         if (NS_FAILED(rv))
           break;
 
-        double scale = nsIWidget::DefaultScaleOverride();
-        if (scale <= 0.0)
-          scale = gfxWindowsPlatform::GetPlatform()->GetDPIScale();
-
-        DrawBitmap(NSToIntRound(scale * width), NSToIntRound(scale * height), true);
+        DrawBitmap(width, height, true);
       }
       break;
   }

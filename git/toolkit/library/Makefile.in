@@ -179,7 +179,6 @@ COMPONENT_LIBS += \
   storagecomps \
   rdf \
   windowds \
-  diskspacewatcher \
   $(NULL)
 
 ifdef BUILD_CTYPES

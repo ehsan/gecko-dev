@@ -97,8 +97,8 @@ const char* const MediaDocument::sFormatNames[4] =
   ""                         // eWithDimAndFile
 };
 
-MediaDocument::MediaDocument()
-    : nsHTMLDocument(),
+MediaDocument::MediaDocument(bool aUseXPConnectToWrap)
+    : nsHTMLDocument(aUseXPConnectToWrap),
       mDocumentElementInserted(false)
 {
 }

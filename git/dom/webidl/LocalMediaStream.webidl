@@ -6,7 +6,7 @@
  * The origins of this IDL file are
  * http://dev.w3.org/2011/webrtc/editor/getusermedia.html
  *
- * Copyright Â© 2012 W3CÂ® (MIT, ERCIM, Keio), All Rights Reserved. W3C
+ * Copyright © 2012 W3C® (MIT, ERCIM, Keio), All Rights Reserved. W3C
  * liability, trademark and document use rules apply.
  */
 

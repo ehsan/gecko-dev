@@ -8,6 +8,7 @@ srcdir		= @srcdir@
 VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/ipc/app/defs.mk
 
 DIST_FILES = package-name.txt
 
@@ -49,16 +50,12 @@ FENNEC_JAVA_FILES = \
   AllCapsTextView.java \
   AndroidImport.java \
   AndroidImportPreference.java \
+  AnimatorProxy.java \
   AnimatedHeightLayout.java \
   AppNotificationClient.java \
   AwesomeBar.java \
   AwesomebarResultHandler.java \
   AwesomeBarTabs.java \
-  animation/AnimatorProxy.java \
-  animation/HeightChangeAnimation.java \
-  animation/PropertyAnimator.java \
-  animation/Rotate3DAnimation.java \
-  animation/ViewHelper.java \
   awesomebar/AwesomeBarTab.java \
   awesomebar/AllPagesTab.java \
   awesomebar/BookmarksTab.java \
@@ -114,6 +111,7 @@ FENNEC_JAVA_FILES = \
   GeckoJavaSampler.java \
   GlobalHistory.java \
   GeckoViewsFactory.java \
+  HeightChangeAnimation.java \
   InputMethods.java \
   JavaAddonManager.java \
   LightweightTheme.java \
@@ -134,10 +132,10 @@ FENNEC_JAVA_FILES = \
   PrefsHelper.java \
   PrivateDataPreference.java \
   PrivateTab.java \
+  PropertyAnimator.java \
   ProfileMigrator.java \
   PromptService.java \
   Restarter.java \
-  SearchEngine.java \
   sqlite/ByteBufferInputStream.java \
   sqlite/MatrixBlobCursor.java \
   sqlite/SQLiteBridge.java \
@@ -145,6 +143,7 @@ FENNEC_JAVA_FILES = \
   ReaderModeUtils.java \
   RemoteTabs.java \
   RobocopAPI.java \
+  Rotate3DAnimation.java \
   ServiceNotificationClient.java \
   SessionParser.java \
   SetupScreen.java \
@@ -304,10 +303,6 @@ UA_BUILDID=$(shell echo $(ANDROID_VERSION_CODE) | cut -c1-8)
 
 MOZ_BUILD_TIMESTAMP=$(shell echo `$(PYTHON) $(topsrcdir)/toolkit/xre/make-platformini.py --print-timestamp`)
 
-ifdef MOZ_UPDATER
-DEFINES +=  -DMOZ_UPDATER=$(MOZ_UPDATER)
-endif
-
 # Mangle our package name to avoid Bug 750548.
 DEFINES += \
   -DMANGLED_ANDROID_PACKAGE_NAME=$(subst fennec,f3nn3c,$(ANDROID_PACKAGE_NAME)) \
@@ -328,6 +323,7 @@ DEFINES += \
   -DMOZ_APP_BUILDID=$(MOZ_APP_BUILDID) \
   -DMOZ_APP_ABI=$(TARGET_XPCOM_ABI) \
   -DMOZ_BUILD_TIMESTAMP=$(MOZ_BUILD_TIMESTAMP) \
+  -DMOZ_UPDATER=$(MOZ_UPDATER) \
   -DOS_TARGET=$(OS_TARGET) \
   $(NULL)
 
@@ -578,7 +574,6 @@ RES_DRAWABLE_MDPI = \
   res/drawable-mdpi/ic_awesomebar_reader.png \
   res/drawable-mdpi/ic_awesomebar_search.png \
   res/drawable-mdpi/ic_awesomebar_star.png \
-  res/drawable-mdpi/ic_awesomebar_tab.png \
   res/drawable-mdpi/ic_menu_addons_filler.png \
   res/drawable-mdpi/ic_menu_bookmark_add.png \
   res/drawable-mdpi/ic_menu_bookmark_remove.png \
@@ -691,7 +686,6 @@ RES_DRAWABLE_HDPI = \
   res/drawable-hdpi/ic_awesomebar_reader.png \
   res/drawable-hdpi/ic_awesomebar_search.png \
   res/drawable-hdpi/ic_awesomebar_star.png \
-  res/drawable-hdpi/ic_awesomebar_tab.png \
   res/drawable-hdpi/ic_menu_addons_filler.png \
   res/drawable-hdpi/ic_menu_bookmark_add.png \
   res/drawable-hdpi/ic_menu_bookmark_remove.png \
@@ -784,7 +778,6 @@ RES_DRAWABLE_XHDPI = \
   res/drawable-xhdpi/ic_awesomebar_reader.png \
   res/drawable-xhdpi/ic_awesomebar_search.png \
   res/drawable-xhdpi/ic_awesomebar_star.png \
-  res/drawable-xhdpi/ic_awesomebar_tab.png \
   res/drawable-xhdpi/ic_menu_addons_filler.png \
   res/drawable-xhdpi/ic_menu_bookmark_add.png \
   res/drawable-xhdpi/ic_menu_bookmark_remove.png \

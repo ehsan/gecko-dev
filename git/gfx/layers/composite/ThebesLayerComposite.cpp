@@ -123,8 +123,6 @@ ThebesLayerComposite::RenderLayer(const nsIntPoint& aOffset,
     tiledLayerProps.mValidRegion = mValidRegion;
   }
 
-  mBuffer->SetPaintWillResample(MayResample());
-
   mBuffer->Composite(effectChain,
                      GetEffectiveOpacity(),
                      transform,

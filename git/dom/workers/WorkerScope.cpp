@@ -128,7 +128,7 @@ protected:
   _trace(JSTracer* aTrc) MOZ_OVERRIDE
   {
     for (int32_t i = 0; i < SLOT_COUNT; i++) {
-      JS_CallValueTracer(aTrc, &mSlots[i], "WorkerGlobalScope instance slot");
+      JS_CallValueTracer(aTrc, mSlots[i], "WorkerGlobalScope instance slot");
     }
     mWorker->TraceInternal(aTrc);
     EventTarget::_trace(aTrc);
@@ -228,8 +228,8 @@ private:
     }
 
     if (JSVAL_IS_VOID(scope->mSlots[SLOT_location])) {
-      JS::Rooted<JSString*> href(aCx), protocol(aCx), host(aCx), hostname(aCx);
-      JS::Rooted<JSString*> port(aCx), pathname(aCx), search(aCx), hash(aCx);
+      JSString* href, *protocol, *host, *hostname;
+      JSString* port, *pathname, *search, *hash;
 
       WorkerPrivate::LocationInfo& info = scope->mWorker->GetLocationInfo();
 
@@ -278,12 +278,12 @@ private:
     JSObject* wrapper = &JS_CALLEE(aCx, aVp).toObject();
     JS_ASSERT(JS_ObjectIsFunction(aCx, wrapper));
 
-    JS::Rooted<JS::Value> scope(aCx, js::GetFunctionNativeReserved(wrapper, SLOT_wrappedScope));
-    JS::Rooted<JS::Value> listener(aCx, js::GetFunctionNativeReserved(wrapper, SLOT_wrappedFunction));
+    jsval scope = js::GetFunctionNativeReserved(wrapper, SLOT_wrappedScope);
+    jsval listener = js::GetFunctionNativeReserved(wrapper, SLOT_wrappedFunction);
 
     JS_ASSERT(scope.isObject());
 
-    JS::Rooted<JSObject*> event(aCx, &JS_ARGV(aCx, aVp)[0].toObject());
+    JSObject* event = &JS_ARGV(aCx, aVp)[0].toObject();
 
     jsval argv[3] = { JSVAL_VOID, JSVAL_VOID, JSVAL_VOID };
     if (!JS_GetProperty(aCx, event, "message", &argv[0]) ||
@@ -355,7 +355,7 @@ private:
 
     JSFunction* adaptor =
       js::NewFunctionWithReserved(aCx, UnwrapErrorEvent, 1, 0,
-                                  JS_GetGlobalForScopeChain(aCx), "unwrap");
+                                  JS_GetGlobalObject(aCx), "unwrap");
     if (!adaptor) {
       return false;
     }
@@ -568,13 +568,13 @@ private:
       return false;
     }
 
-    JS::Rooted<JS::Value> string(aCx);
-    if (!JS_ConvertArguments(aCx, aArgc, JS_ARGV(aCx, aVp), "v", string.address())) {
+    jsval string;
+    if (!JS_ConvertArguments(aCx, aArgc, JS_ARGV(aCx, aVp), "v", &string)) {
       return false;
     }
 
-    JS::Rooted<JS::Value> result(aCx);
-    if (!xpc::Base64Decode(aCx, string, result.address())) {
+    jsval result;
+    if (!xpc::Base64Decode(aCx, string, &result)) {
       return false;
     }
 
@@ -594,13 +594,13 @@ private:
       return false;
     }
 
-    JS::Rooted<JS::Value> binary(aCx);
-    if (!JS_ConvertArguments(aCx, aArgc, JS_ARGV(aCx, aVp), "v", binary.address())) {
+    jsval binary;
+    if (!JS_ConvertArguments(aCx, aArgc, JS_ARGV(aCx, aVp), "v", &binary)) {
       return false;
     }
 
-    JS::Rooted<JS::Value> result(aCx);
-    if (!xpc::Base64Encode(aCx, binary, result.address())) {
+    jsval result;
+    if (!xpc::Base64Encode(aCx, binary, &result)) {
       return false;
     }
 
@@ -985,8 +985,8 @@ CreateDedicatedWorkerGlobalScope(JSContext* aCx)
   //          -> EventTarget
   //          -> Object
 
-  JS::Rooted<JSObject*> eventTargetProto(aCx,
-    EventTargetBinding_workers::GetProtoObject(aCx, global));
+  JSObject* eventTargetProto =
+    EventTargetBinding_workers::GetProtoObject(aCx, global);
   if (!eventTargetProto) {
     return NULL;
   }

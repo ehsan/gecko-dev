@@ -17,16 +17,7 @@ enum MyTestEnum {
   "b"
 };
 
-// We don't support multiple constructors (bug 869268) or named constructors
-// for JS-implemented WebIDL.
-[Constructor(DOMString str, unsigned long num, boolean? boolArg,
-             TestInterface? iface, long arg1,
-             DictForConstructor dict, any any1,
-             /* (BUG 856911) object obj1,*/
-             object? obj2, sequence<Dict> seq, optional any any2,
-             /* (BUG 856911) optional object obj3, */
-             optional object? obj4),
- JSImplementation="@mozilla.org/test-js-impl-interface;1"]
+[Constructor, JSImplementation="@mozilla.org/test-js-impl-interface;1"]
 interface TestJSImplInterface {
   // Integer types
   // XXXbz add tests for throwing versions of all the integer stuff

@@ -232,11 +232,9 @@ public:
 
   /**
    * Get the device context associated with this manager
+   * @result device context
    */
-  nsDeviceContext* GetDeviceContext() const
-  {
-    return mContext;
-  }
+  void GetDeviceContext(nsDeviceContext *&aContext);
 
   /**
    * A stack class for disallowing changes that would enter painting. For

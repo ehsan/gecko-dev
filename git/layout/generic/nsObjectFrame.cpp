@@ -420,7 +420,8 @@ nsObjectFrame::PrepForDrawing(nsIWidget *aWidget)
     configuration->mBounds.height = NSAppUnitsToIntPixels(mRect.height, appUnitsPerDevPixel);
     parentWidget->ConfigureChildren(configurations);
 
-    nsRefPtr<nsDeviceContext> dx = viewMan->GetDeviceContext();
+    nsRefPtr<nsDeviceContext> dx;
+    viewMan->GetDeviceContext(*getter_AddRefs(dx));
     mInnerView->AttachWidgetEventHandler(mWidget);
 
 #ifdef XP_MACOSX
