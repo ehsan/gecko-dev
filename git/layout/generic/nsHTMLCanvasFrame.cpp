@@ -92,6 +92,8 @@ NS_NewHTMLCanvasFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsHTMLCanvasFrame(aContext);
 }
 
+NS_IMPL_FRAMEARENA_HELPERS(nsHTMLCanvasFrame)
+
 nsHTMLCanvasFrame::~nsHTMLCanvasFrame()
 {
 }
@@ -192,7 +194,7 @@ nsHTMLCanvasFrame::Reflow(nsPresContext*           aPresContext,
   if (GetPrevInFlow()) {
     nscoord y = GetContinuationOffset(&aMetrics.width);
     aMetrics.height -= y + mBorderPadding.top;
-    aMetrics.height = PR_MAX(0, aMetrics.height);
+    aMetrics.height = NS_MAX(0, aMetrics.height);
   }
 
   aMetrics.mOverflowArea.SetRect(0, 0, aMetrics.width, aMetrics.height);
@@ -299,7 +301,7 @@ nsHTMLCanvasFrame::GetContinuationOffset(nscoord* aWidth) const
       offset += rect.height;
     }
     offset -= mBorderPadding.top;
-    offset = PR_MAX(0, offset);
+    offset = NS_MAX(0, offset);
   }
   return offset;
 }

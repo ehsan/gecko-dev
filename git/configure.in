@@ -354,8 +354,8 @@ if test -n "$CROSS_COMPILE" && test "$target" != "$host"; then
         dnl checks will fail.  Fake a working SDK in that case.
         _SAVE_CFLAGS=$CFLAGS
         _SAVE_CXXFLAGS=$CXXLAGS
-        CFLAGS="-isysroot /Developer/SDKs/MacOSX10.4u.sdk $CFLAGS"
-        CXXFLAGS="-isysroot /Developer/SDKs/MacOSX10.4u.sdk $CXXFLAGS"
+        CFLAGS="-isysroot /Developer/SDKs/MacOSX10.5.sdk $CFLAGS"
+        CXXFLAGS="-isysroot /Developer/SDKs/MacOSX10.5.sdk $CXXFLAGS"
         ;;
     esac
 
@@ -904,7 +904,7 @@ dnl Check for MacOS deployment target version
 dnl ========================================================
 
 MOZ_ARG_ENABLE_STRING(macos-target,
-                      [  --enable-macos-target=VER (default=10.4)
+                      [  --enable-macos-target=VER (default=10.5)
                           Set the minimum MacOS version needed at runtime],
                       [_MACOSX_DEPLOYMENT_TARGET=$enableval])
 
@@ -917,14 +917,7 @@ case "$target" in
     elif test -z "$MACOSX_DEPLOYMENT_TARGET" ; then
         dnl No value specified on the command line or in the environment,
         dnl use architecture minimum.
-        case "${target_cpu}" in
-          x86_64)
-            export MACOSX_DEPLOYMENT_TARGET=10.5
-            ;;
-          *)
-            export MACOSX_DEPLOYMENT_TARGET=10.4
-            ;;
-        esac
+        export MACOSX_DEPLOYMENT_TARGET=10.5
     fi
     ;;
 esac
@@ -1630,6 +1623,7 @@ case "$host" in
     case "$host" in
     *mingw*)
     dnl MinGW/MSYS does not need CYGWIN_WRAPPER
+        PERL="/bin/sh ${srcdir}/build/msys-perl-wrapper"
         ;;
     *)
         CYGWIN_WRAPPER="${srcdir}/build/cygwin-wrapper"
@@ -1969,7 +1963,6 @@ case "$target" in
     ;;
     i*86)
     	USE_ELF_DYNSTR_GC=1
-        MOZ_ENABLE_OLD_ABI_COMPAT_WRAPPERS=1
     ;;
     mips*)
         MOZ_DEBUG_FLAGS="-g" # We want inlining
@@ -2060,7 +2053,6 @@ case "$target" in
     TARGET_MD_ARCH=win32
     _PLATFORM_DEFAULT_TOOLKIT='cairo-windows'
     BIN_SUFFIX='.exe'
-    USE_SHORT_LIBNAME=1
     MOZ_ENABLE_POSTSCRIPT=
     MOZ_USER_DIR="Mozilla"
 
@@ -2178,7 +2170,6 @@ case "$target" in
     TARGET_MD_ARCH=win32
     _PLATFORM_DEFAULT_TOOLKIT='cairo-windows'
     BIN_SUFFIX='.exe'
-    USE_SHORT_LIBNAME=1
     MOZ_ENABLE_POSTSCRIPT=
     MOZ_USER_DIR="Mozilla"
 
@@ -2421,7 +2412,6 @@ case "$target" in
     AC_DEFINE(XP_OS2)
     AC_DEFINE(OS2EMX_PLAIN_CHAR)
     AC_DEFINE(TCPV40HDRS)
-    USE_SHORT_LIBNAME=1
     DLL_PREFIX=
     LIB_PREFIX=
     LIB_SUFFIX=lib
@@ -3099,7 +3089,7 @@ esac
 
 dnl We don't want to link with libdl even if it's present on OS X, since
 dnl it's not used and not part of the default installation.
-dnl The same goes for BeOS.
+dnl The same goes for BeOS. OS/2 has dlfcn in libc.
 dnl We don't want to link against libm or libpthread on Darwin since
 dnl they both are just symlinks to libSystem and explicitly linking
 dnl against libSystem causes issues when debugging (see bug 299601).
@@ -3107,6 +3097,8 @@ case $target in
 *-darwin*)
     ;;
 *-beos*)
+    ;;
+*-os2*)
     ;;
 *)
     AC_CHECK_LIB(m, atan)
@@ -3133,7 +3125,14 @@ if test ! "$GNU_CXX"; then
 	;;
      esac
 fi
-AC_CHECK_LIB(socket, socket)
+
+dnl OS/2 has socket in libc.
+case $target in
+*-os2*)
+    ;;
+*)
+    AC_CHECK_LIB(socket, socket)
+esac
 
 dnl ========================================================
 dnl Check whether we can compile code for Core Text
@@ -3148,16 +3147,12 @@ case "$target" in
                   ac_cv_have_core_text="no")
   AC_MSG_RESULT([$ac_cv_have_core_text])
 
-  case "${target_cpu}" in
-  x86_64)
-    MOZ_CORETEXT=1
-    ;;
-  esac
+  MOZ_CORETEXT=1
 
-  MOZ_ARG_ENABLE_BOOL(coretext,
-[  --enable-coretext      Use CoreText instead of ATSUI for text rendering],
-    MOZ_CORETEXT=1,
-    MOZ_CORETEXT=)
+  MOZ_ARG_DISABLE_BOOL(coretext,
+[  --disable-coretext      Use ATSUI instead of Core Text for text rendering],
+    MOZ_CORETEXT=,
+    MOZ_CORETEXT=1)
 
   if test -n "$MOZ_CORETEXT"; then
     if test "$ac_cv_have_core_text" = "no"; then
@@ -4472,8 +4467,6 @@ MOZ_ACTIVEX_SCRIPTING_SUPPORT=
 MOZ_BRANDING_DIRECTORY=
 MOZ_OFFICIAL_BRANDING=
 MOZ_DBGRINFO_MODULES=
-MOZ_ENABLE_CANVAS=1
-MOZ_ENABLE_CANVAS3D=
 MOZ_FEEDS=1
 MOZ_IMG_DECODERS_DEFAULT="png gif jpeg bmp icon"
 MOZ_IMG_ENCODERS_DEFAULT="png jpeg"
@@ -4565,118 +4558,6 @@ MOZ_ARG_ENABLE_STRING(application,
                             standalone (use this for standalone
                               xpcom/xpconnect or to manually drive a build)],
 [ MOZ_BUILD_APP=$enableval ] )
-
-MOZ_EMBEDDING_PROFILE=default
-MOZ_ARG_WITH_STRING(embedding-profile,
-[  --with-embedding-profile=default|basic|minimal
-                       see http://wiki.mozilla.org/Gecko:Small_Device_Support],
-[ MOZ_EMBEDDING_PROFILE=$withval ])
-
-case "$MOZ_EMBEDDING_PROFILE" in
-default)
-  MOZ_EMBEDDING_LEVEL_DEFAULT=1
-  MOZ_EMBEDDING_LEVEL_BASIC=1
-  MOZ_EMBEDDING_LEVEL_MINIMAL=1
-  AC_DEFINE(MOZ_EMBEDDING_LEVEL_DEFAULT)
-  AC_DEFINE(MOZ_EMBEDDING_LEVEL_BASIC)
-  AC_DEFINE(MOZ_EMBEDDING_LEVEL_MINIMAL)
-  ;;
-
-basic)
-  MOZ_EMBEDDING_LEVEL_DEFAULT=
-  MOZ_EMBEDDING_LEVEL_BASIC=1
-  MOZ_EMBEDDING_LEVEL_MINIMAL=1
-  AC_DEFINE(MOZ_EMBEDDING_LEVEL_BASIC)
-  AC_DEFINE(MOZ_EMBEDDING_LEVEL_MINIMAL)
-  ENABLE_TESTS=
-  MOZ_ACTIVEX_SCRIPTING_SUPPORT=
-  MOZ_ENABLE_CANVAS=
-  MOZ_ENABLE_POSTSCRIPT=
-  MOZ_EXTENSIONS_DEFAULT=" spatialnavigation"
-  MOZ_IMG_DECODERS_DEFAULT="png gif jpeg"
-  MOZ_IMG_ENCODERS_DEFAULT=
-  MOZ_IMG_ENCODERS=
-  MOZ_INSTALLER=
-  MOZ_JSDEBUGGER=
-  MOZ_MATHML=
-  MOZ_AUTH_EXTENSION=
-  MOZ_NO_ACTIVEX_SUPPORT=1
-  MOZ_NO_INSPECTOR_APIS=1
-  MOZ_NO_FAST_LOAD=1
-  MOZ_PLAINTEXT_EDITOR_ONLY=1
-#  MOZ_PLUGINS=
-  MOZ_PREF_EXTENSIONS=
-  MOZ_PROFILELOCKING=
-  MOZ_SPELLCHECK=
-  MOZ_SVG=
-  MOZ_UNIVERSALCHARDET=
-  MOZ_UPDATER=
-  MOZ_USE_NATIVE_UCONV=
-  MOZ_VIEW_SOURCE=
-  MOZ_XPFE_COMPONENTS=
-  MOZ_XPINSTALL=
-  MOZ_XTF=
-  MOZ_ZIPWRITER=
-  NECKO_DISK_CACHE=
-  NECKO_PROTOCOLS_DEFAULT="about data http file res"
-  NECKO_SMALL_BUFFERS=1
-  NS_DISABLE_LOGGING=1
-  NS_PRINTING=
-  ;;
-
-minimal)
-  MOZ_EMBEDDING_LEVEL_DEFAULT=
-  MOZ_EMBEDDING_LEVEL_BASIC=
-  MOZ_EMBEDDING_LEVEL_MINIMAL=1
-  AC_DEFINE(MOZ_EMBEDDING_LEVEL_MINIMAL)
-  ENABLE_TESTS=
-  MOZ_ACTIVEX_SCRIPTING_SUPPORT=
-  MOZ_ENABLE_CANVAS=
-  MOZ_ENABLE_POSTSCRIPT=
-  MOZ_EXTENSIONS_DEFAULT=" spatialnavigation"
-  MOZ_IMG_DECODERS_DEFAULT="png gif jpeg"
-  MOZ_IMG_ENCODERS_DEFAULT=
-  MOZ_IMG_ENCODERS=
-  MOZ_INSTALLER=
-  MOZ_JSDEBUGGER=
-  MOZ_MATHML=
-  MOZ_AUTH_EXTENSION=
-  MOZ_NO_ACTIVEX_SUPPORT=1
-  MOZ_NO_INSPECTOR_APIS=1
-  MOZ_NO_FAST_LOAD=1
-  MOZ_PLAINTEXT_EDITOR_ONLY=1
-  MOZ_PLUGINS=
-  MOZ_PREF_EXTENSIONS=
-  MOZ_PROFILELOCKING=
-  MOZ_SPELLCHECK=
-  MOZ_STORAGE=1
-  MOZ_PLACES=
-  MOZ_SVG=
-  MOZ_UNIVERSALCHARDET=
-  MOZ_UPDATER=
-  MOZ_USE_NATIVE_UCONV=1
-  MOZ_VIEW_SOURCE=
-  MOZ_XPFE_COMPONENTS=
-  MOZ_XPINSTALL=
-  MOZ_XTF=
-  MOZ_XUL=
-  MOZ_ZIPWRITER=
-  MOZ_RDF=
-  NECKO_DISK_CACHE=
-  NECKO_PROTOCOLS_DEFAULT="about data http file res"
-  NECKO_SMALL_BUFFERS=1
-  NS_DISABLE_LOGGING=1
-  NS_PRINTING=
-  ;;
-
-*)
-  AC_MSG_ERROR([Unrecognized value: --with-embedding-profile=$MOZ_EMBEDDING_PROFILE])
-  ;;
-esac
-
-AC_SUBST(MOZ_EMBEDDING_LEVEL_DEFAULT)
-AC_SUBST(MOZ_EMBEDDING_LEVEL_BASIC)
-AC_SUBST(MOZ_EMBEDDING_LEVEL_MINIMAL)
 
 MOZ_ARG_WITH_STRING(xulrunner-stub-name,
 [  --with-xulrunner-stub-name=appname   Create the xulrunner stub with the given name],
@@ -4871,8 +4752,6 @@ cairo-cocoa)
     AC_DEFINE(MOZ_WIDGET_COCOA)
     MOZ_USER_DIR="Mozilla"
     AC_DEFINE(XP_MACOSX)
-    AC_DEFINE(TARGET_CARBON)
-    AC_DEFINE(TARGET_API_MAC_CARBON)
     TK_LIBS='-framework Carbon -framework CoreAudio -framework AudioToolbox -framework AudioUnit -framework AddressBook'
     TK_CFLAGS="-DNO_X11"
     LDFLAGS="$LDFLAGS -framework Cocoa"
@@ -5103,14 +4982,6 @@ then
 fi
 
 dnl ========================================================
-dnl = PostScript print module
-dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(postscript,
-[  --disable-postscript    Disable PostScript printing support ],
-    MOZ_ENABLE_POSTSCRIPT=,
-    MOZ_ENABLE_POSTSCRIPT=1 )
-
-dnl ========================================================
 dnl = GnomeVFS support module
 dnl ========================================================
 
@@ -5338,14 +5209,9 @@ AC_DEFINE(IBMBIDI)
 dnl ========================================================
 dnl view source support on by default
 dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(view-source,
-[  --disable-view-source     Disable view source support],
-    MOZ_VIEW_SOURCE=,
-    MOZ_VIEW_SOURCE=1 )
 if test "$MOZ_VIEW_SOURCE"; then
     AC_DEFINE(MOZ_VIEW_SOURCE)
 fi
-
 
 dnl ========================================================
 dnl accessibility support on by default on all platforms 
@@ -5395,10 +5261,6 @@ fi
 dnl ========================================================
 dnl xpcom js loader support on by default
 dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(jsloader,
-[  --disable-jsloader      Disable xpcom js loader support],
-    MOZ_JSLOADER=,
-    MOZ_JSLOADER=1 )
 if test "$MOZ_JSLOADER"; then
     AC_DEFINE(MOZ_JSLOADER)
 fi
@@ -5589,14 +5451,6 @@ if test "$MOZ_XTF"; then
 fi
 
 dnl ========================================================
-dnl Inspector APIs
-dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(inspector-apis,
-[  --disable-inspector-apis Disable the DOM inspection APIs ],
-    MOZ_NO_INSPECTOR_APIS=1,
-    MOZ_NO_INSPECTOR_APIS= )
-
-dnl ========================================================
 dnl Pref extensions (autoconfig and system-pref)
 dnl ========================================================
 MOZ_ARG_DISABLE_BOOL(pref-extensions,
@@ -5745,11 +5599,21 @@ if test -z "$MOZ_ENABLE_GNOMEVFS" && test `echo "$MOZ_EXTENSIONS" | grep -c gnom
     MOZ_EXTENSIONS=`echo $MOZ_EXTENSIONS | sed -e 's|gnomevfs||'`
 fi
 
+dnl Do not build gnomevfs with libxul based apps
+if test -n "$LIBXUL_SDK_DIR" && test `echo "$MOZ_EXTENSIONS" | grep -c gnomevfs` -ne 0; then
+    MOZ_EXTENSIONS=`echo $MOZ_EXTENSIONS | sed -e 's|gnomevfs||'`
+fi
+
 if test -z "$MOZ_ENABLE_GIO" && test `echo "$MOZ_EXTENSIONS" | grep -c gio` -ne 0; then
     # Suppress warning on non-X11 platforms
     if test -n "$MOZ_X11"; then
         AC_MSG_WARN([Cannot build gio without required libraries. Removing gio from MOZ_EXTENSIONS.])
     fi
+    MOZ_EXTENSIONS=`echo $MOZ_EXTENSIONS | sed -e 's|gio||'`
+fi
+
+dnl Do not build gio with libxul based apps
+if test -n "$LIBXUL_SDK_DIR" && test `echo "$MOZ_EXTENSIONS" | grep -c gio` -ne 0; then
     MOZ_EXTENSIONS=`echo $MOZ_EXTENSIONS | sed -e 's|gio||'`
 fi
 
@@ -5894,27 +5758,6 @@ MOZ_ARG_DISABLE_BOOL(mathml,
 if test "$MOZ_MATHML"; then
   AC_DEFINE(MOZ_MATHML)
 fi
-
-dnl ========================================================
-dnl Canvas
-dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(canvas,
-[  --disable-canvas          Disable html:canvas feature],
-    MOZ_ENABLE_CANVAS=,
-    MOZ_ENABLE_CANVAS=1 )
-if test -n "$MOZ_ENABLE_CANVAS"; then
-    AC_DEFINE(MOZ_ENABLE_CANVAS)
-fi
-AC_SUBST(MOZ_ENABLE_CANVAS)
-
-MOZ_ARG_ENABLE_BOOL(canvas3d,
-[  --enable-canvas3d        Enable canvas 3D context],
-    MOZ_ENABLE_CANVAS3D=1,
-    MOZ_ENABLE_CANVAS3D= )
-if test -n "$MOZ_ENABLE_CANVAS3D"; then
-    AC_DEFINE(MOZ_ENABLE_CANVAS3D)
-fi
-AC_SUBST(MOZ_ENABLE_CANVAS3D)
 
 dnl ========================================================
 dnl SVG
@@ -6130,17 +5973,6 @@ dnl = Module specific options
 dnl =
 dnl ========================================================
 MOZ_ARG_HEADER(Individual module options)
-
-dnl ========================================================
-dnl = Enable Lea malloc in xpcom. OFF by default.
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(xpcom-lea,
-[  --enable-xpcom-lea      Use Lea malloc in xpcom ],
-    XPCOM_USE_LEA=1,
-    XPCOM_USE_LEA= )
-if test -n "$XPCOM_USE_LEA"; then
-    AC_DEFINE(XPCOM_USE_LEA)
-fi
 
 dnl ========================================================
 dnl = Enable places (new history/bookmarks)
@@ -6488,17 +6320,6 @@ MOZ_ARG_ENABLE_STRING(debugger-info-modules,
     done ])
 
 dnl ========================================================
-dnl Enable garbage collector
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(boehm,
-[  --enable-boehm          Enable the Boehm Garbage Collector],
-    GC_LEAK_DETECTOR=1,
-    GC_LEAK_DETECTOR= )
-if test -n "$GC_LEAK_DETECTOR"; then
-    AC_DEFINE(GC_LEAK_DETECTOR)
-fi
-
-dnl ========================================================
 dnl Disable runtime logging checks
 dnl ========================================================
 MOZ_ARG_DISABLE_BOOL(logging,
@@ -6603,8 +6424,8 @@ if test "$MOZ_MEMORY"; then
   msvc*|mks*|cygwin*|mingw*)
     AC_DEFINE(MOZ_MEMORY_WINDOWS)
     dnl This is sort of awful. Will revisit if we add support for more versions
-    if test "$CC_VERSION" != "14.00.50727.762"; then
-        AC_MSG_ERROR([Building jemalloc requires exactly Visual C++ 2005 SP1 currently.])
+    if test "$CC_VERSION" != "14.00.50727.762" -a "$CC_VERSION" != "15.00.30729.01"; then
+        AC_MSG_ERROR([Building jemalloc requires exactly Visual C++ 2005 SP1 or 2008 SP1 currently.])
     fi
     if test -z "$WIN32_CRT_SRC_DIR"; then
       if test -z "$VCINSTALLDIR" -o ! -d "$VCINSTALLDIR"; then
@@ -6688,17 +6509,6 @@ if test -n "$MOZ_VALGRIND"; then
         AC_MSG_ERROR(
             [--enable-valgrind specified but Valgrind is not installed]))
     AC_DEFINE(MOZ_VALGRIND)
-fi
-
-dnl ========================================================
-dnl = Use Electric Fence
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(efence,
-[  --enable-efence         Link with Electric Fence],
-    _ENABLE_EFENCE=1,
-    _ENABLE_EFENCE= )
-if test -n "$_ENABLE_EFENCE"; then
-    AC_CHECK_LIB(efence,malloc)
 fi
 
 dnl ========================================================
@@ -6799,34 +6609,6 @@ MOZ_ARG_ENABLE_BOOL(elf-dynstr-gc,
     USE_ELF_DYNSTR_GC= )
 
 dnl ========================================================
-dnl = --enable-old-abi-compat-wrappers
-dnl ========================================================
-dnl on x86 linux, the current builds of some popular plugins (notably
-dnl flashplayer and real) expect a few builtin symbols from libgcc
-dnl which were available in some older versions of gcc.  However,
-dnl they're _NOT_ available in newer versions of gcc (eg 3.1), so if
-dnl we want those plugin to work with a gcc-3.1 built binary, we need
-dnl to provide these symbols.  MOZ_ENABLE_OLD_ABI_COMPAT_WRAPPERS defaults
-dnl to true on x86 linux, and false everywhere else.
-dnl
-
-MOZ_ARG_ENABLE_BOOL(old-abi-compat-wrappers,
-[  --enable-old-abi-compat-wrappers
-                          Support old GCC ABI symbols to ease the pain 
-                          of the linux compiler change],
-    MOZ_ENABLE_OLD_ABI_COMPAT_WRAPPERS=1,
-    MOZ_ENABLE_OLD_ABI_COMPAT_WRAPPERS= )
-if test "$COMPILE_ENVIRONMENT"; then
-if test "$MOZ_ENABLE_OLD_ABI_COMPAT_WRAPPERS"; then
-    AC_LANG_SAVE
-    AC_LANG_CPLUSPLUS
-    AC_CHECK_FUNCS(__builtin_vec_new __builtin_vec_delete __builtin_new __builtin_delete __pure_virtual)
-    AC_LANG_RESTORE
-    AC_DEFINE(MOZ_ENABLE_OLD_ABI_COMPAT_WRAPPERS)
-fi
-fi # COMPILE_ENVIRONMENT
-
-dnl ========================================================
 dnl = 
 dnl = Profiling and Instrumenting
 dnl = 
@@ -6871,27 +6653,6 @@ if test -n "$_ENABLE_CODESIGHS"; then
         AC_MSG_ERROR([Codesighs directory $srcdir/tools/codesighs required.])
     fi
 fi
-
-dnl ========================================================
-dnl = Add support for Eazel profiler
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(eazel-profiler-support,
-[  --enable-eazel-profiler-support
-                          Enable Corel/Eazel profiler support],
-    ENABLE_EAZEL_PROFILER=1,
-    ENABLE_EAZEL_PROFILER= )
-if test -n "$ENABLE_EAZEL_PROFILER"; then
-    AC_DEFINE(ENABLE_EAZEL_PROFILER)
-    USE_ELF_DYNSTR_GC=
-    MOZ_COMPONENTS_VERSION_SCRIPT_LDFLAGS=
-    EAZEL_PROFILER_CFLAGS="-g -O -gdwarf-2 -finstrument-functions -D__NO_STRING_INLINES  -D__NO_MATH_INLINES"
-    EAZEL_PROFILER_LIBS="-lprofiler -lpthread"
-fi
-
-MOZ_ARG_ENABLE_STRING(profile-modules,
-[  --enable-profile-modules
-                          Enable/disable profiling for specific modules],
-[ MOZ_PROFILE_MODULES=`echo $enableval| sed 's/,/ /g'` ] )
 
 MOZ_ARG_ENABLE_BOOL(insure,
 [  --enable-insure         Enable insure++ instrumentation (linux only)],
@@ -7596,9 +7357,9 @@ if test "$MOZ_TREE_CAIRO"; then
         CAIRO_FT_CFLAGS="$FT2_CFLAGS"
     fi
     if test "$MOZ_WIDGET_TOOLKIT" = "qt"; then
-        QPAINTER_SURFACE_FEATURE="#define CAIRO_HAS_QPAINTER_SURFACE 1"
+        QT_SURFACE_FEATURE="#define CAIRO_HAS_QT_SURFACE 1"
     fi
-    if test "$MOZ_WIDGET_TOOLKIT" = "mac" -o "$MOZ_WIDGET_TOOLKIT" = "cocoa"; then
+    if test "$MOZ_WIDGET_TOOLKIT" = "cocoa"; then
         QUARTZ_SURFACE_FEATURE="#define CAIRO_HAS_QUARTZ_SURFACE 1"
         QUARTZ_IMAGE_SURFACE_FEATURE="#define CAIRO_HAS_QUARTZ_IMAGE_SURFACE 1"
         QUARTZ_FONT_FEATURE="#define CAIRO_HAS_QUARTZ_FONT 1"
@@ -7685,7 +7446,7 @@ if test "$MOZ_TREE_CAIRO"; then
     AC_SUBST(WIN32_FONT_FEATURE)
     AC_SUBST(QUARTZ_FONT_FEATURE)
     AC_SUBST(PNG_FUNCTIONS_FEATURE)
-    AC_SUBST(QPAINTER_SURFACE_FEATURE)
+    AC_SUBST(QT_SURFACE_FEATURE)
 
     if test "$_WIN32_MSVC"; then
         MOZ_CAIRO_LIBS='$(DEPTH)/gfx/cairo/cairo/src/mozcairo.lib $(DEPTH)/gfx/cairo/libpixman/src/mozlibpixman.lib'
@@ -7865,6 +7626,19 @@ if test "$NECKO_COOKIES"; then
     AC_DEFINE(NECKO_COOKIES)
 fi
 
+dnl
+dnl Build jsctypes on the platforms we can.
+dnl
+AC_SUBST(BUILD_CTYPES)
+case "$OS_TEST" in
+arm*)
+  ;;
+*)
+  BUILD_CTYPES=1
+  AC_DEFINE(BUILD_CTYPES)
+  ;;
+esac
+
 dnl NECKO_ configuration options are not global
 _NON_GLOBAL_ACDEFINES="$_NON_GLOBAL_ACDEFINES NECKO_"
 
@@ -7903,7 +7677,6 @@ AC_SUBST(LD)
 AC_SUBST(RC)
 AC_SUBST(RCFLAGS)
 AC_SUBST(WINDRES)
-AC_SUBST(USE_SHORT_LIBNAME)
 AC_SUBST(IMPLIB)
 AC_SUBST(FILTER)
 AC_SUBST(BIN_FLAGS)
@@ -7927,7 +7700,6 @@ AC_SUBST(MOZ_JS_LIBS)
 AC_SUBST(MOZ_PSM)
 AC_SUBST(MOZ_DEBUG)
 AC_SUBST(MOZ_DEBUG_MODULES)
-AC_SUBST(MOZ_PROFILE_MODULES)
 AC_SUBST(MOZ_DEBUG_ENABLE_DEFS)
 AC_SUBST(MOZ_DEBUG_DISABLE_DEFS)
 AC_SUBST(MOZ_DEBUG_FLAGS)
@@ -7939,10 +7711,6 @@ AC_SUBST(MOZ_IMG_DECODERS)
 AC_SUBST(MOZ_IMG_ENCODERS)
 AC_SUBST(MOZ_JSDEBUGGER)
 AC_SUBST(MOZ_PLUGINS)
-AC_SUBST(ENABLE_EAZEL_PROFILER)
-AC_SUBST(EAZEL_PROFILER_CFLAGS)
-AC_SUBST(EAZEL_PROFILER_LIBS)
-AC_SUBST(GC_LEAK_DETECTOR)
 AC_SUBST(MOZ_LOG_REFCNT)
 AC_SUBST(MOZ_LEAKY)
 AC_SUBST(MOZ_JPROF)
@@ -7976,7 +7744,6 @@ AC_SUBST(HAVE_XIE)
 AC_SUBST(MOZ_XIE_LIBS)
 AC_SUBST(MOZ_ENABLE_POSTSCRIPT)
 
-AC_SUBST(XPCOM_USE_LEA)
 AC_SUBST(BUILD_STATIC_LIBS)
 AC_SUBST(MOZ_ENABLE_LIBXUL)
 AC_SUBST(ENABLE_TESTS)
@@ -8463,6 +8230,25 @@ if test "$MOZ_MEMORY"; then
 fi
 AC_OUTPUT_SUBDIRS(js/src)
 ac_configure_args="$_SUBDIR_CONFIG_ARGS"
+
+# Build jsctypes on the platforms we can.
+if test "$BUILD_CTYPES"; then
+  # Run the libffi 'configure' script on platforms that it supports.
+  if test -z "$_MSC_VER"; then
+    ac_configure_args="--disable-shared --enable-static --disable-raw-api"
+    if test "$MOZ_DEBUG"; then
+      ac_configure_args="$ac_configure_args --enable-debug"
+    fi
+    if test -n "$DSO_PIC_CFLAGS"; then
+      ac_configure_args="$ac_configure_args --with-pic"
+    fi
+    if test -n "$CROSS_COMPILE"; then
+      ac_configure_args="$ac_configure_args --build=$build --host=$target"
+    fi
+    AC_OUTPUT_SUBDIRS(js/ctypes/libffi)
+    ac_configure_args="$_SUBDIR_CONFIG_ARGS"
+  fi
+fi
 
 fi # COMPILE_ENVIRONMENT && !LIBXUL_SDK_DIR
 

@@ -185,13 +185,11 @@ nsView::nsView(nsViewManager* aViewManager, nsViewVisibility aVisibility)
   mDeletionObserver = nsnull;
 }
 
-void nsView::DropMouseGrabbing() {
-  // check to see if we are grabbing events
-  if (mViewManager->GetMouseEventGrabber() == this) {
-    // we are grabbing events. Move the grab to the parent if we can.
-    PRBool boolResult; //not used
-    // if GetParent() returns null, then we release the grab, which is the best we can do
-    mViewManager->GrabMouseEvents(GetParent(), boolResult);
+void nsView::DropMouseGrabbing()
+{
+  nsCOMPtr<nsIViewObserver> viewObserver = mViewManager->GetViewObserver();
+  if (viewObserver) {
+    viewObserver->ClearMouseCapture(this);
   }
 }
 
@@ -495,15 +493,6 @@ NS_IMETHODIMP nsView::SetFloating(PRBool aFloatingView)
 
 void nsView::InvalidateHierarchy(nsViewManager *aViewManagerParent)
 {
-  if (aViewManagerParent) {
-    // We're removed from the view hierarchy of aRemovalPoint, so make sure
-    // we're not still grabbing mouse events.
-    if (aViewManagerParent->GetMouseEventGrabber() == this) {
-      PRBool res;
-      aViewManagerParent->GrabMouseEvents(nsnull, res);
-    }
-  }
-
   if (mViewManager->GetRootView() == this)
     mViewManager->InvalidateHierarchy();
 
@@ -659,7 +648,7 @@ nsresult nsIView::CreateWidget(const nsIID &aWindowIID,
       aWidgetInitData->mContentType = aContentType;
 
       if (aNative && aWidgetInitData->mWindowType != eWindowType_popup)
-        mWindow->Create(aNative, trect, ::HandleEvent, dx, nsnull, nsnull, aWidgetInitData);
+        mWindow->Create(nsnull, aNative, trect, ::HandleEvent, dx, nsnull, nsnull, aWidgetInitData);
       else
       {
         if (!initDataPassedIn && GetParent() && 
@@ -668,7 +657,7 @@ nsresult nsIView::CreateWidget(const nsIID &aWindowIID,
         if (aParentWidget) {
           NS_ASSERTION(aWidgetInitData->mWindowType == eWindowType_popup,
                        "popup widget type expected");
-          mWindow->Create(aParentWidget, trect,
+          mWindow->Create(aParentWidget, nsnull, trect,
                           ::HandleEvent, dx, nsnull, nsnull, aWidgetInitData);
         }
         else {
@@ -679,10 +668,10 @@ nsresult nsIView::CreateWidget(const nsIID &aWindowIID,
             // when printing
             if (!parentWidget)
               return NS_ERROR_FAILURE;
-            mWindow->Create(parentWidget->GetNativeData(NS_NATIVE_WIDGET), trect,
+            mWindow->Create(nsnull, parentWidget->GetNativeData(NS_NATIVE_WIDGET), trect,
                             ::HandleEvent, dx, nsnull, nsnull, aWidgetInitData);
           } else {
-            mWindow->Create(parentWidget, trect,
+            mWindow->Create(parentWidget, nsnull, trect,
                             ::HandleEvent, dx, nsnull, nsnull, aWidgetInitData);
           }
         }

@@ -59,8 +59,6 @@
 #include "jsarray.h"
 #include "jstask.h"
 
-JS_BEGIN_EXTERN_C
-
 /*
  * js_GetSrcNote cache to avoid O(n^2) growth in finding a source note for a
  * given pc in a script. We use the script->code pointer to tag the cache,
@@ -102,8 +100,16 @@ namespace nanojit {
 #ifdef DEBUG
     class LabelMap;
 #endif
-    extern "C++" { template<typename K, typename V, typename H> class HashMap; }
+    extern "C++" {
+        template<typename K> struct DefaultHash;
+        template<typename K, typename V, typename H> class HashMap;
+        template<typename T> class Seq;
+    }
 }
+#if defined(JS_JIT_SPEW) || defined(DEBUG)
+struct FragPI;
+typedef nanojit::HashMap<uint32, FragPI, nanojit::DefaultHash<uint32> > FragStatsMap;
+#endif
 class TraceRecorder;
 class VMAllocator;
 extern "C++" { template<typename T> class Queue; }
@@ -142,17 +148,18 @@ struct JSTraceMonitor {
      * last-ditch GC and suppress calls to JS_ReportOutOfMemory.
      *
      * !tracecx && !recorder: not on trace
-     * !tracecx && recorder && !recorder->deepAborted: recording
-     * !tracecx && recorder && recorder->deepAborted: deep aborted
+     * !tracecx && recorder: recording
      * tracecx && !recorder: executing a trace
      * tracecx && recorder: executing inner loop, recording outer loop
      */
     JSContext               *tracecx;
 
-    CLS(nanojit::LirBuffer) lirbuf;
-    CLS(VMAllocator)        allocator;   // A chunk allocator for LIR.
-    CLS(nanojit::CodeAlloc) codeAlloc;   // A general allocator for native code.
+    CLS(VMAllocator)        dataAlloc;   /* A chunk allocator for LIR.    */
+    CLS(VMAllocator)        tempAlloc;   /* A temporary chunk allocator.  */
+    CLS(nanojit::CodeAlloc) codeAlloc;   /* An allocator for native code. */
     CLS(nanojit::Assembler) assembler;
+    CLS(nanojit::LirBuffer) lirbuf;
+    CLS(nanojit::LirBuffer) reLirBuf;
 #ifdef DEBUG
     CLS(nanojit::LabelMap)  labels;
 #endif
@@ -185,20 +192,27 @@ struct JSTraceMonitor {
     JSBool                  useReservedObjects;
     JSObject                *reservedObjects;
 
-    /* Parts for the regular expression compiler. This is logically
-     * a distinct compiler but needs to be managed in exactly the same
-     * way as the trace compiler. */
-    CLS(VMAllocator)        reAllocator;
-    CLS(nanojit::CodeAlloc) reCodeAlloc;
-    CLS(nanojit::Assembler) reAssembler;
-    CLS(nanojit::LirBuffer) reLirBuf;
+    /*
+     * Fragment map for the regular expression compiler.
+     */
     CLS(REHashMap)          reFragments;
-#ifdef DEBUG
-    CLS(nanojit::LabelMap)  reLabels;
-#endif
 
-    /* Keep a list of recorders we need to abort on cache flush. */
-    CLS(TraceRecorder)      abortStack;
+    /*
+     * A temporary allocator for RE recording.
+     */
+    CLS(VMAllocator)        reTempAlloc;
+
+#ifdef DEBUG
+    /* Fields needed for fragment/guard profiling. */
+    CLS(nanojit::Seq<nanojit::Fragment*>) branches;
+    uint32                  lastFragID;
+    /*
+     * profAlloc has a lifetime which spans exactly from js_InitJIT to
+     * js_FinishJIT.
+     */
+    CLS(VMAllocator)        profAlloc;
+    CLS(FragStatsMap)       profTab;
+#endif
 
     /* Flush the JIT cache. */
     void flush();
@@ -285,6 +299,20 @@ struct JSThreadData {
      * locks on each JS_malloc.
      */
     size_t              gcMallocBytes;
+
+    /*
+     * Cache of reusable JSNativeEnumerators mapped by shape identifiers (as
+     * stored in scope->shape). This cache is nulled by the GC and protected
+     * by gcLock.
+     */
+#define NATIVE_ENUM_CACHE_LOG2  8
+#define NATIVE_ENUM_CACHE_MASK  JS_BITMASK(NATIVE_ENUM_CACHE_LOG2)
+#define NATIVE_ENUM_CACHE_SIZE  JS_BIT(NATIVE_ENUM_CACHE_LOG2)
+
+#define NATIVE_ENUM_CACHE_HASH(shape)                                         \
+    ((((shape) >> NATIVE_ENUM_CACHE_LOG2) ^ (shape)) & NATIVE_ENUM_CACHE_MASK)
+
+    jsuword             nativeEnumCache[NATIVE_ENUM_CACHE_SIZE];
 
 #ifdef JS_THREADSAFE
     /*
@@ -487,12 +515,7 @@ struct JSRuntime {
     uint32              deflatedStringCacheBytes;
 #endif
 
-    /*
-     * Empty and unit-length strings held for use by this runtime's contexts.
-     * The unitStrings array and its elements are created on demand.
-     */
     JSString            *emptyString;
-    JSString            **unitStrings;
 
     /*
      * Builtin functions, lazily created and held for use by the trace recorder.
@@ -605,12 +628,6 @@ struct JSRuntime {
     JSObject            *anynameObject;
     JSObject            *functionNamespaceObject;
 
-    /*
-     * A helper list for the GC, so it can mark native iterator states. See
-     * js_TraceNativeEnumerators for details.
-     */
-    JSNativeEnumerator  *nativeEnumerators;
-
 #ifndef JS_THREADSAFE
     JSThreadData        threadData;
 
@@ -634,20 +651,6 @@ struct JSRuntime {
 
     /* Literal table maintained by jsatom.c functions. */
     JSAtomState         atomState;
-
-    /*
-     * Cache of reusable JSNativeEnumerators mapped by shape identifiers (as
-     * stored in scope->shape). This cache is nulled by the GC and protected
-     * by gcLock.
-     */
-#define NATIVE_ENUM_CACHE_LOG2  8
-#define NATIVE_ENUM_CACHE_MASK  JS_BITMASK(NATIVE_ENUM_CACHE_LOG2)
-#define NATIVE_ENUM_CACHE_SIZE  JS_BIT(NATIVE_ENUM_CACHE_LOG2)
-
-#define NATIVE_ENUM_CACHE_HASH(shape)                                         \
-    ((((shape) >> NATIVE_ENUM_CACHE_LOG2) ^ (shape)) & NATIVE_ENUM_CACHE_MASK)
-
-    jsuword             nativeEnumCache[NATIVE_ENUM_CACHE_SIZE];
 
     /*
      * Various metering fields are defined at the end of JSRuntime. In this
@@ -852,23 +855,31 @@ typedef struct JSLocalRootStack {
  * the following constants:
  */
 #define JSTVU_SINGLE        (-1)    /* u.value or u.<gcthing> is single jsval
-                                       or GC-thing */
+                                       or non-JSString GC-thing pointer */
 #define JSTVU_TRACE         (-2)    /* u.trace is a hook to trace a custom
                                      * structure */
 #define JSTVU_SPROP         (-3)    /* u.sprop roots property tree node */
 #define JSTVU_WEAK_ROOTS    (-4)    /* u.weakRoots points to saved weak roots */
 #define JSTVU_COMPILER      (-5)    /* u.compiler roots JSCompiler* */
 #define JSTVU_SCRIPT        (-6)    /* u.script roots JSScript* */
+#define JSTVU_ENUMERATOR    (-7)    /* a pointer to JSTempValueRooter points
+                                       to an instance of JSAutoEnumStateRooter
+                                       with u.object storing the enumeration
+                                       object */
 
 /*
- * Here single JSTVU_SINGLE covers both jsval and pointers to any GC-thing via
- * reinterpreting the thing as JSVAL_OBJECT. It works because the GC-thing is
- * aligned on a 0 mod 8 boundary, and object has the 0 jsval tag. So any
- * GC-thing may be tagged as if it were an object and untagged, if it's then
- * used only as an opaque pointer until discriminated by other means than tag
- * bits. This is how, for example, js_GetGCThingTraceKind uses its |thing|
- * parameter -- it consults GC-thing flags stored separately from the thing to
- * decide the kind of thing.
+ * Here single JSTVU_SINGLE covers both jsval and pointers to almost (see note
+ * below) any GC-thing via reinterpreting the thing as JSVAL_OBJECT. This works
+ * because the GC-thing is aligned on a 0 mod 8 boundary, and object has the 0
+ * jsval tag. So any GC-heap-allocated thing pointer may be tagged as if it
+ * were an object and untagged, if it's then used only as an opaque pointer
+ * until discriminated by other means than tag bits. This is how, for example,
+ * js_GetGCThingTraceKind uses its |thing| parameter -- it consults GC-thing
+ * flags stored separately from the thing to decide the kind of thing.
+ *
+ * Note well that JSStrings may be statically allocated (see the intStringTable
+ * and unitStringTable static arrays), so this hack does not work for arbitrary
+ * GC-thing pointers.
  */
 #define JS_PUSH_TEMP_ROOT_COMMON(cx,x,tvr,cnt,kind)                           \
     JS_BEGIN_MACRO                                                            \
@@ -898,7 +909,7 @@ typedef struct JSLocalRootStack {
     JS_PUSH_TEMP_ROOT_COMMON(cx, obj, tvr, JSTVU_SINGLE, object)
 
 #define JS_PUSH_TEMP_ROOT_STRING(cx,str,tvr)                                  \
-    JS_PUSH_TEMP_ROOT_COMMON(cx, str, tvr, JSTVU_SINGLE, string)
+    JS_PUSH_SINGLE_TEMP_ROOT(cx, str ? STRING_TO_JSVAL(str) : JSVAL_NULL, tvr)
 
 #define JS_PUSH_TEMP_ROOT_XML(cx,xml_,tvr)                                    \
     JS_PUSH_TEMP_ROOT_COMMON(cx, xml_, tvr, JSTVU_SINGLE, xml)
@@ -917,7 +928,6 @@ typedef struct JSLocalRootStack {
 
 #define JS_PUSH_TEMP_ROOT_SCRIPT(cx,script_,tvr)                              \
     JS_PUSH_TEMP_ROOT_COMMON(cx, script_, tvr, JSTVU_SCRIPT, script)
-
 
 #define JSRESOLVE_INFER         0xffff  /* infer bits from current bytecode */
 
@@ -988,7 +998,9 @@ struct JSContext {
     size_t              scriptStackQuota;
 
     /* Data shared by threads in an address space. */
-    JSRuntime           *runtime;
+    JSRuntime * const   runtime;
+
+    explicit JSContext(JSRuntime *rt) : runtime(rt) {}
 
     /* Stack arena pool and frame pointer register. */
     JS_REQUIRES_STACK
@@ -1083,10 +1095,6 @@ struct JSContext {
      */
     InterpState         *interpState;
     VMSideExit          *bailExit;
-
-    /* Used when calling natives from trace to root the vp vector. */
-    uintN               nativeVpLen;
-    jsval               *nativeVp;
 #endif
 
 #ifdef JS_THREADSAFE
@@ -1122,6 +1130,15 @@ struct JSContext {
             JS_ReportOutOfMemory(this);
             return NULL;
         }
+        updateMallocCounter(bytes);
+        return p;
+    }
+
+    inline void* mallocNoReport(size_t bytes) {
+        JS_ASSERT(bytes != 0);
+        void *p = runtime->malloc(bytes);
+        if (!p)
+            return NULL;
         updateMallocCounter(bytes);
         return p;
     }
@@ -1169,6 +1186,46 @@ struct JSContext {
         runtime->free(p);
     }
 #endif
+
+    /*
+     * In the common case that we'd like to allocate the memory for an object
+     * with cx->malloc/free, we cannot use overloaded C++ operators (no
+     * placement delete).  Factor the common workaround into one place.
+     */
+#define CREATE_BODY(parms)                                                    \
+    void *memory = this->malloc(sizeof(T));                                   \
+    if (!memory) {                                                            \
+        JS_ReportOutOfMemory(this);                                           \
+        return NULL;                                                          \
+    }                                                                         \
+    return new(memory) T parms;
+
+    template <class T>
+    JS_ALWAYS_INLINE T *create() {
+        CREATE_BODY(())
+    }
+
+    template <class T, class P1>
+    JS_ALWAYS_INLINE T *create(const P1 &p1) {
+        CREATE_BODY((p1))
+    }
+
+    template <class T, class P1, class P2>
+    JS_ALWAYS_INLINE T *create(const P1 &p1, const P2 &p2) {
+        CREATE_BODY((p1, p2))
+    }
+
+    template <class T, class P1, class P2, class P3>
+    JS_ALWAYS_INLINE T *create(const P1 &p1, const P2 &p2, const P3 &p3) {
+        CREATE_BODY((p1, p2, p3))
+    }
+#undef CREATE_BODY
+
+    template <class T>
+    JS_ALWAYS_INLINE void destroy(T *p) {
+        p->~T();
+        this->free(p);
+    }
 };
 
 #ifdef JS_THREADSAFE
@@ -1227,7 +1284,7 @@ class JSAutoTempValueRooter
 
 class JSAutoTempIdRooter
 {
-public:
+  public:
     explicit JSAutoTempIdRooter(JSContext *cx, jsid id = INT_TO_JSID(0))
         : mContext(cx) {
         JS_PUSH_SINGLE_TEMP_ROOT(mContext, ID_TO_VALUE(id), &mTvr);
@@ -1240,9 +1297,64 @@ public:
     jsid id() { return (jsid) mTvr.u.value; }
     jsid * addr() { return (jsid *) &mTvr.u.value; }
 
-private:
+  private:
     JSContext *mContext;
     JSTempValueRooter mTvr;
+};
+
+class JSAutoIdArray {
+  public:
+    JSAutoIdArray(JSContext *cx, JSIdArray *ida) : cx(cx), idArray(ida) {
+        if (ida)
+            JS_PUSH_TEMP_ROOT(cx, ida->length, ida->vector, &tvr);
+    }
+    ~JSAutoIdArray() {
+        if (idArray) {
+            JS_POP_TEMP_ROOT(cx, &tvr);
+            JS_DestroyIdArray(cx, idArray);
+        }
+    }
+    bool operator!() {
+        return idArray == NULL;
+    }
+    jsid operator[](size_t i) const {
+        JS_ASSERT(idArray);
+        JS_ASSERT(i < size_t(idArray->length));
+        return idArray->vector[i];
+    }
+    size_t length() const {
+         return idArray->length;
+    }
+  private:
+    JSContext * const cx;
+    JSIdArray * const idArray;
+    JSTempValueRooter tvr;
+};
+
+/* The auto-root for enumeration object and its state. */
+class JSAutoEnumStateRooter : public JSTempValueRooter
+{
+  public:
+    JSAutoEnumStateRooter(JSContext *cx, JSObject *obj, jsval *statep)
+        : mContext(cx), mStatep(statep)
+    {
+        JS_ASSERT(obj);
+        JS_ASSERT(statep);
+        JS_PUSH_TEMP_ROOT_COMMON(cx, obj, this, JSTVU_ENUMERATOR, object);
+    }
+
+    ~JSAutoEnumStateRooter() {
+        JS_POP_TEMP_ROOT(mContext, this);
+    }
+
+    void mark(JSTracer *trc) {
+        JS_CALL_OBJECT_TRACER(trc, u.object, "enumerator_obj");
+        js_MarkEnumeratorState(trc, u.object, *mStatep);
+    }
+
+  private:
+    JSContext   *mContext;
+    jsval       *mStatep;
 };
 
 class JSAutoResolveFlags
@@ -1675,7 +1787,5 @@ js_RegenerateShapeForGC(JSContext *cx)
     cx->runtime->shapeGen = shape;
     return shape;
 }
-
-JS_END_EXTERN_C
 
 #endif /* jscntxt_h___ */

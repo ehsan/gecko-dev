@@ -161,6 +161,8 @@ NS_NewImageFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsImageFrame(aContext);
 }
 
+NS_IMPL_FRAMEARENA_HELPERS(nsImageFrame)
+
 
 nsImageFrame::nsImageFrame(nsStyleContext* aContext) :
   ImageFrameSuper(aContext),
@@ -777,7 +779,7 @@ nsImageFrame::Reflow(nsPresContext*          aPresContext,
     aMetrics.width = GetPrevInFlow()->GetSize().width;
     nscoord y = GetContinuationOffset();
     aMetrics.height -= y + aReflowState.mComputedBorderPadding.top;
-    aMetrics.height = PR_MAX(0, aMetrics.height);
+    aMetrics.height = NS_MAX(0, aMetrics.height);
   }
 
 
@@ -800,7 +802,7 @@ nsImageFrame::Reflow(nsPresContext*          aPresContext,
       aMetrics.height > aReflowState.availableHeight) { 
     // our desired height was greater than 0, so to avoid infinite
     // splitting, use 1 pixel as the min
-    aMetrics.height = PR_MAX(nsPresContext::CSSPixelsToAppUnits(1), aReflowState.availableHeight);
+    aMetrics.height = NS_MAX(nsPresContext::CSSPixelsToAppUnits(1), aReflowState.availableHeight);
     aStatus = NS_FRAME_NOT_COMPLETE;
   }
 
@@ -1048,7 +1050,8 @@ nsImageFrame::DisplayAltFeedback(nsIRenderingContext& aRenderingContext,
                   inner.XMost() - size : inner.x,
                   inner.y, size, size);
       nsLayoutUtils::DrawSingleImage(&aRenderingContext, imgCon,
-        nsLayoutUtils::GetGraphicsFilterForFrame(this), dest, aDirtyRect);
+        nsLayoutUtils::GetGraphicsFilterForFrame(this), dest, aDirtyRect,
+        imgIContainer::FLAG_NONE);
       iconUsed = PR_TRUE;
     }
 
@@ -1142,12 +1145,16 @@ void
 nsDisplayImage::Paint(nsDisplayListBuilder* aBuilder,
      nsIRenderingContext* aCtx, const nsRect& aDirtyRect) {
   static_cast<nsImageFrame*>(mFrame)->
-    PaintImage(*aCtx, aBuilder->ToReferenceFrame(mFrame), aDirtyRect, mImage);
+    PaintImage(*aCtx, aBuilder->ToReferenceFrame(mFrame), aDirtyRect, mImage,
+               aBuilder->ShouldSyncDecodeImages()
+                 ? (PRUint32) imgIContainer::FLAG_SYNC_DECODE
+                 : (PRUint32) imgIContainer::FLAG_NONE);
 }
 
 void
 nsImageFrame::PaintImage(nsIRenderingContext& aRenderingContext, nsPoint aPt,
-                         const nsRect& aDirtyRect, imgIContainer* aImage)
+                         const nsRect& aDirtyRect, imgIContainer* aImage,
+                         PRUint32 aFlags)
 {
   // Render the image into our content area (the area inside
   // the borders and padding)
@@ -1157,7 +1164,8 @@ nsImageFrame::PaintImage(nsIRenderingContext& aRenderingContext, nsPoint aPt,
   dest.y -= GetContinuationOffset();
 
   nsLayoutUtils::DrawSingleImage(&aRenderingContext, aImage,
-    nsLayoutUtils::GetGraphicsFilterForFrame(this), dest, aDirtyRect);
+    nsLayoutUtils::GetGraphicsFilterForFrame(this), dest, aDirtyRect,
+    aFlags);
 
   nsPresContext* presContext = PresContext();
   nsImageMap* map = GetImageMap(presContext);
@@ -1379,7 +1387,10 @@ nsImageFrame::GetAnchorHREFTargetAndNode(nsIURI** aHref, nsString& aTarget,
        content; content = content->GetParent()) {
     nsCOMPtr<nsILink> link(do_QueryInterface(content));
     if (link) {
-      *aHref = content->GetHrefURI().get();
+      nsCOMPtr<nsIURI> href = content->GetHrefURI();
+      if (href) {
+        href->Clone(aHref);
+      }
       status = (*aHref != nsnull);
 
       nsCOMPtr<nsIDOMHTMLAnchorElement> anchor(do_QueryInterface(content));
@@ -1843,6 +1854,12 @@ nsImageFrame::IconLoad::OnStopRequest(imgIRequest *aRequest,
     frame->Invalidate(frame->GetRect());
   }
 
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsImageFrame::IconLoad::OnDiscard(imgIRequest *aRequest)
+{
   return NS_OK;
 }
 

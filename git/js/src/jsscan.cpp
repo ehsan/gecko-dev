@@ -176,11 +176,20 @@ js_IsIdentifier(JSString *str)
     return JS_TRUE;
 }
 
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable:4351)
+#endif
+
 /* Initialize members that aren't initialized in |init|. */
 JSTokenStream::JSTokenStream(JSContext *cx)
   : tokens(), cursor(), lookahead(), ungetpos(), ungetbuf(), flags(), linelen(),
     linepos(), file(), listenerTSData(), saveEOL(), tokenbuf(cx)
 {}
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
 bool
 JSTokenStream::init(JSContext *cx, const jschar *base, size_t length,
@@ -226,12 +235,13 @@ JSTokenStream::close(JSContext *cx)
         cx->free((void *) filename);
 }
 
-#ifdef XP_WIN
-#ifdef WINCE
-#define getc_unlocked getc
+/* Use the fastest available getc. */
+#if defined(HAVE_GETC_UNLOCKED)
+# define fast_getc getc_unlocked
+#elif defined(HAVE__GETC_NOLOCK)
+# define fast_getc _getc_nolock
 #else
-#define getc_unlocked _getc_nolock
-#endif
+# define fast_getc getc
 #endif
 
 JS_FRIEND_API(int)
@@ -245,7 +255,7 @@ js_fgets(char *buf, int size, FILE *file)
         return -1;
 
     crflag = JS_FALSE;
-    for (i = 0; i < n && (c = getc_unlocked(file)) != EOF; i++) {
+    for (i = 0; i < n && (c = fast_getc(file)) != EOF; i++) {
         buf[i] = c;
         if (c == '\n') {        /* any \n ends a line */
             i++;                /* keep the \n; we know there is room for \0 */
@@ -655,7 +665,7 @@ static JSBool
 GetXMLEntity(JSContext *cx, JSTokenStream *ts)
 {
     ptrdiff_t offset, length, i;
-    int32 c, d;
+    int c, d;
     JSBool ispair;
     jschar *bp, digit;
     char *bytes;
@@ -857,7 +867,7 @@ JSTokenType
 js_GetToken(JSContext *cx, JSTokenStream *ts)
 {
     JSTokenType tt;
-    int32 c, qc;
+    int c, qc;
     JSToken *tp;
     JSAtom *atom;
     JSBool hadUnicodeEscape;

@@ -240,7 +240,8 @@ void nsWindowGfx::OnSettingsChangeGfx(WPARAM wParam)
         oldSize.height * oldSize.width)
       nsWindow::sSharedSurfaceData = nsnull;
 
-    glpDD->RestoreAllSurfaces();
+    if(glpDD)
+      glpDD->RestoreAllSurfaces();
   }
 #endif
 }
@@ -692,7 +693,9 @@ nsresult nsWindowGfx::CreateIcon(imgIContainer *aContainer,
 
   // Get the image data
   nsRefPtr<gfxImageSurface> frame;
-  aContainer->CopyCurrentFrame(getter_AddRefs(frame));
+  aContainer->CopyFrame(imgIContainer::FRAME_CURRENT,
+                        imgIContainer::FLAG_SYNC_DECODE,
+                        getter_AddRefs(frame));
   if (!frame)
     return NS_ERROR_NOT_AVAILABLE;
 

@@ -1037,11 +1037,14 @@
               this._stateListeners = [];
             }
 
-            var x = this._editors.length;
-            this._editors[x] = editableNode.editor;
-            this._stateListeners[x] = this._createStateListener();
-            this._editors[x].addEditActionListener(this);
-            this._editors[x].addDocumentStateListener(this._stateListeners[x]);
+            var existingIndex = this._editors.indexOf(editableNode.editor);
+            if (existingIndex == -1) {
+              var x = this._editors.length;
+              this._editors[x] = editableNode.editor;
+              this._stateListeners[x] = this._createStateListener();
+              this._editors[x].addEditActionListener(this);
+              this._editors[x].addDocumentStateListener(this._stateListeners[x]);
+            }
           }
         ]]></body>
       </method>
@@ -1182,6 +1185,8 @@
             clearTimeout(this._quickFindTimeout);
             this._quickFindTimeout = null;
           }
+
+          this._findFailedString = null;
         ]]></body>
       </method>
 
@@ -1746,8 +1751,7 @@
 
           var res;
           // Ensure the stored SearchString is in sync with what we want to find
-          if (this._findField.value != this._browser.fastFind.searchString &&
-              !this.hidden)
+          if (this._findField.value != this._browser.fastFind.searchString)
             res = this._find(this._findField.value);
           else
             res = this._findAgain(aFindPrevious);

@@ -255,6 +255,9 @@ nsSVGUtils::GetParentElement(nsIContent *aContent)
 float
 nsSVGUtils::GetFontSize(nsIContent *aContent)
 {
+  if (!aContent)
+    return 1.0f;
+
   nsRefPtr<nsStyleContext> styleContext = 
     nsComputedDOMStyle::GetStyleContextForContentNoFlush(aContent, nsnull,
                                                          nsnull);
@@ -289,6 +292,9 @@ nsSVGUtils::GetFontSize(nsStyleContext *aStyleContext)
 float
 nsSVGUtils::GetFontXHeight(nsIContent *aContent)
 {
+  if (!aContent)
+    return 1.0f;
+
   nsRefPtr<nsStyleContext> styleContext = 
     nsComputedDOMStyle::GetStyleContextForContentNoFlush(aContent, nsnull,
                                                          nsnull);
@@ -1210,9 +1216,9 @@ nsSVGUtils::ConvertToSurfaceSize(const gfxSize& aSize, PRBool *aResultOverflows)
 
   if (*aResultOverflows ||
       !gfxASurface::CheckSurfaceSize(surfaceSize)) {
-    surfaceSize.width = PR_MIN(NS_SVG_OFFSCREEN_MAX_DIMENSION,
+    surfaceSize.width = NS_MIN(NS_SVG_OFFSCREEN_MAX_DIMENSION,
                                surfaceSize.width);
-    surfaceSize.height = PR_MIN(NS_SVG_OFFSCREEN_MAX_DIMENSION,
+    surfaceSize.height = NS_MIN(NS_SVG_OFFSCREEN_MAX_DIMENSION,
                                 surfaceSize.height);
     *aResultOverflows = PR_TRUE;
   }

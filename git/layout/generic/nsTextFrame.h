@@ -70,6 +70,8 @@ class PropertyProvider;
 
 class nsTextFrame : public nsFrame {
 public:
+  NS_DECL_FRAMEARENA_HELPERS
+
   friend class nsContinuingTextFrame;
 
   nsTextFrame(nsStyleContext* aContext) : nsFrame(aContext)
@@ -418,7 +420,7 @@ protected:
                       PRUint32 aLength,
                       nsCSSShadowItem* aShadowDetails,
                       PropertyProvider* aProvider,
-                      const gfxRect& aDirtyRect,
+                      const nsRect& aDirtyRect,
                       const gfxPoint& aFramePt,
                       const gfxPoint& aTextBaselinePt,
                       gfxContext* aCtx,

@@ -50,7 +50,6 @@ MOZILLA_INTERNAL_API =1
 
 
 CPPSRCS		= \
-		nsAllocator.cpp \
 		nsVersionComparatorImpl.cpp \
 		nsConsoleMessage.cpp \
 		nsConsoleService.cpp \
@@ -67,12 +66,7 @@ CPPSRCS		= \
 		nsMemoryReporterManager.cpp \
 		$(NULL)
 
-ifdef GC_LEAK_DETECTOR
-CSRCS += nsGarbageCollector.c
-CPPSRCS += nsLeakDetector.cpp
-endif
-
-ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 CPPSRCS		+= nsMacUtilsImpl.cpp
 endif
 
@@ -129,11 +123,7 @@ XPIDLSRCS	= \
 		nsIMemoryReporter.idl \
 		$(NULL)
 
-ifdef GC_LEAK_DETECTOR
-XPIDLSRCS       += nsILeakDetector.idl
-endif
-
-ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 XPIDLSRCS	+= nsIMacUtils.idl
 endif
 

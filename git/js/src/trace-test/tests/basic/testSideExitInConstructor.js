@@ -1,3 +1,5 @@
+// |trace-test| TMFLAGS: full,fragprofile,treevis; valgrind
+
 function testSideExitInConstructor() {
     var FCKConfig = {};
     FCKConfig.CoreStyles =

@@ -73,18 +73,18 @@ namespace nanojit
      * see http://developer.apple.com/documentation/developertools/Conceptual/LowLevelABI/index.html
      * stack layout (higher address going down)
      * sp ->    out linkage area
-     *             out parameter area
-     *            local variables
-     *            saved registers
-     * sp' ->    in linkage area
-     *            in parameter area
+     *          out parameter area
+     *          local variables
+     *          saved registers
+     * sp' ->   in linkage area
+     *          in parameter area
      *
      * linkage area layout:
      * PPC32    PPC64
-     * sp+0        sp+0    saved sp
-     * sp+4        sp+8    saved cr
-     * sp+8        sp+16    saved lr
-     * sp+12       sp+24    reserved
+     * sp+0     sp+0    saved sp
+     * sp+4     sp+8    saved cr
+     * sp+8     sp+16   saved lr
+     * sp+12    sp+24   reserved
      */
 
     const int linkage_size = 6*sizeof(void*);
@@ -97,8 +97,7 @@ namespace nanojit
         // stwu sp, -framesize(sp)
 
         // activation frame is 4 bytes per entry even on 64bit machines
-        uint32_t stackNeeded = max_param_size + linkage_size +
-            _activation.highwatermark * 4;
+        uint32_t stackNeeded = max_param_size + linkage_size + _activation.tos * 4;
         uint32_t aligned = alignUp(stackNeeded, NJ_ALIGN_STACK);
 
         UNLESS_PEDANTIC( if (isS16(aligned)) {
@@ -109,7 +108,7 @@ namespace nanojit
         }
 
         NIns *patchEntry = _nIns;
-        MR(FP,SP);                // save SP to use as a FP
+        MR(FP,SP);              // save SP to use as a FP
         STP(FP, cr_offset, SP); // cheat and save our FP in linkage.cr
         STP(R0, lr_offset, SP); // save LR in linkage.lr
         MFLR(R0);
@@ -118,7 +117,6 @@ namespace nanojit
     }
 
     NIns* Assembler::genEpilogue() {
-        max_param_size = 0;
         BLR();
         MTLR(R0);
         LP(R0, lr_offset, SP);
@@ -144,9 +142,8 @@ namespace nanojit
 
     void Assembler::asm_ld(LIns *ins) {
         LIns* base = ins->oprnd1();
-        LIns* disp = ins->oprnd2();
+        int d = ins->disp();
         Register rr = prepResultReg(ins, GpRegs);
-        int d = disp->constval();
         Register ra = getBaseReg(base, d, GpRegs);
 
         #if !PEDANTIC
@@ -199,7 +196,7 @@ namespace nanojit
         Register rr = prepResultReg(ins, FpRegs);
     #endif
 
-        int dr = ins->oprnd2()->constval();
+        int dr = ins->disp();
         Register ra = getBaseReg(base, dr, GpRegs);
 
     #ifdef NANOJIT_64BIT
@@ -267,7 +264,7 @@ namespace nanojit
     #if !PEDANTIC && !defined NANOJIT_64BIT
         if (value->isop(LIR_quad) && isS16(dr) && isS16(dr+4)) {
             // quad constant and short offset
-            uint64_t q = value->constvalq();
+            uint64_t q = value->imm64();
             STW(R0, dr, ra);   // hi
             asm_li(R0, int32_t(q>>32)); // hi
             STW(R0, dr+4, ra); // lo
@@ -509,7 +506,7 @@ namespace nanojit
 
     #if !PEDANTIC
         if (b->isconst()) {
-            int32_t d = b->constval();
+            int32_t d = b->imm32();
             if (isS16(d)) {
                 if (condop >= LIR_eq && condop <= LIR_ge) {
                     CMPWI(cr, ra, d);
@@ -563,10 +560,8 @@ namespace nanojit
     }
 
     void Assembler::asm_ret(LIns *ins) {
-        UNLESS_PEDANTIC( if (_nIns != _epilogue) ) {
-            br(_epilogue, 0);
-        }
-        assignSavedParams();
+        genEpilogue();
+        assignSavedRegs();
         LIns *value = ins->oprnd1();
         Register r = ins->isop(LIR_ret) ? R3 : F1;
         findSpecificRegFor(value, r);
@@ -580,15 +575,15 @@ namespace nanojit
 
     void Assembler::asm_restore(LIns *i, Reservation *resv, Register r) {
         int d;
-        if (i->isop(LIR_ialloc)) {
+        if (i->isop(LIR_alloc)) {
             d = disp(resv);
             ADDI(r, FP, d);
         }
         else if (i->isconst()) {
             if (!resv->arIndex) {
-                reserveFree(i);
+                i->resv()->clear();
             }
-            asm_li(r, i->constval());
+            asm_li(r, i->imm32());
         }
         else {
             d = findMemFor(i);
@@ -600,10 +595,9 @@ namespace nanojit
             } else {
                 LWZ(r, d, FP);
             }
-            verbose_only(
-                if (_verbose)
-                    outputf("        restore %s",_thisfrag->lirbuf->names->formatRef(i));
-            )
+            verbose_only( if (_logc->lcbits & LC_RegAlloc) {
+                            outputForEOL("  <= restore %s",
+                            _thisfrag->lirbuf->names->formatRef(i)); } )
         }
     }
 
@@ -613,13 +607,7 @@ namespace nanojit
 
     void Assembler::asm_int(LIns *ins) {
         Register rr = prepResultReg(ins, GpRegs);
-        asm_li(rr, ins->constval());
-    }
-
-    void Assembler::asm_short(LIns *ins) {
-        int32_t val = ins->imm16();
-        Register rr = prepResultReg(ins, GpRegs);
-        LI(rr, val);
+        asm_li(rr, ins->imm32());
     }
 
     void Assembler::asm_fneg(LIns *ins) {
@@ -629,8 +617,8 @@ namespace nanojit
     }
 
     void Assembler::asm_param(LIns *ins) {
-        uint32_t a = ins->imm8();
-        uint32_t kind = ins->imm8b();
+        uint32_t a = ins->paramArg();
+        uint32_t kind = ins->paramKind();
         if (kind == 0) {
             // ordinary param
             // first eight args always in R3..R10 for PPC
@@ -656,7 +644,7 @@ namespace nanojit
 
         bool indirect;
         if (!(indirect = call->isIndirect())) {
-            verbose_only(if (_verbose)
+            verbose_only(if (_logc->lcbits & LC_Assembly)
                 outputf("        %p:", _nIns);
             )
             br((NIns*)call->_address, 1);
@@ -727,14 +715,14 @@ namespace nanojit
         #endif
             // arg goes in specific register
             if (p->isconst()) {
-                asm_li(r, p->constval());
+                asm_li(r, p->imm32());
             } else {
                 Reservation* rA = getresv(p);
                 if (rA) {
                     if (rA->reg == UnknownReg) {
                         // load it into the arg reg
                         int d = findMemFor(p);
-                        if (p->isop(LIR_ialloc)) {
+                        if (p->isop(LIR_alloc)) {
                             NanoAssert(isS16(d));
                             ADDI(r, FP, d);
                         } else if (p->isQuad()) {
@@ -806,7 +794,7 @@ namespace nanojit
         Register ra = findRegFor(lhs, GpRegs);
 
         if (rhs->isconst()) {
-            int32_t rhsc = rhs->constval();
+            int32_t rhsc = rhs->imm32();
             if (isS16(rhsc)) {
                 // ppc arith immediate ops sign-exted the imm16 value
                 switch (op) {
@@ -878,10 +866,10 @@ namespace nanojit
                 XOR(rr, ra, rb);
                 break;
             case LIR_sub:  SUBF(rr, rb, ra);    break;
-            case LIR_lsh:  SLW(rr, ra, R0);        ANDI(R0, rb, 31);    break;
-            case LIR_rsh:  SRAW(rr, ra, R0);    ANDI(R0, rb, 31);    break;
-            case LIR_ush:  SRW(rr, ra, R0);        ANDI(R0, rb, 31);    break;
-            case LIR_mul:  MULLW(rr, ra, rb);    break;
+            case LIR_lsh:  SLW(rr, ra, R0);     ANDI(R0, rb, 31);   break;
+            case LIR_rsh:  SRAW(rr, ra, R0);    ANDI(R0, rb, 31);   break;
+            case LIR_ush:  SRW(rr, ra, R0);     ANDI(R0, rb, 31);   break;
+            case LIR_mul:  MULLW(rr, ra, rb);   break;
         #ifdef NANOJIT_64BIT
             case LIR_qilsh:
                 SLD(rr, ra, R0);
@@ -931,8 +919,8 @@ namespace nanojit
 
     #if defined NANOJIT_64BIT && !PEDANTIC
         FCFID(r, r);    // convert to double
-        LFD(r, d, SP);    // load into fpu register
-        STD(v, d, SP);    // save int64
+        LFD(r, d, SP);  // load into fpu register
+        STD(v, d, SP);  // save int64
         EXTSW(v, v);    // extend sign destructively, ok since oprnd1 only is 32bit
     #else
         FSUB(r, r, F0);
@@ -954,8 +942,8 @@ namespace nanojit
 
     #if defined NANOJIT_64BIT && !PEDANTIC
         FCFID(r, r);    // convert to double
-        LFD(r, d, SP);    // load into fpu register
-        STD(v, d, SP);    // save int64
+        LFD(r, d, SP);  // load into fpu register
+        STD(v, d, SP);  // save int64
         CLRLDI(v, v, 32); // zero-extend destructively
     #else
         FSUB(r, r, F0);
@@ -1009,7 +997,7 @@ namespace nanojit
                     int32_t hi, lo;
                 } w;
             };
-            d = ins->constvalf();
+            d = ins->imm64f();
             LFD(r, 12, SP);
             STW(R0, 12, SP);
             asm_li(R0, w.hi);
@@ -1017,7 +1005,7 @@ namespace nanojit
             asm_li(R0, w.lo);
         }
         else {
-            int64_t q = ins->constvalq();
+            int64_t q = ins->imm64();
             if (isS32(q)) {
                 asm_li(r, int32_t(q));
                 return;
@@ -1098,7 +1086,7 @@ namespace nanojit
         #endif
             if (pc - instr - br_size < top) {
                 // really do need a page break
-                verbose_only(if (_verbose) outputf("newpage %p:", pc);)
+                verbose_only(if (_logc->lcbits & LC_Assembly) outputf("newpage %p:", pc);)
                 codeAlloc();
             }
             // now emit the jump, but make sure we won't need another page break.
@@ -1109,7 +1097,7 @@ namespace nanojit
         }
     #else
         if (pc - instr < top) {
-            verbose_only(if (_verbose) outputf("newpage %p:", pc);)
+            verbose_only(if (_logc->lcbits & LC_Assembly) outputf("newpage %p:", pc);)
             codeAlloc();
             // this jump will call underrunProtect again, but since we're on a new
             // page, nothing will happen.
@@ -1120,17 +1108,19 @@ namespace nanojit
 
     void Assembler::asm_cmov(LIns *ins) {
         NanoAssert(ins->isop(LIR_cmov) || ins->isop(LIR_qcmov));
-        LIns* cond = ins->oprnd1();
-        NanoAssert(cond->isCmp());
-        LIns* iftrue = ins->oprnd2();
+        LIns* cond    = ins->oprnd1();
+        LIns* iftrue  = ins->oprnd2();
         LIns* iffalse = ins->oprnd3();
+
+        NanoAssert(cond->isCmp());
         NanoAssert(iftrue->isQuad() == iffalse->isQuad());
+
         // fixme: we could handle fpu registers here, too, since we're just branching
         Register rr = prepResultReg(ins, GpRegs);
         findSpecificRegFor(iftrue, rr);
         Register rf = findRegFor(iffalse, GpRegs & ~rmask(rr));
         NIns *after = _nIns;
-        verbose_only(if (_verbose) outputf("%p:",after);)
+        verbose_only(if (_logc->lcbits & LC_Assembly) outputf("%p:",after);)
         MR(rr, rf);
         asm_branch(false, cond, after);
     }
@@ -1142,9 +1132,9 @@ namespace nanojit
             prefer = rmask(R3);
         else if (op == LIR_fcall)
             prefer = rmask(F1);
-        else if (op == LIR_iparam) {
-            if (i->imm8() < 8) {
-                prefer = rmask(argRegs[i->imm8()]);
+        else if (op == LIR_param) {
+            if (i->paramArg() < 8) {
+                prefer = rmask(argRegs[i->paramArg()]);
             }
         }
         // narrow the allow set to whatever is preferred and also free
@@ -1177,6 +1167,10 @@ namespace nanojit
     }
 
     void Assembler::nInit(AvmCore*) {
+    }
+
+    void Assembler::nBeginAssembly() {
+        max_param_size = 0;
     }
 
     void Assembler::nativePageSetup() {
@@ -1270,7 +1264,6 @@ namespace nanojit
 
     void Assembler::nRegisterResetAll(RegAlloc &regs) {
         regs.clear();
-        regs.used = 0;
         regs.free = SavedRegs | 0x1ff8 /* R3-12 */ | 0x3ffe00000000LL /* F1-13 */;
         debug_only(regs.managed = regs.free);
     }
@@ -1295,19 +1288,9 @@ namespace nanojit
     }
 #endif // NANOJIT_64BIT
 
-    void Assembler::asm_loop(LIns*, NInsList&) {
-        TODO(asm_loop);
-    }
-
     void Assembler::nFragExit(LIns*) {
         TODO(nFragExit);
     }
-
-    NIns* Assembler::asm_adjustBranch(NIns*, NIns*) {
-        TODO(asm_adjustBranch);
-        return 0;
-    }
-
 } // namespace nanojit
 
 #endif // FEATURE_NANOJIT && NANOJIT_PPC

@@ -55,7 +55,6 @@
 #include "nsIPresShell.h"
 #include "nsCSSRendering.h"
 #include "nsIDOMEventTarget.h"
-#include "nsIViewManager.h"
 #include "nsIDOMMouseEvent.h"
 #include "nsIDocument.h"
 #include "nsScrollbarButtonFrame.h"
@@ -90,7 +89,9 @@ nsIFrame*
 NS_NewSliderFrame (nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsSliderFrame(aPresShell, aContext);
-} // NS_NewSliderFrame
+}
+
+NS_IMPL_FRAMEARENA_HELPERS(nsSliderFrame)
 
 nsSliderFrame::nsSliderFrame(nsIPresShell* aPresShell, nsStyleContext* aContext):
   nsBoxFrame(aPresShell, aContext),
@@ -122,7 +123,6 @@ nsSliderFrame::Init(nsIContent*      aContent,
 
   mCurPos = GetCurrentPosition(aContent);
 
-  CreateViewForFrame(PresContext(), this, GetStyleContext(), PR_TRUE);
   return rv;
 }
 
@@ -405,15 +405,15 @@ nsSliderFrame::DoLayout(nsBoxLayoutState& aState)
   PRInt32 maxPos = GetMaxPosition(scrollbar);
   PRInt32 pageIncrement = GetPageIncrement(scrollbar);
 
-  maxPos = PR_MAX(minPos, maxPos);
-  curPos = PR_MAX(minPos, PR_MIN(curPos, maxPos));
+  maxPos = NS_MAX(minPos, maxPos);
+  curPos = NS_MAX(minPos, NS_MIN(curPos, maxPos));
 
   nscoord& availableLength = IsHorizontal() ? clientRect.width : clientRect.height;
   nscoord& thumbLength = IsHorizontal() ? thumbSize.width : thumbSize.height;
 
   if ((pageIncrement + maxPos - minPos) > 0 && thumbBox->GetFlex(aState) > 0) {
     float ratio = float(pageIncrement) / float(maxPos - minPos + pageIncrement);
-    thumbLength = PR_MAX(thumbLength, NSToCoordRound(availableLength * ratio));
+    thumbLength = NS_MAX(thumbLength, NSToCoordRound(availableLength * ratio));
   }
 
   // Round the thumb's length to device pixels.
@@ -687,8 +687,8 @@ nsSliderFrame::CurrentPositionChanged(nsPresContext* aPresContext,
   PRInt32 minPos = GetMinPosition(scrollbar);
   PRInt32 maxPos = GetMaxPosition(scrollbar);
 
-  maxPos = PR_MAX(minPos, maxPos);
-  curPos = PR_MAX(minPos, PR_MIN(curPos, maxPos));
+  maxPos = NS_MAX(minPos, maxPos);
+  curPos = NS_MAX(minPos, NS_MIN(curPos, maxPos));
 
   // get the thumb's rect
   nsIFrame* thumbFrame = mFrames.FirstChild();
@@ -977,42 +977,14 @@ nsSliderFrame::DragThumb(PRBool aGrabMouseEvents)
     }
   }
 
-  // get its view
-  nsIView* view = GetView();
-
-  if (view) {
-    nsIViewManager* viewMan = view->GetViewManager();
-
-    if (viewMan) {
-      PRBool result;
-
-      if (aGrabMouseEvents) {
-        viewMan->GrabMouseEvents(view,result);
-      } else {
-        viewMan->GrabMouseEvents(nsnull,result);
-      }
-    }
-  }
+  nsIPresShell::SetCapturingContent(aGrabMouseEvents ? GetContent() : nsnull,
+                                    aGrabMouseEvents ? CAPTURE_IGNOREALLOWED : 0);
 }
 
 PRBool
 nsSliderFrame::isDraggingThumb()
 {
-  // get its view
-  nsIView* view = GetView();
-
-  if (view) {
-    nsIViewManager* viewMan = view->GetViewManager();
-
-    if (viewMan) {
-        nsIView* grabbingView;
-        viewMan->GetMouseEventGrabber(grabbingView);
-        if (grabbingView == view)
-          return PR_TRUE;
-    }
-  }
-
-  return PR_FALSE;
+  return (nsIPresShell::GetCapturingContent() == GetContent());
 }
 
 void

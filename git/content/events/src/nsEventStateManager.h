@@ -59,7 +59,6 @@ class nsIPresShell;
 class nsIDocShell;
 class nsIDocShellTreeNode;
 class nsIDocShellTreeItem;
-class nsIFocusController;
 class imgIContainer;
 class nsDOMDataTransfer;
 
@@ -79,6 +78,7 @@ class nsEventStateManager : public nsSupportsWeakReference,
                             public nsIEventStateManager,
                             public nsIObserver
 {
+  friend class nsMouseWheelTransaction;
 public:
   nsEventStateManager();
   virtual ~nsEventStateManager();
@@ -271,7 +271,8 @@ protected:
   nsresult DoScrollText(nsPresContext* aPresContext,
                         nsIFrame* aTargetFrame,
                         nsMouseScrollEvent* aMouseEvent,
-                        ScrollQuantity aScrollQuantity);
+                        ScrollQuantity aScrollQuantity,
+                        PRBool aAllowScrollSpeedOverride);
   void DoScrollHistory(PRInt32 direction);
   void DoScrollZoom(nsIFrame *aTargetFrame, PRInt32 adjustment);
   nsresult GetMarkupDocumentViewer(nsIMarkupDocumentViewer** aMv);
@@ -411,15 +412,22 @@ protected:
   static PRInt32 sUserInputEventDepth;
 };
 
-
+/**
+ * This class is used while processing real user input. During this time, popups
+ * are allowed. For mousedown events, mouse capturing is also permitted.
+ */
 class nsAutoHandlingUserInputStatePusher
 {
 public:
-  nsAutoHandlingUserInputStatePusher(PRBool aIsHandlingUserInput)
-    : mIsHandlingUserInput(aIsHandlingUserInput)
+  nsAutoHandlingUserInputStatePusher(PRBool aIsHandlingUserInput, PRBool aIsMouseDown)
+    : mIsHandlingUserInput(aIsHandlingUserInput), mIsMouseDown(aIsMouseDown)
   {
     if (aIsHandlingUserInput) {
       nsEventStateManager::StartHandlingUserInput();
+      if (aIsMouseDown) {
+        nsIPresShell::SetCapturingContent(nsnull, 0);
+        nsIPresShell::AllowMouseCapture(PR_TRUE);
+      }
     }
   }
 
@@ -427,11 +435,15 @@ public:
   {
     if (mIsHandlingUserInput) {
       nsEventStateManager::StopHandlingUserInput();
+      if (mIsMouseDown) {
+        nsIPresShell::AllowMouseCapture(PR_FALSE);
+      }
     }
   }
 
 protected:
   PRBool mIsHandlingUserInput;
+  PRBool mIsMouseDown;
 
 private:
   // Hide so that this class can only be stack-allocated

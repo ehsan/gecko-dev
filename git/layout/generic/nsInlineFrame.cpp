@@ -73,6 +73,8 @@ NS_NewInlineFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsInlineFrame(aContext);
 }
 
+NS_IMPL_FRAMEARENA_HELPERS(nsInlineFrame)
+
 NS_QUERYFRAME_HEAD(nsInlineFrame)
   NS_QUERYFRAME_ENTRY(nsInlineFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsInlineFrameSuper)
@@ -254,7 +256,7 @@ nsInlineFrame::ReparentFloatsForInlineChild(nsIFrame* aOurLineContainer,
   nsBlockFrame* frameBlock = nsLayoutUtils::GetAsBlock(ancestor);
   NS_ASSERTION(frameBlock, "ancestor not a block");
 
-  nsFrameList blockChildren(ancestor->GetFirstChild(nsnull));
+  const nsFrameList& blockChildren(ancestor->GetChildList(nsnull));
   PRBool isOverflow = !blockChildren.ContainsFrame(ancestorBlockChild);
 
   while (PR_TRUE) {
@@ -690,7 +692,7 @@ nsInlineFrame::ReflowInlineFrame(nsPresContext* aPresContext,
       // Break-after
       if (NS_FRAME_IS_NOT_COMPLETE(aStatus)) {
         nsIFrame* newFrame;
-        rv = CreateNextInFlow(aPresContext, this, aFrame, newFrame);
+        rv = CreateNextInFlow(aPresContext, aFrame, newFrame);
         if (NS_FAILED(rv)) {
           return rv;
         }
@@ -725,7 +727,7 @@ nsInlineFrame::ReflowInlineFrame(nsPresContext* aPresContext,
     }
     else {
       nsIFrame* newFrame;
-      rv = CreateNextInFlow(aPresContext, this, aFrame, newFrame);
+      rv = CreateNextInFlow(aPresContext, aFrame, newFrame);
       if (NS_FAILED(rv)) {
         return rv;
       }
@@ -780,20 +782,18 @@ nsInlineFrame::PushFrames(nsPresContext* aPresContext,
                           nsIFrame* aFromChild,
                           nsIFrame* aPrevSibling)
 {
-  NS_PRECONDITION(nsnull != aFromChild, "null pointer");
-  NS_PRECONDITION(nsnull != aPrevSibling, "pushing first child");
+  NS_PRECONDITION(aFromChild, "null pointer");
+  NS_PRECONDITION(aPrevSibling, "pushing first child");
   NS_PRECONDITION(aPrevSibling->GetNextSibling() == aFromChild, "bad prev sibling");
 
 #ifdef NOISY_PUSHING
-      printf("%p pushing aFromChild %p, disconnecting from prev sib %p\n", 
-             this, aFromChild, aPrevSibling);
+  printf("%p pushing aFromChild %p, disconnecting from prev sib %p\n", 
+         this, aFromChild, aPrevSibling);
 #endif
-  // Disconnect aFromChild from its previous sibling
-  aPrevSibling->SetNextSibling(nsnull);
 
   // Add the frames to our overflow list (let our next in flow drain
   // our overflow list when it is ready)
-  SetOverflowFrames(aPresContext, aFromChild);
+  SetOverflowFrames(aPresContext, mFrames.RemoveFramesAfter(aPrevSibling));
 }
 
 
@@ -902,6 +902,8 @@ NS_NewFirstLineFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsFirstLineFrame(aContext);
 }
 
+NS_IMPL_FRAMEARENA_HELPERS(nsFirstLineFrame)
+
 #ifdef DEBUG
 NS_IMETHODIMP
 nsFirstLineFrame::GetFrameName(nsAString& aResult) const
@@ -914,18 +916,6 @@ nsIAtom*
 nsFirstLineFrame::GetType() const
 {
   return nsGkAtoms::lineFrame;
-}
-
-void
-nsFirstLineFrame::StealFramesFrom(nsIFrame* aFrame)
-{
-  nsIFrame* prevFrame = mFrames.GetPrevSiblingFor(aFrame);
-  if (prevFrame) {
-    prevFrame->SetNextSibling(nsnull);
-  }
-  else {
-    mFrames.SetFrames(nsnull);
-  }
 }
 
 nsIFrame*
@@ -1080,6 +1070,8 @@ NS_NewPositionedInlineFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsPositionedInlineFrame(aContext);
 }
 
+NS_IMPL_FRAMEARENA_HELPERS(nsPositionedInlineFrame)
+
 void
 nsPositionedInlineFrame::Destroy()
 {
@@ -1141,7 +1133,8 @@ nsPositionedInlineFrame::RemoveFrame(nsIAtom*        aListName,
   nsresult  rv;
 
   if (nsGkAtoms::absoluteList == aListName) {
-    rv = mAbsoluteContainer.RemoveFrame(this, aListName, aOldFrame);
+    mAbsoluteContainer.RemoveFrame(this, aListName, aOldFrame);
+    rv = NS_OK;
   } else {
     rv = nsInlineFrame::RemoveFrame(aListName, aOldFrame);
   }

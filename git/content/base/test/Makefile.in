@@ -277,6 +277,7 @@ _TEST_FILES = 	test_bug5141.html \
 		file_xhtmlserializer_2_enthtml.xhtml \
 		file_xhtmlserializer_2_entw3c.xhtml \
 		file_xhtmlserializer_2_latin1.xhtml \
+		test_bug500937.html \
 		test_htmlcopyencoder.html \
 		test_htmlcopyencoder.xhtml \
 		test_bug270145.xhtml \
@@ -313,6 +314,10 @@ _TEST_FILES = 	test_bug5141.html \
 		test_bug489925.xhtml \
 		test_bug514487.html \
 		$(NULL)
+
+# Disabled; see bug 396392: fails on MacOSX, Windows.
+#		test_range_bounds.html \
+
 # Disabled; see bug 492181
 #		test_plugin_freezing.html
 

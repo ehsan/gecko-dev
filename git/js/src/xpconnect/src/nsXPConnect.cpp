@@ -1063,11 +1063,6 @@ nsXPConnect::InitClasses(JSContext * aJSContext, JSObject * aGlobalJSObj)
     if(!nsXPCComponents::AttachNewComponentsObject(ccx, scope, aGlobalJSObj))
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
-#ifdef XPC_IDISPATCH_SUPPORT
-    // Initialize any properties IDispatch needs on the global object
-    XPCIDispatchExtension::Initialize(ccx, aGlobalJSObj);
-#endif
-
     if (!XPCNativeWrapper::AttachNewConstructorObject(ccx, aGlobalJSObj))
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
@@ -2470,7 +2465,7 @@ nsXPConnect::GetWrapperForObject(JSContext* aJSContext,
     //   - We're not about to force a XOW (e.g. for "window") OR
     //   - We're not actually going to create a XOW (we're wrapping for
     //     chrome).
-    if(STOBJ_IS_SYSTEM(aObject) ||
+    if(aObject->isSystem() ||
        (sameScope &&
         (!forceXOW || (aFilenameFlags & JSFILENAME_SYSTEM))))
         return NS_OK;

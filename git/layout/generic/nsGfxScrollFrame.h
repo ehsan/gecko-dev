@@ -251,6 +251,7 @@ public:
   friend nsIFrame* NS_NewHTMLScrollFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRBool aIsRoot);
 
   NS_DECL_QUERYFRAME
+  NS_DECL_FRAMEARENA_HELPERS
 
   // Called to set the child frames. We typically have three: the scroll area,
   // the vertical scrollbar, and the horizontal scrollbar.
@@ -307,10 +308,6 @@ public:
 
   virtual nsIFrame* GetContentInsertionFrame() {
     return mInner.GetScrolledFrame()->GetContentInsertionFrame();
-  }
-
-  virtual nsIView* GetMouseCapturer() const {
-    return mInner.GetScrolledFrame()->GetView();
   }
 
   virtual void InvalidateInternal(const nsRect& aDamageRect,
@@ -387,6 +384,30 @@ public:
   NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
 
+  /**
+   * Helper functions and class to dispatch events related to changes in the
+   * scroll frame's scrolled content area.
+   */
+
+  void PostScrolledAreaEvent(nsRect &aScrolledArea);
+  void FireScrolledAreaEvent(nsRect &aScrolledArea);
+
+  class ScrolledAreaEventDispatcher : public nsRunnable {
+  public:
+    NS_DECL_NSIRUNNABLE
+
+    ScrolledAreaEventDispatcher(nsHTMLScrollFrame *aScrollFrame)
+      : mScrollFrame(aScrollFrame),
+        mScrolledArea(0, 0, 0, 0)
+    {
+    }
+
+    void Revoke() { mScrollFrame = nsnull; }
+
+    nsHTMLScrollFrame *mScrollFrame;
+    nsRect mScrolledArea;
+  };
+
 protected:
   nsHTMLScrollFrame(nsIPresShell* aShell, nsStyleContext* aContext, PRBool aIsRoot);
   virtual PRIntn GetSkipSides() const;
@@ -419,6 +440,8 @@ protected:
 private:
   friend class nsGfxScrollFrameInner;
   nsGfxScrollFrameInner mInner;
+
+  nsRevocableEventPtr<ScrolledAreaEventDispatcher> mScrolledAreaEventDispatcher;
 };
 
 /**
@@ -436,6 +459,7 @@ class nsXULScrollFrame : public nsBoxFrame,
                          public nsIStatefulFrame {
 public:
   NS_DECL_QUERYFRAME
+  NS_DECL_FRAMEARENA_HELPERS
 
   friend nsIFrame* NS_NewXULScrollFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRBool aIsRoot);
 
@@ -474,10 +498,6 @@ public:
 
   virtual nsIFrame* GetContentInsertionFrame() {
     return mInner.GetScrolledFrame()->GetContentInsertionFrame();
-  }
-
-  virtual nsIView* GetMouseCapturer() const {
-    return mInner.GetScrolledFrame()->GetView();
   }
 
   virtual void InvalidateInternal(const nsRect& aDamageRect,
