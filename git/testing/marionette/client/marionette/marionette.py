@@ -452,7 +452,7 @@ class Marionette(object):
                  emulatorImg=None, emulator_res=None, gecko_path=None,
                  connectToRunningEmulator=False, homedir=None, baseurl=None,
                  noWindow=False, logcat_dir=None, busybox=None, symbols_path=None,
-                 timeout=None, device_serial=None, gecko_log=None):
+                 timeout=None, device_serial=None):
         self.host = host
         self.port = self.local_port = port
         self.bin = bin
@@ -494,8 +494,7 @@ class Marionette(object):
                     instance_class = geckoinstance.GeckoInstance
             self.instance = instance_class(host=self.host, port=self.port,
                                            bin=self.bin, profile=self.profile,
-                                           app_args=app_args, symbols_path=symbols_path,
-                                           gecko_log=gecko_log)
+                                           app_args=app_args, symbols_path=symbols_path)
             self.instance.start()
             assert(self.wait_for_port()), "Timed out waiting for port!"
 

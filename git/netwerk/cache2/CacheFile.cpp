@@ -187,16 +187,6 @@ CacheFile::CacheFile()
   , mOutput(nullptr)
 {
   LOG(("CacheFile::CacheFile() [this=%p]", this));
-
-  // Some consumers (at least nsHTTPCompressConv) assume that Read() can read
-  // such amount of data that was announced by Available().
-  // CacheFileInputStream::Available() uses also preloaded chunks to compute
-  // number of available bytes in the input stream, so we have to make sure the
-  // preloadChunkCount won't change during CacheFile's lifetime since otherwise
-  // we could potentially release some cached chunks that was used to calculate
-  // available bytes but would not be available later during call to
-  // CacheFileInputStream::Read().
-  mPreloadChunkCount = CacheObserver::PreloadChunkCount();
 }
 
 CacheFile::~CacheFile()
@@ -361,7 +351,7 @@ CacheFile::OnChunkWritten(nsresult aResult, CacheFileChunk *aChunk)
 
   bool keepChunk = false;
   if (NS_SUCCEEDED(aResult)) {
-    keepChunk = ShouldCacheChunk(aChunk->Index());
+    keepChunk = ShouldKeepChunk(aChunk->Index());
     LOG(("CacheFile::OnChunkWritten() - %s unused chunk [this=%p, chunk=%p]",
          keepChunk ? "Caching" : "Releasing", this, aChunk));
   } else {
@@ -732,19 +722,11 @@ CacheFile::SetMemoryOnly()
 nsresult
 CacheFile::Doom(CacheFileListener *aCallback)
 {
-  LOG(("CacheFile::Doom() [this=%p, listener=%p]", this, aCallback));
-
   CacheFileAutoLock lock(this);
 
-  return DoomLocked(aCallback);
-}
-
-nsresult
-CacheFile::DoomLocked(CacheFileListener *aCallback)
-{
   MOZ_ASSERT(mHandle || mMemoryOnly || mOpeningFile);
 
-  LOG(("CacheFile::DoomLocked() [this=%p, listener=%p]", this, aCallback));
+  LOG(("CacheFile::Doom() [this=%p, listener=%p]", this, aCallback));
 
   nsresult rv = NS_OK;
 
@@ -796,9 +778,7 @@ CacheFile::ThrowMemoryCachedData()
     return NS_ERROR_ABORT;
   }
 
-  // We cannot release all cached chunks since we need to keep preloaded chunks
-  // in memory. See initialization of mPreloadChunkCount for explanation.
-  mCachedChunks.Enumerate(&CacheFile::CleanUpCachedChunks, this);
+  mCachedChunks.Clear();
 
   return NS_OK;
 }
@@ -1198,7 +1178,7 @@ CacheFile::PreloadChunks(uint32_t aIndex)
 {
   AssertOwnsLock();
 
-  uint32_t limit = aIndex + mPreloadChunkCount;
+  uint32_t limit = aIndex + CacheObserver::PreloadChunkCount();
 
   for (uint32_t i = aIndex; i < limit; ++i) {
     int64_t off = i * kChunkSize;
@@ -1225,7 +1205,7 @@ CacheFile::PreloadChunks(uint32_t aIndex)
 }
 
 bool
-CacheFile::ShouldCacheChunk(uint32_t aIndex)
+CacheFile::ShouldKeepChunk(uint32_t aIndex)
 {
   AssertOwnsLock();
 
@@ -1233,37 +1213,22 @@ CacheFile::ShouldCacheChunk(uint32_t aIndex)
   // We cache all chunks.
   return true;
 #else
-
-  if (mPreloadChunkCount != 0 && mInputs.Length() == 0 &&
-      mPreloadWithoutInputStreams && aIndex < mPreloadChunkCount) {
-    // We don't have any input stream yet, but it is likely that some will be
-    // opened soon. Keep first mPreloadChunkCount chunks in memory. The
-    // condition is here instead of in MustKeepCachedChunk() since these
-    // chunks should be preloaded and can be kept in memory as an optimization,
-    // but they can be released at any time until they are considered as
-    // preloaded chunks for any input stream.
-    return true;
-  }
-
-  // Cache only chunks that we really need to keep.
-  return MustKeepCachedChunk(aIndex);
-#endif
-}
-
-bool
-CacheFile::MustKeepCachedChunk(uint32_t aIndex)
-{
-  AssertOwnsLock();
-
-  // We must keep the chunk when this is memory only entry or we don't have
-  // a handle yet.
+  // Cache chunk when this is memory only entry or we don't have a handle yet.
   if (mMemoryOnly || mOpeningFile) {
     return true;
   }
 
-  if (mPreloadChunkCount == 0) {
+  uint32_t preloadChunkCount = CacheObserver::PreloadChunkCount();
+
+  if (preloadChunkCount == 0) {
     // Preloading of chunks is disabled
     return false;
+  }
+
+  if (mPreloadWithoutInputStreams && aIndex < preloadChunkCount) {
+    // We don't have any input stream yet, but it is likely that some will be
+    // opened soon. Keep first preloadChunkCount chunks in memory.
+    return true;
   }
 
   // Check whether this chunk should be considered as preloaded chunk for any
@@ -1273,12 +1238,12 @@ CacheFile::MustKeepCachedChunk(uint32_t aIndex)
   int64_t maxPos = static_cast<int64_t>(aIndex + 1) * kChunkSize - 1;
 
   // minPos is the position of the first byte in a chunk that precedes the given
-  // chunk by mPreloadChunkCount chunks
+  // chunk by PreloadChunkCount chunks
   int64_t minPos;
-  if (mPreloadChunkCount >= aIndex) {
+  if (preloadChunkCount >= aIndex) {
     minPos = 0;
   } else {
-    minPos = static_cast<int64_t>(aIndex - mPreloadChunkCount) * kChunkSize;
+    minPos = static_cast<int64_t>(aIndex - preloadChunkCount) * kChunkSize;
   }
 
   for (uint32_t i = 0; i < mInputs.Length(); ++i) {
@@ -1289,6 +1254,7 @@ CacheFile::MustKeepCachedChunk(uint32_t aIndex)
   }
 
   return false;
+#endif
 }
 
 nsresult
@@ -1369,7 +1335,7 @@ CacheFile::RemoveChunk(CacheFileChunk *aChunk)
       }
     }
 
-    bool keepChunk = ShouldCacheChunk(aChunk->Index());
+    bool keepChunk = ShouldKeepChunk(aChunk->Index());
     LOG(("CacheFile::RemoveChunk() - %s unused chunk [this=%p, chunk=%p]",
          keepChunk ? "Caching" : "Releasing", this, chunk.get()));
 
@@ -1404,23 +1370,12 @@ CacheFile::BytesFromChunk(uint32_t aIndex)
   if (!mDataSize)
     return 0;
 
-  // Index of the last existing chunk.
   uint32_t lastChunk = (mDataSize - 1) / kChunkSize;
   if (aIndex > lastChunk)
     return 0;
 
-  // We can use only preloaded chunks for the given stream to calculate
-  // available bytes if this is an entry stored on disk, since only those
-  // chunks are guaranteed not to be released.
-  uint32_t maxPreloadedChunk;
-  if (mMemoryOnly) {
-    maxPreloadedChunk = lastChunk;
-  } else {
-    maxPreloadedChunk = std::min(aIndex + mPreloadChunkCount, lastChunk);
-  }
-
   uint32_t i;
-  for (i = aIndex; i <= maxPreloadedChunk; ++i) {
+  for (i = aIndex; i <= lastChunk; ++i) {
     CacheFileChunk * chunk;
 
     chunk = mChunks.GetWeak(i);
@@ -1469,7 +1424,7 @@ CacheFile::RemoveInput(CacheFileInputStream *aInput)
 
   // If the input didn't read all data, there might be left some preloaded
   // chunks that won't be used anymore.
-  mCachedChunks.Enumerate(&CacheFile::CleanUpCachedChunks, this);
+  mCachedChunks.Enumerate(&CacheFile::CleanUpPreloadedChunks, this);
 
   return NS_OK;
 }
@@ -1791,21 +1746,21 @@ CacheFile::FailUpdateListeners(
 }
 
 PLDHashOperator
-CacheFile::CleanUpCachedChunks(const uint32_t& aIdx,
-                               nsRefPtr<CacheFileChunk>& aChunk,
-                               void* aClosure)
+CacheFile::CleanUpPreloadedChunks(const uint32_t& aIdx,
+                                  nsRefPtr<CacheFileChunk>& aChunk,
+                                  void* aClosure)
 {
   CacheFile *file = static_cast<CacheFile*>(aClosure);
 
-  LOG(("CacheFile::CleanUpCachedChunks() [this=%p, idx=%u, chunk=%p]", file,
+  LOG(("CacheFile::CleanUpPreloadedChunks() [this=%p, idx=%u, chunk=%p]", file,
        aIdx, aChunk.get()));
 
-  if (file->MustKeepCachedChunk(aIdx)) {
-    LOG(("CacheFile::CleanUpCachedChunks() - Keeping chunk"));
+  if (file->ShouldKeepChunk(aIdx)) {
+    LOG(("CacheFile::CleanUpPreloadedChunks() - Keeping chunk"));
     return PL_DHASH_NEXT;
   }
 
-  LOG(("CacheFile::CleanUpCachedChunks() - Removing chunk"));
+  LOG(("CacheFile::CleanUpPreloadedChunks() - Removing chunk"));
   return PL_DHASH_REMOVE;
 }
 

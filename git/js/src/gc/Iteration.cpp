@@ -22,10 +22,9 @@ js::TraceRuntime(JSTracer *trc)
 {
     JS_ASSERT(!IS_GC_MARKING_TRACER(trc));
 
-    JSRuntime *rt = trc->runtime();
-    MinorGC(rt, JS::gcreason::EVICT_NURSERY);
-    AutoPrepareForTracing prep(rt, WithAtoms);
-    rt->gc.markRuntime(trc);
+    MinorGC(trc->runtime(), JS::gcreason::EVICT_NURSERY);
+    AutoPrepareForTracing prep(trc->runtime(), WithAtoms);
+    MarkRuntime(trc);
 }
 
 static void

@@ -639,11 +639,9 @@ ContentSecurityPolicy.prototype = {
     }
     var violationMessage = null;
     if (blockedUri["asciiSpec"]) {
-      let localizeString = policy._reportOnlyMode ? "CSPROViolationWithURI" : "CSPViolationWithURI";
-      violationMessage = CSPLocalizer.getFormatStr(localizeString, [violatedDirective, blockedUri.asciiSpec]);
+      violationMessage = CSPLocalizer.getFormatStr("CSPViolationWithURI", [violatedDirective, blockedUri.asciiSpec]);
     } else {
-      let localizeString = policy._reportOnlyMode ? "CSPROViolation" : "CSPViolation";
-      violationMessage = CSPLocalizer.getFormatStr(localizeString, [violatedDirective]);
+      violationMessage = CSPLocalizer.getFormatStr("CSPViolation", [violatedDirective]);
     }
     policy.log(WARN_FLAG, violationMessage,
                (aSourceFile) ? aSourceFile : null,

@@ -9107,17 +9107,14 @@ nsDocument::CloneDocHelper(nsDocument* clone) const
       docLoader->GetLoadGroup(getter_AddRefs(loadGroup));
     }
     nsCOMPtr<nsIChannel> channel = GetChannel();
-    nsCOMPtr<nsIURI> uri;
-    if (channel) {
-      NS_GetFinalChannelURI(channel, getter_AddRefs(uri));
+    if (channel && loadGroup) {
+      clone->Reset(channel, loadGroup);
     } else {
-      uri = nsIDocument::GetDocumentURI();
+      nsIURI* uri = static_cast<const nsIDocument*>(this)->GetDocumentURI();
+      if (uri) {
+        clone->ResetToURI(uri, loadGroup, NodePrincipal());
+      }
     }
-    clone->mChannel = channel;
-    if (uri) {
-      clone->ResetToURI(uri, loadGroup, NodePrincipal());
-    }
-
     clone->SetContainer(mDocumentContainer);
   }
 

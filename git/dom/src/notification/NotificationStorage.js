@@ -47,24 +47,19 @@ NotificationStorage.prototype = {
       tag: tag,
       icon: icon,
       alertName: alertName,
-      timestamp: new Date().getTime(),
-      origin: origin
+      timestamp: new Date().getTime()
     };
 
     this._notifications[id] = notification;
     if (tag) {
-      if (!this._byTag[origin]) {
-        this._byTag[origin] = {};
-      }
-
       // We might have existing notification with this tag,
       // if so we need to remove it from our cache.
-      if (this._byTag[origin][tag]) {
-        var oldNotification = this._byTag[origin][tag];
+      if (this._byTag[tag]) {
+        var oldNotification = this._byTag[tag];
         delete this._notifications[oldNotification.id];
       }
 
-      this._byTag[origin][tag] = notification;
+      this._byTag[tag] = notification;
     };
 
     cpmm.sendAsyncMessage("Notification:Save", {
@@ -74,9 +69,9 @@ NotificationStorage.prototype = {
   },
 
   get: function(origin, tag, callback) {
-    if (DEBUG) { debug("GET: " + origin + " " + tag); }
+    if (DEBUG) { debug("GET: " + tag); }
     if (this._cached) {
-      this._fetchFromCache(origin, tag, callback);
+      this._fetchFromCache(tag, callback);
     } else {
       this._fetchFromDB(origin, tag, callback);
     }
@@ -87,7 +82,7 @@ NotificationStorage.prototype = {
     var notification = this._notifications[id];
     if (notification) {
       if (notification.tag) {
-        delete this._byTag[origin][notification.tag];
+        delete this._byTag[notification.tag];
       }
       delete this._notifications[id];
     }
@@ -104,7 +99,7 @@ NotificationStorage.prototype = {
         var request = this._requests[message.data.requestID];
         delete this._requests[message.data.requestID];
         this._populateCache(message.data.notifications);
-        this._fetchFromCache(request.origin, request.tag, request.callback);
+        this._fetchFromCache(request.tag, request.callback);
         break;
 
       default:
@@ -127,18 +122,16 @@ NotificationStorage.prototype = {
     });
   },
 
-  _fetchFromCache: function(origin, tag, callback) {
+  _fetchFromCache: function(tag, callback) {
     var notifications = [];
     // If a tag was specified and we have a notification
     // with this tag, return that. If no tag was specified
     // simple return all stored notifications.
-    if (tag && this._byTag[origin] && this._byTag[origin][tag]) {
-      notifications.push(this._byTag[origin][tag]);
+    if (tag && this._byTag[tag]) {
+      notifications.push(this._byTag[tag]);
     } else if (!tag) {
       for (var id in this._notifications) {
-        if (this._notifications[id].origin === origin) {
-          notifications.push(this._notifications[id]);
-        }
+        notifications.push(this._notifications[id]);
       }
     }
 
@@ -166,13 +159,8 @@ NotificationStorage.prototype = {
   _populateCache: function(notifications) {
     notifications.forEach(function(notification) {
       this._notifications[notification.id] = notification;
-      if (notification.tag && notification.origin) {
-        let tag = notification.tag;
-        let origin = notification.origin;
-        if (!this._byTag[origin]) {
-          this._byTag[origin] = {};
-        }
-        this._byTag[origin][tag] = notification;
+      if (notification.tag) {
+        this._byTag[notification.tag] = notification;
       }
     }.bind(this));
     this._cached = true;

@@ -19,6 +19,12 @@ namespace gc {
 void
 MarkPersistentRootedChains(JSTracer *trc);
 
+void
+MarkRuntime(JSTracer *trc, bool useSavedRoots = false);
+
+void
+BufferGrayRoots(GCMarker *gcmarker);
+
 class AutoCopyFreeListToArenas
 {
     JSRuntime *runtime;
@@ -91,10 +97,24 @@ IncrementalSafety
 IsIncrementalGCSafe(JSRuntime *rt);
 
 #ifdef JS_GC_ZEAL
+void
+StartVerifyPreBarriers(JSRuntime *rt);
+
+void
+EndVerifyPreBarriers(JSRuntime *rt);
+
+void
+StartVerifyPostBarriers(JSRuntime *rt);
+
+void
+EndVerifyPostBarriers(JSRuntime *rt);
+
+void
+FinishVerifier(JSRuntime *rt);
 
 class AutoStopVerifyingBarriers
 {
-    GCRuntime *gc;
+    JSRuntime *runtime;
     bool restartPreVerifier;
     bool restartPostVerifier;
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
@@ -102,19 +122,22 @@ class AutoStopVerifyingBarriers
   public:
     AutoStopVerifyingBarriers(JSRuntime *rt, bool isShutdown
                               MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : gc(&rt->gc)
+      : runtime(rt)
     {
-        restartPreVerifier = gc->endVerifyPreBarriers() && !isShutdown;
-        restartPostVerifier = gc->endVerifyPostBarriers() && !isShutdown &&
-            JS::IsGenerationalGCEnabled(rt);
+        restartPreVerifier = !isShutdown && rt->gc.verifyPreData;
+        restartPostVerifier = !isShutdown && rt->gc.verifyPostData && JS::IsGenerationalGCEnabled(rt);
+        if (rt->gc.verifyPreData)
+            EndVerifyPreBarriers(rt);
+        if (rt->gc.verifyPostData)
+            EndVerifyPostBarriers(rt);
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
     ~AutoStopVerifyingBarriers() {
         if (restartPreVerifier)
-            gc->startVerifyPreBarriers();
+            StartVerifyPreBarriers(runtime);
         if (restartPostVerifier)
-            gc->startVerifyPostBarriers();
+            StartVerifyPostBarriers(runtime);
     }
 };
 #else

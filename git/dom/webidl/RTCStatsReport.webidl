@@ -131,6 +131,7 @@ callback RTCStatsReportCallback = void (RTCStatsReport obj);
 
 dictionary RTCStatsReportInternal {
   DOMString                           pcid = "";
+  sequence<RTCRTPStreamStats>         rtpStreamStats;
   sequence<RTCInboundRTPStreamStats>  inboundRTPStreamStats;
   sequence<RTCOutboundRTPStreamStats> outboundRTPStreamStats;
   sequence<RTCMediaStreamTrackStats>  mediaStreamTrackStats;
