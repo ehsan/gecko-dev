@@ -449,11 +449,6 @@ XRE_API(const char*,
 XRE_API(GeckoProcessType,
         XRE_StringToChildProcessType, (const char* aProcessTypeString))
 
-#if defined(MOZ_CRASHREPORTER)
-XRE_API(PRBool,
-        XRE_SetRemoteExceptionHandler, (const char* aPipe))
-#endif
-
 XRE_API(nsresult,
         XRE_InitChildProcess, (int aArgc,
                                char* aArgv[],

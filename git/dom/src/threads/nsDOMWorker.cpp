@@ -521,9 +521,8 @@ NS_IMPL_ISUPPORTS_INHERITED3(nsDOMWorkerScope, nsDOMWorkerMessageHandler,
                                                nsIWorkerGlobalScope,
                                                nsIXPCScriptable)
 
-NS_IMPL_CI_INTERFACE_GETTER5(nsDOMWorkerScope, nsIWorkerScope,
+NS_IMPL_CI_INTERFACE_GETTER4(nsDOMWorkerScope, nsIWorkerScope,
                                                nsIWorkerGlobalScope,
-                                               nsIDOMNSEventTarget,
                                                nsIDOMEventTarget,
                                                nsIXPCScriptable)
 
@@ -838,7 +837,14 @@ nsDOMWorkerScope::AddEventListener(const nsAString& aType,
                                    nsIDOMEventListener* aListener,
                                    PRBool aUseCapture)
 {
-  return AddEventListener(aType, aListener, aUseCapture, PR_FALSE, 0);
+  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
+
+  if (mWorker->IsCanceled()) {
+    return NS_ERROR_ABORT;
+  }
+
+  return nsDOMWorkerMessageHandler::AddEventListener(aType, aListener,
+                                                     aUseCapture);
 }
 
 NS_IMETHODIMP
@@ -867,25 +873,6 @@ nsDOMWorkerScope::DispatchEvent(nsIDOMEvent* aEvent,
   }
 
   return nsDOMWorkerMessageHandler::DispatchEvent(aEvent, _retval);
-}
-
-NS_IMETHODIMP
-nsDOMWorkerScope::AddEventListener(const nsAString& aType,
-                                   nsIDOMEventListener* aListener,
-                                   PRBool aUseCapture,
-                                   PRBool aWantsUntrusted,
-                                   PRUint8 optional_argc)
-{
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
-
-  if (mWorker->IsCanceled()) {
-    return NS_ERROR_ABORT;
-  }
-
-  return nsDOMWorkerMessageHandler::AddEventListener(aType, aListener,
-                                                     aUseCapture,
-                                                     aWantsUntrusted,
-                                                     optional_argc);
 }
 
 class nsWorkerHoldingRunnable : public nsIRunnable
@@ -1016,9 +1003,8 @@ public:
 NS_IMPL_QUERY_INTERFACE1(nsDOMWorkerClassInfo, nsIClassInfo)
 
 // Keep this list in sync with the list in nsDOMClassInfo.cpp!
-NS_IMPL_CI_INTERFACE_GETTER4(nsDOMWorkerClassInfo, nsIWorker,
+NS_IMPL_CI_INTERFACE_GETTER3(nsDOMWorkerClassInfo, nsIWorker,
                                                    nsIAbstractWorker,
-                                                   nsIDOMNSEventTarget,
                                                    nsIDOMEventTarget)
 
 NS_IMPL_THREADSAFE_DOM_CI(nsDOMWorkerClassInfo)
@@ -1095,8 +1081,6 @@ NS_INTERFACE_MAP_BEGIN(nsDOMWorker)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIWorker)
   NS_INTERFACE_MAP_ENTRY(nsIWorker)
   NS_INTERFACE_MAP_ENTRY(nsIAbstractWorker)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsIDOMNSEventTarget,
-                                   nsDOMWorkerMessageHandler)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsIDOMEventTarget, nsDOMWorkerMessageHandler)
   NS_INTERFACE_MAP_ENTRY(nsIXPCScriptable)
   NS_INTERFACE_MAP_ENTRY(nsIJSNativeInitializer)
@@ -1918,7 +1902,13 @@ nsDOMWorker::AddEventListener(const nsAString& aType,
                               nsIDOMEventListener* aListener,
                               PRBool aUseCapture)
 {
-  return AddEventListener(aType, aListener, aUseCapture, PR_FALSE, 0);
+  NS_ASSERTION(mWrappedNative, "Called after Finalize!");
+  if (IsCanceled()) {
+    return NS_OK;
+  }
+
+  return nsDOMWorkerMessageHandler::AddEventListener(aType, aListener,
+                                                     aUseCapture);
 }
 
 NS_IMETHODIMP
@@ -1943,24 +1933,6 @@ nsDOMWorker::DispatchEvent(nsIDOMEvent* aEvent,
   }
 
   return nsDOMWorkerMessageHandler::DispatchEvent(aEvent, _retval);
-}
-
-NS_IMETHODIMP
-nsDOMWorker::AddEventListener(const nsAString& aType,
-                              nsIDOMEventListener* aListener,
-                              PRBool aUseCapture,
-                              PRBool aWantsUntrusted,
-                              PRUint8 optional_argc)
-{
-  NS_ASSERTION(mWrappedNative, "Called after Finalize!");
-  if (IsCanceled()) {
-    return NS_OK;
-  }
-
-  return nsDOMWorkerMessageHandler::AddEventListener(aType, aListener,
-                                                     aUseCapture,
-                                                     aWantsUntrusted,
-                                                     optional_argc);
 }
 
 /**

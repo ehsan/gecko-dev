@@ -218,23 +218,6 @@ GDIFontEntry::ReadCMAP()
     return rv;
 }
 
-gfxFont *
-GDIFontEntry::CreateFontInstance(const gfxFontStyle* aFontStyle, PRBool /*aNeedsBold*/)
-{
-    gfxFont *newFont;
-    newFont = new gfxWindowsFont(this, aFontStyle);
-    if (!newFont) {
-        return nsnull;
-    }
-    if (!newFont->Valid()) {
-        delete newFont;
-        return nsnull;
-    }
-    nsRefPtr<gfxFont> font = newFont;
-    gfxFontCache::GetCache()->AddNew(font);
-    return newFont;
-}
-
 nsresult
 GDIFontEntry::GetFontTable(PRUint32 aTableTag, nsTArray<PRUint8>& aBuffer)
 {
@@ -433,7 +416,7 @@ GDIFontFamily::FamilyAddStylesProc(const ENUMLOGFONTEXW *lpelfe,
         if (fe->mWeight == logFont.lfWeight &&
             fe->mItalic == (logFont.lfItalic == 0xFF)) {
             // update the charset bit here since this could be different
-            fe->mCharset.set(metrics.tmCharSet);
+            fe->mCharset[metrics.tmCharSet] = 1;
             return 1; 
         }
     }
@@ -447,7 +430,7 @@ GDIFontFamily::FamilyAddStylesProc(const ENUMLOGFONTEXW *lpelfe,
     fe->SetFamily(ff);
 
     // mark the charset bit
-    fe->mCharset.set(metrics.tmCharSet);
+    fe->mCharset[metrics.tmCharSet] = 1;
 
     fe->mWindowsFamily = logFont.lfPitchAndFamily & 0xF0;
     fe->mWindowsPitch = logFont.lfPitchAndFamily & 0x0F;
@@ -462,7 +445,7 @@ GDIFontFamily::FamilyAddStylesProc(const ENUMLOGFONTEXW *lpelfe,
         for (PRUint32 i = 0; i < 4; ++i) {
             DWORD range = nmetrics->ntmFontSig.fsUsb[i];
             for (PRUint32 k = 0; k < 32; ++k) {
-                fe->mUnicodeRanges.set(x++, (range & (1 << k)) != 0);
+                fe->mUnicodeRanges[x++] = (range & (1 << k)) != 0;
             }
         }
     }
@@ -640,8 +623,7 @@ gfxGDIFontList::EnumFontFamExProc(ENUMLOGFONTEXW *lpelfe,
     gfxGDIFontList *fontList = PlatformFontList();
 
     if (!fontList->mFontFamilies.GetWeak(name)) {
-        nsDependentString faceName(lf.lfFaceName);
-        nsRefPtr<gfxFontFamily> family = new GDIFontFamily(faceName);
+        nsRefPtr<gfxFontFamily> family = new GDIFontFamily(nsDependentString(lf.lfFaceName));
         fontList->mFontFamilies.Put(name, family);
     }
 

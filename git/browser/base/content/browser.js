@@ -2719,7 +2719,6 @@ var browserDragAndDrop = {
     if (types.contains("application/x-moz-file") ||
         types.contains("text/x-moz-url") ||
         types.contains("text/uri-list") ||
-        types.contains("text/x-moz-text-internal") ||
         types.contains("text/plain")) {
       aEvent.preventDefault();
 

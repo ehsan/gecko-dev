@@ -61,7 +61,6 @@ class gfxUserFontSet;
 class gfxFontEntry;
 class gfxProxyFontEntry;
 class gfxPlatformFontList;
-class gfxTextRun;
 class nsIURI;
 
 // pref lang id's for font prefs
@@ -151,8 +150,6 @@ public:
      * Font bits
      */
 
-    virtual void SetupClusterBoundaries(gfxTextRun *aTextRun, const PRUnichar *aString);
-
     /**
      * Fill aListOfFonts with the results of querying the list of font names
      * that correspond to the given language group or generic font family
@@ -234,9 +231,6 @@ public:
 
     void GetPrefFonts(const char *aLangGroup, nsString& array, PRBool aAppendUnicode = PR_TRUE);
 
-    // in some situations, need to make decisions about ambiguous characters, may need to look at multiple pref langs
-    void GetLangPrefs(eFontPrefLang aPrefLangs[], PRUint32 &aLen, eFontPrefLang aCharLang, eFontPrefLang aPageLang);
-    
     /**
      * Iterate over pref fonts given a list of lang groups.  For a single lang
      * group, multiple pref fonts are possible.  If error occurs, returns PR_FALSE,
@@ -254,9 +248,6 @@ public:
     // convert a enum constant to lang group string (i.e. eFontPrefLang_ChineseTW ==> "zh-TW")
     static const char* GetPrefLangName(eFontPrefLang aLang);
    
-    // map a Unicode range (based on char code) to a font language for Preferences
-    static eFontPrefLang GetFontPrefLangFor(PRUint8 aUnicodeRange);
-
     // returns true if a pref lang is CJK
     static PRBool IsLangCJK(eFontPrefLang aLang);
     
@@ -327,9 +318,6 @@ protected:
     gfxPlatform() { }
     virtual ~gfxPlatform();
 
-    void AppendCJKPrefLangs(eFontPrefLang aPrefLangs[], PRUint32 &aLen, 
-                            eFontPrefLang aCharLang, eFontPrefLang aPageLang);
-                                               
     /**
      * Initialize any needed display metrics (such as DPI)
      */
@@ -338,8 +326,6 @@ protected:
 
 private:
     virtual qcms_profile* GetPlatformCMSOutputProfile();
-
-    nsTArray<PRUint32> mCJKPrefLangs;
 
     nsCOMPtr<nsIObserver> overrideObserver;
 };
